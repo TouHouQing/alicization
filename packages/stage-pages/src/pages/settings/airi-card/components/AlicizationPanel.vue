@@ -5,6 +5,10 @@ import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/charac
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import SoulForgePersonaForm from './SoulForgePersonaForm.vue'
+
+import { createDefaultSoulForgeDraft, extractPersonaNotesFromSoulContent } from './soul-forge'
+
 interface Props {
   section?: 'all' | 'runtime' | 'persona'
   showTitle?: boolean
@@ -30,24 +34,8 @@ const memoryPruneLoading = ref(false)
 const killSwitchLoading = ref(false)
 const personaSaving = ref(false)
 const supported = computed(() => isStageTamagotchi())
-
-const soulPersonaNotesStart = '<!-- ALICE_PERSONA_NOTES_START -->'
-const soulPersonaNotesEnd = '<!-- ALICE_PERSONA_NOTES_END -->'
-
-const personaDraft = ref({
-  ownerName: '',
-  hostName: '',
-  aliceName: 'A.L.I.C.E.',
-  gender: 'neutral' as 'female' | 'male' | 'non-binary' | 'neutral' | 'custom',
-  genderCustom: '',
-  relationship: '数字共生体',
-  mindAge: 15,
-  obedience: 0.5,
-  liveliness: 0.5,
-  sensibility: 0.5,
-  customDirectives: '',
-  personaNotes: '',
-})
+const personaDraft = ref(createDefaultSoulForgeDraft())
+const personaMemoryEcho = ref('')
 
 function formatDateTime(value?: number | null) {
   if (!value)
@@ -55,27 +43,12 @@ function formatDateTime(value?: number | null) {
   return new Date(value).toLocaleString()
 }
 
-function getSoulBodyFromContent(content: string) {
-  if (!content.startsWith('---\n'))
-    return content.trim()
-  const secondMarkerIndex = content.indexOf('\n---\n', 4)
-  if (secondMarkerIndex < 0)
-    return content.trim()
-  return content.slice(secondMarkerIndex + 5).trim()
-}
-
-function getPersonaNotesFromContent(content: string) {
-  const body = getSoulBodyFromContent(content)
-  const startIndex = body.indexOf(soulPersonaNotesStart)
-  const endIndex = body.indexOf(soulPersonaNotesEnd)
-  if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex)
-    return ''
-  return body.slice(startIndex + soulPersonaNotesStart.length, endIndex).trim()
-}
-
 watch(aliceSoul, (next) => {
-  if (!next)
+  if (!next) {
+    personaDraft.value = createDefaultSoulForgeDraft()
+    personaMemoryEcho.value = ''
     return
+  }
 
   personaDraft.value = {
     ownerName: next.frontmatter.profile.ownerName,
@@ -89,8 +62,8 @@ watch(aliceSoul, (next) => {
     liveliness: next.frontmatter.personality.liveliness,
     sensibility: next.frontmatter.personality.sensibility,
     customDirectives: next.frontmatter.custom_directives ?? '',
-    personaNotes: getPersonaNotesFromContent(next.content),
   }
+  personaMemoryEcho.value = extractPersonaNotesFromSoulContent(next.content)
 }, { immediate: true })
 
 const memoryActiveRatio = computed(() => {
@@ -179,7 +152,6 @@ async function savePersona() {
       gender: personaDraft.value.gender,
       genderCustom: personaDraft.value.genderCustom,
       relationship: personaDraft.value.relationship,
-      personaNotes: personaDraft.value.personaNotes,
       customDirectives: personaDraft.value.customDirectives,
       mindAge: personaDraft.value.mindAge,
       allowOverwrite: true,
@@ -313,98 +285,15 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="showPersonaSection" class="border border-neutral-200 rounded-xl p-4 dark:border-neutral-700">
-      <div class="mb-2 text-sm font-semibold">
-        人格设定
-      </div>
-
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label class="text-xs">
-          <div class="mb-1">宿主姓名</div>
-          <input v-model="personaDraft.ownerName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">你对宿主称呼</div>
-          <input v-model="personaDraft.hostName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">宿主对你称呼</div>
-          <input v-model="personaDraft.aliceName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">性别</div>
-          <select v-model="personaDraft.gender" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-            <option value="female">
-              女性
-            </option>
-            <option value="male">
-              男性
-            </option>
-            <option value="non-binary">
-              非二元
-            </option>
-            <option value="neutral">
-              中性
-            </option>
-            <option value="custom">
-              自定义
-            </option>
-          </select>
-        </label>
-        <label v-if="personaDraft.gender === 'custom'" class="text-xs md:col-span-2">
-          <div class="mb-1">自定义性别描述</div>
-          <input v-model="personaDraft.genderCustom" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs md:col-span-2">
-          <div class="mb-1">关系定位</div>
-          <input v-model="personaDraft.relationship" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">心智年龄</div>
-          <input v-model.number="personaDraft.mindAge" type="number" min="1" max="120" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">服从度 (0-1)</div>
-          <input v-model.number="personaDraft.obedience" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">活泼度 (0-1)</div>
-          <input v-model.number="personaDraft.liveliness" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-        <label class="text-xs">
-          <div class="mb-1">感性度 (0-1)</div>
-          <input v-model.number="personaDraft.sensibility" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-        </label>
-      </div>
-
-      <label class="mt-3 block text-xs">
-        <div class="mb-1">人格补充描述（自由文）</div>
-        <textarea
-          v-model="personaDraft.personaNotes"
-          class="h-32 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
-          placeholder="描述她的语气、偏好和互动习惯。"
-        />
-      </label>
-
-      <label class="mt-3 block text-xs">
-        <div class="mb-1">底层行为逻辑（custom_directives）</div>
-        <textarea
-          v-model="personaDraft.customDirectives"
-          class="h-36 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
-          placeholder="定义该角色的底层行为逻辑。该指令会作为高优先级人格内核注入 Chat / 主动搭话 / Dreaming。"
-        />
-      </label>
-
-      <div v-if="showPersonaSaveButton" class="mt-3 flex justify-end">
-        <button
-          class="border border-neutral-300 rounded-lg px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed dark:border-neutral-600 disabled:opacity-60"
-          :disabled="personaSaving"
-          @click="savePersona()"
-        >
-          {{ personaSaving ? '保存中...' : '保存人格到 SOUL' }}
-        </button>
-      </div>
-    </div>
+    <SoulForgePersonaForm
+      v-if="showPersonaSection"
+      v-model:draft="personaDraft"
+      :memory-echo="personaMemoryEcho"
+      :show-memory-echo="true"
+      :show-save-button="showPersonaSaveButton"
+      :saving="personaSaving"
+      @save="savePersona()"
+    />
   </div>
   <div v-else class="border border-neutral-200 rounded-lg p-4 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
     Alicization 面板仅在桌面端可用。

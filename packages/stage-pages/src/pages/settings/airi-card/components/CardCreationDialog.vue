@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { Card } from '@proj-airi/ccc'
-import type { AliceGender } from '@proj-airi/stage-ui/stores/alice-bridge'
 import type { AiriExtension } from '@proj-airi/stage-ui/stores/modules/airi-card'
+
+import type { SoulForgeDraft } from './soul-forge'
 
 import kebabcase from '@stdlib/string-base-kebabcase'
 
+import { errorMessageFrom } from '@moeru/std'
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
 import { useAliceEpoch1Store } from '@proj-airi/stage-ui/stores/alice-epoch1'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
@@ -25,25 +27,13 @@ import { computed, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import AlicizationPanel from './AlicizationPanel.vue'
+import SoulForgePersonaForm from './SoulForgePersonaForm.vue'
+
+import { createDefaultSoulForgeDraft } from './soul-forge'
 
 interface Props {
   modelValue: boolean
   cardId?: string
-}
-
-interface PersonaDraft {
-  ownerName: string
-  hostName: string
-  aliceName: string
-  gender: AliceGender
-  genderCustom: string
-  relationship: string
-  mindAge: number
-  obedience: number
-  liveliness: number
-  sensibility: number
-  customDirectives: string
-  personaNotes: string
 }
 
 interface AlicizationPanelExposed {
@@ -217,24 +207,11 @@ const errorMessage = ref('')
 const creating = ref(false)
 const editPersonaPanelRef = ref<AlicizationPanelExposed | null>(null)
 
-function createDefaultPersonaDraft(seed?: Card): PersonaDraft {
-  return {
-    ownerName: '主人',
-    hostName: '主人',
-    aliceName: seed?.name?.trim() || 'A.L.I.C.E.',
-    gender: 'neutral',
-    genderCustom: '',
-    relationship: '数字共生体',
-    mindAge: 15,
-    obedience: 0.5,
-    liveliness: 0.5,
-    sensibility: 0.5,
-    customDirectives: '',
-    personaNotes: '',
-  }
+function createDefaultPersonaDraft(seed?: Card) {
+  return createDefaultSoulForgeDraft(seed?.name)
 }
 
-const createPersonaDraft = ref<PersonaDraft>(createDefaultPersonaDraft())
+const createPersonaDraft = ref<SoulForgeDraft>(createDefaultPersonaDraft())
 
 function initializeCard(): Card {
   const existingCard = (isEditMode.value && dialogCardId.value) ? cardStore.getCard(dialogCardId.value) : undefined
@@ -364,7 +341,6 @@ async function initializeGenesisForNewCard(newCardId: string) {
       gender: createPersonaDraft.value.gender,
       genderCustom: createPersonaDraft.value.genderCustom.trim(),
       relationship: createPersonaDraft.value.relationship.trim(),
-      personaNotes: createPersonaDraft.value.personaNotes.trim(),
       customDirectives: createPersonaDraft.value.customDirectives.trim(),
       mindAge: createPersonaDraft.value.mindAge,
       allowOverwrite: true,
@@ -477,7 +453,7 @@ async function saveCard(nextCard: Card) {
   catch (error) {
     if (!errorMessage.value) {
       showError.value = true
-      errorMessage.value = error instanceof Error ? error.message : String(error)
+      errorMessage.value = errorMessageFrom(error) ?? 'Failed to save Alicization card.'
     }
   }
   finally {
@@ -628,88 +604,7 @@ async function saveCard(nextCard: Card) {
           </div>
 
           <div v-else-if="activeTab === 'alicization-persona'" class="tab-content ml-auto mr-auto w-95%">
-            <div class="border border-neutral-200 rounded-xl p-4 dark:border-neutral-700">
-              <div class="mb-2 text-sm font-semibold">
-                人格设定
-              </div>
-
-              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label class="text-xs">
-                  <div class="mb-1">宿主姓名</div>
-                  <input v-model="createPersonaDraft.ownerName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">你对宿主称呼</div>
-                  <input v-model="createPersonaDraft.hostName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">宿主对你称呼</div>
-                  <input v-model="createPersonaDraft.aliceName" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">性别</div>
-                  <select v-model="createPersonaDraft.gender" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                    <option value="female">
-                      女性
-                    </option>
-                    <option value="male">
-                      男性
-                    </option>
-                    <option value="non-binary">
-                      非二元
-                    </option>
-                    <option value="neutral">
-                      中性
-                    </option>
-                    <option value="custom">
-                      自定义
-                    </option>
-                  </select>
-                </label>
-                <label v-if="createPersonaDraft.gender === 'custom'" class="text-xs md:col-span-2">
-                  <div class="mb-1">自定义性别描述</div>
-                  <input v-model="createPersonaDraft.genderCustom" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs md:col-span-2">
-                  <div class="mb-1">关系定位</div>
-                  <input v-model="createPersonaDraft.relationship" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">心智年龄</div>
-                  <input v-model.number="createPersonaDraft.mindAge" type="number" min="1" max="120" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">服从度 (0-1)</div>
-                  <input v-model.number="createPersonaDraft.obedience" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">活泼度 (0-1)</div>
-                  <input v-model.number="createPersonaDraft.liveliness" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-                <label class="text-xs">
-                  <div class="mb-1">感性度 (0-1)</div>
-                  <input v-model.number="createPersonaDraft.sensibility" type="number" step="0.01" min="0" max="1" class="w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900">
-                </label>
-              </div>
-
-              <label class="mt-3 block text-xs">
-                <div class="mb-1">人格补充描述（自由文）</div>
-                <textarea
-                  v-model="createPersonaDraft.personaNotes"
-                  class="h-32 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
-                  placeholder="描述她的语气、偏好和互动习惯。"
-                />
-              </label>
-
-              <label class="mt-3 block text-xs">
-                <div class="mb-1">底层行为逻辑（custom_directives）</div>
-                <textarea
-                  v-model="createPersonaDraft.customDirectives"
-                  class="h-36 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
-                  placeholder="定义该角色的底层行为逻辑。该指令会作为高优先级人格内核注入 Chat / 主动搭话 / Dreaming。"
-                />
-              </label>
-            </div>
+            <SoulForgePersonaForm v-model:draft="createPersonaDraft" />
           </div>
 
           <div class="ml-auto mr-1 flex flex-row gap-2">
