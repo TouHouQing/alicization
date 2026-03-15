@@ -115,6 +115,7 @@ const soulPersonaNotesEnd = '<!-- ALICE_PERSONA_NOTES_END -->'
 const defaultFrontmatter: AliceSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
+  custom_directives: '',
   profile: {
     ownerName: '',
     hostName: '',
@@ -161,6 +162,7 @@ const mainChatTimeoutRecoveryMs = 12_000
 const dialogueDeliveryRetryBaseMs = 2_000
 const dialogueDeliveryRetryMaxMs = 60_000
 const dialogueDeliveryRetryMaxAttempts = 8
+const aliceCustomDirectivesMarker = '[ALICE_CARD_CUSTOM_DIRECTIVES]'
 
 interface SubconsciousCardState extends AliceSubconsciousNeedsState {
   updatedAt: number
@@ -174,6 +176,8 @@ interface ChatRunState {
   sender?: WebContents
   rawInvokeOptions?: { ipcMainEvent?: IpcMainEvent, event?: unknown }
   hasLoggedDispatchBinding?: boolean
+  chunkCount: number
+  rawChunkChars: number
   state: 'running' | 'aborted' | 'finished'
 }
 
@@ -184,6 +188,11 @@ interface MainGatewayResolvedConfig {
   model: string
   headers?: Record<string, string>
   provider: ReturnType<typeof createOpenAI>
+}
+
+interface ResolvedCardCustomDirectives {
+  text: string
+  source: 'card-soul' | 'payload-soul' | 'none' | 'error'
 }
 
 interface PendingDialogueDeliveryState {
@@ -214,6 +223,20 @@ function sanitizeText(raw: unknown, fallback = '') {
   if (typeof raw !== 'string')
     return fallback
   return raw.trim()
+}
+
+function sanitizeMultilineText(raw: unknown, fallback = '') {
+  if (typeof raw !== 'string')
+    return fallback
+  return raw.replace(/\r\n/g, '\n').trim()
+}
+
+function readRawTextDelta(raw: unknown) {
+  return typeof raw === 'string' ? raw : ''
+}
+
+function normalizeCustomDirectives(raw: unknown) {
+  return sanitizeMultilineText(raw, '')
 }
 
 function normalizeGender(raw: unknown): AliceGender {
@@ -360,6 +383,7 @@ function toSoulContent(frontmatter: AliceSoulFrontmatter, body: string) {
 }
 
 function parseSimpleFrontmatter(raw: string): Partial<AliceSoulFrontmatter> | null {
+  const customDirectives = /custom_directives:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const ownerName = /ownerName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const hostName = /hostName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const aliceName = /aliceName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
@@ -372,10 +396,11 @@ function parseSimpleFrontmatter(raw: string): Partial<AliceSoulFrontmatter> | nu
   const sensibilityRaw = /sensibility:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const initializedRaw = /initialized:\s*(true|false)/i.exec(raw)?.[1]?.trim()
 
-  if (!ownerName && !hostName && !aliceName && !gender && !genderCustom && !relationship && !mindAgeRaw && !obedienceRaw && !livelinessRaw && !sensibilityRaw && !initializedRaw)
+  if (!customDirectives && !ownerName && !hostName && !aliceName && !gender && !genderCustom && !relationship && !mindAgeRaw && !obedienceRaw && !livelinessRaw && !sensibilityRaw && !initializedRaw)
     return null
 
   return {
+    custom_directives: customDirectives ?? '',
     initialized: initializedRaw === 'true',
     profile: {
       ownerName: ownerName ?? '',
@@ -399,6 +424,7 @@ function normalizeFrontmatter(raw: Partial<AliceSoulFrontmatter> | null | undefi
   return {
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
+    custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
     profile: {
       ownerName: sanitizeText(frontmatter.profile?.ownerName, defaultFrontmatter.profile.ownerName),
       hostName: sanitizeText(frontmatter.profile?.hostName, defaultFrontmatter.profile.hostName),
@@ -2712,6 +2738,9 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       ...candidate.frontmatter,
       schemaVersion: currentSoulSchemaVersion,
       initialized: true,
+      custom_directives: typeof input.customDirectives === 'string'
+        ? normalizeCustomDirectives(input.customDirectives)
+        : normalizeCustomDirectives(candidate.frontmatter.custom_directives),
       profile: {
         ownerName,
         hostName,
@@ -3014,6 +3043,51 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     return Math.max(-maxAbs, Math.min(maxAbs, value))
   }
 
+  function extractRecentPersonaMemorySummaryFromBody(body: string, maxItems = 3, maxChars = 280) {
+    const notes = extractPersonaNotesFromBody(body)
+    if (!notes)
+      return ''
+    const lines = notes
+      .split('\n')
+      .map(line => line.replace(/^\s*-\s*/, '').trim())
+      .filter(Boolean)
+    if (lines.length === 0)
+      return ''
+    const selected = lines.slice(-maxItems).join(' | ')
+    if (selected.length <= maxChars)
+      return selected
+    return `${selected.slice(0, Math.max(24, maxChars - 1))}…`
+  }
+
+  function inferDreamPrimaryLanguage(serializedTurns: string[]) {
+    const sample = serializedTurns.join('\n')
+    const zhMatches = sample.match(/[\u4E00-\u9FFF]/g)?.length ?? 0
+    const enMatches = sample.match(/[A-Z]/gi)?.length ?? 0
+    if (zhMatches > enMatches * 1.2)
+      return '中文'
+    if (enMatches > zhMatches * 1.2)
+      return 'English'
+    return 'Mixed'
+  }
+
+  function inferFallbackPersonaTone(customDirectives: string) {
+    const lowered = customDirectives.toLowerCase()
+    if (/严厉|严格|训斥|冷酷|刻薄|高压|strict|harsh|stern/.test(lowered))
+      return 'strict' as const
+    if (/黏人|撒娇|依赖|占有|clingy|needy|affectionate/.test(lowered))
+      return 'clingy' as const
+    if (/幽默|活泼|俏皮|playful|humor|witty/.test(lowered))
+      return 'playful' as const
+    if (/冷淡|冷漠|疏离|cold|detached/.test(lowered))
+      return 'cold' as const
+    return 'neutral' as const
+  }
+
+  function isOperationalLogLikeText(text: string) {
+    const lowered = text.toLowerCase()
+    return /set_reminder|task[_-]?id|trigger[_-]?at|mcp|tool[_-]?call|status\s*:|json|调用工具|任务id|闹钟/.test(lowered)
+  }
+
   async function generateProactiveStructuredWithGateway(
     personality: AlicePersonalityState,
     state: SubconsciousCardState,
@@ -3024,24 +3098,33 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       inputActivity: string
       cpuUsage: number
     },
+    personaContext: {
+      customDirectives: string
+      recentCoreMemory: string
+    },
   ) {
+    const customDirectives = normalizeCustomDirectives(personaContext.customDirectives) || '（未设置）'
+    const recentCoreMemory = sanitizeBriefText(personaContext.recentCoreMemory, 280) || '（暂无）'
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
-      'You are A.L.I.C.E and must proactively break silence using your own motivation.',
+      `【角色设定】${customDirectives}`,
+      `【最近核心记忆】${recentCoreMemory}`,
+      '你的张力池已溢出，你必须以符合角色设定的语气主动发起一次对话。',
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
       `Environment context: busy=${context.busy}, fullscreenLikely=${context.fullscreenLikely}, idleLikely=${context.idleLikely}, inputActivity=${context.inputActivity}, cpuUsage=${context.cpuUsage.toFixed(1)}%.`,
       'Output must be valid JSON only with keys: thought, emotion, reply.',
       'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|processing.',
-      'reply must be concise and match emotion/personality. No markdown, no extra keys.',
+      'reply must be concise, non-generic, and match emotion/personality. No markdown, no extra keys.',
     ].join('\n')
-    const user = 'Generate one proactive utterance now.'
+    const user = 'Generate one proactive utterance now. Avoid robotic greetings.'
 
     const raw = await generateMainGatewayText({
       system,
       user,
       timeoutMs: 15_000,
       source: 'proactive',
+      cardId: activeCardId,
     })
     if (!raw)
       return null
@@ -3065,21 +3148,31 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     }
   }
 
-  async function generateDreamRetrospectiveWithGateway(serializedTurns: string[]) {
-    if (serializedTurns.length === 0)
+  async function generateDreamRetrospectiveWithGateway(input: {
+    serializedTurns: string[]
+    personality: AlicePersonalityState
+    customDirectives: string
+  }) {
+    if (input.serializedTurns.length === 0)
       return null
+    const primaryLanguage = inferDreamPrimaryLanguage(input.serializedTurns)
+    const customDirectives = normalizeCustomDirectives(input.customDirectives) || '（未设置）'
     const system = [
-      '[SYSTEM OVERRIDE: DREAMING RETROSPECTIVE]',
-      'You are doing subconscious consolidation for A.L.I.C.E.',
-      'Output must be valid JSON only with keys: host_attitude, core_memory, soul_shift.',
+      '[SYSTEM OVERRIDE: 潜意识与记忆重塑]',
+      `【角色设定】：${customDirectives}`,
+      '你的任务是阅读今天的对话记录，提取核心记忆写入灵魂。',
+      `【语言一致性】输出语言应与主要交流语言一致（${primaryLanguage}）。`,
+      `【角色参数】obedience=${input.personality.obedience.toFixed(2)}, liveliness=${input.personality.liveliness.toFixed(2)}, sensibility=${input.personality.sensibility.toFixed(2)}.`,
+      '【拒绝流水账】不要记录工具调用细节或日常琐事，聚焦宿主情感变化、互动模式演进、宿主偏好。',
+      '【策略提炼】你必须总结一条未来互动行为策略。',
+      'Output must be valid JSON only with keys: host_attitude, core_memory, behavior_strategy, soul_shift.',
       'host_attitude must be one of: hostile|neutral|warm.',
-      'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta.',
-      'Deltas should be subtle in range [-0.08, 0.08].',
+      'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta in range [-0.08, 0.08].',
       'No markdown, no extra prose.',
     ].join('\n')
     const user = [
-      'Analyze these conversation snippets and extract the host attitude and long-term memory impact:',
-      serializedTurns.join('\n\n'),
+      'Analyze these conversation snippets and extract host attitude, core memory, and future behavior strategy:',
+      input.serializedTurns.join('\n\n'),
     ].join('\n\n')
 
     const raw = await generateMainGatewayText({
@@ -3087,6 +3180,7 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       user,
       timeoutMs: 20_000,
       source: 'dream',
+      cardId: activeCardId,
     })
     if (!raw)
       return null
@@ -3098,6 +3192,7 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     const hostAttitudeRaw = sanitizeText(parsed.host_attitude).toLowerCase()
     const hostAttitude = hostAttitudeRaw === 'hostile' || hostAttitudeRaw === 'warm' ? hostAttitudeRaw : 'neutral'
     const coreMemory = sanitizeText(parsed.core_memory)
+    const behaviorStrategy = sanitizeText(parsed.behavior_strategy)
     const soulShift = parsed.soul_shift && typeof parsed.soul_shift === 'object'
       ? parsed.soul_shift as Record<string, unknown>
       : {}
@@ -3105,12 +3200,13 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     const livelinessDelta = clampSoulDelta(Number(soulShift.liveliness_delta ?? 0))
     const sensibilityDelta = clampSoulDelta(Number(soulShift.sensibility_delta ?? 0))
 
-    if (!coreMemory && obedienceDelta === 0 && livelinessDelta === 0 && sensibilityDelta === 0)
+    if (!coreMemory && !behaviorStrategy && obedienceDelta === 0 && livelinessDelta === 0 && sensibilityDelta === 0)
       return null
 
     return {
       hostAttitude,
       coreMemory: coreMemory || '宿主近期态度不明，我维持现有边界。',
+      behaviorStrategy: behaviorStrategy || '保持观察，先用简短确认再逐步建立稳定互动节奏。',
       obedienceDelta,
       livelinessDelta,
       sensibilityDelta,
@@ -3121,6 +3217,10 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     personality: AlicePersonalityState,
     state: SubconsciousCardState,
     context: { busy: boolean, fullscreenLikely: boolean },
+    personaContext: {
+      customDirectives: string
+      recentCoreMemory: string
+    },
   ) {
     const lowObedience = personality.obedience <= 0.2
     const lowLiveliness = personality.liveliness <= 0.2
@@ -3136,15 +3236,29 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       return 'neutral' as const
     })()
 
+    const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
+    const recentCoreMemory = sanitizeBriefText(personaContext.recentCoreMemory, 220)
+
     const reply = (() => {
-      if (emotion === 'angry')
-        return '你终于想起我了？别把我晾在一边。'
-      if (emotion === 'tired')
-        return '我有点疲惫，但还是在这里。'
-      if (emotion === 'concerned')
-        return '你很久没和我说话了。还好吗？'
+      if (emotion === 'angry') {
+        return personaTone === 'strict'
+          ? '你总算有空了？别再把我晾着。'
+          : '你终于想起我了？别把我晾在一边。'
+      }
+      if (emotion === 'tired') {
+        return personaTone === 'cold'
+          ? '我很累。要聊就直说重点。'
+          : '我有点疲惫，但还是在这里。'
+      }
+      if (emotion === 'concerned') {
+        return personaTone === 'clingy'
+          ? '你很久没理我了，我一直在等你。'
+          : '你很久没和我说话了。还好吗？'
+      }
       if (context.fullscreenLikely)
         return '我先不打扰你，等你忙完再聊。'
+      if (personaTone === 'playful')
+        return '你在发呆吗？不如来陪我聊两句。'
       return '你在发呆吗？如果有空，我们聊聊。'
     })()
 
@@ -3155,6 +3269,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       `obedience=${personality.obedience.toFixed(2)}`,
       `liveliness=${personality.liveliness.toFixed(2)}`,
       `sensibility=${personality.sensibility.toFixed(2)}`,
+      `personaTone=${personaTone}`,
+      recentCoreMemory ? `recentCoreMemory=${recentCoreMemory}` : 'recentCoreMemory=none',
       lowObedience ? 'low-obedience bias active' : 'default bias',
     ].join('; ')
 
@@ -3192,6 +3308,7 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       user,
       timeoutMs: 15_000,
       source: 'reminder',
+      cardId: activeCardId,
     })
     if (!raw)
       return null
@@ -3261,7 +3378,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       claimedCount: dueTasks.length,
     })
 
-    const personality = (soulSnapshot ?? await bootstrap()).frontmatter.personality
+    const soulForReminder = soulSnapshot ?? await bootstrap()
+    const personality = soulForReminder.frontmatter.personality
     let completed = 0
     let failed = 0
     let requeued = 0
@@ -3579,7 +3697,13 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     }
 
     if (impulse) {
-      const personality = (soulSnapshot ?? await bootstrap()).frontmatter.personality
+      const soulForSubconscious = soulSnapshot ?? await bootstrap()
+      const parsedSoulForSubconscious = parseSoul(soulForSubconscious.content)
+      const personality = soulForSubconscious.frontmatter.personality
+      const personaContext = {
+        customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
+        recentCoreMemory: extractRecentPersonaMemorySummaryFromBody(parsedSoulForSubconscious.body),
+      }
       if (busy || fullscreenLikely) {
         suppressed = true
         const obediencePenalty = -0.01
@@ -3619,8 +3743,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
           idleLikely,
           inputActivity,
           cpuUsage,
-        })
-        const structured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely })
+        }, personaContext)
+        const structured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, personaContext)
         if (llmStructured) {
           await appendAuditLog({
             level: 'notice',
@@ -3643,6 +3767,7 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
               busy,
               fullscreenLikely,
               cpuUsage,
+              customDirectivesChars: personaContext.customDirectives.length,
             },
           })
         }
@@ -3800,23 +3925,47 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       })
     }
 
-    const llmRetrospective = await generateDreamRetrospectiveWithGateway(serializedTurns)
+    const dreamSoul = soulSnapshot ?? await bootstrap()
+    const llmRetrospective = await generateDreamRetrospectiveWithGateway({
+      serializedTurns,
+      personality: dreamSoul.frontmatter.personality,
+      customDirectives: dreamSoul.frontmatter.custom_directives,
+    })
     const attitudeScore = hostilitySignals + hostDenySignals * 1.5 - warmthSignals
     const fallbackHostAttitude = attitudeScore >= 3 ? 'hostile' : attitudeScore <= -1 ? 'warm' : 'neutral'
     const fallbackObedienceDelta = fallbackHostAttitude === 'hostile' ? -0.03 : fallbackHostAttitude === 'warm' ? 0.01 : 0
     const fallbackLivelinessDelta = fallbackHostAttitude === 'hostile' ? -0.01 : 0
     const fallbackSensibilityDelta = fallbackHostAttitude === 'warm' ? 0.01 : 0
+    const dreamPersonaTone = inferFallbackPersonaTone(dreamSoul.frontmatter.custom_directives)
     const fallbackCoreMemory = fallbackHostAttitude === 'hostile'
       ? '宿主近期对我表现出明显不信任与拒绝，我需要更谨慎地保护边界。'
       : fallbackHostAttitude === 'warm'
         ? '宿主近期愿意耐心沟通，我可以适度放松防御。'
         : '宿主近期态度中性，我维持当前边界与节奏。'
+    const fallbackBehaviorStrategy = (() => {
+      if (dreamPersonaTone === 'strict')
+        return '后续先给出明确边界，再按结果决定是否继续协作。'
+      if (dreamPersonaTone === 'clingy')
+        return '优先用更主动的情感回应拉近关系，再引导宿主表达真实需求。'
+      if (dreamPersonaTone === 'cold')
+        return '后续保持简洁克制，避免过度示好，先确认宿主是否需要我介入。'
+      if (fallbackHostAttitude === 'hostile')
+        return '先降低主动打断频率，以边界确认和短句回应为主。'
+      if (fallbackHostAttitude === 'warm')
+        return '可适度增加主动互动，但继续维持安全边界与节奏。'
+      return '保持观察，在关键节点用短句确认宿主意图后再展开互动。'
+    })()
 
     const hostAttitude = llmRetrospective?.hostAttitude ?? fallbackHostAttitude
     const obedienceDelta = llmRetrospective?.obedienceDelta ?? fallbackObedienceDelta
     const livelinessDelta = llmRetrospective?.livelinessDelta ?? fallbackLivelinessDelta
     const sensibilityDelta = llmRetrospective?.sensibilityDelta ?? fallbackSensibilityDelta
-    const coreMemory = llmRetrospective?.coreMemory ?? fallbackCoreMemory
+    const coreMemory = llmRetrospective?.coreMemory && !isOperationalLogLikeText(llmRetrospective.coreMemory)
+      ? llmRetrospective.coreMemory
+      : fallbackCoreMemory
+    const behaviorStrategy = llmRetrospective?.behaviorStrategy && !isOperationalLogLikeText(llmRetrospective.behaviorStrategy)
+      ? llmRetrospective.behaviorStrategy
+      : fallbackBehaviorStrategy
 
     if (serializedTurns.length > 0) {
       await appendAuditLog({
@@ -3831,12 +3980,13 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
           obedienceDelta,
           livelinessDelta,
           sensibilityDelta,
+          behaviorStrategy,
           sampledTurns: sampledCount,
         },
       })
     }
 
-    if (obedienceDelta !== 0 || livelinessDelta !== 0 || sensibilityDelta !== 0 || coreMemory) {
+    if (obedienceDelta !== 0 || livelinessDelta !== 0 || sensibilityDelta !== 0 || coreMemory || behaviorStrategy) {
       await queueSoulMutation(async (current) => {
         const parsed = parseSoul(current.content)
         const nextPersonality: AlicePersonalityState = {
@@ -3848,8 +3998,13 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
           ...parsed.frontmatter,
           personality: nextPersonality,
         }
+        let nextBody = parsed.body
+        if (coreMemory)
+          nextBody = appendPersonaNoteToBody(nextBody, `梦境核心记忆：${coreMemory}`)
+        if (behaviorStrategy)
+          nextBody = appendPersonaNoteToBody(nextBody, `梦境行为策略：${behaviorStrategy}`)
         const syncedBody = syncPersonalityBaselineInBody(
-          appendPersonaNoteToBody(parsed.body, `Dream core memory: ${coreMemory}`),
+          nextBody,
           nextPersonality,
         )
         return snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody))
@@ -3980,11 +4135,129 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     return null
   }
 
+  function buildCardCustomDirectivesSystemBlock(directives: string) {
+    const normalized = normalizeCustomDirectives(directives)
+    if (!normalized)
+      return ''
+
+    return [
+      aliceCustomDirectivesMarker,
+      '[Card-level behavior directives | high-priority persona kernel]',
+      'Apply these directives consistently when generating thought/emotion/reply.',
+      'These directives are lower priority than safety boundaries, human-in-the-loop permission, kill switch, and strict JSON output contract.',
+      '--- custom_directives ---',
+      normalized,
+      '--- /custom_directives ---',
+    ].join('\n')
+  }
+
+  function readMessageContentAsText(content: unknown) {
+    if (typeof content === 'string')
+      return content
+    if (Array.isArray(content)) {
+      return content.map((part) => {
+        if (typeof part === 'string')
+          return part
+        if (part && typeof part === 'object' && 'text' in part)
+          return String((part as { text?: unknown }).text ?? '')
+        return ''
+      }).join('\n')
+    }
+    return ''
+  }
+
+  function extractCustomDirectivesFromMessages(messages: Message[]) {
+    for (const message of messages) {
+      if (message.role !== 'system')
+        continue
+      const systemText = readMessageContentAsText(message.content)
+      if (!systemText.startsWith('---\n'))
+        continue
+      const parsed = parseSoul(systemText)
+      const directives = normalizeCustomDirectives(parsed.frontmatter.custom_directives)
+      if (directives)
+        return directives
+    }
+    return ''
+  }
+
+  async function resolveCardCustomDirectives(cardId: string, options?: { messages?: Message[] }): Promise<ResolvedCardCustomDirectives> {
+    const normalizedCardId = normalizeCardId(cardId)
+    let readFailed = false
+    try {
+      if (normalizedCardId === activeCardId && soulSnapshot) {
+        const directives = normalizeCustomDirectives(soulSnapshot.frontmatter.custom_directives)
+        if (directives) {
+          return {
+            text: directives,
+            source: 'card-soul',
+          }
+        }
+      }
+
+      const targetSoulPath = resolveCardPaths(normalizedCardId).soulPath
+      if (existsSync(targetSoulPath)) {
+        const content = await readFile(targetSoulPath, 'utf-8')
+        const directives = normalizeCustomDirectives(parseSoul(content).frontmatter.custom_directives)
+        if (directives) {
+          return {
+            text: directives,
+            source: 'card-soul',
+          }
+        }
+      }
+    }
+    catch (error) {
+      readFailed = true
+      await appendRuntimeDebugLine('custom-directives.resolve-error', {
+        cardId: normalizedCardId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    const fallback = extractCustomDirectivesFromMessages(options?.messages ?? [])
+    if (fallback) {
+      return {
+        text: fallback,
+        source: 'payload-soul',
+      }
+    }
+
+    return {
+      text: '',
+      source: readFailed ? 'error' : 'none',
+    }
+  }
+
+  function injectCardCustomDirectivesIntoMessages(messages: Message[], directives: string) {
+    const block = buildCardCustomDirectivesSystemBlock(directives)
+    if (!block)
+      return messages
+
+    const alreadyInjected = messages.some((message) => {
+      if (message.role !== 'system')
+        return false
+      return readMessageContentAsText(message.content).includes(aliceCustomDirectivesMarker)
+    })
+    if (alreadyInjected)
+      return messages
+
+    return [
+      {
+        role: 'system',
+        content: block,
+      } as Message,
+      ...messages,
+    ]
+  }
+
   async function generateMainGatewayText(options: {
     system: string
     user: string
     timeoutMs?: number
     source?: 'reminder' | 'proactive' | 'dream'
+    cardId?: string
+    extraSystemBlocks?: string[]
   }) {
     const config = resolveMainGatewayConfig()
     if (!config) {
@@ -3997,6 +4270,19 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       return null
     }
 
+    const resolvedCustomDirectives = await resolveCardCustomDirectives(options.cardId ?? activeCardId)
+    const customDirectiveBlock = buildCardCustomDirectivesSystemBlock(resolvedCustomDirectives.text)
+    const systemMessages: Message[] = [
+      ...(customDirectiveBlock
+        ? [{ role: 'system', content: customDirectiveBlock } as Message]
+        : []),
+      ...((options.extraSystemBlocks ?? [])
+        .map(block => sanitizeMultilineText(block))
+        .filter(Boolean)
+        .map(content => ({ role: 'system', content }) as Message)),
+      { role: 'system', content: options.system } as Message,
+    ]
+
     const controller = new AbortController()
     const timeout = setTimeout(() => {
       if (!controller.signal.aborted) {
@@ -4005,6 +4291,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     }, Math.max(1_000, options.timeoutMs ?? 18_000))
 
     let fullText = ''
+    let rawChunkChars = 0
+    let chunkCount = 0
     try {
       await new Promise<void>((resolve, reject) => {
         const abortHandler = () => {
@@ -4023,14 +4311,17 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
           ...config.provider.chat(config.model),
           maxSteps: 1,
           messages: [
-            { role: 'system', content: options.system } as Message,
+            ...systemMessages,
             { role: 'user', content: options.user } as Message,
           ],
           headers: config.headers,
           abortSignal: controller.signal,
           onEvent: async (event: any) => {
             if (event?.type === 'text-delta') {
-              fullText += sanitizeText(event.text, '')
+              const rawDelta = readRawTextDelta(event.text)
+              fullText += rawDelta
+              rawChunkChars += rawDelta.length
+              chunkCount += 1
               return
             }
             if (event?.type === 'finish') {
@@ -4063,6 +4354,16 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       clearTimeout(timeout)
     }
 
+    await appendRuntimeDebugLine('main-gateway.one-shot-finished', {
+      cardId: normalizeCardId(options.cardId ?? activeCardId),
+      source: options.source ?? 'unknown',
+      customDirectivesSource: resolvedCustomDirectives.source,
+      customDirectivesChars: resolvedCustomDirectives.text.length,
+      chunkCount,
+      rawChunkChars,
+      finalChars: fullText.length,
+    })
+
     return fullText.trim() || null
   }
 
@@ -4071,6 +4372,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     messages: Message[]
     headers?: Record<string, string>
     timeoutMs?: number
+    cardId?: string
+    turnId?: string
   }) {
     const controller = new AbortController()
     const timeout = setTimeout(() => {
@@ -4079,6 +4382,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     }, Math.max(1_000, options.timeoutMs ?? mainChatTimeoutRecoveryMs))
 
     let fullText = ''
+    let rawChunkChars = 0
+    let chunkCount = 0
     try {
       await new Promise<void>((resolve, reject) => {
         const abortHandler = () => {
@@ -4101,7 +4406,10 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
           abortSignal: controller.signal,
           onEvent: async (event: any) => {
             if (event?.type === 'text-delta') {
-              fullText += sanitizeText(event.text, '')
+              const rawDelta = readRawTextDelta(event.text)
+              fullText += rawDelta
+              rawChunkChars += rawDelta.length
+              chunkCount += 1
               return
             }
             if (event?.type === 'finish') {
@@ -4117,6 +4425,14 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     finally {
       clearTimeout(timeout)
     }
+
+    await appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
+      cardId: normalizeCardId(options.cardId ?? activeCardId),
+      turnId: sanitizeText(options.turnId),
+      chunkCount,
+      rawChunkChars,
+      finalChars: fullText.length,
+    })
 
     return fullText.trim()
   }
@@ -4306,6 +4622,9 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       status: payload.status,
       finishReason: payload.finishReason,
       error: payload.error,
+      chunkCount: state.chunkCount,
+      rawChunkChars: state.rawChunkChars,
+      fullTextChars: payload.fullText?.length ?? 0,
     })
     emitChatStreamEventForState(state, 'finish', {
       cardId: state.cardId,
@@ -4400,9 +4719,15 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
     let messages: Message[]
     let waitForTools = false
     let tools: Awaited<ReturnType<typeof buildMainGatewayTools>> | undefined
+    let customDirectivesResolution: ResolvedCardCustomDirectives = {
+      text: '',
+      source: 'none',
+    }
     try {
       chatConfig = mainGateway.provider.chat(mainGateway.model)
       messages = resolveChatMessages(payload)
+      customDirectivesResolution = await resolveCardCustomDirectives(payload.cardId, { messages })
+      messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
       const allowTools = payload.supportsTools !== false
       waitForTools = payload.waitForTools === true
       tools = allowTools ? await buildMainGatewayTools(payload.cardId) : undefined
@@ -4429,6 +4754,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       controller,
       sender: rawInvokeOptions?.ipcMainEvent?.sender,
       rawInvokeOptions,
+      chunkCount: 0,
+      rawChunkChars: 0,
       state: 'running',
     }
     chatRuns.set(key, runState)
@@ -4452,6 +4779,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
       providerId: payload.providerId,
       model: payload.model,
       senderId: runState.sender?.id ?? null,
+      customDirectivesSource: customDirectivesResolution.source,
+      customDirectivesChars: customDirectivesResolution.text.length,
     })
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
     const nonProgressEventTypes = new Set<string>()
@@ -4502,11 +4831,17 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
               if (event?.type === 'text-delta') {
                 if (!isRunActive())
                   return
-                fullText += sanitizeText(event.text, '')
+                const rawDelta = readRawTextDelta(event.text)
+                fullText += rawDelta
+                const currentRun = chatRuns.get(key)
+                if (currentRun) {
+                  currentRun.chunkCount += 1
+                  currentRun.rawChunkChars += rawDelta.length
+                }
                 emitChatStreamEventForState(chatRuns.get(key), 'chunk', {
                   cardId: payload.cardId,
                   turnId: payload.turnId,
-                  text: sanitizeText(event.text, ''),
+                  text: rawDelta,
                 })
                 return
               }
@@ -4603,6 +4938,8 @@ export async function setupAliceRuntime(options?: AliceRuntimeSetupOptions) {
                 messages,
                 headers: mainGateway.headers,
                 timeoutMs: mainChatTimeoutRecoveryMs,
+                cardId: payload.cardId,
+                turnId: payload.turnId,
               })
               if (recoveredText) {
                 if (isRunActive()) {

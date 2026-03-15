@@ -45,6 +45,7 @@ const personaDraft = ref({
   obedience: 0.5,
   liveliness: 0.5,
   sensibility: 0.5,
+  customDirectives: '',
   personaNotes: '',
 })
 
@@ -87,6 +88,7 @@ watch(aliceSoul, (next) => {
     obedience: next.frontmatter.personality.obedience,
     liveliness: next.frontmatter.personality.liveliness,
     sensibility: next.frontmatter.personality.sensibility,
+    customDirectives: next.frontmatter.custom_directives ?? '',
     personaNotes: getPersonaNotesFromContent(next.content),
   }
 }, { immediate: true })
@@ -178,6 +180,7 @@ async function savePersona() {
       genderCustom: personaDraft.value.genderCustom,
       relationship: personaDraft.value.relationship,
       personaNotes: personaDraft.value.personaNotes,
+      customDirectives: personaDraft.value.customDirectives,
       mindAge: personaDraft.value.mindAge,
       allowOverwrite: true,
       personality: {
@@ -380,6 +383,15 @@ defineExpose({
           v-model="personaDraft.personaNotes"
           class="h-32 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
           placeholder="描述她的语气、偏好和互动习惯。"
+        />
+      </label>
+
+      <label class="mt-3 block text-xs">
+        <div class="mb-1">底层行为逻辑（custom_directives）</div>
+        <textarea
+          v-model="personaDraft.customDirectives"
+          class="h-36 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
+          placeholder="定义该角色的底层行为逻辑。该指令会作为高优先级人格内核注入 Chat / 主动搭话 / Dreaming。"
         />
       </label>
 

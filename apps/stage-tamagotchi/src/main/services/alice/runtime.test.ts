@@ -1035,6 +1035,114 @@ describe('alice runtime sandbox + genesis lifecycle', () => {
     })
   })
 
+  it('preserves text-delta whitespace across chunk boundaries in main chat stream', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ onEvent }) => {
+      await onEvent?.({ type: 'text-delta', text: 'User enjoys' })
+      await onEvent?.({ type: 'text-delta', text: ' coding sessions with' })
+      await onEvent?.({ type: 'text-delta', text: ' focus.' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAliceRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAliceChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    const turnId = 'turn-whitespace-preserved'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: 'hello' }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === aliceChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const chunkEvents = contextEmitMock.mock.calls
+      .filter(([event, payload]) => event === aliceChatStreamChunk && payload.turnId === turnId)
+      .map(([, payload]) => payload)
+    const finishEvents = contextEmitMock.mock.calls
+      .filter(([event, payload]) => event === aliceChatStreamFinish && payload.turnId === turnId)
+      .map(([, payload]) => payload)
+
+    expect(chunkEvents.map(event => event.text).join('')).toBe('User enjoys coding sessions with focus.')
+    expect(finishEvents[0]?.fullText).toBe('User enjoys coding sessions with focus.')
+  })
+
+  it('injects card custom directives into main chat runtime messages as highest-priority system block', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'directive applied' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAliceRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const initializeGenesis = invokeHandlers.get(electronAliceInitializeGenesis)
+    const startChat = invokeHandlers.get(electronAliceChatStart)
+    expect(initializeGenesis).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    await initializeGenesis!({
+      cardId: 'default',
+      ownerName: '测试主人',
+      hostName: '主人',
+      aliceName: 'A.L.I.C.E.',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.5,
+        liveliness: 0.5,
+        sensibility: 0.5,
+      },
+      customDirectives: '你是严格而克制的教练型人格，先指出问题再给改进建议。',
+      allowOverwrite: true,
+    })
+
+    const turnId = 'turn-custom-directives-chat'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '给我一个学习建议' }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === aliceChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const firstSystem = capturedMessages.find(message => message.role === 'system')
+    expect(typeof firstSystem?.content).toBe('string')
+    expect(String(firstSystem?.content)).toContain('[ALICE_CARD_CUSTOM_DIRECTIVES]')
+    expect(String(firstSystem?.content)).toContain('严格而克制的教练型人格')
+  })
+
   it('aborts main chat stream over direct ipc transport', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(({ onEvent, abortSignal }) => {
@@ -1884,6 +1992,129 @@ describe('alice runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('injects card custom directives into proactive and dream one-shot prompts', async () => {
+    const sandboxPath = await createSandboxPath()
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 40,
+      fatigue: 20,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    let proactiveSystemText = ''
+    let dreamSystemText = ''
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        proactiveSystemText = systemText
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'tension overflow',
+            emotion: 'tired',
+            reply: '我等你很久了，现在总算有空了吗？',
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识与记忆重塑]')) {
+        dreamSystemText = systemText
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            host_attitude: 'neutral',
+            core_memory: '宿主今天沟通很克制，偏任务导向。',
+            behavior_strategy: '先给结构化建议，再补一条简短提醒。',
+            soul_shift: {
+              obedience_delta: 0,
+              liveliness_delta: 0,
+              sensibility_delta: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAliceRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const initializeGenesis = invokeHandlers.get(electronAliceInitializeGenesis)
+    const syncLlmConfig = invokeHandlers.get(electronAliceLlmSyncConfig)
+    const forceTick = invokeHandlers.get(electronAliceSubconsciousForceTick)
+    const forceDream = invokeHandlers.get(electronAliceSubconsciousForceDream)
+    expect(initializeGenesis).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(forceTick).toBeTypeOf('function')
+    expect(forceDream).toBeTypeOf('function')
+
+    await initializeGenesis!({
+      cardId: 'default',
+      ownerName: '测试主人',
+      hostName: '主人',
+      aliceName: 'A.L.I.C.E.',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.5,
+        liveliness: 0.5,
+        sensibility: 0.5,
+      },
+      customDirectives: '你是严厉但克制的监督者，避免无效安慰，优先指出关键问题。',
+      allowOverwrite: true,
+    })
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    dbStub.listConversationTurnsSince.mockResolvedValue([
+      {
+        turnId: 'turn-dream-custom-directives',
+        sessionId: 'session-dream',
+        userText: '今天状态一般。',
+        assistantText: '继续。',
+        structuredJson: JSON.stringify({ emotion: 'neutral' }),
+        createdAt: Date.now() - 30_000,
+      },
+    ])
+
+    await forceTick!({ cardId: 'default' })
+    await forceDream!({
+      cardId: 'default',
+      reason: 'unit-custom-directives',
+    })
+
+    expect(proactiveSystemText).toContain('[ALICE_CARD_CUSTOM_DIRECTIVES]')
+    expect(proactiveSystemText).toContain('严厉但克制的监督者')
+    expect(dreamSystemText).toContain('[ALICE_CARD_CUSTOM_DIRECTIVES]')
+    expect(dreamSystemText).toContain('严厉但克制的监督者')
+  })
+
   it('writes dream-driven soul evolution and core memory note from bounded context', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAliceRuntime({
@@ -1944,6 +2175,7 @@ describe('alice runtime sandbox + genesis lifecycle', () => {
 
     expect(dreamResult.processedCards).toContain('default')
     expect(afterSoul.frontmatter.personality.obedience).toBeLessThan(beforeSoul.frontmatter.personality.obedience)
-    expect(afterSoul.content).toContain('Dream core memory:')
+    expect(afterSoul.content).toContain('梦境核心记忆：')
+    expect(afterSoul.content).toContain('梦境行为策略：')
   })
 })

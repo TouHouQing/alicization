@@ -42,6 +42,7 @@ interface PersonaDraft {
   obedience: number
   liveliness: number
   sensibility: number
+  customDirectives: string
   personaNotes: string
 }
 
@@ -228,6 +229,7 @@ function createDefaultPersonaDraft(seed?: Card): PersonaDraft {
     obedience: 0.5,
     liveliness: 0.5,
     sensibility: 0.5,
+    customDirectives: '',
     personaNotes: '',
   }
 }
@@ -363,6 +365,7 @@ async function initializeGenesisForNewCard(newCardId: string) {
       genderCustom: createPersonaDraft.value.genderCustom.trim(),
       relationship: createPersonaDraft.value.relationship.trim(),
       personaNotes: createPersonaDraft.value.personaNotes.trim(),
+      customDirectives: createPersonaDraft.value.customDirectives.trim(),
       mindAge: createPersonaDraft.value.mindAge,
       allowOverwrite: true,
       personality: {
@@ -695,6 +698,15 @@ async function saveCard(nextCard: Card) {
                   v-model="createPersonaDraft.personaNotes"
                   class="h-32 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
                   placeholder="描述她的语气、偏好和互动习惯。"
+                />
+              </label>
+
+              <label class="mt-3 block text-xs">
+                <div class="mb-1">底层行为逻辑（custom_directives）</div>
+                <textarea
+                  v-model="createPersonaDraft.customDirectives"
+                  class="h-36 w-full border border-neutral-300 rounded px-2 py-1.5 dark:border-neutral-600 dark:bg-neutral-900"
+                  placeholder="定义该角色的底层行为逻辑。该指令会作为高优先级人格内核注入 Chat / 主动搭话 / Dreaming。"
                 />
               </label>
             </div>

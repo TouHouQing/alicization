@@ -295,6 +295,7 @@ export type AliceGender = 'female' | 'male' | 'non-binary' | 'neutral' | 'custom
 export interface AliceSoulFrontmatter {
   schemaVersion: number
   initialized: boolean
+  custom_directives: string
   profile: {
     ownerName: string
     hostName: string
@@ -329,6 +330,7 @@ export interface AliceGenesisInput {
   genderCustom?: string
   relationship: string
   personaNotes?: string
+  customDirectives?: string
   mindAge: number
   personality: AlicePersonalityState
   allowOverwrite?: boolean
