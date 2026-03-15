@@ -8,7 +8,7 @@ import kebabcase from '@stdlib/string-base-kebabcase'
 
 import { errorMessageFrom } from '@moeru/std'
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { useAliceEpoch1Store } from '@proj-airi/stage-ui/stores/alice-epoch1'
+import { useAlicizationEpoch1Store } from '@proj-airi/stage-ui/stores/alicization-epoch1'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useSpeechStore } from '@proj-airi/stage-ui/stores/modules/speech'
@@ -55,7 +55,7 @@ const cardStore = useAiriCardStore()
 const consciousnessStore = useConsciousnessStore()
 const speechStore = useSpeechStore()
 const providersStore = useProvidersStore()
-const aliceEpoch1Store = useAliceEpoch1Store()
+const alicizationEpoch1Store = useAlicizationEpoch1Store()
 
 const { activeCardId } = storeToRefs(cardStore)
 const { activeProvider: consciousnessProvider, activeModel: defaultConsciousnessModel } = storeToRefs(consciousnessStore)
@@ -293,7 +293,7 @@ function getDefaultPlaceholder(defaultValue: string | undefined): string {
 function validateCreatePersonaDraft() {
   const ownerName = createPersonaDraft.value.ownerName.trim()
   const hostName = createPersonaDraft.value.hostName.trim()
-  const aliceName = createPersonaDraft.value.aliceName.trim()
+  const alicizationName = createPersonaDraft.value.alicizationName.trim()
   const relationship = createPersonaDraft.value.relationship.trim()
   const genderCustom = createPersonaDraft.value.genderCustom.trim()
 
@@ -307,7 +307,7 @@ function validateCreatePersonaDraft() {
     errorMessage.value = '人格设定中的宿主称呼不能为空。'
     return false
   }
-  if (!aliceName) {
+  if (!alicizationName) {
     showError.value = true
     errorMessage.value = '人格设定中的角色称呼不能为空。'
     return false
@@ -334,10 +334,10 @@ async function initializeGenesisForNewCard(newCardId: string) {
   const previousActiveCardId = activeCardId.value
   try {
     activeCardId.value = newCardId
-    const result = await aliceEpoch1Store.initializeGenesis({
+    const result = await alicizationEpoch1Store.initializeGenesis({
       ownerName: createPersonaDraft.value.ownerName.trim(),
       hostName: createPersonaDraft.value.hostName.trim(),
-      aliceName: createPersonaDraft.value.aliceName.trim(),
+      alicizationName: createPersonaDraft.value.alicizationName.trim(),
       gender: createPersonaDraft.value.gender,
       genderCustom: createPersonaDraft.value.genderCustom.trim(),
       relationship: createPersonaDraft.value.relationship.trim(),
@@ -355,7 +355,7 @@ async function initializeGenesisForNewCard(newCardId: string) {
       errorMessage.value = 'Alicization 初始化冲突，请重试。'
       throw new Error('Alicization initialization conflict')
     }
-    await aliceEpoch1Store.refreshSoul()
+    await alicizationEpoch1Store.refreshSoul()
   }
   finally {
     activeCardId.value = previousActiveCardId

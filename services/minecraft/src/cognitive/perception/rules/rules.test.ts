@@ -293,22 +293,22 @@ describe('engine temporal semantics', () => {
   it('should apply tumbling mode as once-per-window', () => {
     const { eventBus, signals } = createRuleEngineForTest(buildArmSwingRuleYaml('tumbling'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 200 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 300 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 300 })
     expect(signals).toHaveLength(1)
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 1100 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 1200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 1100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 1200 })
     expect(signals).toHaveLength(2)
   })
 
   it('should apply sliding mode as every-match', () => {
     const { eventBus, signals } = createRuleEngineForTest(buildArmSwingRuleYaml('sliding'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 200 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 300 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 300 })
 
     expect(signals).toHaveLength(2)
   })
@@ -316,16 +316,16 @@ describe('engine temporal semantics', () => {
   it('should isolate detectors by default group key (entityId/sourceId)', () => {
     const { eventBus, signals } = createRuleEngineForTest(buildArmSwingRuleYaml('sliding'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
     emitArmSwingEvent(eventBus, { entityId: 'bob', timestamp: 150 })
     expect(signals).toHaveLength(0)
 
     emitArmSwingEvent(eventBus, { entityId: 'bob', timestamp: 200 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 250 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 250 })
     expect(signals).toHaveLength(2)
 
     const sourceIds = signals.map(event => (event.payload as { sourceId?: unknown }).sourceId)
-    expect(sourceIds).toEqual(['bob', 'alice'])
+    expect(sourceIds).toEqual(['bob', 'alicization'])
   })
 
   it('should keep legacy fallback grouping when detector.groupBy is omitted', () => {
@@ -361,7 +361,7 @@ describe('engine temporal semantics', () => {
   it('should respect detector.groupBy global when configured', () => {
     const { engine, eventBus, signals } = createRuleEngineForTest(buildArmSwingRuleYaml('sliding', 'global'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
     emitArmSwingEvent(eventBus, { entityId: 'bob', timestamp: 150 })
 
     expect(signals).toHaveLength(1)
@@ -374,14 +374,14 @@ describe('engine temporal semantics', () => {
   it('should expose detector state as an immutable snapshot', () => {
     const { engine, eventBus } = createRuleEngineForTest(buildArmSwingRuleYaml('sliding'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
 
-    const stateKey = 'test-arm-swing-sliding::alice'
+    const stateKey = 'test-arm-swing-sliding::alicization'
     const firstSnapshot = engine.getDetectorStates()
     expect(Object.isFrozen(firstSnapshot)).toBe(true)
     expect(firstSnapshot[stateKey]?.total).toBe(1)
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 200 })
 
     const secondSnapshot = engine.getDetectorStates()
     expect(firstSnapshot).not.toBe(secondSnapshot)
@@ -392,9 +392,9 @@ describe('engine temporal semantics', () => {
   it('should ignore out-of-order timestamps to keep temporal detection deterministic', () => {
     const { engine, eventBus, logger, signals } = createRuleEngineForTest(buildArmSwingRuleYaml('sliding'))
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 200 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 250 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 250 })
 
     expect(signals).toHaveLength(1)
     expect(logger.warn).toHaveBeenCalledTimes(1)
@@ -403,7 +403,7 @@ describe('engine temporal semantics', () => {
       {
         ruleName: 'test-arm-swing-sliding',
         mode: 'sliding',
-        groupKey: 'alice',
+        groupKey: 'alicization',
         count: 1,
         threshold: 2,
         windowMs: 1000,
@@ -413,7 +413,7 @@ describe('engine temporal semantics', () => {
       {
         ruleName: 'test-arm-swing-sliding',
         mode: 'sliding',
-        groupKey: 'alice',
+        groupKey: 'alicization',
         count: 1,
         threshold: 2,
         windowMs: 1000,
@@ -423,7 +423,7 @@ describe('engine temporal semantics', () => {
       {
         ruleName: 'test-arm-swing-sliding',
         mode: 'sliding',
-        groupKey: 'alice',
+        groupKey: 'alicization',
         count: 2,
         threshold: 2,
         windowMs: 1000,
@@ -440,7 +440,7 @@ describe('engine temporal semantics', () => {
       expect.objectContaining({
         ruleName: 'test-arm-swing-sliding',
         mode: 'sliding',
-        groupKey: 'alice',
+        groupKey: 'alicization',
         count: 1,
         threshold: 2,
         windowMs: 1000,
@@ -450,7 +450,7 @@ describe('engine temporal semantics', () => {
       expect.objectContaining({
         ruleName: 'test-arm-swing-sliding',
         mode: 'sliding',
-        groupKey: 'alice',
+        groupKey: 'alicization',
         count: 2,
         threshold: 2,
         windowMs: 1000,
@@ -464,9 +464,9 @@ describe('engine temporal semantics', () => {
   it('should default detector mode to sliding when mode is omitted', () => {
     const { engine, eventBus, signals } = createRuleEngineForTest(buildArmSwingRuleYamlWithoutMode())
 
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 100 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 200 })
-    emitArmSwingEvent(eventBus, { entityId: 'alice', timestamp: 300 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 100 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 200 })
+    emitArmSwingEvent(eventBus, { entityId: 'alicization', timestamp: 300 })
 
     expect(signals).toHaveLength(2)
     expect(engine.getDetectorDecisionSnapshot().map(item => item.decision)).toEqual([

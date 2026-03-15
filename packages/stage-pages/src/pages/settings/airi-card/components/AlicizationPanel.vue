@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { useAliceEpoch1Store } from '@proj-airi/stage-ui/stores/alice-epoch1'
+import { useAlicizationEpoch1Store } from '@proj-airi/stage-ui/stores/alicization-epoch1'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -21,13 +21,13 @@ const props = withDefaults(defineProps<Props>(), {
   showPersonaSaveButton: true,
 })
 
-const aliceEpoch1Store = useAliceEpoch1Store()
+const alicizationEpoch1Store = useAlicizationEpoch1Store()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const {
-  memoryStats: aliceMemoryStats,
-  killSwitch: aliceKillSwitch,
-  soul: aliceSoul,
-} = storeToRefs(aliceEpoch1Store)
+  memoryStats: alicizationMemoryStats,
+  killSwitch: alicizationKillSwitch,
+  soul: alicizationSoul,
+} = storeToRefs(alicizationEpoch1Store)
 
 const memoryRefreshLoading = ref(false)
 const memoryPruneLoading = ref(false)
@@ -43,7 +43,7 @@ function formatDateTime(value?: number | null) {
   return new Date(value).toLocaleString()
 }
 
-watch(aliceSoul, (next) => {
+watch(alicizationSoul, (next) => {
   if (!next) {
     personaDraft.value = createDefaultSoulForgeDraft()
     personaMemoryEcho.value = ''
@@ -53,7 +53,7 @@ watch(aliceSoul, (next) => {
   personaDraft.value = {
     ownerName: next.frontmatter.profile.ownerName,
     hostName: next.frontmatter.profile.hostName,
-    aliceName: next.frontmatter.profile.aliceName,
+    alicizationName: next.frontmatter.profile.alicizationName,
     gender: next.frontmatter.profile.gender,
     genderCustom: next.frontmatter.profile.genderCustom,
     relationship: next.frontmatter.profile.relationship,
@@ -67,20 +67,20 @@ watch(aliceSoul, (next) => {
 }, { immediate: true })
 
 const memoryActiveRatio = computed(() => {
-  if (aliceMemoryStats.value.total <= 0)
+  if (alicizationMemoryStats.value.total <= 0)
     return 0
-  return Math.min(100, (aliceMemoryStats.value.active / aliceMemoryStats.value.total) * 100)
+  return Math.min(100, (alicizationMemoryStats.value.active / alicizationMemoryStats.value.total) * 100)
 })
 
 const memoryArchivedRatio = computed(() => {
-  if (aliceMemoryStats.value.total <= 0)
+  if (alicizationMemoryStats.value.total <= 0)
     return 0
-  return Math.min(100, (aliceMemoryStats.value.archived / aliceMemoryStats.value.total) * 100)
+  return Math.min(100, (alicizationMemoryStats.value.archived / alicizationMemoryStats.value.total) * 100)
 })
 
-const memoryLastPrunedLabel = computed(() => formatDateTime(aliceMemoryStats.value.lastPrunedAt))
-const killSwitchUpdatedLabel = computed(() => formatDateTime(aliceKillSwitch.value.updatedAt))
-const killSwitchSuspended = computed(() => aliceKillSwitch.value.state === 'SUSPENDED')
+const memoryLastPrunedLabel = computed(() => formatDateTime(alicizationMemoryStats.value.lastPrunedAt))
+const killSwitchUpdatedLabel = computed(() => formatDateTime(alicizationKillSwitch.value.updatedAt))
+const killSwitchSuspended = computed(() => alicizationKillSwitch.value.state === 'SUSPENDED')
 
 const killSwitchReasonMap: Record<string, string> = {
   'manual': '手动切换',
@@ -89,7 +89,7 @@ const killSwitchReasonMap: Record<string, string> = {
   'bootstrap': '运行时初始化',
 }
 const killSwitchReason = computed(() => {
-  const raw = aliceKillSwitch.value.reason || 'manual'
+  const raw = alicizationKillSwitch.value.reason || 'manual'
   if (killSwitchReasonMap[raw])
     return killSwitchReasonMap[raw]
   return `系统事件(${raw})`
@@ -103,11 +103,11 @@ async function toggleKillSwitch() {
   killSwitchLoading.value = true
   try {
     if (killSwitchSuspended.value) {
-      await aliceEpoch1Store.resumeKillSwitch('epoch1-ui-status-panel')
+      await alicizationEpoch1Store.resumeKillSwitch('epoch1-ui-status-panel')
       characterOrchestratorStore.startTicker()
     }
     else {
-      await aliceEpoch1Store.suspendKillSwitch('epoch1-ui-status-panel')
+      await alicizationEpoch1Store.suspendKillSwitch('epoch1-ui-status-panel')
       characterOrchestratorStore.stopTicker()
     }
   }
@@ -121,7 +121,7 @@ async function refreshMemoryStats() {
     return
   memoryRefreshLoading.value = true
   try {
-    await aliceEpoch1Store.refreshMemoryStats()
+    await alicizationEpoch1Store.refreshMemoryStats()
   }
   finally {
     memoryRefreshLoading.value = false
@@ -133,7 +133,7 @@ async function runMemoryPrune() {
     return
   memoryPruneLoading.value = true
   try {
-    await aliceEpoch1Store.runPruneNow()
+    await alicizationEpoch1Store.runPruneNow()
   }
   finally {
     memoryPruneLoading.value = false
@@ -145,10 +145,10 @@ async function savePersona() {
     return
   personaSaving.value = true
   try {
-    const result = await aliceEpoch1Store.initializeGenesis({
+    const result = await alicizationEpoch1Store.initializeGenesis({
       ownerName: personaDraft.value.ownerName,
       hostName: personaDraft.value.hostName,
-      aliceName: personaDraft.value.aliceName,
+      alicizationName: personaDraft.value.alicizationName,
       gender: personaDraft.value.gender,
       genderCustom: personaDraft.value.genderCustom,
       relationship: personaDraft.value.relationship,
@@ -163,7 +163,7 @@ async function savePersona() {
     })
     if (result?.conflict)
       return
-    await aliceEpoch1Store.refreshSoul()
+    await alicizationEpoch1Store.refreshSoul()
   }
   finally {
     personaSaving.value = false
@@ -218,7 +218,7 @@ defineExpose({
       <div class="grid grid-cols-3 gap-2 text-center text-xs">
         <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
           <div class="text-base font-semibold">
-            {{ aliceMemoryStats.total }}
+            {{ alicizationMemoryStats.total }}
           </div>
           <div class="text-neutral-500 dark:text-neutral-400">
             总量
@@ -226,7 +226,7 @@ defineExpose({
         </div>
         <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
           <div class="text-base font-semibold">
-            {{ aliceMemoryStats.active }}
+            {{ alicizationMemoryStats.active }}
           </div>
           <div class="text-neutral-500 dark:text-neutral-400">
             活跃
@@ -234,7 +234,7 @@ defineExpose({
         </div>
         <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
           <div class="text-base font-semibold">
-            {{ aliceMemoryStats.archived }}
+            {{ alicizationMemoryStats.archived }}
           </div>
           <div class="text-neutral-500 dark:text-neutral-400">
             归档

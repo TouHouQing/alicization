@@ -4,7 +4,7 @@
 
 <h1 align="center">Project ALICIZATION</h1>
 
-<p align="center">Artificial Labile Intelligent Cybernated Existence (A.L.I.C.E.), a local-first digital companion and super assistant system.</p>
+<p align="center">Alicization, a local-first digital companion and super assistant system.</p>
 
 <p align="center">
   [<a href="https://discord.gg/TgQ3Cu2F7A">Join Discord Server</a>] [<a href="https://airi.moeru.ai">Try it</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.zh-CN.md">简体中文</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ja-JP.md">日本語</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ru-RU.md">Русский</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.vi.md">Tiếng Việt</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.fr.md">Français</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ko-KR.md">한국어</a>]
@@ -141,7 +141,7 @@ Perhaps you know [Neuro-sama](https://www.youtube.com/@Neurosama) already. She i
 Therefore, this project, ALICIZATION, offers another possibility here: **let you own your digital life, cyber living, easily, anywhere, anytime**.
 
 > [!NOTE]
-> A.L.I.C.E planning and implementation docs are available under `docs/content/zh-Hans/docs/alice/`:
+> Alicization planning and implementation docs are available under `docs/content/zh-Hans/docs/alicization/`:
 > `requirements.md`, `architecture.md`, `roadmap.md`, `development-epoch1.md`.
 
 ## DevLogs We Posted & Recent Updates

@@ -4,8 +4,8 @@ import { defineStore, storeToRefs } from 'pinia'
 import { ref } from 'vue'
 
 import { useCharacterNotebookStore, useCharacterStore } from '../'
-import { abortAliceTurns, completeAliceTurnAbort, isAliceAbortError, registerAliceTurnAbort } from '../../../composables/alice-turn-abort'
-import { getAliceBridge, hasAliceBridge } from '../../alice-bridge'
+import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../../../composables/alicization-turn-abort'
+import { getAlicizationBridge, hasAlicizationBridge } from '../../alicization-bridge'
 import { useLLM } from '../../llm'
 import { useModsServerChannelStore } from '../../mods/api/channel-server'
 import { useConsciousnessStore } from '../../modules/consciousness'
@@ -54,17 +54,17 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
     setPending: next => pendingNotifies.value = next,
   })
 
-  async function appendAliceAuditLog(payload: {
+  async function appendAlicizationAuditLog(payload: {
     level: 'info' | 'notice' | 'warning' | 'critical'
     category: string
     action: string
     message: string
     details?: Record<string, unknown>
   }) {
-    if (!hasAliceBridge())
+    if (!hasAlicizationBridge())
       return
 
-    await getAliceBridge().appendAuditLog({
+    await getAlicizationBridge().appendAuditLog({
       level: payload.level,
       category: payload.category,
       action: payload.action,
@@ -74,14 +74,14 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
   }
 
   async function isKillSwitchSuspended() {
-    if (!hasAliceBridge())
+    if (!hasAlicizationBridge())
       return false
-    const state = await getAliceBridge().getKillSwitchState().catch(() => null)
+    const state = await getAlicizationBridge().getKillSwitchState().catch(() => null)
     return state?.state === 'SUSPENDED'
   }
 
   async function dropSparkNotifyBecauseSuspended(event: WebSocketEventOf<'spark:notify'>, source: 'incoming' | 'tick') {
-    await appendAliceAuditLog({
+    await appendAlicizationAuditLog({
       level: 'notice',
       category: 'kill-switch',
       action: 'spark-notify-dropped-suspended',
@@ -132,7 +132,7 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
   }
 
   async function processSparkNotify(event: WebSocketEventOf<'spark:notify'>) {
-    const turn = registerAliceTurnAbort({
+    const turn = registerAlicizationTurnAbort({
       scope: 'spark',
       turnId: `spark:${event.data.id}`,
     })
@@ -152,7 +152,7 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
       return result
     }
     finally {
-      completeAliceTurnAbort(turn.turnId)
+      completeAlicizationTurnAbort(turn.turnId)
     }
   }
 
@@ -223,7 +223,7 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
       await processSparkNotify(next.event)
     }
     catch (error) {
-      if (isAliceAbortError(error))
+      if (isAlicizationAbortError(error))
         return
 
       if (next.attempts + 1 < next.maxAttempts) {
@@ -258,14 +258,14 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
   }
 
   async function abortAllPipelines(reason: 'kill-switch' | 'session-reset' | 'manual' | 'shutdown' | 'unknown' = 'kill-switch') {
-    const result = abortAliceTurns({ reason, scope: 'spark' })
+    const result = abortAlicizationTurns({ reason, scope: 'spark' })
 
     const droppedPending = pendingNotifies.value.length
     const droppedScheduled = scheduledNotifies.value.length
     pendingNotifies.value = []
     scheduledNotifies.value = []
 
-    await appendAliceAuditLog({
+    await appendAlicizationAuditLog({
       level: 'notice',
       category: 'kill-switch',
       action: 'spark-pipelines-aborted',

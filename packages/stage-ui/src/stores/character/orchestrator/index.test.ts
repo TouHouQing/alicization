@@ -18,7 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { sparkCommandSchema, useCharacterOrchestratorStore } from '.'
 import { useCharacterStore } from '..'
-import { clearAliceBridge, setAliceBridge } from '../../alice-bridge'
+import { clearAlicizationBridge, setAlicizationBridge } from '../../alicization-bridge'
 import { useLLM } from '../../llm'
 import { useAiriCardStore, useConsciousnessStore } from '../../modules'
 import { useProvidersStore } from '../../providers'
@@ -89,7 +89,7 @@ function getArraySchema(schema?: Record<string, any>) {
   return candidates.find((candidate: Record<string, any>) => candidate?.type === 'array')
 }
 
-function createAliceBridgeStub(overrides?: Record<string, unknown>) {
+function createAlicizationBridgeStub(overrides?: Record<string, unknown>) {
   return {
     bootstrap: vi.fn().mockResolvedValue(undefined),
     getSoul: vi.fn().mockResolvedValue(undefined),
@@ -152,7 +152,7 @@ describe('sparkCommandSchema', () => {
 
 describe('store character-orchestrator', () => {
   beforeEach(() => {
-    clearAliceBridge()
+    clearAlicizationBridge()
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false })
     setActivePinia(pinia)
 
@@ -251,7 +251,7 @@ describe('store character-orchestrator', () => {
     const mockStream = vi.fn()
     mockedStore(useLLM).stream = mockStream
 
-    setAliceBridge(createAliceBridgeStub({
+    setAlicizationBridge(createAlicizationBridgeStub({
       getKillSwitchState: vi.fn().mockResolvedValue({
         state: 'SUSPENDED',
         reason: 'test',

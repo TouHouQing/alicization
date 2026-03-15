@@ -256,7 +256,7 @@ title: 编年史 v0.0.1
       - [ ] [漫画･アニメ･ゲーム | SANKOU! | Webデザインギャラリー･参考サイト集](https://sankoudesign.com/category/comic-anime-movie-game-book/)
       - [ ] [KVが動画・アニメーションのWebデザイン参考ギャラリー・リンク集 | Web Design Garden | 毎日更新！Webデザイン参考ギャラリーサイト](https://webdesigngarden.com/category/element/kv-movie/)
       - [ ]
-    - [ ] [ドーナドーナ いっしょにわるいことをしよう | アリスソフト](https://www.alicesoft.com/dohnadohna/)
+    - [ ] [ドーナドーナ いっしょにわるいことをしよう | アリスソフト](https://www.alicizationsoft.com/dohnadohna/)
     - [ ] [Unbeatable Game](https://www.unbeatablegame.com/)
     - [ ] [Splatoon™ 3 for Nintendo Switch™ – Official Site](https://splatoon.nintendo.com/)
     - [ ] [喵斯快跑 - MuseDash](https://musedash.peropero.net/#/special/events/marija480)

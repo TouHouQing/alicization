@@ -5,14 +5,14 @@ import type { Message } from '@xsai/shared-chat'
 import type { StreamEvent } from '../../../../llm'
 
 import { errorMessageFrom } from '@moeru/std'
-import { renderAliceSparkHandlingInstruction } from '@proj-airi/stage-shared/alice-prompting'
+import { renderAlicizationSparkHandlingInstruction } from '@proj-airi/stage-shared/alicization-prompting'
 import { tool } from '@xsai/tool'
 import { nanoid } from 'nanoid'
 import { validate } from 'xsschema'
 import { z } from 'zod'
 
-import { sanitizeAssistantOutputForDisplay } from '../../../../../composables/alice-guardrails'
-import { isAliceAbortError } from '../../../../../composables/alice-turn-abort'
+import { sanitizeAssistantOutputForDisplay } from '../../../../../composables/alicization-guardrails'
+import { isAlicizationAbortError } from '../../../../../composables/alicization-turn-abort'
 import { getEventSourceKey } from '../../../../../utils'
 
 export interface SparkNotifyCommandDraft {
@@ -191,7 +191,7 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
       role: 'system',
       content: [
         deps.getSystemPrompt(),
-        renderAliceSparkHandlingInstruction(getEventSourceKey(event)),
+        renderAlicizationSparkHandlingInstruction(getEventSourceKey(event)),
       ].filter(Boolean).join('\n\n'),
     }
 
@@ -291,7 +291,7 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
       }
     }
     catch (error) {
-      if (isAliceAbortError(error)) {
+      if (isAlicizationAbortError(error)) {
         deps.onReactionEnd(event.data.id, '')
         return undefined
       }

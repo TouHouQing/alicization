@@ -278,103 +278,103 @@ export const electronOpenOnboarding = defineInvokeEventa('eventa:invoke:electron
 export const i18nSetLocale = defineInvokeEventa<void, Locale>('eventa:invoke:electron:i18n:set-locale')
 export const i18nGetLocale = defineInvokeEventa<Locale>('eventa:invoke:electron:i18n:get-locale')
 
-export type AliceKillSwitchState = 'ACTIVE' | 'SUSPENDED'
+export type AlicizationKillSwitchState = 'ACTIVE' | 'SUSPENDED'
 
-export interface AliceCardScope {
+export interface AlicizationCardScope {
   cardId: string
 }
 
-export interface AlicePersonalityState {
+export interface AlicizationPersonalityState {
   obedience: number
   liveliness: number
   sensibility: number
 }
 
-export type AliceGender = 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
+export type AlicizationGender = 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
 
-export interface AliceSoulFrontmatter {
+export interface AlicizationSoulFrontmatter {
   schemaVersion: number
   initialized: boolean
   custom_directives: string
   profile: {
     ownerName: string
     hostName: string
-    aliceName: string
-    gender: AliceGender
+    alicizationName: string
+    gender: AlicizationGender
     genderCustom: string
     relationship: string
     mindAge: number
   }
-  personality: AlicePersonalityState
+  personality: AlicizationPersonalityState
   boundaries: {
     killSwitch: boolean
     mcpGuard: boolean
   }
 }
 
-export interface AliceSoulSnapshot {
+export interface AlicizationSoulSnapshot {
   soulPath: string
   content: string
-  frontmatter: AliceSoulFrontmatter
+  frontmatter: AlicizationSoulFrontmatter
   revision: number
   hash: string
   needsGenesis: boolean
   watching: boolean
 }
 
-export interface AliceGenesisInput {
+export interface AlicizationGenesisInput {
   ownerName: string
   hostName: string
-  aliceName: string
-  gender: AliceGender
+  alicizationName: string
+  gender: AlicizationGender
   genderCustom?: string
   relationship: string
   personaNotes?: string
   customDirectives?: string
   mindAge: number
-  personality: AlicePersonalityState
+  personality: AlicizationPersonalityState
   allowOverwrite?: boolean
 }
 
-export interface AliceInitializeGenesisResult {
-  soul: AliceSoulSnapshot
+export interface AlicizationInitializeGenesisResult {
+  soul: AlicizationSoulSnapshot
   conflict: boolean
-  conflictCandidate?: AliceSoulSnapshot
+  conflictCandidate?: AlicizationSoulSnapshot
 }
 
-export interface AlicePersonalityUpdatePayload {
+export interface AlicizationPersonalityUpdatePayload {
   expectedRevision?: number
   reason?: string
-  deltas: Partial<AlicePersonalityState>
+  deltas: Partial<AlicizationPersonalityState>
 }
 
-export interface AliceSoulUpdatePayload {
+export interface AlicizationSoulUpdatePayload {
   expectedRevision?: number
   content: string
 }
 
-export interface AliceKillSwitchSnapshot {
-  state: AliceKillSwitchState
+export interface AlicizationKillSwitchSnapshot {
+  state: AlicizationKillSwitchState
   reason?: string
   updatedAt: number
 }
 
-export interface AliceMemoryStats {
+export interface AlicizationMemoryStats {
   total: number
   active: number
   archived: number
   lastPrunedAt: number | null
 }
 
-export type AliceMemorySource = 'rule' | 'async-llm'
+export type AlicizationMemorySource = 'rule' | 'async-llm'
 
-export interface AliceMemoryFact {
+export interface AlicizationMemoryFact {
   id: string
   subject: string
   predicate: string
   object: string
   confidence: number
-  source: AliceMemorySource
+  source: AlicizationMemorySource
   dedupeKey: string
   createdAt: number
   updatedAt: number
@@ -382,31 +382,31 @@ export interface AliceMemoryFact {
   accessCount: number
 }
 
-export interface AliceMemoryArchiveRecord extends AliceMemoryFact {
+export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
   archivedAt: number
 }
 
-export interface AliceMemoryFactInput {
+export interface AlicizationMemoryFactInput {
   subject: string
   predicate: string
   object: string
   confidence: number
 }
 
-export interface AliceMemoryLegacySnapshot {
-  facts: AliceMemoryFact[]
-  archive: AliceMemoryArchiveRecord[]
+export interface AlicizationMemoryLegacySnapshot {
+  facts: AlicizationMemoryFact[]
+  archive: AlicizationMemoryArchiveRecord[]
   lastPrunedAt: number | null
 }
 
-export interface AliceMemoryMigrationResult {
+export interface AlicizationMemoryMigrationResult {
   migrated: boolean
   importedFacts: number
   importedArchive: number
   marker: string
 }
 
-export interface AliceConversationTurnInput {
+export interface AlicizationConversationTurnInput {
   turnId?: string
   sessionId?: string
   origin?: 'user-turn' | 'subconscious-proactive'
@@ -416,7 +416,7 @@ export interface AliceConversationTurnInput {
   createdAt?: number
 }
 
-export interface AliceConversationTurnRecord {
+export interface AlicizationConversationTurnRecord {
   turnId: string | null
   sessionId: string
   userText: string | null
@@ -425,27 +425,27 @@ export interface AliceConversationTurnRecord {
   createdAt: number
 }
 
-export interface AliceListConversationTurnsPayload extends AliceCardScope {
+export interface AlicizationListConversationTurnsPayload extends AlicizationCardScope {
   sessionId: string
   sinceCreatedAt?: number
   limit?: number
 }
 
-export interface AliceDialogueAckPayload extends AliceCardScope {
+export interface AlicizationDialogueAckPayload extends AlicizationCardScope {
   sessionId: string
   turnId: string
   createdAt: number
 }
 
-export interface AliceReplayDialoguesPayload extends AliceCardScope {
+export interface AlicizationReplayDialoguesPayload extends AlicizationCardScope {
   sessionId: string
   limit?: number
 }
 
-export type AliceAuditLogLevel = 'info' | 'notice' | 'warning' | 'critical'
+export type AlicizationAuditLogLevel = 'info' | 'notice' | 'warning' | 'critical'
 
-export interface AliceAuditLogInput {
-  level?: AliceAuditLogLevel
+export interface AlicizationAuditLogInput {
+  level?: AlicizationAuditLogLevel
   category: string
   action: string
   message: string
@@ -453,17 +453,17 @@ export interface AliceAuditLogInput {
   createdAt?: number
 }
 
-export type AliceRealtimeCategory = 'weather' | 'news' | 'finance' | 'sports'
+export type AlicizationRealtimeCategory = 'weather' | 'news' | 'finance' | 'sports'
 
-export interface AliceRealtimeExecutePayload {
-  category: AliceRealtimeCategory
+export interface AlicizationRealtimeExecutePayload {
+  category: AlicizationRealtimeCategory
   query: string
   locale?: string
   now?: number
 }
 
-export interface AliceRealtimeExecuteResult {
-  category: AliceRealtimeCategory
+export interface AlicizationRealtimeExecuteResult {
+  category: AlicizationRealtimeCategory
   source: 'builtin'
   ok: boolean
   summary?: string
@@ -473,12 +473,12 @@ export interface AliceRealtimeExecuteResult {
   durationMs: number
 }
 
-export type AliceSystemProbeDegradeReason
+export type AlicizationSystemProbeDegradeReason
   = | 'battery-unavailable'
     | 'cpu-unavailable'
     | 'memory-unavailable'
 
-export interface AliceSystemProbeSample {
+export interface AlicizationSystemProbeSample {
   collectedAt: number
   time: {
     iso: string
@@ -499,18 +499,18 @@ export interface AliceSystemProbeSample {
     totalMB: number
     usagePercent: number
   }
-  degraded?: AliceSystemProbeDegradeReason[]
+  degraded?: AlicizationSystemProbeDegradeReason[]
 }
 
-export interface AliceSensoryCacheSnapshot {
-  sample: AliceSystemProbeSample
+export interface AlicizationSensoryCacheSnapshot {
+  sample: AlicizationSystemProbeSample
   stale: boolean
   ageMs: number
   nextTickAt: number | null
   running: boolean
 }
 
-export const aliceEmotionWhitelist = [
+export const alicizationEmotionWhitelist = [
   'neutral',
   'happy',
   'sad',
@@ -521,13 +521,13 @@ export const aliceEmotionWhitelist = [
   'processing',
 ] as const
 
-export type AliceEmotion = typeof aliceEmotionWhitelist[number]
+export type AlicizationEmotion = typeof alicizationEmotionWhitelist[number]
 
-export function normalizeAliceEmotion(raw: unknown): { emotion: AliceEmotion, rawEmotion?: string, downgraded: boolean } {
+export function normalizeAlicizationEmotion(raw: unknown): { emotion: AlicizationEmotion, rawEmotion?: string, downgraded: boolean } {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  if ((aliceEmotionWhitelist as readonly string[]).includes(value)) {
+  if ((alicizationEmotionWhitelist as readonly string[]).includes(value)) {
     return {
-      emotion: value as AliceEmotion,
+      emotion: value as AlicizationEmotion,
       downgraded: false,
     }
   }
@@ -539,29 +539,29 @@ export function normalizeAliceEmotion(raw: unknown): { emotion: AliceEmotion, ra
   }
 }
 
-export interface AliceDialogueStructuredPayload {
+export interface AlicizationDialogueStructuredPayload {
   thought: string
-  emotion: AliceEmotion
+  emotion: AlicizationEmotion
   reply: string
   policyLocked?: string
   rawEmotion?: string
 }
 
-export interface AliceDialogueRespondedPayload {
+export interface AlicizationDialogueRespondedPayload {
   cardId: string
   turnId: string
   sessionId: string
   origin?: 'user-turn' | 'subconscious-proactive'
-  structured: AliceDialogueStructuredPayload
+  structured: AlicizationDialogueStructuredPayload
   isFallback: boolean
   createdAt: number
 }
 
-export interface AliceSetActiveSessionPayload extends AliceCardScope {
+export interface AlicizationSetActiveSessionPayload extends AlicizationCardScope {
   sessionId: string
 }
 
-export interface AliceSubconsciousNeedsState {
+export interface AlicizationSubconsciousNeedsState {
   boredom: number
   loneliness: number
   fatigue: number
@@ -570,26 +570,26 @@ export interface AliceSubconsciousNeedsState {
   lastSavedAt: number
 }
 
-export interface AliceSubconsciousStatePayload extends AliceCardScope, AliceSubconsciousNeedsState {
+export interface AlicizationSubconsciousStatePayload extends AlicizationCardScope, AlicizationSubconsciousNeedsState {
   updatedAt: number
 }
 
-export interface AliceSubconsciousTickResult {
+export interface AlicizationSubconsciousTickResult {
   processedCards: string[]
   proactiveTriggered: string[]
   suppressedCards: string[]
 }
 
-export interface AliceDreamRunResult {
+export interface AlicizationDreamRunResult {
   processedCards: string[]
   skippedCards: Array<{ cardId: string, reason: string }>
 }
 
-export interface AliceSubconsciousForceDreamPayload extends Partial<AliceCardScope> {
+export interface AlicizationSubconsciousForceDreamPayload extends Partial<AlicizationCardScope> {
   reason?: string
 }
 
-export interface AliceChatToolCallEvent {
+export interface AlicizationChatToolCallEvent {
   cardId: string
   turnId: string
   toolCallId: string
@@ -597,20 +597,20 @@ export interface AliceChatToolCallEvent {
   arguments?: Record<string, unknown>
 }
 
-export interface AliceChatToolResultEvent {
+export interface AlicizationChatToolResultEvent {
   cardId: string
   turnId: string
   toolCallId: string
   result?: unknown
 }
 
-export interface AliceChatStreamChunkEvent {
+export interface AlicizationChatStreamChunkEvent {
   cardId: string
   turnId: string
   text: string
 }
 
-export interface AliceChatFinishEvent {
+export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
   status: 'completed' | 'aborted' | 'failed'
@@ -619,23 +619,23 @@ export interface AliceChatFinishEvent {
   error?: string
 }
 
-export interface AliceChatErrorEvent {
+export interface AlicizationChatErrorEvent {
   cardId: string
   turnId: string
   error: string
 }
 
-export const aliceChatStreamDispatchChannel = 'alice:chat-stream-dispatch'
+export const alicizationChatStreamDispatchChannel = 'alicization:chat-stream-dispatch'
 
-export type AliceChatStreamDispatchPayload
-  = | { eventType: 'chunk', body: AliceChatStreamChunkEvent }
-    | { eventType: 'tool-call', body: AliceChatToolCallEvent }
-    | { eventType: 'tool-result', body: AliceChatToolResultEvent }
-    | { eventType: 'finish', body: AliceChatFinishEvent }
-    | { eventType: 'error', body: AliceChatErrorEvent }
-    | { eventType: 'dialogue-responded', body: AliceDialogueRespondedPayload }
+export type AlicizationChatStreamDispatchPayload
+  = | { eventType: 'chunk', body: AlicizationChatStreamChunkEvent }
+    | { eventType: 'tool-call', body: AlicizationChatToolCallEvent }
+    | { eventType: 'tool-result', body: AlicizationChatToolResultEvent }
+    | { eventType: 'finish', body: AlicizationChatFinishEvent }
+    | { eventType: 'error', body: AlicizationChatErrorEvent }
+    | { eventType: 'dialogue-responded', body: AlicizationDialogueRespondedPayload }
 
-export interface AliceChatStartPayload extends AliceCardScope {
+export interface AlicizationChatStartPayload extends AlicizationCardScope {
   turnId: string
   providerId: string
   model: string
@@ -650,30 +650,30 @@ export interface AliceChatStartPayload extends AliceCardScope {
   waitForTools?: boolean
 }
 
-export interface AliceChatStartResult {
+export interface AlicizationChatStartResult {
   accepted: boolean
   turnId: string
   state?: 'accepted' | 'duplicate-running' | 'duplicate-finished' | 'missing-config' | 'start-failed'
   reason?: string
 }
 
-export interface AliceChatAbortPayload extends AliceCardScope {
+export interface AlicizationChatAbortPayload extends AlicizationCardScope {
   turnId: string
   reason?: string
 }
 
-export interface AliceChatAbortResult {
+export interface AlicizationChatAbortResult {
   accepted: boolean
   state: 'aborted' | 'not-found' | 'finished'
 }
 
-export interface AliceReminderSchedulePayload extends AliceCardScope {
+export interface AlicizationReminderSchedulePayload extends AlicizationCardScope {
   minutes: number
   message: string
   sourceTurnId?: string
 }
 
-export interface AliceReminderScheduleResult {
+export interface AlicizationReminderScheduleResult {
   status: 'scheduled' | 'error'
   taskId?: string
   triggerTime?: string
@@ -682,21 +682,21 @@ export interface AliceReminderScheduleResult {
   code?: string
 }
 
-export interface AliceLlmConfigPayload {
+export interface AlicizationLlmConfigPayload {
   activeProviderId: string
   activeModelId: string
   providerCredentials: Record<string, Record<string, unknown>>
 }
 
-export type AliceToolRiskLevel = 'safe' | 'sensitive' | 'danger'
-export type AliceToolActionCategory = 'read' | 'write' | 'delete' | 'execute' | 'network' | 'unknown'
+export type AlicizationToolRiskLevel = 'safe' | 'sensitive' | 'danger'
+export type AlicizationToolActionCategory = 'read' | 'write' | 'delete' | 'execute' | 'network' | 'unknown'
 
-export interface AliceSafetyPermissionRequest {
+export interface AlicizationSafetyPermissionRequest {
   cardId: string
   requestId: string
   token: string
-  riskLevel: AliceToolRiskLevel
-  actionCategory: AliceToolActionCategory
+  riskLevel: AlicizationToolRiskLevel
+  actionCategory: AlicizationToolActionCategory
   serverName: string
   toolName: string
   reason: string
@@ -711,7 +711,7 @@ export interface AliceSafetyPermissionRequest {
   supportsRememberSession: boolean
 }
 
-export interface AliceSafetyPermissionDecision {
+export interface AlicizationSafetyPermissionDecision {
   cardId?: string
   token: string
   requestId: string
@@ -720,57 +720,57 @@ export interface AliceSafetyPermissionDecision {
   reason?: string
 }
 
-export interface AliceSafetyPermissionDecisionResult {
+export interface AlicizationSafetyPermissionDecisionResult {
   accepted: boolean
   reason?: string
 }
 
-export const electronAliceBootstrap = defineInvokeEventa<AliceSoulSnapshot, AliceCardScope>('eventa:invoke:electron:alice:bootstrap')
-export const electronAliceGetSoul = defineInvokeEventa<AliceSoulSnapshot, AliceCardScope>('eventa:invoke:electron:alice:get-soul')
-export const electronAliceInitializeGenesis = defineInvokeEventa<AliceInitializeGenesisResult, AliceCardScope & AliceGenesisInput>('eventa:invoke:electron:alice:initialize-genesis')
-export const electronAliceUpdateSoul = defineInvokeEventa<AliceSoulSnapshot, AliceCardScope & AliceSoulUpdatePayload>('eventa:invoke:electron:alice:update-soul')
-export const electronAliceUpdatePersonality = defineInvokeEventa<AliceSoulSnapshot, AliceCardScope & AlicePersonalityUpdatePayload>('eventa:invoke:electron:alice:update-personality')
-export const electronAliceKillSwitchGetState = defineInvokeEventa<AliceKillSwitchSnapshot, AliceCardScope>('eventa:invoke:electron:alice:kill-switch:get-state')
-export const electronAliceKillSwitchSuspend = defineInvokeEventa<AliceKillSwitchSnapshot, AliceCardScope & { reason?: string }>('eventa:invoke:electron:alice:kill-switch:suspend')
-export const electronAliceKillSwitchResume = defineInvokeEventa<AliceKillSwitchSnapshot, AliceCardScope & { reason?: string }>('eventa:invoke:electron:alice:kill-switch:resume')
-export const electronAliceGetMemoryStats = defineInvokeEventa<AliceMemoryStats, AliceCardScope>('eventa:invoke:electron:alice:memory:get-stats')
-export const electronAliceRunMemoryPrune = defineInvokeEventa<AliceMemoryStats, AliceCardScope>('eventa:invoke:electron:alice:memory:run-prune')
-export const electronAliceUpdateMemoryStats = defineInvokeEventa<AliceMemoryStats, AliceCardScope & AliceMemoryStats>('eventa:invoke:electron:alice:memory:update-stats')
-export const electronAliceMemoryRetrieveFacts = defineInvokeEventa<AliceMemoryFact[], AliceCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alice:memory:retrieve-facts')
-export const electronAliceMemoryUpsertFacts = defineInvokeEventa<void, AliceCardScope & { facts: AliceMemoryFactInput[], source: AliceMemorySource }>('eventa:invoke:electron:alice:memory:upsert-facts')
-export const electronAliceMemoryImportLegacy = defineInvokeEventa<AliceMemoryMigrationResult, AliceCardScope & AliceMemoryLegacySnapshot>('eventa:invoke:electron:alice:memory:import-legacy')
-export const electronAliceAppendConversationTurn = defineInvokeEventa<void, AliceCardScope & AliceConversationTurnInput>('eventa:invoke:electron:alice:conversation:append-turn')
-export const electronAliceListConversationTurns = defineInvokeEventa<AliceConversationTurnRecord[], AliceListConversationTurnsPayload>('eventa:invoke:electron:alice:conversation:list-turns')
-export const electronAliceAckDialogue = defineInvokeEventa<void, AliceDialogueAckPayload>('eventa:invoke:electron:alice:conversation:ack-dialogue')
-export const electronAliceReplayDialogues = defineInvokeEventa<AliceDialogueRespondedPayload[], AliceReplayDialoguesPayload>('eventa:invoke:electron:alice:conversation:replay-dialogues')
-export const electronAliceClearAllConversations = defineInvokeEventa<void>('eventa:invoke:electron:alice:conversation:clear-all')
-export const electronAliceSetActiveSession = defineInvokeEventa<void, AliceSetActiveSessionPayload>('eventa:invoke:electron:alice:conversation:set-active-session')
-export const electronAliceAppendAuditLog = defineInvokeEventa<void, AliceCardScope & AliceAuditLogInput>('eventa:invoke:electron:alice:audit:append')
-export const electronAliceRealtimeExecute = defineInvokeEventa<AliceRealtimeExecuteResult, AliceCardScope & AliceRealtimeExecutePayload>('eventa:invoke:electron:alice:realtime:execute')
-export const electronAliceGetSensorySnapshot = defineInvokeEventa<AliceSensoryCacheSnapshot, AliceCardScope>('eventa:invoke:electron:alice:sensory:get-snapshot')
-export const electronAliceSafetyResolvePermission = defineInvokeEventa<AliceSafetyPermissionDecisionResult, AliceSafetyPermissionDecision>('eventa:invoke:electron:alice:safety:resolve-permission')
-export const electronAliceDeleteCardScope = defineInvokeEventa<void, AliceCardScope>('eventa:invoke:electron:alice:delete-card-scope')
-export const electronAliceDeleteAllData = defineInvokeEventa<void>('eventa:invoke:electron:alice:delete-all-data')
-export const electronAliceSubconsciousGetState = defineInvokeEventa<AliceSubconsciousStatePayload, AliceCardScope>('eventa:invoke:electron:alice:subconscious:get-state')
-export const electronAliceSubconsciousForceTick = defineInvokeEventa<AliceSubconsciousTickResult, AliceCardScope>('eventa:invoke:electron:alice:subconscious:force-tick')
-export const electronAliceSubconsciousForceDream = defineInvokeEventa<AliceDreamRunResult, AliceSubconsciousForceDreamPayload>('eventa:invoke:electron:alice:subconscious:force-dream')
-export const electronAliceLlmSyncConfig = defineInvokeEventa<void, AliceLlmConfigPayload>('eventa:invoke:electron:alice:llm:sync-config')
-export const electronAliceLlmGetConfig = defineInvokeEventa<AliceLlmConfigPayload>('eventa:invoke:electron:alice:llm:get-config')
-export const electronAliceChatStart = defineInvokeEventa<AliceChatStartResult, AliceChatStartPayload>('eventa:invoke:electron:alice:chat:start')
-export const electronAliceChatAbort = defineInvokeEventa<AliceChatAbortResult, AliceChatAbortPayload>('eventa:invoke:electron:alice:chat:abort')
-export const electronAliceReminderSchedule = defineInvokeEventa<AliceReminderScheduleResult, AliceReminderSchedulePayload>('eventa:invoke:electron:alice:reminder:schedule')
-export const aliceChatStartInvokeChannel = 'alice:chat-start'
-export const aliceChatAbortInvokeChannel = 'alice:chat-abort'
+export const electronAlicizationBootstrap = defineInvokeEventa<AlicizationSoulSnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:bootstrap')
+export const electronAlicizationGetSoul = defineInvokeEventa<AlicizationSoulSnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:get-soul')
+export const electronAlicizationInitializeGenesis = defineInvokeEventa<AlicizationInitializeGenesisResult, AlicizationCardScope & AlicizationGenesisInput>('eventa:invoke:electron:alicization:initialize-genesis')
+export const electronAlicizationUpdateSoul = defineInvokeEventa<AlicizationSoulSnapshot, AlicizationCardScope & AlicizationSoulUpdatePayload>('eventa:invoke:electron:alicization:update-soul')
+export const electronAlicizationUpdatePersonality = defineInvokeEventa<AlicizationSoulSnapshot, AlicizationCardScope & AlicizationPersonalityUpdatePayload>('eventa:invoke:electron:alicization:update-personality')
+export const electronAlicizationKillSwitchGetState = defineInvokeEventa<AlicizationKillSwitchSnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:kill-switch:get-state')
+export const electronAlicizationKillSwitchSuspend = defineInvokeEventa<AlicizationKillSwitchSnapshot, AlicizationCardScope & { reason?: string }>('eventa:invoke:electron:alicization:kill-switch:suspend')
+export const electronAlicizationKillSwitchResume = defineInvokeEventa<AlicizationKillSwitchSnapshot, AlicizationCardScope & { reason?: string }>('eventa:invoke:electron:alicization:kill-switch:resume')
+export const electronAlicizationGetMemoryStats = defineInvokeEventa<AlicizationMemoryStats, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-stats')
+export const electronAlicizationRunMemoryPrune = defineInvokeEventa<AlicizationMemoryStats, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:run-prune')
+export const electronAlicizationUpdateMemoryStats = defineInvokeEventa<AlicizationMemoryStats, AlicizationCardScope & AlicizationMemoryStats>('eventa:invoke:electron:alicization:memory:update-stats')
+export const electronAlicizationMemoryRetrieveFacts = defineInvokeEventa<AlicizationMemoryFact[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:retrieve-facts')
+export const electronAlicizationMemoryUpsertFacts = defineInvokeEventa<void, AlicizationCardScope & { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource }>('eventa:invoke:electron:alicization:memory:upsert-facts')
+export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<AlicizationMemoryMigrationResult, AlicizationCardScope & AlicizationMemoryLegacySnapshot>('eventa:invoke:electron:alicization:memory:import-legacy')
+export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
+export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
+export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
+export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')
+export const electronAlicizationClearAllConversations = defineInvokeEventa<void>('eventa:invoke:electron:alicization:conversation:clear-all')
+export const electronAlicizationSetActiveSession = defineInvokeEventa<void, AlicizationSetActiveSessionPayload>('eventa:invoke:electron:alicization:conversation:set-active-session')
+export const electronAlicizationAppendAuditLog = defineInvokeEventa<void, AlicizationCardScope & AlicizationAuditLogInput>('eventa:invoke:electron:alicization:audit:append')
+export const electronAlicizationRealtimeExecute = defineInvokeEventa<AlicizationRealtimeExecuteResult, AlicizationCardScope & AlicizationRealtimeExecutePayload>('eventa:invoke:electron:alicization:realtime:execute')
+export const electronAlicizationGetSensorySnapshot = defineInvokeEventa<AlicizationSensoryCacheSnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:sensory:get-snapshot')
+export const electronAlicizationSafetyResolvePermission = defineInvokeEventa<AlicizationSafetyPermissionDecisionResult, AlicizationSafetyPermissionDecision>('eventa:invoke:electron:alicization:safety:resolve-permission')
+export const electronAlicizationDeleteCardScope = defineInvokeEventa<void, AlicizationCardScope>('eventa:invoke:electron:alicization:delete-card-scope')
+export const electronAlicizationDeleteAllData = defineInvokeEventa<void>('eventa:invoke:electron:alicization:delete-all-data')
+export const electronAlicizationSubconsciousGetState = defineInvokeEventa<AlicizationSubconsciousStatePayload, AlicizationCardScope>('eventa:invoke:electron:alicization:subconscious:get-state')
+export const electronAlicizationSubconsciousForceTick = defineInvokeEventa<AlicizationSubconsciousTickResult, AlicizationCardScope>('eventa:invoke:electron:alicization:subconscious:force-tick')
+export const electronAlicizationSubconsciousForceDream = defineInvokeEventa<AlicizationDreamRunResult, AlicizationSubconsciousForceDreamPayload>('eventa:invoke:electron:alicization:subconscious:force-dream')
+export const electronAlicizationLlmSyncConfig = defineInvokeEventa<void, AlicizationLlmConfigPayload>('eventa:invoke:electron:alicization:llm:sync-config')
+export const electronAlicizationLlmGetConfig = defineInvokeEventa<AlicizationLlmConfigPayload>('eventa:invoke:electron:alicization:llm:get-config')
+export const electronAlicizationChatStart = defineInvokeEventa<AlicizationChatStartResult, AlicizationChatStartPayload>('eventa:invoke:electron:alicization:chat:start')
+export const electronAlicizationChatAbort = defineInvokeEventa<AlicizationChatAbortResult, AlicizationChatAbortPayload>('eventa:invoke:electron:alicization:chat:abort')
+export const electronAlicizationReminderSchedule = defineInvokeEventa<AlicizationReminderScheduleResult, AlicizationReminderSchedulePayload>('eventa:invoke:electron:alicization:reminder:schedule')
+export const alicizationChatStartInvokeChannel = 'alicization:chat-start'
+export const alicizationChatAbortInvokeChannel = 'alicization:chat-abort'
 
-export const aliceKillSwitchStateChanged = defineEventa<AliceCardScope & AliceKillSwitchSnapshot>('eventa:event:electron:alice:kill-switch:state-changed')
-export const aliceSoulChanged = defineEventa<AliceCardScope & AliceSoulSnapshot>('eventa:event:electron:alice:soul:changed')
-export const aliceDialogueResponded = defineEventa<AliceDialogueRespondedPayload>('eventa:event:electron:alice:dialogue:responded')
-export const aliceSafetyPermissionRequested = defineEventa<AliceSafetyPermissionRequest>('eventa:event:electron:alice:safety:permission-requested')
-export const aliceChatStreamChunk = defineEventa<AliceChatStreamChunkEvent>('eventa:event:electron:alice:chat:stream-chunk')
-export const aliceChatStreamToolCall = defineEventa<AliceChatToolCallEvent>('eventa:event:electron:alice:chat:stream-tool-call')
-export const aliceChatStreamToolResult = defineEventa<AliceChatToolResultEvent>('eventa:event:electron:alice:chat:stream-tool-result')
-export const aliceChatStreamFinish = defineEventa<AliceChatFinishEvent>('eventa:event:electron:alice:chat:stream-finish')
-export const aliceChatStreamError = defineEventa<AliceChatErrorEvent>('eventa:event:electron:alice:chat:stream-error')
+export const alicizationKillSwitchStateChanged = defineEventa<AlicizationCardScope & AlicizationKillSwitchSnapshot>('eventa:event:electron:alicization:kill-switch:state-changed')
+export const alicizationSoulChanged = defineEventa<AlicizationCardScope & AlicizationSoulSnapshot>('eventa:event:electron:alicization:soul:changed')
+export const alicizationDialogueResponded = defineEventa<AlicizationDialogueRespondedPayload>('eventa:event:electron:alicization:dialogue:responded')
+export const alicizationSafetyPermissionRequested = defineEventa<AlicizationSafetyPermissionRequest>('eventa:event:electron:alicization:safety:permission-requested')
+export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChunkEvent>('eventa:event:electron:alicization:chat:stream-chunk')
+export const alicizationChatStreamToolCall = defineEventa<AlicizationChatToolCallEvent>('eventa:event:electron:alicization:chat:stream-tool-call')
+export const alicizationChatStreamToolResult = defineEventa<AlicizationChatToolResultEvent>('eventa:event:electron:alicization:chat:stream-tool-result')
+export const alicizationChatStreamFinish = defineEventa<AlicizationChatFinishEvent>('eventa:event:electron:alicization:chat:stream-finish')
+export const alicizationChatStreamError = defineEventa<AlicizationChatErrorEvent>('eventa:event:electron:alicization:chat:stream-error')
 
 export { electron } from '@proj-airi/electron-eventa'
 export * from '@proj-airi/electron-eventa/electron-updater'

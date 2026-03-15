@@ -1,11 +1,11 @@
 import type { createContext } from '@moeru/eventa/adapters/electron/main'
 
 import type {
-  AliceAuditLogInput,
-  AliceSafetyPermissionDecision,
-  AliceSafetyPermissionRequest,
-  AliceToolActionCategory,
-  AliceToolRiskLevel,
+  AlicizationAuditLogInput,
+  AlicizationSafetyPermissionDecision,
+  AlicizationSafetyPermissionRequest,
+  AlicizationToolActionCategory,
+  AlicizationToolRiskLevel,
   ElectronMcpCallToolPayload,
   ElectronMcpCallToolResult,
   ElectronMcpCapabilitiesSnapshot,
@@ -32,8 +32,8 @@ import { app, shell } from 'electron'
 import { z } from 'zod'
 
 import {
-  aliceSafetyPermissionRequested,
-  electronAliceSafetyResolvePermission,
+  alicizationSafetyPermissionRequested,
+  electronAlicizationSafetyResolvePermission,
   electronMcpApplyAndRestart,
   electronMcpCallTool,
   electronMcpGetCapabilitiesSnapshot,
@@ -43,12 +43,12 @@ import {
 } from '../../../../shared/eventa'
 import { onAppBeforeQuit } from '../../../libs/bootkit/lifecycle'
 import {
-  appendAliceRuntimeAuditLog,
-  getAliceCardKillSwitchSnapshot,
-  isAliceCardKillSwitchSuspended,
-  isAliceKillSwitchSuspended,
-  onAliceKillSwitchChanged,
-} from '../../alice/state'
+  appendAlicizationRuntimeAuditLog,
+  getAlicizationCardKillSwitchSnapshot,
+  isAlicizationCardKillSwitchSuspended,
+  isAlicizationKillSwitchSuspended,
+  onAlicizationKillSwitchChanged,
+} from '../../alicization/state'
 
 interface McpServerSession {
   client: Client
@@ -86,18 +86,18 @@ const toolNameSeparator = '::'
 const mcpRequestTimeoutMsec = 10_000
 const mcpRequestMaxTotalTimeoutMsec = 15_000
 const permissionRequestTimeoutMsec = 60_000
-const mcpWorkspaceDirectoryName = 'Alice_Workspace'
-const defaultAliceCardId = 'default'
+const mcpWorkspaceDirectoryName = 'Alicization_Workspace'
+const defaultAlicizationCardId = 'default'
 let sharedMcpListToolsInvoker: (() => Promise<ElectronMcpToolDescriptor[]>) | undefined
 let sharedMcpCallToolInvoker: ((payload: ElectronMcpCallToolPayload) => Promise<ElectronMcpCallToolResult>) | undefined
 
-export async function invokeAliceMcpListToolsFromMain() {
+export async function invokeAlicizationMcpListToolsFromMain() {
   if (!sharedMcpListToolsInvoker)
     return []
   return await sharedMcpListToolsInvoker()
 }
 
-export async function invokeAliceMcpCallToolFromMain(payload: ElectronMcpCallToolPayload) {
+export async function invokeAlicizationMcpCallToolFromMain(payload: ElectronMcpCallToolPayload) {
   if (!sharedMcpCallToolInvoker) {
     return createToolErrorResult(
       'MCP_CALL_UNAVAILABLE',
@@ -109,16 +109,16 @@ export async function invokeAliceMcpCallToolFromMain(payload: ElectronMcpCallToo
 
 interface ToolPermissionEvaluation {
   decision: 'allow' | 'deny' | 'prompt'
-  riskLevel: AliceToolRiskLevel
-  actionCategory: AliceToolActionCategory
+  riskLevel: AlicizationToolRiskLevel
+  actionCategory: AlicizationToolActionCategory
   reason: string
   resourcePath?: string
   allowBy?: 'workspace' | 'session-whitelist'
 }
 
 interface PendingPermissionRequest {
-  request: AliceSafetyPermissionRequest
-  resolve: (decision: AliceSafetyPermissionDecision) => void
+  request: AlicizationSafetyPermissionRequest
+  resolve: (decision: AlicizationSafetyPermissionDecision) => void
   timeout: ReturnType<typeof setTimeout>
   resourcePath?: string
   argumentsSummary?: ReturnType<typeof summarizeToolArguments>
@@ -126,9 +126,9 @@ interface PendingPermissionRequest {
 
 function normalizeCardId(raw: unknown) {
   if (typeof raw !== 'string')
-    return defaultAliceCardId
+    return defaultAlicizationCardId
   const trimmed = raw.trim()
-  return trimmed || defaultAliceCardId
+  return trimmed || defaultAlicizationCardId
 }
 
 function normalizeFsPath(value: string, basePath?: string) {
@@ -213,7 +213,7 @@ function hasRelativeTraversalSegment(value: string) {
   return /(?:^|\/)\.\.(?:\/|$)/.test(normalized)
 }
 
-function inferActionCategory(toolName: string): AliceToolActionCategory {
+function inferActionCategory(toolName: string): AlicizationToolActionCategory {
   if (/write|append|update|set_|put_|create|mkdir|touch|copy|move|rename/i.test(toolName))
     return 'write'
   if (/delete|remove|unlink|rmdir|truncate|purge/i.test(toolName))
@@ -259,19 +259,19 @@ function createToolErrorResult(errorCode: string, errorMessage: string, duration
 
 function createPermissionDeniedResult(reason?: string) {
   if (reason === 'kill-switch-suspended') {
-    return createToolErrorResult('ALICE_TOOL_ABORTED', 'Tool execution was aborted because kill switch is suspended.')
+    return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Tool execution was aborted because kill switch is suspended.')
   }
   if (reason === 'timeout') {
-    return createToolErrorResult('ALICE_TOOL_DENIED', 'Permission request timed out. Operation was not executed.')
+    return createToolErrorResult('ALICIZATION_TOOL_DENIED', 'Permission request timed out. Operation was not executed.')
   }
   if (reason === 'user-denied') {
     return createToolErrorResult(
-      'ALICE_TOOL_DENIED_BY_HOST',
+      'ALICIZATION_TOOL_DENIED_BY_HOST',
       'The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file.',
     )
   }
 
-  return createToolErrorResult('ALICE_TOOL_DENIED_SYSTEM', 'Tool operation was denied by safety policy.')
+  return createToolErrorResult('ALICIZATION_TOOL_DENIED_SYSTEM', 'Tool operation was denied by safety policy.')
 }
 
 function uniqueNormalizedPaths(paths: string[], basePath?: string) {
@@ -550,8 +550,8 @@ export function createMcpStdioManager(): McpStdioManager {
   }
 
   const callTool = async (payload: ElectronMcpCallToolPayload): Promise<ElectronMcpCallToolResult> => {
-    if (isAliceKillSwitchSuspended()) {
-      throw new Error('A.L.I.C.E kill switch is suspended; MCP tool execution is disabled.')
+    if (isAlicizationKillSwitchSuspended()) {
+      throw new Error('Alicization kill switch is suspended; MCP tool execution is disabled.')
     }
 
     const executeCall = async (session: McpServerSession, toolName: string): Promise<ElectronMcpCallToolResult> => {
@@ -677,12 +677,12 @@ export async function setupMcpStdioManager() {
   const log = useLogg('main/mcp-stdio').useGlobalConfig()
   const manager = createMcpStdioManager()
 
-  const removeKillSwitchMcpLifecycleListener = onAliceKillSwitchChanged((snapshot) => {
+  const removeKillSwitchMcpLifecycleListener = onAlicizationKillSwitchChanged((snapshot) => {
     if (snapshot.state === 'SUSPENDED') {
       void manager.stopAll()
-        .then(() => appendAliceRuntimeAuditLog({
+        .then(() => appendAlicizationRuntimeAuditLog({
           level: 'notice',
-          category: 'alice.tool.aborted.kill-switch',
+          category: 'alicization.tool.aborted.kill-switch',
           action: 'kill-switch-stop-all',
           message: 'Stopped all MCP sessions after kill switch suspension.',
           payload: {
@@ -694,9 +694,9 @@ export async function setupMcpStdioManager() {
     }
 
     void manager.applyAndRestart()
-      .then(() => appendAliceRuntimeAuditLog({
+      .then(() => appendAlicizationRuntimeAuditLog({
         level: 'notice',
-        category: 'alice.tool.aborted.kill-switch',
+        category: 'alicization.tool.aborted.kill-switch',
         action: 'kill-switch-resume-restart',
         message: 'Re-applied MCP stdio config after kill switch resumed.',
       }))
@@ -709,7 +709,7 @@ export async function setupMcpStdioManager() {
   })
 
   await manager.ensureConfigFile()
-  if (isAliceKillSwitchSuspended()) {
+  if (isAlicizationKillSwitchSuspended()) {
     await manager.stopAll().catch(error => log.withError(error).warn('failed to stop mcp sessions while kill switch is suspended during startup'))
     return manager
   }
@@ -738,7 +738,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     platform === 'win32' ? normalizeFsPath('C:\\Windows\\System32') : normalizeFsPath('/etc/shadow'),
   ])
   const ensureWorkspaceReady = mkdir(workspaceRootPath, { recursive: true }).catch((error) => {
-    log.withError(error).warn('failed to prepare Alice workspace directory')
+    log.withError(error).warn('failed to prepare Alicization workspace directory')
   })
 
   function isPathDeniedByBlacklist(targetPath: string) {
@@ -771,8 +771,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     return false
   }
 
-  async function appendSafetyAudit(input: AliceAuditLogInput) {
-    await appendAliceRuntimeAuditLog(input)
+  async function appendSafetyAudit(input: AlicizationAuditLogInput) {
+    await appendAlicizationRuntimeAuditLog(input)
   }
 
   function evaluateToolPermission(payload: ElectronMcpCallToolPayload, cardId: string): ToolPermissionEvaluation {
@@ -819,7 +819,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
           decision: 'allow',
           riskLevel: 'safe',
           actionCategory,
-          reason: 'Read path is inside Alice workspace sandbox.',
+          reason: 'Read path is inside Alicization workspace sandbox.',
           resourcePath,
           allowBy: 'workspace',
         }
@@ -867,7 +867,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   }
 
   async function waitForPermissionDecision(
-    request: AliceSafetyPermissionRequest,
+    request: AlicizationSafetyPermissionRequest,
     options?: {
       resourcePath?: string
       argumentsSummary?: ReturnType<typeof summarizeToolArguments>
@@ -875,13 +875,13 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   ) {
     const resourcePath = options?.resourcePath
     const argumentsSummary = options?.argumentsSummary
-    return await new Promise<AliceSafetyPermissionDecision>((resolve) => {
+    return await new Promise<AlicizationSafetyPermissionDecision>((resolve) => {
       const timeout = setTimeout(async () => {
         pendingPermissionRequests.delete(request.token)
         await appendSafetyAudit({
           level: 'warning',
-          category: 'alice.safety.permission',
-          action: 'alice.safety.permission.timeout',
+          category: 'alicization.safety.permission',
+          action: 'alicization.safety.permission.timeout',
           message: 'Tool permission request timed out.',
           payload: {
             cardId: request.cardId,
@@ -910,7 +910,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     })
   }
 
-  function resolvePendingPermission(decision: AliceSafetyPermissionDecision, reason?: string): { accepted: boolean, reason?: string } {
+  function resolvePendingPermission(decision: AlicizationSafetyPermissionDecision, reason?: string): { accepted: boolean, reason?: string } {
     const pending = pendingPermissionRequests.get(decision.token)
     if (!pending)
       return { accepted: false, reason: reason ?? 'not-found' }
@@ -930,8 +930,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       pendingPermissionRequests.delete(token)
       await appendSafetyAudit({
         level: 'notice',
-        category: 'alice.safety.permission',
-        action: 'alice.safety.permission.denied',
+        category: 'alicization.safety.permission',
+        action: 'alicization.safety.permission.denied',
         message: 'Tool permission request was denied because kill switch is suspended.',
         payload: {
           cardId: pending.request.cardId,
@@ -954,16 +954,16 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   }
 
   async function runToolCallWithKillSwitchGuard(payload: ElectronMcpCallToolPayload, cardId: string) {
-    if (isAliceKillSwitchSuspended() || isAliceCardKillSwitchSuspended(cardId)) {
-      return createToolErrorResult('ALICE_TOOL_ABORTED', 'A.L.I.C.E kill switch is suspended; tool execution was aborted.')
+    if (isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(cardId)) {
+      return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.')
     }
 
     return await new Promise<ElectronMcpCallToolResult>((resolve) => {
-      const detach = onAliceKillSwitchChanged((snapshot) => {
+      const detach = onAlicizationKillSwitchChanged((snapshot) => {
         if (snapshot.state !== 'SUSPENDED')
           return
         detach()
-        resolve(createToolErrorResult('ALICE_TOOL_ABORTED', 'A.L.I.C.E kill switch is suspended; tool execution was aborted.'))
+        resolve(createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.'))
       })
 
       params.manager.callTool(payload)
@@ -978,7 +978,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     })
   }
 
-  const removeKillSwitchListener = onAliceKillSwitchChanged((snapshot) => {
+  const removeKillSwitchListener = onAlicizationKillSwitchChanged((snapshot) => {
     if (snapshot.state !== 'SUSPENDED')
       return
     void denyAllPendingPermissionsOnKillSwitch()
@@ -1010,7 +1010,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     return params.manager.listTools()
   })
 
-  defineInvokeHandler(params.context, electronAliceSafetyResolvePermission, async (payload) => {
+  defineInvokeHandler(params.context, electronAlicizationSafetyResolvePermission, async (payload) => {
     if (typeof payload?.token !== 'string' || !payload.token.trim())
       return { accepted: false, reason: 'invalid-token' }
 
@@ -1025,7 +1025,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       return { accepted: false, reason: 'context-mismatch' }
     }
 
-    const normalizedDecision: AliceSafetyPermissionDecision = {
+    const normalizedDecision: AlicizationSafetyPermissionDecision = {
       ...payload,
       reason: payload.reason ?? (payload.allow ? 'user-approved' : 'user-denied'),
     }
@@ -1038,7 +1038,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       getSessionWhitelist(pending.request.cardId).add(pending.resourcePath)
       await appendSafetyAudit({
         level: 'notice',
-        category: 'alice.tool.allowed.session-whitelist',
+        category: 'alicization.tool.allowed.session-whitelist',
         action: 'added',
         message: 'Added read path into session whitelist after user approval.',
         payload: {
@@ -1052,8 +1052,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
 
     await appendSafetyAudit({
       level: payload.allow ? 'notice' : 'warning',
-      category: 'alice.safety.permission',
-      action: payload.allow ? 'alice.safety.permission.approved' : 'alice.safety.permission.denied',
+      category: 'alicization.safety.permission',
+      action: payload.allow ? 'alicization.safety.permission.approved' : 'alicization.safety.permission.denied',
       message: payload.allow ? 'Tool permission approved by user.' : 'Tool permission denied by user.',
       payload: {
         cardId: pending.request.cardId,
@@ -1072,8 +1072,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     await ensureWorkspaceReady
     const cardId = normalizeCardId(payload.cardId)
 
-    if (isAliceKillSwitchSuspended() || getAliceCardKillSwitchSnapshot(cardId).state === 'SUSPENDED') {
-      return createToolErrorResult('ALICE_TOOL_ABORTED', 'A.L.I.C.E kill switch is suspended; MCP tool execution is disabled.')
+    if (isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED') {
+      return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; MCP tool execution is disabled.')
     }
 
     let parsedName: { serverName: string, toolName: string }
@@ -1089,7 +1089,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     if (permission.decision === 'deny') {
       await appendSafetyAudit({
         level: 'critical',
-        category: 'alice.tool.blocked.blacklist',
+        category: 'alicization.tool.blocked.blacklist',
         action: 'deny',
         message: 'Blocked MCP tool execution due to deny policy in safety read funnel.',
         payload: {
@@ -1102,13 +1102,13 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
           argumentsSummary,
         },
       })
-      return createToolErrorResult('ALICE_TOOL_DENIED_SYSTEM', 'Access denied. Internal system state cannot be accessed via generic I/O tools.')
+      return createToolErrorResult('ALICIZATION_TOOL_DENIED_SYSTEM', 'Access denied. Internal system state cannot be accessed via generic I/O tools.')
     }
 
     if (permission.allowBy === 'workspace') {
       await appendSafetyAudit({
         level: 'notice',
-        category: 'alice.tool.allowed.workspace',
+        category: 'alicization.tool.allowed.workspace',
         action: 'allow',
         message: 'Allowed MCP tool read operation inside sandbox workspace.',
         payload: {
@@ -1122,7 +1122,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     else if (permission.allowBy === 'session-whitelist') {
       await appendSafetyAudit({
         level: 'notice',
-        category: 'alice.tool.allowed.session-whitelist',
+        category: 'alicization.tool.allowed.session-whitelist',
         action: 'allow',
         message: 'Allowed MCP tool read operation by session whitelist.',
         payload: {
@@ -1135,7 +1135,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     }
 
     if (permission.decision === 'prompt') {
-      const request: AliceSafetyPermissionRequest = {
+      const request: AlicizationSafetyPermissionRequest = {
         cardId,
         requestId: randomUUID(),
         token: randomUUID(),
@@ -1153,8 +1153,8 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
 
       await appendSafetyAudit({
         level: 'notice',
-        category: 'alice.safety.permission',
-        action: 'alice.safety.permission.requested',
+        category: 'alicization.safety.permission',
+        action: 'alicization.safety.permission.requested',
         message: 'Requested human permission before executing risky MCP tool.',
         payload: {
           cardId,
@@ -1168,7 +1168,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
         },
       })
 
-      params.context.emit(aliceSafetyPermissionRequested, request)
+      params.context.emit(alicizationSafetyPermissionRequested, request)
       const decision = await waitForPermissionDecision(request, {
         resourcePath: permission.resourcePath,
         argumentsSummary,
@@ -1181,10 +1181,10 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     const result = await runToolCallWithKillSwitchGuard(payload, cardId)
     if (result.isError) {
       await appendSafetyAudit({
-        level: result.errorCode === 'ALICE_TOOL_ABORTED' ? 'notice' : 'warning',
-        category: result.errorCode === 'ALICE_TOOL_ABORTED' ? 'alice.tool.aborted.kill-switch' : 'alice.tool.execution',
-        action: result.errorCode === 'ALICE_TOOL_ABORTED' ? 'aborted' : 'failed',
-        message: result.errorCode === 'ALICE_TOOL_ABORTED'
+        level: result.errorCode === 'ALICIZATION_TOOL_ABORTED' ? 'notice' : 'warning',
+        category: result.errorCode === 'ALICIZATION_TOOL_ABORTED' ? 'alicization.tool.aborted.kill-switch' : 'alicization.tool.execution',
+        action: result.errorCode === 'ALICIZATION_TOOL_ABORTED' ? 'aborted' : 'failed',
+        message: result.errorCode === 'ALICIZATION_TOOL_ABORTED'
           ? 'MCP tool execution aborted due to kill switch state.'
           : 'MCP tool execution failed.',
         payload: {

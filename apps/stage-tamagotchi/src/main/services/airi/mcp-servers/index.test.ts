@@ -4,8 +4,8 @@ import type { McpStdioManager } from './index'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  aliceSafetyPermissionRequested,
-  electronAliceSafetyResolvePermission,
+  alicizationSafetyPermissionRequested,
+  electronAlicizationSafetyResolvePermission,
   electronMcpCallTool,
 } from '../../../../shared/eventa'
 
@@ -29,7 +29,7 @@ vi.mock('electron', () => ({
   app: {
     getPath: vi.fn((name: string) => {
       if (name === 'userData')
-        return '/tmp/alice-user-data'
+        return '/tmp/alicization-user-data'
       if (name === 'documents')
         return '/tmp/documents'
       return '/tmp'
@@ -45,12 +45,12 @@ vi.mock('../../../libs/bootkit/lifecycle', () => ({
   onAppBeforeQuit: vi.fn(),
 }))
 
-vi.mock('../../alice/state', () => ({
-  appendAliceRuntimeAuditLog: appendAuditLogMock,
-  getAliceCardKillSwitchSnapshot: getCardKillSwitchSnapshotMock,
-  isAliceCardKillSwitchSuspended: isCardKillSwitchSuspendedMock,
-  isAliceKillSwitchSuspended: isKillSwitchSuspendedMock,
-  onAliceKillSwitchChanged: vi.fn((listener: (snapshot: { state: 'ACTIVE' | 'SUSPENDED', reason?: string, updatedAt: number }) => void) => {
+vi.mock('../../alicization/state', () => ({
+  appendAlicizationRuntimeAuditLog: appendAuditLogMock,
+  getAlicizationCardKillSwitchSnapshot: getCardKillSwitchSnapshotMock,
+  isAlicizationCardKillSwitchSuspended: isCardKillSwitchSuspendedMock,
+  isAlicizationKillSwitchSuspended: isKillSwitchSuspendedMock,
+  onAlicizationKillSwitchChanged: vi.fn((listener: (snapshot: { state: 'ACTIVE' | 'SUSPENDED', reason?: string, updatedAt: number }) => void) => {
     killSwitchListeners.add(listener)
     return () => {
       killSwitchListeners.delete(listener)
@@ -74,7 +74,7 @@ function createManager(overrides?: Partial<McpStdioManager>): McpStdioManager {
 
 function getSafetyRequests() {
   return contextEmitMock.mock.calls
-    .filter(([event]) => event === aliceSafetyPermissionRequested)
+    .filter(([event]) => event === alicizationSafetyPermissionRequested)
     .map(([, payload]) => payload)
 }
 
@@ -110,7 +110,7 @@ describe('mcp safety gate', () => {
     vi.useRealTimers()
   })
 
-  it('blocks reads to alice internal root by absolute blacklist', async () => {
+  it('blocks reads to alicization internal root by absolute blacklist', async () => {
     const { createMcpServersService } = await import('./index')
     const manager = createManager()
 
@@ -125,20 +125,20 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/alice-user-data/alicizations/SOUL.md',
+        path: '/tmp/alicization-user-data/alicizations/SOUL.md',
       },
     })
 
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED_SYSTEM')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED_SYSTEM')
     expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
       status: 'error',
-      code: 'ALICE_TOOL_DENIED_SYSTEM',
+      code: 'ALICIZATION_TOOL_DENIED_SYSTEM',
     }))
     expect(manager.callTool).not.toBeCalled()
-    expect(contextEmitMock).not.toBeCalledWith(aliceSafetyPermissionRequested, expect.anything())
+    expect(contextEmitMock).not.toBeCalledWith(alicizationSafetyPermissionRequested, expect.anything())
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.tool.blocked.blacklist',
+      category: 'alicization.tool.blocked.blacklist',
       payload: expect.objectContaining({
         path: expect.any(String),
       }),
@@ -160,13 +160,13 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        sourcePath: '/tmp/documents/Alice_Workspace/notes.txt',
-        targetPath: '/tmp/alice-user-data/alicizations/alice.db',
+        sourcePath: '/tmp/documents/Alicization_Workspace/notes.txt',
+        targetPath: '/tmp/alicization-user-data/alicizations/alicization.db',
       },
     })
 
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED_SYSTEM')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED_SYSTEM')
     expect(manager.callTool).not.toBeCalled()
   })
 
@@ -185,15 +185,15 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '../../alice-user-data/alicizations/alice.db',
+        path: '../../alicization-user-data/alicizations/alicization.db',
       },
     })
 
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED_SYSTEM')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED_SYSTEM')
     expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
       status: 'error',
-      code: 'ALICE_TOOL_DENIED_SYSTEM',
+      code: 'ALICIZATION_TOOL_DENIED_SYSTEM',
     }))
     expect(manager.callTool).not.toBeCalled()
     expect(getSafetyRequests()).toHaveLength(0)
@@ -236,7 +236,7 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/notes.txt',
+        path: '/tmp/documents/Alicization_Workspace/notes.txt',
       },
     })
 
@@ -260,14 +260,14 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/../secret.txt',
+        path: '/tmp/documents/Alicization_Workspace/../secret.txt',
       },
     })
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED_SYSTEM')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED_SYSTEM')
     expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
       status: 'error',
-      code: 'ALICE_TOOL_DENIED_SYSTEM',
+      code: 'ALICIZATION_TOOL_DENIED_SYSTEM',
     }))
     expect(manager.callTool).not.toBeCalled()
     expect(getSafetyRequests()).toHaveLength(0)
@@ -283,7 +283,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -327,7 +327,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -389,7 +389,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -451,7 +451,7 @@ describe('mcp safety gate', () => {
     })
     const thirdResult = await thirdPending
     expect(thirdResult.isError).toBe(true)
-    expect(thirdResult.errorCode).toBe('ALICE_TOOL_DENIED_BY_HOST')
+    expect(thirdResult.errorCode).toBe('ALICIZATION_TOOL_DENIED_BY_HOST')
     expect(manager.callTool).toBeCalledTimes(2)
   })
 
@@ -465,7 +465,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -500,7 +500,7 @@ describe('mcp safety gate', () => {
     })
     const denied = await pending
     expect(denied.isError).toBe(true)
-    expect(denied.errorCode).toBe('ALICE_TOOL_DENIED_BY_HOST')
+    expect(denied.errorCode).toBe('ALICIZATION_TOOL_DENIED_BY_HOST')
   })
 
   it('rejects permission resolution when requestId does not match token context', async () => {
@@ -513,7 +513,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -560,7 +560,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -586,15 +586,15 @@ describe('mcp safety gate', () => {
 
     const result = await pending
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED_BY_HOST')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED_BY_HOST')
     expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
       status: 'error',
-      code: 'ALICE_TOOL_DENIED_BY_HOST',
+      code: 'ALICIZATION_TOOL_DENIED_BY_HOST',
     }))
     expect(String(result.errorMessage)).toContain('Host (User) explicitly INTERCEPTED')
     expect(manager.callTool).not.toBeCalled()
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      action: 'alice.safety.permission.denied',
+      action: 'alicization.safety.permission.denied',
       payload: expect.objectContaining({
         reason: 'user-denied',
       }),
@@ -611,7 +611,7 @@ describe('mcp safety gate', () => {
     })
 
     const callTool = invokeHandlers.get(electronMcpCallTool)
-    const resolvePermission = invokeHandlers.get(electronAliceSafetyResolvePermission)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
@@ -636,14 +636,14 @@ describe('mcp safety gate', () => {
 
     const deniedResult = await deniedPending
     expect(deniedResult.isError).toBe(true)
-    expect(deniedResult.errorCode).toBe('ALICE_TOOL_DENIED_BY_HOST')
+    expect(deniedResult.errorCode).toBe('ALICIZATION_TOOL_DENIED_BY_HOST')
     expect(manager.callTool).not.toBeCalled()
 
     contextEmitMock.mockReset()
     const safeResult = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/recovered.txt',
+        path: '/tmp/documents/Alicization_Workspace/recovered.txt',
       },
     })
     expect(safeResult.isError).not.toBe(true)
@@ -678,15 +678,15 @@ describe('mcp safety gate', () => {
     await vi.advanceTimersByTimeAsync(60_000)
     const result = await pending
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_DENIED')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_DENIED')
     expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
       status: 'error',
-      code: 'ALICE_TOOL_DENIED',
+      code: 'ALICIZATION_TOOL_DENIED',
     }))
     expect(String(result.errorMessage)).toContain('timed out')
     expect(manager.callTool).not.toBeCalled()
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      action: 'alice.safety.permission.timeout',
+      action: 'alicization.safety.permission.timeout',
     }))
   })
 
@@ -716,10 +716,10 @@ describe('mcp safety gate', () => {
     emitKillSwitchState('SUSPENDED', 'manual')
     const result = await pending
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_ABORTED')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_ABORTED')
     expect(manager.callTool).not.toBeCalled()
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      action: 'alice.safety.permission.denied',
+      action: 'alicization.safety.permission.denied',
       payload: expect.objectContaining({
         reason: 'kill-switch-suspended',
       }),
@@ -743,11 +743,11 @@ describe('mcp safety gate', () => {
     const suspendedResult = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/blocked-while-suspended.txt',
+        path: '/tmp/documents/Alicization_Workspace/blocked-while-suspended.txt',
       },
     })
     expect(suspendedResult.isError).toBe(true)
-    expect(suspendedResult.errorCode).toBe('ALICE_TOOL_ABORTED')
+    expect(suspendedResult.errorCode).toBe('ALICIZATION_TOOL_ABORTED')
     expect(manager.callTool).not.toBeCalled()
     expect(getSafetyRequests()).toHaveLength(0)
 
@@ -756,7 +756,7 @@ describe('mcp safety gate', () => {
     const resumedResult = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/allowed-after-resume.txt',
+        path: '/tmp/documents/Alicization_Workspace/allowed-after-resume.txt',
       },
     })
     expect(resumedResult.isError).not.toBe(true)
@@ -783,7 +783,7 @@ describe('mcp safety gate', () => {
     const pending = callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        path: '/tmp/documents/Alice_Workspace/notes.txt',
+        path: '/tmp/documents/Alicization_Workspace/notes.txt',
       },
     })
 
@@ -794,7 +794,7 @@ describe('mcp safety gate', () => {
     emitKillSwitchState('SUSPENDED', 'manual')
     const result = await pending
     expect(result.isError).toBe(true)
-    expect(result.errorCode).toBe('ALICE_TOOL_ABORTED')
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_ABORTED')
 
     resolveCall({ ok: true, isError: false })
   })

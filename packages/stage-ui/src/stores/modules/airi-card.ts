@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, watch } from 'vue'
 
-import { getAliceBridge, hasAliceBridge } from '../alice-bridge'
+import { getAlicizationBridge, hasAlicizationBridge } from '../alicization-bridge'
 import { useConsciousnessStore } from './consciousness'
 import { useSpeechStore } from './speech'
 
@@ -85,8 +85,8 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     if (!cards.value.has(id))
       return false
 
-    if (hasAliceBridge()) {
-      const bridge = getAliceBridge()
+    if (hasAlicizationBridge()) {
+      const bridge = getAlicizationBridge()
       if (bridge.deleteCardScope) {
         await bridge.deleteCardScope({ cardId: id })
       }
@@ -300,7 +300,7 @@ export const useAiriCardStore = defineStore('airi-card', () => {
       if (!card)
         return ''
 
-      // NOTICE: Alicization personality is sourced from SOUL/alice.db only.
+      // NOTICE: Alicization personality is sourced from SOUL/alicization.db only.
       // Keep card-level prompt aggregation minimal to avoid dual-source persona conflicts.
       return card.systemPrompt?.trim() || ''
     }),

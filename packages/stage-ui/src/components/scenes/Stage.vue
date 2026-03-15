@@ -27,7 +27,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
 import { Emotion, EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
-import { useAlicePresenceDispatcherStore } from '../../stores/alice-presence-dispatcher'
+import { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
 import { useAiriCardStore } from '../../stores/modules'
@@ -80,7 +80,7 @@ const presenceCleanups: Array<() => void> = []
 //             cross-window broadcast wiring.
 
 const providersStore = useProvidersStore()
-const alicePresenceDispatcherStore = useAlicePresenceDispatcherStore()
+const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore()
 const live2dStore = useLive2d()
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
@@ -376,7 +376,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
 void speechRuntimeStore.registerHost(speechPipeline)
 let currentChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
 
-presenceCleanups.push(alicePresenceDispatcherStore.registerLive2DController({
+presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DController({
   playEmotion: async (emotion, payload) => {
     const emotionName = normalizePresenceEmotionName(emotion)
     emotionsQueue.enqueue({
@@ -387,7 +387,7 @@ presenceCleanups.push(alicePresenceDispatcherStore.registerLive2DController({
   },
 }))
 
-presenceCleanups.push(alicePresenceDispatcherStore.registerTTSController({
+presenceCleanups.push(alicizationPresenceDispatcherStore.registerTTSController({
   speak: async (reply, emotion) => {
     const emotionName = normalizePresenceEmotionName(emotion)
     applyEmotionSpeechStyle(emotionName)

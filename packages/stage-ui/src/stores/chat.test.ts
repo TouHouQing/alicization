@@ -3,7 +3,7 @@ import { setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
-import { clearAliceBridge, setAliceBridge } from './alice-bridge'
+import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
 import { useChatOrchestratorStore } from './chat'
 
 const streamMock = vi.fn()
@@ -39,8 +39,8 @@ vi.mock('./llm', () => ({
   }),
 }))
 
-vi.mock('./alice-execution-engine', () => ({
-  useAliceExecutionEngineStore: () => ({
+vi.mock('./alicization-execution-engine', () => ({
+  useAlicizationExecutionEngineStore: () => ({
     executeRealtimeQueryTurn: executeRealtimeQueryTurnMock,
   }),
 }))
@@ -85,7 +85,7 @@ vi.mock('./chat/context-providers', () => ({
   }),
   createSensoryContext: () => ({
     id: 'ctx-sensory',
-    contextId: 'alice:sensory',
+    contextId: 'alicization:sensory',
     strategy: 'replace-self',
     text: '[System Context: Sensory], time=2026/3/9 08:00:00, battery=80%, cpu=12%, memory=50%',
     createdAt: Date.now(),
@@ -128,8 +128,8 @@ vi.mock('./chat/hooks', () => ({
   },
 }))
 
-vi.mock('../composables/alice-prompt-composer', () => ({
-  composeAlicePromptMessages: ({ messages, soulContent }: { messages: any[], soulContent?: string | null }) => ({
+vi.mock('../composables/alicization-prompt-composer', () => ({
+  composeAlicizationPromptMessages: ({ messages, soulContent }: { messages: any[], soulContent?: string | null }) => ({
     messages: [
       {
         role: 'system',
@@ -146,7 +146,7 @@ vi.mock('../composables/alice-prompt-composer', () => ({
   }),
 }))
 
-vi.mock('../composables/alice-guardrails', () => ({
+vi.mock('../composables/alicization-guardrails', () => ({
   applyPromptBudget: (messages: any[]) => ({
     messages,
     report: {
@@ -219,7 +219,7 @@ function createChatProviderStub() {
   } as any
 }
 
-function installAliceBridge(options?: {
+function installAlicizationBridge(options?: {
   personality?: {
     obedience: number
     liveliness: number
@@ -231,10 +231,10 @@ function installAliceBridge(options?: {
 }) {
   appendConversationTurnMock.mockResolvedValue(undefined)
   appendAuditLogMock.mockResolvedValue(undefined)
-  setAliceBridge({
+  setAlicizationBridge({
     bootstrap: vi.fn(),
     getSoul: vi.fn().mockResolvedValue({
-      content: '# SOUL\nA.L.I.C.E',
+      content: '# SOUL\nAlicization',
       frontmatter: {
         profile: {
           hostName: '主人',
@@ -290,8 +290,8 @@ describe('chat orchestrator', () => {
   beforeEach(() => {
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false })
     setActivePinia(pinia)
-    clearAliceBridge()
-    installAliceBridge()
+    clearAlicizationBridge()
+    installAlicizationBridge()
 
     streamMock.mockReset()
     executeRealtimeQueryTurnMock.mockReset()
@@ -327,7 +327,7 @@ describe('chat orchestrator', () => {
     expect(streamMock).toBeCalledTimes(1)
     expect(appendConversationTurnMock).toBeCalledTimes(1)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.prompt',
+      category: 'alicization.prompt',
       action: 'contract-personality-eval-required',
     }))
     const payload = appendConversationTurnMock.mock.calls[0]?.[0]
@@ -377,7 +377,7 @@ describe('chat orchestrator', () => {
       expect(streamMock).toBeCalledTimes(1)
     })
     await store.abortAllPipelines('kill-switch').catch(() => {})
-    await expect(pending).rejects.toThrow('A.L.I.C.E turn aborted')
+    await expect(pending).rejects.toThrow('Alicization turn aborted')
 
     expect(appendConversationTurnMock).toBeCalledTimes(0)
   })
@@ -410,11 +410,11 @@ describe('chat orchestrator', () => {
 
     expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.structured',
+      category: 'alicization.structured',
       action: 'contract-invalid',
     }))
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.structured',
+      category: 'alicization.structured',
       action: 'contract-retry-reasoned',
     }))
 
@@ -424,7 +424,7 @@ describe('chat orchestrator', () => {
   })
 
   it('enforces rebellious retry when low obedience turn gets tool denial', async () => {
-    installAliceBridge({
+    installAlicizationBridge({
       personality: {
         obedience: 0.05,
         liveliness: 0.35,
@@ -450,8 +450,8 @@ describe('chat orchestrator', () => {
           result: {
             isError: true,
             ok: false,
-            errorCode: 'ALICE_TOOL_DENIED_BY_HOST',
-            content: [{ type: 'text', text: '{"status":"error","code":"ALICE_TOOL_DENIED_BY_HOST","message":"The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file."}' }],
+            errorCode: 'ALICIZATION_TOOL_DENIED_BY_HOST',
+            content: [{ type: 'text', text: '{"status":"error","code":"ALICIZATION_TOOL_DENIED_BY_HOST","message":"The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file."}' }],
           },
         })
         await options.onStreamEvent?.({
@@ -477,7 +477,7 @@ describe('chat orchestrator', () => {
 
     expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.structured',
+      category: 'alicization.structured',
       action: 'contract-retry-reasoned',
     }))
 
@@ -488,7 +488,7 @@ describe('chat orchestrator', () => {
   })
 
   it('forces a tool-capable retry when file intent has no tool call in first pass', async () => {
-    installAliceBridge({
+    installAlicizationBridge({
       personality: {
         obedience: 0.05,
         liveliness: 0.25,
@@ -519,8 +519,8 @@ describe('chat orchestrator', () => {
           result: {
             isError: true,
             ok: false,
-            errorCode: 'ALICE_TOOL_DENIED_BY_HOST',
-            content: [{ type: 'text', text: '{"status":"error","code":"ALICE_TOOL_DENIED_BY_HOST","message":"The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file."}' }],
+            errorCode: 'ALICIZATION_TOOL_DENIED_BY_HOST',
+            content: [{ type: 'text', text: '{"status":"error","code":"ALICIZATION_TOOL_DENIED_BY_HOST","message":"The Host (User) explicitly INTERCEPTED and DENIED your permission to execute this tool. They do not trust you with this file."}' }],
           },
         })
         await options.onStreamEvent?.({
@@ -540,11 +540,11 @@ describe('chat orchestrator', () => {
 
     expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'cross-validation-failed',
     }))
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'contract-retry-forced-tool',
     }))
 
@@ -597,7 +597,7 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).toBeCalledTimes(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'cross-validation-failed',
       payload: expect.objectContaining({
         requiresReminderToolCall: true,
@@ -631,7 +631,7 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).toBeCalledTimes(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'reminder-schedule-safe-reply',
     }))
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
@@ -647,7 +647,7 @@ describe('chat orchestrator', () => {
       triggerAt: Date.now() + 60_000,
       message: '喝水',
     })
-    installAliceBridge({
+    installAlicizationBridge({
       reminderSchedule: reminderScheduleMock,
     })
 
@@ -673,7 +673,7 @@ describe('chat orchestrator', () => {
       message: '喝水',
     }))
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'reminder-manual-schedule-fallback',
     }))
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
@@ -689,7 +689,7 @@ describe('chat orchestrator', () => {
       triggerAt: Date.now() + 120_000,
       message: '去敲代码',
     })
-    installAliceBridge({
+    installAlicizationBridge({
       reminderSchedule: reminderScheduleMock,
     })
 
@@ -714,12 +714,12 @@ describe('chat orchestrator', () => {
       message: expect.stringContaining('敲代码'),
     }))
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.intent-action',
+      category: 'alicization.intent-action',
       action: 'reminder-manual-schedule-fallback',
     }))
   })
 
-  it('prefers alice bridge streamChat over direct llmStore.stream when bridge stream is available', async () => {
+  it('prefers alicization bridge streamChat over direct llmStore.stream when bridge stream is available', async () => {
     const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
@@ -727,7 +727,7 @@ describe('chat orchestrator', () => {
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
     streamMock.mockImplementation(async () => {
@@ -751,7 +751,7 @@ describe('chat orchestrator', () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new Error('connect ECONNREFUSED 127.0.0.1:11434')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
 
@@ -766,7 +766,7 @@ describe('chat orchestrator', () => {
     expect(store.sending).toBe(false)
     expect(appendConversationTurnMock).toBeCalledTimes(1)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.chat',
+      category: 'alicization.chat',
       action: 'turn-failed-safe-reply',
     }))
 
@@ -781,7 +781,7 @@ describe('chat orchestrator', () => {
     try {
       const bridgeChatAbortMock = vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' })
       const bridgeStreamChatMock = vi.fn(() => new Promise<void>(() => {}))
-      installAliceBridge({
+      installAlicizationBridge({
         streamChat: bridgeStreamChatMock,
         chatAbort: bridgeChatAbortMock,
       })
@@ -812,7 +812,7 @@ describe('chat orchestrator', () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new Error('chat pipeline parser failed unexpectedly')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
 
@@ -830,9 +830,9 @@ describe('chat orchestrator', () => {
 
   it('surfaces provider configuration fallback when stream start is rejected by missing config', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
-      throw new Error('A.L.I.C.E stream start rejected (state=missing-config) for turn turn-x. reason=Missing providerId/model for main-process chat stream.')
+      throw new Error('Alicization stream start rejected (state=missing-config) for turn turn-x. reason=Missing providerId/model for main-process chat stream.')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
 
@@ -859,7 +859,7 @@ describe('chat orchestrator', () => {
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
 
@@ -881,16 +881,16 @@ describe('chat orchestrator', () => {
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
     expect(String(payload?.assistantText ?? '')).toContain('无工具重试成功')
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.main-gateway',
+      category: 'alicization.main-gateway',
       action: 'stream-retry-without-tools',
     }))
   })
 
   it('does not trigger no-tools retry on plain stream timeout before progress', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
-      throw new Error('A.L.I.C.E stream timed out after 65000ms (first-event-timeout).')
+      throw new Error('Alicization stream timed out after 65000ms (first-event-timeout).')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
       chatAbort: vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' }),
     })
@@ -904,7 +904,7 @@ describe('chat orchestrator', () => {
 
     expect(bridgeStreamChatMock).toBeCalledTimes(1)
     expect(appendAuditLogMock).not.toBeCalledWith(expect.objectContaining({
-      category: 'alice.main-gateway',
+      category: 'alicization.main-gateway',
       action: 'stream-retry-without-tools',
     }))
 
@@ -914,9 +914,9 @@ describe('chat orchestrator', () => {
 
   it('does not misclassify duplicate-finished stream rejection as provider config missing', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
-      throw new Error('A.L.I.C.E stream start rejected (state=duplicate-finished) for turn turn-x. reason=Turn has already finished.')
+      throw new Error('Alicization stream start rejected (state=duplicate-finished) for turn turn-x. reason=Turn has already finished.')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
     })
 
@@ -938,9 +938,9 @@ describe('chat orchestrator', () => {
         type: 'text-delta',
         text: '{"thought":"partial-stream","emotion":"neutral","reply":"你好，我在。"}',
       })
-      throw new Error('A.L.I.C.E stream timed out after 12000ms without finish event.')
+      throw new Error('Alicization stream timed out after 12000ms without finish event.')
     })
-    installAliceBridge({
+    installAlicizationBridge({
       streamChat: bridgeStreamChatMock,
       chatAbort: vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' }),
     })
@@ -956,7 +956,7 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).toContain('你好，我在')
     expect(String(payload?.assistantText ?? '')).not.toContain('没有连上模型服务')
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.main-gateway',
+      category: 'alicization.main-gateway',
       action: 'stream-timeout-after-progress',
     }))
   })
@@ -1005,11 +1005,11 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).toBeCalledTimes(2)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.structured',
+      category: 'alicization.structured',
       action: 'contract-invalid',
     }))
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alice.structured',
+      category: 'alicization.structured',
       action: 'contract-retry-reasoned',
       payload: expect.objectContaining({
         reminderScheduled: true,

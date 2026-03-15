@@ -16,7 +16,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./alice-prompting": "./src/alice-prompting.ts",
+    "./alicization-prompting": "./src/alicization-prompting.ts",
     "./beat-sync": "./src/beat-sync/index.ts",
     "./electron-renderer": "./src/electron-renderer.d.ts",
     "./composables": "./src/composables/index.ts"

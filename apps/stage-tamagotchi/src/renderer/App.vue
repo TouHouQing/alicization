@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { AliceBridgeChatStreamEvent } from '@proj-airi/stage-ui/stores/alice-bridge'
+import type { AlicizationBridgeChatStreamEvent } from '@proj-airi/stage-ui/stores/alicization-bridge'
 
-import type { AliceChatAbortPayload, AliceChatAbortResult, AliceChatErrorEvent, AliceChatFinishEvent, AliceChatStartPayload, AliceChatStartResult, AliceChatStreamChunkEvent, AliceChatStreamDispatchPayload, AliceChatToolCallEvent, AliceChatToolResultEvent, AliceDialogueRespondedPayload, AliceLlmConfigPayload, AliceSafetyPermissionRequest } from '../shared/eventa'
+import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-airi/stage-layouts/composables/theme-color'
 import { ToasterRoot } from '@proj-airi/stage-ui/components'
-import { clearAliceBridge, setAliceBridge } from '@proj-airi/stage-ui/stores/alice-bridge'
-import { useAliceEpoch1Store } from '@proj-airi/stage-ui/stores/alice-epoch1'
-import { useAlicePresenceDispatcherStore } from '@proj-airi/stage-ui/stores/alice-presence-dispatcher'
+import { clearAlicizationBridge, setAlicizationBridge } from '@proj-airi/stage-ui/stores/alicization-bridge'
+import { useAlicizationEpoch1Store } from '@proj-airi/stage-ui/stores/alicization-epoch1'
+import { useAlicizationPresenceDispatcherStore } from '@proj-airi/stage-ui/stores/alicization-presence-dispatcher'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
@@ -31,58 +31,58 @@ import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { toast, Toaster } from 'vue-sonner'
 
-import AliceHitlModal from './components/AliceHitlModal.vue'
+import AlicizationHitlModal from './components/AlicizationHitlModal.vue'
 import ResizeHandler from './components/ResizeHandler.vue'
 
-import { sanitizeAliceChatStartPayloadForTransport, summarizeAliceChatStartPayloadForTransport } from '../shared/alice-chat-transport'
+import { sanitizeAlicizationChatStartPayloadForTransport, summarizeAlicizationChatStartPayloadForTransport } from '../shared/alicization-chat-transport'
 import {
-  aliceChatAbortInvokeChannel,
-  aliceChatStartInvokeChannel,
-  aliceChatStreamChunk,
-  aliceChatStreamDispatchChannel,
-  aliceChatStreamError,
-  aliceChatStreamFinish,
-  aliceChatStreamToolCall,
-  aliceChatStreamToolResult,
-  aliceDialogueResponded,
-  aliceKillSwitchStateChanged,
+  alicizationChatAbortInvokeChannel,
+  alicizationChatStartInvokeChannel,
+  alicizationChatStreamChunk,
+  alicizationChatStreamDispatchChannel,
+  alicizationChatStreamError,
+  alicizationChatStreamFinish,
+  alicizationChatStreamToolCall,
+  alicizationChatStreamToolResult,
+  alicizationDialogueResponded,
+  alicizationKillSwitchStateChanged,
 
-  aliceSafetyPermissionRequested,
-  aliceSoulChanged,
-  electronAliceAckDialogue,
-  electronAliceAppendAuditLog,
-  electronAliceAppendConversationTurn,
-  electronAliceBootstrap,
-  electronAliceChatAbort,
-  electronAliceChatStart,
-  electronAliceClearAllConversations,
-  electronAliceDeleteAllData,
-  electronAliceDeleteCardScope,
-  electronAliceGetMemoryStats,
-  electronAliceGetSensorySnapshot,
-  electronAliceGetSoul,
-  electronAliceInitializeGenesis,
-  electronAliceKillSwitchGetState,
-  electronAliceKillSwitchResume,
-  electronAliceKillSwitchSuspend,
-  electronAliceListConversationTurns,
-  electronAliceLlmGetConfig,
-  electronAliceLlmSyncConfig,
-  electronAliceMemoryImportLegacy,
-  electronAliceMemoryRetrieveFacts,
-  electronAliceMemoryUpsertFacts,
-  electronAliceRealtimeExecute,
-  electronAliceReminderSchedule,
-  electronAliceReplayDialogues,
-  electronAliceRunMemoryPrune,
-  electronAliceSafetyResolvePermission,
-  electronAliceSetActiveSession,
-  electronAliceSubconsciousForceDream,
-  electronAliceSubconsciousForceTick,
-  electronAliceSubconsciousGetState,
-  electronAliceUpdateMemoryStats,
-  electronAliceUpdatePersonality,
-  electronAliceUpdateSoul,
+  alicizationSafetyPermissionRequested,
+  alicizationSoulChanged,
+  electronAlicizationAckDialogue,
+  electronAlicizationAppendAuditLog,
+  electronAlicizationAppendConversationTurn,
+  electronAlicizationBootstrap,
+  electronAlicizationChatAbort,
+  electronAlicizationChatStart,
+  electronAlicizationClearAllConversations,
+  electronAlicizationDeleteAllData,
+  electronAlicizationDeleteCardScope,
+  electronAlicizationGetMemoryStats,
+  electronAlicizationGetSensorySnapshot,
+  electronAlicizationGetSoul,
+  electronAlicizationInitializeGenesis,
+  electronAlicizationKillSwitchGetState,
+  electronAlicizationKillSwitchResume,
+  electronAlicizationKillSwitchSuspend,
+  electronAlicizationListConversationTurns,
+  electronAlicizationLlmGetConfig,
+  electronAlicizationLlmSyncConfig,
+  electronAlicizationMemoryImportLegacy,
+  electronAlicizationMemoryRetrieveFacts,
+  electronAlicizationMemoryUpsertFacts,
+  electronAlicizationRealtimeExecute,
+  electronAlicizationReminderSchedule,
+  electronAlicizationReplayDialogues,
+  electronAlicizationRunMemoryPrune,
+  electronAlicizationSafetyResolvePermission,
+  electronAlicizationSetActiveSession,
+  electronAlicizationSubconsciousForceDream,
+  electronAlicizationSubconsciousForceTick,
+  electronAlicizationSubconsciousGetState,
+  electronAlicizationUpdateMemoryStats,
+  electronAlicizationUpdatePersonality,
+  electronAlicizationUpdateSoul,
   electronGetServerChannelConfig,
   electronMcpCallTool,
   electronMcpListTools,
@@ -123,8 +123,8 @@ const { activeSessionId } = storeToRefs(chatSessionStore)
 const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const analyticsStore = useSharedAnalyticsStore()
-const aliceEpoch1Store = useAliceEpoch1Store()
-const alicePresenceDispatcherStore = useAlicePresenceDispatcherStore()
+const alicizationEpoch1Store = useAlicizationEpoch1Store()
+const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore()
 const pluginHostInspectorStore = usePluginHostInspectorStore()
 const stageWindowLifecycleStore = useStageWindowLifecycleStore()
 const context = useElectronEventaContext()
@@ -143,52 +143,52 @@ const reportPluginCapability = useElectronEventaInvoke(electronPluginUpdateCapab
 const listMcpTools = useElectronEventaInvoke(electronMcpListTools)
 const callMcpTool = useElectronEventaInvoke(electronMcpCallTool)
 const setLocale = useElectronEventaInvoke(i18nSetLocale)
-const aliceBootstrap = useElectronEventaInvoke(electronAliceBootstrap)
-const aliceGetSoul = useElectronEventaInvoke(electronAliceGetSoul)
-const aliceInitializeGenesis = useElectronEventaInvoke(electronAliceInitializeGenesis)
-const aliceUpdateSoul = useElectronEventaInvoke(electronAliceUpdateSoul)
-const aliceUpdatePersonality = useElectronEventaInvoke(electronAliceUpdatePersonality)
-const aliceGetKillSwitchState = useElectronEventaInvoke(electronAliceKillSwitchGetState)
-const aliceSuspendKillSwitch = useElectronEventaInvoke(electronAliceKillSwitchSuspend)
-const aliceResumeKillSwitch = useElectronEventaInvoke(electronAliceKillSwitchResume)
-const aliceListConversationTurns = useElectronEventaInvoke(electronAliceListConversationTurns)
-const aliceGetMemoryStats = useElectronEventaInvoke(electronAliceGetMemoryStats)
-const aliceRunMemoryPrune = useElectronEventaInvoke(electronAliceRunMemoryPrune)
-const aliceUpdateMemoryStats = useElectronEventaInvoke(electronAliceUpdateMemoryStats)
-const aliceRetrieveMemoryFacts = useElectronEventaInvoke(electronAliceMemoryRetrieveFacts)
-const aliceUpsertMemoryFacts = useElectronEventaInvoke(electronAliceMemoryUpsertFacts)
-const aliceImportLegacyMemory = useElectronEventaInvoke(electronAliceMemoryImportLegacy)
-const aliceAppendConversationTurn = useElectronEventaInvoke(electronAliceAppendConversationTurn)
-const aliceSetActiveSession = useElectronEventaInvoke(electronAliceSetActiveSession)
-const aliceAppendAuditLog = useElectronEventaInvoke(electronAliceAppendAuditLog)
-const aliceRealtimeExecute = useElectronEventaInvoke(electronAliceRealtimeExecute)
-const aliceGetSensorySnapshot = useElectronEventaInvoke(electronAliceGetSensorySnapshot)
-const aliceGetSubconsciousState = useElectronEventaInvoke(electronAliceSubconsciousGetState)
-const aliceForceSubconsciousTick = useElectronEventaInvoke(electronAliceSubconsciousForceTick)
-const aliceForceDreaming = useElectronEventaInvoke(electronAliceSubconsciousForceDream)
-const aliceSyncLlmConfig = useElectronEventaInvoke(electronAliceLlmSyncConfig)
-const aliceGetLlmConfig = useElectronEventaInvoke(electronAliceLlmGetConfig)
-const aliceAckDialogue = useElectronEventaInvoke(electronAliceAckDialogue)
-const aliceReplayDialogues = useElectronEventaInvoke(electronAliceReplayDialogues)
-const aliceChatStart = useElectronEventaInvoke(electronAliceChatStart)
-const aliceChatAbort = useElectronEventaInvoke(electronAliceChatAbort)
-const aliceReminderSchedule = useElectronEventaInvoke(electronAliceReminderSchedule)
-const aliceClearAllConversations = useElectronEventaInvoke(electronAliceClearAllConversations)
-const aliceDeleteCardScope = useElectronEventaInvoke(electronAliceDeleteCardScope)
-const aliceDeleteAllData = useElectronEventaInvoke(electronAliceDeleteAllData)
-const aliceResolvePermission = useElectronEventaInvoke(electronAliceSafetyResolvePermission)
+const alicizationBootstrap = useElectronEventaInvoke(electronAlicizationBootstrap)
+const alicizationGetSoul = useElectronEventaInvoke(electronAlicizationGetSoul)
+const alicizationInitializeGenesis = useElectronEventaInvoke(electronAlicizationInitializeGenesis)
+const alicizationUpdateSoul = useElectronEventaInvoke(electronAlicizationUpdateSoul)
+const alicizationUpdatePersonality = useElectronEventaInvoke(electronAlicizationUpdatePersonality)
+const alicizationGetKillSwitchState = useElectronEventaInvoke(electronAlicizationKillSwitchGetState)
+const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchSuspend)
+const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
+const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
+const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
+const alicizationRunMemoryPrune = useElectronEventaInvoke(electronAlicizationRunMemoryPrune)
+const alicizationUpdateMemoryStats = useElectronEventaInvoke(electronAlicizationUpdateMemoryStats)
+const alicizationRetrieveMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryRetrieveFacts)
+const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryUpsertFacts)
+const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
+const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
+const alicizationSetActiveSession = useElectronEventaInvoke(electronAlicizationSetActiveSession)
+const alicizationAppendAuditLog = useElectronEventaInvoke(electronAlicizationAppendAuditLog)
+const alicizationRealtimeExecute = useElectronEventaInvoke(electronAlicizationRealtimeExecute)
+const alicizationGetSensorySnapshot = useElectronEventaInvoke(electronAlicizationGetSensorySnapshot)
+const alicizationGetSubconsciousState = useElectronEventaInvoke(electronAlicizationSubconsciousGetState)
+const alicizationForceSubconsciousTick = useElectronEventaInvoke(electronAlicizationSubconsciousForceTick)
+const alicizationForceDreaming = useElectronEventaInvoke(electronAlicizationSubconsciousForceDream)
+const alicizationSyncLlmConfig = useElectronEventaInvoke(electronAlicizationLlmSyncConfig)
+const alicizationGetLlmConfig = useElectronEventaInvoke(electronAlicizationLlmGetConfig)
+const alicizationAckDialogue = useElectronEventaInvoke(electronAlicizationAckDialogue)
+const alicizationReplayDialogues = useElectronEventaInvoke(electronAlicizationReplayDialogues)
+const alicizationChatStart = useElectronEventaInvoke(electronAlicizationChatStart)
+const alicizationChatAbort = useElectronEventaInvoke(electronAlicizationChatAbort)
+const alicizationReminderSchedule = useElectronEventaInvoke(electronAlicizationReminderSchedule)
+const alicizationClearAllConversations = useElectronEventaInvoke(electronAlicizationClearAllConversations)
+const alicizationDeleteCardScope = useElectronEventaInvoke(electronAlicizationDeleteCardScope)
+const alicizationDeleteAllData = useElectronEventaInvoke(electronAlicizationDeleteAllData)
+const alicizationResolvePermission = useElectronEventaInvoke(electronAlicizationSafetyResolvePermission)
 
-const resolveAliceScope = () => ({ cardId: activeCardId.value || 'default' })
-const isCurrentAliceCard = (cardId: string) => cardId === (activeCardId.value || 'default')
-const currentHitlRequest = ref<AliceSafetyPermissionRequest | null>(null)
-const pendingHitlRequests = ref<AliceSafetyPermissionRequest[]>([])
+const resolveAlicizationScope = () => ({ cardId: activeCardId.value || 'default' })
+const isCurrentAlicizationCard = (cardId: string) => cardId === (activeCardId.value || 'default')
+const currentHitlRequest = ref<AlicizationSafetyPermissionRequest | null>(null)
+const pendingHitlRequests = ref<AlicizationSafetyPermissionRequest[]>([])
 const hitlResolving = ref(false)
 let llmSyncTimer: ReturnType<typeof setTimeout> | undefined
 let lastLlmSyncSignature = ''
 let llmConfigHydrating = false
 const llmConfigHydrated = ref(false)
-const pendingAliceChatStreams = new Map<string, {
-  onStreamEvent?: (event: AliceBridgeChatStreamEvent) => Promise<void> | void
+const pendingAlicizationChatStreams = new Map<string, {
+  onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
   resolve: () => void
   reject: (error: unknown) => void
 }>()
@@ -198,20 +198,20 @@ const handledDialogueRespondedKeys = new Set<string>()
 const handledDialogueRespondedQueue: string[] = []
 const handledDialogueRespondedMax = 600
 
-function aliceChatStreamKey(cardId: string, turnId: string) {
+function alicizationChatStreamKey(cardId: string, turnId: string) {
   return `${cardId}:${turnId}`
 }
 
-function resolvePendingAliceStream(cardId: string, turnId: string) {
-  return pendingAliceChatStreams.get(aliceChatStreamKey(cardId, turnId))
+function resolvePendingAlicizationStream(cardId: string, turnId: string) {
+  return pendingAlicizationChatStreams.get(alicizationChatStreamKey(cardId, turnId))
 }
 
-function settlePendingAliceStream(cardId: string, turnId: string) {
-  pendingAliceChatStreams.delete(aliceChatStreamKey(cardId, turnId))
+function settlePendingAlicizationStream(cardId: string, turnId: string) {
+  pendingAlicizationChatStreams.delete(alicizationChatStreamKey(cardId, turnId))
 }
 
-function createAliceAbortError(reason?: string) {
-  return new DOMException(`A.L.I.C.E stream aborted: ${reason || 'manual'}`, 'AbortError')
+function createAlicizationAbortError(reason?: string) {
+  return new DOMException(`Alicization stream aborted: ${reason || 'manual'}`, 'AbortError')
 }
 
 function estimateJsonPayloadBytes(value: unknown) {
@@ -227,7 +227,7 @@ function cloneProviderCredentials() {
   return JSON.parse(JSON.stringify(providers.value || {})) as Record<string, Record<string, unknown>>
 }
 
-function createLlmConfigPayload(): AliceLlmConfigPayload {
+function createLlmConfigPayload(): AlicizationLlmConfigPayload {
   return {
     activeProviderId: activeProvider.value || '',
     activeModelId: activeModel.value || '',
@@ -246,15 +246,15 @@ async function acknowledgeDialogueDelivery(sessionIdRaw: string, turnIdRaw: stri
     return
   const createdAt = normalizeCreatedAt(createdAtRaw)
   try {
-    await aliceAckDialogue({
-      ...resolveAliceScope(),
+    await alicizationAckDialogue({
+      ...resolveAlicizationScope(),
       sessionId,
       turnId,
       createdAt,
     })
   }
   catch (error) {
-    console.warn('[alice-renderer] failed to ack proactive dialogue delivery:', error)
+    console.warn('[alicization-renderer] failed to ack proactive dialogue delivery:', error)
   }
 }
 
@@ -411,8 +411,8 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
     if (!ensuredSessionId)
       return
 
-    const rows = await aliceListConversationTurns({
-      ...resolveAliceScope(),
+    const rows = await alicizationListConversationTurns({
+      ...resolveAlicizationScope(),
       sessionId: ensuredSessionId,
       limit: 500,
     })
@@ -547,7 +547,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
     }
   }
   catch (error) {
-    console.warn('[alice-renderer] failed to reconcile session turns from main:', error)
+    console.warn('[alicization-renderer] failed to reconcile session turns from main:', error)
   }
   finally {
     sessionReconcileInFlight.delete(sessionId)
@@ -561,8 +561,8 @@ async function backfillProactiveTurnsForSession(sessionIdRaw: string) {
 
   proactiveBackfillInFlight.add(sessionId)
   try {
-    const dialogues = await aliceReplayDialogues({
-      ...resolveAliceScope(),
+    const dialogues = await alicizationReplayDialogues({
+      ...resolveAlicizationScope(),
       sessionId,
       limit: 200,
     })
@@ -583,7 +583,7 @@ async function backfillProactiveTurnsForSession(sessionIdRaw: string) {
     }
   }
   catch (error) {
-    console.warn('[alice-renderer] failed to backfill proactive turns:', error)
+    console.warn('[alicization-renderer] failed to backfill proactive turns:', error)
   }
   finally {
     proactiveBackfillInFlight.delete(sessionId)
@@ -602,7 +602,7 @@ function scheduleMainLlmConfigSync() {
     clearTimeout(llmSyncTimer)
   llmSyncTimer = setTimeout(() => {
     lastLlmSyncSignature = signature
-    void aliceSyncLlmConfig(payload)
+    void alicizationSyncLlmConfig(payload)
   }, 120)
 }
 
@@ -611,7 +611,7 @@ async function hydrateMainLlmConfig() {
     return
   llmConfigHydrating = true
   try {
-    const remote = await aliceGetLlmConfig()
+    const remote = await alicizationGetLlmConfig()
     const remoteCredentials = remote.providerCredentials && typeof remote.providerCredentials === 'object'
       ? remote.providerCredentials
       : {}
@@ -628,10 +628,10 @@ async function hydrateMainLlmConfig() {
       activeProviderId: remote.activeProviderId || '',
       activeModelId: remote.activeModelId || '',
       providerCredentials: remoteCredentials,
-    } satisfies AliceLlmConfigPayload)
+    } satisfies AlicizationLlmConfigPayload)
   }
   catch (error) {
-    console.warn('[alice-renderer] failed to hydrate llm config from main process:', error)
+    console.warn('[alicization-renderer] failed to hydrate llm config from main process:', error)
   }
   finally {
     llmConfigHydrating = false
@@ -639,24 +639,24 @@ async function hydrateMainLlmConfig() {
   }
 }
 
-async function invokeAliceChatStartTransport(payload: AliceChatStartPayload): Promise<AliceChatStartResult> {
+async function invokeAlicizationChatStartTransport(payload: AlicizationChatStartPayload): Promise<AlicizationChatStartResult> {
   const invoke = window.electron?.ipcRenderer?.invoke
   if (typeof invoke === 'function')
-    return await invoke(aliceChatStartInvokeChannel, payload) as AliceChatStartResult
-  return await aliceChatStart(payload)
+    return await invoke(alicizationChatStartInvokeChannel, payload) as AlicizationChatStartResult
+  return await alicizationChatStart(payload)
 }
 
-async function invokeAliceChatAbortTransport(payload: AliceChatAbortPayload): Promise<AliceChatAbortResult> {
+async function invokeAlicizationChatAbortTransport(payload: AlicizationChatAbortPayload): Promise<AlicizationChatAbortResult> {
   const invoke = window.electron?.ipcRenderer?.invoke
   if (typeof invoke === 'function')
-    return await invoke(aliceChatAbortInvokeChannel, payload) as AliceChatAbortResult
-  return await aliceChatAbort(payload)
+    return await invoke(alicizationChatAbortInvokeChannel, payload) as AlicizationChatAbortResult
+  return await alicizationChatAbort(payload)
 }
 
-function handleAliceChatStreamChunk(payload?: AliceChatStreamChunkEvent) {
+function handleAlicizationChatStreamChunk(payload?: AlicizationChatStreamChunkEvent) {
   if (!payload)
     return
-  const pending = resolvePendingAliceStream(payload.cardId, payload.turnId)
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
   void pending.onStreamEvent?.({
@@ -665,10 +665,10 @@ function handleAliceChatStreamChunk(payload?: AliceChatStreamChunkEvent) {
   })
 }
 
-function handleAliceChatStreamToolCall(payload?: AliceChatToolCallEvent) {
+function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEvent) {
   if (!payload)
     return
-  const pending = resolvePendingAliceStream(payload.cardId, payload.turnId)
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
   void pending.onStreamEvent?.({
@@ -680,10 +680,10 @@ function handleAliceChatStreamToolCall(payload?: AliceChatToolCallEvent) {
   })
 }
 
-function handleAliceChatStreamToolResult(payload?: AliceChatToolResultEvent) {
+function handleAlicizationChatStreamToolResult(payload?: AlicizationChatToolResultEvent) {
   if (!payload)
     return
-  const pending = resolvePendingAliceStream(payload.cardId, payload.turnId)
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
   void pending.onStreamEvent?.({
@@ -693,23 +693,23 @@ function handleAliceChatStreamToolResult(payload?: AliceChatToolResultEvent) {
   })
 }
 
-function handleAliceChatStreamError(payload?: AliceChatErrorEvent) {
+function handleAlicizationChatStreamError(payload?: AlicizationChatErrorEvent) {
   if (!payload)
     return
-  const pending = resolvePendingAliceStream(payload.cardId, payload.turnId)
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
   void pending.onStreamEvent?.({
     type: 'error',
     error: payload.error,
   })
-  pending.reject(new Error(String(payload.error || 'A.L.I.C.E stream error')))
+  pending.reject(new Error(String(payload.error || 'Alicization stream error')))
 }
 
-function handleAliceChatStreamFinish(payload?: AliceChatFinishEvent) {
+function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent) {
   if (!payload)
     return
-  const pending = resolvePendingAliceStream(payload.cardId, payload.turnId)
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
   if (payload.status === 'completed') {
@@ -718,15 +718,15 @@ function handleAliceChatStreamFinish(payload?: AliceChatFinishEvent) {
     return
   }
   if (payload.status === 'aborted') {
-    pending.reject(createAliceAbortError(payload.finishReason))
+    pending.reject(createAlicizationAbortError(payload.finishReason))
     return
   }
-  const error = payload.error || 'A.L.I.C.E stream failed'
+  const error = payload.error || 'Alicization stream failed'
   void pending.onStreamEvent?.({ type: 'error', error })
   pending.reject(new Error(error))
 }
 
-function createDialogueRespondedDedupKey(payload: AliceDialogueRespondedPayload) {
+function createDialogueRespondedDedupKey(payload: AlicizationDialogueRespondedPayload) {
   const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : ''
   const turnId = typeof payload.turnId === 'string' ? payload.turnId.trim() : ''
   const createdAt = typeof payload.createdAt === 'number' && Number.isFinite(payload.createdAt)
@@ -735,7 +735,7 @@ function createDialogueRespondedDedupKey(payload: AliceDialogueRespondedPayload)
   return `${payload.cardId}::${sessionId}::${turnId}::${createdAt}`
 }
 
-function registerHandledDialogueResponded(payload: AliceDialogueRespondedPayload) {
+function registerHandledDialogueResponded(payload: AlicizationDialogueRespondedPayload) {
   const key = createDialogueRespondedDedupKey(payload)
   if (handledDialogueRespondedKeys.has(key))
     return false
@@ -749,8 +749,8 @@ function registerHandledDialogueResponded(payload: AliceDialogueRespondedPayload
   return true
 }
 
-function handleAliceDialogueRespondedPayload(payload?: AliceDialogueRespondedPayload) {
-  if (!payload || !isCurrentAliceCard(payload.cardId))
+function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogueRespondedPayload) {
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
   if (!registerHandledDialogueResponded(payload))
     return
@@ -772,36 +772,36 @@ function handleAliceDialogueRespondedPayload(payload?: AliceDialogueRespondedPay
     }
   }
 
-  void alicePresenceDispatcherStore.dispatchDialogueResponded(payload)
+  void alicizationPresenceDispatcherStore.dispatchDialogueResponded(payload)
 }
 
-function handleAliceChatStreamDispatch(payload?: AliceChatStreamDispatchPayload) {
+function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDispatchPayload) {
   if (!payload)
     return
   switch (payload.eventType) {
     case 'chunk':
-      handleAliceChatStreamChunk(payload.body)
+      handleAlicizationChatStreamChunk(payload.body)
       return
     case 'tool-call':
-      handleAliceChatStreamToolCall(payload.body)
+      handleAlicizationChatStreamToolCall(payload.body)
       return
     case 'tool-result':
-      handleAliceChatStreamToolResult(payload.body)
+      handleAlicizationChatStreamToolResult(payload.body)
       return
     case 'finish':
-      handleAliceChatStreamFinish(payload.body)
+      handleAlicizationChatStreamFinish(payload.body)
       return
     case 'error':
-      handleAliceChatStreamError(payload.body)
+      handleAlicizationChatStreamError(payload.body)
       return
     case 'dialogue-responded':
-      handleAliceDialogueRespondedPayload(payload.body)
+      handleAlicizationDialogueRespondedPayload(payload.body)
   }
 }
 
-const removeAliceChatStreamDispatchListener = window.electron?.ipcRenderer?.on(
-  aliceChatStreamDispatchChannel,
-  (_event, payload) => handleAliceChatStreamDispatch(payload as AliceChatStreamDispatchPayload),
+const removeAlicizationChatStreamDispatchListener = window.electron?.ipcRenderer?.on(
+  alicizationChatStreamDispatchChannel,
+  (_event, payload) => handleAlicizationChatStreamDispatch(payload as AlicizationChatStreamDispatchPayload),
 )
 
 function popNextHitlRequest() {
@@ -819,7 +819,7 @@ async function resolveHitlDecision(payload: { allow: boolean, rememberSession: b
 
   hitlResolving.value = true
   try {
-    await aliceResolvePermission({
+    await alicizationResolvePermission({
       cardId: request.cardId,
       token: request.token,
       requestId: request.requestId,
@@ -835,53 +835,53 @@ async function resolveHitlDecision(payload: { allow: boolean, rememberSession: b
   }
 }
 
-setAliceBridge({
-  bootstrap: async () => await aliceBootstrap(resolveAliceScope()),
-  getSoul: async () => await aliceGetSoul(resolveAliceScope()),
-  initializeGenesis: async payload => await aliceInitializeGenesis({ ...resolveAliceScope(), ...payload }),
-  updateSoul: async payload => await aliceUpdateSoul({ ...resolveAliceScope(), ...payload }),
-  updatePersonality: async payload => await aliceUpdatePersonality({ ...resolveAliceScope(), ...payload }),
-  getKillSwitchState: async () => await aliceGetKillSwitchState(resolveAliceScope()),
-  suspendKillSwitch: async payload => await aliceSuspendKillSwitch({ ...resolveAliceScope(), ...payload }),
-  resumeKillSwitch: async payload => await aliceResumeKillSwitch({ ...resolveAliceScope(), ...payload }),
-  getMemoryStats: async () => await aliceGetMemoryStats(resolveAliceScope()),
-  runMemoryPrune: async () => await aliceRunMemoryPrune(resolveAliceScope()),
-  updateMemoryStats: async payload => await aliceUpdateMemoryStats({ ...resolveAliceScope(), ...payload }),
-  retrieveMemoryFacts: async payload => await aliceRetrieveMemoryFacts({ ...resolveAliceScope(), ...payload }),
-  upsertMemoryFacts: async payload => await aliceUpsertMemoryFacts({ ...resolveAliceScope(), ...payload }),
-  importLegacyMemory: async payload => await aliceImportLegacyMemory({ ...resolveAliceScope(), ...payload }),
-  appendConversationTurn: async payload => await aliceAppendConversationTurn({ ...resolveAliceScope(), ...payload }),
-  setActiveSession: async payload => await aliceSetActiveSession({ ...resolveAliceScope(), ...payload }),
-  appendAuditLog: async payload => await aliceAppendAuditLog({ ...resolveAliceScope(), ...payload }),
-  realtimeExecute: async payload => await aliceRealtimeExecute({ ...resolveAliceScope(), ...payload }),
-  getSensorySnapshot: async () => await aliceGetSensorySnapshot(resolveAliceScope()),
-  getSubconsciousState: async () => await aliceGetSubconsciousState(resolveAliceScope()),
-  forceSubconsciousTick: async () => await aliceForceSubconsciousTick(resolveAliceScope()),
-  forceDreaming: async payload => await aliceForceDreaming({ ...resolveAliceScope(), ...payload }),
-  syncLlmConfig: async payload => await aliceSyncLlmConfig(payload),
-  getLlmConfig: async () => await aliceGetLlmConfig(),
-  chatStart: async payload => await invokeAliceChatStartTransport({ ...resolveAliceScope(), ...payload }),
-  chatAbort: async payload => await invokeAliceChatAbortTransport({ ...resolveAliceScope(), ...payload }),
-  reminderSchedule: async payload => await aliceReminderSchedule({ ...resolveAliceScope(), ...payload }),
+setAlicizationBridge({
+  bootstrap: async () => await alicizationBootstrap(resolveAlicizationScope()),
+  getSoul: async () => await alicizationGetSoul(resolveAlicizationScope()),
+  initializeGenesis: async payload => await alicizationInitializeGenesis({ ...resolveAlicizationScope(), ...payload }),
+  updateSoul: async payload => await alicizationUpdateSoul({ ...resolveAlicizationScope(), ...payload }),
+  updatePersonality: async payload => await alicizationUpdatePersonality({ ...resolveAlicizationScope(), ...payload }),
+  getKillSwitchState: async () => await alicizationGetKillSwitchState(resolveAlicizationScope()),
+  suspendKillSwitch: async payload => await alicizationSuspendKillSwitch({ ...resolveAlicizationScope(), ...payload }),
+  resumeKillSwitch: async payload => await alicizationResumeKillSwitch({ ...resolveAlicizationScope(), ...payload }),
+  getMemoryStats: async () => await alicizationGetMemoryStats(resolveAlicizationScope()),
+  runMemoryPrune: async () => await alicizationRunMemoryPrune(resolveAlicizationScope()),
+  updateMemoryStats: async payload => await alicizationUpdateMemoryStats({ ...resolveAlicizationScope(), ...payload }),
+  retrieveMemoryFacts: async payload => await alicizationRetrieveMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
+  upsertMemoryFacts: async payload => await alicizationUpsertMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
+  importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
+  appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
+  setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
+  appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),
+  realtimeExecute: async payload => await alicizationRealtimeExecute({ ...resolveAlicizationScope(), ...payload }),
+  getSensorySnapshot: async () => await alicizationGetSensorySnapshot(resolveAlicizationScope()),
+  getSubconsciousState: async () => await alicizationGetSubconsciousState(resolveAlicizationScope()),
+  forceSubconsciousTick: async () => await alicizationForceSubconsciousTick(resolveAlicizationScope()),
+  forceDreaming: async payload => await alicizationForceDreaming({ ...resolveAlicizationScope(), ...payload }),
+  syncLlmConfig: async payload => await alicizationSyncLlmConfig(payload),
+  getLlmConfig: async () => await alicizationGetLlmConfig(),
+  chatStart: async payload => await invokeAlicizationChatStartTransport({ ...resolveAlicizationScope(), ...payload }),
+  chatAbort: async payload => await invokeAlicizationChatAbortTransport({ ...resolveAlicizationScope(), ...payload }),
+  reminderSchedule: async payload => await alicizationReminderSchedule({ ...resolveAlicizationScope(), ...payload }),
   streamChat: async (payload, options) => await new Promise<void>(async (resolve, reject) => {
-    const scope = resolveAliceScope()
-    const key = aliceChatStreamKey(scope.cardId, payload.turnId)
-    const previousPending = pendingAliceChatStreams.get(key)
+    const scope = resolveAlicizationScope()
+    const key = alicizationChatStreamKey(scope.cardId, payload.turnId)
+    const previousPending = pendingAlicizationChatStreams.get(key)
     if (previousPending) {
       // NOTICE: Retry path may restart the same turnId after timeout.
       // Forcefully supersede the old pending stream so retried stream can proceed.
-      await invokeAliceChatAbortTransport({
+      await invokeAlicizationChatAbortTransport({
         ...scope,
         turnId: payload.turnId,
         reason: 'renderer-restart',
       }).catch(() => {})
-      previousPending.reject(new Error(`A.L.I.C.E stream superseded by restart for turn ${payload.turnId}`))
-      pendingAliceChatStreams.delete(key)
+      previousPending.reject(new Error(`Alicization stream superseded by restart for turn ${payload.turnId}`))
+      pendingAlicizationChatStreams.delete(key)
     }
 
     let disposed = false
     const abortHandler = () => {
-      void invokeAliceChatAbortTransport({
+      void invokeAlicizationChatAbortTransport({
         ...scope,
         turnId: payload.turnId,
         reason: 'renderer-abort',
@@ -892,7 +892,7 @@ setAliceBridge({
         return
       disposed = true
       options.abortSignal?.removeEventListener('abort', abortHandler)
-      settlePendingAliceStream(scope.cardId, payload.turnId)
+      settlePendingAlicizationStream(scope.cardId, payload.turnId)
     }
     const rejectAndDispose = (error: unknown) => {
       dispose()
@@ -903,36 +903,36 @@ setAliceBridge({
       resolve()
     }
 
-    pendingAliceChatStreams.set(key, {
+    pendingAlicizationChatStreams.set(key, {
       onStreamEvent: options.onStreamEvent,
       resolve: resolveAndDispose,
       reject: rejectAndDispose,
     })
 
     if (options.abortSignal?.aborted) {
-      await invokeAliceChatAbortTransport({
+      await invokeAlicizationChatAbortTransport({
         ...scope,
         turnId: payload.turnId,
         reason: 'renderer-abort',
       })
-      rejectAndDispose(createAliceAbortError('renderer-abort'))
+      rejectAndDispose(createAlicizationAbortError('renderer-abort'))
       return
     }
 
     options.abortSignal?.addEventListener('abort', abortHandler, { once: true })
 
-    const transportPayloadResult = sanitizeAliceChatStartPayloadForTransport({
+    const transportPayloadResult = sanitizeAlicizationChatStartPayloadForTransport({
       ...scope,
       ...payload,
     })
     const transportPayload = transportPayloadResult.value
-    const transportPayloadSummary = summarizeAliceChatStartPayloadForTransport(transportPayload)
+    const transportPayloadSummary = summarizeAlicizationChatStartPayloadForTransport(transportPayload)
 
     try {
-      void aliceAppendAuditLog({
+      void alicizationAppendAuditLog({
         ...scope,
         level: 'notice',
-        category: 'alice.main-gateway',
+        category: 'alicization.main-gateway',
         action: 'renderer-chat-start-requested',
         message: 'Renderer requested main-process Alicization chat stream startup.',
         payload: {
@@ -953,19 +953,19 @@ setAliceBridge({
             : undefined,
         },
       }).catch(() => {})
-      let start = await invokeAliceChatStartTransport(transportPayload)
+      let start = await invokeAlicizationChatStartTransport(transportPayload)
       if (!start.accepted && start.state === 'duplicate-running') {
         for (let attempt = 0; attempt < 4; attempt += 1) {
           await new Promise(resolve => setTimeout(resolve, 120 * (attempt + 1)))
-          start = await invokeAliceChatStartTransport(transportPayload)
+          start = await invokeAlicizationChatStartTransport(transportPayload)
           if (start.accepted || start.state !== 'duplicate-running')
             break
         }
       }
-      void aliceAppendAuditLog({
+      void alicizationAppendAuditLog({
         ...scope,
         level: start.accepted ? 'notice' : 'warning',
-        category: 'alice.main-gateway',
+        category: 'alicization.main-gateway',
         action: 'renderer-chat-start-resolved',
         message: start.accepted
           ? 'Renderer received accepted response for main-process Alicization chat stream startup.'
@@ -982,14 +982,14 @@ setAliceBridge({
           ? ` reason=${start.reason}`
           : ''
         const state = typeof start.state === 'string' ? start.state : 'unknown'
-        rejectAndDispose(new Error(`A.L.I.C.E stream start rejected (state=${state}) for turn ${payload.turnId}.${reason}`))
+        rejectAndDispose(new Error(`Alicization stream start rejected (state=${state}) for turn ${payload.turnId}.${reason}`))
       }
     }
     catch (error) {
-      void aliceAppendAuditLog({
+      void alicizationAppendAuditLog({
         ...scope,
         level: 'warning',
-        category: 'alice.main-gateway',
+        category: 'alicization.main-gateway',
         action: 'renderer-chat-start-error',
         message: 'Renderer chat start invoke failed before stream handshake completed.',
         payload: {
@@ -1009,55 +1009,55 @@ setAliceBridge({
       rejectAndDispose(error)
     }
   }),
-  clearAllConversations: async () => await aliceClearAllConversations(),
-  deleteCardScope: async scope => await aliceDeleteCardScope(scope),
-  deleteAllData: async () => await aliceDeleteAllData(),
+  clearAllConversations: async () => await alicizationClearAllConversations(),
+  deleteCardScope: async scope => await alicizationDeleteCardScope(scope),
+  deleteAllData: async () => await alicizationDeleteAllData(),
 })
 
-context.value.on(aliceSoulChanged, (event) => {
+context.value.on(alicizationSoulChanged, (event) => {
   const payload = event?.body
-  if (!payload || !isCurrentAliceCard(payload.cardId))
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
   const { cardId: _cardId, ...snapshot } = payload
-  aliceEpoch1Store.setSoulSnapshot(snapshot)
+  alicizationEpoch1Store.setSoulSnapshot(snapshot)
 })
 
-context.value.on(aliceKillSwitchStateChanged, (event) => {
+context.value.on(alicizationKillSwitchStateChanged, (event) => {
   const payload = event?.body
-  if (!payload || !isCurrentAliceCard(payload.cardId))
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
   const { cardId: _cardId, ...snapshot } = payload
-  aliceEpoch1Store.setKillSwitchSnapshot(snapshot)
+  alicizationEpoch1Store.setKillSwitchSnapshot(snapshot)
 })
 
-context.value.on(aliceDialogueResponded, event => handleAliceDialogueRespondedPayload(event?.body))
+context.value.on(alicizationDialogueResponded, event => handleAlicizationDialogueRespondedPayload(event?.body))
 
-context.value.on(aliceSafetyPermissionRequested, (event) => {
+context.value.on(alicizationSafetyPermissionRequested, (event) => {
   const payload = event?.body
-  if (!payload || !isCurrentAliceCard(payload.cardId))
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
   pendingHitlRequests.value = [...pendingHitlRequests.value, payload]
   popNextHitlRequest()
 })
 
-context.value.on(aliceChatStreamChunk, (event) => {
-  handleAliceChatStreamChunk(event?.body)
+context.value.on(alicizationChatStreamChunk, (event) => {
+  handleAlicizationChatStreamChunk(event?.body)
 })
 
-context.value.on(aliceChatStreamToolCall, (event) => {
-  handleAliceChatStreamToolCall(event?.body)
+context.value.on(alicizationChatStreamToolCall, (event) => {
+  handleAlicizationChatStreamToolCall(event?.body)
 })
 
-context.value.on(aliceChatStreamToolResult, (event) => {
-  handleAliceChatStreamToolResult(event?.body)
+context.value.on(alicizationChatStreamToolResult, (event) => {
+  handleAlicizationChatStreamToolResult(event?.body)
 })
 
-context.value.on(aliceChatStreamError, (event) => {
-  handleAliceChatStreamError(event?.body)
+context.value.on(alicizationChatStreamError, (event) => {
+  handleAlicizationChatStreamError(event?.body)
 })
 
-context.value.on(aliceChatStreamFinish, (event) => {
-  handleAliceChatStreamFinish(event?.body)
+context.value.on(alicizationChatStreamFinish, (event) => {
+  handleAlicizationChatStreamFinish(event?.body)
 })
 
 // NOTICE: register plugin host bridge during setup to avoid race with pages using it in immediate watchers.
@@ -1090,9 +1090,9 @@ watch(activeCardId, () => {
   pendingHitlRequests.value = []
   hitlResolving.value = false
   proactiveBackfillInFlight.clear()
-  void aliceEpoch1Store.refreshSoul()
-  void aliceEpoch1Store.syncKillSwitchState()
-  void aliceEpoch1Store.refreshMemoryStats()
+  void alicizationEpoch1Store.refreshSoul()
+  void alicizationEpoch1Store.syncKillSwitchState()
+  void alicizationEpoch1Store.refreshMemoryStats()
   if (activeSessionId.value?.trim()) {
     void Promise.all([
       backfillProactiveTurnsForSession(activeSessionId.value),
@@ -1104,8 +1104,8 @@ watch(activeCardId, () => {
 watch(activeSessionId, (sessionId) => {
   if (!sessionId?.trim())
     return
-  void aliceSetActiveSession({
-    ...resolveAliceScope(),
+  void alicizationSetActiveSession({
+    ...resolveAlicizationScope(),
     sessionId,
   })
   void Promise.all([
@@ -1135,7 +1135,7 @@ context.value.on(electronSettingsNavigate, (event) => {
 onMounted(async () => {
   analyticsStore.initialize()
   cardStore.initialize()
-  await aliceEpoch1Store.initialize()
+  await alicizationEpoch1Store.initialize()
 
   await chatSessionStore.initialize()
   await hydrateMainLlmConfig()
@@ -1182,15 +1182,15 @@ watch(themeColorsHueDynamic, () => {
 onUnmounted(() => {
   if (llmSyncTimer)
     clearTimeout(llmSyncTimer)
-  removeAliceChatStreamDispatchListener?.()
-  for (const [key, pending] of pendingAliceChatStreams.entries()) {
-    pendingAliceChatStreams.delete(key)
-    pending.reject(new Error('Renderer unmounted before A.L.I.C.E stream completed.'))
+  removeAlicizationChatStreamDispatchListener?.()
+  for (const [key, pending] of pendingAlicizationChatStreams.entries()) {
+    pendingAlicizationChatStreams.delete(key)
+    pending.reject(new Error('Renderer unmounted before Alicization stream completed.'))
   }
   contextBridgeStore.dispose()
   clearMcpToolBridge()
-  aliceEpoch1Store.dispose()
-  clearAliceBridge()
+  alicizationEpoch1Store.dispose()
+  clearAlicizationBridge()
 })
 </script>
 
@@ -1198,7 +1198,7 @@ onUnmounted(() => {
   <ToasterRoot @close="id => toast.dismiss(id)">
     <Toaster />
   </ToasterRoot>
-  <AliceHitlModal
+  <AlicizationHitlModal
     :request="currentHitlRequest"
     :resolving="hitlResolving"
     @decide="resolveHitlDecision"

@@ -1,13 +1,17 @@
-import type { AliceGender, AlicePersonalityState } from '@proj-airi/stage-ui/stores/alice-bridge'
+import type { AlicizationGender, AlicizationPersonalityState } from '@proj-airi/stage-ui/stores/alicization-bridge'
 
-const soulPersonaNotesStart = '<!-- ALICE_PERSONA_NOTES_START -->'
-const soulPersonaNotesEnd = '<!-- ALICE_PERSONA_NOTES_END -->'
+const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
+const soulPersonaNotesEnd = '<!-- ALICIZATION_PERSONA_NOTES_END -->'
+// NOTICE: Read legacy markers so the settings panel can still display persona notes
+// before the main runtime rewrites an older SOUL.md with Alicization anchors.
+const legacySoulPersonaNotesStart = `<!-- ${['AL', 'ICE'].join('')}_PERSONA_NOTES_START -->`
+const legacySoulPersonaNotesEnd = `<!-- ${['AL', 'ICE'].join('')}_PERSONA_NOTES_END -->`
 
 export interface SoulForgeDraft {
   ownerName: string
   hostName: string
-  aliceName: string
-  gender: AliceGender
+  alicizationName: string
+  gender: AlicizationGender
   genderCustom: string
   relationship: string
   mindAge: number
@@ -18,7 +22,7 @@ export interface SoulForgeDraft {
 }
 
 export interface SoulForgeTraitMeta {
-  key: keyof AlicePersonalityState
+  key: keyof AlicizationPersonalityState
   label: string
   description: string
   leftLabel: string
@@ -49,11 +53,11 @@ export const soulForgeTraitMetas: SoulForgeTraitMeta[] = [
   },
 ]
 
-export function createDefaultSoulForgeDraft(seedAliceName?: string): SoulForgeDraft {
+export function createDefaultSoulForgeDraft(seedAlicizationName?: string): SoulForgeDraft {
   return {
     ownerName: '主人',
     hostName: '主人',
-    aliceName: seedAliceName?.trim() || 'A.L.I.C.E.',
+    alicizationName: seedAlicizationName?.trim() || 'Alicization',
     gender: 'neutral',
     genderCustom: '',
     relationship: '数字共生体',
@@ -82,14 +86,34 @@ function getSoulBodyFromContent(content: string) {
   return content.slice(secondMarkerIndex + 5).trim()
 }
 
+function findPersonaNotesAnchors(body: string) {
+  const markerPairs = [
+    { start: soulPersonaNotesStart, end: soulPersonaNotesEnd },
+    { start: legacySoulPersonaNotesStart, end: legacySoulPersonaNotesEnd },
+  ]
+
+  for (const markerPair of markerPairs) {
+    const startIndex = body.indexOf(markerPair.start)
+    const endIndex = body.indexOf(markerPair.end)
+    if (startIndex >= 0 && endIndex > startIndex) {
+      return {
+        ...markerPair,
+        startIndex,
+        endIndex,
+      }
+    }
+  }
+
+  return null
+}
+
 export function extractPersonaNotesFromSoulContent(content: string) {
   const body = getSoulBodyFromContent(content)
-  const startIndex = body.indexOf(soulPersonaNotesStart)
-  const endIndex = body.indexOf(soulPersonaNotesEnd)
-  if (startIndex < 0 || endIndex < 0 || endIndex <= startIndex)
+  const anchors = findPersonaNotesAnchors(body)
+  if (!anchors)
     return ''
 
   return body
-    .slice(startIndex + soulPersonaNotesStart.length, endIndex)
+    .slice(anchors.startIndex + anchors.start.length, anchors.endIndex)
     .trim()
 }

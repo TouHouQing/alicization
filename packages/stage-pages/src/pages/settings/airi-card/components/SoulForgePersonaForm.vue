@@ -76,7 +76,7 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
           <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">宿主对你的称呼</span>
-          <input v-model="draft.aliceName" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
+          <input v-model="draft.alicizationName" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">

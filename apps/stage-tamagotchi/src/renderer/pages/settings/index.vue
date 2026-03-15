@@ -33,7 +33,7 @@ const settings = computed(() => {
   return router
     .getRoutes()
     .filter((route) => {
-      if (route.path === '/settings/alice-epoch1')
+      if (route.path === '/settings/alicization')
         return false
       return Boolean(route.meta?.settingsEntry)
     })

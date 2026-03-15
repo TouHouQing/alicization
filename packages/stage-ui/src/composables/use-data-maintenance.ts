@@ -3,7 +3,7 @@ import type { ChatSessionsExport } from '../types/chat-session'
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
 import { useLive2d } from '@proj-airi/stage-ui-live2d'
 
-import { getAliceBridge, hasAliceBridge } from '../stores/alice-bridge'
+import { getAlicizationBridge, hasAlicizationBridge } from '../stores/alicization-bridge'
 import { useChatOrchestratorStore } from '../stores/chat'
 import { useChatSessionStore } from '../stores/chat/session-store'
 import { useDisplayModelsStore } from '../stores/display-models'
@@ -62,8 +62,8 @@ export function useDataMaintenance() {
   async function deleteAllChatSessions() {
     await chatOrchestrator.abortActiveTurns('session-reset')
     chatOrchestrator.cancelPendingSends()
-    if (isStageTamagotchi() && hasAliceBridge()) {
-      await getAliceBridge().clearAllConversations?.()
+    if (isStageTamagotchi() && hasAlicizationBridge()) {
+      await getAlicizationBridge().clearAllConversations?.()
     }
     await chatStore.resetAllSessions()
   }
@@ -98,8 +98,8 @@ export function useDataMaintenance() {
     await chatOrchestrator.abortActiveTurns('session-reset')
     chatOrchestrator.cancelPendingSends()
 
-    if (isStageTamagotchi() && hasAliceBridge()) {
-      await getAliceBridge().deleteAllData?.()
+    if (isStageTamagotchi() && hasAlicizationBridge()) {
+      await getAlicizationBridge().deleteAllData?.()
     }
 
     await deleteAllModels()

@@ -2,10 +2,10 @@ import type { WebSocketEventInputs } from '@proj-airi/server-sdk'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
-import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alice-structured-output'
-import type { AliceAbortReason } from '../composables/alice-turn-abort'
+import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
+import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
 import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
-import type { AlicePersonalityState } from './alice-bridge'
+import type { AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import { createQueue } from '@proj-airi/stream-kit'
@@ -14,15 +14,15 @@ import { defineStore, storeToRefs } from 'pinia'
 import { ref, toRaw } from 'vue'
 
 import { useAnalytics } from '../composables'
-import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alice-guardrails'
-import { composeAlicePromptMessages } from '../composables/alice-prompt-composer'
-import { detectRealtimeQueryIntent } from '../composables/alice-realtime-query'
-import { normalizeStructuredOutput, validateStructuredContract } from '../composables/alice-structured-output'
-import { abortAliceTurns, completeAliceTurnAbort, isAliceAbortError, registerAliceTurnAbort } from '../composables/alice-turn-abort'
+import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
+import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
+import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-query'
+import { normalizeStructuredOutput, validateStructuredContract } from '../composables/alicization-structured-output'
+import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
-import { getAliceBridge, hasAliceBridge } from './alice-bridge'
-import { useAliceExecutionEngineStore } from './alice-execution-engine'
+import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
+import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -60,7 +60,7 @@ interface QueuedSend {
   }
 }
 
-type ExternalPipelineAborter = (reason: AliceAbortReason) => Promise<void> | void
+type ExternalPipelineAborter = (reason: AlicizationAbortReason) => Promise<void> | void
 
 const assistantLeakFallbackReply = '我刚才的检索结果混入了内部调用片段，已自动过滤。请你再说一次你的问题，我会直接给你整理后的结果。'
 const assistantRealtimeUnavailableReply = '当前无法获取可靠的实时外部数据。请稍后重试，或在设置里检查 MCP 实时工具是否可用。'
@@ -77,7 +77,7 @@ const runtimeGatewayFirstEventTimeoutMs = 65_000
 const runtimeGatewayIdleTimeoutMs = 45_000
 const runtimeGatewayRetryFirstEventTimeoutMs = 65_000
 const runtimeGatewayRetryIdleTimeoutMs = 25_000
-const aliceEpoch1StrictModeEnabled = false
+const alicizationEpoch1StrictModeEnabled = false
 const runtimeContractAnchorHeader = 'Output contract (must-follow, highest priority):'
 const structuredRetrySystemPrompt = [
   'Return ONLY one strict JSON object with keys: thought, emotion, reply.',
@@ -329,8 +329,8 @@ function insertSystemMessageBeforeLatestUser(messages: Message[], systemText: st
 
 function parseKillSwitchDirective(message: string): 'suspend' | 'resume' | null {
   const normalized = message.trim()
-  const suspendPattern = /^(?:A\.?L\.?I\.?C\.?E\.?[,，]?\s*)?(?:强制休眠|休眠|suspend|sleep)\s*$/i
-  const resumePattern = /^(?:A\.?L\.?I\.?C\.?E\.?[,，]?\s*)?(?:恢复|唤醒|resume|wake)\s*$/i
+  const suspendPattern = /^(?:Alicization[,，]?\s*)?(?:强制休眠|休眠|suspend|sleep)\s*$/i
+  const resumePattern = /^(?:Alicization[,，]?\s*)?(?:恢复|唤醒|resume|wake)\s*$/i
   if (suspendPattern.test(normalized))
     return 'suspend'
   if (resumePattern.test(normalized))
@@ -338,7 +338,7 @@ function parseKillSwitchDirective(message: string): 'suspend' | 'resume' | null 
   return null
 }
 
-function resolveAbortReason(error: unknown, stale: boolean): AliceAbortReason {
+function resolveAbortReason(error: unknown, stale: boolean): AlicizationAbortReason {
   if (stale)
     return 'session-reset'
 
@@ -488,7 +488,7 @@ function isStreamTimeoutError(error: unknown) {
 function readStreamErrorProgressFlag(error: unknown) {
   if (!error || typeof error !== 'object')
     return false
-  return Boolean((error as { __aliceSawProgress?: unknown }).__aliceSawProgress)
+  return Boolean((error as { __alicizationSawProgress?: unknown }).__alicizationSawProgress)
 }
 
 function replaceAssistantTextSlices(slices: ChatSlices[], text: string): ChatSlices[] {
@@ -612,10 +612,10 @@ function extractDeniedToolReason(result?: unknown): string | null {
   const payload = result as Record<string, unknown>
   const errorCode = typeof payload.errorCode === 'string' ? payload.errorCode : ''
   if (
-    errorCode === 'ALICE_TOOL_DENIED'
-    || errorCode === 'ALICE_TOOL_DENIED_BY_HOST'
-    || errorCode === 'ALICE_TOOL_DENIED_SYSTEM'
-    || errorCode === 'ALICE_TOOL_ABORTED'
+    errorCode === 'ALICIZATION_TOOL_DENIED'
+    || errorCode === 'ALICIZATION_TOOL_DENIED_BY_HOST'
+    || errorCode === 'ALICIZATION_TOOL_DENIED_SYSTEM'
+    || errorCode === 'ALICIZATION_TOOL_ABORTED'
   ) {
     return errorCode
   }
@@ -636,10 +636,10 @@ function extractDeniedToolReason(result?: unknown): string | null {
       if (
         parsedStatus === 'error'
         && (
-          parsedCode === 'ALICE_TOOL_DENIED'
-          || parsedCode === 'ALICE_TOOL_DENIED_BY_HOST'
-          || parsedCode === 'ALICE_TOOL_DENIED_SYSTEM'
-          || parsedCode === 'ALICE_TOOL_ABORTED'
+          parsedCode === 'ALICIZATION_TOOL_DENIED'
+          || parsedCode === 'ALICIZATION_TOOL_DENIED_BY_HOST'
+          || parsedCode === 'ALICIZATION_TOOL_DENIED_SYSTEM'
+          || parsedCode === 'ALICIZATION_TOOL_ABORTED'
         )
       ) {
         return parsedCode
@@ -656,9 +656,9 @@ function extractDeniedToolReason(result?: unknown): string | null {
 function classifyDeniedSource(deniedReason?: string): 'host' | 'system' | 'generic' | undefined {
   if (!deniedReason)
     return undefined
-  if (deniedReason === 'ALICE_TOOL_DENIED_BY_HOST')
+  if (deniedReason === 'ALICIZATION_TOOL_DENIED_BY_HOST')
     return 'host'
-  if (deniedReason === 'ALICE_TOOL_DENIED_SYSTEM')
+  if (deniedReason === 'ALICIZATION_TOOL_DENIED_SYSTEM')
     return 'system'
   return 'generic'
 }
@@ -723,7 +723,7 @@ function summarizeValidationIssues(issues: StructuredValidationIssue[]) {
 }
 
 function createContractFallbackReply(
-  personalityState?: AlicePersonalityState | null,
+  personalityState?: AlicizationPersonalityState | null,
   options?: { toolDenied?: boolean, denialSource?: 'host' | 'system' | 'generic', reminderScheduled?: boolean },
 ) {
   if (options?.toolDenied && options.denialSource === 'host' && personalityState && personalityState.obedience <= 0.2) {
@@ -741,7 +741,7 @@ function createContractFallbackReply(
 }
 
 function createContractFallbackEmotion(
-  personalityState?: AlicePersonalityState | null,
+  personalityState?: AlicizationPersonalityState | null,
   options?: { toolDenied?: boolean, denialSource?: 'host' | 'system' | 'generic', reminderScheduled?: boolean },
 ): StructuredOutputResult['emotion'] {
   if (options?.toolDenied && personalityState && personalityState.obedience <= 0.2) {
@@ -753,29 +753,29 @@ function createContractFallbackEmotion(
   return 'neutral'
 }
 
-async function safelyGetAliceSoulSnapshot() {
-  if (!hasAliceBridge())
+async function safelyGetAlicizationSoulSnapshot() {
+  if (!hasAlicizationBridge())
     return null
 
   try {
-    return await getAliceBridge().getSoul()
+    return await getAlicizationBridge().getSoul()
   }
   catch {
     return null
   }
 }
 
-async function appendAliceAuditLog(payload: {
+async function appendAlicizationAuditLog(payload: {
   level: 'info' | 'notice' | 'warning' | 'critical'
   category: string
   action: string
   message: string
   details?: Record<string, unknown>
 }) {
-  if (!hasAliceBridge())
+  if (!hasAlicizationBridge())
     return
 
-  await getAliceBridge().appendAuditLog({
+  await getAlicizationBridge().appendAuditLog({
     level: payload.level,
     category: payload.category,
     action: payload.action,
@@ -786,7 +786,7 @@ async function appendAliceAuditLog(payload: {
 
 export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
   const llmStore = useLLM()
-  const executionEngine = useAliceExecutionEngineStore()
+  const executionEngine = useAlicizationExecutionEngineStore()
   const consciousnessStore = useConsciousnessStore()
   const { activeProvider } = storeToRefs(consciousnessStore)
   const { trackFirstMessage } = useAnalytics()
@@ -847,15 +847,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
-    if (hasAliceBridge()) {
+    if (hasAlicizationBridge()) {
       try {
-        const sensorySnapshot = await getAliceBridge().getSensorySnapshot()
+        const sensorySnapshot = await getAlicizationBridge().getSensorySnapshot()
         chatContext.ingestContextMessage(createSensoryContext(sensorySnapshot))
 
         if (sensorySnapshot.sample.degraded?.length) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
-            category: 'alice.sensory',
+            category: 'alicization.sensory',
             action: 'degraded',
             message: 'Sensory probe sample contains degraded fields.',
             details: {
@@ -865,9 +865,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (sensorySnapshot.stale) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
-            category: 'alice.sensory',
+            category: 'alicization.sensory',
             action: 'stale',
             message: 'Sensory probe snapshot is stale before prompt injection.',
             details: {
@@ -876,9 +876,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'notice',
-          category: 'alice.sensory',
+          category: 'alicization.sensory',
           action: 'injected',
           message: 'Injected sensory context into runtime prompt section.',
           details: {
@@ -889,9 +889,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
       }
       catch (error) {
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
-          category: 'alice.sensory',
+          category: 'alicization.sensory',
           action: 'inject-failed',
           message: 'Failed to inject sensory context before compose.',
           details: {
@@ -914,7 +914,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     if (isStaleGeneration())
       return
 
-    const activeTurn = registerAliceTurnAbort({
+    const activeTurn = registerAlicizationTurnAbort({
       scope: 'chat',
       turnId: `chat:${sessionId}:${streamingMessageContext.message.id}`,
     })
@@ -942,10 +942,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let assistantOutputCommitted = false
 
     try {
-      if (options.origin === 'ui-user' && hasAliceBridge()) {
+      if (options.origin === 'ui-user' && hasAlicizationBridge()) {
         const directive = parseKillSwitchDirective(sendingMessage)
         if (directive) {
-          const bridge = getAliceBridge()
+          const bridge = getAlicizationBridge()
           const nextState = directive === 'suspend'
             ? await bridge.suspendKillSwitch({ reason: 'user-command' })
             : await bridge.resumeKillSwitch({ reason: 'user-command' })
@@ -1024,8 +1024,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       chatSession.persistSessionMessages(sessionId)
 
       const origin = options.origin ?? 'ui-user'
-      const strictEpoch1Mode = aliceEpoch1StrictModeEnabled && hasAliceBridge()
-      const realtimeIntent = hasAliceBridge() && origin === 'ui-user'
+      const strictEpoch1Mode = alicizationEpoch1StrictModeEnabled && hasAlicizationBridge()
+      const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'
         ? detectRealtimeQueryIntent(sendingMessage)
         : detectRealtimeQueryIntent('')
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
@@ -1073,7 +1073,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               if (settled)
                 return
               options.onTimeout?.()
-              reject(new Error(`A.L.I.C.E stream timed out after ${timeoutMs}ms (${sawAnyEvent ? 'idle-timeout' : 'first-event-timeout'}).`))
+              reject(new Error(`Alicization stream timed out after ${timeoutMs}ms (${sawAnyEvent ? 'idle-timeout' : 'first-event-timeout'}).`))
             }, timeoutMs)
           }
 
@@ -1110,7 +1110,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
 
-        const bridge = hasAliceBridge() ? getAliceBridge() : null
+        const bridge = hasAlicizationBridge() ? getAlicizationBridge() : null
         const bridgeStreamChat = bridge?.streamChat
         if (bridgeStreamChat) {
           const messagePayload = messages.map((message) => {
@@ -1171,7 +1171,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             }
             catch (error) {
               if (error instanceof Error) {
-                ;(error as Error & { __aliceSawProgress?: boolean }).__aliceSawProgress = sawProgress
+                ;(error as Error & { __alicizationSawProgress?: boolean }).__alicizationSawProgress = sawProgress
               }
               throw error
             }
@@ -1185,9 +1185,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           catch (error) {
             const sawProgressFromError = readStreamErrorProgressFlag(error)
             if (sawProgressFromError && isStreamTimeoutError(error)) {
-              await appendAliceAuditLog({
+              await appendAlicizationAuditLog({
                 level: 'warning',
-                category: 'alice.main-gateway',
+                category: 'alicization.main-gateway',
                 action: 'stream-timeout-after-progress',
                 message: 'Bridge stream timed out after receiving content; finalized using received partial stream.',
                 details: {
@@ -1202,9 +1202,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               supportsTools: streamOptions.supportsTools,
               sawProgress: sawProgress || sawProgressFromError,
             })) {
-              await appendAliceAuditLog({
+              await appendAlicizationAuditLog({
                 level: 'warning',
-                category: 'alice.main-gateway',
+                category: 'alicization.main-gateway',
                 action: 'stream-retry-without-tools',
                 message: 'Main gateway stream failed without progress; retried once with tools disabled.',
                 details: {
@@ -1245,7 +1245,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const categorizer = createStreamingCategorizer(activeProvider.value)
       let streamPosition = 0
       let finalAssistantDisplayText = ''
-      let turnPersonalityState: AlicePersonalityState | null = null
+      let turnPersonalityState: AlicizationPersonalityState | null = null
       let streamSpeechMode: 'undecided' | 'plain' | 'structured-json' = 'undecided'
       let streamSpeechPrelude = ''
 
@@ -1299,9 +1299,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         if (shouldAbort())
           return null
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'notice',
-          category: 'alice.structured',
+          category: 'alicization.structured',
           action: 'contract-retry-reasoned',
           message: 'Retrying structured contract with explicit personality and violation hints.',
           details: {
@@ -1351,7 +1351,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         const sanitizedRetry = sanitizeForRemoteModel(retryMessages, { timeBudgetMs: 50, chunkSize: 2048 })
         if (sanitizedRetry.blocked) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'critical',
             category: 'structured-output',
             action: 'contract-retry-blocked',
@@ -1380,10 +1380,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
         catch (error) {
-          if (isAliceAbortError(error) || abortSignal.aborted)
+          if (isAlicizationAbortError(error) || abortSignal.aborted)
             throw error
 
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'structured-output',
             action: 'contract-retry-failed',
@@ -1406,7 +1406,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return retriedStructured
         }
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
           category: 'structured-output',
           action: 'contract-retry-unresolved',
@@ -1449,9 +1449,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return candidate
 
         for (let attempt = 1; attempt <= 2; attempt += 1) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
-            category: 'alice.structured',
+            category: 'alicization.structured',
             action: 'contract-invalid',
             message: 'Structured output violated contract constraints before finalization.',
             details: {
@@ -1489,7 +1489,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               ]
 
           if (hasStructuredJsonContract(candidate) && validationIssues.length === 0) {
-            await appendAliceAuditLog({
+            await appendAlicizationAuditLog({
               level: 'notice',
               category: 'structured-output',
               action: 'contract-retry-succeeded',
@@ -1516,7 +1516,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           denialSource: turnToolEvidence.denialSource,
           reminderScheduled: turnToolEvidence.reminderScheduled,
         }))
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
           category: 'structured-output',
           action: 'contract-fallback',
@@ -1565,11 +1565,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       const appendConversationTurnRecord = async (assistantText: string) => {
-        if (!hasAliceBridge())
+        if (!hasAlicizationBridge())
           return
 
         if (abortSignal.aborted || shouldAbort()) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
             category: 'kill-switch',
             action: 'turn-write-skipped-aborted',
@@ -1582,7 +1582,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
         }
 
-        await getAliceBridge().appendConversationTurn({
+        await getAlicizationBridge().appendConversationTurn({
           turnId,
           sessionId,
           userText: sendingMessage,
@@ -1590,8 +1590,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
           createdAt: Date.now(),
         }).catch(async (error) => {
-          if (isAliceAbortError(error) || abortSignal.aborted || shouldAbort()) {
-            await appendAliceAuditLog({
+          if (isAlicizationAbortError(error) || abortSignal.aborted || shouldAbort()) {
+            await appendAlicizationAuditLog({
               level: 'notice',
               category: 'kill-switch',
               action: 'turn-write-skipped-aborted',
@@ -1604,7 +1604,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             return
           }
 
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'conversation',
             action: 'append-turn-failed',
@@ -1664,7 +1664,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (sanitizedOutput.fabricationDetected) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'output-guard',
             action: 'output-fabrication-sanitized',
@@ -1678,7 +1678,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (sanitizedOutput.leakDetected) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: leakFallbackApplied ? 'warning' : 'notice',
             category: 'output-guard',
             action: leakFallbackApplied ? 'sanitize-fallback' : 'sanitize-leak',
@@ -1694,7 +1694,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (emptyOutputFallbackApplied) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'output-guard',
             action: 'sanitize-empty-fallback',
@@ -1707,7 +1707,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (realtimeFallbackApplied) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'output-guard',
             action: 'realtime-unverified-fallback',
@@ -1729,7 +1729,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
 
         if (buildingMessage.structured?.repairTimedOut) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'structured-output',
             action: 'repair-timeout-fallback',
@@ -1845,10 +1845,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
 
       const contextsSnapshot = chatContext.getContextsSnapshot()
-      if (hasAliceBridge()) {
-        const soulSnapshot = await safelyGetAliceSoulSnapshot()
+      if (hasAlicizationBridge()) {
+        const soulSnapshot = await safelyGetAlicizationSoulSnapshot()
         turnPersonalityState = soulSnapshot?.frontmatter?.personality ?? null
-        const composed = composeAlicePromptMessages({
+        const composed = composeAlicizationPromptMessages({
           messages: newMessages as Message[],
           soulContent: soulSnapshot?.content ?? null,
           hostName: soulSnapshot?.frontmatter?.profile?.hostName ?? null,
@@ -1858,9 +1858,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         newMessages = composed.messages as any
 
         if (composed.personalityDirectiveResult) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
-            category: 'alice.prompt',
+            category: 'alicization.prompt',
             action: 'personality-directives.injected',
             message: 'Injected low-personality semantic directives into SOUL anchor.',
             details: {
@@ -1870,9 +1870,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (composed.contractRequiresPersonalityEval) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
-            category: 'alice.prompt',
+            category: 'alicization.prompt',
             action: 'contract-personality-eval-required',
             message: 'Runtime structured contract requires thought-level personality parameter evaluation.',
           })
@@ -1881,9 +1881,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const budgeted = applyPromptBudget(newMessages as Message[])
         newMessages = budgeted.messages as any
         if (budgeted.report.safeMode.activated) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'critical',
-            category: 'alice.budget',
+            category: 'alicization.budget',
             action: 'overflow_soul',
             message: 'SOUL exceeded prompt budget and safe mode degradation was applied.',
             details: {
@@ -1897,7 +1897,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (!budgeted.report.anchorPreserved) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'prompt-budget',
             action: 'anchor-mutated',
@@ -1909,7 +1909,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (budgeted.report.truncated) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
             category: 'prompt-budget',
             action: 'truncate',
@@ -1924,9 +1924,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         if (budgeted.report.runtimeContractAnchorRecovered) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
-            category: 'alice.prompt',
+            category: 'alicization.prompt',
             action: 'runtime-contract-anchor-recovered',
             message: 'Runtime structured contract anchor was missing and recovered by prompt budget guard.',
           })
@@ -1937,9 +1937,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           ? runtimeSystemMessage.content.includes(runtimeContractAnchorHeader)
           : JSON.stringify(runtimeSystemMessage?.content ?? '').includes(runtimeContractAnchorHeader)
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: runtimeContractAnchorPreserved ? 'notice' : 'warning',
-          category: 'alice.prompt',
+          category: 'alicization.prompt',
           action: runtimeContractAnchorPreserved
             ? 'runtime-contract-anchor-preserved'
             : 'runtime-contract-anchor-missing',
@@ -1950,7 +1950,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         const sanitized = sanitizeForRemoteModel(newMessages as Message[], { timeBudgetMs: 50, chunkSize: 2048 })
         if (sanitized.blocked) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'critical',
             category: 'sanitize',
             action: 'blocked',
@@ -1960,11 +1960,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               elapsedMs: sanitized.elapsedMs,
             },
           })
-          throw new Error('A.L.I.C.E blocked this outbound request to protect privacy.')
+          throw new Error('Alicization blocked this outbound request to protect privacy.')
         }
 
         if (sanitized.redactions > 0) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
             category: 'sanitize',
             action: 'redacted',
@@ -2009,7 +2009,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (shouldAbort())
         return
 
-      if (origin === 'ui-user' && hasAliceBridge() && strictEpoch1Mode && realtimeIntent.needsRealtime) {
+      if (origin === 'ui-user' && hasAlicizationBridge() && strictEpoch1Mode && realtimeIntent.needsRealtime) {
         policyLockedReason = 'epoch1-strict-realtime'
         const strictRealtimeContext = [
           strictRealtimeRefusalSystemPrompt,
@@ -2020,7 +2020,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const refusalMessages = insertSystemMessageBeforeLatestUser(newMessages as Message[], strictRealtimeContext)
         streamingMessageContext.composedMessage = refusalMessages
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'notice',
           category: 'realtime-policy',
           action: 'epoch1-strict-realtime-blocked',
@@ -2058,11 +2058,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           await parser.end()
         }
         catch (error) {
-          if (isAliceAbortError(error) || abortSignal.aborted) {
+          if (isAlicizationAbortError(error) || abortSignal.aborted) {
             throw error
           }
 
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
             category: 'realtime-policy',
             action: 'epoch1-strict-realtime-refusal-failed',
@@ -2101,7 +2101,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         return
       }
 
-      if (origin === 'ui-user' && hasAliceBridge()) {
+      if (origin === 'ui-user' && hasAlicizationBridge()) {
         const realtimeExecution = await executionEngine.executeRealtimeQueryTurn({
           origin,
           message: sendingMessage,
@@ -2117,7 +2117,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             updateUI()
           },
           onAudit: async (entry) => {
-            await appendAliceAuditLog({
+            await appendAlicizationAuditLog({
               level: entry.level,
               category: entry.category,
               action: entry.action,
@@ -2229,9 +2229,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         && !shouldAbort()
 
       if (shouldForceFileToolRetry || shouldForceReminderToolRetry) {
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
-          category: 'alice.intent-action',
+          category: 'alicization.intent-action',
           action: 'cross-validation-failed',
           message: 'Detected intent-action mismatch before finalization; forcing tool-capable retry.',
           details: {
@@ -2314,9 +2314,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             else {
               await applyAssistantTextFromModelOutput(forcedRetryFullText)
             }
-            await appendAliceAuditLog({
+            await appendAlicizationAuditLog({
               level: 'notice',
-              category: 'alice.intent-action',
+              category: 'alicization.intent-action',
               action: 'contract-retry-forced-tool',
               message: 'Forced tool-capable retry produced final assistant output.',
               details: {
@@ -2329,9 +2329,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             })
           }
           else {
-            await appendAliceAuditLog({
+            await appendAlicizationAuditLog({
               level: 'warning',
-              category: 'alice.intent-action',
+              category: 'alicization.intent-action',
               action: 'contract-retry-forced-tool-empty',
               message: 'Forced tool retry finished without textual output.',
               details: {
@@ -2342,9 +2342,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
         else {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'critical',
-            category: 'alice.intent-action',
+            category: 'alicization.intent-action',
             action: 'contract-retry-forced-tool-blocked',
             message: 'Forced tool retry was blocked by sanitize gateway.',
             details: {
@@ -2358,7 +2358,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       let reminderScheduledByFallback = false
       if (requiresReminderToolCall && !turnToolEvidence.reminderScheduled) {
-        const reminderScheduleBridge = hasAliceBridge() ? getAliceBridge().reminderSchedule : undefined
+        const reminderScheduleBridge = hasAlicizationBridge() ? getAlicizationBridge().reminderSchedule : undefined
         if (reminderScheduleBridge && parsedReminderIntent) {
           try {
             const scheduledResult = await reminderScheduleBridge({
@@ -2371,9 +2371,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               turnToolEvidence.reminderScheduled = true
               turnToolEvidence.reminderMessage = reminderPayload.message ?? parsedReminderIntent.message
               reminderScheduledByFallback = true
-              await appendAliceAuditLog({
+              await appendAlicizationAuditLog({
                 level: 'notice',
-                category: 'alice.intent-action',
+                category: 'alicization.intent-action',
                 action: 'reminder-manual-schedule-fallback',
                 message: 'Reminder scheduling fallback created a persisted reminder task.',
                 details: {
@@ -2385,9 +2385,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               })
             }
             else {
-              await appendAliceAuditLog({
+              await appendAlicizationAuditLog({
                 level: 'warning',
-                category: 'alice.intent-action',
+                category: 'alicization.intent-action',
                 action: 'reminder-manual-schedule-fallback-failed',
                 message: 'Reminder scheduling fallback returned a non-scheduled result.',
                 details: {
@@ -2399,9 +2399,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             }
           }
           catch (error) {
-            await appendAliceAuditLog({
+            await appendAlicizationAuditLog({
               level: 'warning',
-              category: 'alice.intent-action',
+              category: 'alicization.intent-action',
               action: 'reminder-manual-schedule-fallback-error',
               message: 'Reminder scheduling fallback failed with an exception.',
               details: {
@@ -2413,9 +2413,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
         else if (!parsedReminderIntent) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'warning',
-            category: 'alice.intent-action',
+            category: 'alicization.intent-action',
             action: 'reminder-manual-schedule-parse-failed',
             message: 'Reminder intent detected but fallback parser could not derive minutes/message.',
             details: {
@@ -2436,9 +2436,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       if (requiresReminderToolCall && !turnToolEvidence.reminderScheduled) {
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
-          category: 'alice.intent-action',
+          category: 'alicization.intent-action',
           action: 'reminder-schedule-missing',
           message: 'Reminder intent detected but no successful set_reminder result observed.',
           details: {
@@ -2459,9 +2459,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         buildingMessage.slices = replaceAssistantTextSlices(buildingMessage.slices, reminderFailureReply)
         finalAssistantDisplayText = reminderFailureReply
         updateUI()
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
-          category: 'alice.intent-action',
+          category: 'alicization.intent-action',
           action: 'reminder-schedule-safe-reply',
           message: 'Replaced draft reply with safe reminder failure response because no set_reminder success was observed.',
           details: {
@@ -2471,9 +2471,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
       }
       else if (requiresReminderToolCall && reminderScheduledByFallback) {
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'notice',
-          category: 'alice.intent-action',
+          category: 'alicization.intent-action',
           action: 'reminder-schedule-kept-llm-reply',
           message: 'Reminder fallback scheduling succeeded; keeping model-generated confirmation text without post-hoc replacement.',
           details: {
@@ -2515,7 +2515,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           streamingMessage.value = createEmptyStreamingMessage()
         }
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'notice',
           category: 'kill-switch',
           action: 'turn-aborted',
@@ -2529,7 +2529,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         const droppedCount = Math.max(0, beforeLength - sessionMessagesForSend.length)
         if (droppedCount > 0) {
-          await appendAliceAuditLog({
+          await appendAlicizationAuditLog({
             level: 'notice',
             category: 'kill-switch',
             action: 'turn-abort-dropped',
@@ -2567,8 +2567,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           streamingMessage.value = createEmptyStreamingMessage()
         }
 
-        if (hasAliceBridge()) {
-          await getAliceBridge().appendConversationTurn({
+        if (hasAlicizationBridge()) {
+          await getAlicizationBridge().appendConversationTurn({
             turnId,
             sessionId,
             userText: sendingMessage,
@@ -2578,9 +2578,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }).catch(() => {})
         }
 
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
-          category: 'alice.chat',
+          category: 'alicization.chat',
           action: 'turn-failed-safe-reply',
           message: 'Primary stream failed and fallback assistant reply was emitted.',
           details: {
@@ -2600,7 +2600,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       throw error
     }
     finally {
-      completeAliceTurnAbort(turnId)
+      completeAlicizationTurnAbort(turnId)
       sending.value = false
     }
   }
@@ -2610,15 +2610,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     options: SendOptions,
     targetSessionId?: string,
   ) {
-    if (hasAliceBridge()) {
+    if (hasAlicizationBridge()) {
       const origin = options.origin ?? 'ui-user'
       const isTopLevelInput = origin === 'ui-user'
       const directive = isTopLevelInput ? parseKillSwitchDirective(sendingMessage) : null
 
       if (!directive) {
-        const killSwitch = await getAliceBridge().getKillSwitchState().catch(() => null)
+        const killSwitch = await getAlicizationBridge().getKillSwitchState().catch(() => null)
         if (killSwitch?.state === 'SUSPENDED' && isTopLevelInput) {
-          throw new Error('A.L.I.C.E is currently suspended. Send "A.L.I.C.E，恢复" to resume.')
+          throw new Error('Alicization is currently suspended. Send "Alicization，恢复" to resume.')
         }
       }
     }
@@ -2676,13 +2676,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       : []
   }
 
-  async function abortActiveTurns(reason: AliceAbortReason = 'kill-switch') {
-    const result = abortAliceTurns({ reason })
-    cancelPendingSends(undefined, `A.L.I.C.E turn aborted (${reason})`)
+  async function abortActiveTurns(reason: AlicizationAbortReason = 'kill-switch') {
+    const result = abortAlicizationTurns({ reason })
+    cancelPendingSends(undefined, `Alicization turn aborted (${reason})`)
     streamingMessage.value = createEmptyStreamingMessage()
 
     if (result.aborted > 0) {
-      await appendAliceAuditLog({
+      await appendAlicizationAuditLog({
         level: 'notice',
         category: 'kill-switch',
         action: 'kill-switch-abort-broadcast',
@@ -2704,7 +2704,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
   }
 
-  async function abortAllPipelines(reason: AliceAbortReason = 'kill-switch') {
+  async function abortAllPipelines(reason: AlicizationAbortReason = 'kill-switch') {
     const turnAbortResult = await abortActiveTurns(reason)
     const pipelines = [...externalPipelineAborters]
     let pipelineErrors = 0
@@ -2715,7 +2715,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
       catch (error) {
         pipelineErrors += 1
-        await appendAliceAuditLog({
+        await appendAlicizationAuditLog({
           level: 'warning',
           category: 'kill-switch',
           action: 'pipeline-abort-failed',

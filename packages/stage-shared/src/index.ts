@@ -1,4 +1,4 @@
-export * from './alice-prompting'
+export * from './alicization-prompting'
 export * from './env-vars'
 export * from './environment'
 export * from './export-csv'
