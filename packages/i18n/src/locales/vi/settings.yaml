@@ -295,7 +295,7 @@ pages:
           title: Ban muon co ay dong hanh cung minh nhu the nao?
           description: Hay mo ta cach noi chuyen, ranh gioi, muc do chu dong va cach quan tam ma ban muon co ay duy tri trong dai han. Muc nay phu hop hon voi so thich on dinh, khong phai nhiem vu nhat thoi.
           badge: Dai han
-          placeholder: Vi du: Hay nhe nhang hon va dung giang giai nhieu qua; khi toi buon hay an ui truoc roi moi dua loi khuyen; co the chu dong nhac toi nghi ngoi va an uong, nhung dung thuc ep.
+          placeholder: 'Vi du: Hay nhe nhang hon va dung giang giai nhieu qua; khi toi buon hay an ui truoc roi moi dua loi khuyen; co the chu dong nhac toi nghi ngoi va an uong, nhung dung thuc ep.'
         memory_echo:
           eyebrow: Du am ky uc
           title: Du am ky uc

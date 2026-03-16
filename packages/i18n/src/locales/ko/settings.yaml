@@ -295,7 +295,7 @@ pages:
           title: 그녀가 어떻게 곁에 있어주길 바라나요?
           description: 장기적으로 유지했으면 하는 말투, 경계감, 주도성, 배려 방식을 적어주세요. 일회성 작업보다 안정적인 취향에 더 적합합니다.
           badge: 장기
-          placeholder: 예: 조금 더 부드럽고 설교는 적게 해줘. 내가 힘들 때는 조언보다 먼저 위로해줘. 쉬거나 밥 먹으라고 먼저 알려줘도 좋지만 너무 재촉하지는 말아줘.
+          placeholder: '예: 조금 더 부드럽고 설교는 적게 해줘. 내가 힘들 때는 조언보다 먼저 위로해줘. 쉬거나 밥 먹으라고 먼저 알려줘도 좋지만 너무 재촉하지는 말아줘.'
         memory_echo:
           eyebrow: 기억 메아리
           title: 기억 메아리
@@ -321,7 +321,7 @@ pages:
               description: 서로 다른 Alicization 카드를 구분하는 데 사용합니다.
             card_version:
               label: 카드 버전
-              description: 외형 버전. 예: 1.0.0.
+              description: '외형 버전. 예: 1.0.0.'
             card_description:
               label: 카드 설명
               description: 목록 표시용으로만 사용되며 인격이나 채팅에는 주입되지 않습니다.
