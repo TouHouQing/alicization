@@ -41,6 +41,10 @@ withDefaults(defineProps<{
   live2dMaxFps: 0,
 })
 
+const emits = defineEmits<{
+  (e: 'characterHoverChange', hovered: boolean): void
+}>()
+
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 const componentStateCanvas = defineModel<'pending' | 'loading' | 'mounted'>('canvasState', { default: 'pending' })
 const componentStateModel = defineModel<'pending' | 'loading' | 'mounted'>('modelState', { default: 'pending' })
@@ -95,6 +99,7 @@ defineExpose({
         :live2d-auto-blink-enabled="live2dAutoBlinkEnabled"
         :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabled"
         :live2d-shadow-enabled="live2dShadowEnabled"
+        @character-hover-change="emits('characterHoverChange', $event)"
       />
     </Live2DCanvas>
   </Screen>

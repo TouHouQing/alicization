@@ -62,6 +62,7 @@ const props = withDefaults(defineProps<{
 const emits = defineEmits<{
   (e: 'modelLoaded'): void
   (e: 'error', error: Error): void
+  (e: 'characterHoverChange', hovered: boolean): void
 }>()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
@@ -156,6 +157,7 @@ const live2dForceAutoBlinkEnabled = toRef(() => props.live2dForceAutoBlinkEnable
 const live2dShadowEnabled = toRef(() => props.live2dShadowEnabled)
 
 const localCurrentMotion = ref<{ group: string, index: number }>({ group: 'Idle', index: 0 })
+const characterHovered = ref(false)
 const beatSync = createBeatSyncController({
   baseAngles: () => ({
     x: modelParameters.value.angleX,
@@ -381,6 +383,67 @@ async function loadModel() {
   }
 }
 
+function emitCharacterHoverChange(hovered: boolean) {
+  if (characterHovered.value === hovered)
+    return
+
+  characterHovered.value = hovered
+  emits('characterHoverChange', hovered)
+}
+
+function resetCharacterHover() {
+  emitCharacterHoverChange(false)
+}
+
+function resolveRendererPointFromPointerEvent(event: PointerEvent) {
+  const canvas = pixiApp.value?.view
+  const renderer = pixiApp.value?.renderer
+  if (!canvas || !renderer)
+    return null
+
+  const bounds = canvas.getBoundingClientRect()
+  if (!bounds.width || !bounds.height)
+    return null
+
+  return {
+    x: ((event.clientX - bounds.left) / bounds.width) * renderer.width,
+    y: ((event.clientY - bounds.top) / bounds.height) * renderer.height,
+  }
+}
+
+function isCharacterHoveredAtPoint(x: number, y: number) {
+  if (!model.value)
+    return false
+
+  const hitAreas = model.value.hitTest(x, y)
+  if (hitAreas.length > 0)
+    return true
+
+  return model.value.containsPoint({ x, y } as any)
+}
+
+function handleCanvasPointerMove(event: PointerEvent) {
+  const point = resolveRendererPointFromPointerEvent(event)
+  if (!point) {
+    resetCharacterHover()
+    return
+  }
+
+  emitCharacterHoverChange(isCharacterHoveredAtPoint(point.x, point.y))
+}
+
+function attachCanvasHoverListeners(canvas: HTMLCanvasElement) {
+  canvas.addEventListener('pointermove', handleCanvasPointerMove)
+  canvas.addEventListener('pointerleave', resetCharacterHover)
+  canvas.addEventListener('pointercancel', resetCharacterHover)
+}
+
+function detachCanvasHoverListeners(canvas?: HTMLCanvasElement | null) {
+  canvas?.removeEventListener('pointermove', handleCanvasPointerMove)
+  canvas?.removeEventListener('pointerleave', resetCharacterHover)
+  canvas?.removeEventListener('pointercancel', resetCharacterHover)
+}
+
 async function setMotion(motionName: string, index?: number) {
   // TODO: motion? Not every Live2D model has motion, we do need to help users to set motion
   if (!model.value) {
@@ -452,6 +515,12 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
 watch(mouthOpenSize, value => getCoreModel().setParameterValueById('ParamMouthOpenY', value))
 watch(currentMotion, value => setMotion(value.group, value.index))
 watch(paused, value => value ? pixiApp.value?.stop() : pixiApp.value?.start())
+watch(() => pixiApp.value?.view, (canvas, previousCanvas) => {
+  detachCanvasHoverListeners(previousCanvas)
+
+  if (canvas)
+    attachCanvasHoverListeners(canvas)
+}, { immediate: true })
 
 // Watch and apply model parameters
 watch(() => modelParameters.value.angleX, (value) => {
@@ -617,6 +686,11 @@ watch(focusAt, (value) => {
 onMounted(() => {
   const removeListener = listenBeatSyncBeatSignal(() => beatSync.scheduleBeat())
   onUnmounted(() => removeListener())
+})
+
+onUnmounted(() => {
+  detachCanvasHoverListeners(pixiApp.value?.view)
+  resetCharacterHover()
 })
 
 onMounted(async () => {

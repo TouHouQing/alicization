@@ -8,6 +8,7 @@ import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { useChatStreamStore } from '@proj-airi/stage-ui/stores/chat/stream-store'
+import { useChatTextComposerStore } from '@proj-airi/stage-ui/stores/chat/text-composer-store'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
@@ -34,23 +35,23 @@ const { messages } = storeToRefs(chatSession)
 const { streamingMessage } = storeToRefs(chatStream)
 const { sending } = storeToRefs(chatOrchestrator)
 const historyMessages = computed(() => messages.value as unknown as ChatHistoryItem[])
+const composerStore = useChatTextComposerStore()
 
 const viewControlsActiveMode = ref<'x' | 'y' | 'z' | 'scale'>('scale')
 const viewControlsInputsRef = useTemplateRef<InstanceType<typeof ViewControlInputs>>('viewControlsInputs')
 
-const messageInput = ref('')
-const isComposing = ref(false)
 const backgroundDialogOpen = ref(false)
 
 const screenSafeArea = useScreenSafeArea()
 const providersStore = useProvidersStore()
 const { activeProvider, activeModel } = storeToRefs(useConsciousnessStore())
+const { draft, isComposing } = storeToRefs(composerStore)
 
 useResizeObserver(document.documentElement, () => screenSafeArea.update())
 const { themeColorsHueDynamic, stageViewControlsEnabled } = storeToRefs(useSettings())
 const settingsAudioDevice = useSettingsAudioDevice()
 const { enabled, selectedAudioInput, stream, audioInputs } = storeToRefs(settingsAudioDevice)
-const { ingest, onAfterMessageComposed, discoverToolsCompatibility } = chatOrchestrator
+const { discoverToolsCompatibility } = chatOrchestrator
 const { t } = useI18n()
 const { audioContext } = useAudioContext()
 const { startAnalyzer, stopAnalyzer, volumeLevel } = useAudioAnalyzer()
@@ -67,30 +68,7 @@ async function handleSubmit() {
 }
 
 async function handleSend() {
-  if (!messageInput.value.trim() || isComposing.value) {
-    return
-  }
-
-  const textToSend = messageInput.value
-  messageInput.value = ''
-
-  try {
-    const providerConfig = providersStore.getProviderConfig(activeProvider.value)
-
-    await ingest(textToSend, {
-      chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,
-      model: activeModel.value,
-      providerConfig,
-    })
-  }
-  catch (error) {
-    messageInput.value = textToSend
-    messages.value.pop()
-    messages.value.push({
-      role: 'error',
-      content: (error as Error).message,
-    })
-  }
+  await composerStore.sendCurrentMessage()
 }
 
 function teardownAnalyzer() {
@@ -123,9 +101,6 @@ watch(hearingDialogOpen, (value) => {
   if (value) {
     settingsAudioDevice.askPermission()
   }
-})
-
-onAfterMessageComposed(async () => {
 })
 
 watch([activeProvider, activeModel], async () => {
@@ -213,7 +188,7 @@ onMounted(() => {
       </div>
       <div bg="white dark:neutral-800" max-h-100dvh max-w-100dvw w-full flex gap-1 overflow-auto px-3 pt-2 :style="{ paddingBottom: `${Math.max(Number.parseFloat(screenSafeArea.bottom.value.replace('px', '')), 12)}px` }">
         <BasicTextarea
-          v-model="messageInput"
+          v-model="draft"
           :placeholder="t('stage.message')"
           border="solid 2 neutral-200/60 dark:neutral-700/60"
           text="neutral-500 hover:neutral-600 dark:neutral-100 dark:hover:neutral-200 placeholder:neutral-400 placeholder:hover:neutral-500 placeholder:dark:neutral-300 placeholder:dark:hover:neutral-400"
@@ -228,7 +203,7 @@ onMounted(() => {
           @compositionend="isComposing = false"
         />
         <button
-          v-if="messageInput.trim() || isComposing"
+          v-if="draft.trim() || isComposing"
           w="[calc(1lh+4px+4px)]" h="[calc(1lh+4px+4px)]" aspect-square flex items-center self-end justify-center rounded-full outline-none backdrop-blur-md
           text="neutral-500 hover:neutral-600 dark:neutral-900 dark:hover:neutral-800"
           bg="primary-50/80 dark:neutral-100/80 hover:neutral-50"

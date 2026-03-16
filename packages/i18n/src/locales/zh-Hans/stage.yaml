@@ -5,6 +5,19 @@ chat:
       core-system: 核心系统
       you: 你
   reasoning: 思考
+dialogue:
+  quick-reply-placeholder: 继续追问她...
+  history: 历史
+  expand-history: 展开历史
+  collapse-history: 收起历史
+  sending: 发送中...
+  window-title: 角色对白
+  expand-panel: 展开对白窗
+  minimize-panel: 收起对白窗
+  dock-panel: 回到推荐位置
+  move-panel: 拖动对白窗
+  restore-panel-size: 恢复默认尺寸
+  resize-panel: 缩放对白窗
 message: 说点什么...
 operations:
   load-models: 加载模型

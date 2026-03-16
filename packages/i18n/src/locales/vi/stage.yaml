@@ -5,6 +5,19 @@ chat:
       core-system: Hệ thống lõi
       you: Bạn
   reasoning: Suy nghĩ
+dialogue:
+  quick-reply-placeholder: Hỏi tiếp...
+  history: Lịch sử
+  expand-history: Mở lịch sử
+  collapse-history: Thu gọn lịch sử
+  sending: Đang gửi...
+  window-title: Đối thoại
+  expand-panel: Mở khung đối thoại
+  minimize-panel: Thu gọn đối thoại
+  dock-panel: Dua bang ve vi tri goi y
+  move-panel: Di chuyển khung
+  restore-panel-size: Khoi phuc kich thuoc khung
+  resize-panel: Đổi kích thước khung
 message: Nói gì đó...
 operations:
   load-models: Tải mô hình

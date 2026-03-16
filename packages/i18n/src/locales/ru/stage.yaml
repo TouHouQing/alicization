@@ -5,6 +5,19 @@ chat:
       core-system: Core система
       you: Ты
   reasoning: Reasoning
+dialogue:
+  quick-reply-placeholder: Спросить еще...
+  history: История
+  expand-history: Открыть историю
+  collapse-history: Скрыть историю
+  sending: Отправка...
+  window-title: Диалог
+  expand-panel: Развернуть диалог
+  minimize-panel: Свернуть диалог
+  dock-panel: Вернуть панель на место
+  move-panel: Переместить панель
+  restore-panel-size: Восстановить размер панели
+  resize-panel: Изменить размер панели
 message: Спроси что-нибудь
 operations:
   load-models: Загрузить модели

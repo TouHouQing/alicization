@@ -5,6 +5,19 @@ chat:
       core-system: コアシステム
       you: あなた
   reasoning: 推論
+dialogue:
+  quick-reply-placeholder: 続けて聞いてみる...
+  history: 履歴
+  expand-history: 履歴を開く
+  collapse-history: 履歴を閉じる
+  sending: 送信中...
+  window-title: Dialogue
+  expand-panel: 対話を開く
+  minimize-panel: 対話をしまう
+  dock-panel: パネル位置を戻す
+  move-panel: パネルを動かす
+  restore-panel-size: パネルサイズを戻す
+  resize-panel: パネルサイズを変える
 message: 何か話しかけてみましょう…
 operations:
   load-models: モデルの読み込み

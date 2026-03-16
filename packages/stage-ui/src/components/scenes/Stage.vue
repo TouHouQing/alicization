@@ -16,7 +16,7 @@ import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
-import { useBroadcastChannel } from '@vueuse/core'
+import { useBroadcastChannel, useMediaQuery } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
@@ -24,17 +24,22 @@ import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
+import StageDialoguePanel from './stage-dialogue-panel.vue'
+
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
 import { Emotion, EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
 import { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
+import { useChatSessionStore } from '../../stores/chat/session-store'
+import { useChatStreamStore } from '../../stores/chat/stream-store'
 import { useAiriCardStore } from '../../stores/modules'
 import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
+import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 
 const props = withDefaults(defineProps<{
@@ -43,7 +48,8 @@ const props = withDefaults(defineProps<{
   xOffset?: number | string
   yOffset?: number | string
   scale?: number
-}>(), { paused: false, scale: 1 })
+  quickReplyEnabled?: boolean
+}>(), { paused: false, scale: 1, quickReplyEnabled: true })
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 
@@ -72,7 +78,9 @@ const { mouthOpenSize } = storeToRefs(useSpeakingStore())
 const { audioContext } = useAudioContext()
 const currentAudioSource = ref<AudioBufferSourceNode>()
 
-const { onBeforeMessageComposed, onBeforeSend, onTokenLiteral, onTokenSpecial, onStreamEnd, onAssistantResponseEnd } = useChatOrchestratorStore()
+const chatOrchestrator = useChatOrchestratorStore()
+const { onBeforeMessageComposed, onBeforeSend, onTokenLiteral, onTokenSpecial, onStreamEnd, onAssistantResponseEnd } = chatOrchestrator
+const { sending } = storeToRefs(chatOrchestrator)
 const chatHookCleanups: Array<() => void> = []
 const presenceCleanups: Array<() => void> = []
 // WORKAROUND: clear previous handlers on unmount to avoid duplicate calls when this component remounts.
@@ -82,6 +90,11 @@ const presenceCleanups: Array<() => void> = []
 const providersStore = useProvidersStore()
 const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore()
 const live2dStore = useLive2d()
+const chatSessionStore = useChatSessionStore()
+const chatStreamStore = useChatStreamStore()
+const dialoguePanelRef = ref<InstanceType<typeof StageDialoguePanel>>()
+const { messages } = storeToRefs(chatSessionStore)
+const { streamingMessage } = storeToRefs(chatStreamStore)
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
 
@@ -91,6 +104,11 @@ type CaptionChannelEvent
     | { type: 'caption-assistant', text: string }
 const { post: postCaption } = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
 const assistantCaption = ref('')
+const hoverCapable = useMediaQuery('(hover: hover) and (pointer: fine)')
+const stageCharacterHovered = ref(false)
+const dialoguePanelHovered = ref(false)
+const dialoguePanelFocused = ref(false)
+let stageCharacterHoverLeaveTimeout: number | undefined
 
 type PresentEvent
   = | { type: 'assistant-reset' }
@@ -629,6 +647,96 @@ function canvasElement() {
     return vrmViewerRef.value?.canvasElement()
 }
 
+function parseStagePositionX(offset: number | string | undefined) {
+  if (typeof offset === 'number')
+    return offset
+
+  if (typeof offset === 'string') {
+    const parsed = Number.parseFloat(offset)
+    if (Number.isFinite(parsed))
+      return parsed
+  }
+
+  return 0
+}
+
+function clearStageCharacterHoverLeaveTimeout() {
+  if (!stageCharacterHoverLeaveTimeout)
+    return
+
+  clearTimeout(stageCharacterHoverLeaveTimeout)
+  stageCharacterHoverLeaveTimeout = undefined
+}
+
+function setStageCharacterHovered(hovered: boolean) {
+  if (!hoverCapable.value) {
+    stageCharacterHovered.value = false
+    return
+  }
+
+  clearStageCharacterHoverLeaveTimeout()
+
+  if (hovered) {
+    stageCharacterHovered.value = true
+    return
+  }
+
+  stageCharacterHoverLeaveTimeout = window.setTimeout(() => {
+    stageCharacterHovered.value = false
+    stageCharacterHoverLeaveTimeout = undefined
+  }, 160)
+}
+
+function handleDialoguePanelHoverChange(hovered: boolean) {
+  dialoguePanelHovered.value = hovered
+  if (hovered)
+    clearStageCharacterHoverLeaveTimeout()
+}
+
+function handleDialoguePanelFocusChange(focused: boolean) {
+  dialoguePanelFocused.value = focused
+  if (focused)
+    clearStageCharacterHoverLeaveTimeout()
+}
+
+const dialoguePlacement = computed(() => resolveStageBubblePlacement(parseStagePositionX(props.xOffset)))
+const streamingBubbleText = computed(() => resolveStageBubbleText(streamingMessage.value))
+const recentAssistantBubbleMessage = computed(() => {
+  return [...messages.value]
+    .reverse()
+    .find(message => message.role === 'assistant' && !!resolveStageBubbleText(message))
+})
+const settledBubbleText = computed(() => resolveStageBubbleText(recentAssistantBubbleMessage.value))
+const bubbleLoading = computed(() => sending.value && !streamingBubbleText.value)
+const bubbleStreaming = computed(() => sending.value && !!streamingBubbleText.value)
+const bubbleText = computed(() => {
+  if (bubbleLoading.value)
+    return ''
+
+  return streamingBubbleText.value || settledBubbleText.value
+})
+const dialogueHasVisibleContent = computed(() => {
+  return props.quickReplyEnabled || bubbleLoading.value || bubbleStreaming.value || !!bubbleText.value
+})
+const usesHoverTriggeredDialogue = computed(() => hoverCapable.value && stageModelRenderer.value === 'live2d')
+const showDialogueOverlay = computed(() => {
+  if (!dialogueHasVisibleContent.value)
+    return false
+
+  if (!usesHoverTriggeredDialogue.value)
+    return props.quickReplyEnabled || bubbleLoading.value || !!bubbleText.value
+
+  return bubbleLoading.value
+    || bubbleStreaming.value
+    || stageCharacterHovered.value
+    || dialoguePanelHovered.value
+    || dialoguePanelFocused.value
+})
+
+function dialogueOverlayElement() {
+  return dialoguePanelRef.value?.panelRootElement()
+}
+
 function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, radius: number) {
   if (stageModelRenderer.value !== 'vrm')
     return null
@@ -637,6 +745,7 @@ function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, r
 }
 
 onUnmounted(() => {
+  clearStageCharacterHoverLeaveTimeout()
   resetLive2dLipSync()
   chatHookCleanups.forEach(dispose => dispose?.())
   presenceCleanups.forEach(dispose => dispose?.())
@@ -645,6 +754,7 @@ onUnmounted(() => {
 
 defineExpose({
   canvasElement,
+  dialogueOverlayElement,
   readRenderTargetRegionAtClientPoint,
 })
 </script>
@@ -674,6 +784,7 @@ defineExpose({
         :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabled"
         :live2d-shadow-enabled="live2dShadowEnabled"
         :live2d-max-fps="live2dMaxFps"
+        @character-hover-change="setStageCharacterHovered"
       />
       <ThreeScene
         v-if="stageModelRenderer === 'vrm' && showStage"
@@ -688,5 +799,31 @@ defineExpose({
         @error="console.error"
       />
     </div>
+    <div
+      v-if="showDialogueOverlay"
+      class="stage-dialogue-layer"
+    >
+      <StageDialoguePanel
+        ref="dialoguePanelRef"
+        :character-offset-x="parseStagePositionX(props.xOffset)"
+        :loading="bubbleLoading"
+        :streaming="bubbleStreaming"
+        :text="bubbleText"
+        :placement="dialoguePlacement"
+        :quick-reply-enabled="props.quickReplyEnabled"
+        :visible="showDialogueOverlay"
+        @hover-change="handleDialoguePanelHoverChange"
+        @focus-change="handleDialoguePanelFocusChange"
+      />
+    </div>
   </div>
 </template>
+
+<style scoped>
+.stage-dialogue-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+</style>

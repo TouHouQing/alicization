@@ -5,7 +5,7 @@ import { isStageTamagotchi } from '@proj-airi/stage-shared'
 import { useAudioAnalyzer } from '@proj-airi/stage-ui/composables'
 import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
-import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
+import { useChatTextComposerStore } from '@proj-airi/stage-ui/stores/chat/text-composer-store'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline, useHearingStore } from '@proj-airi/stage-ui/stores/modules/hearing'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
@@ -19,21 +19,19 @@ import { useI18n } from 'vue-i18n'
 
 import IndicatorMicVolume from './IndicatorMicVolume.vue'
 
-const messageInput = ref('')
 const hearingPopoverOpen = ref(false)
-const isComposing = ref(false)
 const isListening = ref(false) // Transcription listening state (separate from microphone enabled)
+const composerStore = useChatTextComposerStore()
 
 const providersStore = useProvidersStore()
 const { activeProvider, activeModel } = storeToRefs(useConsciousnessStore())
 const { themeColorsHueDynamic } = storeToRefs(useSettings())
+const { draft, isComposing, sending } = storeToRefs(composerStore)
 
 const { askPermission, startStream } = useSettingsAudioDevice()
 const { enabled, selectedAudioInput, stream, audioInputs } = storeToRefs(useSettingsAudioDevice())
 const chatOrchestrator = useChatOrchestratorStore()
-const chatSession = useChatSessionStore()
-const { ingest, onAfterMessageComposed, discoverToolsCompatibility } = chatOrchestrator
-const { messages } = storeToRefs(chatSession)
+const { discoverToolsCompatibility } = chatOrchestrator
 const { audioContext } = useAudioContext()
 const { t } = useI18n()
 
@@ -65,7 +63,9 @@ async function debouncedAutoSend(text: string) {
   }
 
   // Add text to pending buffer
-  pendingAutoSendText.value = pendingAutoSendText.value ? `${pendingAutoSendText.value} ${text}` : text
+  if (text.trim()) {
+    pendingAutoSendText.value = pendingAutoSendText.value ? `${pendingAutoSendText.value} ${text}` : text
+  }
 
   // Clear existing timeout
   if (autoSendTimeout) {
@@ -74,6 +74,8 @@ async function debouncedAutoSend(text: string) {
 
   // Set new timeout
   autoSendTimeout = setTimeout(async () => {
+    autoSendTimeout = undefined
+
     // Final check before sending - auto-send might have been disabled while waiting
     if (!autoSendEnabled.value) {
       clearPendingAutoSend()
@@ -82,50 +84,19 @@ async function debouncedAutoSend(text: string) {
 
     const textToSend = pendingAutoSendText.value.trim()
     if (textToSend && autoSendEnabled.value) {
-      try {
-        const providerConfig = providersStore.getProviderConfig(activeProvider.value)
-        await ingest(textToSend, {
-          chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,
-          model: activeModel.value,
-          providerConfig,
-        })
-        // Clear the message input after sending
-        messageInput.value = ''
+      const sent = await composerStore.sendCurrentMessage()
+      if (sent) {
         pendingAutoSendText.value = ''
       }
-      catch (err) {
-        console.error('[ChatArea] Auto-send error:', err)
+      else if (autoSendEnabled.value && pendingAutoSendText.value.trim() && sending.value) {
+        void debouncedAutoSend('')
       }
     }
-    autoSendTimeout = undefined
   }, autoSendDelay.value)
 }
 
 async function handleSend() {
-  if (!messageInput.value.trim() || isComposing.value) {
-    return
-  }
-
-  const textToSend = messageInput.value
-  messageInput.value = ''
-
-  try {
-    const providerConfig = providersStore.getProviderConfig(activeProvider.value)
-
-    await ingest(textToSend, {
-      chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,
-      model: activeModel.value,
-      providerConfig,
-    })
-  }
-  catch (error) {
-    messageInput.value = textToSend
-    messages.value.pop()
-    messages.value.push({
-      role: 'error',
-      content: (error as Error).message,
-    })
-  }
+  await composerStore.sendCurrentMessage()
 }
 
 watch(hearingPopoverOpen, async (value) => {
@@ -138,9 +109,6 @@ watch([activeProvider, activeModel], async () => {
   if (activeProvider.value && activeModel.value) {
     await discoverToolsCompatibility(activeModel.value, await providersStore.getProviderInstance<ChatProvider>(activeProvider.value), [])
   }
-})
-
-onAfterMessageComposed(async () => {
 })
 
 const { startAnalyzer, stopAnalyzer, volumeLevel } = useAudioAnalyzer()
@@ -290,8 +258,8 @@ async function startListening() {
         onSentenceEnd: (delta) => {
           if (delta && delta.trim()) {
             // Append transcribed text to message input
-            const currentText = messageInput.value.trim()
-            messageInput.value = currentText ? `${currentText} ${delta}` : delta
+            const currentText = draft.value.trim()
+            composerStore.setDraft(currentText ? `${currentText} ${delta}` : delta)
             console.info('[ChatArea] Received transcription delta:', delta)
 
             // Auto-send if enabled - check the current value (not captured in closure)
@@ -337,20 +305,9 @@ async function stopListening() {
 
     // Send any pending text immediately if auto-send is enabled
     if (autoSendEnabled.value && pendingAutoSendText.value.trim()) {
-      const textToSend = pendingAutoSendText.value.trim()
-      pendingAutoSendText.value = ''
-      try {
-        const providerConfig = providersStore.getProviderConfig(activeProvider.value)
-        await ingest(textToSend, {
-          chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,
-          model: activeModel.value,
-          providerConfig,
-        })
-        messageInput.value = ''
-      }
-      catch (err) {
-        console.error('[ChatArea] Auto-send error on stop:', err)
-      }
+      const sent = await composerStore.sendCurrentMessage()
+      if (sent)
+        pendingAutoSendText.value = ''
     }
 
     await stopStreamingTranscription(true)
@@ -407,7 +364,7 @@ watch(autoSendEnabled, (enabled) => {
       ]"
     >
       <BasicTextarea
-        v-model="messageInput"
+        v-model="draft"
         :placeholder="t('stage.message')"
         text="primary-600 dark:primary-100  placeholder:primary-500 dark:placeholder:primary-200"
         bg="transparent"

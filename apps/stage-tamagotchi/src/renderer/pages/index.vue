@@ -23,7 +23,7 @@ import { useHearingSpeechInputPipeline } from '@proj-airi/stage-ui/stores/module
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
-import { refDebounced, useBroadcastChannel } from '@vueuse/core'
+import { refDebounced, useBroadcastChannel, useFocusWithin } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 
@@ -41,6 +41,7 @@ const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
 const statusIslandRef = ref<InstanceType<typeof StatusIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
 const stageCanvas = toRef(() => widgetStageRef.value?.canvasElement())
+const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayElement())
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
 
 const isLoading = ref(true)
@@ -54,8 +55,11 @@ const openOnboarding = useElectronEventaInvoke(electronOpenOnboarding)
 const { isOutside: isOutsideWindow } = useElectronMouseInWindow()
 const { isOutside } = useElectronMouseInElement(controlsIslandRef)
 const { isOutside: isOutsideStatusIsland } = useElectronMouseInElement(statusIslandRef)
+const { isOutside: isOutsideDialogueOverlay } = useElectronMouseInElement(stageDialogueOverlay)
 const isOutsideFor250Ms = refDebounced(isOutside, 250)
 const isOutsideStatusIslandFor250Ms = refDebounced(isOutsideStatusIsland, 250)
+const isOutsideDialogueOverlayFor250Ms = refDebounced(isOutsideDialogueOverlay, 250)
+const { focused: isDialogueOverlayFocused } = useFocusWithin(stageDialogueOverlay)
 const { x: relativeMouseX, y: relativeMouseY } = useElectronRelativeMouse()
 // NOTICE: In real-world use cases of Fade on Hover feature, the cursor may move around the edge of the
 // model rapidly, causing flickering effects when checking pixel transparency strictly.
@@ -112,7 +116,7 @@ const { pause, resume } = watch(isTransparent, (transparent) => {
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
-watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isAroundWindowBorderFor250Ms, isOutsideWindow, isTransparent, hearingDialogOpen, fadeOnHoverEnabled, stagePaused], () => {
+watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isAroundWindowBorderFor250Ms, isOutsideWindow, isTransparent, hearingDialogOpen, fadeOnHoverEnabled, stagePaused], () => {
   if (stagePaused.value) {
     isIgnoringMouseEvents.value = false
     shouldFadeOnCursorWithin.value = false
@@ -131,9 +135,10 @@ watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isAroundWindowBorderFor
   }
 
   const insideControls = !isOutsideFor250Ms.value || !isOutsideStatusIslandFor250Ms.value
+  const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
   const nearBorder = isAroundWindowBorderFor250Ms.value
 
-  if (insideControls || nearBorder) {
+  if (insideControls || insideDialogueOverlay || nearBorder) {
     // Inside interactive controls or near resize border: do NOT ignore events
     isIgnoringMouseEvents.value = false
     shouldFadeOnCursorWithin.value = false
@@ -391,6 +396,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
           h-full w-full
           flex-1
           :paused="stagePaused"
+          :quick-reply-enabled="true"
           :focus-at="{ x: live2dLookAtX, y: live2dLookAtY }"
           :scale="scale"
           :x-offset="positionInPercentageString.x"

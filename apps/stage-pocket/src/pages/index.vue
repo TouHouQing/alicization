@@ -192,6 +192,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
           min-w="1/2"
           min-h-0 flex-1
           :paused="paused"
+          :quick-reply-enabled="!isMobile"
           :focus-at="{
             x: positionCursor.x.value,
             y: positionCursor.y.value,

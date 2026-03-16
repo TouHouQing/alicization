@@ -5,6 +5,19 @@ chat:
       core-system: 코어
       you: 당신
   reasoning: 추론
+dialogue:
+  quick-reply-placeholder: 이어서 물어보기...
+  history: 기록
+  expand-history: 기록 펼치기
+  collapse-history: 기록 접기
+  sending: 전송 중...
+  window-title: 대화
+  expand-panel: 대화 펼치기
+  minimize-panel: 대화 접기
+  dock-panel: 패널 위치 되돌리기
+  move-panel: 패널 이동
+  restore-panel-size: 패널 크기 복원
+  resize-panel: 패널 크기 조절
 message: 듣고 있어요...
 operations:
   load-models: 모델 불러오기

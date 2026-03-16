@@ -5,6 +5,19 @@ chat:
       core-system: Core System
       you: You
   reasoning: Reasoning
+dialogue:
+  quick-reply-placeholder: Ask a quick follow-up...
+  history: History
+  expand-history: Open history
+  collapse-history: Close history
+  sending: Sending...
+  window-title: Dialogue
+  expand-panel: Expand dialogue
+  minimize-panel: Minimize dialogue
+  dock-panel: Snap panel back
+  move-panel: Drag panel
+  restore-panel-size: Restore panel size
+  resize-panel: Resize panel
 message: Say something...
 operations:
   load-models: Load Models

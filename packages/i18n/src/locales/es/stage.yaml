@@ -5,6 +5,19 @@ chat:
       core-system: Sistema Central
       you: Tu
   reasoning: Razonamiento
+dialogue:
+  quick-reply-placeholder: Seguir preguntando...
+  history: Historial
+  expand-history: Abrir historial
+  collapse-history: Cerrar historial
+  sending: Enviando...
+  window-title: Dialogo
+  expand-panel: Expandir dialogo
+  minimize-panel: Minimizar dialogo
+  dock-panel: Reubicar panel
+  move-panel: Mover panel
+  restore-panel-size: Restaurar tamano del panel
+  resize-panel: Redimensionar panel
 message: Dile algo...
 operations:
   load-models: Cargar Modelos

@@ -168,6 +168,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         <WidgetStage
           flex-1 min-w="1/2"
           :paused="paused"
+          :quick-reply-enabled="!isMobile"
           :focus-at="{
             x: positionCursor.x.value,
             y: positionCursor.y.value,
