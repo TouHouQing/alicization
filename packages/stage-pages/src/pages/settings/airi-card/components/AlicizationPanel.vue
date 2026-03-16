@@ -5,9 +5,10 @@ import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/charac
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import AlicizationOrganicMemoryPanel from './AlicizationOrganicMemoryPanel.vue'
 import SoulForgePersonaForm from './SoulForgePersonaForm.vue'
 
-import { createDefaultSoulForgeDraft, extractPersonaNotesFromSoulContent } from './soul-forge'
+import { createDefaultSoulForgeDraft } from './soul-forge'
 
 interface Props {
   section?: 'all' | 'runtime' | 'persona'
@@ -24,18 +25,18 @@ const props = withDefaults(defineProps<Props>(), {
 const alicizationEpoch1Store = useAlicizationEpoch1Store()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const {
-  memoryStats: alicizationMemoryStats,
   killSwitch: alicizationKillSwitch,
+  organicMemorySearchResults,
+  organicMemorySnapshot,
   soul: alicizationSoul,
 } = storeToRefs(alicizationEpoch1Store)
 
-const memoryRefreshLoading = ref(false)
-const memoryPruneLoading = ref(false)
 const killSwitchLoading = ref(false)
+const organicMemorySearchLoading = ref(false)
+const organicMemorySearchQuery = ref('')
 const personaSaving = ref(false)
 const supported = computed(() => isStageTamagotchi())
 const personaDraft = ref(createDefaultSoulForgeDraft())
-const personaMemoryEcho = ref('')
 
 function formatDateTime(value?: number | null) {
   if (!value)
@@ -44,9 +45,9 @@ function formatDateTime(value?: number | null) {
 }
 
 watch(alicizationSoul, (next) => {
+  organicMemorySearchQuery.value = ''
   if (!next) {
     personaDraft.value = createDefaultSoulForgeDraft()
-    personaMemoryEcho.value = ''
     return
   }
 
@@ -63,22 +64,8 @@ watch(alicizationSoul, (next) => {
     sensibility: next.frontmatter.personality.sensibility,
     customDirectives: next.frontmatter.custom_directives ?? '',
   }
-  personaMemoryEcho.value = extractPersonaNotesFromSoulContent(next.content)
 }, { immediate: true })
 
-const memoryActiveRatio = computed(() => {
-  if (alicizationMemoryStats.value.total <= 0)
-    return 0
-  return Math.min(100, (alicizationMemoryStats.value.active / alicizationMemoryStats.value.total) * 100)
-})
-
-const memoryArchivedRatio = computed(() => {
-  if (alicizationMemoryStats.value.total <= 0)
-    return 0
-  return Math.min(100, (alicizationMemoryStats.value.archived / alicizationMemoryStats.value.total) * 100)
-})
-
-const memoryLastPrunedLabel = computed(() => formatDateTime(alicizationMemoryStats.value.lastPrunedAt))
 const killSwitchUpdatedLabel = computed(() => formatDateTime(alicizationKillSwitch.value.updatedAt))
 const killSwitchSuspended = computed(() => alicizationKillSwitch.value.state === 'SUSPENDED')
 
@@ -94,8 +81,12 @@ const killSwitchReason = computed(() => {
     return killSwitchReasonMap[raw]
   return `系统事件(${raw})`
 })
+
 const showRuntimeSection = computed(() => props.section === 'all' || props.section === 'runtime')
 const showPersonaSection = computed(() => props.section === 'all' || props.section === 'persona')
+
+if (supported.value)
+  void alicizationEpoch1Store.refreshOrganicMemorySnapshot()
 
 async function toggleKillSwitch() {
   if (killSwitchLoading.value)
@@ -116,27 +107,21 @@ async function toggleKillSwitch() {
   }
 }
 
-async function refreshMemoryStats() {
-  if (memoryRefreshLoading.value)
+async function refreshOrganicMemorySnapshot() {
+  if (!supported.value)
     return
-  memoryRefreshLoading.value = true
-  try {
-    await alicizationEpoch1Store.refreshMemoryStats()
-  }
-  finally {
-    memoryRefreshLoading.value = false
-  }
+  await alicizationEpoch1Store.refreshOrganicMemorySnapshot()
 }
 
-async function runMemoryPrune() {
-  if (memoryPruneLoading.value)
+async function searchOrganicMemory() {
+  if (organicMemorySearchLoading.value)
     return
-  memoryPruneLoading.value = true
+  organicMemorySearchLoading.value = true
   try {
-    await alicizationEpoch1Store.runPruneNow()
+    await alicizationEpoch1Store.searchOrganicSubconsciousFragments(organicMemorySearchQuery.value)
   }
   finally {
-    memoryPruneLoading.value = false
+    organicMemorySearchLoading.value = false
   }
 }
 
@@ -164,6 +149,7 @@ async function savePersona() {
     if (result?.conflict)
       return
     await alicizationEpoch1Store.refreshSoul()
+    await alicizationEpoch1Store.refreshOrganicMemorySnapshot()
   }
   finally {
     personaSaving.value = false
@@ -211,85 +197,19 @@ defineExpose({
       </button>
     </div>
 
-    <div v-if="showRuntimeSection" class="border border-neutral-200 rounded-xl p-4 dark:border-neutral-700">
-      <div class="mb-3 text-sm font-semibold">
-        记忆体状态
-      </div>
-      <div class="grid grid-cols-3 gap-2 text-center text-xs">
-        <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
-          <div class="text-base font-semibold">
-            {{ alicizationMemoryStats.total }}
-          </div>
-          <div class="text-neutral-500 dark:text-neutral-400">
-            总量
-          </div>
-        </div>
-        <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
-          <div class="text-base font-semibold">
-            {{ alicizationMemoryStats.active }}
-          </div>
-          <div class="text-neutral-500 dark:text-neutral-400">
-            活跃
-          </div>
-        </div>
-        <div class="rounded-lg bg-neutral-100 px-2 py-2 dark:bg-neutral-800">
-          <div class="text-base font-semibold">
-            {{ alicizationMemoryStats.archived }}
-          </div>
-          <div class="text-neutral-500 dark:text-neutral-400">
-            归档
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-xs space-y-2">
-        <div>
-          <div class="mb-0.5 flex items-center justify-between">
-            <span>活跃占比</span>
-            <span>{{ memoryActiveRatio.toFixed(1) }}%</span>
-          </div>
-          <div class="h-1.5 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-700">
-            <div class="h-full bg-emerald-500 transition-all" :style="{ width: `${memoryActiveRatio}%` }" />
-          </div>
-        </div>
-        <div>
-          <div class="mb-0.5 flex items-center justify-between">
-            <span>归档占比</span>
-            <span>{{ memoryArchivedRatio.toFixed(1) }}%</span>
-          </div>
-          <div class="h-1.5 overflow-hidden rounded bg-neutral-200 dark:bg-neutral-700">
-            <div class="h-full bg-amber-500 transition-all" :style="{ width: `${memoryArchivedRatio}%` }" />
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-        最近修剪：{{ memoryLastPrunedLabel }}
-      </div>
-
-      <div class="mt-3 flex items-center gap-2">
-        <button
-          class="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed dark:border-neutral-600 disabled:opacity-60"
-          :disabled="memoryRefreshLoading"
-          @click="refreshMemoryStats()"
-        >
-          {{ memoryRefreshLoading ? '刷新中...' : '刷新' }}
-        </button>
-        <button
-          class="flex-1 border border-neutral-300 rounded-lg px-3 py-2 text-xs transition-colors disabled:cursor-not-allowed dark:border-neutral-600 disabled:opacity-60"
-          :disabled="memoryPruneLoading"
-          @click="runMemoryPrune()"
-        >
-          {{ memoryPruneLoading ? '修剪中...' : '执行修剪' }}
-        </button>
-      </div>
-    </div>
+    <AlicizationOrganicMemoryPanel
+      v-if="showRuntimeSection"
+      v-model:search-query="organicMemorySearchQuery"
+      :snapshot="organicMemorySnapshot"
+      :search-results="organicMemorySearchResults"
+      :search-loading="organicMemorySearchLoading"
+      @refresh="refreshOrganicMemorySnapshot()"
+      @search="searchOrganicMemory()"
+    />
 
     <SoulForgePersonaForm
       v-if="showPersonaSection"
       v-model:draft="personaDraft"
-      :memory-echo="personaMemoryEcho"
-      :show-memory-echo="true"
       :show-save-button="showPersonaSaveButton"
       :saving="personaSaving"
       @save="savePersona()"

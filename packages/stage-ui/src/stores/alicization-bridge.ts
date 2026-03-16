@@ -16,6 +16,8 @@ export interface AlicizationSoulFrontmatter {
   schemaVersion: number
   initialized: boolean
   custom_directives: string
+  host_attitude: string
+  core_incarnation: string
   profile: {
     ownerName: string
     hostName: string
@@ -126,6 +128,55 @@ export interface AlicizationMemoryMigrationResult {
   marker: string
 }
 
+export type AlicizationSubconsciousFragmentSourceKind
+  = | 'active-demotion'
+    | 'dream-fragment'
+    | 'former-core-incarnation'
+    | 'unforged-shattering-event'
+    | 'attitude-shift'
+
+export interface AlicizationActiveThought {
+  id: string
+  text: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationSubconsciousFragment {
+  id: string
+  text: string
+  sourceKind: AlicizationSubconsciousFragmentSourceKind
+  createdAt: number
+  lastRecalledAt: number | null
+  recallCount: number
+}
+
+export interface AlicizationOrganicMemorySnapshot {
+  hostAttitude: string
+  coreIncarnation: string
+  activeThoughts: AlicizationActiveThought[]
+  subconsciousCount: number
+  recentSubconsciousFragments: AlicizationSubconsciousFragment[]
+  lastDreamedAt: number | null
+}
+
+export interface AlicizationDreamMetabolismPayload {
+  host_attitude: string
+  soul_shift: {
+    obedience_delta: number
+    liveliness_delta: number
+    sensibility_delta: number
+  }
+  next_active_thoughts: Array<{ text: string }>
+  explicit_demoted_thoughts: Array<{ text: string }>
+  new_sediment_fragments: Array<{ text: string }>
+  shattering_event: { text: string } | null
+}
+
+export interface AlicizationCoreIncarnationReforgePayload {
+  core_incarnation: string
+}
+
 export interface AlicizationConversationTurnInput {
   turnId?: string
   sessionId?: string
@@ -178,6 +229,11 @@ export interface AlicizationSystemProbeSample {
     iso: string
     local: string
     timezone: string
+  }
+  foregroundWindow?: {
+    appName?: string
+    processName?: string
+    title?: string
   }
   battery?: {
     percent: number
@@ -370,6 +426,8 @@ interface AlicizationBridge {
   retrieveMemoryFacts: (payload: { query: string, limit?: number }) => Promise<AlicizationMemoryFact[]>
   upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource }) => Promise<void>
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
+  getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
+  searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
   appendConversationTurn: (payload: AlicizationConversationTurnInput) => Promise<void>
   setActiveSession?: (payload: { sessionId: string }) => Promise<void>
   appendAuditLog: (payload: AlicizationAuditLogInput) => Promise<void>

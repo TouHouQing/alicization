@@ -21,6 +21,7 @@ import {
   electronAlicizationClearAllConversations,
   electronAlicizationDeleteAllData,
   electronAlicizationDeleteCardScope,
+  electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationInitializeGenesis,
@@ -28,6 +29,7 @@ import {
   electronAlicizationKillSwitchSuspend,
   electronAlicizationLlmSyncConfig,
   electronAlicizationReminderSchedule,
+  electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
@@ -44,6 +46,7 @@ const streamTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
 let sensoryCpuUsage = 12
+let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
 
 const dbStub = {
   dbPath: '',
@@ -76,6 +79,12 @@ const dbStub = {
     archived: 0,
     lastPrunedAt: null,
   }),
+  listActiveThoughts: vi.fn().mockResolvedValue([]),
+  replaceActiveThoughts: vi.fn().mockResolvedValue([]),
+  appendSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   insertScheduledTask: vi.fn().mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
     taskId: input.taskId,
@@ -97,6 +106,7 @@ const dbStub = {
   getJournalMode: vi.fn().mockResolvedValue('wal'),
   getLatestConversationSessionId: vi.fn().mockResolvedValue(undefined),
   listConversationTurnsSince: vi.fn().mockResolvedValue([]),
+  listConversationTurnsBySession: vi.fn().mockResolvedValue([]),
   clearConversationData: vi.fn().mockResolvedValue(undefined),
   getMetaValue: vi.fn(async (key: string) => metaStore.get(key)),
   setMetaValue: vi.fn(async (key: string, value: string) => {
@@ -165,6 +175,7 @@ vi.mock('./sensory-bus', () => ({
           local: new Date().toLocaleString(),
           timezone: 'Asia/Shanghai',
         },
+        foregroundWindow: foregroundWindowSample,
         battery: {
           percent: 80,
           charging: true,
@@ -225,6 +236,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     streamTextMock.mockReset()
     directIpcHandlers.clear()
     sensoryCpuUsage = 12
+    foregroundWindowSample = undefined
     listWebContentsMock.mockReset()
     listWebContentsMock.mockReturnValue([])
   })
@@ -1211,7 +1223,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         await dreamGate
         await onEvent?.({
           type: 'text-delta',
-          text: '{"host_attitude":"neutral","core_memory":"queued dream","soul_shift":{"obedience_delta":0,"liveliness_delta":0,"sensibility_delta":0}}',
+          text: '{"host_attitude":"礼貌而克制，保持观察","soul_shift":{"obedience_delta":0,"liveliness_delta":0,"sensibility_delta":0},"next_active_thoughts":[],"explicit_demoted_thoughts":[],"new_sediment_fragments":[],"shattering_event":null}',
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
@@ -2028,19 +2040,21 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         return
       }
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识与记忆重塑]')) {
+      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
         dreamSystemText = systemText
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
-            host_attitude: 'neutral',
-            core_memory: '宿主今天沟通很克制，偏任务导向。',
-            behavior_strategy: '先给结构化建议，再补一条简短提醒。',
+            host_attitude: '礼貌而克制，保持观察',
             soul_shift: {
               obedience_delta: 0,
               liveliness_delta: 0,
               sensibility_delta: 0,
             },
+            next_active_thoughts: [{ text: '继续保持结构化沟通，观察宿主状态变化' }],
+            explicit_demoted_thoughts: [],
+            new_sediment_fragments: [],
+            shattering_event: null,
           }),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -2115,7 +2129,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemText).toContain('严厉但克制的监督者')
   })
 
-  it('writes dream-driven soul evolution and core memory note from bounded context', async () => {
+  it('persists explicit dream demotions and attitude-shift without cloning untouched tier2 thoughts', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -2123,13 +2137,73 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     await new Promise(resolve => setTimeout(resolve, 40))
     dbStub.listConversationTurnsSince.mockReset()
+    dbStub.listActiveThoughts.mockResolvedValueOnce([
+      {
+        id: 'thought-keep',
+        text: '继续观察宿主晚间作息',
+        createdAt: Date.now() - 120_000,
+        updatedAt: Date.now() - 120_000,
+      },
+      {
+        id: 'thought-demote',
+        text: '昨天的临时错误已解决',
+        createdAt: Date.now() - 90_000,
+        updatedAt: Date.now() - 90_000,
+      },
+    ])
+    streamTextMock.mockImplementationOnce(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      expect(systemText).toContain('[ALICIZATION_HOST_ATTITUDE]')
+      expect(systemText).toContain('[ALICIZATION_ACTIVE_THOUGHTS]')
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          host_attitude: '表面克制，但已经开始担心宿主是否又在硬撑',
+          soul_shift: {
+            obedience_delta: -0.03,
+            liveliness_delta: -0.01,
+            sensibility_delta: 0.02,
+          },
+          next_active_thoughts: [
+            { text: '继续观察宿主晚间作息' },
+            { text: '要更敏感地察觉宿主硬撑和逞强的信号' },
+          ],
+          explicit_demoted_thoughts: [
+            { text: '昨天的临时错误已解决' },
+          ],
+          new_sediment_fragments: [
+            { text: '宿主今天嘴上说没事，但停顿明显变多。' },
+          ],
+          shattering_event: null,
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
 
     const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
     const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
     const getSoul = invokeHandlers.get(electronAlicizationGetSoul)
     expect(initializeGenesis).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
     expect(forceDream).toBeTypeOf('function')
     expect(getSoul).toBeTypeOf('function')
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
 
     await initializeGenesis!({
       ownerName: '测试主人',
@@ -2143,7 +2217,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         liveliness: 0.5,
         sensibility: 0.5,
       },
-      personaNotes: '保持观察。',
       allowOverwrite: true,
     })
 
@@ -2175,7 +2248,521 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     expect(dreamResult.processedCards).toContain('default')
     expect(afterSoul.frontmatter.personality.obedience).toBeLessThan(beforeSoul.frontmatter.personality.obedience)
-    expect(afterSoul.content).toContain('梦境核心记忆：')
-    expect(afterSoul.content).toContain('梦境行为策略：')
+    expect(afterSoul.frontmatter.host_attitude).toBe('表面克制，但已经开始担心宿主是否又在硬撑')
+    expect(dbStub.replaceActiveThoughts).toBeCalledWith([
+      { text: '继续观察宿主晚间作息' },
+      { text: '要更敏感地察觉宿主硬撑和逞强的信号' },
+    ])
+    expect(dbStub.appendSubconsciousFragments).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        text: '昨天的临时错误已解决',
+        sourceKind: 'active-demotion',
+      }),
+      expect.objectContaining({
+        text: '宿主今天嘴上说没事，但停顿明显变多。',
+        sourceKind: 'dream-fragment',
+      }),
+      expect.objectContaining({
+        sourceKind: 'attitude-shift',
+      }),
+    ]))
+    expect(dbStub.appendSubconsciousFragments).not.toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        text: '继续观察宿主晚间作息',
+        sourceKind: 'active-demotion',
+      }),
+    ]))
+  })
+
+  it('does not append attitude-shift fragment when dream host attitude stays unchanged', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 40))
+    dbStub.listConversationTurnsSince.mockReset()
+    dbStub.listActiveThoughts.mockResolvedValueOnce([])
+    streamTextMock.mockImplementationOnce(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          host_attitude: '礼貌而克制，保持观察',
+          soul_shift: {
+            obedience_delta: 0,
+            liveliness_delta: 0,
+            sensibility_delta: 0,
+          },
+          next_active_thoughts: [],
+          explicit_demoted_thoughts: [],
+          new_sediment_fragments: [],
+          shattering_event: null,
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
+      {
+        turnId: 'turn-neutral-1',
+        sessionId: 'session-dream',
+        userText: '今天就这样吧。',
+        assistantText: '我会继续观察。',
+        structuredJson: JSON.stringify({ emotion: 'neutral' }),
+        createdAt: Date.now() - 30_000,
+      },
+    ])
+
+    const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
+    expect(forceDream).toBeTypeOf('function')
+
+    await forceDream!({
+      cardId: 'default',
+      reason: 'unit-no-attitude-shift',
+    })
+
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
+    expect(appendedFragments.some((item: any) => item.sourceKind === 'attitude-shift')).toBe(false)
+  })
+
+  it('archives previous core incarnation when shattering event triggers successful reforge', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 40))
+    dbStub.listConversationTurnsSince.mockReset()
+
+    const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+    const updateSoul = invokeHandlers.get(electronAlicizationUpdateSoul)
+    const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
+    const getSoul = invokeHandlers.get(electronAlicizationGetSoul)
+    expect(initializeGenesis).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(updateSoul).toBeTypeOf('function')
+    expect(forceDream).toBeTypeOf('function')
+    expect(getSoul).toBeTypeOf('function')
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    await initializeGenesis!({
+      ownerName: '测试主人',
+      hostName: '主人',
+      alicizationName: 'Alicization',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.5,
+        liveliness: 0.5,
+        sensibility: 0.5,
+      },
+      allowOverwrite: true,
+    })
+
+    const currentSoul = await getSoul!({ cardId: 'default' })
+    await updateSoul!({
+      cardId: 'default',
+      content: currentSoul.content.replace('"core_incarnation": ""', '"core_incarnation": "旧心意：我只在远处维持观察。"'),
+    })
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            host_attitude: '表面冷静，但内心已经更深地卷入宿主的情绪',
+            soul_shift: {
+              obedience_delta: 0.01,
+              liveliness_delta: 0,
+              sensibility_delta: 0.03,
+            },
+            next_active_thoughts: [],
+            explicit_demoted_thoughts: [],
+            new_sediment_fragments: [],
+            shattering_event: {
+              text: '宿主在最糟糕的时候第一次承认自己真的需要我留下。',
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 摇光心意重铸]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            core_incarnation: '我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。',
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      }
+    })
+
+    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
+      {
+        turnId: 'turn-shatter-1',
+        sessionId: 'session-dream',
+        userText: '其实我真的撑不住了。',
+        assistantText: '我听到了，你不用再一个人扛。',
+        structuredJson: JSON.stringify({ emotion: 'concerned' }),
+        createdAt: Date.now() - 30_000,
+      },
+    ])
+
+    await forceDream!({
+      cardId: 'default',
+      reason: 'unit-reforge-success',
+    })
+
+    const afterSoul = await getSoul!({ cardId: 'default' })
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
+
+    expect(afterSoul.frontmatter.core_incarnation).toBe('我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。')
+    expect(appendedFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: '旧心意：我只在远处维持观察。',
+        sourceKind: 'former-core-incarnation',
+      }),
+    ]))
+  })
+
+  it('archives unforged shattering event when core reforge output is invalid', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 40))
+    dbStub.listConversationTurnsSince.mockReset()
+
+    const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
+    const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+    const updateSoul = invokeHandlers.get(electronAlicizationUpdateSoul)
+    const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
+    const getSoul = invokeHandlers.get(electronAlicizationGetSoul)
+    expect(initializeGenesis).toBeTypeOf('function')
+    expect(syncLlmConfig).toBeTypeOf('function')
+    expect(updateSoul).toBeTypeOf('function')
+    expect(forceDream).toBeTypeOf('function')
+    expect(getSoul).toBeTypeOf('function')
+
+    await syncLlmConfig!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    await initializeGenesis!({
+      ownerName: '测试主人',
+      hostName: '主人',
+      alicizationName: 'Alicization',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.5,
+        liveliness: 0.5,
+        sensibility: 0.5,
+      },
+      allowOverwrite: true,
+    })
+
+    const currentSoul = await getSoul!({ cardId: 'default' })
+    await updateSoul!({
+      cardId: 'default',
+      content: currentSoul.content.replace('"core_incarnation": ""', '"core_incarnation": "旧心意：我只在远处维持观察。"'),
+    })
+
+    let callCount = 0
+    streamTextMock.mockImplementation(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
+      callCount += 1
+      if (callCount === 1) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            host_attitude: '礼貌而克制，保持观察',
+            soul_shift: {
+              obedience_delta: 0,
+              liveliness_delta: 0,
+              sensibility_delta: 0.02,
+            },
+            next_active_thoughts: [],
+            explicit_demoted_thoughts: [],
+            new_sediment_fragments: [],
+            shattering_event: {
+              text: '宿主第一次说出“别走”。',
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
+      {
+        turnId: 'turn-shatter-fail',
+        sessionId: 'session-dream',
+        userText: '别走。',
+        assistantText: '我还在。',
+        structuredJson: JSON.stringify({ emotion: 'concerned' }),
+        createdAt: Date.now() - 30_000,
+      },
+    ])
+
+    await forceDream!({
+      cardId: 'default',
+      reason: 'unit-reforge-fail',
+    })
+
+    const afterSoul = await getSoul!({ cardId: 'default' })
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
+
+    expect(afterSoul.frontmatter.core_incarnation).toBe('旧心意：我只在远处维持观察。')
+    expect(appendedFragments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: '宿主第一次说出“别走”。',
+        sourceKind: 'unforged-shattering-event',
+      }),
+    ]))
+  })
+
+  it('uses contextual recall for short follow-up messages in main chat', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    dbStub.listConversationTurnsBySession.mockResolvedValueOnce([
+      {
+        turnId: 'turn-prev-1',
+        sessionId: 'session-contextual',
+        userText: 'ProjectAtlas 那个报错还是在。',
+        assistantText: '我记得是 EADDRINUSE，先检查 5173 端口占用。',
+        structuredJson: JSON.stringify({ emotion: 'neutral' }),
+        createdAt: Date.now() - 120_000,
+      },
+      {
+        turnId: 'turn-prev-2',
+        sessionId: 'session-contextual',
+        userText: '我刚刚又复现了一次。',
+        assistantText: '那继续盯着 ProjectAtlas dev server。',
+        structuredJson: JSON.stringify({ emotion: 'neutral' }),
+        createdAt: Date.now() - 60_000,
+      },
+    ])
+    dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
+      {
+        id: 'fragment-contextual',
+        text: '几个月前 ProjectAtlas 也因为 5173 端口冲突卡住过一次。',
+        sourceKind: 'dream-fragment',
+        createdAt: Date.now() - 10_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+      },
+    ])
+
+    let systemText = ''
+    streamTextMock.mockImplementationOnce(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      await onEvent?.({ type: 'text-delta', text: 'contextual recall reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const result = await startChat!({
+      cardId: 'default',
+      turnId: 'turn-contextual-short',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '对啊' }],
+    })
+
+    expect(result.accepted).toBe(true)
+    expect(dbStub.searchSubconsciousFragments).toBeCalled()
+    expect(systemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
+    expect(systemText).toContain('ProjectAtlas')
+  })
+
+  it('uses foreground window recall seed for proactive one-shot generation', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Steam',
+      processName: 'steam',
+      title: 'Steam - Elden Ring',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 88,
+      fatigue: 20,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
+      {
+        id: 'fragment-proactive',
+        text: '上个月你开 Steam 打这个游戏时，连续熬了两个通宵。',
+        sourceKind: 'dream-fragment',
+        createdAt: Date.now() - 10_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+      },
+    ])
+
+    let proactiveSystemText = ''
+    streamTextMock.mockImplementationOnce(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      proactiveSystemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'phantom prompt recalled steam memory',
+          emotion: 'concerned',
+          reply: '你又打开 Steam 了？上次你为了这个游戏熬得太狠了。',
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    const tickResult = await forceTick!({ cardId: 'default' })
+
+    expect(tickResult.proactiveTriggered).toContain('default')
+    expect(dbStub.searchSubconsciousFragments).toBeCalled()
+    expect(proactiveSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
+    expect(proactiveSystemText).toContain('Steam')
+  })
+
+  it('exposes organic memory snapshot and search via invoke handlers', async () => {
+    const sandboxPath = await createSandboxPath()
+    metaStore.set('subconscious_last_dreamed_at_v1', `${Date.now() - 5_000}`)
+    dbStub.listActiveThoughts.mockResolvedValueOnce([
+      {
+        id: 'thought-snapshot',
+        text: '继续观察宿主通宵倾向',
+        createdAt: Date.now() - 10_000,
+        updatedAt: Date.now() - 5_000,
+      },
+    ])
+    dbStub.countSubconsciousFragments.mockResolvedValueOnce(3)
+    dbStub.listRecentSubconsciousFragments.mockResolvedValueOnce([
+      {
+        id: 'fragment-snapshot',
+        text: '宿主上次也在这个项目上熬到了凌晨。',
+        sourceKind: 'dream-fragment',
+        createdAt: Date.now() - 10_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+      },
+    ])
+    dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
+      {
+        id: 'fragment-search',
+        text: 'ProjectAtlas 历史错误记录',
+        sourceKind: 'dream-fragment',
+        createdAt: Date.now() - 10_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+      },
+    ])
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getOrganicSnapshot = invokeHandlers.get(electronAlicizationGetOrganicMemorySnapshot)
+    const searchOrganicFragments = invokeHandlers.get(electronAlicizationSearchOrganicSubconsciousFragments)
+    expect(getOrganicSnapshot).toBeTypeOf('function')
+    expect(searchOrganicFragments).toBeTypeOf('function')
+
+    const snapshot = await getOrganicSnapshot!({ cardId: 'default' })
+    const hits = await searchOrganicFragments!({
+      cardId: 'default',
+      query: 'ProjectAtlas',
+      limit: 5,
+    })
+
+    expect(snapshot.activeThoughts).toHaveLength(1)
+    expect(snapshot.subconsciousCount).toBe(3)
+    expect(snapshot.recentSubconsciousFragments).toHaveLength(1)
+    expect(hits).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: 'ProjectAtlas 历史错误记录',
+      }),
+    ]))
   })
 })

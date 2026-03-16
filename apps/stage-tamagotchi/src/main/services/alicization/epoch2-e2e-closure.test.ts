@@ -67,6 +67,12 @@ const dbStub = {
     archived: 0,
     lastPrunedAt: null,
   }),
+  listActiveThoughts: vi.fn().mockResolvedValue([]),
+  replaceActiveThoughts: vi.fn().mockResolvedValue([]),
+  appendSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   insertScheduledTask: vi.fn().mockResolvedValue({
     id: 'row:task-test',
     taskId: 'task-test',
@@ -128,6 +134,9 @@ vi.mock('electron', () => ({
   powerMonitor: {
     on: vi.fn(),
     removeListener: vi.fn(),
+  },
+  webContents: {
+    getAllWebContents: vi.fn(() => []),
   },
   ipcMain: {},
   shell: {

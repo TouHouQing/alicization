@@ -59,6 +59,7 @@ import {
   electronAlicizationDeleteAllData,
   electronAlicizationDeleteCardScope,
   electronAlicizationGetMemoryStats,
+  electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationInitializeGenesis,
@@ -76,6 +77,7 @@ import {
   electronAlicizationReplayDialogues,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSafetyResolvePermission,
+  electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
@@ -153,11 +155,13 @@ const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicization
 const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
+const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
 const alicizationRunMemoryPrune = useElectronEventaInvoke(electronAlicizationRunMemoryPrune)
 const alicizationUpdateMemoryStats = useElectronEventaInvoke(electronAlicizationUpdateMemoryStats)
 const alicizationRetrieveMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryRetrieveFacts)
 const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryUpsertFacts)
 const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
+const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
 const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
 const alicizationSetActiveSession = useElectronEventaInvoke(electronAlicizationSetActiveSession)
 const alicizationAppendAuditLog = useElectronEventaInvoke(electronAlicizationAppendAuditLog)
@@ -850,6 +854,8 @@ setAlicizationBridge({
   retrieveMemoryFacts: async payload => await alicizationRetrieveMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   upsertMemoryFacts: async payload => await alicizationUpsertMemoryFacts({ ...resolveAlicizationScope(), ...payload }),
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
+  getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
+  searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),
@@ -863,151 +869,153 @@ setAlicizationBridge({
   chatStart: async payload => await invokeAlicizationChatStartTransport({ ...resolveAlicizationScope(), ...payload }),
   chatAbort: async payload => await invokeAlicizationChatAbortTransport({ ...resolveAlicizationScope(), ...payload }),
   reminderSchedule: async payload => await alicizationReminderSchedule({ ...resolveAlicizationScope(), ...payload }),
-  streamChat: async (payload, options) => await new Promise<void>(async (resolve, reject) => {
-    const scope = resolveAlicizationScope()
-    const key = alicizationChatStreamKey(scope.cardId, payload.turnId)
-    const previousPending = pendingAlicizationChatStreams.get(key)
-    if (previousPending) {
-      // NOTICE: Retry path may restart the same turnId after timeout.
-      // Forcefully supersede the old pending stream so retried stream can proceed.
-      await invokeAlicizationChatAbortTransport({
-        ...scope,
-        turnId: payload.turnId,
-        reason: 'renderer-restart',
-      }).catch(() => {})
-      previousPending.reject(new Error(`Alicization stream superseded by restart for turn ${payload.turnId}`))
-      pendingAlicizationChatStreams.delete(key)
-    }
+  streamChat: async (payload, options) => await new Promise<void>((resolve, reject) => {
+    void (async () => {
+      const scope = resolveAlicizationScope()
+      const key = alicizationChatStreamKey(scope.cardId, payload.turnId)
+      const previousPending = pendingAlicizationChatStreams.get(key)
+      if (previousPending) {
+        // NOTICE: Retry path may restart the same turnId after timeout.
+        // Forcefully supersede the old pending stream so retried stream can proceed.
+        await invokeAlicizationChatAbortTransport({
+          ...scope,
+          turnId: payload.turnId,
+          reason: 'renderer-restart',
+        }).catch(() => {})
+        previousPending.reject(new Error(`Alicization stream superseded by restart for turn ${payload.turnId}`))
+        pendingAlicizationChatStreams.delete(key)
+      }
 
-    let disposed = false
-    const abortHandler = () => {
-      void invokeAlicizationChatAbortTransport({
-        ...scope,
-        turnId: payload.turnId,
-        reason: 'renderer-abort',
+      let disposed = false
+      const abortHandler = () => {
+        void invokeAlicizationChatAbortTransport({
+          ...scope,
+          turnId: payload.turnId,
+          reason: 'renderer-abort',
+        })
+      }
+      const dispose = () => {
+        if (disposed)
+          return
+        disposed = true
+        options.abortSignal?.removeEventListener('abort', abortHandler)
+        settlePendingAlicizationStream(scope.cardId, payload.turnId)
+      }
+      const rejectAndDispose = (error: unknown) => {
+        dispose()
+        reject(error)
+      }
+      const resolveAndDispose = () => {
+        dispose()
+        resolve()
+      }
+
+      pendingAlicizationChatStreams.set(key, {
+        onStreamEvent: options.onStreamEvent,
+        resolve: resolveAndDispose,
+        reject: rejectAndDispose,
       })
-    }
-    const dispose = () => {
-      if (disposed)
+
+      if (options.abortSignal?.aborted) {
+        await invokeAlicizationChatAbortTransport({
+          ...scope,
+          turnId: payload.turnId,
+          reason: 'renderer-abort',
+        })
+        rejectAndDispose(createAlicizationAbortError('renderer-abort'))
         return
-      disposed = true
-      options.abortSignal?.removeEventListener('abort', abortHandler)
-      settlePendingAlicizationStream(scope.cardId, payload.turnId)
-    }
-    const rejectAndDispose = (error: unknown) => {
-      dispose()
-      reject(error)
-    }
-    const resolveAndDispose = () => {
-      dispose()
-      resolve()
-    }
+      }
 
-    pendingAlicizationChatStreams.set(key, {
-      onStreamEvent: options.onStreamEvent,
-      resolve: resolveAndDispose,
-      reject: rejectAndDispose,
-    })
+      options.abortSignal?.addEventListener('abort', abortHandler, { once: true })
 
-    if (options.abortSignal?.aborted) {
-      await invokeAlicizationChatAbortTransport({
+      const transportPayloadResult = sanitizeAlicizationChatStartPayloadForTransport({
         ...scope,
-        turnId: payload.turnId,
-        reason: 'renderer-abort',
+        ...payload,
       })
-      rejectAndDispose(createAlicizationAbortError('renderer-abort'))
-      return
-    }
+      const transportPayload = transportPayloadResult.value
+      const transportPayloadSummary = summarizeAlicizationChatStartPayloadForTransport(transportPayload)
 
-    options.abortSignal?.addEventListener('abort', abortHandler, { once: true })
-
-    const transportPayloadResult = sanitizeAlicizationChatStartPayloadForTransport({
-      ...scope,
-      ...payload,
-    })
-    const transportPayload = transportPayloadResult.value
-    const transportPayloadSummary = summarizeAlicizationChatStartPayloadForTransport(transportPayload)
-
-    try {
-      void alicizationAppendAuditLog({
-        ...scope,
-        level: 'notice',
-        category: 'alicization.main-gateway',
-        action: 'renderer-chat-start-requested',
-        message: 'Renderer requested main-process Alicization chat stream startup.',
-        payload: {
-          turnId: transportPayload.turnId,
-          providerId: transportPayload.providerId,
-          model: transportPayload.model,
-          messageCount: Array.isArray(transportPayload.messages) ? transportPayload.messages.length : 0,
-          payloadBytes: estimateJsonPayloadBytes(transportPayload),
-          transport: typeof window.electron?.ipcRenderer?.invoke === 'function' ? 'direct-ipc' : 'eventa',
-          transportPayload: transportPayloadSummary,
-          transportSanitization: transportPayloadResult.report.changed
-            ? {
-                droppedCount: transportPayloadResult.report.droppedCount,
-                coercedCount: transportPayloadResult.report.coercedCount,
-                droppedPaths: transportPayloadResult.report.droppedPaths,
-                coercedPaths: transportPayloadResult.report.coercedPaths,
-              }
-            : undefined,
-        },
-      }).catch(() => {})
-      let start = await invokeAlicizationChatStartTransport(transportPayload)
-      if (!start.accepted && start.state === 'duplicate-running') {
-        for (let attempt = 0; attempt < 4; attempt += 1) {
-          await new Promise(resolve => setTimeout(resolve, 120 * (attempt + 1)))
-          start = await invokeAlicizationChatStartTransport(transportPayload)
-          if (start.accepted || start.state !== 'duplicate-running')
-            break
+      try {
+        void alicizationAppendAuditLog({
+          ...scope,
+          level: 'notice',
+          category: 'alicization.main-gateway',
+          action: 'renderer-chat-start-requested',
+          message: 'Renderer requested main-process Alicization chat stream startup.',
+          payload: {
+            turnId: transportPayload.turnId,
+            providerId: transportPayload.providerId,
+            model: transportPayload.model,
+            messageCount: Array.isArray(transportPayload.messages) ? transportPayload.messages.length : 0,
+            payloadBytes: estimateJsonPayloadBytes(transportPayload),
+            transport: typeof window.electron?.ipcRenderer?.invoke === 'function' ? 'direct-ipc' : 'eventa',
+            transportPayload: transportPayloadSummary,
+            transportSanitization: transportPayloadResult.report.changed
+              ? {
+                  droppedCount: transportPayloadResult.report.droppedCount,
+                  coercedCount: transportPayloadResult.report.coercedCount,
+                  droppedPaths: transportPayloadResult.report.droppedPaths,
+                  coercedPaths: transportPayloadResult.report.coercedPaths,
+                }
+              : undefined,
+          },
+        }).catch(() => {})
+        let start = await invokeAlicizationChatStartTransport(transportPayload)
+        if (!start.accepted && start.state === 'duplicate-running') {
+          for (let attempt = 0; attempt < 4; attempt += 1) {
+            await new Promise(resolveDelay => setTimeout(resolveDelay, 120 * (attempt + 1)))
+            start = await invokeAlicizationChatStartTransport(transportPayload)
+            if (start.accepted || start.state !== 'duplicate-running')
+              break
+          }
+        }
+        void alicizationAppendAuditLog({
+          ...scope,
+          level: start.accepted ? 'notice' : 'warning',
+          category: 'alicization.main-gateway',
+          action: 'renderer-chat-start-resolved',
+          message: start.accepted
+            ? 'Renderer received accepted response for main-process Alicization chat stream startup.'
+            : 'Renderer received rejected response for main-process Alicization chat stream startup.',
+          payload: {
+            turnId: payload.turnId,
+            accepted: start.accepted,
+            state: start.state,
+            reason: start.reason,
+          },
+        }).catch(() => {})
+        if (!start.accepted) {
+          const reason = typeof start.reason === 'string' && start.reason.trim()
+            ? ` reason=${start.reason}`
+            : ''
+          const state = typeof start.state === 'string' ? start.state : 'unknown'
+          rejectAndDispose(new Error(`Alicization stream start rejected (state=${state}) for turn ${payload.turnId}.${reason}`))
         }
       }
-      void alicizationAppendAuditLog({
-        ...scope,
-        level: start.accepted ? 'notice' : 'warning',
-        category: 'alicization.main-gateway',
-        action: 'renderer-chat-start-resolved',
-        message: start.accepted
-          ? 'Renderer received accepted response for main-process Alicization chat stream startup.'
-          : 'Renderer received rejected response for main-process Alicization chat stream startup.',
-        payload: {
-          turnId: payload.turnId,
-          accepted: start.accepted,
-          state: start.state,
-          reason: start.reason,
-        },
-      }).catch(() => {})
-      if (!start.accepted) {
-        const reason = typeof start.reason === 'string' && start.reason.trim()
-          ? ` reason=${start.reason}`
-          : ''
-        const state = typeof start.state === 'string' ? start.state : 'unknown'
-        rejectAndDispose(new Error(`Alicization stream start rejected (state=${state}) for turn ${payload.turnId}.${reason}`))
+      catch (error) {
+        void alicizationAppendAuditLog({
+          ...scope,
+          level: 'warning',
+          category: 'alicization.main-gateway',
+          action: 'renderer-chat-start-error',
+          message: 'Renderer chat start invoke failed before stream handshake completed.',
+          payload: {
+            turnId: payload.turnId,
+            reason: error instanceof Error ? error.message : String(error),
+            transportPayload: transportPayloadSummary,
+            transportSanitization: transportPayloadResult.report.changed
+              ? {
+                  droppedCount: transportPayloadResult.report.droppedCount,
+                  coercedCount: transportPayloadResult.report.coercedCount,
+                  droppedPaths: transportPayloadResult.report.droppedPaths,
+                  coercedPaths: transportPayloadResult.report.coercedPaths,
+                }
+              : undefined,
+          },
+        }).catch(() => {})
+        rejectAndDispose(error)
       }
-    }
-    catch (error) {
-      void alicizationAppendAuditLog({
-        ...scope,
-        level: 'warning',
-        category: 'alicization.main-gateway',
-        action: 'renderer-chat-start-error',
-        message: 'Renderer chat start invoke failed before stream handshake completed.',
-        payload: {
-          turnId: payload.turnId,
-          reason: error instanceof Error ? error.message : String(error),
-          transportPayload: transportPayloadSummary,
-          transportSanitization: transportPayloadResult.report.changed
-            ? {
-                droppedCount: transportPayloadResult.report.droppedCount,
-                coercedCount: transportPayloadResult.report.coercedCount,
-                droppedPaths: transportPayloadResult.report.droppedPaths,
-                coercedPaths: transportPayloadResult.report.coercedPaths,
-              }
-            : undefined,
-        },
-      }).catch(() => {})
-      rejectAndDispose(error)
-    }
+    })()
   }),
   clearAllConversations: async () => await alicizationClearAllConversations(),
   deleteCardScope: async scope => await alicizationDeleteCardScope(scope),
@@ -1020,6 +1028,7 @@ context.value.on(alicizationSoulChanged, (event) => {
     return
   const { cardId: _cardId, ...snapshot } = payload
   alicizationEpoch1Store.setSoulSnapshot(snapshot)
+  void alicizationEpoch1Store.refreshOrganicMemorySnapshot()
 })
 
 context.value.on(alicizationKillSwitchStateChanged, (event) => {
@@ -1093,6 +1102,7 @@ watch(activeCardId, () => {
   void alicizationEpoch1Store.refreshSoul()
   void alicizationEpoch1Store.syncKillSwitchState()
   void alicizationEpoch1Store.refreshMemoryStats()
+  void alicizationEpoch1Store.refreshOrganicMemorySnapshot()
   if (activeSessionId.value?.trim()) {
     void Promise.all([
       backfillProactiveTurnsForSession(activeSessionId.value),

@@ -1,4 +1,5 @@
 import type {
+  AlicizationActiveThought,
   AlicizationAuditLogInput,
   AlicizationConversationTurnInput,
   AlicizationMemoryFact,
@@ -7,6 +8,8 @@ import type {
   AlicizationMemoryMigrationResult,
   AlicizationMemorySource,
   AlicizationMemoryStats,
+  AlicizationSubconsciousFragment,
+  AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 
 import { randomUUID } from 'node:crypto'
@@ -57,6 +60,22 @@ interface DbConversationTurnRow {
   assistant_text: string | null
   structured_json: string | null
   created_at: number
+}
+
+interface DbActiveThoughtRow {
+  id: string
+  text: string
+  created_at: number
+  updated_at: number
+}
+
+interface DbSubconsciousFragmentRow {
+  id: string
+  text: string
+  source_kind: AlicizationSubconsciousFragmentSourceKind
+  created_at: number
+  last_recalled_at: number | null
+  recall_count: number
 }
 
 type AlicizationScheduledTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
@@ -154,6 +173,26 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     updatedAt: row.updated_at,
     lastAccessAt: typeof row.last_access_at === 'number' ? row.last_access_at : null,
     accessCount: Math.max(0, Math.floor(row.access_count)),
+  }
+}
+
+function mapActiveThoughtRow(row: DbActiveThoughtRow): AlicizationActiveThought {
+  return {
+    id: row.id,
+    text: row.text,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapSubconsciousFragmentRow(row: DbSubconsciousFragmentRow): AlicizationSubconsciousFragment {
+  return {
+    id: row.id,
+    text: row.text,
+    sourceKind: row.source_kind,
+    createdAt: row.created_at,
+    lastRecalledAt: typeof row.last_recalled_at === 'number' ? row.last_recalled_at : null,
+    recallCount: Math.max(0, Math.floor(row.recall_count)),
   }
 }
 
@@ -315,6 +354,12 @@ export interface AlicizationDbService {
   runMemoryPrune: () => Promise<AlicizationMemoryStats>
   importLegacyMemory: (snapshot: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   overrideMemoryStats: (next: AlicizationMemoryStats) => Promise<AlicizationMemoryStats>
+  listActiveThoughts: () => Promise<AlicizationActiveThought[]>
+  replaceActiveThoughts: (thoughts: Array<{ text: string }>) => Promise<AlicizationActiveThought[]>
+  appendSubconsciousFragments: (fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>) => Promise<AlicizationSubconsciousFragment[]>
+  searchSubconsciousFragments: (query: string, limit?: number) => Promise<AlicizationSubconsciousFragment[]>
+  listRecentSubconsciousFragments: (limit?: number) => Promise<AlicizationSubconsciousFragment[]>
+  countSubconsciousFragments: () => Promise<number>
   insertScheduledTask: (input: {
     taskId: string
     triggerAt: number
@@ -400,6 +445,34 @@ export async function setupAlicizationDb(
     `)
 
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_archive_archived_at ON memory_archive(archived_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS active_thoughts (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_active_thoughts_updated_at ON active_thoughts(updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS subconscious_fragments (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        source_kind TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_recalled_at INTEGER,
+        recall_count INTEGER NOT NULL DEFAULT 0
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_subconscious_fragments_created_at ON subconscious_fragments(created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_subconscious_fragments_last_recalled_at ON subconscious_fragments(last_recalled_at DESC)')
+    await run(database, `CREATE VIRTUAL TABLE IF NOT EXISTS subconscious_fragments_fts USING fts5(
+      fragment_id UNINDEXED,
+      text,
+      tokenize = 'trigram'
+    )`)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS conversation_turns (
@@ -1069,6 +1142,219 @@ export async function setupAlicizationDb(
     return await getMemoryStats()
   }
 
+  function normalizeOrganicMemoryText(raw: unknown, maxChars: number) {
+    if (typeof raw !== 'string')
+      return ''
+    const normalized = raw.replace(/\s+/g, ' ').trim()
+    if (!normalized)
+      return ''
+    return normalized.slice(0, maxChars)
+  }
+
+  async function listActiveThoughts() {
+    const rows = await all<DbActiveThoughtRow>(
+      database,
+      `
+      SELECT
+        id,
+        text,
+        created_at,
+        updated_at
+      FROM active_thoughts
+      ORDER BY updated_at DESC, created_at DESC
+      `,
+    )
+    return rows.map(mapActiveThoughtRow)
+  }
+
+  async function replaceActiveThoughts(thoughts: Array<{ text: string }>) {
+    const normalized = thoughts
+      .map(item => normalizeOrganicMemoryText(item.text, 120))
+      .filter(Boolean)
+      .filter((item, index, current) => current.findIndex(candidate => candidate.toLowerCase() === item.toLowerCase()) === index)
+      .slice(0, 5)
+    const currentTs = now()
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        await run(database, 'DELETE FROM active_thoughts')
+        for (const text of normalized) {
+          await run(
+            database,
+            `
+            INSERT INTO active_thoughts (
+              id,
+              text,
+              created_at,
+              updated_at
+            ) VALUES (?, ?, ?, ?)
+            `,
+            [randomUUID(), text, currentTs, currentTs],
+          )
+        }
+      })
+    })
+
+    return await listActiveThoughts()
+  }
+
+  async function appendSubconsciousFragments(fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>) {
+    const normalized = fragments
+      .map(item => ({
+        sourceKind: item.sourceKind,
+        text: normalizeOrganicMemoryText(item.text, 160),
+      }))
+      .filter(item => item.text)
+      .filter((item, index, current) => current.findIndex(candidate => candidate.sourceKind === item.sourceKind && candidate.text.toLowerCase() === item.text.toLowerCase()) === index)
+
+    if (normalized.length === 0)
+      return []
+
+    const inserted: AlicizationSubconsciousFragment[] = []
+    const currentTs = now()
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const item of normalized) {
+          const existing = await get<{ id?: string }>(
+            database,
+            `
+            SELECT id
+            FROM subconscious_fragments
+            WHERE source_kind = ?
+              AND lower(text) = lower(?)
+            LIMIT 1
+            `,
+            [item.sourceKind, item.text],
+          )
+          if (existing?.id)
+            continue
+
+          const id = randomUUID()
+          await run(
+            database,
+            `
+            INSERT INTO subconscious_fragments (
+              id,
+              text,
+              source_kind,
+              created_at,
+              last_recalled_at,
+              recall_count
+            ) VALUES (?, ?, ?, ?, NULL, 0)
+            `,
+            [id, item.text, item.sourceKind, currentTs],
+          )
+          await run(
+            database,
+            `
+            INSERT INTO subconscious_fragments_fts (
+              fragment_id,
+              text
+            ) VALUES (?, ?)
+            `,
+            [id, item.text],
+          )
+          inserted.push({
+            id,
+            text: item.text,
+            sourceKind: item.sourceKind,
+            createdAt: currentTs,
+            lastRecalledAt: null,
+            recallCount: 0,
+          })
+        }
+      })
+    })
+
+    return inserted
+  }
+
+  async function searchSubconsciousFragments(query: string, limit = 6) {
+    const normalizedQuery = query.trim()
+    if (!normalizedQuery)
+      return []
+
+    const safeLimit = Math.max(1, Math.min(20, Math.floor(limit)))
+    const rows = await all<DbSubconsciousFragmentRow>(
+      database,
+      `
+      SELECT
+        sf.id,
+        sf.text,
+        sf.source_kind,
+        sf.created_at,
+        sf.last_recalled_at,
+        sf.recall_count
+      FROM subconscious_fragments_fts
+      JOIN subconscious_fragments sf
+        ON sf.id = subconscious_fragments_fts.fragment_id
+      WHERE subconscious_fragments_fts MATCH ?
+      ORDER BY bm25(subconscious_fragments_fts), sf.created_at DESC
+      LIMIT ?
+      `,
+      [normalizedQuery, safeLimit],
+    )
+    const mapped = rows.map(mapSubconsciousFragmentRow)
+    if (mapped.length === 0)
+      return mapped
+
+    const recalledAt = now()
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const fragment of mapped) {
+          await run(
+            database,
+            `
+            UPDATE subconscious_fragments
+            SET last_recalled_at = ?,
+                recall_count = recall_count + 1
+            WHERE id = ?
+            `,
+            [recalledAt, fragment.id],
+          )
+        }
+      })
+    })
+
+    return mapped.map(fragment => ({
+      ...fragment,
+      lastRecalledAt: recalledAt,
+      recallCount: fragment.recallCount + 1,
+    }))
+  }
+
+  async function listRecentSubconsciousFragments(limit = 8) {
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)))
+    const rows = await all<DbSubconsciousFragmentRow>(
+      database,
+      `
+      SELECT
+        id,
+        text,
+        source_kind,
+        created_at,
+        last_recalled_at,
+        recall_count
+      FROM subconscious_fragments
+      ORDER BY created_at DESC
+      LIMIT ?
+      `,
+      [safeLimit],
+    )
+    return rows.map(mapSubconsciousFragmentRow)
+  }
+
+  async function countSubconsciousFragments() {
+    const row = await get<CountRow>(
+      database,
+      `
+      SELECT COUNT(1) AS total
+      FROM subconscious_fragments
+      `,
+    )
+    return row?.total ?? 0
+  }
+
   async function importLegacyMemory(snapshot: AlicizationMemoryLegacySnapshot): Promise<AlicizationMemoryMigrationResult> {
     const currentTs = now()
     const marker = await getMetaValue(legacyMigrationMarker)
@@ -1244,6 +1530,12 @@ export async function setupAlicizationDb(
     runMemoryPrune,
     importLegacyMemory,
     overrideMemoryStats,
+    listActiveThoughts,
+    replaceActiveThoughts,
+    appendSubconsciousFragments,
+    searchSubconsciousFragments,
+    listRecentSubconsciousFragments,
+    countSubconsciousFragments,
     insertScheduledTask,
     claimDueScheduledTasks,
     requeueScheduledTask,

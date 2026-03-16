@@ -114,15 +114,6 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
           <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">心智年龄</span>
           <input v-model.number="draft.mindAge" type="number" min="1" max="120" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
-
-        <div :class="['rounded-2xl', 'border', 'border-dashed', 'border-neutral-200', 'bg-neutral-50/80', 'p-4', 'text-sm', 'text-neutral-600', 'dark:border-neutral-700', 'dark:bg-neutral-950/50', 'dark:text-neutral-300']">
-          <div :class="['mb-1', 'text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-            铸造准则
-          </div>
-          <p :class="['leading-6']">
-            三项人格刻度不会向宿主暴露数值，只保留灵魂倾向的语义边界。主进程仍然收到原始 Float，用于 Alicization 张力与行为链路。
-          </p>
-        </div>
       </div>
 
       <section :class="['rounded-[24px]', 'border', 'border-neutral-200/80', 'bg-linear-to-br', 'from-neutral-50', 'to-cyan-50/50', 'p-5', 'dark:border-neutral-700/80', 'dark:from-neutral-900', 'dark:to-cyan-950/20']">
@@ -179,23 +170,23 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
       <label :class="['flex', 'flex-col', 'gap-3', 'rounded-[24px]', 'border', 'border-neutral-200/80', 'bg-neutral-50/85', 'p-5', 'dark:border-neutral-700/80', 'dark:bg-neutral-950/60']">
         <div :class="['flex', 'flex-col', 'gap-2', 'md:flex-row', 'md:items-start', 'md:justify-between']">
           <div :class="['flex', 'flex-col', 'gap-2']">
-            <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">Core Soul Directives</div>
+            <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">Companion Preferences</div>
             <div :class="['text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-              核心灵魂律令
+              你希望她如何陪伴你
             </div>
             <p :class="['max-w-2xl', 'text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-              这里定义她理解世界、解释互动和主动出击的底层法则。保存后会直接作为 <code>customDirectives</code> 注入主进程人格内核。
+              写下你希望她长期保持的说话方式、边界感、主动程度和关心方式。这里更适合填写稳定的相处偏好，不建议写一次性的临时任务。
             </p>
           </div>
           <div :class="['inline-flex', 'items-center', 'gap-2', 'self-start', 'rounded-full', 'bg-neutral-900', 'px-3', 'py-1.5', 'text-[11px]', 'tracking-[0.14em]', 'text-white', 'uppercase', 'dark:bg-cyan-200', 'dark:text-neutral-950']">
             <div class="i-solar:bolt-bold-duotone" />
-            High Priority
+            Long Term
           </div>
         </div>
         <textarea
           v-model="draft.customDirectives"
           :class="['min-h-44', 'w-full', 'rounded-[22px]', 'border', 'border-neutral-200', 'bg-white/80', 'px-4', 'py-4', 'text-sm', 'leading-7', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/80', 'dark:text-neutral-100']"
-          placeholder="在这里写下她的底层行为逻辑、表达态度、对宿主的长期策略，以及你希望她如何主动介入生活。"
+          placeholder="例如：请温柔一点，少说教；在我情绪低落时先安慰再给建议；可以主动提醒我休息、吃饭，但不要过度催促。"
         />
       </label>
 

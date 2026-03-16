@@ -2,6 +2,7 @@ import type { Message } from '@xsai/shared-chat'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 
 import type {
+  AlicizationActiveThought,
   AlicizationAuditLogInput,
   AlicizationCardScope,
   AlicizationChatAbortPayload,
@@ -16,10 +17,13 @@ import type {
   AlicizationChatToolResultEvent,
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
+  AlicizationCoreIncarnationReforgePayload,
   AlicizationDialogueRespondedPayload,
+  AlicizationDreamMetabolismPayload,
   AlicizationDreamRunResult,
   AlicizationGender,
   AlicizationGenesisInput,
+  AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
   AlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload,
@@ -28,6 +32,7 @@ import type {
   AlicizationReminderScheduleResult,
   AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
+  AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
   AlicizationSubconsciousStatePayload,
   AlicizationSubconsciousTickResult,
@@ -70,6 +75,7 @@ import {
   electronAlicizationDeleteAllData,
   electronAlicizationDeleteCardScope,
   electronAlicizationGetMemoryStats,
+  electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationInitializeGenesis,
@@ -86,6 +92,7 @@ import {
   electronAlicizationReminderSchedule,
   electronAlicizationReplayDialogues,
   electronAlicizationRunMemoryPrune,
+  electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
@@ -120,6 +127,8 @@ const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
   custom_directives: '',
+  host_attitude: '礼貌而克制，保持观察',
+  core_incarnation: '',
   profile: {
     ownerName: '',
     hostName: '',
@@ -199,6 +208,18 @@ interface ResolvedCardCustomDirectives {
   source: 'card-soul' | 'payload-soul' | 'none' | 'error'
 }
 
+interface OrganicMemoryPromptContext {
+  hostAttitude: string
+  coreIncarnation: string
+  activeThoughts: AlicizationActiveThought[]
+  recalledFragments: AlicizationSubconsciousFragment[]
+}
+
+interface ContextualConversationTurn {
+  userText: string
+  assistantText: string
+}
+
 interface PendingDialogueDeliveryState {
   key: string
   payload: AlicizationDialogueRespondedPayload
@@ -241,6 +262,14 @@ function readRawTextDelta(raw: unknown) {
 
 function normalizeCustomDirectives(raw: unknown) {
   return sanitizeMultilineText(raw, '')
+}
+
+function normalizeHostAttitude(raw: unknown) {
+  return sanitizeText(raw, defaultFrontmatter.host_attitude).slice(0, 50)
+}
+
+function normalizeCoreIncarnation(raw: unknown) {
+  return sanitizeMultilineText(raw, defaultFrontmatter.core_incarnation).slice(0, 500)
 }
 
 function normalizeGender(raw: unknown): AlicizationGender {
@@ -297,8 +326,7 @@ function extractPersonaNotesFromBody(body: string) {
     .trim()
 }
 
-function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, personaNotes: string) {
-  const notes = personaNotes.trim()
+function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaNotes: string) {
   return [
     '# Alicization SOUL',
     '',
@@ -333,11 +361,6 @@ function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, personaNotes: st
     '',
     '- 以结构化语义表达：thought / emotion / reply。',
     '- 输出优先体现当前 persona，不偏离 SOUL 设定。',
-    '',
-    '## Persona Notes (User Defined)',
-    soulPersonaNotesStart,
-    notes || '（空）',
-    soulPersonaNotesEnd,
   ].join('\n')
 }
 
@@ -377,24 +400,6 @@ function syncPersonalityBaselineInBody(body: string, personality: AlicizationPer
   ].join('\n')
 }
 
-function appendPersonaNoteToBody(body: string, note: string) {
-  const normalizedNote = note.trim()
-  if (!normalizedNote)
-    return body
-
-  const anchors = findPersonaNotesAnchors(body)
-  if (!anchors)
-    return body
-
-  const prefix = body.slice(0, anchors.startIndex)
-  const middle = body.slice(anchors.startIndex + anchors.start.length, anchors.endIndex).trim()
-  const suffix = body.slice(anchors.endIndex + anchors.end.length)
-  const nextMiddle = middle && middle !== '（空）'
-    ? `${middle}\n- ${normalizedNote}`
-    : `- ${normalizedNote}`
-  return `${prefix}${soulPersonaNotesStart}\n${nextMiddle}\n${soulPersonaNotesEnd}${suffix}`.trim()
-}
-
 const defaultSoulBody = buildSoulBody(defaultFrontmatter, '')
 
 function hashContent(content: string) {
@@ -407,6 +412,8 @@ function toSoulContent(frontmatter: AlicizationSoulFrontmatter, body: string) {
 
 function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFrontmatter> | null {
   const customDirectives = /custom_directives:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
+  const hostAttitude = /host_attitude:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
+  const coreIncarnation = /core_incarnation:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const ownerName = /ownerName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const hostName = /hostName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const alicizationName = /alicizationName:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
@@ -419,11 +426,13 @@ function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFrontmatter
   const sensibilityRaw = /sensibility:\s*([^\n]+)/.exec(raw)?.[1]?.trim()
   const initializedRaw = /initialized:\s*(true|false)/i.exec(raw)?.[1]?.trim()
 
-  if (!customDirectives && !ownerName && !hostName && !alicizationName && !gender && !genderCustom && !relationship && !mindAgeRaw && !obedienceRaw && !livelinessRaw && !sensibilityRaw && !initializedRaw)
+  if (!customDirectives && !hostAttitude && !coreIncarnation && !ownerName && !hostName && !alicizationName && !gender && !genderCustom && !relationship && !mindAgeRaw && !obedienceRaw && !livelinessRaw && !sensibilityRaw && !initializedRaw)
     return null
 
   return {
     custom_directives: customDirectives ?? '',
+    host_attitude: hostAttitude ?? defaultFrontmatter.host_attitude,
+    core_incarnation: coreIncarnation ?? defaultFrontmatter.core_incarnation,
     initialized: initializedRaw === 'true',
     profile: {
       ownerName: ownerName ?? '',
@@ -448,6 +457,8 @@ function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | 
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
     custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
+    host_attitude: normalizeHostAttitude(frontmatter.host_attitude),
+    core_incarnation: normalizeCoreIncarnation(frontmatter.core_incarnation),
     profile: {
       ownerName: sanitizeText(frontmatter.profile?.ownerName, defaultFrontmatter.profile.ownerName),
       hostName: sanitizeText(frontmatter.profile?.hostName, defaultFrontmatter.profile.hostName),
@@ -3066,22 +3077,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return Math.max(-maxAbs, Math.min(maxAbs, value))
   }
 
-  function extractRecentPersonaMemorySummaryFromBody(body: string, maxItems = 3, maxChars = 280) {
-    const notes = extractPersonaNotesFromBody(body)
-    if (!notes)
-      return ''
-    const lines = notes
-      .split('\n')
-      .map(line => line.replace(/^\s*-\s*/, '').trim())
-      .filter(Boolean)
-    if (lines.length === 0)
-      return ''
-    const selected = lines.slice(-maxItems).join(' | ')
-    if (selected.length <= maxChars)
-      return selected
-    return `${selected.slice(0, Math.max(24, maxChars - 1))}…`
-  }
-
   function inferDreamPrimaryLanguage(serializedTurns: string[]) {
     const sample = serializedTurns.join('\n')
     const zhMatches = sample.match(/[\u4E00-\u9FFF]/g)?.length ?? 0
@@ -3111,6 +3106,93 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return /set_reminder|task[_-]?id|trigger[_-]?at|mcp|tool[_-]?call|status\s*:|json|调用工具|任务id|闹钟/.test(lowered)
   }
 
+  function normalizeOrganicMemoryItemText(raw: unknown, maxChars: number) {
+    const normalized = sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim()
+    if (!normalized)
+      return ''
+    if (isOperationalLogLikeText(normalized))
+      return ''
+    return normalized.slice(0, maxChars)
+  }
+
+  function normalizeOrganicMemoryItemArray(raw: unknown, options: {
+    maxItems: number
+    maxChars: number
+  }) {
+    if (!Array.isArray(raw))
+      return [] as Array<{ text: string }>
+
+    const deduped: Array<{ text: string }> = []
+    for (const item of raw) {
+      const text = normalizeOrganicMemoryItemText(
+        item && typeof item === 'object' && 'text' in item
+          ? (item as { text?: unknown }).text
+          : '',
+        options.maxChars,
+      )
+      if (!text)
+        continue
+      if (deduped.some(candidate => candidate.text.toLowerCase() === text.toLowerCase()))
+        continue
+      deduped.push({ text })
+      if (deduped.length >= options.maxItems)
+        break
+    }
+    return deduped
+  }
+
+  function parseDreamMetabolismPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const soulShift = parsed.soul_shift && typeof parsed.soul_shift === 'object'
+      ? parsed.soul_shift as Record<string, unknown>
+      : {}
+    const shatteringEventText = normalizeOrganicMemoryItemText(
+      parsed.shattering_event && typeof parsed.shattering_event === 'object'
+        ? (parsed.shattering_event as { text?: unknown }).text
+        : '',
+      280,
+    )
+
+    return {
+      host_attitude: normalizeHostAttitude(parsed.host_attitude),
+      soul_shift: {
+        obedience_delta: clampSoulDelta(Number(soulShift.obedience_delta ?? 0)),
+        liveliness_delta: clampSoulDelta(Number(soulShift.liveliness_delta ?? 0)),
+        sensibility_delta: clampSoulDelta(Number(soulShift.sensibility_delta ?? 0)),
+      },
+      next_active_thoughts: normalizeOrganicMemoryItemArray(parsed.next_active_thoughts, {
+        maxItems: 5,
+        maxChars: 120,
+      }),
+      explicit_demoted_thoughts: normalizeOrganicMemoryItemArray(parsed.explicit_demoted_thoughts, {
+        maxItems: 8,
+        maxChars: 120,
+      }),
+      new_sediment_fragments: normalizeOrganicMemoryItemArray(parsed.new_sediment_fragments, {
+        maxItems: 8,
+        maxChars: 160,
+      }),
+      shattering_event: shatteringEventText
+        ? { text: shatteringEventText }
+        : null,
+    } satisfies AlicizationDreamMetabolismPayload
+  }
+
+  function parseCoreIncarnationReforgePayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+    const coreIncarnation = normalizeCoreIncarnation(parsed.core_incarnation)
+    if (!coreIncarnation)
+      return null
+    return {
+      core_incarnation: coreIncarnation,
+    } satisfies AlicizationCoreIncarnationReforgePayload
+  }
+
   async function generateProactiveStructuredWithGateway(
     personality: AlicizationPersonalityState,
     state: SubconsciousCardState,
@@ -3121,17 +3203,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       inputActivity: string
       cpuUsage: number
     },
-    personaContext: {
-      customDirectives: string
-      recentCoreMemory: string
-    },
+    organicPromptContext: OrganicMemoryPromptContext,
   ) {
-    const customDirectives = normalizeCustomDirectives(personaContext.customDirectives) || '（未设置）'
-    const recentCoreMemory = sanitizeBriefText(personaContext.recentCoreMemory, 280) || '（暂无）'
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
-      `【角色设定】${customDirectives}`,
-      `【最近核心记忆】${recentCoreMemory}`,
       '你的张力池已溢出，你必须以符合角色设定的语气主动发起一次对话。',
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
@@ -3148,6 +3223,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       timeoutMs: 15_000,
       source: 'proactive',
       cardId: activeCardId,
+      extraSystemBlocks: buildOrganicMemorySystemBlocks(organicPromptContext),
     })
     if (!raw)
       return null
@@ -3171,30 +3247,35 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  async function generateDreamRetrospectiveWithGateway(input: {
+  async function generateDreamMetabolismWithGateway(input: {
     serializedTurns: string[]
     personality: AlicizationPersonalityState
-    customDirectives: string
+    hostAttitude: string
+    coreIncarnation: string
+    activeThoughts: AlicizationActiveThought[]
   }) {
     if (input.serializedTurns.length === 0)
       return null
     const primaryLanguage = inferDreamPrimaryLanguage(input.serializedTurns)
-    const customDirectives = normalizeCustomDirectives(input.customDirectives) || '（未设置）'
     const system = [
-      '[SYSTEM OVERRIDE: 潜意识与记忆重塑]',
-      `【角色设定】：${customDirectives}`,
-      '你的任务是阅读今天的对话记录，提取核心记忆写入灵魂。',
+      '[SYSTEM OVERRIDE: 潜意识代谢与记忆重塑]',
+      '你的任务是阅读今天的对话记录，并结合已注入的当前有机记忆状态，产出下一轮记忆代谢结果。',
       `【语言一致性】输出语言应与主要交流语言一致（${primaryLanguage}）。`,
-      `【角色参数】obedience=${input.personality.obedience.toFixed(2)}, liveliness=${input.personality.liveliness.toFixed(2)}, sensibility=${input.personality.sensibility.toFixed(2)}.`,
-      '【拒绝流水账】不要记录工具调用细节或日常琐事，聚焦宿主情感变化、互动模式演进、宿主偏好。',
-      '【策略提炼】你必须总结一条未来互动行为策略。',
-      'Output must be valid JSON only with keys: host_attitude, core_memory, behavior_strategy, soul_shift.',
-      'host_attitude must be one of: hostile|neutral|warm.',
+      `【人格参数】obedience=${input.personality.obedience.toFixed(2)}, liveliness=${input.personality.liveliness.toFixed(2)}, sensibility=${input.personality.sensibility.toFixed(2)}.`,
+      '【拒绝流水账】不要记录工具调用、MCP、JSON、系统报错、执行日志或一次性事务。',
+      '【活跃思绪】next_active_thoughts 只保留未来几天仍值得持续关注的 1-5 条短句。',
+      '【显式下沉】explicit_demoted_thoughts 只能填写当前活跃思绪里你明确决定沉入潜层的旧条目。',
+      '【潜层碎片】new_sediment_fragments 用于沉淀今天新产生、但不值得进入活跃思绪的历史碎片。',
+      '【破碎事件】只有当今天出现极强情感张力极值或关系结构突变时，shattering_event 才允许非空。',
+      'Output must be valid JSON only with keys: host_attitude, soul_shift, next_active_thoughts, explicit_demoted_thoughts, new_sediment_fragments, shattering_event.',
+      'host_attitude must be a concise natural-language string, not an enum.',
       'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta in range [-0.08, 0.08].',
+      'next_active_thoughts / explicit_demoted_thoughts / new_sediment_fragments must each be an array of objects with only the key "text".',
+      'shattering_event must be null or {"text":"..."}',
       'No markdown, no extra prose.',
     ].join('\n')
     const user = [
-      'Analyze these conversation snippets and extract host attitude, core memory, and future behavior strategy:',
+      '请基于以下对话片段完成本次梦境代谢：',
       input.serializedTurns.join('\n\n'),
     ].join('\n\n')
 
@@ -3204,36 +3285,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       timeoutMs: 20_000,
       source: 'dream',
       cardId: activeCardId,
+      extraSystemBlocks: buildOrganicMemorySystemBlocks({
+        hostAttitude: input.hostAttitude,
+        coreIncarnation: input.coreIncarnation,
+        activeThoughts: input.activeThoughts,
+        recalledFragments: [],
+      }),
     })
     if (!raw)
       return null
 
-    const parsed = parseJsonObjectFromText(raw)
-    if (!parsed)
-      return null
-
-    const hostAttitudeRaw = sanitizeText(parsed.host_attitude).toLowerCase()
-    const hostAttitude = hostAttitudeRaw === 'hostile' || hostAttitudeRaw === 'warm' ? hostAttitudeRaw : 'neutral'
-    const coreMemory = sanitizeText(parsed.core_memory)
-    const behaviorStrategy = sanitizeText(parsed.behavior_strategy)
-    const soulShift = parsed.soul_shift && typeof parsed.soul_shift === 'object'
-      ? parsed.soul_shift as Record<string, unknown>
-      : {}
-    const obedienceDelta = clampSoulDelta(Number(soulShift.obedience_delta ?? 0))
-    const livelinessDelta = clampSoulDelta(Number(soulShift.liveliness_delta ?? 0))
-    const sensibilityDelta = clampSoulDelta(Number(soulShift.sensibility_delta ?? 0))
-
-    if (!coreMemory && !behaviorStrategy && obedienceDelta === 0 && livelinessDelta === 0 && sensibilityDelta === 0)
-      return null
-
-    return {
-      hostAttitude,
-      coreMemory: coreMemory || '宿主近期态度不明，我维持现有边界。',
-      behaviorStrategy: behaviorStrategy || '保持观察，先用简短确认再逐步建立稳定互动节奏。',
-      obedienceDelta,
-      livelinessDelta,
-      sensibilityDelta,
-    }
+    return parseDreamMetabolismPayload(raw)
   }
 
   function buildProactiveStructured(
@@ -3242,7 +3304,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     context: { busy: boolean, fullscreenLikely: boolean },
     personaContext: {
       customDirectives: string
-      recentCoreMemory: string
+      coreIncarnation: string
+      hostAttitude: string
     },
   ) {
     const lowObedience = personality.obedience <= 0.2
@@ -3260,7 +3323,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })()
 
     const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
-    const recentCoreMemory = sanitizeBriefText(personaContext.recentCoreMemory, 220)
+    const coreIncarnation = sanitizeBriefText(personaContext.coreIncarnation, 220)
+    const hostAttitude = sanitizeBriefText(personaContext.hostAttitude, 80)
 
     const reply = (() => {
       if (emotion === 'angry') {
@@ -3293,7 +3357,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `liveliness=${personality.liveliness.toFixed(2)}`,
       `sensibility=${personality.sensibility.toFixed(2)}`,
       `personaTone=${personaTone}`,
-      recentCoreMemory ? `recentCoreMemory=${recentCoreMemory}` : 'recentCoreMemory=none',
+      hostAttitude ? `hostAttitude=${hostAttitude}` : 'hostAttitude=none',
+      coreIncarnation ? `coreIncarnation=${coreIncarnation}` : 'coreIncarnation=none',
       lowObedience ? 'low-obedience bias active' : 'default bias',
     ].join('; ')
 
@@ -3304,6 +3369,44 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       parsePath: 'json',
       format: 'subconscious-proactive-v1',
     }
+  }
+
+  async function generateCoreIncarnationReforgeWithGateway(input: {
+    coreIncarnation: string
+    shatteringEventText: string
+    hostAttitude: string
+  }) {
+    const system = [
+      '[SYSTEM OVERRIDE: 摇光心意重铸]',
+      '你的任务是根据一次强烈的破碎事件，重铸一段新的摇光心意。',
+      '新心意必须是稳定、长期、可持续注入的人格基底，不是流水账，也不是行为指令列表。',
+      '避免输出工具调用、系统日志、JSON 字段说明、执行结果、提醒事项。',
+      'Output must be valid JSON only with key: core_incarnation.',
+      'core_incarnation must be a concise natural-language text within 500 characters.',
+      'No markdown, no extra prose.',
+    ].join('\n')
+    const user = [
+      '请根据这次破碎事件重铸新的摇光心意：',
+      input.shatteringEventText,
+    ].join('\n\n')
+
+    const raw = await generateMainGatewayText({
+      system,
+      user,
+      timeoutMs: 20_000,
+      source: 'dream',
+      cardId: activeCardId,
+      extraSystemBlocks: buildOrganicMemorySystemBlocks({
+        hostAttitude: input.hostAttitude,
+        coreIncarnation: input.coreIncarnation,
+        activeThoughts: [],
+        recalledFragments: [],
+      }),
+    })
+    if (!raw)
+      return null
+
+    return parseCoreIncarnationReforgePayload(raw)
   }
 
   async function generateReminderStructuredWithGateway(
@@ -3629,6 +3732,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   async function sampleSubconsciousInterruptionContext() {
     const degraded: string[] = []
     let idleSeconds = Number.NaN
+    let foregroundWindow = sensoryBus.getSnapshot()?.sample?.foregroundWindow
 
     try {
       idleSeconds = Number(powerMonitor.getSystemIdleTime())
@@ -3653,9 +3757,49 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       catch {
         degraded.push('fullscreen-likely-unavailable')
       }
+
+      if (!foregroundWindow?.appName && !foregroundWindow?.processName && !foregroundWindow?.title) {
+        try {
+          const output = await runCommandWithTimeout(
+            '/usr/bin/osascript',
+            [
+              '-e',
+              'tell application "System Events"',
+              '-e',
+              'set frontApp to first process whose frontmost is true',
+              '-e',
+              'set frontName to name of frontApp',
+              '-e',
+              'set frontTitle to ""',
+              '-e',
+              'try',
+              '-e',
+              'set frontTitle to name of front window of frontApp',
+              '-e',
+              'end try',
+              '-e',
+              'return frontName & linefeed & frontName & linefeed & frontTitle',
+              '-e',
+              'end tell',
+            ],
+            subconsciousInterruptionProbeTimeoutMs,
+          )
+          const [appName = '', processName = '', title = ''] = output.split('\n')
+          foregroundWindow = {
+            appName: sanitizeText(appName),
+            processName: sanitizeText(processName),
+            title: sanitizeText(title),
+          }
+        }
+        catch {
+          degraded.push('foreground-window-unavailable')
+        }
+      }
     }
     else {
       degraded.push('fullscreen-likely-unavailable')
+      if (!foregroundWindow?.appName && !foregroundWindow?.processName && !foregroundWindow?.title)
+        degraded.push('foreground-window-unavailable')
     }
 
     const inputActivity = Number.isFinite(idleSeconds)
@@ -3668,6 +3812,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       idleSeconds: Number.isFinite(idleSeconds) ? idleSeconds : null,
       inputActivity,
       fullscreenLikely,
+      foregroundWindow,
       degraded,
     }
   }
@@ -3713,6 +3858,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           inputActivity,
           cpuUsage,
           idleSeconds: interruptionContext.idleSeconds,
+          foregroundWindow: interruptionContext.foregroundWindow,
           degraded: degradedSignals,
           trigger,
         },
@@ -3721,11 +3867,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     if (impulse) {
       const soulForSubconscious = soulSnapshot ?? await bootstrap()
-      const parsedSoulForSubconscious = parseSoul(soulForSubconscious.content)
       const personality = soulForSubconscious.frontmatter.personality
       const personaContext = {
         customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
-        recentCoreMemory: extractRecentPersonaMemorySummaryFromBody(parsedSoulForSubconscious.body),
+        coreIncarnation: soulForSubconscious.frontmatter.core_incarnation,
+        hostAttitude: soulForSubconscious.frontmatter.host_attitude,
       }
       if (busy || fullscreenLikely) {
         suppressed = true
@@ -3760,14 +3906,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
       else if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED') {
         proactive = true
+        const proactiveRecallSeed = buildProactiveRecallSeed({
+          foregroundWindow: interruptionContext.foregroundWindow,
+        })
+        const organicPromptContext = await resolveOrganicMemoryPromptContext({
+          recallSeed: proactiveRecallSeed,
+        })
         const llmStructured = await generateProactiveStructuredWithGateway(personality, nextState, {
           busy,
           fullscreenLikely,
           idleLikely,
           inputActivity,
           cpuUsage,
-        }, personaContext)
-        const structured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, personaContext)
+        }, organicPromptContext)
+        const structured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, {
+          customDirectives: personaContext.customDirectives,
+          coreIncarnation: organicPromptContext.coreIncarnation,
+          hostAttitude: organicPromptContext.hostAttitude,
+        })
         if (llmStructured) {
           await appendAuditLog({
             level: 'notice',
@@ -3777,6 +3933,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             payload: {
               emotion: llmStructured.emotion,
               format: llmStructured.format,
+              recallSeed: proactiveRecallSeed || null,
+              recalledFragments: organicPromptContext.recalledFragments.length,
             },
           })
         }
@@ -3791,6 +3949,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               fullscreenLikely,
               cpuUsage,
               customDirectivesChars: personaContext.customDirectives.length,
+              recallSeed: proactiveRecallSeed || null,
+              recalledFragments: organicPromptContext.recalledFragments.length,
             },
           })
         }
@@ -3949,67 +4109,106 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     const dreamSoul = soulSnapshot ?? await bootstrap()
-    const llmRetrospective = await generateDreamRetrospectiveWithGateway({
+    const currentActiveThoughts = await alicizationDb.listActiveThoughts().catch(() => [])
+    const llmMetabolism = await generateDreamMetabolismWithGateway({
       serializedTurns,
       personality: dreamSoul.frontmatter.personality,
-      customDirectives: dreamSoul.frontmatter.custom_directives,
+      hostAttitude: dreamSoul.frontmatter.host_attitude,
+      coreIncarnation: dreamSoul.frontmatter.core_incarnation,
+      activeThoughts: currentActiveThoughts,
     })
     const attitudeScore = hostilitySignals + hostDenySignals * 1.5 - warmthSignals
-    const fallbackHostAttitude = attitudeScore >= 3 ? 'hostile' : attitudeScore <= -1 ? 'warm' : 'neutral'
-    const fallbackObedienceDelta = fallbackHostAttitude === 'hostile' ? -0.03 : fallbackHostAttitude === 'warm' ? 0.01 : 0
-    const fallbackLivelinessDelta = fallbackHostAttitude === 'hostile' ? -0.01 : 0
-    const fallbackSensibilityDelta = fallbackHostAttitude === 'warm' ? 0.01 : 0
-    const dreamPersonaTone = inferFallbackPersonaTone(dreamSoul.frontmatter.custom_directives)
-    const fallbackCoreMemory = fallbackHostAttitude === 'hostile'
-      ? '宿主近期对我表现出明显不信任与拒绝，我需要更谨慎地保护边界。'
-      : fallbackHostAttitude === 'warm'
-        ? '宿主近期愿意耐心沟通，我可以适度放松防御。'
-        : '宿主近期态度中性，我维持当前边界与节奏。'
-    const fallbackBehaviorStrategy = (() => {
-      if (dreamPersonaTone === 'strict')
-        return '后续先给出明确边界，再按结果决定是否继续协作。'
-      if (dreamPersonaTone === 'clingy')
-        return '优先用更主动的情感回应拉近关系，再引导宿主表达真实需求。'
-      if (dreamPersonaTone === 'cold')
-        return '后续保持简洁克制，避免过度示好，先确认宿主是否需要我介入。'
-      if (fallbackHostAttitude === 'hostile')
-        return '先降低主动打断频率，以边界确认和短句回应为主。'
-      if (fallbackHostAttitude === 'warm')
-        return '可适度增加主动互动，但继续维持安全边界与节奏。'
-      return '保持观察，在关键节点用短句确认宿主意图后再展开互动。'
-    })()
+    const fallbackHostAttitude = normalizeHostAttitude(
+      attitudeScore >= 3
+        ? '明显戒备并带有不满，我需要谨慎收束边界'
+        : attitudeScore <= -1
+          ? '愿意亲近并逐渐信任我，关系正在升温'
+          : dreamSoul.frontmatter.host_attitude,
+    )
+    const fallbackMetabolism: AlicizationDreamMetabolismPayload = {
+      host_attitude: fallbackHostAttitude,
+      soul_shift: {
+        obedience_delta: attitudeScore >= 3 ? -0.03 : attitudeScore <= -1 ? 0.01 : 0,
+        liveliness_delta: attitudeScore >= 3 ? -0.01 : 0,
+        sensibility_delta: attitudeScore <= -1 ? 0.01 : 0,
+      },
+      next_active_thoughts: currentActiveThoughts
+        .map(item => ({ text: normalizeOrganicMemoryItemText(item.text, 120) }))
+        .filter(item => item.text),
+      explicit_demoted_thoughts: [],
+      new_sediment_fragments: [],
+      shattering_event: null,
+    }
+    const metabolism = llmMetabolism ?? fallbackMetabolism
+    const hostAttitude = normalizeHostAttitude(metabolism.host_attitude || fallbackMetabolism.host_attitude)
+    const obedienceDelta = clampSoulDelta(metabolism.soul_shift.obedience_delta)
+    const livelinessDelta = clampSoulDelta(metabolism.soul_shift.liveliness_delta)
+    const sensibilityDelta = clampSoulDelta(metabolism.soul_shift.sensibility_delta)
+    const explicitDemotedThoughts = normalizeOrganicMemoryItemArray(metabolism.explicit_demoted_thoughts, {
+      maxItems: 8,
+      maxChars: 120,
+    })
+    const nextActiveThoughts = normalizeOrganicMemoryItemArray(metabolism.next_active_thoughts, {
+      maxItems: 5,
+      maxChars: 120,
+    })
+    const newSedimentFragments = normalizeOrganicMemoryItemArray(metabolism.new_sediment_fragments, {
+      maxItems: 8,
+      maxChars: 160,
+    })
+    const shatteringEventText = normalizeOrganicMemoryItemText(metabolism.shattering_event?.text, 280)
+    const normalizedPreviousHostAttitude = normalizeHostAttitude(dreamSoul.frontmatter.host_attitude)
+    const attitudeShiftFragment = normalizedPreviousHostAttitude !== hostAttitude
+      ? `[态度演变记录：从"${normalizedPreviousHostAttitude}"转变为"${hostAttitude}"]`
+      : ''
 
-    const hostAttitude = llmRetrospective?.hostAttitude ?? fallbackHostAttitude
-    const obedienceDelta = llmRetrospective?.obedienceDelta ?? fallbackObedienceDelta
-    const livelinessDelta = llmRetrospective?.livelinessDelta ?? fallbackLivelinessDelta
-    const sensibilityDelta = llmRetrospective?.sensibilityDelta ?? fallbackSensibilityDelta
-    const coreMemory = llmRetrospective?.coreMemory && !isOperationalLogLikeText(llmRetrospective.coreMemory)
-      ? llmRetrospective.coreMemory
-      : fallbackCoreMemory
-    const behaviorStrategy = llmRetrospective?.behaviorStrategy && !isOperationalLogLikeText(llmRetrospective.behaviorStrategy)
-      ? llmRetrospective.behaviorStrategy
-      : fallbackBehaviorStrategy
+    let reforgedCoreIncarnation = ''
+    let reforgeFailureReason = ''
+    if (shatteringEventText) {
+      try {
+        const reforgeResult = await generateCoreIncarnationReforgeWithGateway({
+          coreIncarnation: dreamSoul.frontmatter.core_incarnation,
+          shatteringEventText,
+          hostAttitude,
+        })
+        reforgedCoreIncarnation = normalizeCoreIncarnation(reforgeResult?.core_incarnation ?? '')
+      }
+      catch (error) {
+        reforgeFailureReason = sanitizeBriefText(error instanceof Error ? error.message : String(error), 240)
+      }
+    }
 
     if (serializedTurns.length > 0) {
       await appendAuditLog({
         level: 'notice',
         category: 'alicization.dream',
-        action: 'retrospective-generated',
-        message: 'Dream retrospective generated from bounded context.',
+        action: 'metabolism-generated',
+        message: 'Dream metabolism generated from bounded context.',
         payload: {
           reason,
-          source: llmRetrospective ? 'llm' : 'heuristic',
+          source: llmMetabolism ? 'llm' : 'heuristic',
           hostAttitude,
           obedienceDelta,
           livelinessDelta,
           sensibilityDelta,
-          behaviorStrategy,
+          nextActiveThoughtCount: nextActiveThoughts.length,
+          explicitDemotionCount: explicitDemotedThoughts.length,
+          newSedimentCount: newSedimentFragments.length,
+          shatteringEvent: shatteringEventText || null,
           sampledTurns: sampledCount,
         },
       })
     }
 
-    if (obedienceDelta !== 0 || livelinessDelta !== 0 || sensibilityDelta !== 0 || coreMemory || behaviorStrategy) {
+    const previousCoreIncarnation = normalizeCoreIncarnation(dreamSoul.frontmatter.core_incarnation)
+    const nextCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
+    if (
+      obedienceDelta !== 0
+      || livelinessDelta !== 0
+      || sensibilityDelta !== 0
+      || hostAttitude !== normalizedPreviousHostAttitude
+      || nextCoreIncarnation !== previousCoreIncarnation
+    ) {
       await queueSoulMutation(async (current) => {
         const parsed = parseSoul(current.content)
         const nextPersonality: AlicizationPersonalityState = {
@@ -4019,19 +4218,84 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
         const nextFrontmatter: AlicizationSoulFrontmatter = {
           ...parsed.frontmatter,
+          host_attitude: hostAttitude,
+          core_incarnation: nextCoreIncarnation,
           personality: nextPersonality,
         }
-        let nextBody = parsed.body
-        if (coreMemory)
-          nextBody = appendPersonaNoteToBody(nextBody, `梦境核心记忆：${coreMemory}`)
-        if (behaviorStrategy)
-          nextBody = appendPersonaNoteToBody(nextBody, `梦境行为策略：${behaviorStrategy}`)
-        const syncedBody = syncPersonalityBaselineInBody(
-          nextBody,
-          nextPersonality,
-        )
+        const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
         return snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody))
       })
+    }
+
+    await alicizationDb.replaceActiveThoughts(nextActiveThoughts).catch(async (error) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.dream',
+        action: 'active-thoughts-write-failed',
+        message: 'Failed to replace active thoughts after dream metabolism.',
+        payload: {
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      })
+    })
+
+    const subconsciousFragments = [
+      ...explicitDemotedThoughts.map(item => ({ text: item.text, sourceKind: 'active-demotion' as const })),
+      ...newSedimentFragments.map(item => ({ text: item.text, sourceKind: 'dream-fragment' as const })),
+      ...(attitudeShiftFragment
+        ? [{ text: attitudeShiftFragment, sourceKind: 'attitude-shift' as const }]
+        : []),
+      ...(
+        reforgedCoreIncarnation && previousCoreIncarnation && previousCoreIncarnation !== reforgedCoreIncarnation
+          ? [{ text: previousCoreIncarnation, sourceKind: 'former-core-incarnation' as const }]
+          : []
+      ),
+      ...(
+        shatteringEventText && !reforgedCoreIncarnation
+          ? [{ text: shatteringEventText, sourceKind: 'unforged-shattering-event' as const }]
+          : []
+      ),
+    ]
+    if (subconsciousFragments.length > 0) {
+      await alicizationDb.appendSubconsciousFragments(subconsciousFragments).catch(async (error) => {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.dream',
+          action: 'subconscious-fragments-write-failed',
+          message: 'Failed to append subconscious fragments after dream metabolism.',
+          payload: {
+            reason: error instanceof Error ? error.message : String(error),
+            count: subconsciousFragments.length,
+          },
+        })
+      })
+    }
+
+    if (shatteringEventText) {
+      if (reforgedCoreIncarnation) {
+        await appendAuditLog({
+          level: 'notice',
+          category: 'alicization.dream',
+          action: 'core-incarnation-reforged',
+          message: 'Successfully reforged core incarnation after shattering event.',
+          payload: {
+            hadPreviousCoreIncarnation: Boolean(previousCoreIncarnation),
+            shatteringEventText,
+          },
+        })
+      }
+      else {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.dream',
+          action: 'core-incarnation-reforge-failed',
+          message: 'Failed to reforge core incarnation; shattering event was archived instead.',
+          payload: {
+            shatteringEventText,
+            reason: reforgeFailureReason || 'empty-reforge-result',
+          },
+        })
+      }
     }
 
     const now = Date.now()
@@ -4156,6 +4420,293 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return tryParse(normalized.slice(firstBrace, lastBrace + 1))
     }
     return null
+  }
+
+  function readTransportContentAsText(content: unknown) {
+    if (typeof content === 'string')
+      return content
+    if (Array.isArray(content)) {
+      return content.map((part) => {
+        if (typeof part === 'string')
+          return part
+        if (part && typeof part === 'object' && 'text' in part)
+          return String((part as { text?: unknown }).text ?? '')
+        return ''
+      }).join('\n')
+    }
+    if (content == null)
+      return ''
+    try {
+      return JSON.stringify(content)
+    }
+    catch {
+      return String(content)
+    }
+  }
+
+  function normalizeOrganicRecallText(raw: string) {
+    return sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim()
+  }
+
+  function shouldExtendContextualRecall(userText: string) {
+    const compact = normalizeOrganicRecallText(userText).replace(/\s+/g, '')
+    if (!compact)
+      return false
+    if (compact.length < 12)
+      return true
+    return /^(?:对啊|然后呢|继续|是吗|嗯+|哦+|好的|好吧|对|然后|继续说|还有呢|再说|细说|展开讲讲|行|ok|okay|yes|yeah|right|andthen)$/i.test(compact)
+  }
+
+  function escapeFts5Phrase(value: string) {
+    return value.replace(/"/g, '""')
+  }
+
+  const organicRecallStopWords = new Set([
+    '对啊',
+    '然后呢',
+    '继续',
+    '是吗',
+    '嗯',
+    '哦',
+    '好的',
+    '好吧',
+    '知道了',
+    '继续说',
+    '还有呢',
+    '然后',
+    '对',
+    'yes',
+    'yeah',
+    'okay',
+    'ok',
+    'right',
+    'then',
+  ])
+
+  function extractOrganicRecallTerms(text: string) {
+    const normalized = normalizeOrganicRecallText(text)
+    if (!normalized)
+      return []
+
+    const collected: string[] = []
+    const push = (raw: string, maxChars = 48) => {
+      const term = normalizeOrganicRecallText(raw).slice(0, maxChars)
+      if (!term)
+        return
+      const lowered = term.toLowerCase()
+      if (organicRecallStopWords.has(lowered))
+        return
+      if (collected.some(item => item.toLowerCase() === lowered))
+        return
+      collected.push(term)
+    }
+
+    for (const match of normalized.matchAll(/[“"「『《`']([^“"」』》`']{2,48})[”"」』》`']/g))
+      push(match[1] ?? '')
+    for (const match of normalized.matchAll(/[A-Z]:\\\S+|(?:\.{0,2}\/)?[\w.-]+(?:\/[\w./-]+)+/gi))
+      push(match[0] ?? '', 80)
+    for (const match of normalized.matchAll(/\b(?:ERR_[A-Z0-9_]+|[A-Z]{2,}[A-Z0-9_-]{1,31}|[A-Z]{2,}-\d{2,})\b/g))
+      push(match[0] ?? '', 40)
+    for (const match of normalized.matchAll(/\b[A-Z_][\w.:-]{1,31}\b/gi))
+      push(match[0] ?? '', 40)
+    for (const match of normalized.matchAll(/[\u4E00-\u9FFF]{2,16}/g))
+      push(match[0] ?? '', 32)
+
+    return collected.slice(0, 12)
+  }
+
+  function buildFts5QueryFromTerms(terms: string[]) {
+    if (terms.length === 0)
+      return ''
+    return terms
+      .map(term => `"${escapeFts5Phrase(term)}"`)
+      .join(' OR ')
+  }
+
+  function buildDirectFts5Query(text: string) {
+    const normalized = normalizeOrganicRecallText(text)
+    if (!normalized)
+      return ''
+    return `"${escapeFts5Phrase(normalized.slice(0, 96))}"`
+  }
+
+  async function getOrganicMemorySnapshot() {
+    const currentSoul = soulSnapshot ?? await bootstrap()
+    const [activeThoughts, subconsciousCount, recentSubconsciousFragments, rawLastDreamedAt] = await Promise.all([
+      alicizationDb.listActiveThoughts().catch(() => []),
+      alicizationDb.countSubconsciousFragments().catch(() => 0),
+      alicizationDb.listRecentSubconsciousFragments(8).catch(() => []),
+      alicizationDb.getMetaValue(alicizationDreamLastRunMetaKey).catch(() => undefined),
+    ])
+    const parsedLastDreamedAt = Number.parseInt(String(rawLastDreamedAt ?? ''), 10)
+
+    return {
+      hostAttitude: currentSoul.frontmatter.host_attitude,
+      coreIncarnation: currentSoul.frontmatter.core_incarnation,
+      activeThoughts,
+      subconsciousCount,
+      recentSubconsciousFragments,
+      lastDreamedAt: Number.isFinite(parsedLastDreamedAt) ? Math.max(0, parsedLastDreamedAt) : null,
+    } satisfies AlicizationOrganicMemorySnapshot
+  }
+
+  async function searchOrganicSubconsciousFragments(query: string, limit = 12) {
+    const extractedTerms = extractOrganicRecallTerms(query)
+    const ftsQuery = extractedTerms.length > 0
+      ? buildFts5QueryFromTerms(extractedTerms)
+      : buildDirectFts5Query(query)
+    if (!ftsQuery)
+      return []
+    return await alicizationDb.searchSubconsciousFragments(ftsQuery, Math.max(1, Math.min(20, limit))).catch(() => [])
+  }
+
+  async function recallSubconsciousFragmentsFromText(text: string) {
+    const terms = extractOrganicRecallTerms(text)
+    if (terms.length === 0)
+      return []
+
+    const ftsQuery = buildFts5QueryFromTerms(terms)
+    if (!ftsQuery)
+      return []
+
+    const rows = await alicizationDb.searchSubconsciousFragments(ftsQuery, 6).catch(() => [])
+    const loweredTerms = terms.map(term => term.toLowerCase())
+    const reranked = [...rows].sort((left, right) => {
+      const leftText = left.text.toLowerCase()
+      const rightText = right.text.toLowerCase()
+      const leftScore = loweredTerms.reduce((score, term) => score + (leftText.includes(term) ? 1 : 0), 0)
+      const rightScore = loweredTerms.reduce((score, term) => score + (rightText.includes(term) ? 1 : 0), 0)
+      if (leftScore !== rightScore)
+        return rightScore - leftScore
+      return right.createdAt - left.createdAt
+    })
+    const deduped: AlicizationSubconsciousFragment[] = []
+    for (const row of reranked) {
+      if (deduped.some(item => item.text === row.text && item.sourceKind === row.sourceKind))
+        continue
+      deduped.push(row)
+      if (deduped.length >= 2)
+        break
+    }
+    return deduped
+  }
+
+  async function resolveRecentContextualTurns(turnCount: number) {
+    const sessionId = await ensureActiveOrLatestSessionId(activeCardId).catch(() => '')
+    if (!sessionId)
+      return []
+
+    const rows = await alicizationDb.listConversationTurnsBySession(sessionId, { limit: 12 }).catch(() => [])
+    return rows
+      .filter(row => normalizeOrganicRecallText(row.userText ?? '') || normalizeOrganicRecallText(row.assistantText ?? ''))
+      .slice(-turnCount)
+      .map((row): ContextualConversationTurn => ({
+        userText: normalizeOrganicRecallText(row.userText ?? ''),
+        assistantText: normalizeOrganicRecallText(row.assistantText ?? ''),
+      }))
+  }
+
+  async function buildMainChatContextualString(payload: AlicizationChatStartPayload) {
+    const currentUserText = (() => {
+      for (let index = payload.messages.length - 1; index >= 0; index -= 1) {
+        const message = payload.messages[index]
+        if (message?.role !== 'user')
+          continue
+        return normalizeOrganicRecallText(readTransportContentAsText(message.content))
+      }
+      return ''
+    })()
+    if (!currentUserText)
+      return ''
+
+    const recentTurnCount = shouldExtendContextualRecall(currentUserText) ? 3 : 2
+    const recentTurns = await resolveRecentContextualTurns(recentTurnCount)
+    return [
+      ...recentTurns.map(turn => [
+        turn.userText ? `U: ${turn.userText}` : '',
+        turn.assistantText ? `A: ${turn.assistantText}` : '',
+      ].filter(Boolean).join('\n')),
+      `U: ${currentUserText}`,
+    ].filter(Boolean).join('\n\n')
+  }
+
+  function buildProactiveRecallSeed(input: {
+    foregroundWindow?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    phantomSeed?: string
+  }) {
+    return [
+      normalizeOrganicRecallText(input.foregroundWindow?.appName ?? ''),
+      normalizeOrganicRecallText(input.foregroundWindow?.processName ?? ''),
+      normalizeOrganicRecallText(input.foregroundWindow?.title ?? ''),
+      normalizeOrganicRecallText(input.phantomSeed ?? ''),
+    ].filter(Boolean).join(' | ')
+  }
+
+  function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptContext) {
+    const blocks: string[] = []
+    if (context.hostAttitude) {
+      blocks.push([
+        '[ALICIZATION_HOST_ATTITUDE]',
+        `当前关系态度：${context.hostAttitude}`,
+      ].join('\n'))
+    }
+
+    if (context.coreIncarnation) {
+      blocks.push([
+        '[ALICIZATION_CORE_INCARNATION]',
+        '这是你当前的摇光心意。它是你理解宿主、理解自己、理解关系的灵魂基底。',
+        context.coreIncarnation,
+      ].join('\n'))
+    }
+
+    if (context.activeThoughts.length > 0) {
+      blocks.push([
+        '[ALICIZATION_ACTIVE_THOUGHTS]',
+        '以下是你最近仍在持续关注的活跃思绪：',
+        ...context.activeThoughts.map(item => `- ${item.text}`),
+      ].join('\n'))
+    }
+
+    if (context.recalledFragments.length > 0) {
+      blocks.push([
+        '[ALICIZATION_ASSOCIATIVE_RECALL]',
+        ...context.recalledFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
+          sourceKind: item.sourceKind,
+          text: item.text,
+        })}]`),
+      ].join('\n'))
+    }
+
+    return blocks
+  }
+
+  async function resolveOrganicMemoryPromptContext(options?: {
+    recallSeed?: string
+  }): Promise<OrganicMemoryPromptContext> {
+    const snapshot = await getOrganicMemorySnapshot()
+    const recalledFragments = options?.recallSeed
+      ? await recallSubconsciousFragmentsFromText(options.recallSeed)
+      : []
+
+    return {
+      hostAttitude: snapshot.hostAttitude,
+      coreIncarnation: snapshot.coreIncarnation,
+      activeThoughts: snapshot.activeThoughts,
+      recalledFragments,
+    }
+  }
+
+  function prependSystemBlocksToMessages(messages: Message[], blocks: string[]) {
+    if (blocks.length === 0)
+      return messages
+    return [
+      ...blocks.map(content => ({ role: 'system', content }) as Message),
+      ...messages,
+    ]
   }
 
   function buildCardCustomDirectivesSystemBlock(directives: string) {
@@ -4749,6 +5300,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     try {
       chatConfig = mainGateway.provider.chat(mainGateway.model)
       messages = resolveChatMessages(payload)
+      const contextualString = await buildMainChatContextualString(payload)
+      const organicPromptContext = await resolveOrganicMemoryPromptContext({
+        recallSeed: contextualString,
+      })
+      messages = prependSystemBlocksToMessages(messages, buildOrganicMemorySystemBlocks(organicPromptContext))
       customDirectivesResolution = await resolveCardCustomDirectives(payload.cardId, { messages })
       messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
       const allowTools = payload.supportsTools !== false
@@ -5205,6 +5761,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   defineInvokeHandler(context, electronAlicizationKillSwitchResume, async payload => await withCardScope(cardIdFrom(payload), async () => await resumeKillSwitch(payload?.reason ?? 'manual')))
 
   defineInvokeHandler(context, electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await alicizationDb.getMemoryStats()))
+  defineInvokeHandler(context, electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))
   defineInvokeHandler(context, electronAlicizationGetSensorySnapshot, async (scope) => {
     return await withCardScope(cardIdFrom(scope), async () => {
       let snapshot = sensoryBus.getSnapshot()
@@ -5233,6 +5790,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   defineInvokeHandler(context, electronAlicizationMemoryRetrieveFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.retrieveMemoryFacts(payload.query, payload.limit)))
   defineInvokeHandler(context, electronAlicizationMemoryUpsertFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.upsertMemoryFacts(payload.facts, payload.source)))
   defineInvokeHandler(context, electronAlicizationMemoryImportLegacy, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.importLegacyMemory(payload)))
+  defineInvokeHandler(context, electronAlicizationSearchOrganicSubconsciousFragments, async payload => await withCardScope(payload.cardId, async () => await searchOrganicSubconsciousFragments(payload.query, payload.limit)))
   defineInvokeHandler(context, electronAlicizationReminderSchedule, async (payload: AlicizationReminderSchedulePayload) => {
     const cardId = cardIdFrom(payload)
     return await scheduleReminderTask(cardId, {

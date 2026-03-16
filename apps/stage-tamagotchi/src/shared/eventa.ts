@@ -296,6 +296,8 @@ export interface AlicizationSoulFrontmatter {
   schemaVersion: number
   initialized: boolean
   custom_directives: string
+  host_attitude: string
+  core_incarnation: string
   profile: {
     ownerName: string
     hostName: string
@@ -406,6 +408,55 @@ export interface AlicizationMemoryMigrationResult {
   marker: string
 }
 
+export type AlicizationSubconsciousFragmentSourceKind
+  = | 'active-demotion'
+    | 'dream-fragment'
+    | 'former-core-incarnation'
+    | 'unforged-shattering-event'
+    | 'attitude-shift'
+
+export interface AlicizationActiveThought {
+  id: string
+  text: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationSubconsciousFragment {
+  id: string
+  text: string
+  sourceKind: AlicizationSubconsciousFragmentSourceKind
+  createdAt: number
+  lastRecalledAt: number | null
+  recallCount: number
+}
+
+export interface AlicizationOrganicMemorySnapshot {
+  hostAttitude: string
+  coreIncarnation: string
+  activeThoughts: AlicizationActiveThought[]
+  subconsciousCount: number
+  recentSubconsciousFragments: AlicizationSubconsciousFragment[]
+  lastDreamedAt: number | null
+}
+
+export interface AlicizationDreamMetabolismPayload {
+  host_attitude: string
+  soul_shift: {
+    obedience_delta: number
+    liveliness_delta: number
+    sensibility_delta: number
+  }
+  next_active_thoughts: Array<{ text: string }>
+  explicit_demoted_thoughts: Array<{ text: string }>
+  new_sediment_fragments: Array<{ text: string }>
+  shattering_event: { text: string } | null
+}
+
+export interface AlicizationCoreIncarnationReforgePayload {
+  core_incarnation: string
+}
+
 export interface AlicizationConversationTurnInput {
   turnId?: string
   sessionId?: string
@@ -484,6 +535,11 @@ export interface AlicizationSystemProbeSample {
     iso: string
     local: string
     timezone: string
+  }
+  foregroundWindow?: {
+    appName?: string
+    processName?: string
+    title?: string
   }
   battery?: {
     percent: number
@@ -739,6 +795,8 @@ export const electronAlicizationUpdateMemoryStats = defineInvokeEventa<Alicizati
 export const electronAlicizationMemoryRetrieveFacts = defineInvokeEventa<AlicizationMemoryFact[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:retrieve-facts')
 export const electronAlicizationMemoryUpsertFacts = defineInvokeEventa<void, AlicizationCardScope & { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource }>('eventa:invoke:electron:alicization:memory:upsert-facts')
 export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<AlicizationMemoryMigrationResult, AlicizationCardScope & AlicizationMemoryLegacySnapshot>('eventa:invoke:electron:alicization:memory:import-legacy')
+export const electronAlicizationGetOrganicMemorySnapshot = defineInvokeEventa<AlicizationOrganicMemorySnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-organic-snapshot')
+export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
