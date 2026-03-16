@@ -23,44 +23,42 @@ export interface SoulForgeDraft {
 
 export interface SoulForgeTraitMeta {
   key: keyof AlicizationPersonalityState
-  label: string
-  description: string
-  leftLabel: string
-  rightLabel: string
 }
 
 export const soulForgeTraitMetas: SoulForgeTraitMeta[] = [
   {
     key: 'obedience',
-    label: '服从度',
-    description: '决定她在被要求行动时，是更倾向顶撞、拖延，还是顺势配合。',
-    leftLabel: '桀骜不驯',
-    rightLabel: '极致顺从',
   },
   {
     key: 'liveliness',
-    label: '活泼度',
-    description: '决定她的表达是更冷静克制，还是更主动外放、富有存在感。',
-    leftLabel: '三无冰山',
-    rightLabel: '元气爆发',
   },
   {
     key: 'sensibility',
-    label: '感性度',
-    description: '决定她面对互动时，是优先理性判断，还是更容易被情绪与氛围牵引。',
-    leftLabel: '绝对理性',
-    rightLabel: '情感泛滥',
   },
 ]
 
-export function createDefaultSoulForgeDraft(seedAlicizationName?: string): SoulForgeDraft {
+export interface CreateDefaultSoulForgeDraftOptions {
+  seedAlicizationName?: string
+  ownerName?: string
+  hostName?: string
+  relationship?: string
+}
+
+export function createDefaultSoulForgeDraft(options: CreateDefaultSoulForgeDraftOptions = {}): SoulForgeDraft {
+  const {
+    seedAlicizationName,
+    ownerName = 'Owner',
+    hostName = 'Owner',
+    relationship = 'Digital companion',
+  } = options
+
   return {
-    ownerName: '主人',
-    hostName: '主人',
+    ownerName,
+    hostName,
     alicizationName: seedAlicizationName?.trim() || 'Alicization',
     gender: 'neutral',
     genderCustom: '',
-    relationship: '数字共生体',
+    relationship,
     mindAge: 15,
     obedience: 0.5,
     liveliness: 0.5,

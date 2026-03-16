@@ -186,6 +186,158 @@ pages:
     try_different_search: Prueba un término de búsqueda diferente
     upload: Subir
     upload_desc: Haz clic o arrastra el archivo para subir
+    alicization:
+      title: Nucleo Alicization
+      inactive_hint: Activa primero esta tarjeta de Alicization antes de editar su personalidad y su memoria.
+      desktop_only: El panel de Alicization solo esta disponible en escritorio.
+      runtime:
+        title: Interruptor de corte del ejecutor
+        kill_switch:
+          state_suspended: Suspendido
+          state_active: Activo
+          reason_label: 'Motivo: '
+          updated_at_label: 'Actualizado: '
+          loading: Procesando...
+          actions:
+            resume: Reanudar ejecutor
+            suspend: Suspender ejecutor ahora
+          reasons:
+            manual: Cambio manual
+            ui: Accion del panel
+            global_shortcut: Atajo global de emergencia
+            bootstrap: Inicializacion del runtime
+            system_event: Evento del sistema ({reason})
+      organic_memory:
+        eyebrow: Memoria organica
+        title: Memoria organica
+        description: Vista de solo lectura de la actitud actual de la relacion, la encarnacion central, los pensamientos activos y la memoria subconsciente. La memoria organica ya no se edita manualmente.
+        refresh: Actualizar instantanea
+        not_recorded: Sin registro
+        attitude:
+          eyebrow: Actitud actual
+          title: Actitud actual de la relacion
+          fallback: Cortes y contenida, aun observando.
+        tiers:
+          tier1:
+            eyebrow: Nivel 1
+            title: Encarnacion central
+            empty: Aun no se ha formado una encarnacion central estable. Tras la siguiente refundicion exitosa, aqui aparecera una base del alma persistente.
+          tier2:
+            eyebrow: Nivel 2
+            title: Pensamientos activos
+            last_dreaming: Ultimo Dreaming
+            empty: No hay pensamientos activos por ahora. Dreaming reescribira la memoria de trabajo en el siguiente ciclo metabolico.
+          tier3:
+            eyebrow: Nivel 3
+            title: Memoria subconsciente
+            description: El almacenamiento en frio contiene {count} fragmentos. Estos recuerdos solo despiertan al ser evocados y ya no se inyectan por defecto en el chat.
+            search_label: Buscar fragmentos subconscientes
+            search_placeholder: Busca nombres, titulos de proyecto, codigos de error o titulos de ventana...
+            search_loading: Buscando...
+            search_action: Buscar
+            empty_search: Ninguna memoria subconsciente coincide con la consulta actual.
+            empty_default: El subconsciente sigue en calma. Aun no se han sedimentado mas fragmentos.
+            written_at: 'Escrito: '
+            recalled_at: 'Evocado: '
+            hits: 'Aciertos: {count}'
+        source_kinds:
+          active_demotion: Descenso desde memoria activa
+          dream_fragment: Fragmento onirico
+          former_core_incarnation: Antigua encarnacion central
+          unforged_shattering_event: Evento fracturante no refundido
+          attitude_shift: Cambio de actitud
+      soul_forge:
+        eyebrow: Camara de forja del alma
+        title: Camara de forja del alma
+        description: El anfitrion solo puede inscribir aqui sus tendencias innatas y sus directivas de base. Los recuerdos organicos formados despues quedan fuera de la edicion manual.
+        trust_badge: Confia en el alma
+        fields:
+          owner_name: Nombre del anfitrion
+          host_name: Como te llama ella
+          alicization_name: Como la llamas tu
+          gender: Genero
+          gender_custom: Descripcion personalizada del genero
+          relationship: Relacion
+          mind_age: Edad mental
+        genders:
+          female: Femenino
+          male: Masculino
+          non_binary: No binario
+          neutral: Neutral
+          custom: Personalizado
+        defaults:
+          owner_name: Tu
+          host_name: Tu
+          relationship: Companera digital
+        temperament:
+          eyebrow: Ejes de temperamento
+          title: Base temperamental
+          description: Usa escalas semanticas en lugar de numeros tecnicos para definir hacia que extremo se inclina bajo presion.
+          semantic_tuning: Ajuste semantico
+        traits:
+          obedience:
+            label: Obediencia
+            description: Determina si tiende a resistirse, retrasarse o cooperar cuando se le pide actuar.
+            left: Desafiante
+            right: Totalmente obediente
+          liveliness:
+            label: Vivacidad
+            description: Determina si su expresion se mantiene contenida o se vuelve proactiva, abierta y muy presente.
+            left: Fria y distante
+            right: Rebosa energia
+          sensibility:
+            label: Sensibilidad
+            description: Determina si prioriza el juicio racional o si la mueven mas facilmente la emocion y la atmosfera.
+            left: Razon pura
+            right: Desbordada por la emocion
+        directives:
+          eyebrow: Preferencias de compania
+          title: Como quieres que te acompane?
+          description: Describe el estilo de habla, los limites, la iniciativa y el cuidado que quieres que mantenga a largo plazo. Esta zona es mejor para preferencias estables, no para tareas puntuales.
+          badge: Largo plazo
+          placeholder: p. ej. Se un poco mas suave y no sermonees tanto; consolame antes de dar consejos cuando este decaido; recuerdame descansar y comer, pero sin agobiarme.
+        memory_echo:
+          eyebrow: Eco de memoria
+          title: Eco de memoria
+          description: Vista de solo lectura de los recuerdos sedimentados tras Dreaming. El anfitrion no puede reescribir el hipocampo desde aqui.
+          expand: Abrir corredor
+          empty: Aun no ha dejado un recuerdo lo bastante nitido. El motor de Dreaming lo dejara sedimentar poco a poco en segundo plano.
+        save:
+          saving: Inscribiendo alma...
+          idle: Grabar personalidad en SOUL
+      creation:
+        title_edit: Editar vinculos de la tarjeta
+        title_create: Crear tarjeta Alicization
+        tabs:
+          shell: Carcasa de la tarjeta
+          modules: Vinculos de modulos
+          runtime: Ejecucion
+          persona: Personalidad
+        shell:
+          description: Se usa solo para identificar y mostrar la tarjeta. No se inyecta en el razonamiento de personalidad de Alicization.
+          fields:
+            card_name:
+              label: ID de la tarjeta
+              description: Se usa para distinguir distintas tarjetas de Alicization.
+            card_version:
+              label: Version de la tarjeta
+              description: Version de la carcasa, por ejemplo 1.0.0.
+            card_description:
+              label: Descripcion de la tarjeta
+              description: Solo se usa para mostrar en la lista y nunca se inyecta en la personalidad ni en el chat.
+            card_notes:
+              label: Notas de mantenimiento
+              description: Registra el uso o el contexto de mantenimiento de esta tarjeta. Opcional.
+        errors:
+          owner_name_required: El nombre del anfitrion en la configuracion de personalidad no puede estar vacio.
+          host_name_required: El nombre con el que ella llama al anfitrion no puede estar vacio.
+          alicization_name_required: El nombre de Alicization en la configuracion de personalidad no puede estar vacio.
+          relationship_required: La relacion en la configuracion de personalidad no puede estar vacia.
+          gender_custom_required: Se requiere una descripcion de genero personalizada cuando se selecciona genero personalizado.
+          genesis_conflict: La inicializacion de Alicization entro en conflicto. Intentalo de nuevo.
+          save_failed: No se pudo guardar la tarjeta Alicization.
+      actions:
+        edit_modules: Editar vinculos de la tarjeta
   memory:
     description: Donde se almacenan y organizan las memorias
     title: Memoria

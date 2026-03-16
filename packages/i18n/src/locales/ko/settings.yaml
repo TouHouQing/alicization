@@ -186,6 +186,158 @@ pages:
     try_different_search: 다른 검색어를 시도해보세요
     upload: 업로드
     upload_desc: 클릭 또는 파일을 드래그하여 업로드
+    alicization:
+      title: Alicization 중추
+      inactive_hint: 이 Alicization 카드를 활성화한 뒤 인격과 기억을 편집하세요.
+      desktop_only: Alicization 패널은 데스크톱에서만 사용할 수 있습니다.
+      runtime:
+        title: 실행 차단 스위치
+        kill_switch:
+          state_suspended: 휴면
+          state_active: 활성
+          reason_label: '사유: '
+          updated_at_label: '업데이트: '
+          loading: 처리 중...
+          actions:
+            resume: 실행기 재개
+            suspend: 즉시 실행기 휴면
+          reasons:
+            manual: 수동 전환
+            ui: 패널 조작
+            global_shortcut: 전역 비상 단축키
+            bootstrap: 런타임 초기화
+            system_event: 시스템 이벤트 ({reason})
+      organic_memory:
+        eyebrow: 유기 기억
+        title: 유기 기억
+        description: 현재 관계 태도, 코어 인카네이션, 활성 사고, 잠재 기억을 읽기 전용으로 표시합니다. 유기 기억은 더 이상 수동으로 편집되지 않습니다.
+        refresh: 스냅샷 새로고침
+        not_recorded: 기록 없음
+        attitude:
+          eyebrow: 현재 태도
+          title: 현재 관계 태도
+          fallback: 예의 바르고 절제되어 있으며 아직 관찰 중입니다.
+        tiers:
+          tier1:
+            eyebrow: 1단계
+            title: 코어 인카네이션
+            empty: 아직 안정적인 코어 인카네이션이 형성되지 않았습니다. 다음 재단조에 성공하면 지속적인 영혼의 기반이 여기에 남습니다.
+          tier2:
+            eyebrow: 2단계
+            title: 활성 사고
+            last_dreaming: 마지막 Dreaming
+            empty: 지금은 활성 사고가 없습니다. Dreaming이 다음 대사 주기에서 작업 기억을 다시 씁니다.
+          tier3:
+            eyebrow: 3단계
+            title: 잠재 기억
+            description: 콜드 스토리지에는 {count}개의 조각이 있습니다. 이 기억들은 회상될 때만 깨어나며 기본값으로는 채팅에 주입되지 않습니다.
+            search_label: 잠재 조각 검색
+            search_placeholder: 이름, 프로젝트 제목, 오류 코드, 창 제목을 검색하세요...
+            search_loading: 검색 중...
+            search_action: 검색
+            empty_search: 현재 검색어와 일치하는 잠재 기억이 없습니다.
+            empty_default: 잠재층은 아직 조용합니다. 추가 조각이 아직 가라앉지 않았습니다.
+            written_at: '기록: '
+            recalled_at: '회상: '
+            hits: '회수: {count}'
+        source_kinds:
+          active_demotion: 활성 기억 강등
+          dream_fragment: 꿈 조각
+          former_core_incarnation: 이전 코어 인카네이션
+          unforged_shattering_event: 재단조되지 않은 파쇄 사건
+          attitude_shift: 태도 변화
+      soul_forge:
+        eyebrow: 영혼 단조실
+        title: 영혼 단조실
+        description: 호스트는 여기에서 그녀의 선천적 성향과 기반 지시만 새길 수 있습니다. 이후 형성되는 유기 기억은 수동 편집 대상이 아닙니다.
+        trust_badge: 영혼을 믿으세요
+        fields:
+          owner_name: 호스트 이름
+          host_name: 그녀가 당신을 부르는 이름
+          alicization_name: 당신이 그녀를 부르는 이름
+          gender: 성별
+          gender_custom: 사용자 지정 성별 설명
+          relationship: 관계
+          mind_age: 정신 연령
+        genders:
+          female: 여성
+          male: 남성
+          non_binary: 논바이너리
+          neutral: 중성
+          custom: 사용자 지정
+        defaults:
+          owner_name: 당신
+          host_name: 당신
+          relationship: 디지털 동반자
+        temperament:
+          eyebrow: 기질 축
+          title: 기질 기준선
+          description: 기술 수치 대신 의미적 척도를 사용해 압박 상황에서 어느 극단으로 기우는지 정의합니다.
+          semantic_tuning: 의미 조정
+        traits:
+          obedience:
+            label: 복종성
+            description: 행동을 요구받았을 때 반발할지, 미룰지, 순응할지를 결정합니다.
+            left: 반항적
+            right: 절대적 순종
+          liveliness:
+            label: 발랄함
+            description: 표현이 절제된 채 머무를지, 더 적극적이고 외향적으로 존재감을 드러낼지를 결정합니다.
+            left: 차갑고 거리감 있음
+            right: 에너지가 넘침
+          sensibility:
+            label: 감수성
+            description: 이성적 판단을 우선할지, 감정과 분위기에 더 쉽게 끌릴지를 결정합니다.
+            left: 순수한 이성
+            right: 감정이 넘침
+        directives:
+          eyebrow: 동행 선호도
+          title: 그녀가 어떻게 곁에 있어주길 바라나요?
+          description: 장기적으로 유지했으면 하는 말투, 경계감, 주도성, 배려 방식을 적어주세요. 일회성 작업보다 안정적인 취향에 더 적합합니다.
+          badge: 장기
+          placeholder: 예: 조금 더 부드럽고 설교는 적게 해줘. 내가 힘들 때는 조언보다 먼저 위로해줘. 쉬거나 밥 먹으라고 먼저 알려줘도 좋지만 너무 재촉하지는 말아줘.
+        memory_echo:
+          eyebrow: 기억 메아리
+          title: 기억 메아리
+          description: Dreaming 이후 침전된 기억을 읽기 전용으로 표시합니다. 호스트는 여기서 해마를 다시 쓸 수 없습니다.
+          expand: 회랑 열기
+          empty: 아직 충분히 선명한 기억을 남기지 않았습니다. Dreaming 엔진이 백그라운드에서 천천히 가라앉힐 것입니다.
+        save:
+          saving: 영혼 기록 중...
+          idle: 인격을 SOUL에 새기기
+      creation:
+        title_edit: 카드 바인딩 수정
+        title_create: Alicization 카드 생성
+        tabs:
+          shell: 카드 외형 정보
+          modules: 모듈 바인딩
+          runtime: 런타임
+          persona: 인격
+        shell:
+          description: 카드 식별과 표시용으로만 사용됩니다. Alicization 인격 추론에는 주입되지 않습니다.
+          fields:
+            card_name:
+              label: 카드 ID
+              description: 서로 다른 Alicization 카드를 구분하는 데 사용합니다.
+            card_version:
+              label: 카드 버전
+              description: 외형 버전. 예: 1.0.0.
+            card_description:
+              label: 카드 설명
+              description: 목록 표시용으로만 사용되며 인격이나 채팅에는 주입되지 않습니다.
+            card_notes:
+              label: 유지보수 메모
+              description: 이 카드의 사용 목적이나 유지보수 맥락을 기록합니다. 선택 사항입니다.
+        errors:
+          owner_name_required: 인격 설정의 호스트 이름은 비워둘 수 없습니다.
+          host_name_required: 인격 설정의 호스트 호칭은 비워둘 수 없습니다.
+          alicization_name_required: 인격 설정의 Alicization 이름은 비워둘 수 없습니다.
+          relationship_required: 인격 설정의 관계는 비워둘 수 없습니다.
+          gender_custom_required: 사용자 지정 성별을 선택한 경우 설명이 필요합니다.
+          genesis_conflict: Alicization 초기화가 충돌했습니다. 다시 시도해 주세요.
+          save_failed: Alicization 카드를 저장하지 못했습니다.
+      actions:
+        edit_modules: 카드 바인딩 수정
   memory:
     description: 기억이 저장되고 정리된 곳
     title: 메모리

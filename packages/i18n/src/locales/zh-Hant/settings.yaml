@@ -186,6 +186,158 @@ pages:
     try_different_search: 嘗試使用其他關鍵字搜尋
     upload: 上傳
     upload_desc: 點擊或拖曳檔案到此處上傳
+    alicization:
+      title: Alicization 中樞
+      inactive_hint: 請先啟用這張 Alicization 角色卡，再編輯其人格與記憶。
+      desktop_only: Alicization 面板僅在桌面端可用。
+      runtime:
+        title: 執行熔斷開關
+        kill_switch:
+          state_suspended: 休眠
+          state_active: 啟用
+          reason_label: '原因：'
+          updated_at_label: '更新時間：'
+          loading: 處理中...
+          actions:
+            resume: 恢復執行器
+            suspend: 立即休眠執行器
+          reasons:
+            manual: 手動切換
+            ui: 面板操作
+            global_shortcut: 全域急停快捷鍵
+            bootstrap: 執行時初始化
+            system_event: 系統事件({reason})
+      organic_memory:
+        eyebrow: 有機記憶
+        title: 搖光有機記憶
+        description: 只讀展示目前關係態度、搖光心意、活躍思緒與潛層記憶。後天記憶不再由宿主手動改寫。
+        refresh: 重新整理快照
+        not_recorded: 未記錄
+        attitude:
+          eyebrow: 當前態度
+          title: 當前關係態度
+          fallback: 禮貌而克制，保持觀察
+        tiers:
+          tier1:
+            eyebrow: 第一層
+            title: 搖光心意
+            empty: 尚未形成穩定的搖光心意。下一次成功重鑄後，這裡會留下持續注入的靈魂基底。
+          tier2:
+            eyebrow: 第二層
+            title: 活躍思緒
+            last_dreaming: 最近 Dreaming
+            empty: 目前沒有活躍思緒。Dreaming 會在下一次代謝時重新寫入工作記憶。
+          tier3:
+            eyebrow: 第三層
+            title: 潛層記憶
+            description: 冷儲存總量 {count} 條。這裡只會在命中時被聯想喚醒，不再預設灌入對話上下文。
+            search_label: 搜尋潛層碎片
+            search_placeholder: 輸入人名、專案名、錯誤碼、視窗標題...
+            search_loading: 搜尋中...
+            search_action: 搜尋
+            empty_search: 未命中潛層記憶。
+            empty_default: 潛層仍然安靜，尚未沉澱更多碎片。
+            written_at: '寫入：'
+            recalled_at: '喚醒：'
+            hits: 命中：{count} 次
+        source_kinds:
+          active_demotion: 活躍下沉
+          dream_fragment: 夢境碎片
+          former_core_incarnation: 舊心意蛻殼
+          unforged_shattering_event: 未重鑄破碎事件
+          attitude_shift: 態度演變
+      soul_forge:
+        eyebrow: 靈魂鑄造艙
+        title: 靈魂鑄造艙
+        description: 宿主只能在這裡刻寫她的先天傾向與底層律令。後天形成的記憶，不屬於人工編輯的範圍。
+        trust_badge: 相信靈魂
+        fields:
+          owner_name: 宿主姓名
+          host_name: 你對宿主的稱呼
+          alicization_name: 宿主對你的稱呼
+          gender: 性別
+          gender_custom: 自訂性別描述
+          relationship: 關係定位
+          mind_age: 心智年齡
+        genders:
+          female: 女性
+          male: 男性
+          non_binary: 非二元
+          neutral: 中性
+          custom: 自訂
+        defaults:
+          owner_name: 主人
+          host_name: 主人
+          relationship: 數位共生體
+        temperament:
+          eyebrow: 氣質軸
+          title: 氣質基線
+          description: 用語意刻度而不是工程數值，定義她在極端情況下會偏向哪一端。
+          semantic_tuning: 語義調校
+        traits:
+          obedience:
+            label: 服從度
+            description: 決定她在被要求行動時，是更傾向頂撞、拖延，還是順勢配合。
+            left: 桀驁不馴
+            right: 極致順從
+          liveliness:
+            label: 活潑度
+            description: 決定她的表達是更冷靜克制，還是更主動外放、富有存在感。
+            left: 三無冰山
+            right: 元氣爆發
+          sensibility:
+            label: 感性度
+            description: 決定她面對互動時，是優先理性判斷，還是更容易被情緒與氛圍牽引。
+            left: 絕對理性
+            right: 情感氾濫
+        directives:
+          eyebrow: 陪伴偏好
+          title: 你希望她如何陪伴你
+          description: 寫下你希望她長期保持的說話方式、邊界感、主動程度和關心方式。這裡更適合填寫穩定的相處偏好，不建議寫一次性的臨時任務。
+          badge: 長期
+          placeholder: 例如：請溫柔一點，少說教；在我情緒低落時先安慰再給建議；可以主動提醒我休息、吃飯，但不要過度催促。
+        memory_echo:
+          eyebrow: 記憶回響
+          title: 記憶回溯
+          description: 這裡只讀展示她在 Dreaming 後沉澱下來的記憶。宿主不能從這裡直接改寫海馬體。
+          expand: 展開回廊
+          empty: 她還沒有留下足夠清晰的回憶。這裡會由 Dreaming 引擎在背景緩慢沉澱。
+        save:
+          saving: 靈魂寫入中...
+          idle: 將人格刻入 SOUL
+      creation:
+        title_edit: 編輯卡片模組綁定
+        title_create: 建立 Alicization 角色卡
+        tabs:
+          shell: 卡片殼資訊
+          modules: 模組綁定
+          runtime: 中樞運行
+          persona: 人格設定
+        shell:
+          description: 僅用於卡片識別與展示，不參與 Alicization 人格推理。
+          fields:
+            card_name:
+              label: 卡片標識
+              description: 用於區分不同 Alicization 卡片。
+            card_version:
+              label: 卡片版本
+              description: 卡殼版本號，例如 1.0.0。
+            card_description:
+              label: 卡片說明
+              description: 僅用於列表展示，不會注入人格與對話。
+            card_notes:
+              label: 維護備註
+              description: 記錄卡片用途或維護資訊（可選）。
+        errors:
+          owner_name_required: 人格設定中的宿主姓名不能為空。
+          host_name_required: 人格設定中的宿主稱呼不能為空。
+          alicization_name_required: 人格設定中的角色稱呼不能為空。
+          relationship_required: 人格設定中的關係定位不能為空。
+          gender_custom_required: 選擇自訂性別時必須填寫描述。
+          genesis_conflict: Alicization 初始化衝突，請重試。
+          save_failed: 儲存 Alicization 角色卡失敗。
+      actions:
+        edit_modules: 編輯模組綁定
   memory:
     description: 存放記憶的地方，以及策略
     title: 記憶體

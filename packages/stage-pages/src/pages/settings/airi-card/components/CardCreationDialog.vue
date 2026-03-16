@@ -170,23 +170,23 @@ const activeTabId = ref('')
 const tabs = computed<Tab[]>(() => {
   if (isEditMode.value) {
     const editTabs: Tab[] = [
-      { id: 'modules', label: '模块绑定', icon: 'i-solar:widget-4-bold-duotone' },
+      { id: 'modules', label: t('settings.pages.card.alicization.creation.tabs.modules'), icon: 'i-solar:widget-4-bold-duotone' },
     ]
     if (supportsAlicizationEdit.value) {
       editTabs.push(
-        { id: 'alicization-runtime', label: '中枢运行', icon: 'i-solar:shield-check-bold-duotone' },
-        { id: 'alicization-persona', label: '人格设定', icon: 'i-solar:user-heart-bold-duotone' },
+        { id: 'alicization-runtime', label: t('settings.pages.card.alicization.creation.tabs.runtime'), icon: 'i-solar:shield-check-bold-duotone' },
+        { id: 'alicization-persona', label: t('settings.pages.card.alicization.creation.tabs.persona'), icon: 'i-solar:user-heart-bold-duotone' },
       )
     }
     return editTabs
   }
 
   const createTabs: Tab[] = [
-    { id: 'shell', label: '卡片壳信息', icon: 'i-solar:documents-bold-duotone' },
-    { id: 'modules', label: '模块绑定', icon: 'i-solar:widget-4-bold-duotone' },
+    { id: 'shell', label: t('settings.pages.card.alicization.creation.tabs.shell'), icon: 'i-solar:documents-bold-duotone' },
+    { id: 'modules', label: t('settings.pages.card.alicization.creation.tabs.modules'), icon: 'i-solar:widget-4-bold-duotone' },
   ]
   if (supportsAlicizationCreate.value) {
-    createTabs.push({ id: 'alicization-persona', label: '人格设定', icon: 'i-solar:user-heart-bold-duotone' })
+    createTabs.push({ id: 'alicization-persona', label: t('settings.pages.card.alicization.creation.tabs.persona'), icon: 'i-solar:user-heart-bold-duotone' })
   }
   return createTabs
 })
@@ -208,7 +208,12 @@ const creating = ref(false)
 const editPersonaPanelRef = ref<AlicizationPanelExposed | null>(null)
 
 function createDefaultPersonaDraft(seed?: Card) {
-  return createDefaultSoulForgeDraft(seed?.name)
+  return createDefaultSoulForgeDraft({
+    seedAlicizationName: seed?.name,
+    ownerName: t('settings.pages.card.alicization.soul_forge.defaults.owner_name'),
+    hostName: t('settings.pages.card.alicization.soul_forge.defaults.host_name'),
+    relationship: t('settings.pages.card.alicization.soul_forge.defaults.relationship'),
+  })
 }
 
 const createPersonaDraft = ref<SoulForgeDraft>(createDefaultPersonaDraft())
@@ -299,27 +304,27 @@ function validateCreatePersonaDraft() {
 
   if (!ownerName) {
     showError.value = true
-    errorMessage.value = '人格设定中的宿主姓名不能为空。'
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.owner_name_required')
     return false
   }
   if (!hostName) {
     showError.value = true
-    errorMessage.value = '人格设定中的宿主称呼不能为空。'
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.host_name_required')
     return false
   }
   if (!alicizationName) {
     showError.value = true
-    errorMessage.value = '人格设定中的角色称呼不能为空。'
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.alicization_name_required')
     return false
   }
   if (!relationship) {
     showError.value = true
-    errorMessage.value = '人格设定中的关系定位不能为空。'
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.relationship_required')
     return false
   }
   if (createPersonaDraft.value.gender === 'custom' && !genderCustom) {
     showError.value = true
-    errorMessage.value = '选择自定义性别时必须填写描述。'
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.gender_custom_required')
     return false
   }
   return true
@@ -352,7 +357,7 @@ async function initializeGenesisForNewCard(newCardId: string) {
     })
     if (result?.conflict) {
       showError.value = true
-      errorMessage.value = 'Alicization 初始化冲突，请重试。'
+      errorMessage.value = t('settings.pages.card.alicization.creation.errors.genesis_conflict')
       throw new Error('Alicization initialization conflict')
     }
     await alicizationEpoch1Store.refreshSoul()
@@ -453,7 +458,7 @@ async function saveCard(nextCard: Card) {
   catch (error) {
     if (!errorMessage.value) {
       showError.value = true
-      errorMessage.value = errorMessageFrom(error) ?? 'Failed to save Alicization card.'
+      errorMessage.value = errorMessageFrom(error) ?? t('settings.pages.card.alicization.creation.errors.save_failed')
     }
   }
   finally {
@@ -469,7 +474,9 @@ async function saveCard(nextCard: Card) {
       <DialogContent class="fixed left-1/2 top-1/2 z-100 m-0 max-h-[90vh] max-w-6xl w-[92vw] flex flex-col overflow-auto border border-neutral-200 rounded-xl bg-white p-5 shadow-xl 2xl:w-[60vw] lg:w-[80vw] md:w-[85vw] xl:w-[70vw] -translate-x-1/2 -translate-y-1/2 data-[state=closed]:animate-contentHide data-[state=open]:animate-contentShow dark:border-neutral-700 dark:bg-neutral-800 sm:p-6">
         <div class="w-full flex flex-col gap-5">
           <DialogTitle text-2xl font-normal class="from-primary-500 to-primary-400 bg-gradient-to-r bg-clip-text text-transparent">
-            {{ isEditMode ? '编辑卡片模块绑定' : '创建 Alicization 角色卡' }}
+            {{ isEditMode
+              ? t('settings.pages.card.alicization.creation.title_edit')
+              : t('settings.pages.card.alicization.creation.title_create') }}
           </DialogTitle>
 
           <div class="mt-4">
@@ -503,14 +510,34 @@ async function saveCard(nextCard: Card) {
 
           <div v-if="activeTab === 'shell'" class="tab-content ml-auto mr-auto w-95%">
             <p class="mb-3">
-              仅用于卡片识别与展示，不参与 Alicization 人格推理。
+              {{ t('settings.pages.card.alicization.creation.shell.description') }}
             </p>
 
             <div class="input-list ml-auto mr-auto w-90% flex flex-row flex-wrap justify-center gap-8">
-              <FieldInput v-model="cardName" label="卡片标识" description="用于区分不同 Alicization 卡片。" :required="true" />
-              <FieldInput v-model="cardVersion" label="卡片版本" :required="true" description="卡壳版本号，例如 1.0.0。" />
-              <FieldInput v-model="cardDescription" label="卡片说明" :single-line="false" description="仅用于列表展示，不会注入人格与对话。" />
-              <FieldInput v-model="cardNotes" label="维护备注" :single-line="false" description="记录卡片用途或维护信息（可选）。" />
+              <FieldInput
+                v-model="cardName"
+                :label="t('settings.pages.card.alicization.creation.shell.fields.card_name.label')"
+                :description="t('settings.pages.card.alicization.creation.shell.fields.card_name.description')"
+                :required="true"
+              />
+              <FieldInput
+                v-model="cardVersion"
+                :label="t('settings.pages.card.alicization.creation.shell.fields.card_version.label')"
+                :required="true"
+                :description="t('settings.pages.card.alicization.creation.shell.fields.card_version.description')"
+              />
+              <FieldInput
+                v-model="cardDescription"
+                :label="t('settings.pages.card.alicization.creation.shell.fields.card_description.label')"
+                :single-line="false"
+                :description="t('settings.pages.card.alicization.creation.shell.fields.card_description.description')"
+              />
+              <FieldInput
+                v-model="cardNotes"
+                :label="t('settings.pages.card.alicization.creation.shell.fields.card_notes.label')"
+                :single-line="false"
+                :description="t('settings.pages.card.alicization.creation.shell.fields.card_notes.description')"
+              />
             </div>
           </div>
 

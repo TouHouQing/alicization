@@ -186,6 +186,158 @@ pages:
     try_different_search: 別の検索ワードを試してください
     upload: アップロード
     upload_desc: ファイルをアップロードするにはクリックまたはドラッグ
+    alicization:
+      title: Alicization中枢
+      inactive_hint: このAlicizationカードを有効化してから、人格と記憶を編集してください。
+      desktop_only: Alicizationパネルはデスクトップでのみ利用できます。
+      runtime:
+        title: 実行キルスイッチ
+        kill_switch:
+          state_suspended: 休止
+          state_active: 有効
+          reason_label: '理由: '
+          updated_at_label: '更新: '
+          loading: 処理中...
+          actions:
+            resume: 実行器を再開
+            suspend: 実行器を直ちに休止
+          reasons:
+            manual: 手動切り替え
+            ui: パネル操作
+            global_shortcut: グローバル緊急ショートカット
+            bootstrap: ランタイム初期化
+            system_event: システムイベント ({reason})
+      organic_memory:
+        eyebrow: 有機記憶
+        title: 有機記憶
+        description: 現在の関係態度、コア・インカーネーション、活性思考、潜在記憶を読み取り専用で表示します。有機記憶は手動では編集されません。
+        refresh: スナップショットを更新
+        not_recorded: 記録なし
+        attitude:
+          eyebrow: 現在の態度
+          title: 現在の関係態度
+          fallback: 礼儀正しく控えめで、まだ観察中です。
+        tiers:
+          tier1:
+            eyebrow: 第1層
+            title: コア・インカーネーション
+            empty: まだ安定したコア・インカーネーションは形成されていません。次の再鍛造が成功すると、持続的な魂の基盤がここに残ります。
+          tier2:
+            eyebrow: 第2層
+            title: 活性思考
+            last_dreaming: 最後のDreaming
+            empty: 現在は活性思考がありません。Dreamingが次の代謝サイクルで作業記憶を書き換えます。
+          tier3:
+            eyebrow: 第3層
+            title: 潜在記憶
+            description: コールドストレージには {count} 件の断片があります。これらの記憶は想起時にだけ目覚め、デフォルトではチャットに注入されません。
+            search_label: 潜在断片を検索
+            search_placeholder: 名前、プロジェクト名、エラーコード、ウィンドウタイトルを検索...
+            search_loading: 検索中...
+            search_action: 検索
+            empty_search: 現在のクエリに一致する潜在記憶はありません。
+            empty_default: 潜在層はまだ静かです。追加の断片はまだ沈殿していません。
+            written_at: '記録: '
+            recalled_at: '想起: '
+            hits: '想起回数: {count}'
+        source_kinds:
+          active_demotion: 活性思考からの降格
+          dream_fragment: 夢の断片
+          former_core_incarnation: 以前のコア・インカーネーション
+          unforged_shattering_event: 再鍛造されなかった破砕イベント
+          attitude_shift: 態度変化
+      soul_forge:
+        eyebrow: 魂の鍛造室
+        title: 魂の鍛造室
+        description: 宿主はここで彼女の先天的な傾向と基底命令だけを刻めます。後から形成される有機記憶は手動編集の対象外です。
+        trust_badge: 魂を信じて
+        fields:
+          owner_name: 宿主名
+          host_name: 彼女があなたを呼ぶ名前
+          alicization_name: あなたが彼女を呼ぶ名前
+          gender: 性別
+          gender_custom: カスタム性別の説明
+          relationship: 関係性
+          mind_age: 精神年齢
+        genders:
+          female: 女性
+          male: 男性
+          non_binary: ノンバイナリー
+          neutral: 中性
+          custom: カスタム
+        defaults:
+          owner_name: あなた
+          host_name: あなた
+          relationship: デジタルコンパニオン
+        temperament:
+          eyebrow: 気質軸
+          title: 気質ベースライン
+          description: 技術的な数値ではなく意味的な目盛りで、極限時にどちらへ傾くかを定義します。
+          semantic_tuning: セマンティック調整
+        traits:
+          obedience:
+            label: 従順性
+            description: 行動を求められたとき、反発するか、引き延ばすか、素直に協力するかを決めます。
+            left: 反抗的
+            right: 絶対服従
+          liveliness:
+            label: 活発さ
+            description: 表現が抑制的なままか、より能動的で外向的になり存在感を増すかを決めます。
+            left: 冷静で距離がある
+            right: 元気いっぱい
+          sensibility:
+            label: 感受性
+            description: 理性的な判断を優先するか、感情や空気により強く引かれるかを決めます。
+            left: 純粋な理性
+            right: 感情過多
+        directives:
+          eyebrow: 伴走プリファレンス
+          title: どんなふうに寄り添ってほしいですか？
+          description: 長期的に保ってほしい話し方、境界感、主体性、気遣い方を書いてください。一時的なタスクではなく、安定した好みに向いています。
+          badge: 長期
+          placeholder: 例: もう少し優しく、説教は控えめにしてほしい。落ち込んでいるときは助言より先に慰めてほしい。休憩や食事は促してほしいが、しつこくはしないでほしい。
+        memory_echo:
+          eyebrow: 記憶の残響
+          title: 記憶の残響
+          description: Dreaming後に沈殿した記憶を読み取り専用で表示します。宿主はここから海馬を書き換えられません。
+          expand: 回廊を開く
+          empty: まだ十分にはっきりした記憶を残していません。Dreamingエンジンがバックグラウンドでゆっくり沈殿させます。
+        save:
+          saving: 魂を書き込み中...
+          idle: 人格をSOULに刻む
+      creation:
+        title_edit: カード紐付けを編集
+        title_create: Alicizationカードを作成
+        tabs:
+          shell: カード外殻情報
+          modules: モジュール紐付け
+          runtime: 中枢実行
+          persona: 人格設定
+        shell:
+          description: カードの識別と表示にのみ使われます。Alicizationの人格推論には注入されません。
+          fields:
+            card_name:
+              label: カードID
+              description: 異なるAlicizationカードを区別するために使います。
+            card_version:
+              label: カードバージョン
+              description: 外殻バージョン。例: 1.0.0。
+            card_description:
+              label: カード説明
+              description: リスト表示専用で、人格やチャットには注入されません。
+            card_notes:
+              label: メンテナンスメモ
+              description: このカードの用途や保守情報を記録します。任意です。
+        errors:
+          owner_name_required: 人格設定内の宿主名は空にできません。
+          host_name_required: 人格設定内の宿主呼称は空にできません。
+          alicization_name_required: 人格設定内のAlicization名は空にできません。
+          relationship_required: 人格設定内の関係性は空にできません。
+          gender_custom_required: カスタム性別を選択した場合は説明が必要です。
+          genesis_conflict: Alicizationの初期化で競合が発生しました。もう一度お試しください。
+          save_failed: Alicizationカードの保存に失敗しました。
+      actions:
+        edit_modules: カード紐付けを編集
   memory:
     description: 記憶が保存され、整理される場所
     title: 記憶

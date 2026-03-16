@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { CursorFloating } from '@proj-airi/stage-ui/components'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   id: string
@@ -19,6 +20,8 @@ const emit = defineEmits<{
   (e: 'delete'): void
   (e: 'edit'): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -51,7 +54,7 @@ const emit = defineEmits<{
         <div flex shrink-0 items-center gap-2>
           <button
             rounded-lg p-1 text-neutral-500 transition-colors dark:text-neutral-400 hover="bg-neutral-200 dark:bg-neutral-700/50"
-            title="编辑模块绑定"
+            :title="t('settings.pages.card.alicization.actions.edit_modules')"
             @click.stop="emit('edit')"
           >
             <div i-solar:pen-2-bold-duotone text-sm />

@@ -186,6 +186,158 @@ pages:
     try_different_search: Essayez un autre terme de recherche
     upload: Téléverser
     upload_desc: Cliquez ou glissez un fichier pour téléverser
+    alicization:
+      title: Noyau Alicization
+      inactive_hint: Activez d'abord cette carte Alicization avant de modifier sa personnalite et sa memoire.
+      desktop_only: Le panneau Alicization est uniquement disponible sur ordinateur.
+      runtime:
+        title: Coupe-circuit de l'executeur
+        kill_switch:
+          state_suspended: Suspendu
+          state_active: Actif
+          reason_label: 'Raison : '
+          updated_at_label: 'Mise a jour : '
+          loading: Traitement...
+          actions:
+            resume: Reprendre l'executeur
+            suspend: Suspendre l'executeur immediatement
+          reasons:
+            manual: Bascule manuelle
+            ui: Action du panneau
+            global_shortcut: Raccourci global d'urgence
+            bootstrap: Initialisation du runtime
+            system_event: Evenement systeme ({reason})
+      organic_memory:
+        eyebrow: Memoire organique
+        title: Memoire organique
+        description: Vue en lecture seule de l'attitude relationnelle actuelle, de l'incarnation centrale, des pensees actives et de la memoire subconsciente. La memoire organique n'est plus modifiee manuellement.
+        refresh: Actualiser l'instantane
+        not_recorded: Non enregistre
+        attitude:
+          eyebrow: Attitude actuelle
+          title: Attitude relationnelle actuelle
+          fallback: Polie et reservee, toujours en observation.
+        tiers:
+          tier1:
+            eyebrow: Niveau 1
+            title: Incarnation centrale
+            empty: Aucune incarnation centrale stable n'a encore emerge. Apres la prochaine reforgue reussie, une base d'ame persistante apparaitra ici.
+          tier2:
+            eyebrow: Niveau 2
+            title: Pensees actives
+            last_dreaming: Dernier Dreaming
+            empty: Aucune pensee active pour le moment. Dreaming reecrira la memoire de travail lors du prochain cycle metabolique.
+          tier3:
+            eyebrow: Niveau 3
+            title: Memoire subconsciente
+            description: Le stockage froid contient {count} fragments. Ces souvenirs ne s'eveillent qu'au rappel et ne sont plus injectes par defaut dans le chat.
+            search_label: Rechercher des fragments subconscients
+            search_placeholder: Rechercher des noms, titres de projet, codes d'erreur ou titres de fenetre...
+            search_loading: Recherche...
+            search_action: Rechercher
+            empty_search: Aucune memoire subconsciente ne correspond a la requete actuelle.
+            empty_default: Le subconscient reste calme. Aucun fragment supplementaire ne s'est encore depose.
+            written_at: 'Consigne : '
+            recalled_at: 'Rappele : '
+            hits: 'Occurrences : {count}'
+        source_kinds:
+          active_demotion: Retrogradation depuis la memoire active
+          dream_fragment: Fragment de reve
+          former_core_incarnation: Ancienne incarnation centrale
+          unforged_shattering_event: Evenement de fracture non reforgue
+          attitude_shift: Changement d'attitude
+      soul_forge:
+        eyebrow: Chambre de forge de l'ame
+        title: Chambre de forge de l'ame
+        description: L'hote ne peut graver ici que ses tendances innees et ses directives fondamentales. Les souvenirs organiques formes plus tard sortent du champ de l'edition manuelle.
+        trust_badge: Fais confiance a l'ame
+        fields:
+          owner_name: Nom de l'hote
+          host_name: Comment elle t'appelle
+          alicization_name: Comment tu l'appelles
+          gender: Genre
+          gender_custom: Description personnalisee du genre
+          relationship: Relation
+          mind_age: Age mental
+        genders:
+          female: Feminin
+          male: Masculin
+          non_binary: Non binaire
+          neutral: Neutre
+          custom: Personnalise
+        defaults:
+          owner_name: Toi
+          host_name: Toi
+          relationship: Compagne numerique
+        temperament:
+          eyebrow: Axes de temperament
+          title: Base temperamentale
+          description: Utilise des echelles semantiques plutot que des valeurs techniques pour definir vers quel extreme elle penche sous pression.
+          semantic_tuning: Reglage semantique
+        traits:
+          obedience:
+            label: Obeissance
+            description: Determine si elle tend a resister, temporiser ou cooperer lorsqu'on lui demande d'agir.
+            left: Rebelle
+            right: Absolument obeissante
+          liveliness:
+            label: Vivacite
+            description: Determine si son expression reste contenue ou devient proactive, extravertie et tres presente.
+            left: Froide et distante
+            right: Debordante d'energie
+          sensibility:
+            label: Sensibilite
+            description: Determine si elle privilegie le jugement rationnel ou si elle se laisse plus facilement guider par l'emotion et l'atmosphere.
+            left: Raison pure
+            right: Debordee d'emotions
+        directives:
+          eyebrow: Preferences de compagnie
+          title: Comment veux-tu qu'elle t'accompagne ?
+          description: Decris le style de parole, les limites, l'initiative et l'attention que tu veux qu'elle conserve sur la duree. Cette zone est faite pour les preferences stables, pas pour les taches ponctuelles.
+          badge: Long terme
+          placeholder: p. ex. Sois un peu plus douce et moins moralisatrice ; reconforte-moi avant de donner des conseils quand je vais mal ; rappelle-moi de me reposer et de manger, mais sans insister.
+        memory_echo:
+          eyebrow: Echo de memoire
+          title: Echo de memoire
+          description: Vue en lecture seule des souvenirs sedimentes apres Dreaming. L'hote ne peut pas reecrire l'hippocampe depuis ici.
+          expand: Ouvrir le corridor
+          empty: Elle n'a pas encore laisse un souvenir suffisamment net. Le moteur Dreaming le laissera se deposer lentement en arriere-plan.
+        save:
+          saving: Gravure de l'ame...
+          idle: Graver la personnalite dans SOUL
+      creation:
+        title_edit: Modifier les liaisons de la carte
+        title_create: Creer une carte Alicization
+        tabs:
+          shell: Coque de la carte
+          modules: Liaisons de modules
+          runtime: Execution
+          persona: Personnalite
+        shell:
+          description: Utilisee uniquement pour identifier et afficher la carte. Elle n'est pas injectee dans le raisonnement de personnalite d'Alicization.
+          fields:
+            card_name:
+              label: ID de la carte
+              description: Sert a distinguer les differentes cartes Alicization.
+            card_version:
+              label: Version de la carte
+              description: Version de la coque, par exemple 1.0.0.
+            card_description:
+              label: Description de la carte
+              description: Utilisee uniquement pour l'affichage dans la liste et jamais injectee dans la personnalite ou le chat.
+            card_notes:
+              label: Notes de maintenance
+              description: Consigne l'usage ou le contexte de maintenance de cette carte. Optionnel.
+        errors:
+          owner_name_required: Le nom de l'hote dans les reglages de personnalite ne peut pas etre vide.
+          host_name_required: Le nom qu'elle donne a l'hote dans les reglages de personnalite ne peut pas etre vide.
+          alicization_name_required: Le nom d'Alicization dans les reglages de personnalite ne peut pas etre vide.
+          relationship_required: La relation dans les reglages de personnalite ne peut pas etre vide.
+          gender_custom_required: Une description de genre personnalisee est requise lorsque le genre personnalise est selectionne.
+          genesis_conflict: L'initialisation d'Alicization est entree en conflit. Veuillez reessayer.
+          save_failed: Echec de l'enregistrement de la carte Alicization.
+      actions:
+        edit_modules: Modifier les liaisons de la carte
   memory:
     description: Endroit où les souvenirs sont stockés et organisés
     title: Mémoire

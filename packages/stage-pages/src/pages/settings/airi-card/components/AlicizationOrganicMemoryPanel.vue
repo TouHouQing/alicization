@@ -2,6 +2,7 @@
 import type { AlicizationOrganicMemorySnapshot, AlicizationSubconsciousFragment } from '@proj-airi/stage-ui/stores/alicization-bridge'
 
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(defineProps<{
   snapshot: AlicizationOrganicMemorySnapshot
@@ -17,6 +18,7 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery = defineModel<string>('searchQuery', { required: true })
+const { t } = useI18n()
 
 const tier3DisplayItems = computed(() => {
   if (searchQuery.value.trim())
@@ -25,27 +27,35 @@ const tier3DisplayItems = computed(() => {
 })
 
 const tier3EmptyLabel = computed(() => {
-  if (searchQuery.value.trim())
-    return props.searchLoading ? '搜索中...' : '未命中潜层记忆。'
-  return '潜层仍然安静，尚未沉淀更多碎片。'
+  if (searchQuery.value.trim()) {
+    return props.searchLoading
+      ? t('settings.pages.card.alicization.organic_memory.tiers.tier3.search_loading')
+      : t('settings.pages.card.alicization.organic_memory.tiers.tier3.empty_search')
+  }
+  return t('settings.pages.card.alicization.organic_memory.tiers.tier3.empty_default')
 })
-
-const sourceKindLabelMap: Record<AlicizationSubconsciousFragment['sourceKind'], string> = {
-  'active-demotion': '活跃下沉',
-  'dream-fragment': '梦境碎片',
-  'former-core-incarnation': '旧心意蜕壳',
-  'unforged-shattering-event': '未重铸破碎事件',
-  'attitude-shift': '态度演变',
-}
 
 function formatDateTime(value?: number | null) {
   if (!value)
-    return '未记录'
+    return t('settings.pages.card.alicization.organic_memory.not_recorded')
   return new Date(value).toLocaleString()
 }
 
 function sourceKindLabel(value: AlicizationSubconsciousFragment['sourceKind']) {
-  return sourceKindLabelMap[value] ?? value
+  switch (value) {
+    case 'active-demotion':
+      return t('settings.pages.card.alicization.organic_memory.source_kinds.active_demotion')
+    case 'dream-fragment':
+      return t('settings.pages.card.alicization.organic_memory.source_kinds.dream_fragment')
+    case 'former-core-incarnation':
+      return t('settings.pages.card.alicization.organic_memory.source_kinds.former_core_incarnation')
+    case 'unforged-shattering-event':
+      return t('settings.pages.card.alicization.organic_memory.source_kinds.unforged_shattering_event')
+    case 'attitude-shift':
+      return t('settings.pages.card.alicization.organic_memory.source_kinds.attitude_shift')
+    default:
+      return value
+  }
 }
 
 function submitSearch() {
@@ -59,13 +69,13 @@ function submitSearch() {
       <header :class="['flex', 'flex-col', 'gap-3', 'border-b', 'border-neutral-200/80', 'pb-5', 'dark:border-neutral-700/80', 'md:flex-row', 'md:items-end', 'md:justify-between']">
         <div :class="['flex', 'flex-col', 'gap-2']">
           <div :class="['text-[11px]', 'font-medium', 'tracking-[0.36em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-            Organic Memory
+            {{ t('settings.pages.card.alicization.organic_memory.eyebrow') }}
           </div>
           <div :class="['font-serif', 'text-2xl', 'leading-tight', 'text-neutral-950', 'dark:text-neutral-50']">
-            摇光有机记忆
+            {{ t('settings.pages.card.alicization.organic_memory.title') }}
           </div>
           <p :class="['max-w-2xl', 'text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-            只读展示当前关系态度、摇光心意、活跃思绪与潜层记忆。后天记忆不再通过宿主手动改写。
+            {{ t('settings.pages.card.alicization.organic_memory.description') }}
           </p>
         </div>
 
@@ -75,32 +85,32 @@ function submitSearch() {
           @click="emit('refresh')"
         >
           <div class="i-solar:refresh-bold-duotone" />
-          刷新快照
+          {{ t('settings.pages.card.alicization.organic_memory.refresh') }}
         </button>
       </header>
 
       <section :class="['rounded-[24px]', 'border', 'border-neutral-200/80', 'bg-linear-to-br', 'from-emerald-50/80', 'to-white', 'p-5', 'dark:border-neutral-700/80', 'dark:from-emerald-950/15', 'dark:to-neutral-950']">
         <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-          Current Attitude
+          {{ t('settings.pages.card.alicization.organic_memory.attitude.eyebrow') }}
         </div>
         <div :class="['mt-2', 'text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-          当前关系态度
+          {{ t('settings.pages.card.alicization.organic_memory.attitude.title') }}
         </div>
         <div :class="['mt-3', 'rounded-[20px]', 'border', 'border-white/80', 'bg-white/85', 'p-4', 'text-sm', 'leading-7', 'text-neutral-700', 'shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]', 'dark:border-neutral-700/80', 'dark:bg-neutral-950/70', 'dark:text-neutral-200']">
-          {{ snapshot.hostAttitude || '礼貌而克制，保持观察' }}
+          {{ snapshot.hostAttitude || t('settings.pages.card.alicization.organic_memory.attitude.fallback') }}
         </div>
       </section>
 
       <div :class="['grid', 'grid-cols-1', 'gap-4', 'xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]']">
         <section :class="['rounded-[24px]', 'border', 'border-neutral-200/80', 'bg-linear-to-br', 'from-amber-50/80', 'to-white', 'p-5', 'dark:border-neutral-700/80', 'dark:from-amber-950/15', 'dark:to-neutral-950']">
           <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-            Tier 1
+            {{ t('settings.pages.card.alicization.organic_memory.tiers.tier1.eyebrow') }}
           </div>
           <div :class="['mt-2', 'text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-            摇光心意
+            {{ t('settings.pages.card.alicization.organic_memory.tiers.tier1.title') }}
           </div>
           <div :class="['mt-3', 'rounded-[20px]', 'border', 'border-white/80', 'bg-white/85', 'p-4', 'text-sm', 'leading-7', 'text-neutral-700', 'shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]', 'whitespace-pre-wrap', 'dark:border-neutral-700/80', 'dark:bg-neutral-950/70', 'dark:text-neutral-200']">
-            {{ snapshot.coreIncarnation || '尚未形成稳定的摇光心意。下一次成功重铸后，这里会留下持续注入的灵魂基底。' }}
+            {{ snapshot.coreIncarnation || t('settings.pages.card.alicization.organic_memory.tiers.tier1.empty') }}
           </div>
         </section>
 
@@ -108,14 +118,14 @@ function submitSearch() {
           <div :class="['flex', 'items-center', 'justify-between', 'gap-3']">
             <div>
               <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-                Tier 2
+                {{ t('settings.pages.card.alicization.organic_memory.tiers.tier2.eyebrow') }}
               </div>
               <div :class="['mt-2', 'text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-                活跃思绪
+                {{ t('settings.pages.card.alicization.organic_memory.tiers.tier2.title') }}
               </div>
             </div>
             <div :class="['text-right', 'text-xs', 'leading-5', 'text-neutral-500', 'dark:text-neutral-400']">
-              <div>最近 Dreaming</div>
+              <div>{{ t('settings.pages.card.alicization.organic_memory.tiers.tier2.last_dreaming') }}</div>
               <div>{{ formatDateTime(snapshot.lastDreamedAt) }}</div>
             </div>
           </div>
@@ -132,7 +142,7 @@ function submitSearch() {
             </article>
           </div>
           <div v-else :class="['mt-4', 'rounded-2xl', 'border', 'border-dashed', 'border-neutral-200/80', 'bg-white/60', 'p-4', 'text-sm', 'leading-7', 'text-neutral-500', 'dark:border-neutral-700/80', 'dark:bg-neutral-950/40', 'dark:text-neutral-400']">
-            当前没有活跃思绪。Dreaming 在下一次代谢时会重新写入工作记忆。
+            {{ t('settings.pages.card.alicization.organic_memory.tiers.tier2.empty') }}
           </div>
         </section>
       </div>
@@ -141,25 +151,25 @@ function submitSearch() {
         <div :class="['flex', 'flex-col', 'gap-4', 'md:flex-row', 'md:items-end', 'md:justify-between']">
           <div :class="['flex', 'flex-col', 'gap-2']">
             <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-              Tier 3
+              {{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.eyebrow') }}
             </div>
             <div :class="['text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-              潜层记忆
+              {{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.title') }}
             </div>
             <p :class="['text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-              冷存储总量 {{ snapshot.subconsciousCount }} 条。这里只在命中时被联想唤醒，不再默认灌入对话上下文。
+              {{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.description', { count: snapshot.subconsciousCount }) }}
             </p>
           </div>
 
           <div :class="['flex', 'w-full', 'flex-col', 'gap-2', 'md:max-w-md']">
             <label :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-              搜索潜层碎片
+              {{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.search_label') }}
             </label>
             <div :class="['flex', 'items-center', 'gap-2']">
               <input
                 v-model="searchQuery"
                 :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/80', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/80', 'dark:text-neutral-100']"
-                placeholder="输入人名、项目名、错误码、窗口标题..."
+                :placeholder="t('settings.pages.card.alicization.organic_memory.tiers.tier3.search_placeholder')"
                 @keydown.enter.prevent="submitSearch()"
               >
               <button
@@ -168,7 +178,9 @@ function submitSearch() {
                 :disabled="searchLoading"
                 @click="submitSearch()"
               >
-                {{ searchLoading ? '搜索中...' : '搜索' }}
+                {{ searchLoading
+                  ? t('settings.pages.card.alicization.organic_memory.tiers.tier3.search_loading')
+                  : t('settings.pages.card.alicization.organic_memory.tiers.tier3.search_action') }}
               </button>
             </div>
           </div>
@@ -191,9 +203,9 @@ function submitSearch() {
               </div>
 
               <div :class="['shrink-0', 'text-xs', 'leading-5', 'text-neutral-500', 'dark:text-neutral-400', 'md:text-right']">
-                <div>写入：{{ formatDateTime(fragment.createdAt) }}</div>
-                <div>唤醒：{{ formatDateTime(fragment.lastRecalledAt) }}</div>
-                <div>命中：{{ fragment.recallCount }} 次</div>
+                <div>{{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.written_at') }}{{ formatDateTime(fragment.createdAt) }}</div>
+                <div>{{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.recalled_at') }}{{ formatDateTime(fragment.lastRecalledAt) }}</div>
+                <div>{{ t('settings.pages.card.alicization.organic_memory.tiers.tier3.hits', { count: fragment.recallCount }) }}</div>
               </div>
             </div>
           </article>

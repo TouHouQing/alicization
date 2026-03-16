@@ -3,6 +3,7 @@ import type { SoulForgeDraft } from './soul-forge'
 
 import { Range } from '@proj-airi/ui/components/form'
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { clampSoulForgeUnit, soulForgeTraitMetas } from './soul-forge'
 
@@ -23,10 +24,32 @@ const emit = defineEmits<{
 }>()
 
 const draft = defineModel<SoulForgeDraft>('draft', { required: true })
+const { t } = useI18n()
 
 const memoryEchoPreview = computed(() => {
   const text = props.memoryEcho.trim()
-  return text || '她还没有留下足够清晰的回忆。这里会由 Dreaming 引擎在后台缓慢沉淀。'
+  return text || t('settings.pages.card.alicization.soul_forge.memory_echo.empty')
+})
+
+const genderOptions = computed(() => [
+  { value: 'female', label: t('settings.pages.card.alicization.soul_forge.genders.female') },
+  { value: 'male', label: t('settings.pages.card.alicization.soul_forge.genders.male') },
+  { value: 'non-binary', label: t('settings.pages.card.alicization.soul_forge.genders.non_binary') },
+  { value: 'neutral', label: t('settings.pages.card.alicization.soul_forge.genders.neutral') },
+  { value: 'custom', label: t('settings.pages.card.alicization.soul_forge.genders.custom') },
+])
+
+const localizedTraitMetas = computed(() => {
+  return soulForgeTraitMetas.map((trait) => {
+    const baseKey = `settings.pages.card.alicization.soul_forge.traits.${trait.key}` as const
+    return {
+      ...trait,
+      label: t(`${baseKey}.label`),
+      description: t(`${baseKey}.description`),
+      leftLabel: t(`${baseKey}.left`),
+      rightLabel: t(`${baseKey}.right`),
+    }
+  })
 })
 
 function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' | 'sensibility'>, value: number) {
@@ -45,73 +68,61 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
     <div :class="['relative', 'flex', 'flex-col', 'gap-6']">
       <header :class="['flex', 'flex-col', 'gap-3', 'border-b', 'border-neutral-200/80', 'pb-5', 'dark:border-neutral-700/80']">
         <div :class="['text-[11px]', 'font-medium', 'tracking-[0.36em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-          Soul Forge Chamber
+          {{ t('settings.pages.card.alicization.soul_forge.eyebrow') }}
         </div>
         <div :class="['flex', 'flex-col', 'gap-2', 'md:flex-row', 'md:items-end', 'md:justify-between']">
           <div :class="['flex', 'flex-col', 'gap-2']">
             <h3 :class="['font-serif', 'text-2xl', 'leading-tight', 'text-neutral-950', 'dark:text-neutral-50']">
-              灵魂铸造舱
+              {{ t('settings.pages.card.alicization.soul_forge.title') }}
             </h3>
             <p :class="['max-w-2xl', 'text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-              宿主只能在这里刻写她的先天倾向与底层律令。后天形成的记忆，不属于人工编辑的范围。
+              {{ t('settings.pages.card.alicization.soul_forge.description') }}
             </p>
           </div>
           <div :class="['inline-flex', 'items-center', 'gap-2', 'self-start', 'rounded-full', 'border', 'border-neutral-200/80', 'bg-neutral-100/80', 'px-3', 'py-1.5', 'text-[11px]', 'tracking-[0.12em]', 'text-neutral-500', 'uppercase', 'dark:border-neutral-700/80', 'dark:bg-neutral-800/80', 'dark:text-neutral-300']">
             <div class="i-solar:shield-keyhole-bold-duotone" />
-            Trust the Soul
+            {{ t('settings.pages.card.alicization.soul_forge.trust_badge') }}
           </div>
         </div>
       </header>
 
       <div :class="['grid', 'grid-cols-1', 'gap-4', 'md:grid-cols-2']">
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">宿主姓名</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.owner_name') }}</span>
           <input v-model="draft.ownerName" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">你对宿主的称呼</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.host_name') }}</span>
           <input v-model="draft.hostName" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">宿主对你的称呼</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.alicization_name') }}</span>
           <input v-model="draft.alicizationName" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">性别</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.gender') }}</span>
           <select v-model="draft.gender" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
-            <option value="female">
-              女性
-            </option>
-            <option value="male">
-              男性
-            </option>
-            <option value="non-binary">
-              非二元
-            </option>
-            <option value="neutral">
-              中性
-            </option>
-            <option value="custom">
-              自定义
+            <option v-for="option in genderOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
             </option>
           </select>
         </label>
 
         <label v-if="draft.gender === 'custom'" :class="['flex', 'flex-col', 'gap-2', 'text-sm', 'md:col-span-2']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">自定义性别描述</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.gender_custom') }}</span>
           <input v-model="draft.genderCustom" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm', 'md:col-span-2']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">关系定位</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.relationship') }}</span>
           <input v-model="draft.relationship" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
 
         <label :class="['flex', 'flex-col', 'gap-2', 'text-sm']">
-          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">心智年龄</span>
+          <span :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.fields.mind_age') }}</span>
           <input v-model.number="draft.mindAge" type="number" min="1" max="120" :class="['w-full', 'rounded-2xl', 'border', 'border-neutral-200', 'bg-white/70', 'px-4', 'py-3', 'text-sm', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/70', 'dark:text-neutral-100']">
         </label>
       </div>
@@ -120,26 +131,26 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
         <div :class="['mb-5', 'flex', 'flex-col', 'gap-2', 'md:flex-row', 'md:items-end', 'md:justify-between']">
           <div>
             <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-              Temperament Axes
+              {{ t('settings.pages.card.alicization.soul_forge.temperament.eyebrow') }}
             </div>
             <h4 :class="['mt-1', 'font-serif', 'text-xl', 'text-neutral-950', 'dark:text-neutral-50']">
-              气质基线
+              {{ t('settings.pages.card.alicization.soul_forge.temperament.title') }}
             </h4>
           </div>
           <p :class="['max-w-xl', 'text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-            用语义刻度而不是工程数值，定义她在极端情况下会偏向哪一端。
+            {{ t('settings.pages.card.alicization.soul_forge.temperament.description') }}
           </p>
         </div>
 
         <div :class="['grid', 'grid-cols-1', 'gap-4']">
-          <article v-for="trait in soulForgeTraitMetas" :key="trait.key" :class="['rounded-2xl', 'border', 'border-white/70', 'bg-white/75', 'p-4', 'shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]', 'backdrop-blur-sm', 'dark:border-neutral-700/70', 'dark:bg-neutral-950/70']">
+          <article v-for="trait in localizedTraitMetas" :key="trait.key" :class="['rounded-2xl', 'border', 'border-white/70', 'bg-white/75', 'p-4', 'shadow-[0_18px_40px_-34px_rgba(15,23,42,0.55)]', 'backdrop-blur-sm', 'dark:border-neutral-700/70', 'dark:bg-neutral-950/70']">
             <div :class="['flex', 'flex-col', 'gap-2']">
               <div :class="['flex', 'items-center', 'justify-between', 'gap-3']">
                 <div :class="['text-base', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
                   {{ trait.label }}
                 </div>
                 <div :class="['text-[11px]', 'tracking-[0.16em]', 'text-neutral-400', 'uppercase', 'dark:text-neutral-500']">
-                  semantic tuning
+                  {{ t('settings.pages.card.alicization.soul_forge.temperament.semantic_tuning') }}
                 </div>
               </div>
               <p :class="['text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
@@ -170,23 +181,23 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
       <label :class="['flex', 'flex-col', 'gap-3', 'rounded-[24px]', 'border', 'border-neutral-200/80', 'bg-neutral-50/85', 'p-5', 'dark:border-neutral-700/80', 'dark:bg-neutral-950/60']">
         <div :class="['flex', 'flex-col', 'gap-2', 'md:flex-row', 'md:items-start', 'md:justify-between']">
           <div :class="['flex', 'flex-col', 'gap-2']">
-            <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">Companion Preferences</div>
+            <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">{{ t('settings.pages.card.alicization.soul_forge.directives.eyebrow') }}</div>
             <div :class="['text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-              你希望她如何陪伴你
+              {{ t('settings.pages.card.alicization.soul_forge.directives.title') }}
             </div>
             <p :class="['max-w-2xl', 'text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-              写下你希望她长期保持的说话方式、边界感、主动程度和关心方式。这里更适合填写稳定的相处偏好，不建议写一次性的临时任务。
+              {{ t('settings.pages.card.alicization.soul_forge.directives.description') }}
             </p>
           </div>
           <div :class="['inline-flex', 'items-center', 'gap-2', 'self-start', 'rounded-full', 'bg-neutral-900', 'px-3', 'py-1.5', 'text-[11px]', 'tracking-[0.14em]', 'text-white', 'uppercase', 'dark:bg-cyan-200', 'dark:text-neutral-950']">
             <div class="i-solar:bolt-bold-duotone" />
-            Long Term
+            {{ t('settings.pages.card.alicization.soul_forge.directives.badge') }}
           </div>
         </div>
         <textarea
           v-model="draft.customDirectives"
           :class="['min-h-44', 'w-full', 'rounded-[22px]', 'border', 'border-neutral-200', 'bg-white/80', 'px-4', 'py-4', 'text-sm', 'leading-7', 'text-neutral-900', 'outline-none', 'transition', 'focus:border-cyan-400/70', 'dark:border-neutral-700', 'dark:bg-neutral-950/80', 'dark:text-neutral-100']"
-          placeholder="例如：请温柔一点，少说教；在我情绪低落时先安慰再给建议；可以主动提醒我休息、吃饭，但不要过度催促。"
+          :placeholder="t('settings.pages.card.alicization.soul_forge.directives.placeholder')"
         />
       </label>
 
@@ -194,17 +205,17 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
         <summary :class="['flex', 'cursor-pointer', 'list-none', 'items-center', 'justify-between', 'gap-3']">
           <div :class="['flex', 'flex-col', 'gap-1']">
             <div :class="['text-xs', 'tracking-[0.14em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-              Memory Echo
+              {{ t('settings.pages.card.alicization.soul_forge.memory_echo.eyebrow') }}
             </div>
             <div :class="['text-lg', 'font-medium', 'text-neutral-950', 'dark:text-neutral-50']">
-              记忆回溯
+              {{ t('settings.pages.card.alicization.soul_forge.memory_echo.title') }}
             </div>
             <p :class="['text-sm', 'leading-6', 'text-neutral-600', 'dark:text-neutral-300']">
-              这里只读展示她在 Dreaming 后沉淀下来的记忆。宿主不能从这里直接改写海马体。
+              {{ t('settings.pages.card.alicization.soul_forge.memory_echo.description') }}
             </p>
           </div>
           <div :class="['flex', 'items-center', 'gap-2', 'text-xs', 'tracking-[0.12em]', 'text-neutral-500', 'uppercase', 'dark:text-neutral-400']">
-            展开回廊
+            {{ t('settings.pages.card.alicization.soul_forge.memory_echo.expand') }}
             <div class="i-solar:alt-arrow-down-linear" />
           </div>
         </summary>
@@ -222,7 +233,9 @@ function updateTrait(key: keyof Pick<SoulForgeDraft, 'obedience' | 'liveliness' 
           @click="emit('save')"
         >
           <div class="i-solar:shield-check-bold-duotone" />
-          {{ saving ? '灵魂写入中...' : '将人格刻入 SOUL' }}
+          {{ saving
+            ? t('settings.pages.card.alicization.soul_forge.save.saving')
+            : t('settings.pages.card.alicization.soul_forge.save.idle') }}
         </button>
       </div>
     </div>

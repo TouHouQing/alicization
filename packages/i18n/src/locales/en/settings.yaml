@@ -194,6 +194,158 @@ pages:
     try_different_search: Try a different search term
     upload: Upload
     upload_desc: Click or drag file to upload
+    alicization:
+      title: Alicization Hub
+      inactive_hint: Activate this Alicization card before editing its persona and memory.
+      desktop_only: Alicization panel is only available on desktop.
+      runtime:
+        title: Executor Kill Switch
+        kill_switch:
+          state_suspended: Suspended
+          state_active: Active
+          reason_label: 'Reason: '
+          updated_at_label: 'Updated: '
+          loading: Processing...
+          actions:
+            resume: Resume executor
+            suspend: Suspend executor now
+          reasons:
+            manual: Manual toggle
+            ui: Panel action
+            global_shortcut: Global emergency shortcut
+            bootstrap: Runtime bootstrap
+            system_event: System event ({reason})
+      organic_memory:
+        eyebrow: Organic Memory
+        title: Organic Memory
+        description: Read-only view of the current relationship attitude, core incarnation, active thoughts, and subconscious memory. Organic memory is no longer edited manually.
+        refresh: Refresh snapshot
+        not_recorded: Not recorded
+        attitude:
+          eyebrow: Current Attitude
+          title: Current relationship attitude
+          fallback: Polite and restrained, still observing.
+        tiers:
+          tier1:
+            eyebrow: Tier 1
+            title: Core Incarnation
+            empty: No stable core incarnation has formed yet. After the next successful reforge, a persistent soul baseline will appear here.
+          tier2:
+            eyebrow: Tier 2
+            title: Active Thoughts
+            last_dreaming: Last Dreaming
+            empty: No active thoughts right now. Dreaming will rewrite the working memory during the next metabolism cycle.
+          tier3:
+            eyebrow: Tier 3
+            title: Subconscious Memory
+            description: Cold storage contains {count} fragments. These memories only wake on recall and are no longer injected into chat by default.
+            search_label: Search subconscious fragments
+            search_placeholder: Search names, project titles, error codes, or window titles...
+            search_loading: Searching...
+            search_action: Search
+            empty_search: No subconscious memory matched the current query.
+            empty_default: The subconscious remains quiet. No additional fragments have settled yet.
+            written_at: 'Written: '
+            recalled_at: 'Recalled: '
+            hits: 'Hits: {count}'
+        source_kinds:
+          active_demotion: Active demotion
+          dream_fragment: Dream fragment
+          former_core_incarnation: Former core incarnation
+          unforged_shattering_event: Unforged shattering event
+          attitude_shift: Attitude shift
+      soul_forge:
+        eyebrow: Soul Forge Chamber
+        title: Soul Forge Chamber
+        description: The host may only inscribe her innate tendencies and base directives here. Organic memories formed later are outside manual editing.
+        trust_badge: Trust the Soul
+        fields:
+          owner_name: Host name
+          host_name: Her name for you
+          alicization_name: Your name for her
+          gender: Gender
+          gender_custom: Custom gender description
+          relationship: Relationship
+          mind_age: Mind age
+        genders:
+          female: Female
+          male: Male
+          non_binary: Non-binary
+          neutral: Neutral
+          custom: Custom
+        defaults:
+          owner_name: You
+          host_name: You
+          relationship: Digital companion
+        temperament:
+          eyebrow: Temperament Axes
+          title: Temperament baseline
+          description: Use semantic scales rather than engineering numbers to define which extreme she favors under pressure.
+          semantic_tuning: Semantic tuning
+        traits:
+          obedience:
+            label: Obedience
+            description: Determines whether she tends to resist, stall, or cooperate when asked to act.
+            left: Defiant
+            right: Utterly obedient
+          liveliness:
+            label: Liveliness
+            description: Determines whether her expression stays restrained or becomes proactive, outward, and full of presence.
+            left: Cool and distant
+            right: Bursting with energy
+          sensibility:
+            label: Sensibility
+            description: Determines whether she prioritizes rational judgment or is more easily moved by emotion and atmosphere.
+            left: Pure reason
+            right: Emotionally overflowing
+        directives:
+          eyebrow: Companion Preferences
+          title: How do you want her to accompany you?
+          description: Describe the speaking style, boundaries, initiative, and care you want her to keep over the long term. This area is best for stable preferences, not one-off tasks.
+          badge: Long Term
+          placeholder: e.g. Be gentler and less preachy; comfort me before giving advice when I am down; remind me to rest and eat, but do not nag.
+        memory_echo:
+          eyebrow: Memory Echo
+          title: Memory Echo
+          description: Read-only view of memories sedimented after Dreaming. The host cannot rewrite the hippocampus from here.
+          expand: Open corridor
+          empty: She has not left a clear enough memory yet. The Dreaming engine will slowly let it settle in the background.
+        save:
+          saving: Inscribing soul...
+          idle: Engrave persona into SOUL
+      creation:
+        title_edit: Edit card bindings
+        title_create: Create Alicization card
+        tabs:
+          shell: Card shell
+          modules: Module bindings
+          runtime: Runtime
+          persona: Persona
+        shell:
+          description: Used only for card identification and display. It is not injected into Alicization persona reasoning.
+          fields:
+            card_name:
+              label: Card ID
+              description: Used to distinguish different Alicization cards.
+            card_version:
+              label: Card version
+              description: Shell version, e.g. 1.0.0.
+            card_description:
+              label: Card description
+              description: Used only for list display and never injected into persona or chat.
+            card_notes:
+              label: Maintenance notes
+              description: Record usage or maintenance context for this card. Optional.
+        errors:
+          owner_name_required: Host name in persona settings cannot be empty.
+          host_name_required: Her name for the host in persona settings cannot be empty.
+          alicization_name_required: Alicization name in persona settings cannot be empty.
+          relationship_required: Relationship in persona settings cannot be empty.
+          gender_custom_required: A custom gender description is required when custom gender is selected.
+          genesis_conflict: Alicization initialization conflicted. Please try again.
+          save_failed: Failed to save Alicization card.
+      actions:
+        edit_modules: Edit card bindings
   memory:
     description: Where memories got stored, and organized
     title: Memory

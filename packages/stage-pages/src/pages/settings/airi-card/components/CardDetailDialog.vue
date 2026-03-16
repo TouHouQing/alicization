@@ -139,7 +139,7 @@ function handleDeleteCancel() {
                 rounded-xl p-4 text-sm text-neutral-500
                 border="~ neutral-200/50 dark:neutral-700/30"
               >
-                请先激活这张 Alicization 角色卡，再编辑其人格与记忆。
+                {{ t('settings.pages.card.alicization.inactive_hint') }}
               </div>
             </div>
           </div>

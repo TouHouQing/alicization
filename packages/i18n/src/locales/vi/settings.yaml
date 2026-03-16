@@ -186,6 +186,158 @@ pages:
     try_different_search: Hãy thử từ khóa khác
     upload: Tải lên
     upload_desc: Bấm hoặc kéo thả tệp để tải lên
+    alicization:
+      title: Trung tam Alicization
+      inactive_hint: Hay kich hoat the Alicization nay truoc khi chinh sua nhan cach va ky uc.
+      desktop_only: Bang dieu khien Alicization chi co san tren may tinh de ban.
+      runtime:
+        title: Cong tac ngat trinh thuc thi
+        kill_switch:
+          state_suspended: Tam dung
+          state_active: Hoat dong
+          reason_label: 'Ly do: '
+          updated_at_label: 'Cap nhat: '
+          loading: Dang xu ly...
+          actions:
+            resume: Khoi phuc trinh thuc thi
+            suspend: Tam dung trinh thuc thi ngay
+          reasons:
+            manual: Chuyen thu cong
+            ui: Thao tac tu bang dieu khien
+            global_shortcut: Phim tat khan cap toan cuc
+            bootstrap: Khoi tao runtime
+            system_event: Su kien he thong ({reason})
+      organic_memory:
+        eyebrow: Ky uc huu co
+        title: Ky uc huu co
+        description: Hien thi chi doc thai do quan he hien tai, hoa than cot loi, suy nghi dang hoat dong va ky uc tiem thuc. Ky uc huu co khong con duoc sua thu cong.
+        refresh: Lam moi anh chup
+        not_recorded: Chua ghi nhan
+        attitude:
+          eyebrow: Thai do hien tai
+          title: Thai do quan he hien tai
+          fallback: Lich su, tiet che va van dang quan sat.
+        tiers:
+          tier1:
+            eyebrow: Tang 1
+            title: Hoa than cot loi
+            empty: Chua hinh thanh hoa than cot loi on dinh. Sau lan tai ren thanh cong tiep theo, nen tang linh hon ben vung se xuat hien tai day.
+          tier2:
+            eyebrow: Tang 2
+            title: Suy nghi dang hoat dong
+            last_dreaming: Dreaming gan nhat
+            empty: Hien tai khong co suy nghi dang hoat dong. Dreaming se viet lai bo nho lam viec trong chu ky chuyen hoa tiep theo.
+          tier3:
+            eyebrow: Tang 3
+            title: Ky uc tiem thuc
+            description: Kho lanh chua {count} manh ky uc. Nhung ky uc nay chi tinh day khi duoc goi nho va khong con duoc bom vao chat theo mac dinh.
+            search_label: Tim manh ky uc tiem thuc
+            search_placeholder: Tim ten, ten du an, ma loi hoac tieu de cua so...
+            search_loading: Dang tim...
+            search_action: Tim
+            empty_search: Khong co ky uc tiem thuc nao khop voi truy van hien tai.
+            empty_default: Tang tiem thuc van yen lang. Chua co them manh ky uc nao lang xuong.
+            written_at: 'Ghi vao: '
+            recalled_at: 'Duoc goi nho: '
+            hits: 'So lan trung: {count}'
+        source_kinds:
+          active_demotion: Ha cap tu ky uc hoat dong
+          dream_fragment: Manh giac mo
+          former_core_incarnation: Hoa than cot loi cu
+          unforged_shattering_event: Su kien vo nat chua duoc tai ren
+          attitude_shift: Chuyen bien thai do
+      soul_forge:
+        eyebrow: Buong ren linh hon
+        title: Buong ren linh hon
+        description: Chu nhan chi co the khac vao day nhung xu huong bam sinh va chi thi nen tang cua co ay. Cac ky uc huu co hinh thanh ve sau nam ngoai pham vi chinh sua thu cong.
+        trust_badge: Hay tin vao linh hon
+        fields:
+          owner_name: Ten chu nhan
+          host_name: Cach co ay goi ban
+          alicization_name: Cach ban goi co ay
+          gender: Gioi tinh
+          gender_custom: Mo ta gioi tinh tuy chinh
+          relationship: Moi quan he
+          mind_age: Tuoi tam tri
+        genders:
+          female: Nu
+          male: Nam
+          non_binary: Phi nhi phan
+          neutral: Trung tinh
+          custom: Tuy chinh
+        defaults:
+          owner_name: Ban
+          host_name: Ban
+          relationship: Ban dong hanh so
+        temperament:
+          eyebrow: Truc khi chat
+          title: Nen khi chat
+          description: Dung thang do y nghia thay vi con so ky thuat de xac dinh co ay nghieng ve cuc nao khi bi ap luc.
+          semantic_tuning: Tinh chinh ngu nghia
+        traits:
+          obedience:
+            label: Su phuc tung
+            description: Quyet dinh lieu co ay co xu huong chong doi, tri hoan hay hop tac khi duoc yeu cau hanh dong.
+            left: Bat khuan
+            right: Cuc ky phuc tung
+          liveliness:
+            label: Su song dong
+            description: Quyet dinh cach bieu dat cua co ay giu su tiet che hay tro nen chu dong, huong ngoai va day hien dien.
+            left: Lanh lung va xa cach
+            right: Tran day nang luong
+          sensibility:
+            label: Do nhay cam
+            description: Quyet dinh co ay uu tien phan doan ly tri hay de bi cuon theo cam xuc va bau khong khi hon.
+            left: Ly tri tuyet doi
+            right: Tran ngap cam xuc
+        directives:
+          eyebrow: So thich dong hanh
+          title: Ban muon co ay dong hanh cung minh nhu the nao?
+          description: Hay mo ta cach noi chuyen, ranh gioi, muc do chu dong va cach quan tam ma ban muon co ay duy tri trong dai han. Muc nay phu hop hon voi so thich on dinh, khong phai nhiem vu nhat thoi.
+          badge: Dai han
+          placeholder: Vi du: Hay nhe nhang hon va dung giang giai nhieu qua; khi toi buon hay an ui truoc roi moi dua loi khuyen; co the chu dong nhac toi nghi ngoi va an uong, nhung dung thuc ep.
+        memory_echo:
+          eyebrow: Du am ky uc
+          title: Du am ky uc
+          description: Hien thi chi doc cac ky uc da lang xuong sau Dreaming. Chu nhan khong the viet lai hai ma tu day.
+          expand: Mo hanh lang
+          empty: Co ay van chua de lai ky uc du ro rang. Dreaming se de no lang xuong dan trong nen.
+        save:
+          saving: Dang khac linh hon...
+          idle: Khac nhan cach vao SOUL
+      creation:
+        title_edit: Chinh sua lien ket the
+        title_create: Tao the Alicization
+        tabs:
+          shell: Vo the
+          modules: Lien ket mo dun
+          runtime: Van hanh
+          persona: Nhan cach
+        shell:
+          description: Chi duoc dung de nhan dien va hien thi the. No khong duoc tiem vao qua trinh suy luan nhan cach cua Alicization.
+          fields:
+            card_name:
+              label: ID the
+              description: Dung de phan biet cac the Alicization khac nhau.
+            card_version:
+              label: Phien ban the
+              description: Phien ban vo, vi du 1.0.0.
+            card_description:
+              label: Mo ta the
+              description: Chi dung de hien thi trong danh sach va khong bao gio duoc tiem vao nhan cach hay chat.
+            card_notes:
+              label: Ghi chu bao tri
+              description: Ghi lai muc dich su dung hoac boi canh bao tri cua the nay. Khong bat buoc.
+        errors:
+          owner_name_required: Ten chu nhan trong cai dat nhan cach khong duoc de trong.
+          host_name_required: Cach co ay goi chu nhan trong cai dat nhan cach khong duoc de trong.
+          alicization_name_required: Ten Alicization trong cai dat nhan cach khong duoc de trong.
+          relationship_required: Moi quan he trong cai dat nhan cach khong duoc de trong.
+          gender_custom_required: Can co mo ta gioi tinh tuy chinh khi chon gioi tinh tuy chinh.
+          genesis_conflict: Khoi tao Alicization bi xung dot. Vui long thu lai.
+          save_failed: Khong the luu the Alicization.
+      actions:
+        edit_modules: Chinh sua lien ket the
   memory:
     description: Nơi lưu trữ và tổ chức ký ức
     title: Bộ nhớ
