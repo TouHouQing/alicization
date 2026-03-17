@@ -349,6 +349,25 @@ Si vous comptez contribuer du code, commencez par comprendre les limites de conc
 - Préférez des couches d'adaptation Alicization et des modules incrémentaux à une intrusion profonde dans le cœur amont d'AIRI.
 - **Ne modifiez pas `appId` ni les noms de packages workspace**. Ce dépôt doit conserver un chemin de synchronisation durable avec l'amont.
 
+### Recrutement
+
+Nous cherchons activement des personnes qui veulent construire Alicization avec nous. En ce moment, nous recherchons surtout :
+
+- des illustrateurs et riggers Live2D
+- des artistes VRM et modeleurs de personnages
+- des designers UI
+- des product managers orientés agent
+- des développeurs frontend
+- des développeurs backend
+
+Si vous souhaitez nous rejoindre, contactez-moi via l'un de ces canaux et merci de préciser votre intention :
+
+- QQ : `896985966`
+- Groupe QQ : `1090598041`
+- WeChat : `tohoqing`
+- Telegram : `tohoqing`
+- X : `TouHouQing`
+
 ### Validation
 
 Après vos modifications, exécutez au minimum :

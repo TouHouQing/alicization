@@ -345,6 +345,25 @@ If you plan to contribute code, understand the design boundaries first.
 - Prefer Alicization adapter layers and incremental modules over deeply invading the upstream AIRI core.
 - **Do not change `appId` or workspace package names**. This repository needs to keep a sustainable upstream sync path.
 
+### Recruiting
+
+We are actively looking for people who want to help build Alicization in public. Right now, we are especially interested in:
+
+- Live2D illustrators and rig artists
+- VRM artists and character modelers
+- UI designers
+- Agent product managers
+- Frontend developers
+- Backend developers
+
+If you want to join, reach out through any of these channels and please mention your intent:
+
+- QQ: `896985966`
+- QQ Group: `1090598041`
+- WeChat: `tohoqing`
+- Telegram: `tohoqing`
+- X: `TouHouQing`
+
 ### Validation
 
 After finishing changes, at minimum run:

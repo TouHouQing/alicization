@@ -349,6 +349,25 @@ Nếu bạn định đóng góp mã, hãy hiểu các ranh giới thiết kế t
 - Ưu tiên lớp thích ứng Alicization và module tăng dần, thay vì xâm nhập sâu vào lõi AIRI upstream.
 - **Không được đổi `appId` hay tên package của workspace**. Repo này cần giữ được đường đồng bộ bền vững với upstream.
 
+### Tuyển cộng tác viên
+
+Chúng tôi đang chủ động tìm người muốn cùng xây Alicization. Những vai trò đang cần nhất lúc này là:
+
+- họa sĩ / rigger Live2D
+- nghệ sĩ VRM / người dựng model nhân vật
+- UI designer
+- product manager cho mảng agent
+- frontend developer
+- backend developer
+
+Nếu bạn muốn tham gia, hãy liên hệ qua một trong các kênh dưới đây và nhớ ghi rõ mục đích liên hệ:
+
+- QQ: `896985966`
+- Nhóm QQ: `1090598041`
+- WeChat: `tohoqing`
+- Telegram: `tohoqing`
+- X: `TouHouQing`
+
 ### Xác thực
 
 Sau khi hoàn tất thay đổi, tối thiểu hãy chạy:

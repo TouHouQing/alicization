@@ -349,6 +349,25 @@ Project Alicization은 [`xsai`](https://github.com/moeru-ai/xsai) 를 통해 여
 - 상류 AIRI 코어를 깊게 파고들기보다 Alicization 적응 계층과 점진적 모듈을 우선하세요.
 - **`appId` 와 workspace package 이름은 바꾸지 마세요**. 이 저장소에는 상류와 지속적으로 동기화할 수 있는 경로가 필요합니다.
 
+### 모집 중
+
+Alicization 을 함께 만들어 갈 사람을 찾고 있습니다. 특히 지금은 아래 역할을 우선적으로 모집하고 있습니다.
+
+- Live2D 일러스트레이터 / 리거
+- VRM 아티스트 / 캐릭터 모델러
+- UI 디자이너
+- Agent 프로덕트 매니저
+- 프론트엔드 개발자
+- 백엔드 개발자
+
+함께하고 싶다면 아래 채널 중 편한 곳으로 연락해 주세요. 연락할 때는 어떤 이유로 오는지 꼭 남겨 주세요.
+
+- QQ: `896985966`
+- QQ 그룹: `1090598041`
+- WeChat: `tohoqing`
+- Telegram: `tohoqing`
+- X: `TouHouQing`
+
 ### 검증
 
 변경 후 최소한 다음을 실행하세요.

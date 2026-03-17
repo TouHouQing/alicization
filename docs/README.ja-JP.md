@@ -349,6 +349,25 @@ Project Alicization は [`xsai`](https://github.com/moeru-ai/xsai) を使って�
 - 上流 AIRI コアへ深く侵入するより、Alicization の適応層と増分モジュールを優先してください。
 - **`appId` と workspace package 名は変更しないでください**。このリポジトリには、上流との持続可能な同期経路が必要です。
 
+### 募集中
+
+Alicization を一緒に育てていきたい人を募集しています。特に今ほしいのは次のような仲間です。
+
+- Live2D イラストレーター / リガー
+- VRM アーティスト / キャラクターモデラー
+- UI デザイナー
+- Agent プロダクトマネージャー
+- フロントエンド開発者
+- バックエンド開発者
+
+興味があれば、次のいずれかの連絡先から連絡してください。来意をひと言添えてもらえると助かります。
+
+- QQ: `896985966`
+- QQ グループ: `1090598041`
+- WeChat: `tohoqing`
+- Telegram: `tohoqing`
+- X: `TouHouQing`
+
 ### 検証
 
 変更後は少なくとも次を実行してください。
@@ -381,4 +400,3 @@ pnpm lint:fix
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=touhouqing/alicization&type=Date)](https://www.star-history.com/#touhouqing/alicization&Date)
-

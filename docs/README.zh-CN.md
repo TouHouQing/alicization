@@ -349,6 +349,25 @@ Project Alicization 通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入多�
 - 优先新增 Alicization 适配层与增量模块，避免深度侵入上游 AIRI 核心。
 - **不要修改 `appId` 与 workspace 包名**；这个仓库需要保持可持续同步上游的能力。
 
+### 招募
+
+如果你想一起把 Alicization 做出来，现在我们正在认真招募这些方向的伙伴：
+
+- Live2D 画师 / 绑骨师
+- VRM 角色模型师
+- UI 设计师
+- Agent 产品经理
+- 前端开发
+- 后端开发
+
+如果你有兴趣加入，欢迎通过下面任一渠道联系我，记得备注来意：
+
+- QQ：`896985966`
+- QQ 群：`1090598041`
+- 微信：`tohoqing`
+- Telegram：`tohoqing`
+- X：`TouHouQing`
+
 ### Validation
 
 完成改动后，至少运行：
