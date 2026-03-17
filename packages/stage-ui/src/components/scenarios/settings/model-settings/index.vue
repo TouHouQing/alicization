@@ -1,18 +1,22 @@
 <script setup lang="ts">
+import type { VrmActionBinding } from '@proj-airi/stage-ui-three'
+
 import type { DisplayModel } from '../../../../stores/display-models'
 
 import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
+import { builtinActionBindings } from '@proj-airi/stage-ui-three/assets/vrm'
 import { Button, Callout } from '@proj-airi/ui'
 import { useMouse } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import Live2D from './live2d.vue'
 import VRM from './vrm.vue'
 
 import { DisplayModelFormat } from '../../../../stores/display-models'
 import { useSettings } from '../../../../stores/settings'
+import { isVrmCustomExpressionConfigured, useStagePerformanceStore } from '../../../../stores/stage-performance'
 import { ModelSelectorDialog } from '../../dialogs/model-selector'
 
 const props = defineProps<{
@@ -28,8 +32,10 @@ defineEmits<{
 }>()
 
 const modelSelectorOpen = ref(false)
+const resolvedVrmExternalAnimations = ref<VrmActionBinding[]>([])
 const positionCursor = useMouse()
 const settingsStore = useSettings()
+const stagePerformanceStore = useStagePerformanceStore()
 const { scale: live2dScale } = storeToRefs(useLive2d())
 const {
   live2dDisableFocus,
@@ -55,6 +61,52 @@ async function handleModelPick(selectedModel: DisplayModel | undefined) {
   if (selectedModel?.format === DisplayModelFormat.Live2dZip)
     useLive2d().shouldUpdateView()
 }
+
+function handleVrmCustomExpressionsResolved(names: string[]) {
+  if (!stageModelSelected.value)
+    return
+
+  stagePerformanceStore.setVrmCustomExpressionNames(stageModelSelected.value, names)
+}
+
+async function refreshResolvedVrmExternalAnimations() {
+  if (stageModelRenderer.value !== 'vrm' || !stageModelSelected.value) {
+    resolvedVrmExternalAnimations.value = []
+    return
+  }
+
+  resolvedVrmExternalAnimations.value = await stagePerformanceStore.resolveVrmExternalAnimations(stageModelSelected.value, {
+    configuredOnly: true,
+  })
+}
+
+const currentStoredVrmExternalAnimations = computed(() => {
+  return stagePerformanceStore.listVrmExternalAnimations(stageModelSelected.value)
+})
+
+watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimations], async () => {
+  await refreshResolvedVrmExternalAnimations()
+}, { immediate: true, deep: true })
+
+const currentVrmCustomExpressionBindings = computed(() => {
+  const scanned = new Set(stagePerformanceStore.listVrmCustomExpressionNames(stageModelSelected.value))
+  return stagePerformanceStore.listVrmCustomExpressions(stageModelSelected.value)
+    .filter(item => scanned.has(item.expressionName))
+})
+
+const currentVrmManifestCustomExpressionBindings = computed(() => {
+  return currentVrmCustomExpressionBindings.value.filter(item => isVrmCustomExpressionConfigured(item))
+})
+
+const currentVrmActionBindings = computed(() => {
+  if (stageModelRenderer.value !== 'vrm')
+    return []
+
+  return [
+    ...builtinActionBindings,
+    ...resolvedVrmExternalAnimations.value,
+  ]
+})
 </script>
 
 <template>
@@ -85,11 +137,13 @@ async function handleModelPick(selectedModel: DisplayModel | undefined) {
     </div>
     <Live2D
       v-if="stageModelRenderer === 'live2d'"
+      :model-id="stageModelSelected"
       :palette="palette"
       @extract-colors-from-model="$emit('extractColorsFromModel')"
     />
     <VRM
       v-if="stageModelRenderer === 'vrm'"
+      :model-id="stageModelSelected"
       :palette="palette"
       @extract-colors-from-model="$emit('extractColorsFromModel')"
     />
@@ -116,7 +170,13 @@ async function handleModelPick(selectedModel: DisplayModel | undefined) {
   <!-- VRM component for 3D stage view -->
   <template v-if="stageModelRenderer === 'vrm'">
     <div :class="[...(props.vrmSceneClass ? (typeof props.vrmSceneClass === 'string' ? [props.vrmSceneClass] : props.vrmSceneClass) : [])]">
-      <ThreeScene :model-src="stageModelSelectedUrl" />
+      <ThreeScene
+        :custom-expression-bindings="currentVrmManifestCustomExpressionBindings"
+        :action-bindings="currentVrmActionBindings"
+        :model-id="stageModelSelected"
+        :model-src="stageModelSelectedUrl"
+        @custom-expressions-resolved="handleVrmCustomExpressionsResolved"
+      />
     </div>
   </template>
 </template>

@@ -1,7 +1,7 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
-  AlicizationEmotion,
 } from './alicization-bridge'
 
 import { defineStore } from 'pinia'
@@ -13,11 +13,11 @@ type DialogueListener = (payload: AlicizationDialogueRespondedPayload) => void
 type PresenceAuditLogger = (input: AlicizationAuditLogInput) => Promise<void> | void
 
 export interface AlicizationPresenceLive2DController {
-  playEmotion: (emotion: AlicizationEmotion, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
+  applyPerformance: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
 }
 
 export interface AlicizationPresenceTTSController {
-  speak: (reply: string, emotion: AlicizationEmotion, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
+  speak: (reply: string, performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
 }
 
 const maxRememberedTurnIds = 512
@@ -73,6 +73,11 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       structured: {
         ...payload.structured,
         emotion: normalizedEmotion.emotion,
+        performance: {
+          ...payload.structured.performance,
+          baseEmotion: normalizedEmotion.emotion,
+          emotion: normalizedEmotion.emotion,
+        },
         rawEmotion: normalizedEmotion.downgraded
           ? normalizedEmotion.rawEmotion
           : payload.structured.rawEmotion,
@@ -95,7 +100,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       dispatchTasks.push({
         target: 'live2d',
         promise: Promise.resolve(
-          live2dController.value.playEmotion(normalizedPayload.structured.emotion, normalizedPayload),
+          live2dController.value.applyPerformance(normalizedPayload.structured.performance, normalizedPayload),
         ),
       })
     }
@@ -103,7 +108,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       dispatchTasks.push({
         target: 'tts',
         promise: Promise.resolve(
-          ttsController.value.speak(normalizedPayload.structured.reply ?? '', normalizedPayload.structured.emotion, normalizedPayload),
+          ttsController.value.speak(normalizedPayload.structured.reply ?? '', normalizedPayload.structured.performance, normalizedPayload),
         ),
       })
     }

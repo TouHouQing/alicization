@@ -8,6 +8,7 @@
 
 import type { VRM } from '@pixiv/three-vrm'
 import type {
+  AnimationAction,
   Group,
   Object3D,
   PerspectiveCamera,
@@ -20,6 +21,11 @@ import type { Ref, WatchStopHandle } from 'vue'
 
 import type { SceneBootstrap, Vec3 } from '../../stores/model-store'
 import type { VrmLifecycleReason } from '../../trace'
+import type {
+  VrmActionBinding,
+  VrmCustomExpressionBinding,
+  VrmRuntimeCapabilitySnapshot,
+} from '../../types/performance'
 import type { ManagedVrmInstance } from './vrm-instance-cache'
 
 import { VRMUtils } from '@pixiv/three-vrm'
@@ -28,6 +34,7 @@ import { until, useMouse } from '@vueuse/core'
 import {
   AnimationMixer,
   Box3,
+  LoopOnce,
   MathUtils,
   Mesh,
   MeshPhysicalMaterial,
@@ -66,6 +73,13 @@ import {
   useBlink,
   useIdleEyeSaccades,
 } from '../../composables/vrm/animation'
+import {
+  normalizeVrmExpressionName,
+  resolveVrmBaseExpressionName,
+  resolveVrmPresetFacialCapability,
+  supportsVrmVisemeLipSync,
+  vrmStandardExpressionNames,
+} from '../../composables/vrm/capabilities'
 import { loadVrm } from '../../composables/vrm/core'
 import { useVRMEmote } from '../../composables/vrm/expression'
 import { useVRMLipSync } from '../../composables/vrm/lip-sync'
@@ -100,7 +114,10 @@ import {
 */
 const props = withDefaults(defineProps<{
   currentAudioSource?: AudioBufferSourceNode
+  customExpressionBindings?: VrmCustomExpressionBinding[]
+  actionBindings?: VrmActionBinding[]
   modelSrc?: string
+  modelId?: string
   idleAnimation: string
   // loadAnimations?: string[]
   paused?: boolean
@@ -132,6 +149,8 @@ const emit = defineEmits<{
   (e: 'loadStart'): void
   (e: 'sceneBootstrap', value: SceneBootstrap): void
   (e: 'lookAtTarget', value: Vec3): void
+  (e: 'customExpressionsResolved', value: string[]): void
+  (e: 'runtimeCapabilitiesResolved', value: VrmRuntimeCapabilitySnapshot): void
 
   (e: 'error', value: unknown): void
   (e: 'loaded', value: string): void
@@ -139,6 +158,8 @@ const emit = defineEmits<{
 
 const {
   currentAudioSource,
+  customExpressionBindings,
+  actionBindings,
   modelSrc,
   idleAnimation,
   // loadAnimations, // TBC
@@ -174,11 +195,25 @@ let stopCameraWatch: WatchStopHandle | undefined
 
 // Animation related ref
 const vrmAnimationMixer = ref<AnimationMixer>()
+const idleClipAction = ref<AnimationAction>()
+const transientClipAction = ref<AnimationAction>()
+const transientCleanup = ref<(() => void) | undefined>()
+const customExpressionNames = ref<string[]>([])
 const { onBeforeRender, stop, start } = useLoop()
 
 type VrmFrameHook = (vrm: VRM, delta: number) => void
 const vrmFrameHook = shallowRef<VrmFrameHook>()
 let disposeBeforeRenderLoop: (() => void | undefined) | undefined
+const lastDialoguePerformance = shallowRef<DialoguePerformanceInput | null>(null)
+
+const internalMouthShadowPrefix = '__airi_internal_mouth__'
+
+interface DialoguePerformanceInput {
+  baseEmotion: string
+  facialCue?: string | null
+  actionCue?: string | null
+  emphasis?: number
+}
 
 // Expressions
 const blink = useBlink()
@@ -276,12 +311,16 @@ function getActiveManagedVrmInstance() {
   return createManagedVrmInstance({
     emote: vrmEmote.value,
     group: vrmGroup.value,
+    idleAction: idleClipAction.value,
     mixer: vrmAnimationMixer.value,
     vrm: vrm.value,
   })
 }
 
 function clearActiveManagedVrmRefs() {
+  idleClipAction.value = undefined
+  transientClipAction.value = undefined
+  transientCleanup.value = undefined
   vrmAnimationMixer.value = undefined
   vrmEmote.value = undefined
   vrm.value = undefined
@@ -291,6 +330,7 @@ function clearActiveManagedVrmRefs() {
 function applyManagedVrmInstance(instance: ManagedVrmInstance) {
   vrm.value = instance.vrm
   vrmGroup.value = instance.group
+  idleClipAction.value = instance.idleAction
   vrmAnimationMixer.value = instance.mixer
   vrmEmote.value = instance.emote
 }
@@ -300,6 +340,7 @@ function destroyManagedVrmInstance(instance?: ManagedVrmInstance) {
     return
 
   instance.emote.dispose()
+  instance.idleAction?.stop()
   instance.mixer.stopAllAction()
   disposeDetachedVrm(instance.vrm, instance.group)
 }
@@ -353,14 +394,16 @@ function bindManagedVrmInstanceRenderLoop() {
       activeVrm?.lookAt?.update?.(delta)
     })
     const blinkAndSaccadeMs = measureFrameStep(tracingEnabled, () => {
-      blink.update(activeVrm, delta)
+      const blinkResult = blink.update(delta)
+      vrmEmote.value?.setBlinkWeights(blinkResult.weights)
       idleEyeSaccades.update(activeVrm, lookAtTarget, delta)
+    })
+    const lipSyncMs = measureFrameStep(tracingEnabled, () => {
+      const result = vrmLipSync.update(delta)
+      vrmEmote.value?.setVisemeWeights(result.weights, result.active)
     })
     const emoteMs = measureFrameStep(tracingEnabled, () => {
       vrmEmote.value?.update(delta)
-    })
-    const lipSyncMs = measureFrameStep(tracingEnabled, () => {
-      vrmLipSync.update(activeVrm, delta)
     })
     const expressionMs = measureFrameStep(tracingEnabled, () => {
       activeVrm?.expressionManager?.update()
@@ -392,6 +435,8 @@ function commitManagedVrmInstance(instance: ManagedVrmInstance) {
   scene.value?.add(instance.group)
   applyManagedVrmInstance(instance)
   bindManagedVrmInstanceRenderLoop()
+  emitCustomExpressionsResolved(instance.vrm)
+  emitRuntimeCapabilitiesResolved(instance.vrm)
   emit('loaded', modelSrc.value!)
   modelLoaded.value = true
 }
@@ -443,6 +488,9 @@ function componentCleanUp(
   airiIblProbe?.dispose()
   airiIblProbe = null
   clearActiveManagedVrmRefs()
+  customExpressionNames.value = []
+  emit('customExpressionsResolved', [])
+  emitRuntimeCapabilitiesResolved()
   modelLoaded.value = false
 
   if (hasCleanupWork && isStageThreeRuntimeTraceEnabled()) {
@@ -455,6 +503,181 @@ function componentCleanUp(
       ts: performance.now(),
     })
   }
+}
+
+function resolveCustomExpressionNames(activeVrm?: VRM) {
+  return Object.keys(activeVrm?.expressionManager?.expressionMap ?? {})
+    .filter((name) => {
+      const normalizedName = normalizeExpressionName(name).toLowerCase()
+      return normalizedName
+        && !normalizedName.startsWith(internalMouthShadowPrefix)
+        && !vrmStandardExpressionNames.has(normalizedName)
+    })
+    .sort((left, right) => left.localeCompare(right))
+}
+
+function emitCustomExpressionsResolved(activeVrm?: VRM) {
+  const nextNames = resolveCustomExpressionNames(activeVrm)
+  customExpressionNames.value = nextNames
+  emit('customExpressionsResolved', nextNames)
+}
+
+function buildRuntimeCapabilitySnapshot(activeVrm?: VRM): VrmRuntimeCapabilitySnapshot {
+  const supportedExpressionNames = [...new Set(
+    Object.keys(activeVrm?.expressionManager?.expressionMap ?? {})
+      .map(name => normalizeVrmExpressionName(name))
+      .filter(Boolean),
+  )].sort((left, right) => left.localeCompare(right))
+
+  return {
+    supportedExpressionNames,
+    supportsLookAt: Boolean(activeVrm?.lookAt),
+    supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
+    supportsMicroDynamics: false,
+  }
+}
+
+function emitRuntimeCapabilitiesResolved(activeVrm?: VRM) {
+  emit('runtimeCapabilitiesResolved', buildRuntimeCapabilitySnapshot(activeVrm))
+}
+
+function normalizeExpressionName(raw: unknown) {
+  return typeof raw === 'string' ? raw.trim() : ''
+}
+
+function resolvePerformanceIntensity(input: DialoguePerformanceInput) {
+  const emphasis = Number.isFinite(input.emphasis) ? Number(input.emphasis) : 0
+  if (emphasis >= 2)
+    return 1
+  if (emphasis >= 1)
+    return 0.85
+  return 0.7
+}
+
+function hasConfiguredCapabilityText(value: unknown) {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function isConfiguredCustomExpressionBinding(binding?: VrmCustomExpressionBinding | null) {
+  return Boolean(
+    binding
+    && hasConfiguredCapabilityText(binding.expressionName)
+    && hasConfiguredCapabilityText(binding.facialKey)
+    && hasConfiguredCapabilityText(binding.label)
+    && hasConfiguredCapabilityText(binding.description),
+  )
+}
+
+function resolveConfiguredCustomExpressionBinding(facialCue?: string | null) {
+  const normalizedCue = typeof facialCue === 'string' ? facialCue.trim() : ''
+  if (!normalizedCue)
+    return undefined
+
+  return (customExpressionBindings.value ?? [])
+    .find(item => isConfiguredCustomExpressionBinding(item) && item.facialKey === normalizedCue)
+}
+
+function clearTransientAnimation() {
+  transientCleanup.value?.()
+  transientCleanup.value = undefined
+  transientClipAction.value?.stop()
+  transientClipAction.value = undefined
+}
+
+function replayIdleAnimation() {
+  clearTransientAnimation()
+  idleClipAction.value?.reset()
+  idleClipAction.value?.fadeIn(0.18)
+  idleClipAction.value?.play()
+}
+
+async function playActionBinding(binding: VrmActionBinding) {
+  const activeVrm = vrm.value
+  const mixer = vrmAnimationMixer.value
+  if (!activeVrm || !mixer)
+    return
+
+  if (binding.source === 'builtin' && binding.actionKey === 'settle_idle') {
+    replayIdleAnimation()
+    return
+  }
+
+  if (!binding.file)
+    return
+
+  clearTransientAnimation()
+
+  const animation = await loadVRMAnimation(binding.file)
+  const clip = await clipFromVRMAnimation(activeVrm, animation)
+  if (!clip)
+    return
+
+  reAnchorRootPositionTrack(clip, activeVrm)
+  const action = mixer.clipAction(clip)
+  transientClipAction.value = action
+  action.reset()
+  action.setLoop(LoopOnce, 1)
+  action.clampWhenFinished = false
+  action.play()
+  idleClipAction.value?.crossFadeTo(action, 0.18, false)
+  let cleanup: (() => void) | undefined
+
+  const handleFinished = (event: { action: AnimationAction, direction: number }) => {
+    if (event.action !== action)
+      return
+
+    mixer.removeEventListener('finished', handleFinished)
+    action.fadeOut(0.18)
+    idleClipAction.value?.reset()
+    idleClipAction.value?.fadeIn(0.18)
+    idleClipAction.value?.play()
+    action.stop()
+    mixer.uncacheClip(clip)
+    if (transientClipAction.value === action)
+      transientClipAction.value = undefined
+    if (transientCleanup.value === cleanup)
+      transientCleanup.value = undefined
+  }
+
+  cleanup = () => {
+    mixer.removeEventListener('finished', handleFinished)
+    try {
+      action.stop()
+    }
+    catch {}
+    mixer.uncacheClip(clip)
+  }
+
+  transientCleanup.value = cleanup
+  mixer.addEventListener('finished', handleFinished)
+}
+
+function applyDialogueExpression(input: DialoguePerformanceInput) {
+  const emote = vrmEmote.value
+  if (!emote)
+    return
+
+  const intensity = resolvePerformanceIntensity(input)
+  emote.setEmotion(resolveVrmBaseExpressionName(input.baseEmotion), intensity)
+
+  const customBinding = resolveConfiguredCustomExpressionBinding(input.facialCue)
+  if (customBinding) {
+    emote.setFacialCue(customBinding.expressionName, intensity, { affectsMouth: customBinding.affectsMouth })
+  }
+  else {
+    const presetBinding = resolveVrmPresetFacialCapability(input.facialCue)
+    emote.setFacialCue(presetBinding?.expressionName ?? null, intensity, { affectsMouth: presetBinding?.affectsMouth === true })
+  }
+}
+
+async function applyDialoguePerformance(input: DialoguePerformanceInput) {
+  lastDialoguePerformance.value = { ...input }
+  applyDialogueExpression(input)
+
+  const actionBinding = (actionBindings.value ?? [])
+    .find(item => item.actionKey === input.actionCue)
+  if (actionBinding)
+    await playActionBinding(actionBinding)
 }
 
 // look at mouse
@@ -679,7 +902,8 @@ async function loadModel() {
 
     // play animation
     nextVrmAnimationMixer = new AnimationMixer(_vrm.scene)
-    nextVrmAnimationMixer.clipAction(clip).play()
+    idleClipAction.value = nextVrmAnimationMixer.clipAction(clip)
+    idleClipAction.value.play()
 
     nextVrmEmote = useVRMEmote(_vrm)
 
@@ -746,6 +970,7 @@ async function loadModel() {
     commitManagedVrmInstance(createManagedVrmInstance({
       emote: nextVrmEmote,
       group: _vrmGroup,
+      idleAction: idleClipAction.value,
       mixer: nextVrmAnimationMixer,
       vrm: _vrm,
     }))
@@ -885,6 +1110,13 @@ onMounted(async () => {
   watch(lookAtTarget, (newTarget) => {
     idleEyeSaccades.instantUpdate(vrm.value, newTarget)
   }, { deep: true })
+
+  watch(customExpressionBindings, () => {
+    if (!lastDialoguePerformance.value)
+      return
+
+    applyDialogueExpression(lastDialoguePerformance.value)
+  }, { deep: true })
 })
 
 onUnmounted(() => {
@@ -901,6 +1133,18 @@ if (import.meta.hot) {
 defineExpose({
   setExpression(expression: string, intensity = 1) {
     vrmEmote.value?.setEmotionWithResetAfter(expression, 3000, intensity)
+  },
+  async applyPerformance(performance: DialoguePerformanceInput) {
+    await applyDialoguePerformance(performance)
+  },
+  async playActionBinding(binding: VrmActionBinding) {
+    await playActionBinding(binding)
+  },
+  listCustomExpressionNames() {
+    return [...customExpressionNames.value]
+  },
+  getRuntimeCapabilities() {
+    return buildRuntimeCapabilitySnapshot(vrm.value)
   },
   setVrmFrameHook(hook?: VrmFrameHook) {
     vrmFrameHook.value = hook

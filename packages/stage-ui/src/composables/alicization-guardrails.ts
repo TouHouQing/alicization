@@ -86,9 +86,9 @@ const safeModeRuntimeContractNotice = [
   '[SYSTEM NOTICE] Memory and history are skipped for this turn due to SOUL overflow safe mode.',
   '',
   'Output contract (must-follow, highest priority):',
-  '- Return exactly one strict JSON object with keys: thought, emotion, reply.',
+  '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
   '- No markdown fences, no extra keys, no prose outside JSON.',
-  'Output contract: You must output JSON with { thought, emotion, reply }',
+  'Output contract: You must output JSON with { thought, emotion, reply, performance }',
 ].join('\n')
 
 const defaultSanitizeOptions: Required<SanitizeOptions> = {
@@ -429,7 +429,9 @@ function buildSafeModeSoulAnchor(content: string) {
     `- Personality: obedience=${formatSafeModePercent(obedience)}, liveliness=${formatSafeModePercent(liveliness)}, sensibility=${formatSafeModePercent(sensibility)}`,
     '',
     'Output contract:',
-    '- Return one strict JSON object with keys: thought, emotion, reply.',
+    '- Return one strict JSON object with keys: thought, emotion, reply, performance.',
+    '- emotion must exactly mirror performance.baseEmotion.',
+    '- performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
     '- Never expose tool names, tool parameters JSON, function calls, or secrets.',
     '- If realtime tool evidence is unavailable in current turn, state unavailability once and do not promise waiting.',
   ].join('\n')

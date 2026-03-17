@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { useModelStore } from '@proj-airi/stage-ui-three'
-import { Button, Callout, SelectTab } from '@proj-airi/ui'
+import { Button, Callout, Checkbox, FieldInput, FieldTextArea, InputFile, SelectTab } from '@proj-airi/ui'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import {
+  isVrmCustomExpressionConfigured,
+  isVrmExternalAnimationConfigured,
+  useStagePerformanceStore,
+} from '../../../../stores/stage-performance'
 import { Container, PropertyColor, PropertyNumber, PropertyPoint } from '../../../data-pane'
 import { ColorPalette } from '../../../widgets'
 
-defineProps<{
+const props = defineProps<{
+  modelId?: string
   palette: string[]
 }>()
 
@@ -17,6 +23,8 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const stagePerformanceStore = useStagePerformanceStore()
+const externalAnimationUploadFiles = ref<File[]>([])
 
 const modelStore = useModelStore()
 const {
@@ -73,6 +81,102 @@ const envOptions = computed(() => [
       : 'i-solar:gallery-circle-linear',
   },
 ])
+
+const externalAnimations = computed(() => {
+  if (!props.modelId)
+    return []
+
+  return stagePerformanceStore.listVrmExternalAnimations(props.modelId)
+})
+
+const scannedCustomExpressionNames = computed(() => {
+  if (!props.modelId)
+    return []
+
+  return stagePerformanceStore.listVrmCustomExpressionNames(props.modelId)
+})
+
+const customExpressionBindingsByName = computed(() => {
+  return new Map(
+    props.modelId
+      ? stagePerformanceStore.listVrmCustomExpressions(props.modelId)
+          .map(item => [item.expressionName, item] as const)
+      : [],
+  )
+})
+
+function suggestCapabilityKey(rawName: string) {
+  return rawName
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+    .slice(0, 80)
+}
+
+async function handleExternalAnimationFiles(files: File[]) {
+  if (!props.modelId || files.length === 0)
+    return
+
+  for (const file of files) {
+    if (!file.name.toLowerCase().endsWith('.vrma'))
+      continue
+
+    await stagePerformanceStore.importVrmExternalAnimation(props.modelId, file)
+  }
+
+  externalAnimationUploadFiles.value = []
+}
+
+function updateExternalAnimation(entryId: string, patch: Record<string, unknown>) {
+  if (!props.modelId)
+    return
+
+  void stagePerformanceStore.updateVrmExternalAnimation(props.modelId, entryId, patch)
+}
+
+function removeExternalAnimation(entryId: string) {
+  if (!props.modelId)
+    return
+
+  void stagePerformanceStore.removeVrmExternalAnimation(props.modelId, entryId)
+}
+
+function isExternalAnimationReady(entryId: string) {
+  return externalAnimations.value.some(item => item.id === entryId && isVrmExternalAnimationConfigured(item))
+}
+
+function readCustomExpressionBinding(expressionName: string) {
+  return customExpressionBindingsByName.value.get(expressionName)
+}
+
+function updateCustomExpression(expressionName: string, patch: Record<string, unknown>) {
+  if (!props.modelId)
+    return
+
+  const current = readCustomExpressionBinding(expressionName)
+  stagePerformanceStore.upsertVrmCustomExpression(props.modelId, {
+    expressionName,
+    facialKey: current?.facialKey ?? suggestCapabilityKey(expressionName),
+    label: current?.label ?? '',
+    description: current?.description ?? '',
+    affectsMouth: current?.affectsMouth ?? false,
+    source: 'custom',
+    ...patch,
+  })
+}
+
+function removeCustomExpression(expressionName: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.removeVrmCustomExpression(props.modelId, expressionName)
+}
+
+function isCustomExpressionReady(expressionName: string) {
+  return isVrmCustomExpressionConfigured(readCustomExpressionBinding(expressionName))
+}
 </script>
 
 <template>
@@ -249,5 +353,217 @@ const envOptions = computed(() => [
         {{ t('settings.vrm.scale-and-position.tips') }}
       </div>
     </Callout>
+  </Container>
+  <Container
+    title="External Animations"
+    icon="i-solar:video-frame-play-horizontal-bold-duotone"
+    :class="[
+      'rounded-xl',
+      'bg-white/80  dark:bg-black/75',
+      'backdrop-blur-lg',
+    ]"
+  >
+    <Callout label="Model-side sidecar .vrma pool">
+      <div class="text-sm text-neutral-600 dark:text-neutral-400">
+        Import `.vrma` files for the current VRM model and map each one to an Alicization `actionCue`. Entries stay hidden from Alicization until `Action Key`, `Label`, and `Description` are all filled in.
+      </div>
+    </Callout>
+    <InputFile
+      v-model="externalAnimationUploadFiles"
+      accept=".vrma"
+      multiple
+      @update:model-value="handleExternalAnimationFiles"
+    />
+    <div
+      v-if="externalAnimations.length === 0"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-dashed',
+        'border-neutral-200',
+        'bg-white/40',
+        'p-4',
+        'text-sm',
+        'text-neutral-500',
+        'dark:border-neutral-700',
+        'dark:bg-black/20',
+        'dark:text-neutral-400',
+      ]"
+    >
+      No external `.vrma` animations mapped for this model yet.
+    </div>
+    <div
+      v-for="item in externalAnimations"
+      :key="item.id"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-neutral-200',
+        'bg-white/50',
+        'p-4',
+        'dark:border-neutral-700',
+        'dark:bg-black/25',
+      ]"
+    >
+      <div :class="['mb-3 flex items-center justify-between gap-3']">
+        <div>
+          <div :class="['text-sm font-medium']">
+            {{ item.fileName }}
+          </div>
+          <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+            Imported {{ new Date(item.importedAt).toLocaleString() }}
+          </div>
+        </div>
+        <div :class="['flex items-center gap-2']">
+          <div
+            :class="[
+              'rounded-full',
+              'px-2 py-1 text-xs font-medium',
+              isExternalAnimationReady(item.id)
+                ? 'bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+            ]"
+          >
+            {{ isExternalAnimationReady(item.id) ? 'Exposed to Alicization' : 'Hidden until mapped' }}
+          </div>
+          <Button variant="secondary" size="sm" @click="removeExternalAnimation(item.id)">
+            Remove
+          </Button>
+        </div>
+      </div>
+      <div :class="['grid gap-3 lg:grid-cols-2']">
+        <FieldInput
+          :model-value="item.actionKey"
+          label="Action Key"
+          description="This semantic key is exposed to the LLM as an available actionCue."
+          placeholder="wave"
+          @update:model-value="value => updateExternalAnimation(item.id, { actionKey: value })"
+        />
+        <FieldInput
+          :model-value="item.label"
+          label="Label"
+          description="Human-readable action name shown in the manifest."
+          placeholder="Wave"
+          @update:model-value="value => updateExternalAnimation(item.id, { label: value })"
+        />
+      </div>
+      <FieldTextArea
+        :model-value="item.description"
+        label="Description"
+        description="Briefly describe what this action communicates so Alicization can choose it correctly."
+        placeholder="A friendly hand wave for greeting or light acknowledgment."
+        @update:model-value="value => updateExternalAnimation(item.id, { description: value })"
+      />
+    </div>
+  </Container>
+  <Container
+    title="Custom Expressions"
+    icon="i-solar:mask-happly-bold-duotone"
+    :class="[
+      'rounded-xl',
+      'bg-white/80  dark:bg-black/75',
+      'backdrop-blur-lg',
+    ]"
+  >
+    <Callout label="Semantic unpacking for VRM custom expressions">
+      <div class="text-sm text-neutral-600 dark:text-neutral-400">
+        Standard preset expressions are handled automatically. Only custom expression names scanned from the current model are listed here for manual semantic mapping. Entries stay hidden from Alicization until `Facial Key`, `Label`, and `Description` are all filled in.
+      </div>
+    </Callout>
+    <div
+      v-if="scannedCustomExpressionNames.length === 0"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-dashed',
+        'border-neutral-200',
+        'bg-white/40',
+        'p-4',
+        'text-sm',
+        'text-neutral-500',
+        'dark:border-neutral-700',
+        'dark:bg-black/20',
+        'dark:text-neutral-400',
+      ]"
+    >
+      No custom VRM expressions detected yet. Load the model preview once to populate this list.
+    </div>
+    <div
+      v-for="expressionName in scannedCustomExpressionNames"
+      :key="expressionName"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-neutral-200',
+        'bg-white/50',
+        'p-4',
+        'dark:border-neutral-700',
+        'dark:bg-black/25',
+      ]"
+    >
+      <div :class="['mb-3 flex items-center justify-between gap-3']">
+        <div>
+          <div :class="['text-sm font-medium']">
+            {{ expressionName }}
+          </div>
+          <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+            Raw VRM custom expression name
+          </div>
+        </div>
+        <div :class="['flex items-center gap-2']">
+          <div
+            :class="[
+              'rounded-full',
+              'px-2 py-1 text-xs font-medium',
+              isCustomExpressionReady(expressionName)
+                ? 'bg-lime-100 text-lime-700 dark:bg-lime-500/15 dark:text-lime-300'
+                : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+            ]"
+          >
+            {{ isCustomExpressionReady(expressionName) ? 'Exposed to Alicization' : 'Hidden until mapped' }}
+          </div>
+          <Button variant="secondary" size="sm" @click="removeCustomExpression(expressionName)">
+            Clear Mapping
+          </Button>
+        </div>
+      </div>
+      <div :class="['grid gap-3 lg:grid-cols-2']">
+        <FieldInput
+          :model-value="readCustomExpressionBinding(expressionName)?.facialKey"
+          label="Facial Key"
+          description="Dynamic semantic cue exposed to the LLM as facialCue."
+          :placeholder="suggestCapabilityKey(expressionName)"
+          @update:model-value="value => updateCustomExpression(expressionName, { facialKey: value })"
+        />
+        <FieldInput
+          :model-value="readCustomExpressionBinding(expressionName)?.label"
+          label="Label"
+          description="Human-readable label shown in the manifest."
+          :placeholder="expressionName"
+          @update:model-value="value => updateCustomExpression(expressionName, { label: value })"
+        />
+      </div>
+      <FieldTextArea
+        :model-value="readCustomExpressionBinding(expressionName)?.description"
+        label="Description"
+        description="Describe the visible facial effect so Alicization can choose it deliberately."
+        placeholder="Starry eyes or an exaggerated sparkle effect for strong admiration."
+        @update:model-value="value => updateCustomExpression(expressionName, { description: value })"
+      />
+      <div :class="['mt-3 flex items-center justify-between rounded-lg bg-neutral-100/80 px-3 py-2 dark:bg-neutral-900/60']">
+        <div>
+          <div :class="['text-sm font-medium']">
+            Affects Mouth
+          </div>
+          <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+            Enable this if the custom expression modifies mouth shape and should yield to viseme override while speaking.
+          </div>
+        </div>
+        <Checkbox
+          :model-value="readCustomExpressionBinding(expressionName)?.affectsMouth ?? false"
+          @update:model-value="value => updateCustomExpression(expressionName, { affectsMouth: value })"
+        />
+      </div>
+    </div>
   </Container>
 </template>

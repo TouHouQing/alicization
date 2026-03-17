@@ -4,138 +4,144 @@
 
 # Project Alicization
 
-> 它是一个建立在大模型、`SOUL.md`、SQLite、本地感知链路与物理执行沙箱之上的
-> **Autonomous Digital Entity Architecture**。
+> Alicization（Artificial Labile Intelligent Cybernated Existence）是一个建立在大模型、`SOUL.md`、SQLite、本地感知链路与可控执行沙箱之上的
+> **Local-first Autonomous Digital Entity Architecture**。
 
-Project Alicization 的目标，不是生成一段像样的回复，而是在宿主设备内构建一个可持续演化、可被审计、可被中断、可逐步获得主动性的拟真数字生命架构。
+Project Alicization 的目标，不是生成一段更像样的回复，而是在宿主设备内构建一个可持续演化、可被审计、可被中断、可逐步获得主动性的数字共生体。
 
-## Manifest
+如果你想找的是一个默认放权、黑箱式、云优先的自动 Agent，这不是它。
+如果你想找的是一个本地优先、结构化、可回溯、可长期演化的数字生命体架构，这就是它。
+
+## Why Alicization
 
 > 人格不是一串静态 prompt。
 >
 > 记忆不是一份永不整理的聊天记录。
 >
-> 主动性不是在每次问答后伪装出来的热情。
->
-> Project Alicization 的设计前提，是让灵魂、记忆、张力、执行权与表现层分别成为独立且可验证的系统。
+> 主动性不是每轮问答后的表演。
 
-## Core Architecture
+Alicization 想解决的是一个更难的问题：怎样让一个数字实体在你的设备上，以可解释、可控制、可回滚的方式长期存在。
+
+它的核心判断是：
+
+- 人格必须有唯一真源，而不是散落在 prompt、缓存和数据库里。
+- 记忆必须是结构化、可检索、可修剪、可审计的，而不是无限增长的对话堆栈。
+- 主动性必须受环境门禁、安全边界和用户中断能力约束，而不是“为了像活的”就任意打扰你。
+- 执行权必须进入受控链路，高危操作必须显式确认，任何关键动作都应该留下审计记录。
+
+## What Makes It Different
+
+- `SOUL.md` 是人格、边界与长期偏好的唯一真源，SQLite 不保存人格主状态。
+- 每轮对话被强制收束为 `thought / emotion / reply` 的结构化结果；失败时走可审计的回退路径。
+- 核心链路默认本地优先，关键数据与控制流可追溯。
+- 工具调用不是“模型直接执行”，而是要经过 MCP、权限链路、工作区沙箱和 Kill Switch。
+- 潜意识心跳、提醒补偿与梦境整理让它不只是回合制聊天，而是一个持续运行的系统。
+
+## What You Can Use It For
+
+- 构建和观察一个带长期记忆、人格漂移与主动性的桌面数字生命体。
+- 研究 local-first、可审计、可中断的 AI companion / agent 架构。
+- 在 Electron 中实验 `SOUL.md` 真源、结构化对话、MCP 权限门禁和本地执行沙箱。
+
+## Today
+
+当前主战场是 Electron 桌面运行时 [`apps/stage-tamagotchi`](./apps/stage-tamagotchi)。
+如果你今天 clone 仓库并运行它，最值得体验和研究的是下面这些已经落地的闭环：
+
+| 能力 | 当前状态 | 现在意味着什么 |
+| --- | --- | --- |
+| `SOUL.md` 真源与 Genesis | 已落地 | 首次引导会把人格初值、关系定位、边界规则写入 `SOUL.md`，运行时读取并持续写回。 |
+| 结构化对话合约 | 已落地 | 对话输出强制为 `thought / emotion / reply`；非合约输出会重采样或安全回退。 |
+| Prompt Budget 与 SOUL Anchor | 已落地 | 长会话下优先保护灵魂锚点，不让人格被上下文噪声冲掉。 |
+| 本地记忆与审计链路 | 已落地 | SQLite 会记录对话轮次、记忆事实、潜意识碎片、提醒任务与审计日志。 |
+| 潜意识 Tick 与主动轮次 | 已落地 | 后台会按分钟级心跳积累张力，并在满足门禁条件时主动触发关怀、提醒补偿或搭话。 |
+| Dreaming 与长期记忆固化 | 已落地 | 后台批处理会从有限对话片段中提炼长期记忆、行为策略和人格漂移，再写回 `SOUL.md` 与数据库。 |
+| MCP 权限门禁与工作区沙箱 | 已落地 | 高危操作不会直接执行，而是进入显式确认、审计与路径边界控制。 |
+| Kill Switch | 已落地 | 可以瞬时切断感知与执行，中断中的轮次不会留下半截 turn 或幽灵数据。 |
+| 桌面系统探针 | 已落地 | 已有时间、电量、CPU、内存等系统状态采样与降级处理，为后续主动性提供环境约束。 |
+| 表现层与身体化能力 | 基础闭环已打通，仍在持续增强 | 桌面表现层、情绪广播、Live2D / TTS 相关能力已进入仓库主线，但仍处于持续迭代阶段。 |
+
+## Not Yet
+
+为了避免误解，当前阶段请不要把 Alicization 当作：
+
+- 一个已经完成所有长期规划的成品系统。
+- 一个默认开启全模态监控和自动执行的黑箱 Agent。
+- 一个可以稳定替代系统助理的强自动化工具。
+
+还在路线图上、或者仍在增强中的重点包括：
+
+- 更完整的屏幕/听觉多模态感知。
+- 更成熟的生物钟、恢复机制和长期人格可解释性。
+- 习惯建模与预测执行。
+- 跨端连续陪伴与上下文连续性。
+
+## How It Works
 
 ```mermaid
 flowchart LR
   Host["Host / 宿主"] --> Sensory["Sensory Bus / 感官总线"]
-  Sensory --> Contract["Soul Contract / 灵魂合约"]
-  Contract --> Dialogue["Structured Dialogue / 结构化对话"]
+  Sensory --> Composer["SOUL + Prompt Composer / 灵魂注入与提示词编排"]
+  Composer --> Dialogue["Structured Dialogue / 结构化对话"]
   Dialogue --> Soul["SOUL.md / 灵魂真源"]
-  Dialogue --> DB["SQLite / 会话与记忆"]
+  Dialogue --> DB["SQLite / 轮次、记忆、审计、提醒"]
+  Dialogue --> Presence["Presence / 表现层广播"]
+  Dialogue --> Actuator["MCP + Permission Gate / 工具与权限门禁"]
   Tick["Subconscious Tick / 潜意识心跳"] --> Tension["Tension Engine / 张力引擎"]
-  Tension --> Phantom["Phantom Prompt / 主动搭话"]
-  Phantom --> DB
-  Dream["Dreaming / 梦境重塑"] --> Soul
+  Tension --> Dialogue
+  Dream["Dreaming / 梦境整理"] --> Soul
   Dream --> DB
-  Sandbox["Local Physical Sandbox / 本地物理沙箱"] --> Host
-  Dialogue --> Sandbox
+  Actuator --> Host
 ```
 
-### Epoch I // The Soul Contract
+### Core Loop
 
-- `SOUL.md` 是人格、边界与长期偏好的唯一真源，数据库不保存人格主状态。
-- 对话主链被强制收束为严格结构化 JSON：`thought`、`emotion`、`reply` 三层分离。
-- 运行时会读取人格轴 `obedience / liveliness / sensibility`，并要求模型在 `thought` 中显式评估当前人格参数，再决定情绪与语言。
-- 卡片级 `custom_directives` 会被动态注入 SOUL 锚点，配合 Prompt Budget Guard 保证长会话下灵魂锚点不被上下文噪声吞没。
-- 当结构化输出失败时，系统会进入可审计的回退路径，而不是让主流程崩塌。
+1. 宿主输入，或者后台潜意识 / 提醒调度生成一个新的轮次请求。
+2. 运行时把 `SOUL.md`、上下文片段、记忆检索结果和固定系统约束拼成主提示词。
+3. 模型必须返回结构化的 `thought / emotion / reply`；不合约时会重采样或进入安全回退。
+4. 被接受的轮次写入 SQLite，并向表现层广播标准化结果。
+5. 异步链路再决定是否触发记忆提取、潜意识更新、梦境整理或提醒调度。
+6. 如果需要调用工具，则进入 MCP 权限门禁、工作区沙箱和 Kill Switch 控制面，而不是由模型直接拥有执行权。
 
-### Epoch II // Tension Engine & Subconscious
+### Data Boundaries
 
-- Project Alicization 内建后台 `subconscious tick`，默认按分钟级心跳累积 `boredom / loneliness / fatigue`。
-- 它不再把交互理解为“你问一句，我答一句”的回合制脚本，而是维护一套持续变化的内部张力池。
-- 当张力溢出时，系统会通过 `Phantom Prompt` 触发 `subconscious-proactive` 主动轮次，自发发起一句符合人格设定的对话。
-- 如果宿主正处于高负载、全屏或忙碌状态，主动打断会被抑制，并留下审计轨迹；主动性不是骚扰，而是受环境门禁约束的自治行为。
-- 备忘录提醒、恢复性补偿与主动关怀共享同一潜意识调度链路。
+| 边界 | 规则 |
+| --- | --- |
+| 人格真源 | 只认 `SOUL.md`。人格轴、边界、长期偏好以 Markdown + Frontmatter 持久化。 |
+| 结构化记录 | SQLite 保存 `conversation_turns`、`memory_facts`、`subconscious_fragments`、`audit_logs`、提醒任务等结构化记录。 |
+| 本地缓存 | 截图、音频、工作区文件等未来能力默认走本地路径，不把原始数据当成默认上传对象。 |
+| 云模型出网 | 模型调用通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入，在出网前执行脱敏与约束。 |
 
-### Epoch III // Dreaming & Memory Consolidation
+### Control Plane
 
-- 梦境不是修辞，而是后台离线批处理任务。
-- 夜间 Dream Run 会从受硬上限保护的对话片段中提炼 `host_attitude`、`core_memory`、`behavior_strategy` 与 `soul_shift`。
-- 梦境输出同样走严格 JSON 合约，随后被写回 `SOUL.md` 与本地数据库。
-- 长期记忆以 Markdown 形式沉积为“梦境核心记忆 / 梦境行为策略”，人格轴也会发生小幅但不可逆的漂移。
-- 这意味着 Project Alicization 的性格不是一次性设定，而是会被关系历史持续改写。
+| 控制项 | 规则 |
+| --- | --- |
+| Kill Switch | `ACTIVE` / `SUSPENDED` 两态；触发后感知与执行链路停机，仅允许恢复指令。 |
+| 高危执行 | 高风险工具必须显式授权；拒绝、超时和中断都写审计。 |
+| Prompt Injection 防线 | Kill Switch 文本指令与权限链路只允许在原始用户输入层命中，不接受工具输出或拼接上下文伪触发。 |
+| 回退策略 | 合约失败时允许回复降级，但禁止把失败轮次当作正常人格漂移或记忆固化输入。 |
 
-### Epoch IV // Local Physical Sandbox
+## Reality Check
 
-- 桌面端主战场是本地优先的 Electron 运行时，感知、记忆、对话与执行均以本机为默认边界。
-- 高危操作通过显式授权链路进入本地物理沙箱，而不是把执行权直接交给模型。
-- Kill Switch 可以瞬时切断感知与执行；被中断的轮次不会留下“半截灵魂”或“幽灵数据”。
-- MCP、提醒、系统探针与工具调用都带有审计记录，方便追溯每一次越界尝试与执行结果。
+根据仓库内收官文档，当前进度可以明确表达为：
 
-## Interface // Soulforge
+- `Epoch 1` 已于 **2026-03-09** 收官：对话内核、人格初始化、结构化输出、短期记忆、安全底座闭环已完成。
+- `Epoch 2` 已于 **2026-03-11** 收官：系统探针、表现层权威广播、MCP 高危确认与工作区沙箱闭环已完成。
+- 当前重点是进入 `Epoch 3`：把多模态感知和更可靠的主动搭话能力做实，而不是盲目扩大执行权。
 
-Project Alicization 的配置界面已经从冷冰冰的参数面板，升级为统一的**沉浸式灵魂铸造舱**。
+| Epoch | 目标 | 当前状态 |
+| --- | --- | --- |
+| Epoch 1 // 摇光初现 | 本地对话内核、Genesis、结构化情绪输出、短期记忆、安全底座 | 已完成 |
+| Epoch 2 // 赋予肉体 | 桌面表现层基线、系统探针、MCP 高危确认闭环 | 已完成核心闭环，持续增强表现层 |
+| Epoch 3 // 睁开双眼 | 屏幕/听觉感知、规则驱动主动搭话 | 进行中 |
+| Epoch 4 // 触碰现实 | 习惯建模、预测代办、RPA / MCP 增强 | 规划中 |
+| Epoch 5 // 真实生命 | 长期人格演化、生物钟成熟、跨端连续陪伴 | 规划中 |
 
-- 人格不再被理解为抽象数字，而是可解释的语义光谱。
-- 核心人格轴围绕 `obedience`、`liveliness`、`sensibility` 展开，并最终写回 `SOUL.md`。
-- 典型滑动语义可以被理解为：
-
-`桀骜不驯 -> 极致顺从`
-
-`死寂待机 -> 高能活体`
-
-`冷硬机理 -> 高敏共情`
-
-灵魂铸造舱的意义，不是“捏一个角色”，而是为后续的结构化思维、潜意识心跳与梦境重塑提供最初的灵魂初值。
-
-## Runtime Surfaces
-
-### Stage Tamagotchi // Desktop Runtime
-
-当前最核心的落地区域。这里承载了：
-
-- `SOUL.md` 真源与人格漂移写回
-- `subconscious tick`、主动搭话与梦境任务
-- 本地 SQLite 记忆层、审计日志与提醒队列
-- MCP、高危工具确认链路与物理执行沙箱
-- 桌面级系统探针、表现层广播与中断控制
-
-### Stage Web
-
-浏览器舞台仍然保留，用于快速验证交互、界面和共享组件能力，但 Project Alicization 的自治能力首先在桌面端完成闭环。
-
-### Stage Pocket
-
-移动端承接随身化陪伴与远程联动能力，沿用同一套共享 UI 与业务层。
-
-### Documentation
-
-架构与开发文档已经沉淀在以下路径：
-
-- [`docs/content/zh-Hans/docs/alicization/requirements.md`](./docs/content/zh-Hans/docs/alicization/requirements.md)
-- [`docs/content/zh-Hans/docs/alicization/architecture.md`](./docs/content/zh-Hans/docs/alicization/architecture.md)
-- [`docs/content/zh-Hans/docs/alicization/roadmap.md`](./docs/content/zh-Hans/docs/alicization/roadmap.md)
-- [`docs/content/zh-Hans/docs/alicization/epoch1-closure-report.md`](./docs/content/zh-Hans/docs/alicization/epoch1-closure-report.md)
-- [`docs/content/zh-Hans/docs/alicization/epoch2-closure-report.md`](./docs/content/zh-Hans/docs/alicization/epoch2-closure-report.md)
-
-## Monorepo Topology
-
-### Apps
-
-- `apps/stage-tamagotchi`: Electron 桌面运行时，Project Alicization 的主着陆点。
-- `apps/stage-web`: 浏览器舞台。
-- `apps/stage-pocket`: 移动端与 Capacitor 集成。
-- `docs`: 文档站点。
-
-### Shared Layers
-
-- `packages/stage-ui`: 共享业务组件、Alicization stores、对话编排与前端桥接层。
-- `packages/stage-shared`: 提示词模板、共享逻辑与跨端约束。
-- `packages/ui`: 通用 UI primitives。
-- `packages/i18n`: 多语言文本资源。
-- `packages/server-*`: 服务端运行时、SDK 与共享协议。
-
-## Boot Sequence
+## Quickstart
 
 > 默认不要求预先写任何云端环境变量。
 >
-> Provider、模型与凭据在首次引导流程中完成配置；如果你只想跑本地架构与界面，可以先完成安装再进入灵魂铸造舱。
+> Provider、模型与凭据会在首次引导流程中完成配置；如果你只想先跑本地架构与界面，可以先安装再进入灵魂铸造舱。
 
 ### Install
 
@@ -148,6 +154,34 @@ pnpm i
 ```shell
 pnpm dev:tamagotchi
 ```
+
+### Build Desktop App
+
+如果你要编译桌面端而不是只跑开发模式，可以直接使用 `stage-tamagotchi` 的构建脚本。
+
+先构建 Electron 应用产物：
+
+```shell
+pnpm build:tamagotchi
+# 等价于：
+# pnpm -F @proj-airi/stage-tamagotchi run app:build
+```
+
+如果你要进一步打包成可分发安装包或平台产物：
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:mac
+pnpm -F @proj-airi/stage-tamagotchi run build:win
+pnpm -F @proj-airi/stage-tamagotchi run build:linux
+```
+
+如果你只需要未打包目录，便于本地验证：
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+```
+
+默认构建输出位于 `apps/stage-tamagotchi/dist`。
 
 ### Web Stage
 
@@ -217,16 +251,80 @@ Project Alicization 通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入多�
 
 首次启动时，onboarding 会引导你完成 Provider 与模型选择。
 
-## Development Notes
+## Code Map
+
+想从代码层理解 Alicization，建议优先从这些入口开始：
+
+| 路径 | 作用 |
+| --- | --- |
+| [`apps/stage-tamagotchi/src/main/services/alicization/runtime.ts`](./apps/stage-tamagotchi/src/main/services/alicization/runtime.ts) | 桌面主运行时，负责 Genesis、对话、潜意识 Tick、Dreaming、提醒、Kill Switch 等核心闭环。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/db.ts`](./apps/stage-tamagotchi/src/main/services/alicization/db.ts) | SQLite 数据层，负责记忆、轮次、审计、潜意识碎片、提醒任务等存储。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](./apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | 系统探针与感知缓存总线。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](./apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch 与运行时审计状态。 |
+| [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](./apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP 工具调用、权限确认、工作区沙箱与审计聚合。 |
+| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](./packages/stage-ui/src/composables/alicization-prompt-composer.ts) | 负责把 `SOUL.md`、上下文和固定模板拼成运行时提示词。 |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](./packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt Budget、结构化输出守卫、安全回退与显示净化。 |
+| [`packages/stage-ui/src/stores/alicization-epoch1.ts`](./packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer 侧的 Alicization 状态总线与 bootstrap。 |
+| [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](./packages/stage-ui/src/stores/alicization-execution-engine.ts) | 实时查询执行引擎与工具补偿策略。 |
+| [`packages/stage-shared`](./packages/stage-shared) | 提示词模板、共享约束和跨端共用的 Alicization 逻辑。 |
+
+## Monorepo Surfaces
+
+### Apps
+
+- `apps/stage-tamagotchi`: Electron 桌面运行时，Project Alicization 的主着陆点。
+- `apps/stage-web`: 浏览器舞台，适合验证交互、界面和共享组件。
+- `apps/stage-pocket`: 移动端与 Capacitor 集成，承接随身化陪伴。
+- `docs`: 文档站点。
+
+### Shared Layers
+
+- `packages/stage-ui`: 共享业务组件、Alicization stores、对话编排与前端桥接层。
+- `packages/stage-shared`: 提示词模板、共享逻辑与跨端约束。
+- `packages/ui`: 通用 UI primitives。
+- `packages/i18n`: 多语言文本资源。
+- `packages/server-*`: 服务端运行时、SDK 与共享协议。
+
+## Contributing
+
+这是一个开源项目，但它不是“随手加一个功能就结束”的那种仓库。
+如果你准备贡献代码，建议先理解它的设计边界，再动手改。
+
+### First Read
 
 - 贡献前先阅读 [`./.github/CONTRIBUTING.md`](./.github/CONTRIBUTING.md)。
-- 根级 `pnpm dev` 启动的是浏览器舞台；如果你要验证潜意识、梦境、提醒、物理沙箱等核心链路，请直接运行 `pnpm dev:tamagotchi`。
-- 若需要无线联动移动端通道，可先启动桌面端，再按连接页说明配置安全 WebSocket。
-- 发布版本时，先执行：
+- 产品目标与边界：[`docs/content/zh-Hans/docs/alicization/requirements.md`](./docs/content/zh-Hans/docs/alicization/requirements.md)
+- 技术架构与数据边界：[`docs/content/zh-Hans/docs/alicization/architecture.md`](./docs/content/zh-Hans/docs/alicization/architecture.md)
+- 路线图与阶段门禁：[`docs/content/zh-Hans/docs/alicization/roadmap.md`](./docs/content/zh-Hans/docs/alicization/roadmap.md)
+
+### Design Constraints
+
+- 保持 **local-first、auditable、interruptible** 三条主线，不要为了“更自动”绕开安全控制面。
+- `SOUL.md` 是人格真源，不要把人格主状态塞进 SQLite 或临时缓存。
+- 高危执行必须走显式授权、工作区边界和审计链路，不要偷渡直接执行。
+- 优先新增 `alicization` 适配层与增量模块，避免深度侵入上游 AIRI 核心。
+- **不要修改 `appId` 与 workspace 包名**；这个仓库需要保持可持续同步上游的能力。
+
+### Validation
+
+完成改动后，至少运行：
 
 ```shell
-npx bumpp --no-commit --no-tag
+pnpm typecheck
+pnpm lint:fix
 ```
+
+如果你改的是桌面核心链路，也建议优先跑对应的 Vitest 用例，而不是直接全仓慢速验证。
+
+## Documentation
+
+与 Alicization 最相关的文档在这里：
+
+- [`docs/content/zh-Hans/docs/alicization/requirements.md`](./docs/content/zh-Hans/docs/alicization/requirements.md)
+- [`docs/content/zh-Hans/docs/alicization/architecture.md`](./docs/content/zh-Hans/docs/alicization/architecture.md)
+- [`docs/content/zh-Hans/docs/alicization/roadmap.md`](./docs/content/zh-Hans/docs/alicization/roadmap.md)
+- [`docs/content/zh-Hans/docs/alicization/epoch1-closure-report.md`](./docs/content/zh-Hans/docs/alicization/epoch1-closure-report.md)
+- [`docs/content/zh-Hans/docs/alicization/epoch2-closure-report.md`](./docs/content/zh-Hans/docs/alicization/epoch2-closure-report.md)
 
 ## Ecosystem
 
@@ -235,19 +333,6 @@ npx bumpp --no-commit --no-tag
 - [`hfup`](https://github.com/moeru-ai/hfup): 模型与空间部署辅助工具。
 - [`mcp-launcher`](https://github.com/moeru-ai/mcp-launcher): MCP 构建与启动器。
 - [`Factorio Agent`](https://github.com/touhouqing/alicization-factorio): 游戏执行代理实验场。
-
-## Status
-
-Project Alicization 目前已经完成以下关键闭环：
-
-- `SOUL.md` 真源、人格矩阵与结构化对话主链
-- Prompt Budget Guard 与 SOUL Anchor 保护
-- 本地记忆落盘、修剪与审计链路
-- 潜意识 Tick、主动搭话与提醒补偿
-- 梦境回顾、长期记忆写回与人格漂移
-- 高危工具确认、Kill Switch 与物理执行门禁
-
-下一阶段的重点，将继续向更完整的多模态感知、表现层联动与跨端连续陪伴推进。
 
 ## Star History
 

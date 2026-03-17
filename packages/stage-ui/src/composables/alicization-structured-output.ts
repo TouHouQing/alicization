@@ -1,3 +1,10 @@
+import type { AlicizationDialoguePerformancePayload } from '../stores/alicization-bridge'
+
+import {
+  normalizeAlicizationEmotion,
+  normalizeAlicizationPerformancePayload,
+} from '../stores/alicization-bridge'
+
 const sentimentLexiconPositive = [
   '谢谢',
   '感谢',
@@ -32,7 +39,7 @@ const emotionToSentiment: Record<string, number> = {
   sad: -0.7,
   angry: -0.8,
   surprised: 0.2,
-  curious: 0.1,
+  thinking: 0,
 }
 
 const jsonRepairMaxChars = 32 * 1024
@@ -282,6 +289,14 @@ function parsePayloadEmotion(payload: Record<string, unknown> | null) {
   if (!payload)
     return undefined
 
+  const nestedPerformance = payload.performance
+  if (nestedPerformance && typeof nestedPerformance === 'object' && !Array.isArray(nestedPerformance)) {
+    const performanceObject = nestedPerformance as Record<string, unknown>
+    const nestedBaseEmotion = performanceObject.baseEmotion
+    if (typeof nestedBaseEmotion === 'string' && nestedBaseEmotion.trim())
+      return nestedBaseEmotion.trim().toLowerCase()
+  }
+
   const direct = payload.emotion
   if (typeof direct === 'string' && direct.trim())
     return direct.trim().toLowerCase()
@@ -293,6 +308,29 @@ function parsePayloadEmotion(payload: Record<string, unknown> | null) {
   }
 
   return undefined
+}
+
+function parsePayloadPerformance(
+  payload: Record<string, unknown> | null,
+  fallbackEmotion: string,
+): AlicizationDialoguePerformancePayload {
+  const normalizedFallbackEmotion = normalizeAlicizationEmotion(fallbackEmotion).emotion
+  if (!payload) {
+    return normalizeAlicizationPerformancePayload(undefined, normalizedFallbackEmotion)
+  }
+
+  const nestedPerformance = payload.performance
+  if (nestedPerformance && typeof nestedPerformance === 'object' && !Array.isArray(nestedPerformance)) {
+    return normalizeAlicizationPerformancePayload(nestedPerformance, normalizedFallbackEmotion)
+  }
+
+  return normalizeAlicizationPerformancePayload({
+    baseEmotion: payload.baseEmotion ?? payload.emotion,
+    facialCue: payload.facialCue,
+    actionCue: payload.actionCue,
+    delivery: payload.delivery,
+    emphasis: payload.emphasis,
+  }, normalizedFallbackEmotion)
 }
 
 export function parseLastActEmotion(content: string) {
@@ -378,6 +416,7 @@ export interface StructuredOutputResult {
   thought: string
   emotion: string
   reply: string
+  performance: AlicizationDialoguePerformancePayload
   userSentimentScore: number
   sentimentConfidenceRaw?: number
   sentimentConfidence: number
@@ -427,7 +466,8 @@ const structuredEmotionWhitelist = new Set([
   'concerned',
   'tired',
   'apologetic',
-  'processing',
+  'surprised',
+  'thinking',
 ])
 
 const excitedReplyPattern = /非常愉快|超级开心|很开心|好开心|兴奋|激动|太棒|开心呀|[😁😄🥳✨💕]|happy|excited|thrilled|delighted/iu
@@ -575,9 +615,11 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   const reply = getString(payload, ['reply'])
     || input.reply.trim()
     || input.fullText.trim()
-  const emotion = parsePayloadEmotion(payload)
+  const rawEmotion = parsePayloadEmotion(payload)
     || parsePayloadEmotion(actPayload as Record<string, unknown> | null)
     || 'neutral'
+  const emotion = normalizeAlicizationEmotion(rawEmotion).emotion
+  const performance = parsePayloadPerformance(payload, emotion)
 
   const emotionScore = emotionToScore(emotion)
   const lexicalScore = estimateLexicalSentiment(reply)
@@ -624,6 +666,7 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
     thought,
     emotion,
     reply,
+    performance,
     userSentimentScore,
     sentimentConfidenceRaw: typeof rawInput === 'number' && Number.isFinite(rawInput)
       ? clamp(rawInput, 0, 1)

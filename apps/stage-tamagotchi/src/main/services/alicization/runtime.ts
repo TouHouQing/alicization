@@ -18,9 +18,11 @@ import type {
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
   AlicizationCoreIncarnationReforgePayload,
+  AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDreamMetabolismPayload,
   AlicizationDreamRunResult,
+  AlicizationEmotion,
   AlicizationGender,
   AlicizationGenesisInput,
   AlicizationOrganicMemorySnapshot,
@@ -36,6 +38,9 @@ import type {
   AlicizationSubconsciousNeedsState,
   AlicizationSubconsciousStatePayload,
   AlicizationSubconsciousTickResult,
+  CharacterActionCapability,
+  CharacterFacialCapability,
+  CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 
 import { execFile } from 'node:child_process'
@@ -65,6 +70,7 @@ import {
   alicizationDialogueResponded,
   alicizationKillSwitchStateChanged,
   alicizationSoulChanged,
+  clampAlicizationPerformancePayloadToManifest,
   electronAlicizationAckDialogue,
   electronAlicizationAppendAuditLog,
   electronAlicizationAppendConversationTurn,
@@ -76,6 +82,7 @@ import {
   electronAlicizationDeleteCardScope,
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
+  electronAlicizationGetPerformanceManifest,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationInitializeGenesis,
@@ -94,6 +101,7 @@ import {
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
+  electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
   electronAlicizationSubconsciousGetState,
@@ -101,6 +109,7 @@ import {
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
   normalizeAlicizationEmotion,
+  normalizeAlicizationPerformancePayload,
 } from '../../../shared/eventa'
 import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain } from '../airi/mcp-servers'
@@ -155,6 +164,7 @@ const alicizationCardActiveSessionMetaKey = 'active_session_id_v1'
 const alicizationSubconsciousStateMetaKey = 'subconscious_state_v1'
 const alicizationDreamLastRunMetaKey = 'subconscious_last_dreamed_at_v1'
 const alicizationDialogueAckStateMetaKey = 'dialogue_ack_state_v1'
+const alicizationPerformanceManifestMetaKey = 'performance_manifest_v1'
 const defaultAlicizationCardId = 'default'
 const alicizationSubconsciousTickMs = 60_000
 const alicizationSubconsciousPersistMs = 30 * 60_000
@@ -1110,7 +1120,140 @@ function readStringValue(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
 
-function normalizeDialogueRespondedPayload(input: AlicizationConversationTurnInput): Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null {
+function sanitizePerformanceText(raw: unknown, maxChars: number) {
+  if (typeof raw !== 'string')
+    return ''
+
+  const normalized = raw.replace(/\s+/g, ' ').trim()
+  if (!normalized)
+    return ''
+
+  return normalized.slice(0, maxChars)
+}
+
+function sanitizePerformanceFacialCapability(raw: unknown): CharacterFacialCapability | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const key = sanitizePerformanceText(candidate.key, 80)
+  const label = sanitizePerformanceText(candidate.label, 80)
+  const description = sanitizePerformanceText(candidate.description, 200)
+  const source = candidate.source === 'custom' ? 'custom' : candidate.source === 'preset' ? 'preset' : null
+  if (!key || !label || !description || !source)
+    return null
+
+  return {
+    key,
+    label,
+    description,
+    source,
+    affectsMouth: candidate.affectsMouth === true,
+  }
+}
+
+function sanitizePerformanceActionCapability(raw: unknown): CharacterActionCapability | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const key = sanitizePerformanceText(candidate.key, 80)
+  const label = sanitizePerformanceText(candidate.label, 80)
+  const description = sanitizePerformanceText(candidate.description, 200)
+  const source = candidate.source === 'builtin' || candidate.source === 'external-vrma' || candidate.source === 'live2d-motion'
+    ? candidate.source
+    : null
+  if (!key || !label || !description || !source)
+    return null
+
+  return {
+    key,
+    label,
+    description,
+    source,
+  }
+}
+
+function sanitizePerformanceManifest(raw: unknown): CharacterPerformanceCapabilitiesManifest | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const renderer = candidate.renderer === 'vrm' ? 'vrm' : candidate.renderer === 'live2d' ? 'live2d' : null
+  if (!renderer)
+    return null
+
+  const supportedBaseEmotions = Array.isArray(candidate.supportedBaseEmotions)
+    ? candidate.supportedBaseEmotions
+        .map(value => normalizeAlicizationEmotion(value).emotion)
+        .filter((value, index, current) => current.indexOf(value) === index)
+    : []
+
+  const supportedFacialCues = Array.isArray(candidate.supportedFacialCues)
+    ? candidate.supportedFacialCues
+        .map(item => sanitizePerformanceFacialCapability(item))
+        .filter((item): item is CharacterFacialCapability => Boolean(item))
+    : []
+
+  const supportedActions = Array.isArray(candidate.supportedActions)
+    ? candidate.supportedActions
+        .map(item => sanitizePerformanceActionCapability(item))
+        .filter((item): item is CharacterActionCapability => Boolean(item))
+    : []
+
+  return {
+    renderer,
+    supportedBaseEmotions,
+    supportedFacialCues,
+    supportedActions,
+    supportsLookAt: candidate.supportsLookAt === true,
+    supportsVisemeLipSync: candidate.supportsVisemeLipSync === true,
+    supportsMicroDynamics: candidate.supportsMicroDynamics === true,
+  }
+}
+
+function parsePerformanceManifestFromMeta(raw: string | undefined): CharacterPerformanceCapabilitiesManifest | null {
+  if (!raw)
+    return null
+
+  try {
+    return sanitizePerformanceManifest(JSON.parse(raw))
+  }
+  catch {
+    return null
+  }
+}
+
+function buildDefaultDialoguePerformancePayload(
+  baseEmotion: AlicizationEmotion,
+  overrides?: Partial<Pick<AlicizationDialoguePerformancePayload, 'facialCue' | 'actionCue' | 'delivery' | 'emphasis'>>,
+) {
+  const defaults: Record<AlicizationEmotion, { delivery: AlicizationDialoguePerformancePayload['delivery'], emphasis: 0 | 1 | 2 }> = {
+    neutral: { delivery: 'calm', emphasis: 0 },
+    happy: { delivery: 'energetic', emphasis: 1 },
+    sad: { delivery: 'gentle', emphasis: 0 },
+    angry: { delivery: 'firm', emphasis: 2 },
+    concerned: { delivery: 'gentle', emphasis: 1 },
+    tired: { delivery: 'calm', emphasis: 0 },
+    apologetic: { delivery: 'hesitant', emphasis: 0 },
+    surprised: { delivery: 'energetic', emphasis: 2 },
+    thinking: { delivery: 'hesitant', emphasis: 0 },
+  }
+  const fallback = defaults[baseEmotion] ?? defaults.neutral
+
+  return normalizeAlicizationPerformancePayload({
+    baseEmotion,
+    facialCue: overrides?.facialCue ?? null,
+    actionCue: overrides?.actionCue ?? null,
+    delivery: overrides?.delivery ?? fallback.delivery,
+    emphasis: overrides?.emphasis ?? fallback.emphasis,
+  }, baseEmotion)
+}
+
+function normalizeDialogueRespondedPayload(
+  input: AlicizationConversationTurnInput,
+  performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
+): Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null {
   const normalizedSessionId = input.sessionId?.trim()
   if (!normalizedSessionId)
     return null
@@ -1125,6 +1268,15 @@ function normalizeDialogueRespondedPayload(input: AlicizationConversationTurnInp
   const contractFailed = (structuredPayload as Record<string, unknown>).contractFailed === true
   const policyLocked = readStringValue((structuredPayload as Record<string, unknown>).policyLocked).trim()
   const normalizedEmotionResult = normalizeAlicizationEmotion(rawEmotion)
+  const normalizedPerformance = normalizeAlicizationPerformancePayload(
+    (structuredPayload as Record<string, unknown>).performance,
+    normalizedEmotionResult.emotion,
+  )
+  const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
+    normalizedPerformance,
+    performanceManifest,
+    normalizedEmotionResult.emotion,
+  )
   const createdAt = input.createdAt ?? Date.now()
   const turnId = input.turnId?.trim() || `turn:${normalizedSessionId}:${createdAt}`
   const isFallback = contractFailed || !['json', 'repair-json'].includes(parsePath)
@@ -1138,10 +1290,13 @@ function normalizeDialogueRespondedPayload(input: AlicizationConversationTurnInp
     origin,
     structured: {
       thought,
-      emotion: normalizedEmotionResult.emotion,
+      emotion: clampedPerformance.performance.baseEmotion,
       reply,
+      performance: clampedPerformance.performance,
       policyLocked: policyLocked || undefined,
-      rawEmotion: normalizedEmotionResult.downgraded ? normalizedEmotionResult.rawEmotion : undefined,
+      rawEmotion: normalizedEmotionResult.downgraded
+        ? normalizedEmotionResult.rawEmotion
+        : clampedPerformance.downgradedBaseEmotion,
     },
     isFallback,
     createdAt,
@@ -2958,7 +3113,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return true
       }
 
-      const dialoguePayload = normalizeDialogueRespondedPayload(normalizedPayload)
+      const performanceManifest = await getPerformanceManifest()
+      const dialoguePayload = normalizeDialogueRespondedPayload(normalizedPayload, performanceManifest)
       if (dialoguePayload) {
         emitDialogueRespondedWithDelivery({
           cardId: activeCardId,
@@ -3038,7 +3194,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     assistantText: string | null
     structuredJson: string | null
     createdAt: number
-  }): AlicizationDialogueRespondedPayload | null {
+  }, performanceManifest?: CharacterPerformanceCapabilitiesManifest | null): AlicizationDialogueRespondedPayload | null {
     const structured = parseStructuredHint(row.structuredJson)
     const normalizedTurnId = sanitizeText(row.turnId)
     const structuredFormat = sanitizeText((structured as { format?: unknown }).format).toLowerCase()
@@ -3061,7 +3217,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       structured,
       origin,
       createdAt: row.createdAt,
-    })
+    }, performanceManifest)
     if (!normalized || normalized.origin !== 'subconscious-proactive')
       return null
 
@@ -3211,8 +3367,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
       `Environment context: busy=${context.busy}, fullscreenLikely=${context.fullscreenLikely}, idleLikely=${context.idleLikely}, inputActivity=${context.inputActivity}, cpuUsage=${context.cpuUsage.toFixed(1)}%.`,
-      'Output must be valid JSON only with keys: thought, emotion, reply.',
-      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|processing.',
+      'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
+      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|surprised|thinking.',
+      'emotion must exactly mirror performance.baseEmotion.',
+      'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must be concise, non-generic, and match emotion/personality. No markdown, no extra keys.',
     ].join('\n')
     const user = 'Generate one proactive utterance now. Avoid robotic greetings.'
@@ -3235,13 +3393,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const thought = sanitizeText(parsed.thought)
     const reply = sanitizeText(parsed.reply)
     const normalizedEmotion = normalizeAlicizationEmotion(parsed.emotion)
+    const performanceManifest = await getPerformanceManifest()
+    const performance = clampAlicizationPerformancePayloadToManifest(
+      normalizeAlicizationPerformancePayload(parsed.performance, normalizedEmotion.emotion),
+      performanceManifest,
+      normalizedEmotion.emotion,
+    ).performance
     if (!thought || !reply || normalizedEmotion.downgraded)
       return null
 
     return {
       thought,
-      emotion: normalizedEmotion.emotion,
+      emotion: performance.baseEmotion,
       reply,
+      performance,
       parsePath: 'json',
       format: 'subconscious-proactive-llm-v1',
     }
@@ -3366,6 +3531,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       thought,
       emotion,
       reply,
+      performance: buildDefaultDialoguePerformancePayload(emotion),
       parsePath: 'json',
       format: 'subconscious-proactive-v1',
     }
@@ -3422,8 +3588,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         : 'Delay tier: mild. Mention a short delay/catch-up and deliver the reminder immediately.',
       `Reminder content: "${reminder.message}".`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
-      'Output must be valid JSON only with keys: thought, emotion, reply.',
-      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|processing.',
+      'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
+      'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|surprised|thinking.',
+      'emotion must exactly mirror performance.baseEmotion.',
+      'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must contain the reminder content and match emotion/personality.',
       'No markdown, no extra keys.',
     ].join('\n')
@@ -3446,13 +3614,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const thought = sanitizeText(parsed.thought)
     const reply = sanitizeText(parsed.reply)
     const normalizedEmotion = normalizeAlicizationEmotion(parsed.emotion)
+    const performanceManifest = await getPerformanceManifest()
+    const performance = clampAlicizationPerformancePayloadToManifest(
+      normalizeAlicizationPerformancePayload(parsed.performance, normalizedEmotion.emotion),
+      performanceManifest,
+      normalizedEmotion.emotion,
+    ).performance
     if (!thought || !reply || normalizedEmotion.downgraded)
       return null
 
     return {
       thought,
-      emotion: normalizedEmotion.emotion,
+      emotion: performance.baseEmotion,
       reply,
+      performance,
       parsePath: 'json',
       format: 'subconscious-reminder-v1',
     }
@@ -3919,11 +4094,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           inputActivity,
           cpuUsage,
         }, organicPromptContext)
-        const structured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, {
+        const rawStructured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, {
           customDirectives: personaContext.customDirectives,
           coreIncarnation: organicPromptContext.coreIncarnation,
           hostAttitude: organicPromptContext.hostAttitude,
         })
+        const performanceManifest = await getPerformanceManifest()
+        const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
+          rawStructured.performance,
+          performanceManifest,
+          rawStructured.emotion,
+        ).performance
+        const structured = {
+          ...rawStructured,
+          emotion: structuredPerformance.baseEmotion,
+          performance: structuredPerformance,
+        }
         if (llmStructured) {
           await appendAuditLog({
             level: 'notice',
@@ -4550,6 +4736,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     } satisfies AlicizationOrganicMemorySnapshot
   }
 
+  async function getPerformanceManifest() {
+    const raw = await alicizationDb.getMetaValue(alicizationPerformanceManifestMetaKey).catch(() => undefined)
+    return parsePerformanceManifestFromMeta(raw)
+  }
+
+  async function setPerformanceManifest(manifest: CharacterPerformanceCapabilitiesManifest | null) {
+    if (!manifest) {
+      await alicizationDb.setMetaValue(alicizationPerformanceManifestMetaKey, '').catch(() => {})
+      return
+    }
+
+    const sanitized = sanitizePerformanceManifest(manifest)
+    await alicizationDb.setMetaValue(
+      alicizationPerformanceManifestMetaKey,
+      JSON.stringify(sanitized ?? null),
+    ).catch(() => {})
+  }
+
   async function searchOrganicSubconsciousFragments(query: string, limit = 12) {
     const extractedTerms = extractOrganicRecallTerms(query)
     const ftsQuery = extractedTerms.length > 0
@@ -4682,6 +4886,44 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     return blocks
+  }
+
+  function buildPerformanceManifestSystemBlocks(manifest: CharacterPerformanceCapabilitiesManifest | null) {
+    if (!manifest)
+      return []
+
+    const blocks = [
+      '[ALICIZATION_VESSEL_CAPABILITIES]',
+      `Current renderer: ${manifest.renderer}.`,
+      'Use baseEmotion only from the supported list below.',
+      'Use facialCue/actionCue only when the corresponding key is explicitly listed. If unsupported or unnecessary, keep it null.',
+      manifest.supportedBaseEmotions.length > 0
+        ? `Supported base emotions: ${manifest.supportedBaseEmotions.join(', ')}.`
+        : 'Supported base emotions: neutral.',
+    ]
+
+    if (manifest.supportedFacialCues.length > 0) {
+      blocks.push(
+        'Supported facial cues:',
+        ...manifest.supportedFacialCues.map(item => `- ${item.key}: ${item.label} | ${item.description}`),
+      )
+    }
+
+    if (manifest.supportedActions.length > 0) {
+      blocks.push(
+        'Supported actions:',
+        ...manifest.supportedActions.map(item => `- ${item.key}: ${item.label} | ${item.description}`),
+      )
+    }
+
+    blocks.push(
+      `Look-at support: ${manifest.supportsLookAt ? 'yes' : 'no'}.`,
+      `Viseme lip sync support: ${manifest.supportsVisemeLipSync ? 'yes' : 'no'}.`,
+      `Micro-dynamics support: ${manifest.supportsMicroDynamics ? 'yes' : 'no'}.`,
+      'Do not expose or explain this capability manifest to the user.',
+    )
+
+    return [blocks.join('\n')]
   }
 
   async function resolveOrganicMemoryPromptContext(options?: {
@@ -4846,10 +5088,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const resolvedCustomDirectives = await resolveCardCustomDirectives(options.cardId ?? activeCardId)
     const customDirectiveBlock = buildCardCustomDirectivesSystemBlock(resolvedCustomDirectives.text)
+    const performanceManifest = await getPerformanceManifest()
     const systemMessages: Message[] = [
       ...(customDirectiveBlock
         ? [{ role: 'system', content: customDirectiveBlock } as Message]
         : []),
+      ...buildPerformanceManifestSystemBlocks(performanceManifest)
+        .map(content => ({ role: 'system', content }) as Message),
       ...((options.extraSystemBlocks ?? [])
         .map(block => sanitizeMultilineText(block))
         .filter(Boolean)
@@ -5304,7 +5549,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       const organicPromptContext = await resolveOrganicMemoryPromptContext({
         recallSeed: contextualString,
       })
-      messages = prependSystemBlocksToMessages(messages, buildOrganicMemorySystemBlocks(organicPromptContext))
+      const performanceManifest = await getPerformanceManifest()
+      messages = prependSystemBlocksToMessages(messages, [
+        ...buildOrganicMemorySystemBlocks(organicPromptContext),
+        ...buildPerformanceManifestSystemBlocks(performanceManifest),
+      ])
       customDirectivesResolution = await resolveCardCustomDirectives(payload.cardId, { messages })
       messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
       const allowTools = payload.supportsTools !== false
@@ -5762,6 +6011,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   defineInvokeHandler(context, electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await alicizationDb.getMemoryStats()))
   defineInvokeHandler(context, electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))
+  defineInvokeHandler(context, electronAlicizationGetPerformanceManifest, async scope => await withCardScope(cardIdFrom(scope), async () => await getPerformanceManifest()))
   defineInvokeHandler(context, electronAlicizationGetSensorySnapshot, async (scope) => {
     return await withCardScope(cardIdFrom(scope), async () => {
       let snapshot = sensoryBus.getSnapshot()
@@ -5791,6 +6041,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   defineInvokeHandler(context, electronAlicizationMemoryUpsertFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.upsertMemoryFacts(payload.facts, payload.source)))
   defineInvokeHandler(context, electronAlicizationMemoryImportLegacy, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.importLegacyMemory(payload)))
   defineInvokeHandler(context, electronAlicizationSearchOrganicSubconsciousFragments, async payload => await withCardScope(payload.cardId, async () => await searchOrganicSubconsciousFragments(payload.query, payload.limit)))
+  defineInvokeHandler(context, electronAlicizationSetPerformanceManifest, async payload => await withCardScope(payload.cardId, async () => await setPerformanceManifest(payload.manifest)))
   defineInvokeHandler(context, electronAlicizationReminderSchedule, async (payload: AlicizationReminderSchedulePayload) => {
     const cardId = cardIdFrom(payload)
     return await scheduleReminderTask(cardId, {
@@ -5867,8 +6118,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       sinceCreatedAt: ackCursor + 1,
       limit,
     })
+    const performanceManifest = await getPerformanceManifest()
     const replayRows = rows
-      .map(row => toReplayDialogueRespondedPayload(row))
+      .map(row => toReplayDialogueRespondedPayload(row, performanceManifest))
       .filter((item): item is AlicizationDialogueRespondedPayload => Boolean(item))
     await appendRuntimeDebugLine('dialogue-replay.returned', {
       cardId: activeCardId,

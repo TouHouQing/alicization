@@ -1,5 +1,5 @@
 import type { VRM } from '@pixiv/three-vrm'
-import type { AnimationMixer, Group } from 'three'
+import type { AnimationAction, AnimationMixer, Group } from 'three'
 
 import type { useVRMEmote } from '../../composables/vrm/expression'
 
@@ -9,6 +9,7 @@ import { stageThreeTraceVrmCacheEvent } from '../../trace/eventa'
 export interface ManagedVrmInstance {
   emote: ReturnType<typeof useVRMEmote>
   group: Group
+  idleAction?: AnimationAction
   mixer: AnimationMixer
   modelSrc: string
   scopeKey: string

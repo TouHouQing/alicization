@@ -35,6 +35,12 @@ export const defaultModelParameters = {
   breath: 0,
 }
 
+export interface Live2DAvailableMotion {
+  motionName: string
+  motionIndex: number
+  fileName: string
+}
+
 export const useLive2d = defineStore('live2d', () => {
   const { post, data } = useBroadcastChannel<BroadcastChannelEvents, BroadcastChannelEvents>({ name: 'airi-stores-stage-ui-live2d' })
   const shouldUpdateViewHooks = ref(new Set<() => void>())
@@ -63,17 +69,42 @@ export const useLive2d = defineStore('live2d', () => {
     y: `${position.value.y}%`,
   }))
   const currentMotion = useLocalStorageManualReset<{ group: string, index?: number }>('settings/live2d/current-motion', () => ({ group: 'Idle', index: 0 }))
-  const availableMotions = useLocalStorageManualReset<{ motionName: string, motionIndex: number, fileName: string }[]>('settings/live2d/available-motions', () => [])
+  const availableMotions = useLocalStorageManualReset<Live2DAvailableMotion[]>('settings/live2d/available-motions', () => [])
+  const availableMotionsByModel = useLocalStorageManualReset<Record<string, Live2DAvailableMotion[]>>('settings/live2d/available-motions-by-model', () => ({}))
   const motionMap = useLocalStorageManualReset<Record<string, string>>('settings/live2d/motion-map', {})
   const scale = useLocalStorageManualReset('settings/live2d/scale', 1)
 
   // Live2D model parameters
   const modelParameters = useLocalStorageManualReset<Record<string, number>>('settings/live2d/parameters', defaultModelParameters)
 
+  function normalizeModelId(raw: unknown) {
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+
+  function setAvailableMotionsForModel(modelId: string | undefined, motions: Live2DAvailableMotion[]) {
+    const normalizedModelId = normalizeModelId(modelId)
+    availableMotions.value = motions
+    if (!normalizedModelId)
+      return
+
+    availableMotionsByModel.value = {
+      ...availableMotionsByModel.value,
+      [normalizedModelId]: motions,
+    }
+  }
+
+  function getAvailableMotionsForModel(modelId: string | undefined) {
+    const normalizedModelId = normalizeModelId(modelId)
+    if (!normalizedModelId)
+      return availableMotions.value
+    return availableMotionsByModel.value[normalizedModelId] ?? []
+  }
+
   function resetState() {
     position.reset()
     currentMotion.reset()
     availableMotions.reset()
+    availableMotionsByModel.reset()
     motionMap.reset()
     scale.reset()
     modelParameters.reset()
@@ -85,9 +116,12 @@ export const useLive2d = defineStore('live2d', () => {
     positionInPercentageString,
     currentMotion,
     availableMotions,
+    availableMotionsByModel,
     motionMap,
     scale,
     modelParameters,
+    setAvailableMotionsForModel,
+    getAvailableMotionsForModel,
 
     onShouldUpdateView,
     shouldUpdateView,

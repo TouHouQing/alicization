@@ -2,6 +2,10 @@
 import type { DuckDBWasmDrizzleDatabase } from '@proj-airi/drizzle-duckdb-wasm'
 import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-airi/model-driver-lipsync'
 import type { Profile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
+import type {
+  VrmActionBinding,
+  VrmRuntimeCapabilitySnapshot,
+} from '@proj-airi/stage-ui-three'
 import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { UnElevenLabsOptions } from 'unspeech'
 
@@ -14,7 +18,11 @@ import { wlipsyncProfile } from '@proj-airi/model-driver-lipsync/shared/wlipsync
 import { createPlaybackManager, createSpeechPipeline } from '@proj-airi/pipelines-audio'
 import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
+import { animations, builtinActionBindings } from '@proj-airi/stage-ui-three/assets/vrm'
+import {
+  listVrmPresetFacialCapabilities,
+  supportsVrmBaseEmotion,
+} from '@proj-airi/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
 import { useBroadcastChannel, useMediaQuery } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
@@ -29,6 +37,12 @@ import StageDialoguePanel from './stage-dialogue-panel.vue'
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
 import { Emotion, EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
+import {
+  alicizationEmotionWhitelist,
+  clampAlicizationPerformancePayloadToManifest,
+  getAlicizationBridge,
+  hasAlicizationBridge,
+} from '../../stores/alicization-bridge'
 import { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
@@ -39,6 +53,7 @@ import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
+import { isVrmCustomExpressionConfigured, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 
@@ -90,11 +105,14 @@ const presenceCleanups: Array<() => void> = []
 const providersStore = useProvidersStore()
 const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore()
 const live2dStore = useLive2d()
+const stagePerformanceStore = useStagePerformanceStore()
 const chatSessionStore = useChatSessionStore()
 const chatStreamStore = useChatStreamStore()
 const dialoguePanelRef = ref<InstanceType<typeof StageDialoguePanel>>()
 const { messages } = storeToRefs(chatSessionStore)
 const { streamingMessage } = storeToRefs(chatStreamStore)
+const resolvedVrmExternalAnimations = ref<VrmActionBinding[]>([])
+const currentVrmRuntimeCapabilities = ref<VrmRuntimeCapabilitySnapshot | null>(null)
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
 
@@ -192,13 +210,11 @@ function normalizePresenceEmotionName(rawEmotion: string): EmotionPayload['name'
     return Emotion.Awkward
   if (normalized === 'question' || normalized === 'concerned')
     return Emotion.Question
-  if (normalized === 'curious')
-    return Emotion.Curious
   if (normalized === 'tired')
     return Emotion.Sad
   if (normalized === 'apologetic')
     return Emotion.Awkward
-  if (normalized === 'think')
+  if (normalized === 'think' || normalized === 'thinking')
     return Emotion.Think
   return Emotion.Neutral
 }
@@ -394,20 +410,226 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
 void speechRuntimeStore.registerHost(speechPipeline)
 let currentChatIntent: ReturnType<typeof speechRuntimeStore.openIntent> | null = null
 
+function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensity: number) {
+  const normalizedEmphasis = typeof emphasis === 'number' && Number.isFinite(emphasis)
+    ? emphasis
+    : Number.NaN
+  if (!Number.isFinite(normalizedEmphasis))
+    return fallbackIntensity
+  if (normalizedEmphasis >= 2)
+    return 1
+  if (normalizedEmphasis >= 1)
+    return Math.max(fallbackIntensity, 0.85)
+  return fallbackIntensity
+}
+
+function syncVrmCustomExpressionScan(names: string[]) {
+  if (stageModelRenderer.value !== 'vrm' || !stageModelSelected.value)
+    return
+
+  stagePerformanceStore.setVrmCustomExpressionNames(stageModelSelected.value, names)
+}
+
+async function refreshResolvedVrmExternalAnimations() {
+  if (stageModelRenderer.value !== 'vrm' || !stageModelSelected.value) {
+    resolvedVrmExternalAnimations.value = []
+    return
+  }
+
+  resolvedVrmExternalAnimations.value = await stagePerformanceStore.resolveVrmExternalAnimations(stageModelSelected.value, {
+    configuredOnly: true,
+  })
+}
+
+function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | null) {
+  if (stageModelRenderer.value !== 'vrm') {
+    currentVrmRuntimeCapabilities.value = null
+    return
+  }
+
+  if (!snapshot) {
+    currentVrmRuntimeCapabilities.value = null
+    return
+  }
+
+  currentVrmRuntimeCapabilities.value = {
+    supportedExpressionNames: [...new Set(snapshot.supportedExpressionNames
+      .map(name => name.trim().toLowerCase())
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+    supportsLookAt: snapshot.supportsLookAt === true,
+    supportsVisemeLipSync: snapshot.supportsVisemeLipSync === true,
+    supportsMicroDynamics: snapshot.supportsMicroDynamics === true,
+  }
+}
+
+function dedupeCapabilityItemsByKey<T extends { key: string }>(items: T[]) {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = item.key.trim()
+    if (!key || seen.has(key))
+      return false
+
+    seen.add(key)
+    return true
+  })
+}
+
+const currentLive2DActionCapabilities = computed(() => {
+  return stagePerformanceStore.listLive2DActions(stageModelSelected.value).map(item => ({
+    key: item.actionKey,
+    label: item.label,
+    description: item.description,
+    source: item.source,
+  }))
+})
+
+const currentVrmCustomExpressionBindings = computed(() => {
+  const scanned = new Set(stagePerformanceStore.listVrmCustomExpressionNames(stageModelSelected.value))
+  return stagePerformanceStore.listVrmCustomExpressions(stageModelSelected.value)
+    .filter(item => scanned.has(item.expressionName))
+})
+
+const currentVrmManifestCustomExpressionBindings = computed(() => {
+  return currentVrmCustomExpressionBindings.value.filter(item => isVrmCustomExpressionConfigured(item))
+})
+
+const currentVrmSupportedExpressionNames = computed(() => currentVrmRuntimeCapabilities.value?.supportedExpressionNames ?? [])
+const currentVrmSupportedBaseEmotions = computed(() => {
+  if (stageModelRenderer.value !== 'vrm' || currentVrmSupportedExpressionNames.value.length === 0)
+    return []
+
+  return alicizationEmotionWhitelist.filter(emotion => supportsVrmBaseEmotion(currentVrmSupportedExpressionNames.value, emotion))
+})
+
+const currentVrmPresetFacialCapabilities = computed(() => {
+  return listVrmPresetFacialCapabilities(currentVrmSupportedExpressionNames.value).map(item => ({
+    key: item.key,
+    label: item.label,
+    description: item.description,
+    source: 'preset' as const,
+    affectsMouth: item.affectsMouth,
+  }))
+})
+
+const currentVrmFacialCapabilities = computed(() => {
+  return dedupeCapabilityItemsByKey([
+    ...currentVrmManifestCustomExpressionBindings.value.map(item => ({
+      key: item.facialKey,
+      label: item.label,
+      description: item.description,
+      source: 'custom' as const,
+      affectsMouth: item.affectsMouth,
+    })),
+    ...currentVrmPresetFacialCapabilities.value,
+  ])
+})
+
+const currentStoredVrmExternalAnimations = computed(() => {
+  return stagePerformanceStore.listVrmExternalAnimations(stageModelSelected.value)
+})
+
+const currentVrmActionBindings = computed(() => {
+  if (stageModelRenderer.value !== 'vrm')
+    return []
+
+  return [
+    ...resolvedVrmExternalAnimations.value,
+    ...builtinActionBindings,
+  ]
+})
+
+const currentPerformanceManifest = computed(() => {
+  if (stageModelRenderer.value === 'live2d') {
+    return {
+      renderer: 'live2d' as const,
+      supportedBaseEmotions: [...alicizationEmotionWhitelist],
+      supportedFacialCues: [],
+      supportedActions: currentLive2DActionCapabilities.value,
+      supportsLookAt: !live2dDisableFocus.value,
+      supportsVisemeLipSync: true,
+      supportsMicroDynamics: false,
+    }
+  }
+
+  if (stageModelRenderer.value === 'vrm') {
+    return {
+      renderer: 'vrm' as const,
+      supportedBaseEmotions: currentVrmSupportedBaseEmotions.value,
+      supportedFacialCues: currentVrmFacialCapabilities.value,
+      supportedActions: dedupeCapabilityItemsByKey(currentVrmActionBindings.value.map(item => ({
+        key: item.actionKey,
+        label: item.label,
+        description: item.description,
+        source: item.source,
+      }))),
+      supportsLookAt: currentVrmRuntimeCapabilities.value?.supportsLookAt === true,
+      supportsVisemeLipSync: currentVrmRuntimeCapabilities.value?.supportsVisemeLipSync === true,
+      supportsMicroDynamics: currentVrmRuntimeCapabilities.value?.supportsMicroDynamics === true,
+    }
+  }
+
+  return null
+})
+
+watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimations], async () => {
+  await refreshResolvedVrmExternalAnimations()
+}, { immediate: true, deep: true })
+
+watch([stageModelRenderer, stageModelSelected], ([renderer]) => {
+  if (renderer !== 'vrm') {
+    currentVrmRuntimeCapabilities.value = null
+    return
+  }
+
+  currentVrmRuntimeCapabilities.value = null
+}, { immediate: true })
+
+watch(currentPerformanceManifest, async (manifest) => {
+  if (!hasAlicizationBridge())
+    return
+
+  await getAlicizationBridge().setPerformanceManifest?.(manifest)
+}, { immediate: true, deep: true })
+
 presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DController({
-  playEmotion: async (emotion, payload) => {
-    const emotionName = normalizePresenceEmotionName(emotion)
+  applyPerformance: async (performance, payload) => {
+    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
+      performance,
+      currentPerformanceManifest.value,
+      performance.baseEmotion,
+    ).performance
+    const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
+    applyEmotionSpeechStyle(emotionName)
+
+    if (stageModelRenderer.value === 'vrm') {
+      await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
+      return
+    }
+
+    const mappedAction = stagePerformanceStore.resolveLive2DActionByCue(stageModelSelected.value, clampedPerformance.actionCue)
+    if (mappedAction) {
+      currentMotion.value = {
+        group: mappedAction.motionName,
+        index: mappedAction.motionIndex,
+      }
+      return
+    }
+
     emotionsQueue.enqueue({
       name: emotionName,
-      intensity: payload.isFallback ? 0.75 : 1,
+      intensity: resolvePresenceIntensity(performance.emphasis, payload.isFallback ? 0.75 : 0.9),
     })
-    applyEmotionSpeechStyle(emotionName)
   },
 }))
 
 presenceCleanups.push(alicizationPresenceDispatcherStore.registerTTSController({
-  speak: async (reply, emotion) => {
-    const emotionName = normalizePresenceEmotionName(emotion)
+  speak: async (reply, performance) => {
+    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
+      performance,
+      currentPerformanceManifest.value,
+      performance.baseEmotion,
+    ).performance
+    const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
     applyEmotionSpeechStyle(emotionName)
 
     const normalizedReply = reply.trim()
@@ -791,11 +1013,16 @@ defineExpose({
         ref="vrmViewerRef"
         v-model:state="componentState"
         min-w="50% <lg:full" min-h="100 sm:100" h-full w-full flex-1
+        :custom-expression-bindings="currentVrmManifestCustomExpressionBindings"
+        :action-bindings="currentVrmActionBindings"
         :model-src="stageModelSelectedUrl"
+        :model-id="stageModelSelected"
         :idle-animation="animations.idleLoop.toString()"
         :paused="paused"
         :show-axes="stageViewControlsEnabled"
         :current-audio-source="currentAudioSource"
+        @custom-expressions-resolved="syncVrmCustomExpressionScan"
+        @runtime-capabilities-resolved="syncVrmRuntimeCapabilities"
         @error="console.error"
       />
     </div>

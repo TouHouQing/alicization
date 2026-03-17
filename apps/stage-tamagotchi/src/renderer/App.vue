@@ -60,6 +60,7 @@ import {
   electronAlicizationDeleteCardScope,
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
+  electronAlicizationGetPerformanceManifest,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
   electronAlicizationInitializeGenesis,
@@ -79,6 +80,7 @@ import {
   electronAlicizationSafetyResolvePermission,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
+  electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
   electronAlicizationSubconsciousGetState,
@@ -156,12 +158,14 @@ const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationK
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
 const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
+const alicizationGetPerformanceManifest = useElectronEventaInvoke(electronAlicizationGetPerformanceManifest)
 const alicizationRunMemoryPrune = useElectronEventaInvoke(electronAlicizationRunMemoryPrune)
 const alicizationUpdateMemoryStats = useElectronEventaInvoke(electronAlicizationUpdateMemoryStats)
 const alicizationRetrieveMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryRetrieveFacts)
 const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicizationMemoryUpsertFacts)
 const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
 const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
+const alicizationSetPerformanceManifest = useElectronEventaInvoke(electronAlicizationSetPerformanceManifest)
 const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
 const alicizationSetActiveSession = useElectronEventaInvoke(electronAlicizationSetActiveSession)
 const alicizationAppendAuditLog = useElectronEventaInvoke(electronAlicizationAppendAuditLog)
@@ -856,6 +860,8 @@ setAlicizationBridge({
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
+  getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
+  setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),

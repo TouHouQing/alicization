@@ -30,9 +30,14 @@ export const alicizationFixedGenericContextTemplate = 'Context from {{source}}:\
 export const alicizationFixedSensoryContextTemplate = `${alicizationFixedSensoryContextHeader}\n{{content}}`
 export const alicizationFixedStructuredContractAnchor = [
   alicizationFixedStructuredContractHeader,
-  '- Return exactly one strict JSON object with keys: thought, emotion, reply.',
+  '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
   '- In thought, you MUST evaluate current personality parameters (liveliness, sensibility, obedience) before finalizing emotion and reply.',
-  '- The emotion value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, processing.',
+  '- The emotion value must mirror performance.baseEmotion exactly.',
+  '- performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
+  '- The baseEmotion value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
+  '- facialCue and actionCue must be string keys from the current vessel capability manifest, or null when unused.',
+  '- delivery must be exactly one of: calm, gentle, firm, energetic, hesitant, teasing.',
+  '- emphasis must be exactly one of: 0, 1, 2.',
   '- Reply tone and wording MUST be semantically consistent with the chosen emotion.',
   '- Personality numeric state from SOUL frontmatter has higher priority than Persona Notes text when they conflict.',
   '- When liveliness <= 0.2, avoid high-arousal mood claims or excited wording in reply.',

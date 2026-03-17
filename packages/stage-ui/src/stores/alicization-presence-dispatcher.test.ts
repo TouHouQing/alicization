@@ -15,6 +15,14 @@ function createPayload(overrides?: Partial<AlicizationDialogueRespondedPayload>)
       thought: '',
       emotion: 'happy',
       reply: '你好',
+      performance: {
+        baseEmotion: 'happy',
+        emotion: 'happy',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'energetic',
+        emphasis: 1,
+      },
       ...structuredOverrides,
     },
     isFallback: false,
@@ -30,27 +38,27 @@ describe('alicization presence dispatcher', () => {
 
   it('deduplicates same turnId and dispatches only once', async () => {
     const store = useAlicizationPresenceDispatcherStore()
-    const playEmotion = vi.fn()
+    const applyPerformance = vi.fn()
     const speak = vi.fn()
 
-    store.registerLive2DController({ playEmotion })
+    store.registerLive2DController({ applyPerformance })
     store.registerTTSController({ speak })
 
     const payload = createPayload({ turnId: 'turn-dedupe' })
     await store.dispatchDialogueResponded(payload)
     await store.dispatchDialogueResponded(payload)
 
-    expect(playEmotion).toBeCalledTimes(1)
+    expect(applyPerformance).toBeCalledTimes(1)
     expect(speak).toBeCalledTimes(1)
   })
 
   it('downgrades unknown emotion to neutral and writes warning audit', async () => {
     const store = useAlicizationPresenceDispatcherStore()
-    const playEmotion = vi.fn()
+    const applyPerformance = vi.fn()
     const speak = vi.fn()
     const appendAuditLog = vi.fn()
 
-    store.registerLive2DController({ playEmotion })
+    store.registerLive2DController({ applyPerformance })
     store.registerTTSController({ speak })
     store.setAuditLogger(appendAuditLog)
 
@@ -60,17 +68,33 @@ describe('alicization presence dispatcher', () => {
         thought: '',
         emotion: 'super-excited' as any,
         reply: '我会克制表达',
+        performance: {
+          baseEmotion: 'super-excited' as any,
+          emotion: 'super-excited' as any,
+          facialCue: 'smile',
+          actionCue: 'wave',
+          delivery: 'energetic',
+          emphasis: 2,
+        },
       },
     }))
 
-    expect(playEmotion).toBeCalledWith('neutral', expect.objectContaining({
+    expect(applyPerformance).toBeCalledWith(expect.objectContaining({
+      baseEmotion: 'neutral',
+      emotion: 'neutral',
+      facialCue: 'smile',
+      actionCue: 'wave',
+    }), expect.objectContaining({
       turnId: 'turn-unknown-emotion',
       structured: expect.objectContaining({
         emotion: 'neutral',
         rawEmotion: 'super-excited',
       }),
     }))
-    expect(speak).toBeCalledWith('我会克制表达', 'neutral', expect.any(Object))
+    expect(speak).toBeCalledWith('我会克制表达', expect.objectContaining({
+      baseEmotion: 'neutral',
+      emotion: 'neutral',
+    }), expect.any(Object))
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       level: 'warning',
       category: 'alicization.presence',
@@ -80,12 +104,12 @@ describe('alicization presence dispatcher', () => {
 
   it('dispatches live2d and tts in parallel with settled degradation', async () => {
     const store = useAlicizationPresenceDispatcherStore()
-    const playEmotion = vi.fn().mockRejectedValueOnce(new Error('live2d-failed'))
+    const applyPerformance = vi.fn().mockRejectedValueOnce(new Error('live2d-failed'))
     const speak = vi.fn().mockResolvedValue(undefined)
     const appendAuditLog = vi.fn()
     const listener = vi.fn()
 
-    store.registerLive2DController({ playEmotion })
+    store.registerLive2DController({ applyPerformance })
     store.registerTTSController({ speak })
     store.setAuditLogger(appendAuditLog)
     store.onDialogueResponded(listener)
@@ -96,10 +120,18 @@ describe('alicization presence dispatcher', () => {
         thought: '',
         emotion: 'sad',
         reply: '我还在',
+        performance: {
+          baseEmotion: 'sad',
+          emotion: 'sad',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 0,
+        },
       },
     }))
 
-    expect(playEmotion).toBeCalledTimes(1)
+    expect(applyPerformance).toBeCalledTimes(1)
     expect(speak).toBeCalledTimes(1)
     expect(listener).toBeCalledTimes(1)
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
@@ -121,6 +153,14 @@ describe('alicization presence dispatcher', () => {
         thought: '',
         emotion: 'neutral',
         reply: '仅语音',
+        performance: {
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
       },
     }))
 

@@ -268,13 +268,73 @@ export const alicizationEmotionWhitelist = [
   'concerned',
   'tired',
   'apologetic',
-  'processing',
+  'surprised',
+  'thinking',
 ] as const
 
 export type AlicizationEmotion = typeof alicizationEmotionWhitelist[number]
 
+export type AlicizationPerformanceDelivery
+  = | 'calm'
+    | 'gentle'
+    | 'firm'
+    | 'energetic'
+    | 'hesitant'
+    | 'teasing'
+
+export interface AlicizationDialoguePerformancePayload {
+  baseEmotion: AlicizationEmotion
+  emotion: AlicizationEmotion
+  facialCue?: string | null
+  actionCue?: string | null
+  delivery: AlicizationPerformanceDelivery
+  emphasis: 0 | 1 | 2
+}
+
+export interface CharacterFacialCapability {
+  key: string
+  label: string
+  description: string
+  source: 'preset' | 'custom'
+  affectsMouth: boolean
+}
+
+export interface CharacterActionCapability {
+  key: string
+  label: string
+  description: string
+  source: 'builtin' | 'external-vrma' | 'live2d-motion'
+}
+
+export interface CharacterPerformanceCapabilitiesManifest {
+  renderer: 'live2d' | 'vrm'
+  supportedBaseEmotions: AlicizationEmotion[]
+  supportedFacialCues: CharacterFacialCapability[]
+  supportedActions: CharacterActionCapability[]
+  supportsLookAt: boolean
+  supportsVisemeLipSync: boolean
+  supportsMicroDynamics: boolean
+}
+
+const alicizationPerformanceDeliveryWhitelist = [
+  'calm',
+  'gentle',
+  'firm',
+  'energetic',
+  'hesitant',
+  'teasing',
+] as const
+
 export function normalizeAlicizationEmotion(raw: unknown): { emotion: AlicizationEmotion, rawEmotion?: string, downgraded: boolean } {
   const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  if (value === 'processing' || value === 'think') {
+    return {
+      emotion: 'thinking',
+      rawEmotion: value,
+      downgraded: true,
+    }
+  }
+
   if ((alicizationEmotionWhitelist as readonly string[]).includes(value)) {
     return {
       emotion: value as AlicizationEmotion,
@@ -289,10 +349,125 @@ export function normalizeAlicizationEmotion(raw: unknown): { emotion: Alicizatio
   }
 }
 
+export function normalizeAlicizationPerformanceDelivery(raw: unknown): AlicizationPerformanceDelivery {
+  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  if ((alicizationPerformanceDeliveryWhitelist as readonly string[]).includes(value))
+    return value as AlicizationPerformanceDelivery
+  return 'calm'
+}
+
+function normalizePerformanceCue(raw: unknown) {
+  if (typeof raw !== 'string')
+    return null
+
+  const normalized = raw.trim()
+  return normalized ? normalized.slice(0, 80) : null
+}
+
+function normalizePerformanceEmphasis(raw: unknown): 0 | 1 | 2 {
+  const parsed = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string'
+      ? Number.parseInt(raw, 10)
+      : Number.NaN
+
+  if (!Number.isFinite(parsed))
+    return 0
+
+  if (parsed <= 0)
+    return 0
+  if (parsed >= 2)
+    return 2
+  return 1
+}
+
+export function normalizeAlicizationPerformancePayload(
+  raw: unknown,
+  fallbackEmotion: AlicizationEmotion = 'neutral',
+): AlicizationDialoguePerformancePayload {
+  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : {}
+  const normalizedEmotion = normalizeAlicizationEmotion(candidate.baseEmotion ?? candidate.emotion ?? fallbackEmotion)
+
+  return {
+    baseEmotion: normalizedEmotion.emotion,
+    emotion: normalizedEmotion.emotion,
+    facialCue: normalizePerformanceCue(candidate.facialCue),
+    actionCue: normalizePerformanceCue(candidate.actionCue),
+    delivery: normalizeAlicizationPerformanceDelivery(candidate.delivery),
+    emphasis: normalizePerformanceEmphasis(candidate.emphasis),
+  }
+}
+
+export interface AlicizationPerformanceManifestClampResult {
+  performance: AlicizationDialoguePerformancePayload
+  downgradedBaseEmotion?: AlicizationEmotion
+  droppedFacialCue?: string
+  droppedActionCue?: string
+}
+
+function resolveManifestFallbackEmotion(
+  manifest: CharacterPerformanceCapabilitiesManifest,
+  fallbackEmotion: AlicizationEmotion,
+) {
+  if (manifest.supportedBaseEmotions.includes(fallbackEmotion))
+    return fallbackEmotion
+  if (manifest.supportedBaseEmotions.includes('neutral'))
+    return 'neutral'
+  return manifest.supportedBaseEmotions[0] ?? 'neutral'
+}
+
+export function clampAlicizationPerformancePayloadToManifest(
+  payload: AlicizationDialoguePerformancePayload,
+  manifest?: CharacterPerformanceCapabilitiesManifest | null,
+  fallbackEmotion: AlicizationEmotion = 'neutral',
+): AlicizationPerformanceManifestClampResult {
+  const normalized = normalizeAlicizationPerformancePayload(payload, fallbackEmotion)
+  if (!manifest) {
+    return {
+      performance: normalized,
+    }
+  }
+
+  const facialCueKeys = new Set(manifest.supportedFacialCues.map(item => item.key))
+  const actionCueKeys = new Set(manifest.supportedActions.map(item => item.key))
+  const resolvedFallbackEmotion = resolveManifestFallbackEmotion(manifest, fallbackEmotion)
+  const nextBaseEmotion = manifest.supportedBaseEmotions.includes(normalized.baseEmotion)
+    ? normalized.baseEmotion
+    : resolvedFallbackEmotion
+  const nextFacialCue = normalized.facialCue && facialCueKeys.has(normalized.facialCue)
+    ? normalized.facialCue
+    : null
+  const nextActionCue = normalized.actionCue && actionCueKeys.has(normalized.actionCue)
+    ? normalized.actionCue
+    : null
+
+  return {
+    performance: {
+      ...normalized,
+      baseEmotion: nextBaseEmotion,
+      emotion: nextBaseEmotion,
+      facialCue: nextFacialCue,
+      actionCue: nextActionCue,
+    },
+    downgradedBaseEmotion: nextBaseEmotion !== normalized.baseEmotion
+      ? normalized.baseEmotion
+      : undefined,
+    droppedFacialCue: normalized.facialCue && nextFacialCue === null
+      ? normalized.facialCue
+      : undefined,
+    droppedActionCue: normalized.actionCue && nextActionCue === null
+      ? normalized.actionCue
+      : undefined,
+  }
+}
+
 export interface AlicizationDialogueStructuredPayload {
   thought: string
   emotion: AlicizationEmotion
   reply: string
+  performance: AlicizationDialoguePerformancePayload
   policyLocked?: string
   rawEmotion?: string
 }
@@ -428,6 +603,8 @@ interface AlicizationBridge {
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
+  getPerformanceManifest?: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
+  setPerformanceManifest?: (payload: CharacterPerformanceCapabilitiesManifest | null) => Promise<void>
   appendConversationTurn: (payload: AlicizationConversationTurnInput) => Promise<void>
   setActiveSession?: (payload: { sessionId: string }) => Promise<void>
   appendAuditLog: (payload: AlicizationAuditLogInput) => Promise<void>

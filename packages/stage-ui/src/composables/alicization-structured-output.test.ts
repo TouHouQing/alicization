@@ -25,19 +25,21 @@ describe('alicization structured output', () => {
     expect(result.thought).toBe('internal-json')
     expect(result.reply).toBe('json reply')
     expect(result.emotion).toBe('happy')
+    expect(result.performance.baseEmotion).toBe('happy')
     expect(result.format).toBe('epoch1-v1')
   })
 
   it('uses linear repair path for noisy wrapped json', () => {
     const result = normalizeStructuredOutput({
-      fullText: 'prefix noise >>> {"thought":"repair","emotion":"curious","reply":"ok"} <<< suffix noise',
+      fullText: 'prefix noise >>> {"thought":"repair","emotion":"thinking","reply":"ok","performance":{"baseEmotion":"thinking","delivery":"hesitant","emphasis":0}} <<< suffix noise',
       thought: 'fallback-thought',
       reply: 'fallback-reply',
     })
 
     expect(result.parsePath).toBe('repair-json')
     expect(result.reply).toBe('ok')
-    expect(result.emotion).toBe('curious')
+    expect(result.emotion).toBe('thinking')
+    expect(result.performance.baseEmotion).toBe('thinking')
     expect(result.repairTimedOut).toBe(false)
   })
 
@@ -52,6 +54,7 @@ describe('alicization structured output', () => {
     expect(result.thought).toBe('fenced')
     expect(result.emotion).toBe('neutral')
     expect(result.reply).toBe('你好，我在。')
+    expect(result.performance.baseEmotion).toBe('neutral')
   })
 
   it('rescues escaped json string payload and extracts reply', () => {
@@ -65,18 +68,20 @@ describe('alicization structured output', () => {
     expect(result.thought).toContain('友好问候')
     expect(result.emotion).toBe('happy')
     expect(result.reply).toContain('你好')
+    expect(result.performance.baseEmotion).toBe('happy')
   })
 
   it('falls back to parsing reply field when fullText is empty', () => {
     const result = normalizeStructuredOutput({
       fullText: '',
       thought: 'fallback-thought',
-      reply: '{"thought":"from-reply","emotion":"neutral","reply":"通过 reply 解析成功。"}',
+      reply: '{"thought":"from-reply","emotion":"neutral","reply":"通过 reply 解析成功。","performance":{"baseEmotion":"neutral","delivery":"calm","emphasis":0}}',
     })
 
     expect(result.parsePath).toBe('json')
     expect(result.thought).toBe('from-reply')
     expect(result.reply).toBe('通过 reply 解析成功。')
+    expect(result.performance.baseEmotion).toBe('neutral')
   })
 
   it('falls back safely for oversized malformed text', () => {

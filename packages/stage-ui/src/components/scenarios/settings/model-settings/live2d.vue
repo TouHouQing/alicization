@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { defaultModelParameters, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { OPFSCache } from '@proj-airi/stage-ui-live2d/utils/opfs-loader'
-import { Button, Checkbox, FieldRange, SelectTab } from '@proj-airi/ui'
+import { Button, Checkbox, FieldInput, FieldRange, FieldTextArea, SelectTab } from '@proj-airi/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useSettings } from '../../../../stores/settings'
+import { useStagePerformanceStore } from '../../../../stores/stage-performance'
 import { Section } from '../../../layouts'
 import { ColorPalette } from '../../../widgets'
 
-defineProps<{
+const props = defineProps<{
+  modelId?: string
   palette: string[]
 }>()
 defineEmits<{
@@ -18,6 +20,7 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const stagePerformanceStore = useStagePerformanceStore()
 
 const settings = useSettings()
 const {
@@ -46,6 +49,8 @@ const fpsOptions = computed(() => [
   { value: 60, label: '60' },
   { value: 30, label: '30' },
 ])
+const currentModelAvailableMotions = computed(() => live2d.getAvailableMotionsForModel(props.modelId))
+const currentModelActionBindings = computed(() => stagePerformanceStore.listLive2DActions(props.modelId ?? ''))
 
 // Get available runtime motions from the model
 onMounted(() => {
@@ -131,6 +136,46 @@ function handleClickOutside(event: MouseEvent) {
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
+
+function suggestActionKey(rawName: string) {
+  return rawName
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase()
+    .slice(0, 80)
+}
+
+function readActionBinding(fileName: string) {
+  return currentModelActionBindings.value.find(item => item.fileName === fileName)
+}
+
+function updateActionBinding(
+  motion: { fileName: string, motionName: string, motionIndex: number },
+  patch: Record<string, unknown>,
+) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.upsertLive2DAction(props.modelId, {
+    fileName: motion.fileName,
+    motionName: motion.motionName,
+    motionIndex: motion.motionIndex,
+    actionKey: readActionBinding(motion.fileName)?.actionKey ?? suggestActionKey(motion.motionName || motion.fileName),
+    label: readActionBinding(motion.fileName)?.label ?? motion.motionName,
+    description: readActionBinding(motion.fileName)?.description ?? '',
+    source: 'live2d-motion',
+    ...patch,
+  })
+}
+
+function removeActionBinding(fileName: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.removeLive2DAction(props.modelId, fileName)
+}
 
 // async function patchMotionMap(source: File, motionMap: Record<string, string>): Promise<File> {
 //   if (!Object.keys(motionMap).length)
@@ -236,6 +281,85 @@ onUnmounted(() => {
     <Button variant="secondary" @click="$emit('extractColorsFromModel')">
       {{ t('settings.live2d.theme-color-from-model.button-extract.title') }}
     </Button>
+  </Section>
+  <Section
+    title="Alicization Action Mapping"
+    icon="i-solar:gesture-bold-duotone"
+    :class="[
+      'rounded-xl',
+      'bg-white/80  dark:bg-black/75',
+      'backdrop-blur-lg',
+    ]"
+    size="sm"
+    :expand="false"
+  >
+    <div
+      v-if="currentModelAvailableMotions.length === 0"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-dashed',
+        'border-neutral-200',
+        'bg-white/40',
+        'p-4',
+        'text-sm',
+        'text-neutral-500',
+        'dark:border-neutral-700',
+        'dark:bg-black/20',
+        'dark:text-neutral-400',
+      ]"
+    >
+      No Live2D motions discovered for this model yet. Load the model preview once to populate motion metadata.
+    </div>
+    <div
+      v-for="motion in currentModelAvailableMotions"
+      :key="motion.fileName"
+      :class="[
+        'mb-3 rounded-xl border border-neutral-200 bg-white/50 p-4 dark:border-neutral-700 dark:bg-black/25',
+      ]"
+    >
+      <div :class="['mb-3 flex items-center justify-between gap-3']">
+        <div>
+          <div :class="['text-sm font-medium']">
+            {{ motion.motionName }} #{{ motion.motionIndex }}
+          </div>
+          <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+            {{ motion.fileName }}
+          </div>
+        </div>
+        <div :class="['flex items-center gap-2']">
+          <Button size="sm" variant="secondary" @click="currentMotion = { group: motion.motionName, index: motion.motionIndex }">
+            Preview
+          </Button>
+          <Button size="sm" variant="secondary" @click="removeActionBinding(motion.fileName)">
+            Clear
+          </Button>
+        </div>
+      </div>
+      <div :class="['grid gap-3 lg:grid-cols-2']">
+        <FieldInput
+          :model-value="readActionBinding(motion.fileName)?.actionKey"
+          label="Action Key"
+          description="Semantic actionCue exposed to Alicization for this motion."
+          :placeholder="suggestActionKey(motion.motionName)"
+          @update:model-value="value => updateActionBinding(motion, { actionKey: value })"
+        />
+        <FieldInput
+          :model-value="readActionBinding(motion.fileName)?.label"
+          label="Label"
+          description="Human-readable action name shown in the manifest."
+          :placeholder="motion.motionName"
+          @update:model-value="value => updateActionBinding(motion, { label: value })"
+        />
+      </div>
+      <FieldTextArea
+        :model-value="readActionBinding(motion.fileName)?.description"
+        label="Description"
+        description="Describe when this motion should be used so Alicization can call it precisely."
+        placeholder="A small nod for agreement, acknowledgment, or gentle confirmation."
+        @update:model-value="value => updateActionBinding(motion, { description: value })"
+      />
+    </div>
   </Section>
   <!-- <Section
     v-if="modelFile"

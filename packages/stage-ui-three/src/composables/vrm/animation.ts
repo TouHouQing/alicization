@@ -15,23 +15,32 @@ export interface GLTFUserdata extends Record<string, any> {
   vrmAnimations: VRMAnimation[]
 }
 
-export async function loadVRMAnimation(url: string) {
+export async function loadVRMAnimation(source: string | File) {
   const loader = useVRMLoader()
+  const url = typeof source === 'string'
+    ? source
+    : URL.createObjectURL(source)
 
-  // load VRM Animation .vrma file
-  const gltf = await loader.loadAsync(url)
+  try {
+    // load VRM Animation .vrma file
+    const gltf = await loader.loadAsync(url)
 
-  const userData = gltf.userData as GLTFUserdata
-  if (!userData.vrmAnimations) {
-    console.warn('No VRM animations found in the .vrma file')
-    return
+    const userData = gltf.userData as GLTFUserdata
+    if (!userData.vrmAnimations) {
+      console.warn('No VRM animations found in the .vrma file')
+      return
+    }
+    if (userData.vrmAnimations.length === 0) {
+      console.warn('No VRM animations found in the .vrma file')
+      return
+    }
+
+    return userData.vrmAnimations[0]
   }
-  if (userData.vrmAnimations.length === 0) {
-    console.warn('No VRM animations found in the .vrma file')
-    return
+  finally {
+    if (typeof source !== 'string')
+      URL.revokeObjectURL(url)
   }
-
-  return userData.vrmAnimations[0]
 }
 
 export async function clipFromVRMAnimation(vrm?: VRMCore, animation?: VRMAnimation) {
@@ -100,10 +109,7 @@ export function useBlink() {
   const nextBlinkTime = ref(Math.random() * (MAX_BLINK_INTERVAL - MIN_BLINK_INTERVAL) + MIN_BLINK_INTERVAL)
 
   // Function to handle blinking animation
-  function update(vrm: VRMCore | undefined, delta: number) {
-    if (!vrm?.expressionManager)
-      return
-
+  function update(delta: number) {
     timeSinceLastBlink.value += delta
 
     // Check if it's time for next blink
@@ -119,16 +125,22 @@ export function useBlink() {
       // Calculate blink value using sine curve for smooth animation
       const blinkValue = Math.sin(Math.PI * blinkProgress.value)
 
-      // Apply blink expression
-      vrm.expressionManager.setValue('blink', blinkValue)
-
       // Reset blink when animation is complete
       if (blinkProgress.value >= 1) {
         isBlinking.value = false
         timeSinceLastBlink.value = 0
-        vrm.expressionManager.setValue('blink', 0) // Reset blink value to 0
         nextBlinkTime.value = Math.random() * (MAX_BLINK_INTERVAL - MIN_BLINK_INTERVAL) + MIN_BLINK_INTERVAL
       }
+
+      return {
+        active: true,
+        weights: { blink: blinkValue },
+      }
+    }
+
+    return {
+      active: false,
+      weights: { blink: 0 },
     }
   }
 

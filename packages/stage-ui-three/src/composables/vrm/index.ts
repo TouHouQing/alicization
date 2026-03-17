@@ -1,4 +1,5 @@
 export * from './animation'
+export * from './capabilities'
 export * from './core'
 export * from './expression'
 export * from './lip-sync'

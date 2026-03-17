@@ -148,6 +148,7 @@ const {
   motionMap,
   modelParameters,
 } = storeToRefs(live2dStore)
+const { setAvailableMotionsForModel } = live2dStore
 
 const themeColorsHue = toRef(() => props.themeColorsHue)
 const themeColorsHueDynamic = toRef(() => props.themeColorsHueDynamic)
@@ -220,14 +221,6 @@ async function loadModel() {
 
     const live2DModel = new Live2DModel<PixiLive2DInternalModel>()
     await Live2DFactory.setupLive2DModel(live2DModel, { url: modelSrcRef.value, id: props.modelId }, { autoInteract: false })
-    availableMotions.value.forEach((motion) => {
-      if (motion.motionName in Emotion) {
-        motionMap.value[motion.fileName] = motion.motionName
-      }
-      else {
-        motionMap.value[motion.fileName] = EmotionNeutralMotionName
-      }
-    })
 
     // --- Scene
 
@@ -253,7 +246,7 @@ async function loadModel() {
     const motionManager = internalModel.motionManager
     coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenSize.value)
 
-    availableMotions.value = Object
+    const discoveredMotions = Object
       .entries(motionManager.definitions)
       .flatMap(([motionName, definition]) => (definition?.map((motion: any, index: number) => ({
         motionName,
@@ -261,6 +254,15 @@ async function loadModel() {
         fileName: motion.File,
       })) || []))
       .filter(Boolean)
+    setAvailableMotionsForModel(props.modelId, discoveredMotions)
+    discoveredMotions.forEach((motion) => {
+      if (motion.motionName in Emotion) {
+        motionMap.value[motion.fileName] = motion.motionName
+      }
+      else {
+        motionMap.value[motion.fileName] = EmotionNeutralMotionName
+      }
+    })
 
     // Check if user has selected a runtime motion to play as idle
     const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')

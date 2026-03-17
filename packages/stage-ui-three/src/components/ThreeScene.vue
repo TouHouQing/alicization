@@ -12,6 +12,11 @@ import type { TresContext } from '@tresjs/core'
 import type { DirectionalLight, SphericalHarmonics3, Texture, WebGLRenderer, WebGLRenderTarget } from 'three'
 
 import type { SceneBootstrap, ScenePhase, Vec3 } from '../stores/model-store'
+import type {
+  VrmActionBinding,
+  VrmCustomExpressionBinding,
+  VrmRuntimeCapabilitySnapshot,
+} from '../types/performance'
 
 import { Screen } from '@proj-airi/ui'
 import { TresCanvas } from '@tresjs/core'
@@ -48,7 +53,10 @@ import { VRMModel } from './Model'
 
 const props = withDefaults(defineProps<{
   currentAudioSource?: AudioBufferSourceNode
+  customExpressionBindings?: VrmCustomExpressionBinding[]
+  actionBindings?: VrmActionBinding[]
   modelSrc?: string
+  modelId?: string
   skyBoxSrc?: string
   showAxes?: boolean
   idleAnimation?: string
@@ -60,6 +68,8 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
+  (e: 'customExpressionsResolved', value: string[]): void
+  (e: 'runtimeCapabilitiesResolved', value: VrmRuntimeCapabilitySnapshot): void
   (e: 'loadModelProgress', value: number): void
   (e: 'error', value: unknown): void
 }>()
@@ -628,6 +638,20 @@ defineExpose({
   setExpression: (expression: string, intensity = 1) => {
     modelRef.value?.setExpression(expression, intensity)
   },
+  applyPerformance: async (performance: {
+    baseEmotion: string
+    facialCue?: string | null
+    actionCue?: string | null
+    emphasis?: number
+  }) => {
+    await modelRef.value?.applyPerformance(performance)
+  },
+  listCustomExpressionNames: () => {
+    return modelRef.value?.listCustomExpressionNames?.() ?? []
+  },
+  getRuntimeCapabilities: () => {
+    return modelRef.value?.getRuntimeCapabilities?.()
+  },
   setVrmFrameHook: (hook?: (vrm: VRM, delta: number) => void) => {
     vrmFrameHook.value = hook
     applyVrmFrameHook()
@@ -702,7 +726,10 @@ defineExpose({
       <VRMModel
         ref="modelRef"
         :current-audio-source="props.currentAudioSource"
+        :custom-expression-bindings="props.customExpressionBindings"
+        :action-bindings="props.actionBindings"
         :model-src="props.modelSrc"
+        :model-id="props.modelId"
         :idle-animation="props.idleAnimation"
         :paused="props.paused"
         :env-select="envSelect"
@@ -719,6 +746,8 @@ defineExpose({
         @load-start="onVRMModelLoadStart"
         @scene-bootstrap="onVRMSceneBootstrap"
         @look-at-target="onVRMModelLookAtTarget"
+        @custom-expressions-resolved="emit('customExpressionsResolved', $event)"
+        @runtime-capabilities-resolved="emit('runtimeCapabilitiesResolved', $event)"
         @error="onVRMModelError"
         @loaded="onVRMModelLoaded"
       />

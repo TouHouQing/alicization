@@ -88,7 +88,7 @@ describe('alicization guardrails', () => {
     expect(report.totalAfterTokens).toBeLessThanOrEqual(600)
     expect(report.safeMode.activated).toBe(true)
     expect(String(nextMessages[0]?.content)).toContain('# Alicization SOUL (SAFE MODE)')
-    expect(String(nextMessages[1]?.content ?? '')).toContain('Output contract: You must output JSON with { thought, emotion, reply }')
+    expect(String(nextMessages[1]?.content ?? '')).toContain('Output contract: You must output JSON with { thought, emotion, reply, performance }')
 
     const currentTurn = nextMessages.at(-1)
     expect(currentTurn?.role).toBe('user')
@@ -162,7 +162,7 @@ describe('alicization guardrails', () => {
           '[System Context: Sensory], '.concat('battery=20%,cpu=35%,memory=66%,'.repeat(120)),
           '',
           'Output contract (must-follow, highest priority):',
-          '- Return exactly one strict JSON object with keys: thought, emotion, reply.',
+          '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
           '- No markdown fences, no extra keys, no prose outside JSON.',
         ].join('\n'),
       },
@@ -183,7 +183,7 @@ describe('alicization guardrails', () => {
       '[System Context: Sensory], time=2026-03-11 10:00:00,battery=20%,cpu=35%,memory=66%,location=desktop-host,'.repeat(80),
       '',
       'Output contract (must-follow, highest priority):',
-      '- Return exactly one strict JSON object with keys: thought, emotion, reply.',
+      '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
       '- No markdown fences, no extra keys, no prose outside JSON.',
     ].join('\n')
 
@@ -225,7 +225,7 @@ describe('alicization guardrails', () => {
       '[System Context: Sensory], '.concat('battery=19%,cpu=88%,memory=91%,'.repeat(220)),
       '',
       'Output contract (must-follow, highest priority):',
-      '- Return exactly one strict JSON object with keys: thought, emotion, reply.',
+      '- Return exactly one strict JSON object with keys: thought, emotion, reply, performance.',
       '- No markdown fences, no extra keys, no prose outside JSON.',
     ].join('\n')
 
