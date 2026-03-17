@@ -1,72 +1,51 @@
 ---
 title: A.L.I.C.E 文档索引
-description: A.L.I.C.E 需求、架构、规划与 Epoch 1/2 开发与验收文档入口
+description: Alicization 当前实现、架构、路线图与阶段验收文档入口
 ---
 
-# A.L.I.C.E 文档索引
+# A.L.I.C.E / Alicization 文档索引
 
-## 1. 文档入口
+## 1. 当前文档快照
 
-1. [全景需求文档（Epoch 1-5）](./requirements)
-2. [架构设计文档（全局 + Epoch 1）](./architecture)
-3. [未来规划文档（Epoch 路线）](./roadmap)
-4. [开发需求文档（仅 Epoch 1，任务级）](./development-epoch1)
-5. [Epoch1 收官验收报告](./epoch1-closure-report)
-6. [Epoch2 收官验收报告（进行中）](./epoch2-closure-report)
+本文档集已按 **2026-03-17** 的仓库代码基线更新，当前项目状态为：
 
-## 2. 建议阅读顺序
+- `Epoch 1` 已于 **2026-03-09** 收官。
+- `Epoch 2` 已于 **2026-03-11** 收官。
+- 当前主线已进入 `Epoch 3`，重点是持续加强视觉、听觉、语音对话与更可靠的主动性。
+- 主要落地面仍然是 `apps/stage-tamagotchi` 桌面端。
 
-1. 先读 `requirements.md`，确认需求范围与编号。
-2. 再读 `architecture.md`，确认实现边界与接口。
-3. 再读 `roadmap.md`，确认阶段节奏与风险。
-4. 最后读 `development-epoch1.md`，按任务清单执行开发。
-5. 执行完成后读 `epoch1-closure-report.md`，核对门禁与回归结果。
-6. 进入 Epoch2 后读 `epoch2-closure-report.md`，核对 M2.1/M2.2/M2.3 门禁。
+## 2. 文档入口
 
-## 3. 追踪矩阵（需求ID -> 架构章节 -> Epoch1任务ID）
-
-| 需求ID | 架构章节 | Epoch1 任务ID |
+| 文档 | 作用 | 状态 |
 | --- | --- | --- |
-| ALICIZATION-F1.1 | 6.2, 8.1, 9.1, 9.4 | ALICIZATION-E1-T003, ALICIZATION-E1-T005 |
-| ALICIZATION-F1.2 | 5.1, 6.2 | ALICIZATION-E1-T004 |
-| ALICIZATION-F1.3 | 6.3, 6.4, 9.2, 9.5 | ALICIZATION-E1-T007, ALICIZATION-E1-T008, ALICIZATION-E1-T010 |
-| ALICIZATION-F2.1 | 5.2（预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F2.2 | 5.2, 9.2 | ALICIZATION-E1-T005, ALICIZATION-E1-T006 |
-| ALICIZATION-F3.1 | 3.1（Sensory Bus 预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F3.2 | 3.1（Sensory Bus 预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F3.3 | 3.1, 4.3（预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F4.1 | 4.3（调度预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F4.2 | 3.1 + 6.4（预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F4.3 | 7.2, 7.3, 9.3 | ALICIZATION-E1-T012（接口与门禁骨架） |
-| ALICIZATION-F5.1 | 3.1（Holographic 预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-F5.2 | 3.1（Holographic 预留） | N/A（非 Epoch 1 范围） |
-| ALICIZATION-NFR-PRIV-001 | 6.1, 6.3, 7.1 | ALICIZATION-E1-T009 |
-| ALICIZATION-NFR-PRIV-002 | 7.1 | ALICIZATION-E1-T011 |
-| ALICIZATION-NFR-PRIV-003 | 7.1, 7.2 | ALICIZATION-E1-T011, ALICIZATION-E1-T013 |
-| ALICIZATION-NFR-SAFE-001 | 5.3, 7.3 | ALICIZATION-E1-T012 |
-| ALICIZATION-NFR-SAFE-002 | 7.2 | ALICIZATION-E1-T013 |
-| ALICIZATION-NFR-SAFE-003 | 5.3, 7.3 | ALICIZATION-E1-T003, ALICIZATION-E1-T012 |
-| ALICIZATION-NFR-PERF-001 | 3, 6（预算与修剪） | ALICIZATION-E1-T010, ALICIZATION-E1-T013 |
-| ALICIZATION-NFR-PERF-002 | 3, 4（主链路解耦） | ALICIZATION-E1-T005, ALICIZATION-E1-T013 |
-| ALICIZATION-NFR-PERF-003 | 3, 4（动态降载预留） | ALICIZATION-E1-T013（基线与监测） |
-| ALICIZATION-NFR-ENG-001 | 1, 2, 10 | ALICIZATION-E1-T001 |
-| ALICIZATION-NFR-ENG-002 | 1, 2, 10 | ALICIZATION-E1-T001 |
-| ALICIZATION-NFR-ENG-003 | 1, 4 | ALICIZATION-E1-T002, ALICIZATION-E1-T013 |
+| [全景需求文档（Epoch 1-5）](./requirements) | 描述 Alicization 的产品目标、功能边界、非功能要求与阶段性能力基线 | 已更新 |
+| [架构设计文档（当前实现快照）](./architecture) | 描述当前代码中的运行时拓扑、存储模型、控制平面与模块落点 | 已更新 |
+| [未来规划文档（Epoch 路线）](./roadmap) | 描述从 Epoch 1 到 Epoch 5 的路线图、当前状态、风险与阶段门禁 | 已更新 |
+| [开发需求文档（仅 Epoch 1）](./development-epoch1) | `Epoch 1` 的历史任务分解文档，仅作回溯参考 | 历史归档 |
+| [Epoch1 收官验收报告](./epoch1-closure-report) | `Epoch 1` 完整闭环与门禁结果 | 历史验收记录 |
+| [Epoch2 收官验收报告](./epoch2-closure-report) | `Epoch 2` 感知、表现层与 MCP 安全闭环验收结果 | 历史验收记录 |
 
-## 4. 任务回溯矩阵（Epoch 1）
+## 3. 建议阅读顺序
 
-| Epoch1任务ID | 对应需求ID | 对应架构章节 |
-| --- | --- | --- |
-| ALICIZATION-E1-T001 | ALICIZATION-NFR-ENG-001/002 | 1, 2, 10 |
-| ALICIZATION-E1-T002 | ALICIZATION-DEP-001, ALICIZATION-NFR-ENG-003 | 4.1, 4.2, 4.3 |
-| ALICIZATION-E1-T003 | ALICIZATION-F1.1, ALICIZATION-NFR-SAFE-003 | 6.2, 8.1, 9.1, 9.4 |
-| ALICIZATION-E1-T004 | ALICIZATION-F1.2 | 5.1, 6.2 |
-| ALICIZATION-E1-T005 | ALICIZATION-F1.1, ALICIZATION-F2.2 | 3, 5.2, 9.2 |
-| ALICIZATION-E1-T006 | ALICIZATION-F2.2 | 5.2, 9.2 |
-| ALICIZATION-E1-T007 | ALICIZATION-F1.3 | 6.3, 6.4, 9.2 |
-| ALICIZATION-E1-T008 | ALICIZATION-F1.3, ALICIZATION-NFR-PERF-002 | 6.4, 9.2 |
-| ALICIZATION-E1-T009 | ALICIZATION-NFR-PRIV-001, ALICIZATION-DEP-002 | 6.1, 6.3 |
-| ALICIZATION-E1-T010 | ALICIZATION-F1.3, ALICIZATION-NFR-PERF-001 | 6.4, 9.5 |
-| ALICIZATION-E1-T011 | ALICIZATION-NFR-PRIV-002/003 | 7.1 |
-| ALICIZATION-E1-T012 | ALICIZATION-NFR-SAFE-001/003 | 5.3, 7.3, 9.3 |
-| ALICIZATION-E1-T013 | ALICIZATION-EPOCH-1, ALICIZATION-NFR-PERF-001/002 | 3, 4, 8.1 |
+如果你是第一次进入 Alicization 文档，建议按下面顺序阅读：
+
+1. 先读 [全景需求文档](./requirements)，确认它到底想做什么、已经做到什么、哪些还是未来目标。
+2. 再读 [架构设计文档](./architecture)，确认当前代码中的运行时、存储、感知、权限与表现层是怎么接起来的。
+3. 再读 [未来规划文档](./roadmap)，确认下一阶段的主线工作和长期目标。
+4. 如果你要回溯为什么 `Epoch 1`、`Epoch 2` 被视为完成，再读两份收官验收报告。
+5. 只有在你要回顾早期任务拆解时，才需要读 `development-epoch1.md`。
+
+## 4. 文档维护原则
+
+这些文档不再只服务于“设计预研”，还承担当前实现的说明职责。后续维护需要遵守下面的约束：
+
+- 文档必须优先描述 **当前代码已经具备的能力**，不能把未来愿景写成现状。
+- 未来规划必须明确标注为 `进行中`、`规划中` 或 `概念前瞻`。
+- 每当 `SOUL.md`、记忆层、潜意识链路、MCP 安全门禁、表现层或多模态能力发生明显变化时，都应同步更新 `requirements.md`、`architecture.md` 和 `roadmap.md`。
+- 每个 Epoch 收官后，应新增或更新对应的验收报告，而不是只改 README。
+
+## 5. 历史文档说明
+
+- [`development-epoch1.md`](./development-epoch1) 是 `Epoch 1` 的任务级执行文档，今天仍然有价值，但它不再代表当前代码的全貌。
+- [`epoch1-closure-report.md`](./epoch1-closure-report) 和 [`epoch2-closure-report.md`](./epoch2-closure-report) 是阶段门禁证据，不是未来设计文档。
+- 如果未来新增 `Epoch 3` 收官验收，请在本索引中补充并更新当前状态说明。

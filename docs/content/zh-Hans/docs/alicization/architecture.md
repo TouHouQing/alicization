@@ -1,344 +1,277 @@
 ---
 title: A.L.I.C.E 架构设计文档
-description: 全局架构与 Epoch 1 落地接口草案
+description: Alicization 当前实现快照、运行时拓扑与后续演进边界
 ---
 
 # A.L.I.C.E 架构设计文档
 
 ## 1. 文档目标与范围
 
-本文档定义 A.L.I.C.E 的全局技术架构，并给出 Epoch 1 的可落地实现边界、模块接口与数据契约。
+本文档描述 **截至 2026-03-17** 的 Alicization 实际架构落地情况，并说明：
 
-- 全局目标：建立可演进的四大子系统与事件总线架构，支撑 Epoch 1-5。
-- 当前落地：仅实现 Epoch 1 必需能力（初始化、结构化情绪输出、短期记忆、本地安全与可控）。
-- 工程边界：坚持“品牌层改名 + 增量插件化 + 可持续同步上游 AIRI”。
+- 当前代码中的运行时拓扑是什么。
+- 哪些能力已经从设计进入实现。
+- 数据、权限与中断边界如何组织。
+- `Epoch 3` 之后的能力应该建立在什么架构前提上。
+
+与早期版本不同，这份文档不再只覆盖 `Epoch 1` 草案，而是覆盖：
+
+- 已完成的 `Epoch 1` 与 `Epoch 2` 闭环。
+- 正在推进中的 `Epoch 3` 基础设施。
+- 为 `Epoch 4` / `Epoch 5` 预留的清晰边界。
 
 ## 2. 架构原则
 
-1. 本地优先（Local-first）：默认所有敏感数据仅本地存储与处理。
-2. 解耦优先（Event-first）：通过事件总线衔接感知、认知、执行、表现。
-3. 可降级（Graceful fallback）：结构化输出失败、模型失败时可回退，不阻塞主流程。
-4. 可审计（Auditable）：关键行为（记忆写入、工具调用、Kill Switch）可追踪。
-5. 低侵入上游同步（Upstream-friendly）：新增能力以插件/模块注入，不改写上游核心链路。
-6. 灵魂真源单一化（Soul-as-Source）：`SOUL.md` 是人格与边界唯一真源，数据库不保存人格主状态。
+1. 本地优先（Local-first）：默认敏感数据仅在本地存储与处理。
+2. 灵魂真源单一化（Soul-as-Source）：`SOUL.md` 是人格、边界与长期偏好的唯一真源。
+3. 主链结构化（Structured-first）：主对话必须走 `thought / emotion / reply` 合约，而不是自由文本黑箱。
+4. 可降级（Graceful fallback）：模型失败、合约失败、探针失败时必须可回退。
+5. 可审计（Auditable）：记忆写入、工具调用、权限请求、Kill Switch 与主动性判断均需可追踪。
+6. 可中断（Interruptible）：Kill Switch 与 Abort 语义必须贯穿感知、执行与落盘链路。
+7. 可持续同步上游（Upstream-friendly）：优先通过增量模块和适配层落地，不改写上游核心命名与构建边界。
 
-## 3. 全局架构总览
+## 3. 当前运行时总览
 
 ```mermaid
 flowchart LR
-  A["感官总线 Sensory Bus"] --> E["事件总线 Event Bus"]
-  E --> B["摇光认知引擎 Fluctlight Engine"]
-  B --> E
-  E --> C["自律执行器 Cybernated Actuator"]
-  C --> E
-  E --> D["全息表现层 Holographic Presence"]
-  D --> E
+  Host["Host / 宿主"] --> Renderer["Renderer UI / 桌面表现层"]
+  Renderer --> Bridge["Alicization Bridge / 事件桥"]
+  Bridge --> Runtime["Main Runtime / alicization runtime"]
 
-  S[("本地存储 SOUL.md + SQLite + Files")]
-  B --- S
-  A --- S
-  C --- S
+  Runtime --> Soul["SOUL.md / 灵魂真源"]
+  Runtime --> DB["SQLite / 轮次、记忆、审计、提醒"]
+  Runtime --> Sensory["Sensory Bus / 系统探针"]
+  Runtime --> Actuator["MCP + Permission Gate / 受控执行器"]
+  Runtime --> Presence["Presence Dispatch / 表现层广播"]
+
+  Sensory --> Runtime
+  Actuator --> Runtime
+  Presence --> Renderer
+  Runtime --> Dream["Dreaming / 梦境整理"]
+  Runtime --> Subconscious["Subconscious Tick / 潜意识心跳"]
+  Subconscious --> Runtime
+  Dream --> Soul
+  Dream --> DB
 ```
 
-### 3.1 子系统职责
+### 3.1 模块落点
 
-- 感官总线（Sensory Bus）
-  - 聚合麦克风、屏幕、系统探针输入并标准化事件。
-  - Epoch 1 仅接入文本输入与基础系统状态（最小实现）。
-- 摇光认知引擎（Fluctlight Engine）
-  - 对话编排、人格状态机、记忆写入/检索、情绪结构化输出。
-  - Epoch 1 为核心落地点。
-- 自律执行器（Cybernated Actuator）
-  - MCP 工具调用、系统操作执行、风险确认。
-  - Epoch 1 只保留接口与安全门禁骨架。
-- 全息表现层（Holographic Presence）
-  - Live2D、口型同步、情绪语音与 UI 互动。
-  - Epoch 1 仅保留文本通道与调试视图。
-
-## 4. 事件总线设计
-
-### 4.1 事件信封（Event Envelope）
-
-```ts
-interface AlicizationEvent<TPayload = unknown> {
-  id: string
-  topic: string
-  ts: string // ISO8601
-  source: 'sensory' | 'fluctlight' | 'actuator' | 'holographic' | 'system'
-  sessionId?: string
-  traceId?: string
-  payload: TPayload
-}
-```
-
-### 4.2 主题命名规范
-
-- 格式：`alicization.<domain>.<action>`
-- 示例：`alicization.dialogue.requested`、`alicization.memory.fact.upserted`
-
-### 4.3 Epoch 1 最小事件集
-
-| Topic | 生产者 | 消费者 | 用途 |
-| --- | --- | --- | --- |
-| `alicization.onboarding.completed` | Holographic | Fluctlight | 初始化完成后写入并加载 `SOUL.md` |
-| `alicization.dialogue.requested` | Holographic | Fluctlight | 提交用户输入 |
-| `alicization.dialogue.responded` | Fluctlight | Holographic | 返回 `thought/emotion/reply` |
-| `alicization.memory.fact.upserted` | Fluctlight | Fluctlight/Audit | 写入短期事实记忆 |
-| `alicization.soul.changed` | System/FileWatcher | Fluctlight/Holographic | 外部修改 `SOUL.md` 后触发热重载 |
-| `alicization.safety.kill-switch.triggered` | System | All | 立即中断感知与执行 |
-| `alicization.audit.recorded` | Any | Audit Store | 本地审计日志 |
-
-## 5. 状态机设计
-
-### 5.1 Personality Matrix（Epoch 1 版本）
-
-维度（可扩展）：
-
-- `obedience`（服从度）
-- `liveliness`（活泼度）
-- `sensibility`（感性度）
-
-状态更新约束：
-
-- 单轮变化幅度上限：`|delta| <= 0.02`
-- 静默死区（Deadzone）：`abs(userSentimentScore) < 0.25` 时，强制 `delta = 0`
-- 仅允许缓慢漂移，禁止跨阈值跳变。
-- 人格向量持久化到 `SOUL.md` Frontmatter，随会话累计。
-- 置信度使用 `calibratedConfidence`，不直接使用模型自评 `sentimentConfidenceRaw`。
-
-### 5.2 瞬时情绪状态
-
-- 输入：用户消息 + 短期记忆 + 人格向量。
-- 输出：`emotion` 标签（如 `neutral`, `concerned`, `happy`, `tired`）。
-- 失败策略：非 JSON 合约先重采样一次；仍失败时回退 `emotion = neutral`、`reply = rawText`，并记录 `contractFailed` 审计事件。
-- `contractFailed=true` 的轮次禁止触发人格漂移与异步记忆抽取。
-- 系统提示注入策略：`SOUL.md + 固定系统模板 + 上下文片段`，不开放 Prompt/Spark 模板运行时配置。
-
-### 5.3 Kill Switch 状态
-
-- `ACTIVE`：正常运行。
-- `SUSPENDED`：感知输入关闭、执行器停机，仅允许恢复指令。
-- 状态切换来源：快捷键事件或明确口令。
-- 指令拦截必须带来源标记，仅在 `origin=ui-user` 且尚未拼接外部上下文阶段触发。
-
-## 6. 数据与存储设计
-
-### 6.1 本地数据分层
-
-1. `SOUL.md`：人格、边界、输出契约唯一真源。
-2. `SQLite`：结构化流式记录（记忆、轮次、审计）。
-3. `Local Files`：缓存（未来截图、音频片段）。
-4. `In-memory Cache`：会话级上下文与短 TTL 索引。
-
-### 6.2 `SOUL.md` 真源模型与并发控制
-
-- 存储位置：`<userData>/alicization/SOUL.md`
-- Frontmatter 托管：
-  - `ownerName`
-  - `hostName`
-  - `alicizationName`
-  - `gender` / `genderCustom`
-  - `relationship`
-  - `mindAge`
-  - `obedience`
-  - `liveliness`
-  - `sensibility`
-- Markdown 正文托管：
-  - 输出契约、人格底色、边界规则、长期偏好描述。
-
-并发与一致性要求：
-
-1. 原子写策略：`tmp file -> fsync -> rename` 覆盖。
-2. CAS（Compare-And-Swap）：基于版本戳或哈希，避免并发脏写。
-3. 单写队列：同一进程内串行化所有 `SOUL.md` 写操作。
-4. 文件监听：`fs.watch` 监听外部编辑，发布 `alicization.soul.changed` 并热重载。
-5. 生命周期顺序：
-   - `needsGenesis=true` 时先完成 Genesis，不启动 `fs.watch`。
-   - Genesis 持久化成功后再启动 `fs.watch`。
-   - Genesis 期间捕获外部变更时，只作为“预填充候选”交给用户确认，禁止静默覆盖。
-
-### 6.3 Epoch 1 SQLite 数据模型（建议）
-
-| 表名 | 关键字段 | 说明 |
+| 模块 | 主要代码路径 | 职责 |
 | --- | --- | --- |
-| `memory_facts` | `id`, `subject`, `predicate`, `object`, `confidence`, `calibrated_confidence`, `source_turn_id`, `last_access_at`, `access_count`, `created_at` | 短期事实记忆 |
-| `conversation_turns` | `id`, `session_id`, `origin`, `user_text`, `thought`, `emotion`, `reply`, `created_at` | 对话轮次记录 |
-| `audit_logs` | `id`, `event_topic`, `level`, `payload`, `created_at` | 审计日志 |
-| `memory_archive` | `id`, `fact_id`, `snapshot`, `archived_at`, `expire_at` | 低价值记忆归档（可恢复） |
+| 主运行时 | `apps/stage-tamagotchi/src/main/services/alicization/runtime.ts` | Genesis、对话、潜意识 Tick、Dreaming、提醒、Kill Switch、bridge invoke handler |
+| 数据层 | `apps/stage-tamagotchi/src/main/services/alicization/db.ts` | SQLite schema、记忆检索、修剪、潜意识碎片、提醒任务、审计 |
+| 感知总线 | `apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts` | 时间、电量、CPU、内存等系统状态采样、缓存与降级 |
+| Kill Switch / 运行时状态 | `apps/stage-tamagotchi/src/main/services/alicization/state.ts` | 全局与 card 级 Kill Switch、运行时审计 logger |
+| MCP 权限控制 | `apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts` | 工作区沙箱、路径边界、权限请求、一次性 token、会话白名单 |
+| Renderer 侧 bridge | `packages/stage-ui/src/stores/alicization-bridge.ts` | 前后端桥接能力定义与数据规范化 |
+| 提示词编排 | `packages/stage-ui/src/composables/alicization-prompt-composer.ts` | 将 `SOUL.md`、上下文、记忆与固定模板拼成运行时提示词 |
+| 守卫与预算 | `packages/stage-ui/src/composables/alicization-guardrails.ts` | Prompt Budget、结构化输出守卫、严格实时门禁、安全回退 |
+| Epoch1/主状态 store | `packages/stage-ui/src/stores/alicization-epoch1.ts` | Renderer 侧 bootstrap、Kill Switch、Organic Memory、memory stats |
+| 实时执行引擎 | `packages/stage-ui/src/stores/alicization-execution-engine.ts` | weather/news/finance/sports 实时查询的 builtin/MCP 双路径 |
+| 表现层分发 | `packages/stage-ui/src/stores/alicization-presence-dispatcher.ts` | 将标准化结果分发给 Live2D 等身体化表现层 |
 
-说明：
+## 4. 当前核心链路
 
-- 禁止在 SQLite 新建人格主状态表（如 `profile/personality_state`）。
-- `SOUL.md` 解析后可生成内存快照供运行时读取，但快照不是持久化真源。
+### 4.1 主对话链路
 
-### 6.4 记忆检索预算与遗忘曲线
+1. Renderer 通过 bridge 发起 `bootstrap`、`chatStart`、`streamChat` 或写入类 invoke。
+2. Main runtime 读取 `SOUL.md`、当前会话上下文、记忆检索结果、performance manifest 和固定系统块。
+3. 模型侧必须返回结构化 `thought / emotion / reply`，并可附带 performance payload。
+4. 结构化结果通过 guardrails 归一化；失败时重采样或降级，并落审计。
+5. 被接受的轮次写入 `conversation_turns`，随后才向表现层广播 `alicization.dialogue.responded`。
+6. 记忆抽取、潜意识更新、梦境固化等异步动作只对合法轮次生效。
 
-- Prompt Budget Manager：
-  - 固定预算按比例切分：`SOUL`、记忆片段、当前轮上下文。
-  - 超预算时按优先级截断：低相关、低置信、低时效记忆先剔除。
-- Memory Pruning（低频任务）：
-  - 启动后执行一次 + 每 24h 执行一次。
-  - `pruneScore = timeDecay * (1 - accessFrequencyNorm) * (1 - confidenceNorm)`。
-  - `pruneScore >= thresholdArchive`：写入 `memory_archive`。
-  - `pruneScore >= thresholdDelete` 且长期未命中：硬删除。
+### 4.2 潜意识、提醒与梦境链路
 
-## 7. 安全、隐私与控制设计
+运行时已经具备一条长期运行链路，而不是只有“你问一句，我答一句”：
 
-### 7.1 本地隐私默认策略
+- `subconscious tick` 以分钟级心跳累积 `boredom / loneliness / fatigue`。
+- `scheduled_tasks` 支撑提醒、补偿和恢复性触发。
+- `active_thoughts` 与 `subconscious_fragments` 构成 Organic Memory 层。
+- Dreaming 会从有限对话片段中提炼长期记忆、行为策略和人格漂移，并写回 `SOUL.md` 与 SQLite。
 
-- 任何原始输入（文本、未来音频/屏幕）默认本地存储。
-- 远程模型调用前执行脱敏流程（密钥、密码、Token、疑似凭据）。
-- 不允许默认上传原始屏幕图像和原始音频。
+当前实现要点：
 
-### 7.2 高危操作门禁
+- 提醒任务支持创建、claim、重试、失败、补偿与完成落账。
+- 潜意识状态会在切卡、关机或恢复前持久化到 `alicization_meta`。
+- Dreaming 不得阻塞主聊天流；即使 Dreaming 占用 card scope，主聊天也必须可以继续启动。
 
-- Epoch 1 不开放高危执行，但必须预埋接口。
-- 风险分级：`low` / `medium` / `high`。
-- `high` 操作统一走显式授权接口，未授权直接拒绝并审计。
+### 4.3 感知与中断语境链路
 
-### 7.3 Kill Switch 接入点
+当前感知模型分为两层：
 
-- 主进程全局快捷键。
-- 对话命令 `A.L.I.C.E，强制休眠`。
-- 触发后广播 `alicization.safety.kill-switch.triggered` 并强制执行器停机。
-- Kill Switch 文本指令只允许在 `origin=ui-user` 的原始输入层匹配，禁止在工具输出、网页内容、RAG 拼接上下文中匹配，防止 Prompt Injection 误触发。
+#### 基础系统探针
 
-## 8. Epoch 1 实现边界
+由 `sensory-bus.ts` 提供，当前稳定采样：
 
-### 8.1 In Scope
+- 时间与时区
+- 电量 / 充电状态
+- CPU 使用率
+- 内存使用情况
+- 采样过期状态、下次 Tick 信息、降级原因
 
-- 初始化配置 + 本地持久化（ALICIZATION-F1.1）。
-- Personality Matrix v0（ALICIZATION-F1.2）。
-- 结构化情绪输出协议（ALICIZATION-F2.2）。
-- 短期事实记忆写入/检索（ALICIZATION-F1.3 基础能力）。
-- `SOUL.md` 原子写、热重载、Genesis 竞态兜底。
-- 记忆预算管理与低频修剪任务。
-- Kill Switch、本地审计、脱敏守卫（NFR）。
+#### 主动性中断语境
 
-### 8.2 Out of Scope
+由 `runtime.ts` 在潜意识判断前补采样，当前已具备：
 
-- Live2D、TTS、口型同步（Epoch 2）。
-- 屏幕与听觉静默感知（Epoch 3）。
-- 预测代办与自治执行（Epoch 4）。
-- 生物钟成熟与跨端连续陪伴（Epoch 5）。
+- 系统空闲时长与输入活跃度
+- 全屏状态推断
+- 前台窗口信息（`foregroundWindow`，例如 app 名称、进程名、窗口标题）
 
-## 9. Epoch 1 接口草案
+需要明确的是：
 
-### 9.1 初始化接口
+- 这些信号今天主要用于 **是否允许主动打断宿主** 的门禁判断。
+- 当前并不存在完整的“持续被动视觉”闭环；那属于 `Epoch 4` 的未来目标。
 
-```ts
-interface InitializeAlicizationInput {
-  ownerName: string
-  hostName: string
-  alicizationName: string
-  gender: 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
-  genderCustom?: string
-  relationship: string
-  personaNotes?: string
-  mindAge: number
-  personality: {
-    obedience: number
-    liveliness: number
-    sensibility: number
-  }
-  allowOverwrite?: boolean
-}
+### 4.4 工具执行与权限链路
 
-interface InitializeAlicizationOutput {
-  soulRevision: string
-  conflict: boolean
-  conflictCandidate?: {
-    hash: string
-  }
-}
-```
+MCP 与本地执行权并不是直接交给模型，而是进入一个受控的执行平面：
 
-### 9.2 对话编排接口
+1. 模型尝试发起工具调用。
+2. `mcp-servers/index.ts` 先做路径归一化、工作区边界判断和绝对黑名单拦截。
+3. 如果资源位于工作区内，可直接按规则放行；否则进入人在回路权限请求。
+4. 权限请求携带 `riskLevel`、`actionCategory`、`reason`、`token`、`requestId` 等信息。
+5. 用户决定后再由一次性 token 解析，不允许 replay。
+6. Kill Switch 触发时，中止运行中工具与待处理权限请求。
 
-```ts
-interface DialogueRequest {
-  sessionId: string
-  text: string
-  origin: 'ui-user' | 'system' | 'tool'
-}
+当前已经实现的安全特性：
 
-interface DialogueResponse {
-  thought: string
-  emotion: 'neutral' | 'happy' | 'concerned' | 'tired' | 'apologetic'
-  reply: string
-  sentimentConfidenceRaw?: number
-  sentimentConfidence?: number // calibrated
-  memoryWrites: Array<{ subject: string, predicate: string, object: string }>
-}
-```
+- 工作区根路径与路径防穿透
+- `userData` 绝对黑名单
+- 一次性 token、防重放、防跨 card 重用
+- 会话白名单
+- 允许 / 拒绝 / 超时 / 中断的结构化错误结果
 
-### 9.3 Kill Switch 接口
+### 4.5 表现层广播链路
 
-```ts
-interface KillSwitchState {
-  state: 'ACTIVE' | 'SUSPENDED'
-  reason?: string
-  updatedAt: string
-}
+Renderer 并不直接消费原始模型输出，而是消费标准化后的对话结果：
 
-interface KillSwitchController {
-  suspend: (reason: string, origin: 'ui-user' | 'system-hotkey') => Promise<KillSwitchState>
-  resume: (reason: string, origin: 'ui-user' | 'system-hotkey') => Promise<KillSwitchState>
-  getState: () => Promise<KillSwitchState>
-}
-```
+- 只有落库成功的轮次才能发出 `alicization.dialogue.responded`
+- `emotion` 非法时回退为 `neutral`
+- `facialCue`、`actionCue` 需要经过 performance manifest 约束
+- 表现层失败时允许静默降级，不得反向打崩主运行时
 
-### 9.4 SOUL 文件服务接口
+## 5. 数据与状态设计
 
-```ts
-interface SoulFileService {
-  readSoul: () => Promise<{ content: string, revision: string }>
-  writeSoulAtomic: (nextContent: string, expectedRevision: string) => Promise<{ revision: string }>
-  startWatch: () => Promise<void>
-  stopWatch: () => Promise<void>
-}
-```
+### 5.1 `SOUL.md`
 
-### 9.5 记忆维护接口
+`SOUL.md` 是 Alicization 的唯一人格真源。
 
-```ts
-interface MemoryMaintenanceService {
-  getMemoryStats: () => Promise<{
-    total: number
-    active: number
-    archived: number
-    lastPrunedAt?: string
-  }>
-  runMemoryPrune: () => Promise<{ archived: number, deleted: number }>
-}
-```
+它负责托管：
 
-## 10. 模块落点（stage-tamagotchi 优先）
+- `profile`：宿主 / Alicization 的基础设定
+- `personality`：人格矩阵
+- `boundaries`：Kill Switch、MCP guard 等边界开关
+- `host_attitude`、`core_incarnation`、`custom_directives`
+- 长期偏好、输出契约与其他人格正文内容
 
-- 主进程编排：`apps/stage-tamagotchi/src/main/services/alicization/*`
-- 共享契约：`apps/stage-tamagotchi/src/shared/alicization/*`
-- 渲染层入口：`apps/stage-tamagotchi/src/renderer/pages/devtools/*`（Epoch 1 调试视图）
-- 通用数据模型：`packages/stage-shared/src/alicization/*`
-- 文案与多语言：`packages/i18n/src/*`
+当前一致性策略：
 
-## 11. 需求到架构映射
+1. 原子写：`tmp -> fsync -> rename`
+2. 同进程单写队列
+3. 外部修改监听与热重载
+4. Genesis 期间避免静默覆盖外部文件
 
-| 需求ID | 架构章节 |
+### 5.2 SQLite 当前数据面
+
+当前数据库已不再是早期版本中的最小模型，而是支撑了多条后台链路。
+
+| 表 / 数据面 | 用途 |
 | --- | --- |
-| ALICIZATION-F1.1 | 6.2, 8.1, 9.1, 9.4 |
-| ALICIZATION-F1.2 | 5.1, 6.2 |
-| ALICIZATION-F1.3 | 4.3, 6.3, 6.4, 9.2, 9.5 |
-| ALICIZATION-F2.1 | 5.2（预留，Epoch 4/5 实装） |
-| ALICIZATION-F2.2 | 5.2, 9.2 |
-| ALICIZATION-F3.1 | 3.1（Sensory Bus 预留） |
-| ALICIZATION-F3.2 | 3.1（Sensory Bus 预留） |
-| ALICIZATION-F3.3 | 3.1, 4.3（事件模型） |
-| ALICIZATION-F4.1 | 4.3（调度主题预留） |
-| ALICIZATION-F4.2 | 3.1 + 6.4（记忆驱动预留） |
-| ALICIZATION-F4.3 | 7.2, 7.3, 9.3 |
-| ALICIZATION-F5.1 | 3.1（Holographic 预留） |
-| ALICIZATION-F5.2 | 3.1（Holographic 预留） |
-| ALICIZATION-NFR-PRIV-001/002/003 | 6, 7 |
-| ALICIZATION-NFR-SAFE-001/002/003 | 5.3, 7 |
-| ALICIZATION-NFR-PERF-001/002/003 | 3, 4, 6 |
-| ALICIZATION-NFR-ENG-001/002/003 | 1, 2, 10 |
+| `memory_facts` | 事实记忆与检索 |
+| `memory_archive` | 归档记忆 |
+| `active_thoughts` | 当前活跃思绪 |
+| `subconscious_fragments` + FTS | 潜意识碎片与召回 |
+| `conversation_turns` | 用户 / 助手轮次与结构化结果 |
+| `audit_logs` | 审计日志 |
+| `alicization_meta` | Kill Switch、subconscious state、lastDreamedAt、performance manifest 等元数据 |
+| `scheduled_tasks` | 提醒任务与补偿链路 |
+
+### 5.3 In-memory 状态
+
+运行时还维护一组不直接暴露给持久化层的瞬时状态：
+
+- 活跃聊天流与 AbortController
+- pending permission request
+- per-card subconscious state
+- presence manifest cache
+- pending dialogue delivery retry 状态
+
+这些状态必须在 Kill Switch、切卡、恢复和退出时进行一致性处理。
+
+## 6. Bridge 与接口面
+
+Renderer 侧通过 `AlicizationBridge` 访问主运行时能力。当前关键接口包括：
+
+| 类别 | 主要接口 |
+| --- | --- |
+| 灵魂与初始化 | `bootstrap`、`getSoul`、`initializeGenesis`、`updateSoul`、`updatePersonality` |
+| 安全控制 | `getKillSwitchState`、`suspendKillSwitch`、`resumeKillSwitch` |
+| 记忆与 Organic Memory | `getMemoryStats`、`runMemoryPrune`、`retrieveMemoryFacts`、`getOrganicMemorySnapshot`、`searchOrganicSubconsciousFragments` |
+| 感知与主动性 | `getSensorySnapshot`、`getSubconsciousState`、`forceSubconsciousTick`、`forceDreaming` |
+| 对话 | `chatStart`、`chatAbort`、`streamChat`、`appendConversationTurn` |
+| 提醒与实时执行 | `reminderSchedule`、`realtimeExecute` |
+| 表现层 | `getPerformanceManifest`、`setPerformanceManifest` |
+| 清理 | `deleteCardScope`、`deleteAllData`、`clearAllConversations` |
+
+这意味着 Alicization 今天已经不是一个单一 chat API，而是一个包含灵魂管理、后台任务、感知快照、主动性调度和受控执行的完整 runtime surface。
+
+## 7. 安全、隐私与控制平面
+
+### 7.1 Kill Switch
+
+当前已支持：
+
+- 全局 Kill Switch
+- card 级 Kill Switch 状态
+- 中断运行中 turn
+- 中断 / 清退运行中工具与待处理权限请求
+- 阻止中断轮次继续落盘或继续向表现层广播
+
+### 7.2 Prompt Injection 防线
+
+- Kill Switch 文本指令只允许在原始用户输入层触发。
+- 工具结果、网页内容、RAG 上下文、外部拼接文本不能伪造控制指令。
+- 实时查询在缺乏工具证据时必须走严格拒绝或降级路径。
+
+### 7.3 Local-first 边界
+
+- 记忆、轮次、审计与灵魂文件默认仅保存在本地。
+- 模型调用通过 `xsai` 出网时必须先做脱敏。
+- 当前视觉 / 听觉 / 语音能力仍在增强，但未来也必须服从相同的数据主权边界。
+
+## 8. 当前实现边界
+
+### 8.1 已稳定闭环
+
+- Genesis 与 `SOUL.md` 真源
+- 结构化对话合约与回退
+- Prompt Budget 与灵魂锚点保护
+- 本地记忆、修剪、Organic Memory 与 Dreaming 基线
+- 潜意识 Tick、提醒任务与恢复性补偿
+- 系统探针、主动性环境门禁
+- MCP 权限链路、工作区沙箱与会话白名单
+- Kill Switch 全链路中断语义
+
+### 8.2 正在增强
+
+- 视觉、听觉、语音对话能力
+- performance manifest 与身体化表现层联动
+- 更丰富的前台窗口与环境理解信号
+- 更稳定的主动搭话质量与抑制策略
+
+### 8.3 尚未进入稳定实现
+
+- 持续被动视觉的完整闭环
+- 强自治的习惯建模与预测执行
+- 跨终端意识连续
+- 真正意义上的自我目标驱动与异步后台思考链
+
+## 9. 后续演进约束
+
+从 `Epoch 3` 往后，任何新增能力都必须建立在当前控制平面之上：
+
+- 不能为了增强主动性而绕开 Kill Switch。
+- 不能为了提升执行力而绕开工作区沙箱和人在回路。
+- 不能为了丰富多模态而绕开 local-first 数据主权策略。
+- 不能为了追求“像活的”而把未来能力写成今天已经具备的能力。
