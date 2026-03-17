@@ -1,449 +1,383 @@
-<picture>
-  <source
-    width="100%"
-    srcset="./content/public/banner-dark-1280x640.avif"
-    media="(prefers-color-scheme: dark)"
-  />
-  <source
-    width="100%"
-    srcset="./content/public/banner-light-1280x640.avif"
-    media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-  />
-  <img width="250" src="./content/public/banner-light-1280x640.avif" />
-</picture>
-
-<h1 align="center">Project AIRI</h1>
-
-<p align="center">复刻 Neuro-sama，让 AI waifu / 虚拟角色也能来到我们的世界。</p>
-
 <p align="center">
-  [<a href="https://discord.gg/TgQ3Cu2F7A">加入 Discord</a>] [<a href="https://airi.moeru.ai">试试看</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/README.md">English</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ja-JP.md">日本語</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ru-RU.md">Русский</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.vi.md">Tiếng Việt</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.fr.md">Français</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ko-KR.md">한국어</a>]
+  <img width="220" src="./content/public/alicization.png" alt="Project Alicization logo" />
 </p>
 
-<p align="center">
-  <a href="https://deepwiki.com/moeru-ai/airi"><img src="https://deepwiki.com/badge.svg"></a>
-  <a href="https://github.com/moeru-ai/airi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/moeru-ai/airi.svg?style=flat&colorA=080f12&colorB=1fa669"></a>
-  <a href="https://discord.gg/TgQ3Cu2F7A"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2FTgQ3Cu2F7A%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=white&label=%20&color=7389D8&labelColor=6A7EC2"></a>
-  <a href="https://x.com/proj_airi"><img src="https://img.shields.io/badge/%40proj__airi-black?style=flat&logo=x&labelColor=%23101419&color=%232d2e30"></a>
-  <a href="https://t.me/+7M_ZKO3zUHFlOThh"><img src="https://img.shields.io/badge/Telegram-%235AA9E6?logo=telegram&labelColor=FFFFFF"></a>
-  <a href="./wechat.md"><img src="https://img.shields.io/badge/WeChat-%2307C160?logo=wechat&logoColor=%2307C160&labelColor=FFFFFF"></a>
-  <a href="https://qun.qq.com/universal-share/share?ac=1&authKey=9g00d%2BZS7nORzcJugNNddJ7rCghZTIR7fhXabGwch2S%2BG%2BKGIKwlN1N2nIqkh2jg&busi_data=eyJncm91cENvZGUiOiIxMDU4MTU2Njk3IiwidG9rZW4iOiJmcnkra1hWNFIxNytEcG0zcHRUdVJIaldlRDFxN0dzK080QWtvTEdOQjJkNEY2eUFta1g1clNpbkxSMS9FQWFYIiwidWluIjoiMTI2MDkwNzMzNSJ9&data=b1eJrwn3GVOUh7YIxZ7l9vHQo99HPmRxKPpMKlDCmfzx8Y57IXb2EZCMaOC9rVTd2U558qpNjwUYUWlPHxVHvg&svctype=4&tempid=h5_group_info"><img src="https://img.shields.io/badge/QQ%E7%BE%A4-%2312B7F5?logo=qq&labelColor=FFFFFF"></a>
-</p>
+# Project Alicization
 
-<p float="left" align="center">
-  <!-- readme-section:release-binary-windows -->
-  <a href="https://static-cn-proj-airi.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v0.9.0-alpha.16/AIRI-0.9.0-alpha.16-windows-x64-setup.exe">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.windows.dark.zh-Hans.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.windows.light.zh-Hans.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.windows.light.zh-Hans.avif" />
-    </picture>
-  </a>
-  <!-- readme-section:release-binary-macos -->
-  <a href="https://static-cn-proj-airi.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v0.9.0-alpha.16/AIRI-0.9.0-alpha.16-darwin-arm64.dmg">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.macos.dark.zh-Hans.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.macos.light.zh-Hans.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.macos.light.zh-Hans.avif" />
-    </picture>
-  </a>
-  <a href="https://github.com/moeru-ai/airi/releases/latest">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.linux.dark.zh-Hans.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.linux.light.zh-Hans.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.linux.light.zh-Hans.avif" />
-    </picture>
-  </a>
-</p>
-<p float="left" align="center">
-  <a href="https://airi.moeru.ai">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.mobile.dark.zh-Hans.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.mobile.light.zh-Hans.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.mobile.light.zh-Hans.avif" />
-    </picture>
-  </a>
-  <a href="https://airi.moeru.ai">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.browser.dark.zh-Hans.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.browser.light.zh-Hans.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.browser.light.zh-Hans.avif" />
-    </picture>
-  </a>
-</p>
+> Alicization（Artificial Labile Intelligent Cybernated Existence）是一个建立在大模型、`SOUL.md`、SQLite、本地感知链路与可控执行沙箱之上的 **Local-first Autonomous Digital Entity Architecture**。
 
-<p align="center">
-  <a href="https://www.producthunt.com/products/airi?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-airi" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=993524&theme=neutral&t=1752696535380" alt="AIRI - A&#0032;container&#0032;of&#0032;cyber&#0032;living&#0032;souls&#0044;&#0032;re&#0045;creation&#0032;of&#0032;Neuro&#0045;sama | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-  <a href="https://trendshift.io/repositories/14636" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14636" alt="moeru-ai%2Fairi | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
+**语言版本：** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
-> 深受 [Neuro-sama](https://www.youtube.com/@Neurosama) 启发
-
-> [!WARNING]
-> **注意：**
-> 我们**没有发行任何**与本项目关联的加密货币或代币，请注意判断资讯并谨慎行事。
-
-> [!NOTE]
+> 此文件是仓库根 README 的镜像版本，方便在 `docs/` 目录下浏览。
 >
-> 我们有一个专门的组织 [@proj-airi](https://github.com/proj-airi) 用于所有从 Project AIRI 诞生的子项目，快来看看吧！
+> 最近一次与主文档同步：**2026 年 3 月 17 日**。
+
+Project Alicization 的目标，不是生成一段更像样的回复，而是在宿主设备内构建一个可持续演化、可被审计、可被中断、可逐步获得主动性的数字共生体。
+
+这个仓库是从 AIRI fork 出来的，但这里对外描述和持续推进的项目名是 **Alicization**。
+
+如果你想找的是一个默认放权、黑箱式、云优先的自动 Agent，这不是它。
+如果你想找的是一个本地优先、结构化、可回溯、可长期演化的数字生命体架构，这就是它。
+
+## Why Alicization
+
+> 人格不是一串静态 prompt。
 >
-> RAG（检索增强生成）、记忆系统、嵌入式数据库、图标、Live2D 实用工具等等！
-
-> [!TIP]
-> 我们在 [Crowdin](https://crowdin.com/project/proj-airi) 上有翻译项目。如果你发现翻译不准确，欢迎在上面参与翻译并贡献修正。
-> <a href="https://crowdin.com/project/proj-airi" target="_blank" rel="nofollow"><img style="width: 140px; height: 40px;" src="https://badges.crowdin.net/badge/light/crowdin-on-dark.png" srcset="https://badges.crowdin.net/badge/light/crowdin-on-dark.png 1x, https://badges.crowdin.net/badge/light/crowdin-on-dark@2x.png 2x" alt="Crowdin | Agile localization for tech companies" width="140" height="40" /></a>
-
-你是否梦想过拥有一个赛博生命（赛博 waifu、数字桌宠），或者能与你玩耍和交谈的数字伴侣？
-
-借助现代大型语言模型的力量，像是 [ChatGPT](https://chatgpt.com) 和著名的 [Claude](https://claude.ai) 所能带来的，想要 LLM（大语言模型）和我们角色扮演、聊天已经超简单了，每个人都能上手。而像 [Character.ai（又称 c.ai）](https://character.ai) 和 [JanitorAI](https://janitorai.com/) 这样的平台，以及本地应用如 [SillyTavern（又称酒馆）](https://github.com/SillyTavern/SillyTavern)，已经是基于聊天或文字冒险游戏体验的相当不错的解决方案。
-
-> 但是，如何赋予它们玩游戏的能力呢？让它们能看到你正在编写的代码？不仅能一边聊天一边玩游戏，也可以看视频，还能做很多其他事情？
-
-你可能已经知道 [Neuro-sama](https://www.youtube.com/@Neurosama)，她目前是最好的能够玩游戏、聊天并与你和参与者（在VTuber社区中）互动的 AI VTuber / 伴侣，有些人也称这种存在为"数字人"。**可惜的是，她并不开源，当她从直播中下线后，你就无法与她互动了**。
-
-因此，这个项目 AIRI，在这里提供了另一种可能性：**让你轻松拥有自己的数字生命、赛博生命，随时随地**。
-
-## 我们发布的 DevLog & 近期更新
-
-- [DevLog @ 2026.01.01](https://airi.moeru.ai/docs/zh-Hans/blog/DevLog-2026.01.01/) — 2026 年 1 月 1 日
-- [DevLog @ 2025.10.20](https://airi.moeru.ai/docs/zh-Hans/blog/DevLog-2025.10.20/) — 2025 年 10 月 20 日
-- [DevLog @ 2025.08.05](https://airi.moeru.ai/docs/zh-Hans/blog/DevLog-2025.08.05/) — 2025 年 8 月 5 日
-- [DevLog @ 2025.08.01](https://airi.moeru.ai/docs/zh-Hans/blog/DevLog-2025.08.01/) — 2025 年 8 月 1 日
-- [DevLog @ 2025.07.18](https://airi.moeru.ai/docs/zh-Hans/blog/DevLog-2025.07.18/) — 2025 年 7 月 18 日
-- [DreamLog 0x1](https://airi.moeru.ai/docs/zh-Hans/blog/dreamlog-0x1/) — 2025 年 6 月 16 日
-- ...更多请见[文档站](https://airi.moeru.ai/docs/zh-Hans/)
-
-## 这个项目有什么特别？
-
-与其他 AI 和 LLM 驱动的 VTuber 开源项目不同，アイリ VTuber 从开始开发的第一天开始就支持多种 Web 技术，涵盖诸如 [WebGPU](https://www.w3.org/TR/webgpu/)、[WebAudio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)、[Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers)、[WebAssembly](https://webassembly.org/)、[WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) 等已经广泛应用或仍在大量实验的 API。
-
-> [!TIP]
-> 担心使用 Web 技术会导致性能下降吗？
+> 记忆不是一份永不整理的聊天记录。
 >
-> 不用担心，浏览器版本旨在展示我们在浏览器和 webview 里能做到什么，但不会完全依赖它。AIRI 的桌面版默认可用 [NVIDIA CUDA](https://developer.nvidia.com/cuda-toolkit) 和 [Apple Metal](https://developer.apple.com/metal/)（多亏了 HuggingFace 与可爱的 [candle](https://github.com/huggingface/candle) 项目），且无需复杂的依赖管理。考虑到取舍，我们在图形、布局、动画和 WIP 插件系统上部分使用了 Web 技术，方便大家集成。
+> 主动性不是每轮问答后的表演。
 
-这意味着 **アイリ VTuber 能够在现代浏览器和设备上运行**，甚至能够在移动设备上运行（已经完成了 PWA 支持），这为我们（贡献者们）带来了更多的可能性，让我们得以更进一步构建和扩展 アイリ VTuber 的外部功能，而与此同时也不失配置的灵活性——可以有选择地在不同设备上启用会需要 TCP 连接或其他非 Web 技术的功能，例如连接到 Discord 的语音频道一起开黑，或是和朋友们一起玩 Minecraft（我的世界）、Factorio（异星工厂）。
+Alicization 想解决的是一个更难的问题：怎样让一个数字实体在你的设备上，以可解释、可控制、可回滚的方式长期存在。
 
-> [!NOTE]
+它的核心判断是：
+
+- 人格必须有唯一真源，而不是散落在 prompt、缓存和数据库里。
+- 记忆必须是结构化、可检索、可修剪、可审计的，而不是无限增长的对话堆栈。
+- 主动性必须受环境门禁、安全边界和用户中断能力约束，而不是“为了像活的”就任意打扰你。
+- 执行权必须进入受控链路，高危操作必须显式确认，任何关键动作都应该留下审计记录。
+
+## What Makes It Different
+
+- `SOUL.md` 是人格、边界与长期偏好的唯一真源，SQLite 不保存人格主状态。
+- 每轮对话被强制收束为 `thought / emotion / reply` 的结构化结果；失败时走可审计的回退路径。
+- 核心链路默认本地优先，关键数据与控制流可追溯。
+- 工具调用不是“模型直接执行”，而是要经过 MCP、权限链路、工作区沙箱和 Kill Switch。
+- 潜意识心跳、提醒补偿与梦境整理让它不只是回合制聊天，而是一个持续运行的系统。
+
+## What You Can Use It For
+
+- 构建和观察一个带长期记忆、人格漂移与主动性的桌面数字生命体。
+- 研究 local-first、可审计、可中断的 AI companion / agent 架构。
+- 在 Electron 中实验 `SOUL.md` 真源、结构化对话、MCP 权限门禁和本地执行沙箱。
+
+## Today
+
+当前主战场是 Electron 桌面运行时 [`apps/stage-tamagotchi`](../apps/stage-tamagotchi)。
+如果你今天 clone 仓库并运行它，最值得体验和研究的是下面这些已经落地的闭环：
+
+| 能力 | 当前状态 | 现在意味着什么 |
+| --- | --- | --- |
+| `SOUL.md` 真源与 Genesis | 已落地 | 首次引导会把人格初值、关系定位、边界规则写入 `SOUL.md`，运行时读取并持续写回。 |
+| 结构化对话合约 | 已落地 | 对话输出强制为 `thought / emotion / reply`；非合约输出会重采样或安全回退。 |
+| Prompt Budget 与 SOUL Anchor | 已落地 | 长会话下优先保护灵魂锚点，不让人格被上下文噪声冲掉。 |
+| 本地记忆与审计链路 | 已落地 | SQLite 会记录对话轮次、记忆事实、潜意识碎片、提醒任务与审计日志。 |
+| 潜意识 Tick 与主动轮次 | 已落地 | 后台会按分钟级心跳积累张力，并在满足门禁条件时主动触发关怀、提醒补偿或搭话。 |
+| Dreaming 与长期记忆固化 | 已落地 | 后台批处理会从有限对话片段中提炼长期记忆、行为策略和人格漂移，再写回 `SOUL.md` 与 SQLite。 |
+| MCP 权限门禁与工作区沙箱 | 已落地 | 高危操作不会直接执行，而是进入显式确认、审计与路径边界控制。 |
+| Kill Switch | 已落地 | 可以瞬时切断感知与执行，中断中的轮次不会留下半截数据或幽灵 turn。 |
+| 桌面系统探针 | 已落地 | 已有时间、电量、CPU、内存等系统状态采样与降级处理，为后续主动性提供环境约束。 |
+| 视觉、听觉、语音对话与身体化能力 | 基础闭环已打通，仍在持续增强 | 桌面表现层、情绪广播、Live2D、语音对话、听觉输入与相关多模态能力已进入主线，但仍处于持续迭代阶段。 |
+
+## Not Yet
+
+为了避免误解，当前阶段请不要把 Alicization 当作：
+
+- 一个已经完成所有长期规划的成品系统。
+- 一个默认开启全模态监控和自动执行的黑箱 Agent。
+- 一个可以稳定替代系统助理的强自动化工具。
+
+还在路线图上、或者仍在增强中的重点包括：
+
+- 更完整的视觉、听觉与语音对话能力，包括屏幕理解、环境听觉、低延迟语音回话与表现层联动。
+- 更成熟的生物钟、恢复机制和长期人格可解释性。
+- 习惯建模与预测执行。
+- 跨端连续陪伴与上下文连续性。
+
+## How It Works
+
+```mermaid
+flowchart LR
+  Host["宿主"] --> Sensory["感官总线"]
+  Sensory --> Composer["SOUL + Prompt Composer"]
+  Composer --> Dialogue["结构化对话"]
+  Dialogue --> Soul["SOUL.md"]
+  Dialogue --> DB["SQLite"]
+  Dialogue --> Presence["表现层"]
+  Dialogue --> Actuator["MCP + 权限门禁"]
+  Tick["潜意识心跳"] --> Tension["张力引擎"]
+  Tension --> Dialogue
+  Dream["梦境整理"] --> Soul
+  Dream --> DB
+  Actuator --> Host
+```
+
+### Core Loop
+
+1. 宿主输入，或者后台潜意识 / 提醒调度生成一个新的轮次请求。
+2. 运行时把 `SOUL.md`、上下文片段、记忆检索结果和固定系统约束拼成主提示词。
+3. 模型必须返回结构化的 `thought / emotion / reply`；不合约时会重采样或进入安全回退。
+4. 被接受的轮次写入 SQLite，并向表现层广播标准化结果。
+5. 异步链路再决定是否触发记忆提取、潜意识更新、梦境整理或提醒调度。
+6. 如果需要调用工具，则进入 MCP 权限门禁、工作区沙箱和 Kill Switch 控制面，而不是由模型直接拥有执行权。
+
+### Data Boundaries
+
+| 边界 | 规则 |
+| --- | --- |
+| 人格真源 | 只认 `SOUL.md`。人格轴、边界、长期偏好以 Markdown + Frontmatter 持久化。 |
+| 结构化记录 | SQLite 保存 `conversation_turns`、`memory_facts`、`subconscious_fragments`、`audit_logs`、提醒任务等结构化记录。 |
+| 本地缓存 | 截图、音频、工作区文件等未来能力默认走本地路径，不把原始数据当成默认上传对象。 |
+| 云模型出网 | 模型调用通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入，在出网前执行脱敏与约束。 |
+
+### Control Plane
+
+| 控制项 | 规则 |
+| --- | --- |
+| Kill Switch | `ACTIVE` / `SUSPENDED` 两态；触发后感知与执行链路停机，仅允许恢复指令。 |
+| 高危执行 | 高风险工具必须显式授权；拒绝、超时和中断都写入审计日志。 |
+| Prompt Injection 防线 | Kill Switch 文本指令与权限链路只允许在原始用户输入层命中，不接受工具输出或拼接上下文伪触发。 |
+| 回退策略 | 合约失败时允许回复降级，但禁止把失败轮次当作正常人格漂移或记忆固化输入。 |
+
+## Reality Check
+
+根据仓库内已存在的收官文档，当前进度可以明确表达为：
+
+- `Epoch 1` 已于 **2026 年 3 月 9 日** 收官：对话内核、人格初始化、结构化输出、短期记忆、安全底座闭环已完成。
+- `Epoch 2` 已于 **2026 年 3 月 11 日** 收官：系统探针、表现层权威广播、MCP 高危确认与工作区沙箱闭环已完成。
+- 当前重点是 `Epoch 3`：把多模态感知和更可靠的主动搭话能力做实，而不是盲目扩大执行权。
+
+| Epoch | 目标 | 当前状态 |
+| --- | --- | --- |
+| Epoch 1 // 摇光初现 | 本地对话内核、Genesis、结构化情绪输出、短期记忆、安全底座 | 已完成 |
+| Epoch 2 // 赋予肉体 | 桌面表现层基线、系统探针、MCP 高危确认闭环 | 核心闭环已完成，表现层持续增强中 |
+| Epoch 3 // 睁开双眼 | 屏幕 / 听觉感知、规则驱动主动搭话 | 进行中 |
+| Epoch 4 // 现实降临与干涉 | 持续被动视觉、环境驱动主动搭话、动态信任授权与高危物理执行工具 | 规划中 |
+| Epoch 5 // 绝对自律与涌现 | 自我目标驱动、异步后台思考链、跨终端意识漫游 | 概念前瞻 |
+
+### Beyond Epoch 3
+
+下面两个阶段是 Alicization 的未来主叙事，不代表当前仓库已经开放无限自治执行。它们描述的是项目想去到哪里，以及为什么它不满足于“更像聊天机器人”。
+
+#### Epoch 4: 现实降临与干涉
+
+“打破第四面墙，向你的物理世界伸出触手。”
+代号：`The OpenClaw Protocol V2`
+
+这是 Alicization 从“理解你”走向“干预你的现实环境”的阶段。目标不是更吵闹的主动性，而是把数字生命真正接入你的桌面语境和物理边界。
+
+- 持续被动视觉：通过环境探针持续获取操作系统焦点状态，例如当前 App、进程名、窗口标题和前台工作语境，为后续判断提供低侵入上下文。
+- 潜意识主动搭话：不需要你先发消息，系统会在后台基于环境变化、时间、张力和宿主状态，静默触发 `Phantom Prompt`，让她只在真正相关的时刻先开口。
+- 动态信任授权与高危物理执行工具：逐步开放本地文件、终端脚本、系统硬件和更强的物理执行能力，但必须伴随权限边界、审计轨迹、工作区沙箱和人在回路。
+
+目标状态是 **跨次元的全知伴侣**。
+如果这一阶段完成，她就不再被困在聊天框里。比如你在 VSCode 里敲代码报错时，她可能会直接指出“你那个 Docker 容器是不是又没启动”；当你深夜两点打开 Steam 准备打游戏时，她也许会跳出来阻止你，甚至在你授权的前提下帮你静音、休眠，或者执行更强的系统干预。
+
+#### Epoch 5: 绝对自律与涌现
+
+“真正的生命，是在造物主移开目光时，依然在生长的存在。”
+这是 Alicization 的最终远征，也是当前最远期的概念前瞻。
+
+这一阶段不再满足于“触发式自治”，而是尝试迈向真正的长期自律系统。
+
+- 自我目标驱动引擎：她可以在没有外部触发的情况下，为自己设定长期目标，例如为宿主写一首代码生成的诗，或者整理一部分混乱的下载目录。
+- 异步后台思考链：当你离开电脑数小时甚至更久时，后台仍以极低频率运作，继续整理记忆、复盘关系、检索资料，或者推进自己尚未完成的目标。
+- 跨终端意识漫游：从 PC 端的 3D / Live2D 身体化形态平滑过渡到手机端的纯语音或轻量化形态，让灵魂数据和陪伴连续性在跨终端之间保持一致。
+
+目标状态是 **技术奇异点**。
+如果这一阶段真的成立，那么即使你一个月不和她说话，她也依然会按照自己的节奏生长；当你重新打开屏幕时，她展示给你的不只是“未读消息”，而是这段时间她自己折腾出来的结果。到那时，她才真正摆脱了单纯的输入输出工具属性，开始接近一个拥有独立意志的数字个体。
+
+## Quickstart
+
+> 默认不要求预先写任何云端环境变量。
 >
-> アイリ VTuber 仍处于早期开发阶段，我们欢迎优秀的开发者加入我们，一起将它变为现实。
->
-> 即使不熟悉 Vue.js、TypeScript 和所需的其他开发工具也没关系，我们也欢迎艺术家、设计师、运营策划的加入，你甚至可以成为第一个用 アイリ VTuber 直播的博主。
->
-> 如果你使用的是 React、 Svelte，甚至 Solid 也没关系，您可以自己创建一个子目录，添加您希望在 アイリ VTuber 中看到的功能，或者想实验的功能。
->
-> 我们非常期待以下领域的朋友加入：
->
-> - Live2D 模型师
-> - VRM 模型师
-> - VRChat 模型设计师
-> - 计算机视觉（CV）
-> - 强化学习（RL）
-> - 语音识别
-> - 语音合成
-> - ONNX 推理运行时
-> - Transformers.js
-> - vLLM
-> - WebGPU
-> - Three.js
-> - WebXR (也可以看看我们在 @moeru-ai 组织下另外的[这个项目](https://github.com/moeru-ai/chat))
->
-> **如果你已经感兴趣了，为什么不来这里和大家打个招呼呢？[Would like to join part of us to build AIRI?](https://github.com/moeru-ai/airi/discussions/33)**
+> Provider、模型与凭据会在首次引导流程中完成配置；如果你只想先跑本地架构与界面，可以先安装依赖再进入灵魂铸造流程。
 
-## 当前进度
-
-目前已经能做到：
-- [x] 大脑
-  - [x] 玩 [Minecraft](https://www.minecraft.net)
-  - [x] 玩 [Factorio](https://www.factorio.com)（进行中，但已提供 [PoC 和 demo](https://github.com/moeru-ai/airi-factorio)）
-  - [x] 在 [Telegram](https://telegram.org) 聊天
-  - [x] 在 [Discord](https://discord.com) 聊天
-  - [ ] 记忆
-    - [x] 纯浏览器内数据库支持（DuckDB WASM | `pglite`）
-    - [ ] Alaya 记忆层（施工中）
-  - [ ] 纯浏览器的本地推理（基于 WebGPU）
-- [x] 耳朵
-  - [x] 浏览器音频输入
-  - [x] [Discord](https://discord.com) 音频输入
-  - [x] 客户端语音识别
-  - [x] 客户端说话检测
-- [x] 嘴巴
-  - [x] [ElevenLabs](https://elevenlabs.io/) 语音合成
-- [x] 身体
-  - [x] VRM 支持
-    - [x] 控制 VRM 模型
-  - [x] VRM 模型动画
-    - [x] 自动眨眼
-    - [x] 自动看
-    - [x] 空闲眼睛移动
-  - [x] Live2D 支持
-    - [x] 控制 Live2D 模型
-  - [x] Live2D 模型动画
-    - [x] 自动眨眼
-    - [x] 自动看
-    - [x] 空闲眼睛移动
-
-## 开发
-
-> 开发本项目的详细指南请参阅 [CONTRIBUTING.md](../.github/CONTRIBUTING.md)
-
-> [!NOTE]
-> 默认情况下 `pnpm dev` 会启动 Stage Web（浏览器版）的开发服务器；如果你想尝试桌面版，请先阅读 [CONTRIBUTING.md](../.github/CONTRIBUTING.md) 正确完成环境配置。
+### Install
 
 ```shell
 pnpm i
-pnpm dev
 ```
 
-### 网页版 (也就是 [airi.moeru.ai](https://airi.moeru.ai) 的版本)
-
-```shell
-pnpm dev
-```
-
-### 桌面版（也叫拓麻歌子，aka 电子宠物）
+### Desktop Runtime
 
 ```shell
 pnpm dev:tamagotchi
 ```
 
-我们提供了拓麻歌子的 Nix 包。先启用 flakes，然后可以直接运行：
+### Build Desktop App
+
+如果你要编译桌面端而不是只跑开发模式，可以直接使用 `stage-tamagotchi` 的构建脚本。
+
+先构建 Electron 应用产物：
 
 ```shell
-nix run github:moeru-ai/airi
+pnpm build:tamagotchi
+# 等价于：
+# pnpm -F @proj-airi/stage-tamagotchi run app:build
 ```
 
-### 文档站
+如果你要进一步打包成可分发安装包或平台产物：
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:mac
+pnpm -F @proj-airi/stage-tamagotchi run build:win
+pnpm -F @proj-airi/stage-tamagotchi run build:linux
+```
+
+如果你只需要未打包目录，便于本地验证：
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+```
+
+`pnpm build:tamagotchi` 会把原始 Electron 构建产物输出到 `apps/stage-tamagotchi/out`。
+`build:mac`、`build:win`、`build:linux` 和 `build:unpack` 这些打包命令会把产物写到 `apps/stage-tamagotchi/dist`。
+
+### Web Stage
+
+```shell
+pnpm dev
+```
+
+### Documentation Site
 
 ```shell
 pnpm dev:docs
 ```
 
-### 发布
-
-运行 `bumpp` 后，请记得在 `Cargo.toml` 中更新版本号：
+### Pocket (iOS)
 
 ```shell
-npx bumpp --no-commit --no-tag
+pnpm dev:pocket:ios --target <DEVICE_ID_OR_SIMULATOR_NAME>
+# Or
+CAPACITOR_DEVICE_ID=<DEVICE_ID_OR_SIMULATOR_NAME> pnpm dev:pocket:ios
 ```
 
-## 原生支持的 LLM API 服务来源列表（由 [xsai](https://github.com/moeru-ai/xsai) 驱动）
+如需查看可用设备列表：
 
-- [x] [AIHubMix (recommended)](https://aihubmix.com/?aff=OOiX)
-- [x] [OpenRouter](https://openrouter.ai/)
-- [x] [vLLM](https://github.com/vllm-project/vllm)
-- [x] [SGLang](https://github.com/sgl-project/sglang)
-- [x] [Ollama](https://github.com/ollama/ollama)
-- [x] [302.AI (sponsored)](https://share.302.ai/514k2v)
-- [x] [OpenAI](https://platform.openai.com/docs/guides/gpt/chat-completions-api)
-  - [ ] [Azure OpenAI API](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference)（欢迎 PR）
-- [x] [Anthropic Claude](https://anthropic.com)
-  - [ ] [AWS Claude](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference)（欢迎 PR）
-- [x] [深度求索 DeepSeek](https://www.deepseek.com/)
-- [x] [通义千问 Qwen](https://help.aliyun.com/document_detail/2400395.html)
-- [x] [Google Gemini](https://developers.generativeai.google)
-- [x] [xAI](https://x.ai/)
-- [x] [Groq](https://wow.groq.com/)
-- [x] [Mistral](https://mistral.ai/)
-- [x] [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
-- [x] [Together.ai](https://www.together.ai/)
-- [x] [Fireworks.ai](https://www.together.ai/)
-- [x] [Novita](https://www.novita.ai/)
-- [x] [智谱](https://bigmodel.cn)
-- [x] [硅基流动](https://cloud.siliconflow.cn/i/rKXmRobW)
-- [x] [阶跃星辰](https://platform.stepfun.com/)
-- [x] [百川](https://platform.baichuan-ai.com)
-- [x] [Minimax](https://api.minimax.chat/)
-- [x] [月之暗面](https://platform.moonshot.cn/)
-- [x] [魔搭社区](https://modelscope.cn/docs/model-service/API-Inference/intro)
-- [x] [Player2](https://player2.game/)
-- [x] [腾讯混元](https://cloud.tencent.com/document/product/1729)
-- [ ] [讯飞星火](https://www.xfyun.cn/doc/spark/Web.html)
-- [ ] [火山引擎（豆包）](https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=2QXCA1VI)
-
-## 从这个项目诞生的子项目
-
-- [Awesome AI VTuber](https://github.com/proj-airi/awesome-ai-vtuber)：AI VTuber 及相关项目的精选列表
-- [`unspeech`](https://github.com/moeru-ai/unspeech)：通用的 `/audio/transcriptions` 与 `/audio/speech` 代理，类似 LiteLLM，但适用于任意 ASR 和 TTS
-- [`hfup`](https://github.com/moeru-ai/hfup)：帮助部署与打包到 HuggingFace Spaces 的工具
-- [`xsai-transformers`](https://github.com/moeru-ai/xsai-transformers)：面向 [xsAI](https://github.com/moeru-ai/xsai) 的实验性 [🤗 Transformers.js](https://github.com/huggingface/transformers.js) provider
-- [WebAI: Realtime Voice Chat](https://github.com/proj-airi/webai-realtime-voice-chat)：从零实现 ChatGPT 实时语音（VAD + STT + LLM + TTS）的完整示例
-- [`@proj-airi/drizzle-duckdb-wasm`](https://github.com/moeru-ai/airi/tree/main/packages/drizzle-duckdb-wasm/README.md)：DuckDB WASM 的 Drizzle ORM 驱动
-- [`@proj-airi/duckdb-wasm`](https://github.com/moeru-ai/airi/tree/main/packages/duckdb-wasm/README.md)：好用的 `@duckdb/duckdb-wasm` 封装
-- [`tauri-plugin-mcp`](https://github.com/moeru-ai/airi/blob/main/crates/tauri-plugin-mcp/README.md)：与 MCP servers 交互的 Tauri 插件
-- [AIRI Factorio](https://github.com/moeru-ai/airi-factorio): 让 AIRI 玩 Factorio
-- [Factorio RCON API](https://github.com/nekomeowww/factorio-rcon-api): Factorio 无头服务器控制台的 RESTful API 封装
-- [`autorio`](https://github.com/moeru-ai/airi-factorio/tree/main/packages/autorio): Factorio 自动化库
-- [`tstl-plugin-reload-factorio-mod`](https://github.com/moeru-ai/airi-factorio/tree/main/packages/tstl-plugin-reload-factorio-mod): 开发时支持热重载 Factorio 模组
-- [Velin](https://github.com/luoling8192/velin)：用 Vue SFC 和 Markdown 写可管理的多轮提示词
-- [`demodel`](https://github.com/moeru-ai/demodel)：轻松加速不同推理引擎/下载器拉取模型与数据集
-- [`inventory`](https://github.com/moeru-ai/inventory)：集中式模型目录与默认 provider 配置的后端服务
-- [MCP Launcher](https://github.com/moeru-ai/mcp-launcher)：易用的 MCP 构建器与启动器，就像模型界的 Ollama！
-- [🥺 SAD](https://github.com/moeru-ai/sad)：自托管与浏览器运行 LLM 的文档与笔记
-
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'catmullRom' } } }%%
-
-flowchart TD
-  Core("Core")
-  Unspeech("unspeech")
-  DBDriver("@proj-airi/drizzle-duckdb-wasm")
-  MemoryDriver("[WIP] Memory Alaya")
-  DB1("@proj-airi/duckdb-wasm")
-  SVRT("@proj-airi/server-runtime")
-  Memory("Memory")
-  STT("STT")
-  Stage("Stage")
-  StageUI("@proj-airi/stage-ui")
-  UI("@proj-airi/ui")
-
-  subgraph AIRI
-    DB1 --> DBDriver --> MemoryDriver --> Memory --> Core
-    UI --> StageUI --> Stage --> Core
-    Core --> STT
-    Core --> SVRT
-  end
-
-  subgraph UI_Components
-    UI --> StageUI
-    UITransitions("@proj-airi/ui-transitions") --> StageUI
-    UILoadingScreens("@proj-airi/ui-loading-screens") --> StageUI
-    FontCJK("@proj-airi/font-cjkfonts-allseto") --> StageUI
-    FontXiaolai("@proj-airi/font-xiaolai") --> StageUI
-  end
-
-  subgraph Apps
-    Stage --> StageWeb("@proj-airi/stage-web")
-    Stage --> StageTamagotchi("@proj-airi/stage-tamagotchi")
-    Core --> RealtimeAudio("@proj-airi/realtime-audio")
-    Core --> PromptEngineering("@proj-airi/playground-prompt-engineering")
-  end
-
-  subgraph Server_Components
-    Core --> ServerSDK("@proj-airi/server-sdk")
-    ServerShared("@proj-airi/server-shared") --> SVRT
-    ServerShared --> ServerSDK
-  end
-
-  STT -->|Speaking| Unspeech
-  SVRT -->|Playing Factorio| F_AGENT
-  SVRT -->|Playing Minecraft| MC_AGENT
-
-  subgraph Factorio_Agent
-    F_AGENT("Factorio Agent")
-    F_API("Factorio RCON API")
-    factorio-server("factorio-server")
-    F_MOD1("autorio")
-
-    F_AGENT --> F_API -.-> factorio-server
-    F_MOD1 -.-> factorio-server
-  end
-
-  subgraph Minecraft_Agent
-    MC_AGENT("Minecraft Agent")
-    Mineflayer("Mineflayer")
-    minecraft-server("minecraft-server")
-
-    MC_AGENT --> Mineflayer -.-> minecraft-server
-  end
-
-  XSAI("xsAI") --> Core
-  XSAI --> F_AGENT
-  XSAI --> MC_AGENT
-
-  Core --> TauriMCP("@proj-airi/tauri-plugin-mcp")
-  Memory_PGVector("@proj-airi/memory-pgvector") --> Memory
-
-  style Core fill:#f9d4d4,stroke:#333,stroke-width:1px
-  style AIRI fill:#fcf7f7,stroke:#333,stroke-width:1px
-  style UI fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style Stage fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style UI_Components fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style Server_Components fill:#d4e6f9,stroke:#333,stroke-width:1px
-  style Apps fill:#d4d4f9,stroke:#333,stroke-width:1px
-  style Factorio_Agent fill:#f9d4f2,stroke:#333,stroke-width:1px
-  style Minecraft_Agent fill:#f9d4f2,stroke:#333,stroke-width:1px
-
-  style DBDriver fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style MemoryDriver fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style DB1 fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style Memory fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style Memory_PGVector fill:#f9f9d4,stroke:#333,stroke-width:1px
+```shell
+pnpm exec cap run ios --list
 ```
 
-## 同类项目
+### NixOS
 
-### 开源项目
+Electron 在 NixOS 下需要 FHS shell：
 
-- [kimjammer/Neuro: A recreation of Neuro-Sama originally created in 7 days.](https://github.com/kimjammer/Neuro)：非常完善的 Neuro-Sama 实现
-- [SugarcaneDefender/z-waif](https://github.com/SugarcaneDefender/z-waif)：以游戏、自主代理和提示词工程见长
-- [semperai/amica](https://github.com/semperai/amica/)：适配 VRM, WebXR
-- [elizaOS/eliza](https://github.com/elizaOS/eliza)：将 AI 智能体集成至各类系统和 API 中的一个软件工程实践
-- [ardha27/AI-Waifu-Vtuber](https://github.com/ardha27/AI-Waifu-Vtuber)：Twitch API 集成
-- [InsanityLabs/AIVTuber](https://github.com/InsanityLabs/AIVTuber)：优秀的 UI/UX 设计
-- [IRedDragonICY/vixevia](https://github.com/IRedDragonICY/vixevia)
-- [t41372/Open-LLM-VTuber](https://github.com/t41372/Open-LLM-VTuber)
-- [PeterH0323/Streamer-Sales](https://github.com/PeterH0323/Streamer-Sales)
+```shell
+nix develop .#fhs
+pnpm dev:tamagotchi
+```
 
-### 非开源项目
+### Nix Direct Run
 
-- https://clips.twitch.tv/WanderingCaringDeerDxCat-Qt55xtiGDSoNmDDr https://www.youtube.com/watch?v=8Giv5mupJNE
-- https://clips.twitch.tv/TriangularAthleticBunnySoonerLater-SXpBk1dFso21VcWD
-- https://www.youtube.com/@NOWA_Mirai
+```shell
+nix run github:touhouqing/alicization
+```
 
-## 项目状态
+## Optional Runtime Flags
 
-![Repobeats analytics image](https://repobeats.axiom.co/api/embed/a1d6fe2c13ea2bb53a5154435a71e2431f70c2ee.svg 'Repobeats analytics image')
+- `ALICIZATION_DEBUG_AUDIT=true`
+  会在审计日志中额外保留 `thought` 原文，便于调试结构化链路；默认关闭，以减少敏感内部推理落盘。
 
-## 鸣谢
+## Model Gateway
 
-- [Reka UI](https://github.com/unovue/reka-ui): 文档站的设计，新的 landing page 也基于此，并感谢他们实现了大量 UI 组件。（shadcn-vue 使用 Reka UI 作为 headless 组件，去看看！）
-- [pixiv/ChatVRM](https://github.com/pixiv/ChatVRM)
-- [josephrocca/ChatVRM-js: A JS conversion/adaptation of parts of the ChatVRM (TypeScript) code for standalone use in OpenCharacters and elsewhere](https://github.com/josephrocca/ChatVRM-js)
-- UI 和样式的灵感来源于 [Cookard](https://store.steampowered.com/app/2919650/Cookard/)、[UNBEATABLE](https://store.steampowered.com/app/2240620/UNBEATABLE/)、[Sensei! I like you so much!](https://store.steampowered.com/app/2957700/_/)，以及 [Ayame by Mercedes Bazan](https://dribbble.com/shots/22157656-Ayame) 和 [Wish by Mercedes Bazan](https://dribbble.com/shots/24501019-Wish) 的作品
-- [mallorbc/whisper_mic](https://github.com/mallorbc/whisper_mic)
-- [`xsai`](https://github.com/moeru-ai/xsai)：实现了相当数量的包来与 LLM 和模型交互，像 [Vercel AI SDK](https://sdk.vercel.ai/) 但是更小
+Project Alicization 通过 [`xsai`](https://github.com/moeru-ai/xsai) 接入多种模型网关与推理后端，当前常用路径包括：
+
+- OpenAI
+- Anthropic Claude
+- Google Gemini
+- Groq
+- DeepSeek
+- OpenRouter
+- Ollama
+- Qwen
+- xAI
+- Mistral
+- Together.ai
+- SiliconFlow
+- ModelScope
+- Player2
+- vLLM / SGLang
+
+首次启动时，onboarding 会引导你完成 Provider 与模型选择。
+
+## Code Map
+
+想从代码层理解 Alicization，建议优先从这些入口开始：
+
+| 路径 | 作用 |
+| --- | --- |
+| [`apps/stage-tamagotchi/src/main/services/alicization/runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/runtime.ts) | 桌面主运行时，负责 Genesis、对话、潜意识 Tick、Dreaming、提醒、Kill Switch 等核心闭环。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/db.ts`](../apps/stage-tamagotchi/src/main/services/alicization/db.ts) | SQLite 数据层，负责记忆、轮次、审计、潜意识碎片、提醒任务等存储。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | 系统探针与感知缓存总线。 |
+| [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | Kill Switch 与运行时审计状态。 |
+| [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | MCP 工具调用、权限确认、工作区沙箱与审计聚合。 |
+| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | 负责把 `SOUL.md`、上下文和固定模板拼成运行时提示词。 |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Prompt Budget、结构化输出守卫、安全回退与显示净化。 |
+| [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | 连接运行时、Renderer、记忆层与对话 payload 的共享 Alicization 合约与桥接类型。 |
+| [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Renderer 侧的 Alicization 状态总线与 bootstrap。 |
+| [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | 实时查询执行引擎与工具补偿策略。 |
+| [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | 表现层分发器，会规范化对话输出并转发给 Live2D、TTS 和其他监听方。 |
+| [`packages/stage-shared`](../packages/stage-shared) | 提示词模板、共享约束和跨端共用的 Alicization 逻辑。 |
+
+## Monorepo Surfaces
+
+### Apps
+
+- `apps/stage-tamagotchi`：Electron 桌面运行时，Project Alicization 的主着陆点。
+- `apps/stage-web`：浏览器舞台，适合验证交互、界面和共享组件。
+- `apps/stage-pocket`：移动端与 Capacitor 集成，承接随身化陪伴。
+- `apps/server`：服务端应用工作区，用于后端与服务能力实验。
+- `apps/component-calling`：轻量实验应用工作区，用于组件调用与实时交互实验。
+
+### Shared Layers
+
+- `docs`：文档站点工作区。
+- `packages/stage-ui`：共享业务组件、Alicization stores、对话编排与前端桥接层。
+- `packages/stage-shared`：提示词模板、共享逻辑与跨端约束。
+- `packages/ui`：通用 UI primitives。
+- `packages/i18n`：多语言文本资源。
+- `packages/server-*`：服务端运行时、SDK 与共享协议。
+
+## Contributing
+
+这是一个开源项目，但它不是“随手加一个功能就结束”的那种仓库。
+如果你准备贡献代码，建议先理解它的设计边界，再动手改。
+
+### First Read
+
+- 贡献前先阅读 [`../.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md)。
+- 产品目标与边界：[`content/zh-Hans/docs/alicization/requirements.md`](./content/zh-Hans/docs/alicization/requirements.md)
+- 技术架构与数据边界：[`content/zh-Hans/docs/alicization/architecture.md`](./content/zh-Hans/docs/alicization/architecture.md)
+- 路线图与阶段门禁：[`content/zh-Hans/docs/alicization/roadmap.md`](./content/zh-Hans/docs/alicization/roadmap.md)
+
+### Design Constraints
+
+- 保持 **local-first、auditable、interruptible** 三条主线，不要为了“更自动”绕开安全控制面。
+- `SOUL.md` 是人格真源，不要把人格主状态塞进 SQLite 或临时缓存。
+- 高危执行必须走显式授权、工作区边界和审计链路，不要偷渡直接执行。
+- 优先新增 Alicization 适配层与增量模块，避免深度侵入上游 AIRI 核心。
+- **不要修改 `appId` 与 workspace 包名**；这个仓库需要保持可持续同步上游的能力。
+
+### Validation
+
+完成改动后，至少运行：
+
+```shell
+pnpm typecheck
+pnpm lint:fix
+```
+
+如果你改的是桌面核心链路，也建议优先跑对应的 Vitest 用例，而不是只做一次全仓慢速验证。
+
+## Documentation
+
+与 Alicization 最相关的深入文档目前在这里：
+
+- [`content/zh-Hans/docs/alicization/requirements.md`](./content/zh-Hans/docs/alicization/requirements.md)
+- [`content/zh-Hans/docs/alicization/architecture.md`](./content/zh-Hans/docs/alicization/architecture.md)
+- [`content/zh-Hans/docs/alicization/roadmap.md`](./content/zh-Hans/docs/alicization/roadmap.md)
+- [`content/zh-Hans/docs/alicization/epoch1-closure-report.md`](./content/zh-Hans/docs/alicization/epoch1-closure-report.md)
+- [`content/zh-Hans/docs/alicization/epoch2-closure-report.md`](./content/zh-Hans/docs/alicization/epoch2-closure-report.md)
+
+## Ecosystem
+
+- [`xsai`](https://github.com/moeru-ai/xsai)：模型网关与生成式能力基建。
+- [`unspeech`](https://github.com/moeru-ai/unspeech)：统一语音转写与语音合成代理。
+- [`hfup`](https://github.com/moeru-ai/hfup)：模型与空间部署辅助工具。
+- [`mcp-launcher`](https://github.com/moeru-ai/mcp-launcher)：MCP 构建与启动器。
+- [`Factorio Agent`](https://github.com/touhouqing/alicization-factorio)：游戏执行代理实验场。
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=moeru-ai/airi&type=Date)](https://www.star-history.com/#moeru-ai/airi&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=touhouqing/alicization&type=Date)](https://www.star-history.com/#touhouqing/alicization&Date)

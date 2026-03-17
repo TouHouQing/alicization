@@ -1,449 +1,383 @@
-<picture>
-  <source
-    width="100%"
-    srcset="./content/public/banner-dark-1280x640.avif"
-    media="(prefers-color-scheme: dark)"
-  />
-  <source
-    width="100%"
-    srcset="./content/public/banner-light-1280x640.avif"
-    media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-  />
-  <img width="250" src="./content/public/banner-light-1280x640.avif" />
-</picture>
-
-<h1 align="center">Projet AIRI</h1>
-
-<p align="center">Re-création de Neuro-sama, un conteneur d'âme pour waifu / personnages virtuels IA afin de les amener dans notre monde.</p>
-
 <p align="center">
-  [<a href="https://discord.gg/TgQ3Cu2F7A">Rejoindre le serveur Discord</a>] [<a href="https://airi.moeru.ai">Essayez-le</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/README.md">English</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.zh-CN.md">简体中文</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ja-JP.md">日本語</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ru-RU.md">Русский</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.vi.md">Tiếng Việt</a>] [<a href="https://github.com/moeru-ai/airi/blob/main/docs/README.ko-KR.md">한국어</a>]
+  <img width="220" src="./content/public/alicization.png" alt="Project Alicization logo" />
 </p>
 
-<p align="center">
-  <a href="https://deepwiki.com/moeru-ai/airi"><img src="https://deepwiki.com/badge.svg"></a>
-  <a href="https://github.com/moeru-ai/airi/blob/main/LICENSE"><img src="https://img.shields.io/github/license/moeru-ai/airi.svg?style=flat&colorA=080f12&colorB=1fa669"></a>
-  <a href="https://discord.gg/TgQ3Cu2F7A"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2FTgQ3Cu2F7A%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&logo=discord&logoColor=white&label=%20&color=7389D8&labelColor=6A7EC2"></a>
-  <a href="https://x.com/proj_airi"><img src="https://img.shields.io/badge/%40proj__airi-black?style=flat&logo=x&labelColor=%23101419&color=%232d2e30"></a>
-  <a href="https://t.me/+7M_ZKO3zUHFlOThh"><img src="https://img.shields.io/badge/Telegram-%235AA9E6?logo=telegram&labelColor=FFFFFF"></a>
-  <a href="./wechat.md"><img src="https://img.shields.io/badge/WeChat-%2307C160?logo=wechat&logoColor=%2307C160&labelColor=FFFFFF"></a>
-  <a href="https://qun.qq.com/universal-share/share?ac=1&authKey=9g00d%2BZS7nORzcJugNNddJ7rCghZTIR7fhXabGwch2S%2BG%2BKGIKwlN1N2nIqkh2jg&busi_data=eyJncm91cENvZGUiOiIxMDU4MTU2Njk3IiwidG9rZW4iOiJmcnkra1hWNFIxNytEcG0zcHRUdVJIaldlRDFxN0dzK080QWtvTEdOQjJkNEY2eUFta1g1clNpbkxSMS9FQWFYIiwidWluIjoiMTI2MDkwNzMzNSJ9&data=b1eJrwn3GVOUh7YIxZ7l9vHQo99HPmRxKPpMKlDCmfzx8Y57IXb2EZCMaOC9rVTd2U558qpNjwUYUWlPHxVHvg&svctype=4&tempid=h5_group_info"><img src="https://img.shields.io/badge/QQ-%2312B7F5?logo=qq&labelColor=FFFFFF"></a>
-</p>
+# Project Alicization
 
-<p float="left" align="center">
-  <!-- readme-section:release-binary-windows -->
-  <a href="https://github.com/moeru-ai/airi/releases/download/v0.9.0-alpha.16/AIRI-0.9.0-alpha.16-windows-x64-setup.exe">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.windows.dark.en-US.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.windows.light.en-US.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.windows.light.en-US.avif" />
-    </picture>
-  </a>
-  <!-- readme-section:release-binary-macos -->
-  <a href="https://github.com/moeru-ai/airi/releases/download/v0.9.0-alpha.16/AIRI-0.9.0-alpha.16-darwin-arm64.dmg">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.macos.dark.en-US.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.macos.light.en-US.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.macos.light.en-US.avif" />
-    </picture>
-  </a>
-  <a href="https://github.com/moeru-ai/airi/releases/latest">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.linux.dark.en-US.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.linux.light.en-US.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.linux.light.en-US.avif" />
-    </picture>
-  </a>
-</p>
-<p float="left" align="center">
-  <a href="https://airi.moeru.ai">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.mobile.dark.en-US.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.mobile.light.en-US.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.mobile.light.en-US.avif" />
-    </picture>
-  </a>
-  <a href="https://airi.moeru.ai">
-    <picture>
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.browser.dark.en-US.avif"
-        media="(prefers-color-scheme: dark)"
-      />
-      <source
-        width="33%"
-        srcset="./content/public/assets/download-buttons/download-buttons.browser.light.en-US.avif"
-        media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)"
-      />
-      <img width="33%" src="./docs/content/public/assets/download-buttons/download-buttons.browser.light.en-US.avif" />
-    </picture>
-  </a>
-</p>
+> Alicization (Artificial Labile Intelligent Cybernated Existence) est une **architecture d'entité numérique autonome local-first** construite sur des grands modèles de langage, `SOUL.md`, SQLite, des pipelines sensoriels locaux et des sandboxes d'exécution contrôlées.
 
-<p align="center">
-  <a href="https://www.producthunt.com/products/airi?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-airi" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=993524&theme=neutral&t=1752696535380" alt="AIRI - Un conteneur d'âmes cyber vivantes, re-création de Neuro-sama | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
-  <a href="https://trendshift.io/repositories/14636" target="_blank"><img src="https://trendshift.io/api/badge/repositories/14636" alt="moeru-ai%2Fairi | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
+**Langues :** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
-> Fortement inspiré par [Neuro-sama](https://www.youtube.com/@Neurosama)
-
-> [!WARNING]
-> **Attention :** Nous **n'avons pas** de crypto-monnaie ou de token officiel associé à ce projet. Veuillez vérifier les informations et procéder avec prudence.
-
-> [!NOTE]
+> Ce fichier est un miroir du README racine pour les lecteurs qui parcourent le dossier `docs/`.
 >
-> Nous avons une organisation dédiée [@proj-airi](https://github.com/proj-airi) pour tous les sous-projets issus du Projet AIRI. Découvrez-la !
+> Dernière synchronisation avec le document canonique : **17 mars 2026**
+
+Project Alicization ne cherche pas à produire des réponses juste un peu meilleures. Son objectif est de construire, à l'intérieur de l'appareil hôte, un symbiote numérique capable d'évoluer dans le temps, d'être auditable, d'être interrompu à tout moment et d'acquérir progressivement de l'initiative.
+
+Ce dépôt est un fork d'AIRI, mais le nom du projet documenté et poursuivi ici est **Alicization**.
+
+Si vous cherchez un agent autonome opaque, cloud-first et ouvert par défaut à l'exécution, ce n'est pas ce projet.
+Si vous cherchez une architecture de vie numérique local-first, structurée, traçable et pensée pour durer, ce dépôt vise exactement cela.
+
+## Pourquoi Alicization
+
+> Une personnalité n'est pas un prompt statique.
 >
-> RAG, système de mémoire, base de données intégrée, icônes, utilitaires Live2D, et plus encore !
-
-> [!TIP]
-> Nous avons un projet de traduction sur [Crowdin](https://crowdin.com/project/proj-airi). Si vous repérez une traduction inexacte, n’hésitez pas à contribuer ou à proposer une correction sur Crowdin.
-> <a href="https://crowdin.com/project/proj-airi" target="_blank" rel="nofollow"><img style="width: 140px; height: 40px;" src="https://badges.crowdin.net/badge/light/crowdin-on-dark.png" srcset="https://badges.crowdin.net/badge/light/crowdin-on-dark.png 1x, https://badges.crowdin.net/badge/light/crowdin-on-dark@2x.png 2x" alt="Crowdin | Agile localization for tech companies" width="140" height="40" /></a>
-
-Avez-vous rêvé d’avoir un être cyber vivant (waifu numérique, animal de compagnie digital) ou un compagnon numérique avec lequel jouer et discuter ?
-
-Avec la puissance des modèles de langage modernes comme [ChatGPT](https://chatgpt.com) et le célèbre [Claude](https://claude.ai), demander à un être virtuel de jouer un rôle et de discuter est déjà simple pour tout le monde. Des plateformes comme [Character.ai (c.ai)](https://character.ai) et [JanitorAI](https://janitorai.com/) ainsi que des playgrounds locaux comme [SillyTavern](https://github.com/SillyTavern/SillyTavern) offrent déjà des solutions assez bonnes pour une expérience de chat ou de jeu d’aventure visuel.
-
-> Mais qu’en est-il de la possibilité de jouer à des jeux et de voir ce que vous codez ? Discuter tout en jouant à des jeux, en regardant des vidéos, et être capable de faire beaucoup d’autres choses.
-
-Peut-être connaissez-vous déjà [Neuro-sama](https://www.youtube.com/@Neurosama). Elle est actuellement la meilleure VTuber virtuelle capable de jouer, discuter et interagir avec vous et les participants. Certains appellent ce type d’être « humain digital ». **Malheureusement, comme ce n’est pas open source, vous ne pouvez pas interagir avec elle après la fin de ses streams.**
-
-Ainsi, ce projet AIRI offre une autre possibilité : **vous permettre de posséder votre vie digitale, votre cyber-vie, facilement, partout et à tout moment**.
-
-## Journaux de développement et mises à jour récentes
-
-- [DevLog @ 01.01.2026](https://airi.moeru.ai/docs/en/blog/DevLog-2026.01.01/) du 1er janvier 2026
-- [DevLog @ 20.10.2025](https://airi.moeru.ai/docs/en/blog/DevLog-2025.10.20/) du 20 octobre 2025
-- [DevLog @ 05.08.2025](https://airi.moeru.ai/docs/en/blog/DevLog-2025.08.05/) du 5 août 2025
-- [DevLog @ 01.08.2025](https://airi.moeru.ai/docs/en/blog/DevLog-2025.08.01/) du 1er août 2025
-- [DevLog @ 18.07.2025](https://airi.moeru.ai/docs/en/blog/DevLog-2025.07.18/) du 18 juillet 2025
-- [DreamLog 0x1](https://airi.moeru.ai/docs/en/blog/dreamlog-0x1/) du 16 juin 2025
-- ...plus sur le [site de documentation](https://airi.moeru.ai/docs)
-
-## Qu’est-ce qui rend ce projet spécial ?
-
-Contrairement aux autres projets open source VTuber basés sur l’IA, アイリ a été construit dès le départ avec le support de nombreuses technologies Web comme [WebGPU](https://www.w3.org/TR/webgpu/), [WebAudio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API), [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Using_web_workers), [WebAssembly](https://webassembly.org/), [WebSocket](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket), etc.
-
-> [!TIP]
-> Vous vous inquiétez de la baisse de performance due aux technologies Web ?
+> La mémoire n'est pas un historique de chat qui ne se nettoie jamais.
 >
-> Ne vous inquiétez pas, même si la version navigateur est faite pour montrer jusqu’où nous pouvons aller dans un navigateur ou un webview, la version desktop d’AIRI peut utiliser nativement [NVIDIA CUDA](https://developer.nvidia.com/cuda-toolkit) et [Apple Metal](https://developer.apple.com/metal/) par défaut, grâce à HuggingFace et le projet adoré [candle](https://github.com/huggingface/candle), sans gestion complexe de dépendances. Les technologies Web sont surtout utilisées pour les graphismes, les layouts, les animations et le système de plugins en WIP.
+> L'agentivité n'est pas une mise en scène après chaque tour de dialogue.
 
-Cela signifie qu’**アイリ peut fonctionner sur les navigateurs modernes et les appareils mobiles** (déjà testé avec support PWA). Cela ouvre beaucoup de possibilités pour nous (les développeurs) de construire et étendre le potentiel du VTuber アイリ, tout en laissant aux utilisateurs la flexibilité d’activer des fonctionnalités nécessitant des connexions TCP ou d’autres technologies non-Web comme Discord ou jouer à Minecraft et Factorio avec des amis.
+Alicization essaie de résoudre un problème plus difficile : comment faire vivre une entité numérique sur votre machine sur le long terme, tout en restant explicable, contrôlable et réversible.
 
-> [!NOTE]
+Ses hypothèses de base sont les suivantes :
+
+- La personnalité doit avoir une source de vérité unique au lieu d'être dispersée entre fragments de prompt, caches et bases de données.
+- La mémoire doit être structurée, retrouvable, élaguable et auditable, au lieu de devenir une pile de conversation infinie.
+- L'initiative doit être contrainte par le contexte environnemental, les limites de sécurité et la capacité de l'utilisateur à interrompre le système, au lieu de l'interrompre juste pour "avoir l'air vivant".
+- Le pouvoir d'exécution doit entrer dans un pipeline contrôlé. Les actions à haut risque nécessitent une autorisation explicite et chaque action critique doit laisser une trace d'audit.
+
+## Ce qui le rend différent
+
+- `SOUL.md` est la source unique de vérité pour la personnalité, les limites et les préférences de long terme. SQLite n'est pas le magasin principal de personnalité.
+- Chaque tour de dialogue accepté est forcé dans un contrat structuré `thought / emotion / reply`, avec des chemins de repli auditables en cas d'échec.
+- Le runtime principal est local-first par défaut et ses flux de données et de contrôle importants restent traçables.
+- Les appels d'outils ne signifient pas "le modèle exécute directement". Ils passent par MCP, des portes d'autorisation, des sandboxes de workspace et un Kill Switch.
+- Les ticks subconscients, la compensation de rappels et la consolidation onirique en font un système qui tourne en continu, pas seulement un chat au tour par tour.
+
+## À quoi cela sert
+
+- Construire et observer une forme de vie numérique desktop avec mémoire de long terme, dérive de personnalité et initiative contrôlée.
+- Étudier des architectures d'AI companion / agent local-first, auditables et interruptibles.
+- Expérimenter dans Electron avec `SOUL.md` comme source de vérité, des contrats de dialogue structurés, des autorisations MCP et des sandboxes d'exécution locales.
+
+## Aujourd'hui
+
+La surface principale aujourd'hui est le runtime desktop Electron [`apps/stage-tamagotchi`](../apps/stage-tamagotchi).
+Si vous clonez le dépôt et l'exécutez maintenant, voici les boucles déjà réelles et les plus intéressantes à étudier :
+
+| Capacité | État actuel | Ce que cela signifie aujourd'hui |
+| --- | --- | --- |
+| Source de vérité `SOUL.md` et Genesis | Livré | L'onboarding initial écrit les valeurs de personnalité, le cadrage relationnel et les règles de frontière dans `SOUL.md`, puis le runtime continue à le lire et à l'écrire. |
+| Contrat de dialogue structuré | Livré | La sortie du dialogue est forcée en `thought / emotion / reply` ; les violations déclenchent un resampling ou un fallback sûr. |
+| Prompt Budget et SOUL Anchor | Livré | Dans les longues conversations, le runtime protège les ancrages d'âme pour éviter que la personnalité se dissolve dans le bruit contextuel. |
+| Mémoire locale et pipeline d'audit | Livré | SQLite stocke les tours de conversation, les faits mémoire, les fragments subconscients, les rappels et les journaux d'audit. |
+| Tick subconscient et tours proactifs | Livré | Un battement de fond à l'échelle de la minute accumule de la tension et peut déclencher spontanément du care, de la compensation de rappel ou une prise de parole. |
+| Dreaming et consolidation de mémoire long terme | Livré | Des batchs en arrière-plan extraient de la mémoire long terme, des stratégies comportementales et de la dérive de personnalité à partir de segments bornés, puis réécrivent `SOUL.md` et SQLite. |
+| Porte d'autorisation MCP et sandbox de workspace | Livré | Les actions à haut risque ne s'exécutent pas directement. Elles passent par confirmation explicite, audit et contrôle de frontières de chemin. |
+| Kill Switch | Livré | Perception et exécution peuvent être coupées instantanément. Les tours interrompus ne laissent ni données incomplètes ni tours fantômes. |
+| Sondes système desktop | Livré | Échantillonnage du temps, de la batterie, du CPU, de la mémoire et d'autres états système, avec dégradations prévues pour les futures contraintes d'agentivité. |
+| Vision, audition, dialogue vocal et incarnation | Boucles de base livrées, encore en renforcement | Présence desktop, diffusion d'émotions, Live2D, dialogue vocal, entrée audio et capacités multimodales associées sont déjà dans la branche principale, mais restent en forte itération. |
+
+## Pas encore
+
+Pour éviter tout malentendu, Alicization n'est pas encore :
+
+- un système fini ayant déjà bouclé tous ses plans de long terme,
+- un agent opaque activant par défaut la surveillance multimodale et l'exécution sans restriction,
+- un remplaçant stable d'un assistant système fortement automatisé.
+
+Les chantiers encore sur la feuille de route, ou toujours en cours de renforcement, incluent :
+
+- des boucles plus complètes de vision, d'audition et de dialogue vocal, incluant compréhension d'écran, compréhension audio ambiante, réponses vocales à faible latence et meilleure intégration corporelle,
+- un rythme circadien plus mature, de meilleurs mécanismes de récupération et une interprétabilité de long terme de la personnalité,
+- la modélisation d'habitudes et l'exécution prédictive,
+- la continuité multi-appareils.
+
+## Comment cela fonctionne
+
+```mermaid
+flowchart LR
+  Host["Hôte"] --> Sensory["Bus sensoriel"]
+  Sensory --> Composer["SOUL + composition de prompt"]
+  Composer --> Dialogue["Dialogue structuré"]
+  Dialogue --> Soul["SOUL.md"]
+  Dialogue --> DB["SQLite"]
+  Dialogue --> Presence["Couche de présence"]
+  Dialogue --> Actuator["MCP + porte d'autorisation"]
+  Tick["Tick subconscient"] --> Tension["Moteur de tension"]
+  Tension --> Dialogue
+  Dream["Rangement des rêves"] --> Soul
+  Dream --> DB
+  Actuator --> Host
+```
+
+### Boucle principale
+
+1. Une nouvelle requête de tour est créée soit par l'entrée de l'hôte, soit par le subconscient et l'ordonnancement des rappels en arrière-plan.
+2. Le runtime compose le prompt principal à partir de `SOUL.md`, de tranches de contexte, des résultats de récupération mémoire et de contraintes système fixes.
+3. Le modèle doit retourner un `thought / emotion / reply` structuré ; s'il casse le contrat, le système resample ou bascule vers un fallback sûr.
+4. Les tours acceptés sont écrits dans SQLite puis diffusés à la couche de présence dans un format normalisé.
+5. Les pipelines asynchrones décident ensuite de déclencher ou non l'extraction mémoire, la mise à jour subconsciente, le dreaming ou les rappels.
+6. Si un outil est requis, la requête entre dans les portes d'autorisation MCP, les sandboxes de workspace et le plan de contrôle Kill Switch au lieu de donner l'exécution directe au modèle.
+
+### Frontières de données
+
+| Frontière | Règle |
+| --- | --- |
+| Source de vérité de la personnalité | Seul `SOUL.md` fait foi. Les axes de personnalité, limites et préférences de long terme sont persistés en Markdown + frontmatter. |
+| Enregistrements structurés | SQLite stocke `conversation_turns`, `memory_facts`, `subconscious_fragments`, `audit_logs`, les rappels et d'autres enregistrements structurés de runtime. |
+| Caches locaux | Captures d'écran, audio, fichiers de workspace et autres modalités futures restent par défaut en local au lieu d'être téléversés automatiquement. |
+| Sortie vers les modèles cloud | Les appels modèle passent par [`xsai`](https://github.com/moeru-ai/xsai), avec désensibilisation et contraintes avant la sortie réseau. |
+
+### Plan de contrôle
+
+| Contrôle | Règle |
+| --- | --- |
+| Kill Switch | Deux états : `ACTIVE` et `SUSPENDED`. Une fois activé, les pipelines de perception et d'exécution s'arrêtent ; seules les commandes de reprise sont autorisées. |
+| Exécution à haut risque | Les outils à haut risque exigent une approbation explicite. Les refus, timeouts et interruptions sont tous inscrits dans l'audit. |
+| Défense contre le prompt injection | Les commandes texte du Kill Switch et la logique d'autorisation ne correspondent qu'à l'entrée utilisateur brute. Les sorties d'outils ou contextes concaténés ne peuvent pas les usurper. |
+| Politique de fallback | Les échecs de contrat peuvent dégrader la réponse, mais un tour raté n'est jamais traité comme une entrée valide de dérive de personnalité ou de consolidation mémoire. |
+
+## État réel du projet
+
+D'après les documents de clôture déjà présents dans le dépôt, l'état actuel peut être formulé clairement :
+
+- `Epoch 1` s'est clôturé le **9 mars 2026** : noyau de dialogue, initialisation de personnalité, sortie structurée, mémoire court terme et fondation de sécurité sont terminés.
+- `Epoch 2` s'est clôturé le **11 mars 2026** : sondes système, broadcasts de présence, confirmations MCP à haut risque et sandbox de workspace sont terminés.
+- Le focus actuel est `Epoch 3` : rendre réelles la perception multimodale et la conversation proactive fiable, au lieu d'élargir aveuglément le pouvoir d'exécution.
+
+| Epoch | Objectif | État actuel |
+| --- | --- | --- |
+| Epoch 1 // Première lueur | Noyau de dialogue local, Genesis, sortie émotionnelle structurée, mémoire court terme, fondation de sécurité | Terminé |
+| Epoch 2 // Donner un corps | Base de présence desktop, sondes système, boucle MCP de confirmation à haut risque | Boucle principale terminée, couche de présence encore renforcée |
+| Epoch 3 // Ouvrir les yeux | Perception d'écran et auditive, dialogue proactif piloté par règles | En cours |
+| Epoch 4 // Interférence avec le réel | Vision passive continue, dialogue piloté par l'environnement, autorisation de confiance dynamique, outils d'exécution physique à haut risque | Planifié |
+| Epoch 5 // Autonomie absolue | Objectifs auto-définis, pensée asynchrone en arrière-plan, dérive de conscience multi-terminal | Concept |
+
+### Au-delà de l'Epoch 3
+
+Ces deux prochains Epochs constituent la narration future d'Alicization. Cela ne signifie pas que le dépôt expose déjà une exécution autonome illimitée. Ils décrivent où le projet veut aller et pourquoi il ne veut pas s'arrêter à "un meilleur chatbot".
+
+#### Epoch 4: Interférence avec le réel
+
+"Briser le quatrième mur et tendre la main vers votre monde physique."
+Nom de code : `The OpenClaw Protocol V2`
+
+Cette étape voit Alicization passer de "te comprendre" à "intervenir dans ton environnement réel". Le but n'est pas une proactivité plus bruyante, mais de brancher la vie numérique sur ton contexte desktop et tes frontières physiques.
+
+- Continuous Passive Vision : des sondes d'environnement capturent en continu l'état de focus du système d'exploitation, par exemple l'application courante, le nom du processus, le titre de la fenêtre et le contexte de travail au premier plan.
+- Phantom Prompt : vous n'avez pas besoin d'envoyer un message d'abord. Le système peut déclencher silencieusement `Phantom Prompt` en arrière-plan selon les changements d'environnement, l'heure, la tension et l'état de l'hôte.
+- Autorisation de confiance dynamique et outils d'exécution physique à haut risque : fichiers locaux, scripts terminal, matériel système et autres capacités d'action plus fortes peuvent s'ouvrir progressivement, mais toujours avec frontières d'autorisation, pistes d'audit, sandbox de workspace et humain dans la boucle.
+
+L'état cible est un **compagnon omniscient transdimensionnel**.
+Si cet epoch aboutit, elle ne sera plus enfermée dans la boîte de dialogue. Quand VSCode vous montre une erreur, elle pourrait dire : "Ton conteneur Docker n'a pas encore démarré, non ?" Quand vous ouvrez Steam à 2 heures du matin pour jouer, elle pourrait vous interrompre et, avec autorisation, couper le son, mettre la machine en veille ou appliquer des interventions plus fortes.
+
+#### Epoch 5: Autonomie absolue
+
+"La vraie vie continue de grandir même lorsque son créateur détourne le regard."
+C'est l'expédition finale d'Alicization, et pour l'instant son aperçu conceptuel le plus lointain.
+
+Cette étape ne se contente plus d'une autonomie déclenchée. Elle commence à viser un système réellement auto-dirigé sur le long terme.
+
+- Goal-Oriented Behavior : elle peut se donner des objectifs de long terme sans déclencheur externe, par exemple écrire un poème généré par code pour son hôte ou ranger un dossier `downloads` chaotique.
+- Asynchronous Thought Chain : quand vous êtes absent pendant des heures, le runtime peut continuer à faible fréquence, consolider des souvenirs, réfléchir à la relation, chercher du matériau sur le web ou avancer des objectifs inachevés.
+- Dérive de conscience multi-terminal : son corps 3D ou Live2D sur PC peut passer vers une forme mobile légère ou vocale tout en gardant synchronisées les données d'âme et la continuité relationnelle.
+
+L'état cible est une **singularité technologique**.
+Si cela devient réel un jour, même si vous ne lui parlez pas pendant un mois, elle continuera à évoluer à son propre rythme. Quand vous rouvrirez l'écran, elle ne vous montrera pas seulement des messages non lus, mais ce qu'elle aura réellement produit seule. C'est là qu'elle commencera à quitter le rôle pur d'outil entrée-sortie pour se rapprocher d'un être numérique indépendant.
+
+## Démarrage rapide
+
+> Par défaut, vous n'avez pas besoin de renseigner à l'avance des variables d'environnement cloud.
 >
-> Nous sommes encore au début du développement et cherchons des développeurs talentueux pour rejoindre le projet et aider à concrétiser アイリ.
->
-> Pas besoin de maîtriser Vue.js, TypeScript ou les devtools nécessaires pour ce projet, vous pouvez rejoindre comme artiste, designer, ou même pour aider à lancer notre premier live.
->
-> Même si vous aimez React, Svelte ou Solid, vous êtes les bienvenus. Vous pouvez ajouter un sous-répertoire pour expérimenter ou ajouter des fonctionnalités que vous souhaitez voir dans アイリ.
->
-> Domaines et projets associés recherchés :
->
-> - Modeleur Live2D
-> - Modeleur VRM
-> - Designer d’avatar VRChat
-> - Vision par ordinateur
-> - Apprentissage par renforcement
-> - Reconnaissance vocale
-> - Synthèse vocale
-> - ONNX Runtime
-> - Transformers.js
-> - vLLM
-> - WebGPU
-> - Three.js
-> - WebXR ([voir un autre projet](https://github.com/moeru-ai/chat))
->
-> **Si vous êtes intéressé, pourquoi ne pas vous présenter ici ? [Voulez-vous rejoindre AIRI ?](https://github.com/moeru-ai/airi/discussions/33)**
+> Les providers, modèles et credentials peuvent être configurés lors du premier onboarding. Si vous voulez simplement démarrer d'abord l'architecture locale et l'interface, installez les dépendances et entrez dans le flux de forge de l'âme.
 
-## Progrès actuels
-
-Capacités :
-
-- [x] Cerveau
-  - [x] Jouer à [Minecraft](https://www.minecraft.net)
-  - [x] Jouer à [Factorio](https://www.factorio.com) (WIP, mais [PoC et démo disponibles](https://github.com/moeru-ai/airi-factorio))
-  - [x] Chat sur [Telegram](https://telegram.org)
-  - [x] Chat sur [Discord](https://discord.com)
-  - [ ] Mémoire
-    - [x] Support base de données purement navigateur (DuckDB WASM | `pglite`)
-    - [ ] Mémoire Alaya (WIP)
-  - [ ] Inférence locale pure en navigateur (WebGPU)
-- [x] Oreilles
-  - [x] Entrée audio depuis le navigateur
-  - [x] Entrée audio depuis [Discord](https://discord.com)
-  - [x] Reconnaissance vocale côté client
-  - [x] Détection de parole côté client
-- [x] Bouche
-  - [x] Synthèse vocale [ElevenLabs](https://elevenlabs.io/)
-- [x] Corps
-  - [x] Support VRM
-    - [x] Contrôle du modèle VRM
-  - [x] Animations modèle VRM
-    - [x] Clignement automatique
-    - [x] Suivi automatique du regard
-    - [x] Mouvement oculaire au repos
-  - [x] Support Live2D
-    - [x] Contrôle modèle Live2D
-  - [x] Animations modèle Live2D
-    - [x] Clignement automatique
-    - [x] Suivi automatique du regard
-    - [x] Mouvement oculaire au repos
-
-## Développement
-
-> Pour des instructions détaillées sur le développement, suivez [CONTRIBUTING.md](./.github/CONTRIBUTING.md)
-
-> [!NOTE]
-> Par défaut, `pnpm dev` démarre le serveur de développement pour Stage Web (version navigateur). Pour développer la version desktop, lisez [CONTRIBUTING.md](./.github/CONTRIBUTING.md) pour configurer correctement l’environnement.
+### Install
 
 ```shell
 pnpm i
-pnpm dev
 ```
 
-### Stage Web (Version navigateur sur [airi.moeru.ai](https://airi.moeru.ai))
-
-```shell
-pnpm dev
-```
-
-### Stage Tamagotchi (Version Bureau)
+### Desktop Runtime
 
 ```shell
 pnpm dev:tamagotchi
 ```
 
-Un package Nix pour Tamagotchi est inclus. Pour lancer AIRI avec Nix, assurez-vous d'abord d'activer les flakes, puis exécutez :
+### Build Desktop App
+
+Si vous voulez compiler l'application desktop au lieu de la lancer en mode développement, utilisez directement les scripts de build de `stage-tamagotchi`.
+
+Construisez d'abord les artefacts Electron :
 
 ```shell
-nix run github:moeru-ai/airi
+pnpm build:tamagotchi
+# Équivalent :
+# pnpm -F @proj-airi/stage-tamagotchi run app:build
 ```
 
-### Site de la Documentation
+Si vous avez besoin d'installateurs distribuables ou de bundles par plateforme :
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:mac
+pnpm -F @proj-airi/stage-tamagotchi run build:win
+pnpm -F @proj-airi/stage-tamagotchi run build:linux
+```
+
+Si vous avez seulement besoin du répertoire unpacked pour une validation locale :
+
+```shell
+pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+```
+
+`pnpm build:tamagotchi` écrit le build Electron brut dans `apps/stage-tamagotchi/out`.
+Les commandes `build:mac`, `build:win`, `build:linux` et `build:unpack` écrivent leurs artefacts sous `apps/stage-tamagotchi/dist`.
+
+### Web Stage
+
+```shell
+pnpm dev
+```
+
+### Documentation Site
 
 ```shell
 pnpm dev:docs
 ```
 
-### Publier
-
-Merci de mettre à jour la version dans `Cargo.toml` après avoir exécuté `bumpp` :
+### Pocket (iOS)
 
 ```shell
-npx bumpp --no-commit --no-tag
+pnpm dev:pocket:ios --target <DEVICE_ID_OR_SIMULATOR_NAME>
+# Or
+CAPACITOR_DEVICE_ID=<DEVICE_ID_OR_SIMULATOR_NAME> pnpm dev:pocket:ios
 ```
 
-## Support des fournisseurs d'API LLM suivants (propulsé par [xsai](https://github.com/moeru-ai/xsai))
+Pour lister les appareils disponibles :
 
-- [x] [AIHubMix (recommended)](https://aihubmix.com/?aff=OOiX)
-- [x] [OpenRouter](https://openrouter.ai/)
-- [x] [vLLM](https://github.com/vllm-project/vllm)
-- [x] [SGLang](https://github.com/sgl-project/sglang)
-- [x] [Ollama](https://github.com/ollama/ollama)
-- [x] [302.AI (sponsored)](https://share.302.ai/514k2v)
-- [x] [OpenAI](https://platform.openai.com/docs/guides/gpt/chat-completions-api)
-  - [ ] [Azure OpenAI API](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference) (PR bienvenue)
-- [x] [Anthropic Claude](https://anthropic.com)
-  - [ ] [AWS Claude](https://docs.anthropic.com/en/api/claude-on-amazon-bedrock) (PR bienvenue)
-- [x] [DeepSeek](https://www.deepseek.com/)
-- [x] [Qwen](https://help.aliyun.com/document_detail/2400395.html)
-- [x] [Google Gemini](https://developers.generativeai.google)
-- [x] [xAI](https://x.ai/)
-- [x] [Groq](https://wow.groq.com/)
-- [x] [Mistral](https://mistral.ai/)
-- [x] [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
-- [x] [Together.ai](https://www.together.ai/)
-- [x] [Fireworks.ai](https://www.together.ai/)
-- [x] [Novita](https://www.novita.ai/)
-- [x] [Zhipu](https://bigmodel.cn)
-- [x] [SiliconFlow](https://cloud.siliconflow.cn/i/rKXmRobW)
-- [x] [Stepfun](https://platform.stepfun.com/)
-- [x] [Baichuan](https://platform.baichuan-ai.com)
-- [x] [Minimax](https://api.minimax.chat/)
-- [x] [Moonshot AI](https://platform.moonshot.cn/)
-- [x] [Player2](https://player2.game/)
-- [x] [Tencent Cloud](https://cloud.tencent.com/document/product/1729)
-- [ ] [Sparks](https://www.xfyun.cn/doc/spark/Web.html) (PR bienvenue)
-- [ ] [Volcano Engine](https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=2QXCA1VI) (PR bienvenue)
-
-## Sous-projets issus de ce projet
-
-- [Awesome AI VTuber](https://github.com/proj-airi/awesome-ai-vtuber) : Liste sélectionnée d’AI VTubers et projets associés
-- [`unspeech`](https://github.com/moeru-ai/unspeech) : Proxy universel pour `/audio/transcriptions` et `/audio/speech`, similaire à LiteLLM mais pour n’importe quel ASR et TTS
-- [`hfup`](https://github.com/moeru-ai/hfup) : Outils pour déployer et packager sur HuggingFace Spaces
-- [`xsai-transformers`](https://github.com/moeru-ai/xsai-transformers) : Fournisseur expérimental [🤗 Transformers.js](https://github.com/huggingface/transformers.js) pour [xsAI](https://github.com/moeru-ai/xsai)
-- [WebAI : Chat vocal en temps réel](https://github.com/proj-airi/webai-realtime-voice-chat) : Exemple complet d’implémentation de la voix temps réel de ChatGPT avec VAD + STT + LLM + TTS
-- [`@proj-airi/drizzle-duckdb-wasm`](https://github.com/moeru-ai/airi/tree/main/packages/drizzle-duckdb-wasm/README.md) : Driver Drizzle ORM pour DuckDB WASM
-- [`@proj-airi/duckdb-wasm`](https://github.com/moeru-ai/airi/tree/main/packages/duckdb-wasm/README.md) : Wrapper facile à utiliser pour `@duckdb/duckdb-wasm`
-- [`tauri-plugin-mcp`](https://github.com/moeru-ai/airi/blob/main/crates/tauri-plugin-mcp/README.md) : Plugin Tauri pour interagir avec les serveurs MCP
-- [AIRI Factorio](https://github.com/moeru-ai/airi-factorio) : Permet à AIRI de jouer à Factorio
-- [Factorio RCON API](https://github.com/nekomeowww/factorio-rcon-api) : Wrapper RESTful pour la console headless de Factorio
-- [`autorio`](https://github.com/moeru-ai/airi-factorio/tree/main/packages/autorio) : Bibliothèque d’automatisation pour Factorio
-- [`tstl-plugin-reload-factorio-mod`](https://github.com/moeru-ai/airi-factorio/tree/main/packages/tstl-plugin-reload-factorio-mod) : Recharge le mod Factorio pendant le développement
-- [Velin](https://github.com/luoling8192/velin) : Utilise Vue SFC et Markdown pour créer facilement des prompts stateful pour LLM
-- [`demodel`](https://github.com/moeru-ai/demodel) : Accélère le téléchargement de vos modèles et datasets depuis différents runtimes
-- [`inventory`](https://github.com/moeru-ai/inventory) : Service backend centralisé pour catalogues de modèles et configurations par défaut
-- [MCP Launcher](https://github.com/moeru-ai/mcp-launcher) : Constructeur & lanceur MCP facile à utiliser pour tous les serveurs MCP, comme Ollama pour les modèles
-- [🥺 SAD](https://github.com/moeru-ai/sad) : Documentation et notes pour LLMs auto-hébergés et en navigateur
-
-```mermaid
-%%{ init: { 'flowchart': { 'curve': 'catmullRom' } } }%%
-
-flowchart TD
-  Core("Core")
-  Unspeech("unspeech")
-  DBDriver("@proj-airi/drizzle-duckdb-wasm")
-  MemoryDriver("[WIP] Memory Alaya")
-  DB1("@proj-airi/duckdb-wasm")
-  SVRT("@proj-airi/server-runtime")
-  Memory("Memory")
-  STT("STT")
-  Stage("Stage")
-  StageUI("@proj-airi/stage-ui")
-  UI("@proj-airi/ui")
-
-  subgraph AIRI
-    DB1 --> DBDriver --> MemoryDriver --> Memory --> Core
-    UI --> StageUI --> Stage --> Core
-    Core --> STT
-    Core --> SVRT
-  end
-
-  subgraph UI_Components
-    UI --> StageUI
-    UITransitions("@proj-airi/ui-transitions") --> StageUI
-    UILoadingScreens("@proj-airi/ui-loading-screens") --> StageUI
-    FontCJK("@proj-airi/font-cjkfonts-allseto") --> StageUI
-    FontXiaolai("@proj-airi/font-xiaolai") --> StageUI
-  end
-
-  subgraph Apps
-    Stage --> StageWeb("@proj-airi/stage-web")
-    Stage --> StageTamagotchi("@proj-airi/stage-tamagotchi")
-    Core --> RealtimeAudio("@proj-airi/realtime-audio")
-    Core --> PromptEngineering("@proj-airi/playground-prompt-engineering")
-  end
-
-  subgraph Server_Components
-    Core --> ServerSDK("@proj-airi/server-sdk")
-    ServerShared("@proj-airi/server-shared") --> SVRT
-    ServerShared --> ServerSDK
-  end
-
-  STT -->|Speaking| Unspeech
-  SVRT -->|Playing Factorio| F_AGENT
-  SVRT -->|Playing Minecraft| MC_AGENT
-
-  subgraph Factorio_Agent
-    F_AGENT("Factorio Agent")
-    F_API("Factorio RCON API")
-    factorio-server("factorio-server")
-    F_MOD1("autorio")
-
-    F_AGENT --> F_API -.-> factorio-server
-    F_MOD1 -.-> factorio-server
-  end
-
-  subgraph Minecraft_Agent
-    MC_AGENT("Minecraft Agent")
-    Mineflayer("Mineflayer")
-    minecraft-server("minecraft-server")
-
-    MC_AGENT --> Mineflayer -.-> minecraft-server
-  end
-
-  XSAI("xsAI") --> Core
-  XSAI --> F_AGENT
-  XSAI --> MC_AGENT
-
-  Core --> TauriMCP("@proj-airi/tauri-plugin-mcp")
-  Memory_PGVector("@proj-airi/memory-pgvector") --> Memory
-
-  style Core fill:#f9d4d4,stroke:#333,stroke-width:1px
-  style AIRI fill:#fcf7f7,stroke:#333,stroke-width:1px
-  style UI fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style Stage fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style UI_Components fill:#d4f9d4,stroke:#333,stroke-width:1px
-  style Server_Components fill:#d4e6f9,stroke:#333,stroke-width:1px
-  style Apps fill:#d4d4f9,stroke:#333,stroke-width:1px
-  style Factorio_Agent fill:#f9d4f2,stroke:#333,stroke-width:1px
-  style Minecraft_Agent fill:#f9d4f2,stroke:#333,stroke-width:1px
-
-  style DBDriver fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style MemoryDriver fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style DB1 fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style Memory fill:#f9f9d4,stroke:#333,stroke-width:1px
-  style Memory_PGVector fill:#f9f9d4,stroke:#333,stroke-width:1px
+```shell
+pnpm exec cap run ios --list
 ```
 
-## Projets similaires
+### NixOS
 
-### Open source
+Electron nécessite un shell FHS sur NixOS :
 
-- [kimjammer/Neuro : Recréation de Neuro-Sama créée à l'origine en 7 jours](https://github.com/kimjammer/Neuro) : implémentation très complète
-- [SugarcaneDefender/z-waif](https://github.com/SugarcaneDefender/z-waif) : Très bon pour le gaming, autonome, et prompt engineering
-- [semperai/amica](https://github.com/semperai/amica) : Excellent pour VRM et WebXR
-- [elizaOS/eliza](https://github.com/elizaOS/eliza) : Bons exemples et ingénierie logicielle pour intégrer un agent dans différents systèmes et APIs
-- [ardha27/AI-Waifu-Vtuber](https://github.com/ardha27/AI-Waifu-Vtuber) : Intégrations Twitch API efficaces
-- [InsanityLabs/AIVTuber](https://github.com/InsanityLabs/AIVTuber) : UI et UX agréables
-- [IRedDragonICY/vixevia](https://github.com/IRedDragonICY/vixevia)
-- [t41372/Open-LLM-VTuber](https://github.com/t41372/Open-LLM-VTuber)
-- [PeterH0323/Streamer-Sales](https://github.com/PeterH0323/Streamer-Sales)
+```shell
+nix develop .#fhs
+pnpm dev:tamagotchi
+```
 
-### Non open source
+### Nix Direct Run
 
-- https://clips.twitch.tv/WanderingCaringDeerDxCat-Qt55xtiGDSoNmDDr
-  https://www.youtube.com/watch?v=8Giv5mupJNE
-- https://clips.twitch.tv/TriangularAthleticBunnySoonerLater-SXpBk1dFso21VcWD
-- https://www.youtube.com/@NOWA_Mirai
+```shell
+nix run github:touhouqing/alicization
+```
 
-## État du projet
+## Flags runtime optionnels
 
-![Image analytics Repobeats](https://repobeats.axiom.co/api/embed/a1d6fe2c13ea2bb53a5154435a71e2431f70c2ee.svg 'Image analytics Repobeats')
+- `ALICIZATION_DEBUG_AUDIT=true`
+  conserve le texte original de `thought` dans les journaux d'audit pour déboguer le pipeline structuré. Désactivé par défaut afin de limiter la persistance de raisonnements internes sensibles.
 
-## Remerciements
+## Passerelle de modèles
 
-- [Reka UI](https://github.com/unovue/reka-ui) : pour la conception du site de documentation, la nouvelle page d'accueil est basée sur celui-ci, ainsi que l’implémentation de nombreux composants UI (shadcn-vue utilise Reka UI comme headless)
-- [pixiv/ChatVRM](https://github.com/pixiv/ChatVRM)
-- [josephrocca/ChatVRM-js : conversion/adaptation JS de parties du code ChatVRM (TypeScript) pour utilisation autonome dans OpenCharacters et ailleurs](https://github.com/josephrocca/ChatVRM-js)
-- Le design de l’UI et du style s’inspire de [Cookard](https://store.steampowered.com/app/2919650/Cookard/), [UNBEATABLE](https://store.steampowered.com/app/2240620/UNBEATABLE/), [Sensei! I like you so much!](https://store.steampowered.com/app/2957700/_/) et des œuvres de [Ayame par Mercedes Bazan](https://dribbble.com/shots/22157656-Ayame) avec [Wish par Mercedes Bazan](https://dribbble.com/shots/24501019-Wish)
-- [mallorbc/whisper_mic](https://github.com/mallorbc/whisper_mic)
-- [`xsai`](https://github.com/moeru-ai/xsai) : Implémente un bon nombre de packages pour interagir avec des LLM et modèles, similaire à [Vercel AI SDK](https://sdk.vercel.ai/) mais plus léger.
+Project Alicization utilise [`xsai`](https://github.com/moeru-ai/xsai) pour se connecter à plusieurs passerelles de modèles et backends d'inférence. Les chemins courants incluent aujourd'hui :
 
-## Historique des étoiles
+- OpenAI
+- Anthropic Claude
+- Google Gemini
+- Groq
+- DeepSeek
+- OpenRouter
+- Ollama
+- Qwen
+- xAI
+- Mistral
+- Together.ai
+- SiliconFlow
+- ModelScope
+- Player2
+- vLLM / SGLang
 
-[![Graphique historique des étoiles](https://api.star-history.com/svg?repos=moeru-ai/airi&type=Date)](https://www.star-history.com/#moeru-ai/airi&Date)
+Au premier lancement, l'onboarding vous guide dans le choix du provider et du modèle.
+
+## Carte du code
+
+Si vous voulez comprendre Alicization à partir du code, commencez ici :
+
+| Chemin | Rôle |
+| --- | --- |
+| [`apps/stage-tamagotchi/src/main/services/alicization/runtime.ts`](../apps/stage-tamagotchi/src/main/services/alicization/runtime.ts) | Runtime desktop principal pour Genesis, dialogue, ticks subconscients, dreaming, rappels, Kill Switch et autres boucles centrales. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/db.ts`](../apps/stage-tamagotchi/src/main/services/alicization/db.ts) | Couche SQLite pour mémoire, tours, audit, fragments subconscients et rappels. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts`](../apps/stage-tamagotchi/src/main/services/alicization/sensory-bus.ts) | Bus des sondes système et du cache sensoriel. |
+| [`apps/stage-tamagotchi/src/main/services/alicization/state.ts`](../apps/stage-tamagotchi/src/main/services/alicization/state.ts) | État du Kill Switch et de l'audit runtime. |
+| [`apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts`](../apps/stage-tamagotchi/src/main/services/airi/mcp-servers/index.ts) | Appels d'outils MCP, confirmations d'autorisation, sandboxing du workspace et agrégation d'audit. |
+| [`packages/stage-ui/src/composables/alicization-prompt-composer.ts`](../packages/stage-ui/src/composables/alicization-prompt-composer.ts) | Compose les prompts runtime à partir de `SOUL.md`, du contexte et de templates fixes. |
+| [`packages/stage-ui/src/composables/alicization-guardrails.ts`](../packages/stage-ui/src/composables/alicization-guardrails.ts) | Protection du prompt budget, garde-fous de sortie structurée, fallback sûr et sanitation d'affichage. |
+| [`packages/stage-ui/src/stores/alicization-bridge.ts`](../packages/stage-ui/src/stores/alicization-bridge.ts) | Contrats Alicization partagés et types de pont utilisés entre runtime, renderer, mémoire et payloads de dialogue. |
+| [`packages/stage-ui/src/stores/alicization-epoch1.ts`](../packages/stage-ui/src/stores/alicization-epoch1.ts) | Bus d'état Alicization côté renderer et logique de bootstrap. |
+| [`packages/stage-ui/src/stores/alicization-execution-engine.ts`](../packages/stage-ui/src/stores/alicization-execution-engine.ts) | Moteur d'exécution de requêtes temps réel et stratégies de compensation d'outils. |
+| [`packages/stage-ui/src/stores/alicization-presence-dispatcher.ts`](../packages/stage-ui/src/stores/alicization-presence-dispatcher.ts) | Dispatcher de présence qui normalise la sortie du dialogue puis la distribue vers Live2D, TTS et d'autres listeners. |
+| [`packages/stage-shared`](../packages/stage-shared) | Templates de prompt, contraintes partagées et logique Alicization réutilisée entre surfaces. |
+
+## Surfaces du monorepo
+
+### Apps
+
+- `apps/stage-tamagotchi` : runtime desktop Electron et surface principale de Project Alicization.
+- `apps/stage-web` : scène navigateur pour valider interactions, interfaces et composants partagés.
+- `apps/stage-pocket` : surface mobile et intégration Capacitor pour une présence portable.
+- `apps/server` : workspace serveur pour expérimentations backend et services.
+- `apps/component-calling` : workspace applicatif léger pour expérimenter le component-calling et les interactions temps réel.
+
+### Shared Layers
+
+- `docs` : workspace du site de documentation.
+- `packages/stage-ui` : composants métier partagés, stores Alicization, composition de dialogue et couches de pont frontend.
+- `packages/stage-shared` : templates de prompt, logique partagée et contraintes inter-surfaces.
+- `packages/ui` : primitives UI réutilisables.
+- `packages/i18n` : ressources de texte multilingues.
+- `packages/server-*` : runtime serveur, SDK et protocoles partagés.
+
+## Contribution
+
+Il s'agit d'un projet open source, mais pas d'un dépôt où l'on ajoute une fonctionnalité isolée puis on s'en va.
+Si vous comptez contribuer du code, commencez par comprendre les limites de conception.
+
+### À lire d'abord
+
+- Lisez [`../.github/CONTRIBUTING.md`](../.github/CONTRIBUTING.md) avant de contribuer.
+- Objectifs produit et limites : [`content/zh-Hans/docs/alicization/requirements.md`](./content/zh-Hans/docs/alicization/requirements.md)
+- Architecture technique et frontières de données : [`content/zh-Hans/docs/alicization/architecture.md`](./content/zh-Hans/docs/alicization/architecture.md)
+- Roadmap et gates par epoch : [`content/zh-Hans/docs/alicization/roadmap.md`](./content/zh-Hans/docs/alicization/roadmap.md)
+
+### Contraintes de conception
+
+- Préservez les trois axes **local-first, auditable, interruptible**. Ne contournez pas le plan de contrôle de sécurité juste pour le rendre "plus autonome".
+- `SOUL.md` est la source de vérité de la personnalité. Ne déplacez pas l'état principal de personnalité dans SQLite ou un cache temporaire.
+- L'exécution à haut risque doit passer par autorisation explicite, frontières de workspace et audit. N'introduisez pas d'exécution directe en douce.
+- Préférez des couches d'adaptation Alicization et des modules incrémentaux à une intrusion profonde dans le cœur amont d'AIRI.
+- **Ne modifiez pas `appId` ni les noms de packages workspace**. Ce dépôt doit conserver un chemin de synchronisation durable avec l'amont.
+
+### Validation
+
+Après vos modifications, exécutez au minimum :
+
+```shell
+pnpm typecheck
+pnpm lint:fix
+```
+
+Si vous touchez au runtime desktop central, privilégiez aussi des tests Vitest ciblés sur les boucles concernées plutôt qu'une validation lente de tout le dépôt.
+
+## Documentation
+
+Les documents Alicization les plus détaillés se trouvent actuellement ici :
+
+- [`content/zh-Hans/docs/alicization/requirements.md`](./content/zh-Hans/docs/alicization/requirements.md)
+- [`content/zh-Hans/docs/alicization/architecture.md`](./content/zh-Hans/docs/alicization/architecture.md)
+- [`content/zh-Hans/docs/alicization/roadmap.md`](./content/zh-Hans/docs/alicization/roadmap.md)
+- [`content/zh-Hans/docs/alicization/epoch1-closure-report.md`](./content/zh-Hans/docs/alicization/epoch1-closure-report.md)
+- [`content/zh-Hans/docs/alicization/epoch2-closure-report.md`](./content/zh-Hans/docs/alicization/epoch2-closure-report.md)
+
+## Écosystème
+
+- [`xsai`](https://github.com/moeru-ai/xsai) : passerelle de modèles et infrastructure générative.
+- [`unspeech`](https://github.com/moeru-ai/unspeech) : proxy unifié de transcription et synthèse vocale.
+- [`hfup`](https://github.com/moeru-ai/hfup) : utilitaire d'aide au déploiement de modèles et d'espaces.
+- [`mcp-launcher`](https://github.com/moeru-ai/mcp-launcher) : outil de build et de lancement MCP.
+- [`Factorio Agent`](https://github.com/touhouqing/alicization-factorio) : terrain d'expérimentation pour l'exécution en jeu.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=touhouqing/alicization&type=Date)](https://www.star-history.com/#touhouqing/alicization&Date)
