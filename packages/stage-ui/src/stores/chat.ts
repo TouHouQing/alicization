@@ -5,7 +5,7 @@ import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
 import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
-import type { AlicizationPersonalityState } from './alicization-bridge'
+import type { AlicizationEmotion, AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import { createQueue } from '@proj-airi/stream-kit'
@@ -21,7 +21,7 @@ import { normalizeStructuredOutput, validateStructuredContract } from '../compos
 import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
-import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
+import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
 import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
@@ -80,9 +80,13 @@ const runtimeGatewayRetryIdleTimeoutMs = 25_000
 const alicizationEpoch1StrictModeEnabled = false
 const runtimeContractAnchorHeader = 'Output contract (must-follow, highest priority):'
 const structuredRetrySystemPrompt = [
-  'Return ONLY one strict JSON object with keys: thought, emotion, reply.',
+  'Return ONLY one strict JSON object with keys: thought, emotion, reply, performance.',
   'No markdown fences, no prose, no tool calls, no extra keys.',
-  'The "emotion" value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, processing.',
+  'The "emotion" value must exactly mirror performance.baseEmotion.',
+  'performance must contain exactly: baseEmotion, facialCue, actionCue, delivery, emphasis.',
+  'The "baseEmotion" value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
+  'The "delivery" value must be exactly one of: calm, gentle, firm, energetic, hesitant, teasing.',
+  'The "emphasis" value must be exactly one of: 0, 1, 2.',
   'In thought, explicitly evaluate obedience/liveliness/sensibility before deciding emotion and reply.',
   'When liveliness <= 0.2, avoid high-arousal wording and avoid choosing happy.',
 ].join(' ')
@@ -125,7 +129,7 @@ const strictRealtimeRefusalSystemPrompt = [
   'User request requires realtime external access, but current runtime is locked in Epoch 1 strict mode.',
   'You must not call tools and must not claim you are calling APIs now.',
   'Explain this limitation naturally in your current personality, one-shot, without promising delayed follow-up.',
-  'Keep response in strict JSON contract: thought, emotion, reply.',
+  'Keep response in strict JSON contract: thought, emotion, reply, performance.',
 ].join(' ')
 
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
@@ -285,6 +289,15 @@ type StructuredWithContract = StructuredOutputResult & {
   policyLocked?: StructuredPolicyLock
 }
 type StructuredPolicyLock = 'epoch1-strict-realtime'
+
+interface StagedAssistantResolution {
+  structured: StructuredWithContract
+  categorization: {
+    speech: string
+    reasoning: string
+  }
+  reply: string
+}
 
 function detectFileSystemToolIntent(message: string) {
   const normalized = message.trim()
@@ -709,6 +722,7 @@ function createStructuredFallback(replyText: string, emotion: StructuredOutputRe
     thought: '',
     emotion,
     reply: replyText.trim() || assistantStructuredContractFallbackReply,
+    performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
     format: 'fallback-v1',
@@ -927,6 +941,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const isForegroundSession = () => sessionId === activeSessionId.value
 
     const buildingMessage: StreamingAssistantMessage = { role: 'assistant', content: '', slices: [], tool_results: [], createdAt: Date.now(), id: nanoid() }
+    let stagedAssistantResolution: StagedAssistantResolution | null = null
+    let stagedSpeechDraft = ''
+    let finalAssistantDisplayText = ''
+    let assistantTextCommitted = false
 
     const updateUI = () => {
       if (isForegroundSession()) {
@@ -940,6 +958,60 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
+
+    const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
+      stagedAssistantResolution = resolution
+      finalAssistantDisplayText = resolution.reply
+      return resolution
+    }
+
+    const stageAssistantFallback = (replyText: string, emotion: StructuredOutputResult['emotion'] = 'neutral', reasoning = '') => {
+      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply
+      return setStagedAssistantResolution({
+        structured: createStructuredFallback(normalizedReply, emotion),
+        categorization: {
+          speech: normalizedReply,
+          reasoning,
+        },
+        reply: normalizedReply,
+      })
+    }
+
+    const commitAssistantResolution = async () => {
+      if (assistantTextCommitted)
+        return finalAssistantDisplayText
+
+      const staged = stagedAssistantResolution
+      const finalReply = (
+        staged?.reply
+        || finalAssistantDisplayText
+        || stagedSpeechDraft
+        || stringifyAssistantContent(buildingMessage.content)
+      ).trim()
+
+      if (!finalReply)
+        return ''
+
+      const structured = staged?.structured ?? createStructuredFallback(finalReply, 'neutral')
+      const categorization = staged?.categorization ?? {
+        speech: finalReply,
+        reasoning: '',
+      }
+
+      buildingMessage.categorization = categorization
+      buildingMessage.structured = structured
+      buildingMessage.content = finalReply
+      buildingMessage.slices = replaceAssistantTextSlices(buildingMessage.slices, finalReply)
+      finalAssistantDisplayText = finalReply
+      assistantTextCommitted = true
+
+      // NOTICE: Alicization may rewrite structured output after validation/retry, so visible text
+      // and token hooks must flush only once from the final committed reply.
+      await hooks.emitTokenLiteralHooks(finalReply, streamingMessageContext)
+      updateUI()
+
+      return finalReply
+    }
 
     try {
       if (options.origin === 'ui-user' && hasAlicizationBridge()) {
@@ -1244,7 +1316,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const categorizer = createStreamingCategorizer(activeProvider.value)
       let streamPosition = 0
-      let finalAssistantDisplayText = ''
       let turnPersonalityState: AlicizationPersonalityState | null = null
       let streamSpeechMode: 'undecided' | 'plain' | 'structured-json' = 'undecided'
       let streamSpeechPrelude = ''
@@ -1253,21 +1324,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         if (!speechLiteral.trim())
           return
 
-        buildingMessage.content += speechLiteral
-
-        await hooks.emitTokenLiteralHooks(speechLiteral, streamingMessageContext)
-
-        const lastSlice = buildingMessage.slices.at(-1)
-        if (lastSlice?.type === 'text') {
-          lastSlice.text += speechLiteral
-        }
-        else {
-          buildingMessage.slices.push({
-            type: 'text',
-            text: speechLiteral,
-          })
-        }
-        updateUI()
+        stagedSpeechDraft += speechLiteral
       }
 
       const getPreviousAssistantEmotion = () => {
@@ -1537,12 +1594,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         enforceContract?: boolean
         policyLocked?: StructuredPolicyLock
       }) => {
+        const nonContractReply = payload.reply.trim() || createContractFallbackReply(turnPersonalityState, {
+          toolDenied: turnToolEvidence.deniedBySafety,
+          denialSource: turnToolEvidence.denialSource,
+          reminderScheduled: turnToolEvidence.reminderScheduled,
+        })
         const structured = payload.enforceContract === false
-          ? createStructuredFallback(createContractFallbackReply(turnPersonalityState, {
-              toolDenied: turnToolEvidence.deniedBySafety,
-              denialSource: turnToolEvidence.denialSource,
-              reminderScheduled: turnToolEvidence.reminderScheduled,
-            }), createContractFallbackEmotion(turnPersonalityState, {
+          ? createStructuredFallback(nonContractReply, createContractFallbackEmotion(turnPersonalityState, {
               toolDenied: turnToolEvidence.deniedBySafety,
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
@@ -1553,15 +1611,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         const finalReply = structured.reply.trim() || payload.reply
 
-        buildingMessage.categorization = {
-          speech: finalReply,
-          reasoning: payload.reasoning,
-        }
-        buildingMessage.structured = structured
-        buildingMessage.content = finalReply
-        buildingMessage.slices = replaceAssistantTextSlices(buildingMessage.slices, finalReply)
-        finalAssistantDisplayText = finalReply
-        updateUI()
+        return setStagedAssistantResolution({
+          categorization: {
+            speech: finalReply,
+            reasoning: payload.reasoning,
+          },
+          structured,
+          reply: finalReply,
+        })
       }
 
       const appendConversationTurnRecord = async (assistantText: string) => {
@@ -1635,6 +1692,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           outputText: assistantOutputText,
           toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
         }, streamingMessageContext)
+      }
+
+      const finalizeAssistantTurn = async () => {
+        const assistantOutputText = await commitAssistantResolution()
+        persistBuiltAssistantMessage()
+        assistantOutputCommitted = true
+        await appendConversationTurnRecord(assistantOutputText)
+        await emitAssistantTurnHooks(assistantOutputText)
+
+        if (isForegroundSession()) {
+          streamingMessage.value = createEmptyStreamingMessage()
+        }
+
+        return assistantOutputText
       }
 
       const applyAssistantTextFromModelOutput = async (fullText: string) => {
@@ -1721,35 +1792,29 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
 
-        await applyAssistantResult({
+        const staged = await applyAssistantResult({
           fullText,
           reasoning: finalCategorization.reasoning,
           reply: finalSpeech,
           policyLocked: policyLockedReason,
         })
 
-        if (buildingMessage.structured?.repairTimedOut) {
+        if (staged.structured.repairTimedOut) {
           await appendAlicizationAuditLog({
             level: 'warning',
             category: 'structured-output',
             action: 'repair-timeout-fallback',
             message: 'Structured output repair exceeded budget and fell back safely.',
             details: {
-              parsePath: buildingMessage.structured.parsePath,
+              parsePath: staged.structured.parsePath,
             },
           })
         }
       }
 
-      const deferReminderDraftDisplay = requiresReminderToolCall
-      let reminderDisplayApplied = false
-      let forcedReminderRetryText = ''
-
       const parser = useLlmmarkerParser({
         onLiteral: async (literal) => {
           if (shouldAbort())
-            return
-          if (deferReminderDraftDisplay)
             return
 
           categorizer.consume(literal)
@@ -1800,8 +1865,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           await hooks.emitTokenSpecialHooks(special, streamingMessageContext)
         },
         onEnd: async (fullText) => {
-          if (deferReminderDraftDisplay)
-            return
           await applyAssistantTextFromModelOutput(fullText)
         },
         minLiteralEmitLength: 24,
@@ -2084,20 +2147,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
 
-        persistBuiltAssistantMessage()
-
-        const assistantOutputText = finalAssistantDisplayText
-          || buildingMessage.structured?.reply
-          || stringifyAssistantContent(buildingMessage.content)
-          || assistantEpoch1StrictFallbackReply
-
-        await appendConversationTurnRecord(assistantOutputText)
-        await emitAssistantTurnHooks(assistantOutputText)
-        assistantOutputCommitted = true
-
-        if (isForegroundSession()) {
-          streamingMessage.value = createEmptyStreamingMessage()
-        }
+        await finalizeAssistantTurn()
         return
       }
 
@@ -2139,14 +2189,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             reply,
             enforceContract: false,
           })
-          await appendConversationTurnRecord(finalAssistantDisplayText || reply)
-          persistBuiltAssistantMessage()
-          await emitAssistantTurnHooks(finalAssistantDisplayText || reply)
-          assistantOutputCommitted = true
-
-          if (isForegroundSession()) {
-            streamingMessage.value = createEmptyStreamingMessage()
-          }
+          await finalizeAssistantTurn()
           return
         }
       }
@@ -2304,16 +2347,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
 
           if (forcedRetryFullText.trim()) {
-            // Keep tool slices/results but replace previous textual draft with retry output.
-            buildingMessage.slices = buildingMessage.slices.filter(slice => slice.type !== 'text')
-            buildingMessage.content = ''
-            finalAssistantDisplayText = ''
-            if (requiresReminderToolCall) {
-              forcedReminderRetryText = forcedRetryFullText
-            }
-            else {
-              await applyAssistantTextFromModelOutput(forcedRetryFullText)
-            }
+            await applyAssistantTextFromModelOutput(forcedRetryFullText)
             await appendAlicizationAuditLog({
               level: 'notice',
               category: 'alicization.intent-action',
@@ -2427,14 +2461,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
       }
 
-      if (requiresReminderToolCall && !reminderDisplayApplied) {
-        const reminderText = (fullText || forcedReminderRetryText).trim()
-        if (reminderText) {
-          await applyAssistantTextFromModelOutput(reminderText)
-          reminderDisplayApplied = true
-        }
-      }
-
       if (requiresReminderToolCall && !turnToolEvidence.reminderScheduled) {
         await appendAlicizationAuditLog({
           level: 'warning',
@@ -2449,16 +2475,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
 
         const reminderFailureReply = '我这轮还没有成功设置提醒。请再说一次具体时长（例如“1分钟后提醒我喝水”），我会立即调用系统闹钟工具。'
-        buildingMessage.slices = buildingMessage.slices.filter(slice => slice.type !== 'text')
-        buildingMessage.structured = createStructuredFallback(reminderFailureReply, 'concerned')
-        buildingMessage.categorization = {
-          speech: reminderFailureReply,
-          reasoning: '',
-        }
-        buildingMessage.content = reminderFailureReply
-        buildingMessage.slices = replaceAssistantTextSlices(buildingMessage.slices, reminderFailureReply)
-        finalAssistantDisplayText = reminderFailureReply
-        updateUI()
+        stageAssistantFallback(reminderFailureReply, 'concerned')
         await appendAlicizationAuditLog({
           level: 'warning',
           category: 'alicization.intent-action',
@@ -2482,22 +2499,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
         })
       }
-
-      persistBuiltAssistantMessage()
-
-      const assistantOutputText = finalAssistantDisplayText
-        || buildingMessage.structured?.reply
-        || stringifyAssistantContent(buildingMessage.content)
-        || fullText
-
-      await appendConversationTurnRecord(assistantOutputText)
-
-      await emitAssistantTurnHooks(assistantOutputText)
-      assistantOutputCommitted = true
-
-      if (isForegroundSession()) {
-        streamingMessage.value = createEmptyStreamingMessage()
-      }
+      await finalizeAssistantTurn()
     }
     catch (error) {
       if (abortSignal.aborted || shouldAbort()) {
@@ -2547,22 +2549,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (!assistantOutputCommitted) {
         const fallback = resolveStreamFailureFallback(error)
         const fallbackReply = fallback.reply
-        const fallbackStructured = createStructuredFallback(fallbackReply, 'concerned')
-        const fallbackMessage: StreamingAssistantMessage = {
-          role: 'assistant',
-          content: fallbackReply,
-          slices: [{ type: 'text', text: fallbackReply }],
-          tool_results: [],
-          categorization: {
-            speech: fallbackReply,
-            reasoning: '',
-          },
-          structured: fallbackStructured,
-          createdAt: Date.now(),
-          id: nanoid(),
+        stageAssistantFallback(fallbackReply, 'concerned')
+        const assistantOutputText = await commitAssistantResolution()
+        if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+          sessionMessagesForSend.push(toRaw(buildingMessage))
+          chatSession.persistSessionMessages(sessionId)
         }
-        sessionMessagesForSend.push(fallbackMessage)
-        chatSession.persistSessionMessages(sessionId)
+        assistantOutputCommitted = true
         if (isForegroundSession()) {
           streamingMessage.value = createEmptyStreamingMessage()
         }
@@ -2572,11 +2565,21 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             turnId,
             sessionId,
             userText: sendingMessage,
-            assistantText: fallbackReply,
-            structured: { ...fallbackStructured },
+            assistantText: assistantOutputText,
+            structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
             createdAt: Date.now(),
           }).catch(() => {})
         }
+
+        await hooks.emitStreamEndHooks(streamingMessageContext)
+        await hooks.emitAssistantResponseEndHooks(assistantOutputText, streamingMessageContext)
+        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantOutputText, streamingMessageContext)
+        await hooks.emitChatTurnCompleteHooks({
+          output: { ...buildingMessage },
+          outputText: assistantOutputText,
+          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+        }, streamingMessageContext)
 
         await appendAlicizationAuditLog({
           level: 'warning',

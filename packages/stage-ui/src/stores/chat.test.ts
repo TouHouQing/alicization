@@ -301,6 +301,12 @@ describe('chat orchestrator', () => {
     appendAuditLogMock.mockResolvedValue(undefined)
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
     sessionMessagesMap.clear()
+    streamingMessage.value = {
+      role: 'assistant',
+      content: '',
+      slices: [],
+      tool_results: [],
+    }
     ensureSessionMessages(activeSessionId.value)
   })
 
@@ -604,8 +610,34 @@ describe('chat orchestrator', () => {
       }),
     }))
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('一分钟后我提醒你')
-    expect(String(payload?.assistantText ?? '')).not.toContain('已为你定好闹钟')
+    expect(String(payload?.assistantText ?? '')).toContain('已为你定好闹钟')
+    expect(String(payload?.assistantText ?? '')).not.toContain('一分钟后我提醒你')
+  })
+
+  it('keeps assistant body hidden until final stable reply is committed', async () => {
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"draft","emotion":"neutral","reply":"这是一条稳定后的最终回复。"}',
+      })
+
+      expect(streamingMessage.value.content).toBe('')
+      expect(streamingMessage.value.slices).toEqual([])
+      expect(ensureSessionMessages(activeSessionId.value).filter(message => message.role === 'assistant')).toHaveLength(0)
+
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamingMessage.value.content).toBe('')
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('稳定后的最终回复')
   })
 
   it('emits safe reminder failure reply when timed reminder intent still has no set_reminder success', async () => {
