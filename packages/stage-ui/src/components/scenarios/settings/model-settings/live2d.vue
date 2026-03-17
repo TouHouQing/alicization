@@ -238,7 +238,7 @@ function removeActionBinding(fileName: string) {
       <template #label>
         <div flex items-center>
           <div>{{ t('settings.live2d.scale-and-position.scale') }}</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => scale = 1">
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => scale = 1">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -248,7 +248,7 @@ function removeActionBinding(fileName: string) {
       <template #label>
         <div flex items-center>
           <div>{{ t('settings.live2d.scale-and-position.x') }}</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => position.x = 0">
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => position.x = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -258,7 +258,7 @@ function removeActionBinding(fileName: string) {
       <template #label>
         <div flex items-center>
           <div>{{ t('settings.live2d.scale-and-position.y') }}</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => position.y = 0">
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => position.y = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -283,7 +283,7 @@ function removeActionBinding(fileName: string) {
     </Button>
   </Section>
   <Section
-    title="Alicization Action Mapping"
+    :title="t('settings.live2d.action-mapping.title')"
     icon="i-solar:gesture-bold-duotone"
     :class="[
       'rounded-xl',
@@ -309,7 +309,7 @@ function removeActionBinding(fileName: string) {
         'dark:text-neutral-400',
       ]"
     >
-      No Live2D motions discovered for this model yet. Load the model preview once to populate motion metadata.
+      {{ t('settings.live2d.action-mapping.empty') }}
     </div>
     <div
       v-for="motion in currentModelAvailableMotions"
@@ -329,34 +329,34 @@ function removeActionBinding(fileName: string) {
         </div>
         <div :class="['flex items-center gap-2']">
           <Button size="sm" variant="secondary" @click="currentMotion = { group: motion.motionName, index: motion.motionIndex }">
-            Preview
+            {{ t('settings.live2d.action-mapping.actions.preview') }}
           </Button>
           <Button size="sm" variant="secondary" @click="removeActionBinding(motion.fileName)">
-            Clear
+            {{ t('settings.live2d.action-mapping.actions.clear') }}
           </Button>
         </div>
       </div>
       <div :class="['grid gap-3 lg:grid-cols-2']">
         <FieldInput
           :model-value="readActionBinding(motion.fileName)?.actionKey"
-          label="Action Key"
-          description="Semantic actionCue exposed to Alicization for this motion."
+          :label="t('settings.live2d.action-mapping.fields.action-key.label')"
+          :description="t('settings.live2d.action-mapping.fields.action-key.description')"
           :placeholder="suggestActionKey(motion.motionName)"
           @update:model-value="value => updateActionBinding(motion, { actionKey: value })"
         />
         <FieldInput
           :model-value="readActionBinding(motion.fileName)?.label"
-          label="Label"
-          description="Human-readable action name shown in the manifest."
+          :label="t('settings.live2d.action-mapping.fields.label.label')"
+          :description="t('settings.live2d.action-mapping.fields.label.description')"
           :placeholder="motion.motionName"
           @update:model-value="value => updateActionBinding(motion, { label: value })"
         />
       </div>
       <FieldTextArea
         :model-value="readActionBinding(motion.fileName)?.description"
-        label="Description"
-        description="Describe when this motion should be used so Alicization can call it precisely."
-        placeholder="A small nod for agreement, acknowledgment, or gentle confirmation."
+        :label="t('settings.live2d.action-mapping.fields.description.label')"
+        :description="t('settings.live2d.action-mapping.fields.description.description')"
+        :placeholder="t('settings.live2d.action-mapping.fields.description.placeholder')"
         @update:model-value="value => updateActionBinding(motion, { description: value })"
       />
     </div>
@@ -418,7 +418,7 @@ function removeActionBinding(fileName: string) {
     />
   </Section>
   <Section
-    title="Parameters"
+    :title="t('settings.live2d.parameters.title')"
     icon="i-solar:settings-bold-duotone"
     :class="[
       'rounded-xl',
@@ -429,7 +429,7 @@ function removeActionBinding(fileName: string) {
     :expand="false"
   >
     <div flex items-center justify-between>
-      <span text-sm text-neutral-600 dark:text-neutral-400>Idle Animation</span>
+      <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.idle-animation') }}</span>
       <div data-motion-selector relative flex flex-col items-end gap-1>
         <button
 
@@ -437,7 +437,7 @@ function removeActionBinding(fileName: string) {
           flex items-center gap-2 border rounded bg-neutral-100 px-4 py-2 text-sm text-neutral-700 font-medium transition-colors dark:border-neutral-700 dark:bg-neutral-800 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-700
           @click="toggleMotionSelector"
         >
-          <span max-w-32 truncate>{{ selectedRuntimeMotionName || 'Select Motion' }}</span>
+          <span max-w-32 truncate>{{ selectedRuntimeMotionName || t('settings.live2d.parameters.motion-selector.select') }}</span>
           <div
             :class="showMotionSelector ? 'i-solar:alt-arrow-up-line-duotone' : 'i-solar:alt-arrow-down-line-duotone'"
             text-xs transition-transform
@@ -453,7 +453,7 @@ function removeActionBinding(fileName: string) {
           absolute right-0 top-10 z-50 max-h-80 min-w-64 overflow-y-auto rounded-lg shadow-lg
         >
           <div v-if="runtimeMotions.length === 0" p-4 text-sm text-neutral-500 dark:text-neutral-400>
-            No motions available
+            {{ t('settings.live2d.parameters.motion-selector.empty') }}
           </div>
           <button
             v-for="motion in runtimeMotions"
@@ -490,17 +490,17 @@ function removeActionBinding(fileName: string) {
     </div>
 
     <div mt-4 flex items-center justify-between>
-      <span text-sm text-neutral-600 dark:text-neutral-400>Auto Blink</span>
+      <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.auto-blink') }}</span>
       <Checkbox v-model="live2dAutoBlinkEnabled" />
     </div>
 
     <div mt-3 flex items-center justify-between>
-      <span text-sm text-neutral-600 dark:text-neutral-400>Force Auto Blink (fallback timer)</span>
+      <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.force-auto-blink') }}</span>
       <Checkbox v-model="live2dForceAutoBlinkEnabled" />
     </div>
 
     <div mt-4 flex items-center justify-between>
-      <span text-sm text-neutral-600 dark:text-neutral-400>Shadow</span>
+      <span text-sm text-neutral-600 dark:text-neutral-400>{{ t('settings.live2d.parameters.shadow') }}</span>
       <Checkbox v-model="live2dShadowEnabled" />
     </div>
 
@@ -509,7 +509,7 @@ function removeActionBinding(fileName: string) {
       mt-4 w-full border rounded bg-neutral-100 px-4 py-2 text-sm text-neutral-700 font-medium transition-colors dark:border-neutral-700 dark:bg-neutral-800 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-700
       @click="resetToDefaultParameters"
     >
-      Reset To Default Parameters
+      {{ t('settings.live2d.parameters.reset-to-default') }}
     </button>
 
     <button
@@ -517,38 +517,38 @@ function removeActionBinding(fileName: string) {
       :disabled="clearingCache"
       @click="clearModelCache"
     >
-      {{ clearingCache ? 'Clearing...' : 'Clear Model Cache' }}
+      {{ clearingCache ? t('settings.live2d.parameters.clearing-cache') : t('settings.live2d.parameters.clear-cache') }}
     </button>
 
     <!-- Head Rotation -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Head Rotation
+      {{ t('settings.live2d.parameters.groups.head-rotation') }}
     </div>
-    <FieldRange v-model="modelParameters.angleX" as="div" :min="-30" :max="30" :step="0.1" label="Angle X">
+    <FieldRange v-model="modelParameters.angleX" as="div" :min="-30" :max="30" :step="0.1" :label="t('settings.live2d.parameters.fields.angle-x')">
       <template #label>
         <div flex items-center>
-          <div>Angle X</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.angleX = 0">
+          <div>{{ t('settings.live2d.parameters.fields.angle-x') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.angleX = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.angleY" as="div" :min="-30" :max="30" :step="0.1" label="Angle Y">
+    <FieldRange v-model="modelParameters.angleY" as="div" :min="-30" :max="30" :step="0.1" :label="t('settings.live2d.parameters.fields.angle-y')">
       <template #label>
         <div flex items-center>
-          <div>Angle Y</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.angleY = 0">
+          <div>{{ t('settings.live2d.parameters.fields.angle-y') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.angleY = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.angleZ" as="div" :min="-30" :max="30" :step="0.1" label="Angle Z">
+    <FieldRange v-model="modelParameters.angleZ" as="div" :min="-30" :max="30" :step="0.1" :label="t('settings.live2d.parameters.fields.angle-z')">
       <template #label>
         <div flex items-center>
-          <div>Angle Z</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.angleZ = 0">
+          <div>{{ t('settings.live2d.parameters.fields.angle-z') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.angleZ = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -557,43 +557,43 @@ function removeActionBinding(fileName: string) {
 
     <!-- Eyes -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Eyes
+      {{ t('settings.live2d.parameters.groups.eyes') }}
     </div>
-    <FieldRange v-model="modelParameters.leftEyeOpen" as="div" :min="0" :max="1" :step="0.01" label="Left Eye Open/Close">
+    <FieldRange v-model="modelParameters.leftEyeOpen" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eye-open')">
       <template #label>
         <div flex items-center>
-          <div>Left Eye Open/Close</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyeOpen = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eye-open') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyeOpen = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyeOpen" as="div" :min="0" :max="1" :step="0.01" label="Right Eye Open/Close">
+    <FieldRange v-model="modelParameters.rightEyeOpen" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eye-open')">
       <template #label>
         <div flex items-center>
-          <div>Right Eye Open/Close</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyeOpen = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eye-open') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyeOpen = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.leftEyeSmile" as="div" :min="0" :max="1" :step="0.01" label="Left Eye Smiling">
+    <FieldRange v-model="modelParameters.leftEyeSmile" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eye-smile')">
       <template #label>
         <div flex items-center>
-          <div>Left Eye Smiling</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyeSmile = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eye-smile') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyeSmile = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyeSmile" as="div" :min="0" :max="1" :step="0.01" label="Right Eye Smiling">
+    <FieldRange v-model="modelParameters.rightEyeSmile" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eye-smile')">
       <template #label>
         <div flex items-center>
-          <div>Right Eye Smiling</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyeSmile = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eye-smile') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyeSmile = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -602,83 +602,83 @@ function removeActionBinding(fileName: string) {
 
     <!-- Eyebrows -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Eyebrows
+      {{ t('settings.live2d.parameters.groups.eyebrows') }}
     </div>
-    <FieldRange v-model="modelParameters.leftEyebrowLR" as="div" :min="-1" :max="1" :step="0.01" label="Left eyebrow Left/Right">
+    <FieldRange v-model="modelParameters.leftEyebrowLR" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eyebrow-lr')">
       <template #label>
         <div flex items-center>
-          <div>Left eyebrow Left/Right</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyebrowLR = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eyebrow-lr') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyebrowLR = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyebrowLR" as="div" :min="-1" :max="1" :step="0.01" label="Right eyebrow Left/Right">
+    <FieldRange v-model="modelParameters.rightEyebrowLR" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eyebrow-lr')">
       <template #label>
         <div flex items-center>
-          <div>Right eyebrow Left/Right</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyebrowLR = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eyebrow-lr') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyebrowLR = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.leftEyebrowY" as="div" :min="-1" :max="1" :step="0.01" label="Left Eyebrow Y (Up/Down)">
+    <FieldRange v-model="modelParameters.leftEyebrowY" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eyebrow-y')">
       <template #label>
         <div flex items-center>
-          <div>Left Eyebrow Y</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyebrowY = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eyebrow-y') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyebrowY = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyebrowY" as="div" :min="-1" :max="1" :step="0.01" label="Right Eyebrow Y (Up/Down)">
+    <FieldRange v-model="modelParameters.rightEyebrowY" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eyebrow-y')">
       <template #label>
         <div flex items-center>
-          <div>Right Eyebrow Y</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyebrowY = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eyebrow-y') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyebrowY = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.leftEyebrowAngle" as="div" :min="-1" :max="1" :step="0.01" label="Left Eyebrow Angle">
+    <FieldRange v-model="modelParameters.leftEyebrowAngle" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eyebrow-angle')">
       <template #label>
         <div flex items-center>
-          <div>Left Eyebrow Angle</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyebrowAngle = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eyebrow-angle') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyebrowAngle = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyebrowAngle" as="div" :min="-1" :max="1" :step="0.01" label="Right Eyebrow Angle">
+    <FieldRange v-model="modelParameters.rightEyebrowAngle" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eyebrow-angle')">
       <template #label>
         <div flex items-center>
-          <div>Right Eyebrow Angle</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyebrowAngle = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eyebrow-angle') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyebrowAngle = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.leftEyebrowForm" as="div" :min="-1" :max="1" :step="0.01" label="Left Eyebrow Form (Deformation)">
+    <FieldRange v-model="modelParameters.leftEyebrowForm" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.left-eyebrow-form')">
       <template #label>
         <div flex items-center>
-          <div>Left Eyebrow Form</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.leftEyebrowForm = 0">
+          <div>{{ t('settings.live2d.parameters.fields.left-eyebrow-form') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.leftEyebrowForm = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.rightEyebrowForm" as="div" :min="-1" :max="1" :step="0.01" label="Right Eyebrow Form (Deformation)">
+    <FieldRange v-model="modelParameters.rightEyebrowForm" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.right-eyebrow-form')">
       <template #label>
         <div flex items-center>
-          <div>Right Eyebrow Form</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.rightEyebrowForm = 0">
+          <div>{{ t('settings.live2d.parameters.fields.right-eyebrow-form') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.rightEyebrowForm = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -687,23 +687,23 @@ function removeActionBinding(fileName: string) {
 
     <!-- Mouth -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Mouth
+      {{ t('settings.live2d.parameters.groups.mouth') }}
     </div>
-    <FieldRange v-model="modelParameters.mouthOpen" as="div" :min="0" :max="1" :step="0.01" label="Mouth Open/Close">
+    <FieldRange v-model="modelParameters.mouthOpen" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.mouth-open')">
       <template #label>
         <div flex items-center>
-          <div>Mouth Open/Close</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.mouthOpen = 0">
+          <div>{{ t('settings.live2d.parameters.fields.mouth-open') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.mouthOpen = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.mouthForm" as="div" :min="-1" :max="1" :step="0.01" label="Mouth Form (Deformation)">
+    <FieldRange v-model="modelParameters.mouthForm" as="div" :min="-1" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.mouth-form')">
       <template #label>
         <div flex items-center>
-          <div>Mouth Form</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.mouthForm = 0">
+          <div>{{ t('settings.live2d.parameters.fields.mouth-form') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.mouthForm = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -712,13 +712,13 @@ function removeActionBinding(fileName: string) {
 
     <!-- Face -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Face
+      {{ t('settings.live2d.parameters.groups.face') }}
     </div>
-    <FieldRange v-model="modelParameters.cheek" as="div" :min="0" :max="1" :step="0.01" label="Cheek">
+    <FieldRange v-model="modelParameters.cheek" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.cheek')">
       <template #label>
         <div flex items-center>
-          <div>Cheek</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.cheek = 0">
+          <div>{{ t('settings.live2d.parameters.fields.cheek') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.cheek = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
@@ -727,43 +727,43 @@ function removeActionBinding(fileName: string) {
 
     <!-- Body -->
     <div mb-2 mt-4 text-xs text-neutral-500 font-semibold dark:text-neutral-400>
-      Body
+      {{ t('settings.live2d.parameters.groups.body') }}
     </div>
-    <FieldRange v-model="modelParameters.bodyAngleX" as="div" :min="-10" :max="10" :step="0.1" label="Body rotation X">
+    <FieldRange v-model="modelParameters.bodyAngleX" as="div" :min="-10" :max="10" :step="0.1" :label="t('settings.live2d.parameters.fields.body-angle-x')">
       <template #label>
         <div flex items-center>
-          <div>Body rotation X</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.bodyAngleX = 0">
+          <div>{{ t('settings.live2d.parameters.fields.body-angle-x') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.bodyAngleX = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.bodyAngleY" as="div" :min="-10" :max="10" :step="0.1" label="Body rotation Y">
+    <FieldRange v-model="modelParameters.bodyAngleY" as="div" :min="-10" :max="10" :step="0.1" :label="t('settings.live2d.parameters.fields.body-angle-y')">
       <template #label>
         <div flex items-center>
-          <div>Body rotation Y</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.bodyAngleY = 0">
+          <div>{{ t('settings.live2d.parameters.fields.body-angle-y') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.bodyAngleY = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.bodyAngleZ" as="div" :min="-10" :max="10" :step="0.1" label="Body rotation Z">
+    <FieldRange v-model="modelParameters.bodyAngleZ" as="div" :min="-10" :max="10" :step="0.1" :label="t('settings.live2d.parameters.fields.body-angle-z')">
       <template #label>
         <div flex items-center>
-          <div>Body rotation Z</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.bodyAngleZ = 0">
+          <div>{{ t('settings.live2d.parameters.fields.body-angle-z') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.bodyAngleZ = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>
       </template>
     </FieldRange>
-    <FieldRange v-model="modelParameters.breath" as="div" :min="0" :max="1" :step="0.01" label="Breath">
+    <FieldRange v-model="modelParameters.breath" as="div" :min="0" :max="1" :step="0.01" :label="t('settings.live2d.parameters.fields.breath')">
       <template #label>
         <div flex items-center>
-          <div>Breath</div>
-          <button px-2 text-xs outline-none title="Reset value to default" @click="() => modelParameters.breath = 0">
+          <div>{{ t('settings.live2d.parameters.fields.breath') }}</div>
+          <button px-2 text-xs outline-none :title="t('settings.live2d.common.reset-value-to-default')" @click="() => modelParameters.breath = 0">
             <div i-solar:forward-linear transform-scale-x--100 text="neutral-500 dark:neutral-400" />
           </button>
         </div>

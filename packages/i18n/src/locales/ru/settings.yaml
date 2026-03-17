@@ -93,6 +93,67 @@ live2d:
     description: Limit rendering frame rate
     options:
       unlimited: No Limit
+  common:
+    reset-value-to-default: Сбросить значение по умолчанию
+  action-mapping:
+    title: Карта действий Alicization
+    empty: Для этой модели пока не обнаружены движения Live2D. Откройте предпросмотр модели один раз, чтобы заполнить метаданные движений.
+    actions:
+      preview: Предпросмотр
+      clear: Очистить
+    fields:
+      action-key:
+        label: Ключ действия
+        description: Семантический actionCue, который открывается Alicization для этого движения.
+      label:
+        label: Название
+        description: Человекочитаемое имя действия в манифесте.
+      description:
+        label: Описание
+        description: Опишите, когда использовать это движение, чтобы Alicization выбирала его точнее.
+        placeholder: Легкий кивок для согласия, подтверждения или мягкой реакции.
+  parameters:
+    title: Параметры
+    idle-animation: Анимация ожидания
+    motion-selector:
+      select: Выбрать движение
+      empty: Движения недоступны
+    auto-blink: Автоморг
+    force-auto-blink: Принудительный автоморг (резервный таймер)
+    shadow: Тень
+    reset-to-default: Сбросить параметры по умолчанию
+    clearing-cache: Очистка...
+    clear-cache: Очистить кэш модели
+    groups:
+      head-rotation: Поворот головы
+      eyes: Глаза
+      eyebrows: Брови
+      mouth: Рот
+      face: Лицо
+      body: Тело
+    fields:
+      angle-x: Угол X
+      angle-y: Угол Y
+      angle-z: Угол Z
+      left-eye-open: Левый глаз открыть/закрыть
+      right-eye-open: Правый глаз открыть/закрыть
+      left-eye-smile: Левый глаз улыбка
+      right-eye-smile: Правый глаз улыбка
+      left-eyebrow-lr: Левая бровь влево/вправо
+      right-eyebrow-lr: Правая бровь влево/вправо
+      left-eyebrow-y: Левая бровь Y
+      right-eyebrow-y: Правая бровь Y
+      left-eyebrow-angle: Угол левой брови
+      right-eyebrow-angle: Угол правой брови
+      left-eyebrow-form: Форма левой брови
+      right-eyebrow-form: Форма правой брови
+      mouth-open: Рот открыть/закрыть
+      mouth-form: Форма рта
+      cheek: Щеки
+      body-angle-x: Поворот тела X
+      body-angle-y: Поворот тела Y
+      body-angle-z: Поворот тела Z
+      breath: Дыхание
 microphone: Микрофон
 models: Модель
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D, VRM и др.
     title: Модели
+    actions:
+      select-model: Выбрать модель
+    supported-formats:
+      label: Поддерживаются и 2D, и 3D модели
+      description-1: Нажмите Выбрать модель, чтобы импортировать модель в каталог. Поддерживаются `.zip` (Live2D) и `.vrm` (VRM).
+      description-2: Neuro-sama использует 2D модель на Live2D, а Grok Ani использует 3D модель на открытых форматах VRM / MMD.
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: Камеру
           mouse: Мышь
           disabled: Отключено
+  tips:
+    label: Подсказки
+  scene-controls:
+    model-position: Позиция модели
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: Интенсивность
+    directional-light:
+      rotation-x-short: ПоворотXГрад
+      rotation-y-short: ПоворотYГрад
+      rotation-x: Поворот направленного света - X
+      rotation-y: Поворот направленного света - Y
+      color: Цвет направленного света
+      intensity: Интенсивность направленного света
+    ambient-light:
+      intensity: Интенсивность фонового света
+      color: Цвет фонового света
+    hemisphere-light:
+      intensity: Интенсивность полусферного света
+      sky-color: Цвет неба полусферы
+      ground-color: Цвет земли полусферы
+  environment:
+    title: Окружение
+    options:
+      hemisphere: Полусфера
+      skybox: SkyBox
+  external-animations:
+    title: Внешние анимации
+    callout:
+      label: Sidecar-пул .vrma для модели
+      description: Импортируйте `.vrma` файлы для текущей VRM-модели и сопоставьте каждый файл с `actionCue` Alicization. Элементы не будут видны Alicization, пока не заполнены Action Key, Label и Description.
+    imported-at: Импортировано {time}
+    empty: Для этой модели пока не сопоставлено ни одной внешней `.vrma` анимации.
+    status:
+      exposed: Доступно для Alicization
+      hidden: Скрыто до завершения сопоставления
+    actions:
+      remove: Удалить
+    fields:
+      action-key:
+        label: Ключ действия
+        description: Семантический ключ, который LLM видит как доступный actionCue.
+        placeholder: wave
+      label:
+        label: Название
+        description: Человекочитаемое имя действия в манифесте.
+        placeholder: Взмах рукой
+      description:
+        label: Описание
+        description: Кратко опишите смысл действия, чтобы Alicization выбирала его корректно.
+        placeholder: Дружелюбный взмах рукой для приветствия или легкого подтверждения.
+  custom-expressions:
+    title: Пользовательские выражения
+    callout:
+      label: Семантическая настройка custom-выражений VRM
+      description: Стандартные preset-выражения обрабатываются автоматически. Здесь показываются только custom expression из текущей модели для ручной семантической привязки. Элементы не будут видны Alicization, пока не заполнены Facial Key, Label и Description.
+    empty: Пользовательские VRM-выражения пока не обнаружены. Откройте предпросмотр модели один раз, чтобы заполнить список.
+    raw-name: Исходное имя custom-выражения VRM
+    status:
+      exposed: Доступно для Alicization
+      hidden: Скрыто до завершения сопоставления
+    actions:
+      clear-mapping: Очистить привязку
+    fields:
+      facial-key:
+        label: Facial Key
+        description: Динамический семантический ключ, который LLM видит как facialCue.
+      label:
+        label: Название
+        description: Человекочитаемая метка в манифесте.
+      description:
+        label: Описание
+        description: Опишите визуальный эффект выражения, чтобы Alicization выбирала его осознанно.
+        placeholder: Глаза-звезды или выраженный блеск для сильного восхищения.
+    affects-mouth:
+      title: Влияет на рот
+      description: Включайте, если выражение меняет форму рта. Во время речи приоритет будет у viseme override.
   switch-to-vrm:
     title: Переключиться на аватар Live2D?
     change-to-vrm: Нажмите здесь, чтобы переключиться на настройки Live2D

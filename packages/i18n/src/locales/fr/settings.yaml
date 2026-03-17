@@ -93,6 +93,67 @@ live2d:
     description: Limiter la fréquence d'image du rendu
     options:
       unlimited: Aucune Limite
+  common:
+    reset-value-to-default: Réinitialiser à la valeur par défaut
+  action-mapping:
+    title: Mappage des actions Alicization
+    empty: Aucun mouvement Live2D n’a encore été détecté pour ce modèle. Ouvrez une fois l’aperçu du modèle pour remplir les métadonnées de mouvement.
+    actions:
+      preview: Aperçu
+      clear: Effacer
+    fields:
+      action-key:
+        label: Clé d’action
+        description: actionCue sémantique exposé à Alicization pour ce mouvement.
+      label:
+        label: Libellé
+        description: Nom d’action lisible affiché dans le manifeste.
+      description:
+        label: Description
+        description: Décrivez quand utiliser ce mouvement afin qu’Alicization puisse l’appeler précisément.
+        placeholder: Petit hochement de tête pour l’accord, l’acquittement ou une confirmation douce.
+  parameters:
+    title: Paramètres
+    idle-animation: Animation d’inactivité
+    motion-selector:
+      select: Sélectionner un mouvement
+      empty: Aucun mouvement disponible
+    auto-blink: Clignement automatique
+    force-auto-blink: Clignement automatique forcé (minuterie de secours)
+    shadow: Ombre
+    reset-to-default: Réinitialiser les paramètres par défaut
+    clearing-cache: Nettoyage...
+    clear-cache: Vider le cache du modèle
+    groups:
+      head-rotation: Rotation de la tête
+      eyes: Yeux
+      eyebrows: Sourcils
+      mouth: Bouche
+      face: Visage
+      body: Corps
+    fields:
+      angle-x: Angle X
+      angle-y: Angle Y
+      angle-z: Angle Z
+      left-eye-open: Œil gauche ouvrir/fermer
+      right-eye-open: Œil droit ouvrir/fermer
+      left-eye-smile: Œil gauche souriant
+      right-eye-smile: Œil droit souriant
+      left-eyebrow-lr: Sourcil gauche gauche/droite
+      right-eyebrow-lr: Sourcil droit gauche/droite
+      left-eyebrow-y: Sourcil gauche Y
+      right-eyebrow-y: Sourcil droit Y
+      left-eyebrow-angle: Angle du sourcil gauche
+      right-eyebrow-angle: Angle du sourcil droit
+      left-eyebrow-form: Forme du sourcil gauche
+      right-eyebrow-form: Forme du sourcil droit
+      mouth-open: Bouche ouvrir/fermer
+      mouth-form: Forme de la bouche
+      cheek: Joue
+      body-angle-x: Rotation du corps X
+      body-angle-y: Rotation du corps Y
+      body-angle-z: Rotation du corps Z
+      breath: Respiration
 microphone: Microphone
 models: Modèle
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D, VRM, etc.
     title: Modèles
+    actions:
+      select-model: Sélectionner un modèle
+    supported-formats:
+      label: Nous prenons en charge les modèles 2D et 3D
+      description-1: 'Cliquez sur Sélectionner un modèle pour importer un modèle dans le catalogue. Formats pris en charge : `.zip` (Live2D) et `.vrm` (VRM).'
+      description-2: Neuro-sama utilise un modèle 2D piloté par Live2D, tandis que Grok Ani utilise un modèle 3D basé sur les formats ouverts VRM / MMD.
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: Caméra
           mouse: Souris
           disabled: Désactivé
+  tips:
+    label: Conseils
+  scene-controls:
+    model-position: Position du modèle
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: Intensité
+    directional-light:
+      rotation-x-short: RotationXDeg
+      rotation-y-short: RotationYDeg
+      rotation-x: Rotation de la lumière directionnelle - X
+      rotation-y: Rotation de la lumière directionnelle - Y
+      color: Couleur de la lumière directionnelle
+      intensity: Intensité de la lumière directionnelle
+    ambient-light:
+      intensity: Intensité de la lumière ambiante
+      color: Couleur de la lumière ambiante
+    hemisphere-light:
+      intensity: Intensité de la lumière hémisphérique
+      sky-color: Couleur du ciel hémisphérique
+      ground-color: Couleur du sol hémisphérique
+  environment:
+    title: Environnement
+    options:
+      hemisphere: Hémisphère
+      skybox: SkyBox
+  external-animations:
+    title: Animations externes
+    callout:
+      label: Pool sidecar .vrma par modèle
+      description: Importez des fichiers `.vrma` pour le modèle VRM courant et mappez chacun à un `actionCue` Alicization. Les entrées restent masquées pour Alicization tant que Action Key, Label et Description ne sont pas toutes renseignées.
+    imported-at: Importé {time}
+    empty: Aucune animation externe `.vrma` n’est encore mappée pour ce modèle.
+    status:
+      exposed: Exposé à Alicization
+      hidden: Masqué jusqu’au mappage
+    actions:
+      remove: Supprimer
+    fields:
+      action-key:
+        label: Clé d’action
+        description: Clé sémantique exposée au LLM comme actionCue disponible.
+        placeholder: wave
+      label:
+        label: Libellé
+        description: Nom d’action lisible affiché dans le manifeste.
+        placeholder: Saluer de la main
+      description:
+        label: Description
+        description: Décrivez brièvement ce que communique cette action pour qu’Alicization la choisisse correctement.
+        placeholder: Signe de la main amical pour saluer ou accuser réception.
+  custom-expressions:
+    title: Expressions personnalisées
+    callout:
+      label: Déballage sémantique des expressions custom VRM
+      description: Les expressions preset standard sont gérées automatiquement. Seuls les noms custom expression détectés sur le modèle courant sont listés ici pour un mappage sémantique manuel. Les entrées restent masquées pour Alicization tant que Facial Key, Label et Description ne sont pas toutes renseignées.
+    empty: Aucune expression VRM personnalisée détectée pour le moment. Ouvrez une fois l’aperçu du modèle pour remplir cette liste.
+    raw-name: Nom brut de l’expression custom VRM
+    status:
+      exposed: Exposé à Alicization
+      hidden: Masqué jusqu’au mappage
+    actions:
+      clear-mapping: Effacer le mappage
+    fields:
+      facial-key:
+        label: Clé faciale
+        description: Indice sémantique dynamique exposé au LLM comme facialCue.
+      label:
+        label: Libellé
+        description: Libellé lisible affiché dans le manifeste.
+      description:
+        label: Description
+        description: Décrivez l’effet facial visible pour qu’Alicization puisse le choisir de façon délibérée.
+        placeholder: Yeux en étoile ou effet scintillant exagéré pour une forte admiration.
+    affects-mouth:
+      title: Affecte la bouche
+      description: Activez cette option si l’expression personnalisée modifie la forme de la bouche et doit céder la priorité au viseme override pendant la parole.
   switch-to-vrm:
     title: Passer à l’avatar Live2D ?
     change-to-vrm: Cliquez ici pour passer aux paramètres de l’avatar Live2D

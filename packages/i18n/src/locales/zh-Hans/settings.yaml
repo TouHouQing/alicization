@@ -93,6 +93,67 @@ live2d:
     description: 限制渲染帧率
     options:
       unlimited: 无限制
+  common:
+    reset-value-to-default: 重置为默认值
+  action-mapping:
+    title: Alicization 动作映射
+    empty: 当前模型还未发现 Live2D 动作。请先加载一次模型预览以生成动作元数据。
+    actions:
+      preview: 预览
+      clear: 清除
+    fields:
+      action-key:
+        label: 动作键
+        description: 为该动作暴露给 Alicization 的语义 actionCue。
+      label:
+        label: 标签
+        description: 在能力清单中展示的人类可读动作名。
+      description:
+        label: 描述
+        description: 描述该动作的使用时机，便于 Alicization 精准调用。
+        placeholder: 用于表示同意、回应或轻柔确认的小幅点头动作。
+  parameters:
+    title: 参数
+    idle-animation: 待机动画
+    motion-selector:
+      select: 选择动作
+      empty: 暂无可用动作
+    auto-blink: 自动眨眼
+    force-auto-blink: 强制自动眨眼（兜底计时器）
+    shadow: 阴影
+    reset-to-default: 重置为默认参数
+    clearing-cache: 正在清理...
+    clear-cache: 清理模型缓存
+    groups:
+      head-rotation: 头部旋转
+      eyes: 眼睛
+      eyebrows: 眉毛
+      mouth: 嘴部
+      face: 脸部
+      body: 身体
+    fields:
+      angle-x: X 角度
+      angle-y: Y 角度
+      angle-z: Z 角度
+      left-eye-open: 左眼开合
+      right-eye-open: 右眼开合
+      left-eye-smile: 左眼微笑
+      right-eye-smile: 右眼微笑
+      left-eyebrow-lr: 左眉左右
+      right-eyebrow-lr: 右眉左右
+      left-eyebrow-y: 左眉高度
+      right-eyebrow-y: 右眉高度
+      left-eyebrow-angle: 左眉角度
+      right-eyebrow-angle: 右眉角度
+      left-eyebrow-form: 左眉形变
+      right-eyebrow-form: 右眉形变
+      mouth-open: 嘴部开合
+      mouth-form: 嘴部形变
+      cheek: 面颊
+      body-angle-x: 身体旋转 X
+      body-angle-y: 身体旋转 Y
+      body-angle-z: 身体旋转 Z
+      breath: 呼吸
 microphone: 麦克风
 models: 模型
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: 切换角色的 Live2D，VRM 模型
     title: 角色模型
+    actions:
+      select-model: 选择模型
+    supported-formats:
+      label: 我们同时支持 2D 与 3D 模型
+      description-1: 点击选择模型即可将模型导入目录；当前支持 `.zip`（Live2D）与 `.vrm`（VRM）。
+      description-2: Neuro-sama 使用 Live2D 驱动的 2D 模型；Grok Ani 使用由开放 VRM / MMD 格式驱动的 3D 模型。
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: 相机
           mouse: 鼠标
           disabled: 禁用
+  tips:
+    label: 提示
+  scene-controls:
+    model-position: 模型位置
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: 强度
+    directional-light:
+      rotation-x-short: X 轴角度
+      rotation-y-short: Y 轴角度
+      rotation-x: 平行光旋转 - X
+      rotation-y: 平行光旋转 - Y
+      color: 平行光颜色
+      intensity: 平行光强度
+    ambient-light:
+      intensity: 环境光强度
+      color: 环境光颜色
+    hemisphere-light:
+      intensity: 半球光强度
+      sky-color: 半球天空色
+      ground-color: 半球地面色
+  environment:
+    title: 环境
+    options:
+      hemisphere: 半球光
+      skybox: 天空盒
+  external-animations:
+    title: 外部动画
+    callout:
+      label: 模型侧挂 .vrma 动画池
+      description: 为当前 VRM 模型导入 `.vrma` 文件，并把每个动作映射到 Alicization 的 `actionCue`。只有 Action Key、Label、Description 都填写后才会暴露给 Alicization。
+    imported-at: 导入于 {time}
+    empty: 当前模型还没有映射任何外部 `.vrma` 动画。
+    status:
+      exposed: 已暴露给 Alicization
+      hidden: 映射完成前隐藏
+    actions:
+      remove: 删除
+    fields:
+      action-key:
+        label: 动作键
+        description: 这个语义键会作为可用 actionCue 暴露给 LLM。
+        placeholder: wave
+      label:
+        label: 标签
+        description: 在 manifest 中展示的人类可读动作名。
+        placeholder: 挥手
+      description:
+        label: 描述
+        description: 简要说明动作语义，便于 Alicization 正确选择。
+        placeholder: 友好的挥手动作，常用于打招呼或轻度回应。
+  custom-expressions:
+    title: 自定义表情
+    callout:
+      label: VRM 自定义表情语义解包
+      description: 标准 preset 表情会自动处理。这里仅列出从当前模型扫描到的 custom expression 名称，供手动语义映射。只有 Facial Key、Label、Description 都填写后才会暴露给 Alicization。
+    empty: 还未检测到 VRM 自定义表情。请先加载一次模型预览以填充列表。
+    raw-name: 原始 VRM 自定义表情名
+    status:
+      exposed: 已暴露给 Alicization
+      hidden: 映射完成前隐藏
+    actions:
+      clear-mapping: 清除映射
+    fields:
+      facial-key:
+        label: 表情键
+        description: 作为 facialCue 暴露给 LLM 的动态语义键。
+      label:
+        label: 标签
+        description: 在 manifest 中展示的人类可读标签。
+      description:
+        label: 描述
+        description: 描述可见的面部效果，便于 Alicization 主动选择。
+        placeholder: 星星眼或夸张闪光效果，用于强烈喜爱和崇拜情绪。
+    affects-mouth:
+      title: 影响嘴部
+      description: 若该自定义表情会改动嘴型，请开启此项；说话时会让位给 viseme 覆写。
   switch-to-vrm:
     title: 想切换至Live2D虚拟形象？
     change-to-vrm: 切换至Live2D虚拟形象设定页面

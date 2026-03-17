@@ -93,6 +93,67 @@ live2d:
     description: レンダリングフレームレートを制限
     options:
       unlimited: 制限なし
+  common:
+    reset-value-to-default: 値をデフォルトに戻す
+  action-mapping:
+    title: Alicizationアクションマッピング
+    empty: このモデルではまだLive2Dモーションが見つかっていません。まずモデルプレビューを一度読み込んでモーション情報を生成してください。
+    actions:
+      preview: プレビュー
+      clear: クリア
+    fields:
+      action-key:
+        label: アクションキー
+        description: このモーション用にAlicizationへ公開する意味的な actionCue です。
+      label:
+        label: ラベル
+        description: マニフェストに表示される人間向けのアクション名です。
+      description:
+        label: 説明
+        description: Alicization が正確に呼び出せるよう、このモーションを使う場面を説明してください。
+        placeholder: 同意や相づち、やさしい確認に使う小さなうなずき。
+  parameters:
+    title: パラメーター
+    idle-animation: 待機アニメーション
+    motion-selector:
+      select: モーションを選択
+      empty: モーションがありません
+    auto-blink: オートまばたき
+    force-auto-blink: 強制オートまばたき（フォールバックタイマー）
+    shadow: 影
+    reset-to-default: パラメーターをデフォルトに戻す
+    clearing-cache: 削除中...
+    clear-cache: モデルキャッシュを削除
+    groups:
+      head-rotation: 頭の回転
+      eyes: 目
+      eyebrows: 眉
+      mouth: 口
+      face: 顔
+      body: 体
+    fields:
+      angle-x: 角度 X
+      angle-y: 角度 Y
+      angle-z: 角度 Z
+      left-eye-open: 左目の開閉
+      right-eye-open: 右目の開閉
+      left-eye-smile: 左目の笑顔
+      right-eye-smile: 右目の笑顔
+      left-eyebrow-lr: 左眉の左右
+      right-eyebrow-lr: 右眉の左右
+      left-eyebrow-y: 左眉の上下
+      right-eyebrow-y: 右眉の上下
+      left-eyebrow-angle: 左眉の角度
+      right-eyebrow-angle: 右眉の角度
+      left-eyebrow-form: 左眉の形状
+      right-eyebrow-form: 右眉の形状
+      mouth-open: 口の開閉
+      mouth-form: 口の形状
+      cheek: 頬
+      body-angle-x: 体の回転 X
+      body-angle-y: 体の回転 Y
+      body-angle-z: 体の回転 Z
+      breath: 呼吸
 microphone: マイク
 models: モデル
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D、VRMなど。
     title: モデル
+    actions:
+      select-model: モデルを選択
+    supported-formats:
+      label: 2D と 3D の両方のモデルに対応
+      description-1: モデルを選択を押してカタログへ取り込みます。現在は `.zip`（Live2D）と `.vrm`（VRM）に対応しています。
+      description-2: Neuro-sama は Live2D の 2D モデルを使用し、Grok Ani はオープンな VRM / MMD 形式の 3D モデルを使用します。
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: カメラ
           mouse: マウス
           disabled: 無効
+  tips:
+    label: ヒント
+  scene-controls:
+    model-position: モデル位置
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: 強度
+    directional-light:
+      rotation-x-short: 回転X度
+      rotation-y-short: 回転Y度
+      rotation-x: 指向性ライト回転 - X
+      rotation-y: 指向性ライト回転 - Y
+      color: 指向性ライト色
+      intensity: 指向性ライト強度
+    ambient-light:
+      intensity: 環境光強度
+      color: 環境光色
+    hemisphere-light:
+      intensity: 半球ライト強度
+      sky-color: 半球スカイ色
+      ground-color: 半球グラウンド色
+  environment:
+    title: 環境
+    options:
+      hemisphere: 半球ライト
+      skybox: スカイボックス
+  external-animations:
+    title: 外部アニメーション
+    callout:
+      label: モデルごとの sidecar .vrma プール
+      description: 現在の VRM モデルに `.vrma` ファイルを取り込み、各アニメーションを Alicization の `actionCue` に紐づけます。Action Key、Label、Description がすべて埋まるまで Alicization には公開されません。
+    imported-at: 取り込み日時 {time}
+    empty: このモデルには外部 `.vrma` アニメーションがまだ設定されていません。
+    status:
+      exposed: Alicization に公開中
+      hidden: マッピング完了まで非表示
+    actions:
+      remove: 削除
+    fields:
+      action-key:
+        label: アクションキー
+        description: LLM が利用可能な actionCue として参照する意味キーです。
+        placeholder: wave
+      label:
+        label: ラベル
+        description: マニフェストに表示される人間向けのアクション名です。
+        placeholder: 手を振る
+      description:
+        label: 説明
+        description: Alicization が適切に選べるよう、アクションの意味を簡潔に説明してください。
+        placeholder: 挨拶や軽い応答に使うフレンドリーな手振り。
+  custom-expressions:
+    title: カスタム表情
+    callout:
+      label: VRM カスタム表情の意味マッピング
+      description: 標準 preset 表情は自動処理されます。ここには現在のモデルから検出した custom expression 名だけを表示し、手動で意味づけします。Facial Key、Label、Description がすべて埋まるまで Alicization には公開されません。
+    empty: カスタム VRM 表情はまだ検出されていません。まずモデルプレビューを一度読み込んでください。
+    raw-name: 生の VRM カスタム表情名
+    status:
+      exposed: Alicization に公開中
+      hidden: マッピング完了まで非表示
+    actions:
+      clear-mapping: マッピングをクリア
+    fields:
+      facial-key:
+        label: フェイシャルキー
+        description: LLM に facialCue として公開される動的な意味キーです。
+      label:
+        label: ラベル
+        description: マニフェストに表示される人間向けラベルです。
+      description:
+        label: 説明
+        description: 表情の見た目効果を説明し、Alicization が意図的に選べるようにします。
+        placeholder: 星目や誇張したキラキラ演出など、強い憧れを示す表情。
+    affects-mouth:
+      title: 口形状に影響
+      description: この表情が口形状を変える場合に有効化してください。発話中は viseme オーバーライドを優先します。
   switch-to-vrm:
     title: Live2Dアバターに切り替えますか？
     change-to-vrm: Live2Dアバター設定に切り替えるにはここをクリック

@@ -93,6 +93,67 @@ live2d:
     description: 렌더링 주사율 제한
     options:
       unlimited: 무제한
+  common:
+    reset-value-to-default: 값을 기본값으로 재설정
+  action-mapping:
+    title: Alicization 액션 매핑
+    empty: 이 모델에서 아직 Live2D 모션이 발견되지 않았습니다. 모션 메타데이터를 채우려면 모델 프리뷰를 한 번 로드해 주세요.
+    actions:
+      preview: 미리보기
+      clear: 지우기
+    fields:
+      action-key:
+        label: 액션 키
+        description: 이 모션에 대해 Alicization에 노출되는 의미 기반 actionCue입니다.
+      label:
+        label: 라벨
+        description: 매니페스트에 표시되는 사람이 읽기 쉬운 액션 이름입니다.
+      description:
+        label: 설명
+        description: Alicization이 정확히 호출할 수 있도록 이 모션을 언제 써야 하는지 설명해 주세요.
+        placeholder: 동의, 응답, 부드러운 확인에 쓰는 작은 끄덕임 동작.
+  parameters:
+    title: 파라미터
+    idle-animation: 대기 애니메이션
+    motion-selector:
+      select: 모션 선택
+      empty: 사용 가능한 모션이 없습니다
+    auto-blink: 자동 눈깜빡임
+    force-auto-blink: 강제 자동 눈깜빡임(폴백 타이머)
+    shadow: 그림자
+    reset-to-default: 기본 파라미터로 재설정
+    clearing-cache: 정리 중...
+    clear-cache: 모델 캐시 지우기
+    groups:
+      head-rotation: 머리 회전
+      eyes: 눈
+      eyebrows: 눈썹
+      mouth: 입
+      face: 얼굴
+      body: 몸
+    fields:
+      angle-x: 각도 X
+      angle-y: 각도 Y
+      angle-z: 각도 Z
+      left-eye-open: 왼쪽 눈 열기/닫기
+      right-eye-open: 오른쪽 눈 열기/닫기
+      left-eye-smile: 왼쪽 눈 미소
+      right-eye-smile: 오른쪽 눈 미소
+      left-eyebrow-lr: 왼쪽 눈썹 좌/우
+      right-eyebrow-lr: 오른쪽 눈썹 좌/우
+      left-eyebrow-y: 왼쪽 눈썹 Y
+      right-eyebrow-y: 오른쪽 눈썹 Y
+      left-eyebrow-angle: 왼쪽 눈썹 각도
+      right-eyebrow-angle: 오른쪽 눈썹 각도
+      left-eyebrow-form: 왼쪽 눈썹 형태
+      right-eyebrow-form: 오른쪽 눈썹 형태
+      mouth-open: 입 열기/닫기
+      mouth-form: 입 형태
+      cheek: 볼
+      body-angle-x: 몸 회전 X
+      body-angle-y: 몸 회전 Y
+      body-angle-z: 몸 회전 Z
+      breath: 호흡
 microphone: 마이크
 models: 모델
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D, VRM, 기타 등등.
     title: 모델
+    actions:
+      select-model: 모델 선택
+    supported-formats:
+      label: 2D와 3D 모델을 모두 지원합니다
+      description-1: 모델 선택을 눌러 카탈로그로 가져오세요. 현재 `.zip`(Live2D)와 `.vrm`(VRM)을 지원합니다.
+      description-2: Neuro-sama는 Live2D 기반 2D 모델을 사용하고, Grok Ani는 오픈 VRM / MMD 형식의 3D 모델을 사용합니다.
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: 카메라
           mouse: 마우스
           disabled: 사용 안 함
+  tips:
+    label: 팁
+  scene-controls:
+    model-position: 모델 위치
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: 강도
+    directional-light:
+      rotation-x-short: 회전X도
+      rotation-y-short: 회전Y도
+      rotation-x: 방향광 회전 - X
+      rotation-y: 방향광 회전 - Y
+      color: 방향광 색상
+      intensity: 방향광 강도
+    ambient-light:
+      intensity: 주변광 강도
+      color: 주변광 색상
+    hemisphere-light:
+      intensity: 반구광 강도
+      sky-color: 반구 하늘 색상
+      ground-color: 반구 지면 색상
+  environment:
+    title: 환경
+    options:
+      hemisphere: 반구광
+      skybox: 스카이박스
+  external-animations:
+    title: 외부 애니메이션
+    callout:
+      label: 모델별 sidecar .vrma 풀
+      description: 현재 VRM 모델에 `.vrma` 파일을 가져오고 각 항목을 Alicization `actionCue`에 매핑하세요. Action Key, Label, Description을 모두 입력하기 전에는 Alicization에 노출되지 않습니다.
+    imported-at: 가져온 시각 {time}
+    empty: 이 모델에는 아직 매핑된 외부 `.vrma` 애니메이션이 없습니다.
+    status:
+      exposed: Alicization에 노출됨
+      hidden: 매핑 완료 전 숨김
+    actions:
+      remove: 삭제
+    fields:
+      action-key:
+        label: 액션 키
+        description: LLM에 사용 가능한 actionCue로 노출되는 의미 키입니다.
+        placeholder: wave
+      label:
+        label: 라벨
+        description: 매니페스트에 표시되는 사람이 읽기 쉬운 액션 이름입니다.
+        placeholder: 손 흔들기
+      description:
+        label: 설명
+        description: Alicization이 올바르게 선택할 수 있도록 이 액션이 전달하는 의미를 간단히 설명하세요.
+        placeholder: 인사나 가벼운 응답에 쓰는 친근한 손 흔들기 동작.
+  custom-expressions:
+    title: 커스텀 표정
+    callout:
+      label: VRM 커스텀 표정 의미 매핑
+      description: 표준 preset 표정은 자동으로 처리됩니다. 이 목록에는 현재 모델에서 스캔된 custom expression 이름만 표시되며 수동 의미 매핑이 필요합니다. Facial Key, Label, Description을 모두 입력하기 전에는 Alicization에 노출되지 않습니다.
+    empty: 아직 커스텀 VRM 표정이 감지되지 않았습니다. 목록을 채우려면 모델 프리뷰를 한 번 로드해 주세요.
+    raw-name: 원본 VRM 커스텀 표정 이름
+    status:
+      exposed: Alicization에 노출됨
+      hidden: 매핑 완료 전 숨김
+    actions:
+      clear-mapping: 매핑 지우기
+    fields:
+      facial-key:
+        label: 표정 키
+        description: LLM에 facialCue로 노출되는 동적 의미 키입니다.
+      label:
+        label: 라벨
+        description: 매니페스트에 표시되는 사람이 읽기 쉬운 라벨입니다.
+      description:
+        label: 설명
+        description: 보이는 얼굴 효과를 설명하여 Alicization이 의도적으로 선택할 수 있게 합니다.
+        placeholder: 강한 감탄이나 동경을 표현하는 별눈 또는 과장된 반짝임 효과.
+    affects-mouth:
+      title: 입 모양 영향
+      description: 이 커스텀 표정이 입 모양을 바꾼다면 활성화하세요. 발화 중에는 viseme 오버라이드에 우선권을 줍니다.
   switch-to-vrm:
     title: Live2D 아바타로 전환하시겠습니까?
     change-to-vrm: Live2D 아바타 설정으로 전환하려면 여기를 클릭하세요

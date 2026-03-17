@@ -96,6 +96,67 @@ live2d:
     description: Limit rendering frame rate
     options:
       unlimited: No Limit
+  common:
+    reset-value-to-default: Reset value to default
+  action-mapping:
+    title: Alicization Action Mapping
+    empty: No Live2D motions discovered for this model yet. Load the model preview once to populate motion metadata.
+    actions:
+      preview: Preview
+      clear: Clear
+    fields:
+      action-key:
+        label: Action Key
+        description: Semantic actionCue exposed to Alicization for this motion.
+      label:
+        label: Label
+        description: Human-readable action name shown in the manifest.
+      description:
+        label: Description
+        description: Describe when this motion should be used so Alicization can call it precisely.
+        placeholder: A small nod for agreement, acknowledgment, or gentle confirmation.
+  parameters:
+    title: Parameters
+    idle-animation: Idle Animation
+    motion-selector:
+      select: Select Motion
+      empty: No motions available
+    auto-blink: Auto Blink
+    force-auto-blink: Force Auto Blink (fallback timer)
+    shadow: Shadow
+    reset-to-default: Reset To Default Parameters
+    clearing-cache: Clearing...
+    clear-cache: Clear Model Cache
+    groups:
+      head-rotation: Head Rotation
+      eyes: Eyes
+      eyebrows: Eyebrows
+      mouth: Mouth
+      face: Face
+      body: Body
+    fields:
+      angle-x: Angle X
+      angle-y: Angle Y
+      angle-z: Angle Z
+      left-eye-open: Left Eye Open/Close
+      right-eye-open: Right Eye Open/Close
+      left-eye-smile: Left Eye Smiling
+      right-eye-smile: Right Eye Smiling
+      left-eyebrow-lr: Left eyebrow Left/Right
+      right-eyebrow-lr: Right eyebrow Left/Right
+      left-eyebrow-y: Left Eyebrow Y
+      right-eyebrow-y: Right Eyebrow Y
+      left-eyebrow-angle: Left Eyebrow Angle
+      right-eyebrow-angle: Right Eyebrow Angle
+      left-eyebrow-form: Left Eyebrow Form
+      right-eyebrow-form: Right Eyebrow Form
+      mouth-open: Mouth Open/Close
+      mouth-form: Mouth Form
+      cheek: Cheek
+      body-angle-x: Body rotation X
+      body-angle-y: Body rotation Y
+      body-angle-z: Body rotation Z
+      breath: Breath
 microphone: Microphone
 models: Model
 pages:
@@ -398,6 +459,12 @@ pages:
   models:
     description: Live2D, VRM, etc.
     title: Models
+    actions:
+      select-model: Select Model
+    supported-formats:
+      label: We support both 2D and 3D models
+      description-1: Click "Select Model" to import models into catalog. Supported formats are `.zip` (Live2D) and `.vrm` (VRM).
+      description-2: Neuro-sama uses a 2D model driven by Live2D. Grok Ani uses a 3D model powered by open VRM / MMD formats.
     sections:
       section:
         live2d:
@@ -1181,6 +1248,86 @@ vrm:
           camera: Camera
           mouse: Mouse
           disabled: Disabled
+  tips:
+    label: Tips!
+  scene-controls:
+    model-position: Model Position
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: Intensity
+    directional-light:
+      rotation-x-short: RotationXDeg
+      rotation-y-short: RotationYDeg
+      rotation-x: Directional Light Rotation - X
+      rotation-y: Directional Light Rotation - Y
+      color: Directional Light Color
+      intensity: Directional Light Intensity
+    ambient-light:
+      intensity: Ambient Light Intensity
+      color: Ambient Light Color
+    hemisphere-light:
+      intensity: Hemisphere Light Intensity
+      sky-color: Hemisphere Sky Color
+      ground-color: Hemisphere Ground Color
+  environment:
+    title: Environment
+    options:
+      hemisphere: Hemisphere
+      skybox: SkyBox
+  external-animations:
+    title: External Animations
+    callout:
+      label: Model-side sidecar .vrma pool
+      description: Import `.vrma` files for the current VRM model and map each one to an Alicization `actionCue`. Entries stay hidden from Alicization until `Action Key`, `Label`, and `Description` are all filled in.
+    imported-at: Imported {time}
+    empty: No external `.vrma` animations mapped for this model yet.
+    status:
+      exposed: Exposed to Alicization
+      hidden: Hidden until mapped
+    actions:
+      remove: Remove
+    fields:
+      action-key:
+        label: Action Key
+        description: This semantic key is exposed to the LLM as an available actionCue.
+        placeholder: wave
+      label:
+        label: Label
+        description: Human-readable action name shown in the manifest.
+        placeholder: Wave
+      description:
+        label: Description
+        description: Briefly describe what this action communicates so Alicization can choose it correctly.
+        placeholder: A friendly hand wave for greeting or light acknowledgment.
+  custom-expressions:
+    title: Custom Expressions
+    callout:
+      label: Semantic unpacking for VRM custom expressions
+      description: Standard preset expressions are handled automatically. Only custom expression names scanned from the current model are listed here for manual semantic mapping. Entries stay hidden from Alicization until `Facial Key`, `Label`, and `Description` are all filled in.
+    empty: No custom VRM expressions detected yet. Load the model preview once to populate this list.
+    raw-name: Raw VRM custom expression name
+    status:
+      exposed: Exposed to Alicization
+      hidden: Hidden until mapped
+    actions:
+      clear-mapping: Clear Mapping
+    fields:
+      facial-key:
+        label: Facial Key
+        description: Dynamic semantic cue exposed to the LLM as facialCue.
+      label:
+        label: Label
+        description: Human-readable label shown in the manifest.
+      description:
+        label: Description
+        description: Describe the visible facial effect so Alicization can choose it deliberately.
+        placeholder: Starry eyes or an exaggerated sparkle effect for strong admiration.
+    affects-mouth:
+      title: Affects Mouth
+      description: Enable this if the custom expression modifies mouth shape and should yield to viseme override while speaking.
   switch-to-vrm:
     title: Switch to Live2D Avatar?
     change-to-vrm: Click here to switch to the Live2D avatar setting

@@ -93,6 +93,67 @@ live2d:
     description: Giới hạn tốc độ khung hình hiển thị
     options:
       unlimited: Không giới hạn
+  common:
+    reset-value-to-default: Đặt lại về mặc định
+  action-mapping:
+    title: Ánh xạ hành động Alicization
+    empty: Chưa phát hiện chuyển động Live2D cho mô hình này. Hãy mở phần xem trước mô hình một lần để nạp metadata chuyển động.
+    actions:
+      preview: Xem trước
+      clear: Xóa
+    fields:
+      action-key:
+        label: Khóa hành động
+        description: actionCue mang nghĩa ngữ nghĩa được cung cấp cho Alicization cho chuyển động này.
+      label:
+        label: Nhãn
+        description: Tên hành động dễ đọc sẽ hiển thị trong manifest.
+      description:
+        label: Mô tả
+        description: Mô tả khi nào nên dùng chuyển động này để Alicization gọi chính xác hơn.
+        placeholder: Cái gật đầu nhẹ để đồng ý, xác nhận hoặc phản hồi dịu dàng.
+  parameters:
+    title: Tham số
+    idle-animation: Hoạt ảnh chờ
+    motion-selector:
+      select: Chọn chuyển động
+      empty: Không có chuyển động
+    auto-blink: Tự động chớp mắt
+    force-auto-blink: Ép tự động chớp mắt (bộ hẹn giờ dự phòng)
+    shadow: Bóng đổ
+    reset-to-default: Đặt lại về tham số mặc định
+    clearing-cache: Đang xóa...
+    clear-cache: Xóa bộ nhớ đệm mô hình
+    groups:
+      head-rotation: Xoay đầu
+      eyes: Mắt
+      eyebrows: Lông mày
+      mouth: Miệng
+      face: Khuôn mặt
+      body: Cơ thể
+    fields:
+      angle-x: Góc X
+      angle-y: Góc Y
+      angle-z: Góc Z
+      left-eye-open: Mở/đóng mắt trái
+      right-eye-open: Mở/đóng mắt phải
+      left-eye-smile: Mắt trái mỉm cười
+      right-eye-smile: Mắt phải mỉm cười
+      left-eyebrow-lr: Lông mày trái trái/phải
+      right-eyebrow-lr: Lông mày phải trái/phải
+      left-eyebrow-y: Lông mày trái trục Y
+      right-eyebrow-y: Lông mày phải trục Y
+      left-eyebrow-angle: Góc lông mày trái
+      right-eyebrow-angle: Góc lông mày phải
+      left-eyebrow-form: Hình dạng lông mày trái
+      right-eyebrow-form: Hình dạng lông mày phải
+      mouth-open: Mở/đóng miệng
+      mouth-form: Hình dạng miệng
+      cheek: Má
+      body-angle-x: Xoay cơ thể X
+      body-angle-y: Xoay cơ thể Y
+      body-angle-z: Xoay cơ thể Z
+      breath: Nhịp thở
 microphone: Micro
 models: Mô hình
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D, VRM, v.v.
     title: Mô hình
+    actions:
+      select-model: Chọn mô hình
+    supported-formats:
+      label: Hỗ trợ cả mô hình 2D và 3D
+      description-1: Bấm Chọn mô hình để nhập mô hình vào danh mục. Hiện hỗ trợ `.zip` (Live2D) và `.vrm` (VRM).
+      description-2: Neuro-sama dùng mô hình 2D dựa trên Live2D, còn Grok Ani dùng mô hình 3D dựa trên định dạng mở VRM / MMD.
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: Camera
           mouse: Chuột
           disabled: Tắt
+  tips:
+    label: Mẹo
+  scene-controls:
+    model-position: Vị trí mô hình
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: Cường độ
+    directional-light:
+      rotation-x-short: XoayXĐộ
+      rotation-y-short: XoayYĐộ
+      rotation-x: Xoay đèn định hướng - X
+      rotation-y: Xoay đèn định hướng - Y
+      color: Màu đèn định hướng
+      intensity: Cường độ đèn định hướng
+    ambient-light:
+      intensity: Cường độ đèn môi trường
+      color: Màu đèn môi trường
+    hemisphere-light:
+      intensity: Cường độ đèn bán cầu
+      sky-color: Màu trời bán cầu
+      ground-color: Màu đất bán cầu
+  environment:
+    title: Môi trường
+    options:
+      hemisphere: Bán cầu
+      skybox: SkyBox
+  external-animations:
+    title: Hoạt ảnh bên ngoài
+    callout:
+      label: Kho sidecar .vrma theo mô hình
+      description: Nhập tệp `.vrma` cho mô hình VRM hiện tại và ánh xạ từng tệp vào `actionCue` của Alicization. Mục sẽ bị ẩn khỏi Alicization cho đến khi điền đủ Action Key, Label và Description.
+    imported-at: Đã nhập lúc {time}
+    empty: Chưa có hoạt ảnh `.vrma` bên ngoài nào được ánh xạ cho mô hình này.
+    status:
+      exposed: Đã hiển thị cho Alicization
+      hidden: Ẩn cho đến khi ánh xạ xong
+    actions:
+      remove: Xóa
+    fields:
+      action-key:
+        label: Khóa hành động
+        description: Khóa ngữ nghĩa mà LLM thấy như một actionCue khả dụng.
+        placeholder: wave
+      label:
+        label: Nhãn
+        description: Tên hành động dễ đọc hiển thị trong manifest.
+        placeholder: Vẫy tay
+      description:
+        label: Mô tả
+        description: Mô tả ngắn ý nghĩa của hành động để Alicization chọn đúng ngữ cảnh.
+        placeholder: Động tác vẫy tay thân thiện để chào hoặc phản hồi nhẹ.
+  custom-expressions:
+    title: Biểu cảm tùy chỉnh
+    callout:
+      label: Mở nghĩa ngữ nghĩa cho biểu cảm custom của VRM
+      description: Các biểu cảm preset chuẩn được xử lý tự động. Chỉ các tên custom expression quét từ mô hình hiện tại mới hiển thị ở đây để ánh xạ ngữ nghĩa thủ công. Mục sẽ bị ẩn khỏi Alicization cho đến khi điền đủ Facial Key, Label và Description.
+    empty: Chưa phát hiện biểu cảm VRM tùy chỉnh. Hãy mở phần xem trước mô hình một lần để nạp danh sách này.
+    raw-name: Tên biểu cảm VRM custom gốc
+    status:
+      exposed: Đã hiển thị cho Alicization
+      hidden: Ẩn cho đến khi ánh xạ xong
+    actions:
+      clear-mapping: Xóa ánh xạ
+    fields:
+      facial-key:
+        label: Khóa biểu cảm
+        description: Khóa ngữ nghĩa động được LLM sử dụng dưới dạng facialCue.
+      label:
+        label: Nhãn
+        description: Nhãn dễ đọc hiển thị trong manifest.
+      description:
+        label: Mô tả
+        description: Mô tả hiệu ứng khuôn mặt để Alicization có thể chủ động chọn đúng.
+        placeholder: Mắt sao hoặc hiệu ứng lấp lánh cường điệu cho cảm xúc ngưỡng mộ mạnh.
+    affects-mouth:
+      title: Ảnh hưởng miệng
+      description: Bật nếu biểu cảm custom này thay đổi hình miệng và cần nhường quyền cho viseme override khi đang nói.
   switch-to-vrm:
     title: Chuyển sang mô hình Live2D?
     change-to-vrm: Nhấn vào đây để chuyển sang cài đặt Live2D avatar

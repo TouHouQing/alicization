@@ -93,6 +93,67 @@ live2d:
     description: Limitar velocidad de fotogramas
     options:
       unlimited: Sin límite
+  common:
+    reset-value-to-default: Restablecer valor por defecto
+  action-mapping:
+    title: Mapeo de acciones de Alicization
+    empty: Aún no se detectaron movimientos Live2D para este modelo. Carga la vista previa del modelo una vez para rellenar los metadatos de movimiento.
+    actions:
+      preview: Vista previa
+      clear: Limpiar
+    fields:
+      action-key:
+        label: Clave de acción
+        description: actionCue semántico expuesto a Alicization para este movimiento.
+      label:
+        label: Etiqueta
+        description: Nombre de acción legible que se muestra en el manifiesto.
+      description:
+        label: Descripción
+        description: Describe cuándo debe usarse este movimiento para que Alicization lo invoque con precisión.
+        placeholder: Un pequeño asentimiento para acuerdo, reconocimiento o confirmación suave.
+  parameters:
+    title: Parámetros
+    idle-animation: Animación en reposo
+    motion-selector:
+      select: Seleccionar movimiento
+      empty: No hay movimientos disponibles
+    auto-blink: Parpadeo automático
+    force-auto-blink: Forzar parpadeo automático (temporizador de respaldo)
+    shadow: Sombra
+    reset-to-default: Restablecer parámetros por defecto
+    clearing-cache: Limpiando...
+    clear-cache: Limpiar caché del modelo
+    groups:
+      head-rotation: Rotación de cabeza
+      eyes: Ojos
+      eyebrows: Cejas
+      mouth: Boca
+      face: Rostro
+      body: Cuerpo
+    fields:
+      angle-x: Ángulo X
+      angle-y: Ángulo Y
+      angle-z: Ángulo Z
+      left-eye-open: Ojo izquierdo abrir/cerrar
+      right-eye-open: Ojo derecho abrir/cerrar
+      left-eye-smile: Ojo izquierdo sonriendo
+      right-eye-smile: Ojo derecho sonriendo
+      left-eyebrow-lr: Ceja izquierda izquierda/derecha
+      right-eyebrow-lr: Ceja derecha izquierda/derecha
+      left-eyebrow-y: Ceja izquierda Y
+      right-eyebrow-y: Ceja derecha Y
+      left-eyebrow-angle: Ángulo de ceja izquierda
+      right-eyebrow-angle: Ángulo de ceja derecha
+      left-eyebrow-form: Forma de ceja izquierda
+      right-eyebrow-form: Forma de ceja derecha
+      mouth-open: Boca abrir/cerrar
+      mouth-form: Forma de boca
+      cheek: Mejilla
+      body-angle-x: Rotación del cuerpo X
+      body-angle-y: Rotación del cuerpo Y
+      body-angle-z: Rotación del cuerpo Z
+      breath: Respiración
 microphone: Micrófono
 models: Modelo
 pages:
@@ -390,6 +451,12 @@ pages:
   models:
     description: Live2D, VRM, etc.
     title: Modelos
+    actions:
+      select-model: Seleccionar modelo
+    supported-formats:
+      label: Soportamos tanto modelos 2D como 3D
+      description-1: 'Haz clic en Seleccionar modelo para importar modelos al catálogo. Formatos compatibles: `.zip` (Live2D) y `.vrm` (VRM).'
+      description-2: Neuro-sama usa un modelo 2D con Live2D, mientras que Grok Ani usa un modelo 3D basado en formatos abiertos VRM / MMD.
     sections:
       section:
         live2d:
@@ -1146,6 +1213,86 @@ vrm:
           camera: Cámara
           mouse: Ratón
           disabled: Desactivado
+  tips:
+    label: Consejos
+  scene-controls:
+    model-position: Posición del modelo
+    axis:
+      x: X
+      'y': 'Y'
+      z: Z
+    common:
+      intensity: Intensidad
+    directional-light:
+      rotation-x-short: RotaciónXGrados
+      rotation-y-short: RotaciónYGrados
+      rotation-x: Rotación de luz direccional - X
+      rotation-y: Rotación de luz direccional - Y
+      color: Color de luz direccional
+      intensity: Intensidad de luz direccional
+    ambient-light:
+      intensity: Intensidad de luz ambiental
+      color: Color de luz ambiental
+    hemisphere-light:
+      intensity: Intensidad de luz hemisférica
+      sky-color: Color del cielo hemisférico
+      ground-color: Color del suelo hemisférico
+  environment:
+    title: Entorno
+    options:
+      hemisphere: Hemisferio
+      skybox: SkyBox
+  external-animations:
+    title: Animaciones externas
+    callout:
+      label: Pool sidecar .vrma por modelo
+      description: Importa archivos `.vrma` para el modelo VRM actual y asigna cada uno a un `actionCue` de Alicization. Las entradas se ocultan para Alicization hasta completar Action Key, Label y Description.
+    imported-at: Importado {time}
+    empty: Todavía no hay animaciones externas `.vrma` mapeadas para este modelo.
+    status:
+      exposed: Expuesto a Alicization
+      hidden: Oculto hasta mapear
+    actions:
+      remove: Eliminar
+    fields:
+      action-key:
+        label: Clave de acción
+        description: Clave semántica expuesta al LLM como actionCue disponible.
+        placeholder: wave
+      label:
+        label: Etiqueta
+        description: Nombre de acción legible mostrado en el manifiesto.
+        placeholder: Saludar con la mano
+      description:
+        label: Descripción
+        description: Describe brevemente qué comunica esta acción para que Alicization la elija correctamente.
+        placeholder: Un gesto amistoso con la mano para saludar o responder de forma ligera.
+  custom-expressions:
+    title: Expresiones personalizadas
+    callout:
+      label: Desempaquetado semántico para expresiones custom de VRM
+      description: Las expresiones preset estándar se gestionan automáticamente. Aquí solo se listan los nombres custom expression detectados en el modelo actual para mapeo semántico manual. Las entradas se ocultan para Alicization hasta completar Facial Key, Label y Description.
+    empty: Aún no se detectaron expresiones VRM personalizadas. Carga la vista previa del modelo una vez para poblar esta lista.
+    raw-name: Nombre original de la expresión custom de VRM
+    status:
+      exposed: Expuesto a Alicization
+      hidden: Oculto hasta mapear
+    actions:
+      clear-mapping: Limpiar mapeo
+    fields:
+      facial-key:
+        label: Clave facial
+        description: Señal semántica dinámica expuesta al LLM como facialCue.
+      label:
+        label: Etiqueta
+        description: Etiqueta legible mostrada en el manifiesto.
+      description:
+        label: Descripción
+        description: Describe el efecto facial visible para que Alicization pueda elegirlo de forma deliberada.
+        placeholder: Ojos brillantes o efecto de destello exagerado para admiración intensa.
+    affects-mouth:
+      title: Afecta a la boca
+      description: Actívalo si la expresión personalizada modifica la forma de la boca y debe ceder al viseme override durante el habla.
   switch-to-vrm:
     title: '¿Cambiar a Avatar Live2D?'
     change-to-vrm: Haz clic aquí para cambiar a la configuración de avatar Live2D

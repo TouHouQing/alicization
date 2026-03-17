@@ -68,14 +68,14 @@ const settingsLockClass = computed(() => {
 const envOptions = computed(() => [
   {
     value: 'hemisphere',
-    label: 'Hemisphere',
+    label: t('settings.vrm.environment.options.hemisphere'),
     icon: envSelect.value === 'hemisphere'
       ? 'i-solar:forbidden-circle-bold rotate-45'
       : 'i-solar:forbidden-circle-linear rotate-45',
   },
   {
     value: 'skyBox',
-    label: 'SkyBox',
+    label: t('settings.vrm.environment.options.skybox'),
     icon: envSelect.value === 'skyBox'
       ? 'i-solar:gallery-circle-bold'
       : 'i-solar:gallery-circle-linear',
@@ -200,10 +200,10 @@ function isCustomExpressionReady(expressionName: string) {
         v-model:y="modelOffset.y"
         v-model:z="modelOffset.z"
         :disabled="sceneMutationLocked"
-        label="Model Position"
-        :x-config="{ min: -modelSize.x * 2, max: modelSize.x * 2, step: modelSize.x / 10000, label: 'X', formatValue: val => val?.toFixed(4) }"
-        :y-config="{ min: -modelSize.y * 2, max: modelSize.y * 2, step: modelSize.y / 10000, label: 'Y', formatValue: val => val?.toFixed(4) }"
-        :z-config="{ min: -modelSize.z * 2, max: modelSize.z * 2, step: modelSize.z / 10000, label: 'Z', formatValue: val => val?.toFixed(4) }"
+        :label="t('settings.vrm.scene-controls.model-position')"
+        :x-config="{ min: -modelSize.x * 2, max: modelSize.x * 2, step: modelSize.x / 10000, label: t('settings.vrm.scene-controls.axis.x'), formatValue: val => val?.toFixed(4) }"
+        :y-config="{ min: -modelSize.y * 2, max: modelSize.y * 2, step: modelSize.y / 10000, label: t('settings.vrm.scene-controls.axis.y'), formatValue: val => val?.toFixed(4) }"
+        :z-config="{ min: -modelSize.z * 2, max: modelSize.z * 2, step: modelSize.z / 10000, label: t('settings.vrm.scene-controls.axis.z'), formatValue: val => val?.toFixed(4) }"
       />
       <PropertyNumber
         v-model="cameraFOV"
@@ -239,35 +239,35 @@ function isCustomExpressionReady(expressionName: string) {
 
       <PropertyNumber
         v-model="directionalLightRotation.x"
-        :config="{ min: -180, max: 180, step: 1, label: 'RotationXDeg', formatValue: val => val?.toFixed(0), disabled: sceneMutationLocked }"
-        label="Directional Light Rotation - X"
+        :config="{ min: -180, max: 180, step: 1, label: t('settings.vrm.scene-controls.directional-light.rotation-x-short'), formatValue: val => val?.toFixed(0), disabled: sceneMutationLocked }"
+        :label="t('settings.vrm.scene-controls.directional-light.rotation-x')"
       />
       <PropertyNumber
         v-model="directionalLightRotation.y"
-        :config="{ min: -180, max: 180, step: 1, label: 'RotationYDeg', formatValue: val => val?.toFixed(0), disabled: sceneMutationLocked }"
-        label="Directional Light Rotation - Y"
+        :config="{ min: -180, max: 180, step: 1, label: t('settings.vrm.scene-controls.directional-light.rotation-y-short'), formatValue: val => val?.toFixed(0), disabled: sceneMutationLocked }"
+        :label="t('settings.vrm.scene-controls.directional-light.rotation-y')"
       />
       <PropertyColor
         v-model="directionalLightColor"
         :disabled="sceneMutationLocked"
-        label="Directional Light Color"
+        :label="t('settings.vrm.scene-controls.directional-light.color')"
       />
 
       <PropertyNumber
         v-model="directionalLightIntensity"
-        :config="{ min: 0, max: 10, step: 0.01, label: 'Intensity', disabled: sceneMutationLocked }"
-        label="Directional Light Intensity"
+        :config="{ min: 0, max: 10, step: 0.01, label: t('settings.vrm.scene-controls.common.intensity'), disabled: sceneMutationLocked }"
+        :label="t('settings.vrm.scene-controls.directional-light.intensity')"
       />
 
       <PropertyNumber
         v-model="ambientLightIntensity"
-        :config="{ min: 0, max: 10, step: 0.01, label: 'Intensity', disabled: sceneMutationLocked }"
-        label="Ambient Light Intensity"
+        :config="{ min: 0, max: 10, step: 0.01, label: t('settings.vrm.scene-controls.common.intensity'), disabled: sceneMutationLocked }"
+        :label="t('settings.vrm.scene-controls.ambient-light.intensity')"
       />
       <PropertyColor
         v-model="ambientLightColor"
         :disabled="sceneMutationLocked"
-        label="Ambient Light Color"
+        :label="t('settings.vrm.scene-controls.ambient-light.color')"
       />
     </div>
     <div>
@@ -280,7 +280,7 @@ function isCustomExpressionReady(expressionName: string) {
           'dark:text-neutral-400',
         ]"
       >
-        Environment
+        {{ t('settings.vrm.environment.title') }}
       </div>
       <div :class="['p-2', ...settingsLockClass]">
         <SelectTab v-model="envSelect" :options="envOptions" :disabled="sceneMutationLocked" size="sm" />
@@ -290,18 +290,18 @@ function isCustomExpressionReady(expressionName: string) {
         <div grid="~ cols-5 gap-1" p-2 :class="settingsLockClass">
           <PropertyNumber
             v-model="hemisphereLightIntensity"
-            :config="{ min: 0, max: 10, step: 0.01, label: 'Intensity', disabled: sceneMutationLocked }"
-            label="Hemisphere Light Intensity"
+            :config="{ min: 0, max: 10, step: 0.01, label: t('settings.vrm.scene-controls.common.intensity'), disabled: sceneMutationLocked }"
+            :label="t('settings.vrm.scene-controls.hemisphere-light.intensity')"
           />
           <PropertyColor
             v-model="hemisphereSkyColor"
             :disabled="sceneMutationLocked"
-            label="Hemisphere Sky Color"
+            :label="t('settings.vrm.scene-controls.hemisphere-light.sky-color')"
           />
           <PropertyColor
             v-model="hemisphereGroundColor"
             :disabled="sceneMutationLocked"
-            label="Hemisphere Ground Color"
+            :label="t('settings.vrm.scene-controls.hemisphere-light.ground-color')"
           />
         </div>
       </div>
@@ -310,7 +310,7 @@ function isCustomExpressionReady(expressionName: string) {
         <div grid="~ cols-5 gap-1" p-2 :class="settingsLockClass">
           <PropertyNumber
             v-model="skyBoxIntensity"
-            :config="{ min: 0, max: 1, step: 0.01, label: 'Intensity', disabled: sceneMutationLocked }"
+            :config="{ min: 0, max: 1, step: 0.01, label: t('settings.vrm.scene-controls.common.intensity'), disabled: sceneMutationLocked }"
             :label="t('settings.vrm.skybox.skybox-intensity')"
           />
         </div>
@@ -347,7 +347,7 @@ function isCustomExpressionReady(expressionName: string) {
     </Callout>
     <Callout
       theme="lime"
-      label="Tips!"
+      :label="t('settings.vrm.tips.label')"
     >
       <div class="text-sm text-neutral-600 space-y-1 dark:text-neutral-400">
         {{ t('settings.vrm.scale-and-position.tips') }}
@@ -355,7 +355,7 @@ function isCustomExpressionReady(expressionName: string) {
     </Callout>
   </Container>
   <Container
-    title="External Animations"
+    :title="t('settings.vrm.external-animations.title')"
     icon="i-solar:video-frame-play-horizontal-bold-duotone"
     :class="[
       'rounded-xl',
@@ -363,9 +363,9 @@ function isCustomExpressionReady(expressionName: string) {
       'backdrop-blur-lg',
     ]"
   >
-    <Callout label="Model-side sidecar .vrma pool">
+    <Callout :label="t('settings.vrm.external-animations.callout.label')">
       <div class="text-sm text-neutral-600 dark:text-neutral-400">
-        Import `.vrma` files for the current VRM model and map each one to an Alicization `actionCue`. Entries stay hidden from Alicization until `Action Key`, `Label`, and `Description` are all filled in.
+        {{ t('settings.vrm.external-animations.callout.description') }}
       </div>
     </Callout>
     <InputFile
@@ -390,7 +390,7 @@ function isCustomExpressionReady(expressionName: string) {
         'dark:text-neutral-400',
       ]"
     >
-      No external `.vrma` animations mapped for this model yet.
+      {{ t('settings.vrm.external-animations.empty') }}
     </div>
     <div
       v-for="item in externalAnimations"
@@ -411,7 +411,7 @@ function isCustomExpressionReady(expressionName: string) {
             {{ item.fileName }}
           </div>
           <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
-            Imported {{ new Date(item.importedAt).toLocaleString() }}
+            {{ t('settings.vrm.external-animations.imported-at', { time: new Date(item.importedAt).toLocaleString() }) }}
           </div>
         </div>
         <div :class="['flex items-center gap-2']">
@@ -424,40 +424,40 @@ function isCustomExpressionReady(expressionName: string) {
                 : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
             ]"
           >
-            {{ isExternalAnimationReady(item.id) ? 'Exposed to Alicization' : 'Hidden until mapped' }}
+            {{ isExternalAnimationReady(item.id) ? t('settings.vrm.external-animations.status.exposed') : t('settings.vrm.external-animations.status.hidden') }}
           </div>
           <Button variant="secondary" size="sm" @click="removeExternalAnimation(item.id)">
-            Remove
+            {{ t('settings.vrm.external-animations.actions.remove') }}
           </Button>
         </div>
       </div>
       <div :class="['grid gap-3 lg:grid-cols-2']">
         <FieldInput
           :model-value="item.actionKey"
-          label="Action Key"
-          description="This semantic key is exposed to the LLM as an available actionCue."
-          placeholder="wave"
+          :label="t('settings.vrm.external-animations.fields.action-key.label')"
+          :description="t('settings.vrm.external-animations.fields.action-key.description')"
+          :placeholder="t('settings.vrm.external-animations.fields.action-key.placeholder')"
           @update:model-value="value => updateExternalAnimation(item.id, { actionKey: value })"
         />
         <FieldInput
           :model-value="item.label"
-          label="Label"
-          description="Human-readable action name shown in the manifest."
-          placeholder="Wave"
+          :label="t('settings.vrm.external-animations.fields.label.label')"
+          :description="t('settings.vrm.external-animations.fields.label.description')"
+          :placeholder="t('settings.vrm.external-animations.fields.label.placeholder')"
           @update:model-value="value => updateExternalAnimation(item.id, { label: value })"
         />
       </div>
       <FieldTextArea
         :model-value="item.description"
-        label="Description"
-        description="Briefly describe what this action communicates so Alicization can choose it correctly."
-        placeholder="A friendly hand wave for greeting or light acknowledgment."
+        :label="t('settings.vrm.external-animations.fields.description.label')"
+        :description="t('settings.vrm.external-animations.fields.description.description')"
+        :placeholder="t('settings.vrm.external-animations.fields.description.placeholder')"
         @update:model-value="value => updateExternalAnimation(item.id, { description: value })"
       />
     </div>
   </Container>
   <Container
-    title="Custom Expressions"
+    :title="t('settings.vrm.custom-expressions.title')"
     icon="i-solar:mask-happly-bold-duotone"
     :class="[
       'rounded-xl',
@@ -465,9 +465,9 @@ function isCustomExpressionReady(expressionName: string) {
       'backdrop-blur-lg',
     ]"
   >
-    <Callout label="Semantic unpacking for VRM custom expressions">
+    <Callout :label="t('settings.vrm.custom-expressions.callout.label')">
       <div class="text-sm text-neutral-600 dark:text-neutral-400">
-        Standard preset expressions are handled automatically. Only custom expression names scanned from the current model are listed here for manual semantic mapping. Entries stay hidden from Alicization until `Facial Key`, `Label`, and `Description` are all filled in.
+        {{ t('settings.vrm.custom-expressions.callout.description') }}
       </div>
     </Callout>
     <div
@@ -486,7 +486,7 @@ function isCustomExpressionReady(expressionName: string) {
         'dark:text-neutral-400',
       ]"
     >
-      No custom VRM expressions detected yet. Load the model preview once to populate this list.
+      {{ t('settings.vrm.custom-expressions.empty') }}
     </div>
     <div
       v-for="expressionName in scannedCustomExpressionNames"
@@ -507,7 +507,7 @@ function isCustomExpressionReady(expressionName: string) {
             {{ expressionName }}
           </div>
           <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
-            Raw VRM custom expression name
+            {{ t('settings.vrm.custom-expressions.raw-name') }}
           </div>
         </div>
         <div :class="['flex items-center gap-2']">
@@ -520,43 +520,43 @@ function isCustomExpressionReady(expressionName: string) {
                 : 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
             ]"
           >
-            {{ isCustomExpressionReady(expressionName) ? 'Exposed to Alicization' : 'Hidden until mapped' }}
+            {{ isCustomExpressionReady(expressionName) ? t('settings.vrm.custom-expressions.status.exposed') : t('settings.vrm.custom-expressions.status.hidden') }}
           </div>
           <Button variant="secondary" size="sm" @click="removeCustomExpression(expressionName)">
-            Clear Mapping
+            {{ t('settings.vrm.custom-expressions.actions.clear-mapping') }}
           </Button>
         </div>
       </div>
       <div :class="['grid gap-3 lg:grid-cols-2']">
         <FieldInput
           :model-value="readCustomExpressionBinding(expressionName)?.facialKey"
-          label="Facial Key"
-          description="Dynamic semantic cue exposed to the LLM as facialCue."
+          :label="t('settings.vrm.custom-expressions.fields.facial-key.label')"
+          :description="t('settings.vrm.custom-expressions.fields.facial-key.description')"
           :placeholder="suggestCapabilityKey(expressionName)"
           @update:model-value="value => updateCustomExpression(expressionName, { facialKey: value })"
         />
         <FieldInput
           :model-value="readCustomExpressionBinding(expressionName)?.label"
-          label="Label"
-          description="Human-readable label shown in the manifest."
+          :label="t('settings.vrm.custom-expressions.fields.label.label')"
+          :description="t('settings.vrm.custom-expressions.fields.label.description')"
           :placeholder="expressionName"
           @update:model-value="value => updateCustomExpression(expressionName, { label: value })"
         />
       </div>
       <FieldTextArea
         :model-value="readCustomExpressionBinding(expressionName)?.description"
-        label="Description"
-        description="Describe the visible facial effect so Alicization can choose it deliberately."
-        placeholder="Starry eyes or an exaggerated sparkle effect for strong admiration."
+        :label="t('settings.vrm.custom-expressions.fields.description.label')"
+        :description="t('settings.vrm.custom-expressions.fields.description.description')"
+        :placeholder="t('settings.vrm.custom-expressions.fields.description.placeholder')"
         @update:model-value="value => updateCustomExpression(expressionName, { description: value })"
       />
       <div :class="['mt-3 flex items-center justify-between rounded-lg bg-neutral-100/80 px-3 py-2 dark:bg-neutral-900/60']">
         <div>
           <div :class="['text-sm font-medium']">
-            Affects Mouth
+            {{ t('settings.vrm.custom-expressions.affects-mouth.title') }}
           </div>
           <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
-            Enable this if the custom expression modifies mouth shape and should yield to viseme override while speaking.
+            {{ t('settings.vrm.custom-expressions.affects-mouth.description') }}
           </div>
         </div>
         <Checkbox
