@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { useStageDeveloperMenu } from '@proj-alicization/stage-pages/composables/use-stage-developer-menu'
 import { ButtonBar, CheckBar, IconItem } from '@proj-alicization/stage-ui/components'
 import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -11,75 +11,7 @@ import { electronOpenDevtoolsWindow, electronOpenMainDevtools } from '../../../.
 const { t } = useI18n()
 const settings = useSettings()
 const router = useRouter()
-
-const menu = computed(() => [
-  {
-    title: t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.title'),
-    description: t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.description'),
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/use-magic-keys',
-  },
-  {
-    title: t('tamagotchi.settings.pages.system.developer.sections.section.use-window-mouse.title'),
-    description: t('tamagotchi.settings.pages.system.developer.sections.section.use-window-mouse.description'),
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/use-window-mouse',
-  },
-  {
-    title: 'Displays',
-    description: 'Visualize connected displays and cursor position',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/use-electron-all-displays',
-  },
-  {
-    title: 'Widgets Calling',
-    description: 'Spawn overlay widgets and test component props',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/widgets-calling',
-  },
-  {
-    title: t('tamagotchi.settings.devtools.pages.context-flow.title'),
-    description: 'Inspect incoming context updates and outgoing chat stream events',
-    icon: 'i-solar:chat-square-call-bold-duotone',
-    to: '/devtools/context-flow',
-  },
-  {
-    title: 'Relative Mouse',
-    description: 'Get mouse position relative to the window',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/use-electron-relative-mouse',
-  },
-  {
-    title: 'Aliyun Real-time Transcriber',
-    description: 'Stream microphone audio to Aliyun NLS and inspect live transcripts',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/providers-transcription-realtime-aliyun-nls',
-  },
-  {
-    title: 'Beat Sync Visualizer',
-    description: 'Plot V-motion targets, trajectory, and scalar Y/Z over time',
-    icon: 'i-solar:chart-bold-duotone',
-    to: '/devtools/beat-sync',
-  },
-  {
-    title: 'WebSocket Inspector',
-    description: 'Inspect raw WebSocket traffic',
-    icon: 'i-solar:transfer-horizontal-bold-duotone',
-    to: '/devtools/websocket-inspector',
-  },
-  {
-    title: 'Plugin Host Debug',
-    description: 'Inspect discovered/enabled/loaded plugins and control load/unload lifecycle',
-    icon: 'i-solar:bug-bold-duotone',
-    to: '/devtools/plugin-host',
-  },
-  {
-    title: 'Screen Capture',
-    description: 'Capture screen or window as video and/or audio streams',
-    icon: 'i-solar:screen-share-bold-duotone',
-    to: '/devtools/screen-capture',
-  },
-])
+const menu = useStageDeveloperMenu('desktop')
 
 const openDevTools = useElectronEventaInvoke(electronOpenMainDevtools)
 const openDevtoolsWindow = useElectronEventaInvoke(electronOpenDevtoolsWindow)

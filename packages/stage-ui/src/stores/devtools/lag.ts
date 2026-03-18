@@ -1,10 +1,8 @@
 import type { TraceEvent } from '@proj-alicization/stage-shared'
 
-import { defaultPerfTracer, exportCsv as exportCsvFile } from '@proj-alicization/stage-shared'
+import { createLagSampler, defaultPerfTracer, exportCsv as exportCsvFile } from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { reactive, ref, watch } from 'vue'
-
-import { createLagSampler } from '../composables/perf/register-lag-sampler'
 
 export type LagMetric = 'fps' | 'frameDuration' | 'longtask' | 'memory'
 
@@ -182,7 +180,6 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
       return
     }
 
-    // Start tracer listener if needed
     if (!unsubscribeTracer) {
       unsubscribeTracer = defaultPerfTracer.subscribe((event: TraceEvent) => {
         if (event.tracerId !== 'lag')
@@ -192,10 +189,7 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
         if (!['fps', 'frameDuration', 'longtask', 'memory'].includes(metric))
           return
 
-        // Only accept samples for enabled metrics
-        const isMetricEnabled = enabled[metric]
-
-        if (!isMetricEnabled)
+        if (!enabled[metric])
           return
 
         const value = typeof event.duration === 'number' ? event.duration : 0
@@ -205,6 +199,7 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
 
     if (!releaseTracer)
       releaseTracer = defaultPerfTracer.acquire('lag-overlay')
+
     sampler.start({
       fps: enabled.fps,
       frameDuration: enabled.frameDuration,
@@ -241,7 +236,6 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
     exportCsvFile(rows, 'lag-recording')
   }
 
-  // React to enablement changes
   watch(
     () => ({ ...enabled }),
     () => {
@@ -250,7 +244,6 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
     { deep: true },
   )
 
-  // Cleanup on tab close
   if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
       stopRecording()
@@ -259,15 +252,15 @@ export const useDevtoolsLagStore = defineStore('devtoolsLag', () => {
   }
 
   return {
-    enabled,
     buffers,
-    recording,
+    buildHistogram,
+    calcStats,
+    enabled,
+    exportCsv,
     lastRecording,
+    recording,
     startRecording,
     stopRecording,
-    exportCsv,
     toggleAll,
-    calcStats,
-    buildHistogram,
   }
 })

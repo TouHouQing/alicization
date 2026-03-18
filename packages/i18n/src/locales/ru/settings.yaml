@@ -429,25 +429,25 @@ pages:
         description: Irreversible actions. Export what you need before continuing.
       all:
         title: Delete all data
-        description: Wipe every local setting, provider config, and model.
-        delete: Delete all data
+        description: Удаляет все локальные настройки, конфигурации провайдеров и модели.
+        delete: Удалить все данные
       desktop:
-        title: Reset desktop settings & states
-        description: Clear Alicization desktop settings and runtime state.
-        reset: Reset desktop data
+        title: Сбросить локальные настройки и состояние приложения
+        description: Очищает локальные настройки и состояние выполнения этого приложения на текущем устройстве.
+        reset: Сбросить локальное состояние приложения
     confirmations:
-      tooltip: Are you sure?
-      'yes': 'Yes'
+      tooltip: Вы уверены?
+      'yes': 'Да'
     status:
-      exported: Chat sessions exported.
-      imported: Chat sessions imported.
-      import_error: Failed to import chat sessions. Please check the file format.
-      chats_deleted: Chat sessions deleted.
-      models_deleted: Models deleted.
-      modules_reset: Module settings reset.
-      providers_reset: Provider settings reset.
-      all_deleted: All local data deleted.
-      desktop_reset: Desktop data reset.
+      exported: Сеансы чата экспортированы.
+      imported: Сеансы чата импортированы.
+      import_error: Не удалось импортировать сеансы чата. Проверьте формат файла.
+      chats_deleted: Сеансы чата удалены.
+      models_deleted: Модели удалены.
+      modules_reset: Настройки модуля сброшены.
+      providers_reset: Настройки провайдера сброшены.
+      all_deleted: Все локальные данные удалены.
+      desktop_reset: Локальное состояние приложения сброшено.
   models:
     description: Live2D, VRM и др.
     title: Модели
@@ -1052,51 +1052,109 @@ pages:
           sections:
             section:
               performance-visualizer:
-                title: Performance Visualizer
-                description: Toggle FPS/long task/memory overlay
+                title: Визуализатор производительности
+                description: Переключает оверлей FPS, долгих задач и памяти
+                panel:
+                  all-metrics:
+                    title: Включить все метрики
+                    description: Переключает сбор FPS, времени кадра, долгих задач и памяти
+                  recording:
+                    title: Запись
+                    start: Начать запись
+                    stop: Остановить запись (макс. 60 с)
+                  export:
+                    title: Экспорт CSV
+                    button: Экспортировать последнюю запись
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: Собирать выборку FPS
+                    frame-duration:
+                      title: Время кадра (мс)
+                      description: Собирать выборку времени кадра
+                    long-task:
+                      title: Долгие задачи
+                      description: Отслеживать долгие задачи главного потока
+                    memory:
+                      title: Память
+                      description: Измерять использование JS-heap каждую секунду
+                  summary:
+                    title: Последняя запись
+                    timing: Начало {startedAt} мс, длительность {duration} мс
+                    samples: 'Выборки: FPS {fps}, Кадры {frameDuration}, Долгие задачи {longtask}, Память {memory}'
+                    overlay-hint: Оверлей остаётся видимым, пока включена хотя бы одна метрика. Запись автоматически останавливается через 60 секунд.
               markdown-stress:
-                title: Markdown Stress
-                description: Stress markdown parsing and rendering with heavy chat payloads
+                title: Нагрузка Markdown
+                description: Проверка парсинга и рендеринга Markdown под тяжёлыми чат-нагрузками
               use-magic-keys:
-                title: useMagicKeys Tool
-                description: Test shortcuts
+                title: Инструмент useMagicKeys
+                description: Проверка сочетаний клавиш
               audio-record:
-                title: Audio Record
-                description: Test Audio related composables
+                title: Запись аудио
+                description: Проверка composable'ов, связанных со звуком
               background-gradient-blending:
-                title: Background Theme color blending
-                description: Test blending & theme
+                title: Смешивание цветов фона
+                description: Проверка смешивания и темы
               background-removal:
-                title: Background removal (WebGPU required)
-                description: Utility for background removal
+                title: Удаление фона (нужен WebGPU)
+                description: Инструмент для удаления фона
               chat:
                 title: Chat
                 description: Chat
               gesture-circle:
-                title: Gesture Circle (Desktop only)
-                description: Test gesture recognition
+                title: Жестовый круг
+                description: Проверка распознавания круговых жестов
               image:
-                title: Image
-                description: Image
+                title: Изображение
+                description: Проверка и преобразование изображений
               polaroid:
                 title: Polaroid
-                description: Utility for taking shots of models
+                description: Инструмент для снимков модели
               context-flow:
+                title: Поток контекста
                 description: >-
-                  Inspect incoming context updates and outgoing chat stream events
+                  Проверка входящих обновлений контекста и исходящих событий потока чата
+              displays:
+                title: Дисплеи
+                description: Показать подключённые дисплеи и позицию курсора
+              widgets-calling:
+                title: Вызов виджетов
+                description: Запуск оверлейных виджетов и проверка свойств компонентов
+              relative-mouse:
+                title: Относительная мышь
+                description: Показать положение курсора относительно окна
+              beat-sync:
+                title: Визуализатор Beat Sync
+                description: Построение целей V-motion, траектории и значений Y/Z во времени
               websocket-inspector:
-                title: WebSocket Inspector
-                description: Inspect raw WebSocket traffic
+                title: Инспектор WebSocket
+                description: Проверка сырого трафика WebSocket
+              plugin-host:
+                title: Отладка хоста плагинов
+                description: Проверка обнаруженных, включённых и загруженных плагинов и состояния capability
+              screen-capture:
+                title: Захват экрана
+                description: Проверка источников захвата экрана и окон
               vibrant:
-                title: Color extract
-                description: Test color extraction
+                title: Извлечение цвета
+                description: Проверка извлечения цвета
               providers-transcription-realtime-aliyun-nls:
-                title: Aliyun Real-time Transcriber
+                title: Транскрипция Aliyun в реальном времени
                 description: >-
-                  Stream microphone audio to Aliyun NLS and inspect live transcripts
+                  Передаёт звук с микрофона в Aliyun NLS и показывает расшифровку в реальном времени
               performance-playground:
-                title: Performance Playground
-                description: 'VRM expressions + TTS lip sync playground'
+                title: Площадка производительности
+                description: Песочница для выражений VRM и TTS lip sync
+              model-driver-mediapipe:
+                title: Мастерская MediaPipe
+                description: Песочница mocap для одного человека с настройками планировщика MediaPipe
+              notifications:
+                title: Уведомления
+                description: Проверка локальных уведомлений
+          runtime-unavailable:
+            title: Требуется версия для компьютера
+            description: >-
+              Этот инструмент зависит от API Electron только для окон, экрана и плагинов. Используйте настольное приложение для полного набора возможностей.
         theme-presets:
           presets:
             default:

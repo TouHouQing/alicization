@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { errorMessageFrom } from '@moeru/std'
 import { useDataMaintenance } from '@proj-alicization/stage-ui/composables/use-data-maintenance'
 import { Button, DoubleCheckButton } from '@proj-alicization/ui'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -14,14 +14,13 @@ const {
   exportChatSessions,
   importChatSessions,
   deleteAllData,
-  resetDesktopApplicationState,
+  resetLocalApplicationState,
 } = useDataMaintenance()
 
 const statusMessage = ref('')
 const statusTone = ref<'neutral' | 'success' | 'error'>('neutral')
 const importError = ref('')
 const importFileInput = ref<HTMLInputElement>()
-const isDesktop = computed(() => isStageTamagotchi())
 
 function setStatus(message: string, tone: 'neutral' | 'success' | 'error' = 'success') {
   statusMessage.value = message
@@ -35,7 +34,7 @@ async function runAction(action: () => Promise<void> | void, successKey: string)
   }
   catch (error) {
     console.error(error)
-    setStatus(error instanceof Error ? error.message : String(error), 'error')
+    setStatus(errorMessageFrom(error) ?? String(error), 'error')
   }
 }
 
@@ -45,14 +44,14 @@ async function triggerExport() {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `airi-chat-sessions-${new Date().toISOString()}.json`
+    anchor.download = `alicization-chat-sessions-${new Date().toISOString()}.json`
     anchor.click()
     URL.revokeObjectURL(url)
     setStatus(t('settings.pages.data.status.exported'))
   }
   catch (error) {
     console.error(error)
-    setStatus(error instanceof Error ? error.message : String(error), 'error')
+    setStatus(errorMessageFrom(error) ?? String(error), 'error')
   }
 }
 
@@ -77,7 +76,7 @@ async function handleImport(event: Event) {
   catch (error) {
     console.error(error)
     importError.value = t('settings.pages.data.status.import_error')
-    setStatus(error instanceof Error ? error.message : String(error), 'error')
+    setStatus(errorMessageFrom(error) ?? String(error), 'error')
   }
   finally {
     target.value = ''
@@ -251,10 +250,7 @@ async function handleImport(event: Event) {
       </div>
     </div>
 
-    <div
-      v-if="isDesktop"
-      class="border-2 border-amber-300/80 rounded-xl bg-amber-50/80 p-4 shadow-sm dark:border-amber-500/60 dark:bg-amber-500/10"
-    >
+    <div class="border-2 border-amber-300/80 rounded-xl bg-amber-50/80 p-4 shadow-sm dark:border-amber-500/60 dark:bg-amber-500/10">
       <div class="grid grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
         <div class="flex flex-col gap-1 md:max-w-[560px]">
           <div class="text-lg text-amber-700 font-medium dark:text-amber-200">
@@ -267,7 +263,7 @@ async function handleImport(event: Event) {
         <div class="flex flex-col items-start gap-2">
           <DoubleCheckButton
             variant="caution"
-            @confirm="runAction(resetDesktopApplicationState, 'settings.pages.data.status.desktop_reset')"
+            @confirm="runAction(resetLocalApplicationState, 'settings.pages.data.status.desktop_reset')"
           >
             {{ t('settings.pages.data.sections.desktop.reset') }}
             <template #confirm>

@@ -432,9 +432,9 @@ pages:
         description: すべてのローカルの設定、プロバイダーの設定、モデルを消去します。
         delete: すべてのデータを削除
       desktop:
-        title: デスクトップの設定と状態をリセット
-        description: Alicizationデスクトップの設定と実行時の状態を消去します。
-        reset: デスクトップのデータをリセット
+        title: ローカルアプリの設定と状態をリセット
+        description: 現在の端末上にあるこのアプリのローカル設定と実行状態を消去します。
+        reset: ローカルアプリ状態をリセット
     confirmations:
       tooltip: 本当によろしいですか？
       'yes': 'はい'
@@ -447,7 +447,7 @@ pages:
       modules_reset: モジュールの設定をリセットしました。
       providers_reset: プロバイダーの設定をリセットしました。
       all_deleted: すべてのローカルデータを削除しました。
-      desktop_reset: デスクトップのデータをリセットしました。
+      desktop_reset: ローカルアプリ状態をリセットしました。
   models:
     description: Live2D、VRMなど。
     title: モデル
@@ -1054,6 +1054,35 @@ pages:
               performance-visualizer:
                 title: パフォーマンスビジュアライザー
                 description: FPS/ロングタスク/メモリーオーバーレイの切り替え
+                panel:
+                  all-metrics:
+                    title: すべての指標を有効化
+                    description: FPS、フレーム時間、ロングタスク、メモリー計測をまとめて切り替える
+                  recording:
+                    title: 記録
+                    start: 記録を開始
+                    stop: 記録を停止（最大 60 秒）
+                  export:
+                    title: CSV を書き出す
+                    button: 最新の記録を書き出す
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: FPS サンプルを収集する
+                    frame-duration:
+                      title: フレーム時間 (ms)
+                      description: フレーム時間のサンプルを収集する
+                    long-task:
+                      title: ロングタスク
+                      description: メインスレッドのロングタスクを監視する
+                    memory:
+                      title: メモリー
+                      description: JS ヒープ使用量を毎秒サンプリングする
+                  summary:
+                    title: 最新の記録
+                    timing: 開始時刻 {startedAt} ms、継続時間 {duration} ms
+                    samples: 'サンプル数: FPS {fps}、フレーム {frameDuration}、ロングタスク {longtask}、メモリー {memory}'
+                    overlay-hint: いずれかの指標が有効な間はオーバーレイが表示されます。記録は 60 秒で自動停止します。
               markdown-stress:
                 title: Markdown ストレス
                 description: 大量のチャットデータを含むMarkdownの解析とレンダリング負荷のテスト
@@ -1069,24 +1098,40 @@ pages:
               background-removal:
                 title: 背景削除（WebGPUが必要）
                 description: 背景削除ユーティリティ
-              chat:
-                title: チャット
-                description: チャット
               gesture-circle:
-                title: ジェスチャーサークル (デスクトップのみ)
-                description: ジェスチャー認識をテスト
+                title: ジェスチャーサークル
+                description: 円形ジェスチャー認識をテストする
               image:
                 title: 画像
-                description: 画像
+                description: 画像データの確認と変換
               polaroid:
                 title: ポラロイド
                 description: モデルを撮影するためのユーティリティ
               context-flow:
+                title: コンテキストフロー
                 description: >-
                   受信コンテキストの更新とチャットストリームの送信イベントを調査する
+              displays:
+                title: ディスプレイ
+                description: 接続されたディスプレイとカーソル位置を可視化する
+              widgets-calling:
+                title: ウィジェット呼び出し
+                description: オーバーレイウィジェットを起動し、コンポーネントの props をテストする
+              relative-mouse:
+                title: 相対マウス
+                description: ウィンドウ基準のカーソル位置を取得する
+              beat-sync:
+                title: Beat Sync ビジュアライザー
+                description: V モーションの目標値、軌跡、Y/Z スカラーを時系列で描画する
               websocket-inspector:
                 title: WebSocketインスペクタ
                 description: 生のWebSocketトラフィックを調査する
+              plugin-host:
+                title: プラグインホストデバッグ
+                description: 検出済み・有効・読込済みプラグインと capability 状態を確認する
+              screen-capture:
+                title: 画面キャプチャ
+                description: 画面とウィンドウのキャプチャソースを確認する
               vibrant:
                 title: 色の抽出
                 description: テスト色の抽出
@@ -1096,7 +1141,17 @@ pages:
                   マイクの音声をAliyun NLSにストリーミングし、リアルタイムの文字起こしを確認する
               performance-playground:
                 title: 機能実験場
-                description: 'VRM expressions + TTS lip sync playground'
+                description: VRM 表情と TTS リップシンクの実験場
+              model-driver-mediapipe:
+                title: MediaPipe ワークショップ
+                description: MediaPipe のスケジューリング調整ができる単人体感モーション実験場
+              notifications:
+                title: 通知
+                description: ローカル通知をテストする
+          runtime-unavailable:
+            title: デスクトップ版が必要です
+            description: >-
+              このツールは Electron 専用のウィンドウ・画面・プラグイン API に依存しています。完全な機能を使うにはデスクトップ版を利用してください。
         theme-presets:
           presets:
             default:

@@ -432,9 +432,9 @@ pages:
         description: Xóa sạch toàn bộ thiết lập cục bộ, cấu hình nhà cung cấp và mô hình.
         delete: Xóa sạch dữ liệu
       desktop:
-        title: Đặt lại thiết lập máy tính
-        description: Xóa các cài đặt và trạng thái thực thi của Alicization trên máy tính.
-        reset: Đặt lại dữ liệu desktop
+        title: Đặt lại thiết lập và trạng thái cục bộ của ứng dụng
+        description: Xóa các cài đặt cục bộ và trạng thái chạy của ứng dụng này trên thiết bị hiện tại.
+        reset: Đặt lại trạng thái cục bộ của ứng dụng
     confirmations:
       tooltip: Bạn chắc chứ?
       'yes': 'Đồng ý'
@@ -447,7 +447,7 @@ pages:
       modules_reset: Đã đặt lại cài đặt mô-đun.
       providers_reset: Đã đặt lại cài đặt nhà cung cấp.
       all_deleted: Tất cả dữ liệu cục bộ đã bị xóa.
-      desktop_reset: Đã đặt lại dữ liệu ứng dụng máy tính.
+      desktop_reset: Đã đặt lại trạng thái cục bộ của ứng dụng.
   models:
     description: Live2D, VRM, v.v.
     title: Mô hình
@@ -1054,6 +1054,35 @@ pages:
               performance-visualizer:
                 title: Trực quan hiệu năng
                 description: Bật/Tắt lớp phủ FPS/tác vụ dài/bộ nhớ
+                panel:
+                  all-metrics:
+                    title: Bật tất cả chỉ số
+                    description: Bật/tắt việc lấy mẫu FPS, thời gian khung hình, tác vụ dài và bộ nhớ
+                  recording:
+                    title: Ghi lại
+                    start: Bắt đầu ghi
+                    stop: Dừng ghi (tối đa 60 giây)
+                  export:
+                    title: Xuất CSV
+                    button: Xuất bản ghi gần nhất
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: Thu thập mẫu FPS
+                    frame-duration:
+                      title: Thời gian khung hình (ms)
+                      description: Thu thập mẫu thời gian khung hình
+                    long-task:
+                      title: Tác vụ dài
+                      description: Theo dõi các tác vụ dài trên luồng chính
+                    memory:
+                      title: Bộ nhớ
+                      description: Lấy mẫu mức dùng heap JS mỗi giây
+                  summary:
+                    title: Bản ghi gần nhất
+                    timing: Bắt đầu lúc {startedAt} ms, thời lượng {duration} ms
+                    samples: 'Mẫu: FPS {fps}, Khung hình {frameDuration}, Tác vụ dài {longtask}, Bộ nhớ {memory}'
+                    overlay-hint: Lớp phủ sẽ hiển thị khi có ít nhất một chỉ số được bật. Bản ghi sẽ tự dừng sau 60 giây.
               markdown-stress:
                 title: Kiểm thử Markdown
                 description: Thử nghiệm phân tích Markdown với hội thoại lớn
@@ -1069,12 +1098,9 @@ pages:
               background-removal:
                 title: Xóa nền (Yêu cầu WebGPU)
                 description: Công cụ hỗ trợ xóa nền
-              chat:
-                title: Trò chuyện
-                description: Thử nghiệm hội thoại
               gesture-circle:
-                title: Vòng tròn cử chỉ (Chỉ Desktop)
-                description: Kiểm tra nhận diện cử chỉ
+                title: Vòng cử chỉ
+                description: Kiểm tra nhận diện cử chỉ hình tròn
               image:
                 title: Hình ảnh
                 description: Xử lý hình ảnh
@@ -1082,11 +1108,30 @@ pages:
                 title: Polaroid
                 description: Công cụ chụp ảnh mô hình
               context-flow:
+                title: Luồng ngữ cảnh
                 description: >-
                   Kiểm tra các bản cập nhật ngữ cảnh và sự kiện luồng chat
+              displays:
+                title: Màn hình
+                description: Hiển thị các màn hình đã kết nối và vị trí con trỏ
+              widgets-calling:
+                title: Gọi widget
+                description: Mở widget nổi và thử nghiệm props của component
+              relative-mouse:
+                title: Chuột tương đối
+                description: Lấy vị trí con trỏ tương đối với cửa sổ
+              beat-sync:
+                title: Trình trực quan Beat Sync
+                description: Vẽ mục tiêu chuyển động V, quỹ đạo và các giá trị Y/Z theo thời gian
               websocket-inspector:
                 title: Kiểm tra WebSocket
                 description: Theo dõi lưu lượng WebSocket thô
+              plugin-host:
+                title: Gỡ lỗi plugin host
+                description: Kiểm tra plugin đã phát hiện, đã bật, đã tải và trạng thái capability
+              screen-capture:
+                title: Ghi màn hình
+                description: Kiểm tra các nguồn ghi màn hình và cửa sổ
               vibrant:
                 title: Trích xuất màu
                 description: Thử nghiệm trích xuất màu sắc
@@ -1096,7 +1141,17 @@ pages:
                   Truyền âm thanh micro tới Aliyun NLS và kiểm tra văn bản trực tiếp
               performance-playground:
                 title: Khu thử nghiệm hiệu năng
-                description: 'VRM expressions + TTS lip sync playground'
+                description: Sân thử biểu cảm VRM và đồng bộ môi TTS
+              model-driver-mediapipe:
+                title: Xưởng MediaPipe
+                description: Sân thử mocap một người với các nút điều phối MediaPipe
+              notifications:
+                title: Thông báo
+                description: Kiểm tra thông báo cục bộ
+          runtime-unavailable:
+            title: Cần ứng dụng desktop
+            description: >-
+              Công cụ này phụ thuộc vào API riêng của Electron cho cửa sổ, màn hình hoặc plugin. Hãy dùng ứng dụng desktop để có đầy đủ khả năng.
         theme-presets:
           presets:
             default:

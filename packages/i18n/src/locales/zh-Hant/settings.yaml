@@ -432,9 +432,9 @@ pages:
         description: 清除所有本機設定、服務提供者設定與模型。
         delete: 刪除所有資料
       desktop:
-        title: 重設桌面設定與狀態
-        description: 清除 Alicization 桌面設定與執行階段狀態
-        reset: 重設桌面資料
+        title: 重設本機應用設定與狀態
+        description: 清除目前裝置上此應用的本機設定與執行狀態。
+        reset: 重設本機應用狀態
     confirmations:
       tooltip: 您確定嗎？
       'yes': '是'
@@ -447,7 +447,7 @@ pages:
       modules_reset: 模組設定已重設
       providers_reset: 服務提供者設定已重設
       all_deleted: 所有本機資料已刪除
-      desktop_reset: 桌面資料已重設
+      desktop_reset: 本機應用狀態已重設
   models:
     description: 切換角色的 Live2D、VRM 模型
     title: 角色模型
@@ -1054,6 +1054,35 @@ pages:
               performance-visualizer:
                 title: 效能檢視器
                 description: 切換 FPS/長時間任務/記憶疊加層
+                panel:
+                  all-metrics:
+                    title: 啟用全部指標
+                    description: 一次切換 FPS、影格時間、長時間任務與記憶體採樣
+                  recording:
+                    title: 錄製
+                    start: 開始錄製
+                    stop: 停止錄製（最長 60 秒）
+                  export:
+                    title: 匯出 CSV
+                    button: 匯出最近一次錄製
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: 收集 FPS 樣本
+                    frame-duration:
+                      title: 影格時間 (ms)
+                      description: 收集影格時間樣本
+                    long-task:
+                      title: 長時間任務
+                      description: 觀察主執行緒的長時間任務
+                    memory:
+                      title: 記憶體
+                      description: 每秒採樣一次 JS heap 使用量
+                  summary:
+                    title: 最近一次錄製
+                    timing: 開始於 {startedAt} ms，持續 {duration} ms
+                    samples: '樣本數：FPS {fps}、影格 {frameDuration}、長時間任務 {longtask}、記憶體 {memory}'
+                    overlay-hint: 只要仍有任一指標啟用，疊加層就會持續顯示。錄製會在 60 秒後自動停止。
               markdown-stress:
                 title: Markdown 壓力測試
                 description: 使用大量聊天內容進行 Markdown 解析與渲染的壓力測試
@@ -1069,24 +1098,40 @@ pages:
               background-removal:
                 title: 移除背景（需要 WebGPU）
                 description: 背景移除工具
-              chat:
-                title: 聊天
-                description: 聊天
               gesture-circle:
-                title: 手勢圈選（僅限桌面）
-                description: 測試手勢辨識
+                title: 手勢圓環
+                description: 測試圓形手勢辨識
               image:
                 title: 圖片
-                description: 圖片
+                description: 檢查與轉換圖片資料
               polaroid:
                 title: Polaroid
                 description: 模型快照工具
               context-flow:
+                title: 上下文流
                 description: >-
                   檢查傳入的上下文更新與傳出的聊天串流事件
+              displays:
+                title: 顯示器
+                description: 檢視已連接的顯示器與游標位置
+              widgets-calling:
+                title: 掛件呼叫
+                description: 啟動浮動掛件並測試元件 props
+              relative-mouse:
+                title: 相對滑鼠
+                description: 取得相對於視窗的游標位置
+              beat-sync:
+                title: Beat Sync 視覺化
+                description: 繪製 V 動作目標、軌跡與 Y/Z 標量隨時間的變化
               websocket-inspector:
                 title: WebSocket 檢查器
                 description: 檢查原始 WebSocket 流量
+              plugin-host:
+                title: 外掛宿主除錯
+                description: 檢查已發現、已啟用、已載入的外掛與 capability 狀態
+              screen-capture:
+                title: 螢幕擷取
+                description: 檢查螢幕與視窗擷取來源
               vibrant:
                 title: 色彩擷取
                 description: 測試色彩擷取
@@ -1097,6 +1142,16 @@ pages:
               performance-playground:
                 title: 效能實驗場
                 description: 'VRM 表情 + TTS 嘴型同步實驗場'
+              model-driver-mediapipe:
+                title: MediaPipe 工作坊
+                description: 具備 MediaPipe 排程控制的單人動捕實驗場
+              notifications:
+                title: 通知
+                description: 測試本機通知
+          runtime-unavailable:
+            title: 需要桌面版執行環境
+            description: >-
+              這個工具依賴 Electron 專屬的視窗、螢幕或外掛 API。若要使用完整能力，請改用桌面應用程式。
         theme-presets:
           presets:
             default:

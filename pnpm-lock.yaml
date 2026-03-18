@@ -637,6 +637,9 @@ importers:
       '@proj-alicization/stage-layouts':
         specifier: workspace:^
         version: link:../../packages/stage-layouts
+      '@proj-alicization/stage-pages':
+        specifier: workspace:^
+        version: link:../../packages/stage-pages
       '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../../packages/stage-shared
@@ -1470,6 +1473,9 @@ importers:
       '@proj-alicization/stage-layouts':
         specifier: workspace:^
         version: link:../../packages/stage-layouts
+      '@proj-alicization/stage-pages':
+        specifier: workspace:^
+        version: link:../../packages/stage-pages
       '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../../packages/stage-shared

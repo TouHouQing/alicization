@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import type { LagMetric } from '../../stores/devtools-lag'
+import type { LagMetric } from '@proj-alicization/stage-ui/stores/devtools/lag'
 
+import { useDevtoolsLagStore } from '@proj-alicization/stage-ui/stores/devtools/lag'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
-
-import { useDevtoolsLagStore } from '../../stores/devtools-lag'
 
 const store = useDevtoolsLagStore()
 const { enabled, buffers, recording } = storeToRefs(store)

@@ -1,92 +1,10 @@
 <script setup lang="ts">
+import { useStageDeveloperMenu } from '@proj-alicization/stage-pages/composables/use-stage-developer-menu'
 import { CheckBar, IconItem } from '@proj-alicization/stage-ui/components'
 import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
-import { computed } from 'vue'
-import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
 const settings = useSettings()
-
-const menu = computed(() => [
-  {
-    title: 'Audio Record',
-    description: 'Test Audio related composables',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/audio-record',
-  },
-  {
-    title: 'Background Theme color blending',
-    description: 'Test blending & theme',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/background-gradient-blending',
-  },
-  {
-    title: 'Background removal (WebGPU required)',
-    description: 'Utility for background removal',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/background-removal',
-  },
-  {
-    title: 'Chat',
-    description: 'Chat',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/chat',
-  },
-  {
-    title: 'Gesture Circle (Desktop only)',
-    description: 'Test gesture recognition',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/gesture-circle',
-  },
-  {
-    title: 'Image',
-    description: 'Image',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/image',
-  },
-  {
-    title: 'Polaroid',
-    description: 'Utility for taking shots of models',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/polaroid',
-  },
-  {
-    title: t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.title'),
-    description: t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.description'),
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/use-magic-keys',
-  },
-  {
-    title: 'Color extract',
-    description: 'Test color extraction',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/vibrant',
-  },
-  {
-    title: 'Aliyun Real-time Transcriber',
-    description: 'Stream microphone audio to Aliyun NLS and inspect live transcripts',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/providers-transcription-realtime-aliyun-nls',
-  },
-  {
-    title: 'Performance Playground',
-    description: 'VRM expressions + TTS lip sync playground',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/performance-playground',
-  },
-  {
-    title: 'Notification',
-    description: 'Test notification',
-    icon: 'i-solar:sledgehammer-bold-duotone',
-    to: '/devtools/notifications',
-  },
-  {
-    title: 'WebSocket Inspector',
-    description: 'Inspect raw WebSocket traffic',
-    icon: 'i-solar:transfer-horizontal-bold-duotone',
-    to: '/devtools/websocket-inspector',
-  },
-])
+const menu = useStageDeveloperMenu('mobile')
 </script>
 
 <template>
@@ -152,6 +70,8 @@ const menu = computed(() => [
 <route lang="yaml">
 meta:
   layout: settings
+  titleKey: settings.pages.system.developer.title
+  subtitleKey: settings.title
   stageTransition:
     name: slide
 </route>

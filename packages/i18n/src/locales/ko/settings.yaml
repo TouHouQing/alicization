@@ -432,9 +432,9 @@ pages:
         description: 로컬 설정, 제공자 설정 및 모델을 전부 삭제합니다.
         delete: 모든 데이터 삭제
       desktop:
-        title: 데스크탑 설정 및 상태 초기화
-        description: Alicization 데스크탑 설정 및 런타임 상태를 전부 지웁니다.
-        reset: 데스크탑 데이터 지우기
+        title: 로컬 앱 설정 및 상태 초기화
+        description: 현재 기기에서 이 앱의 로컬 설정과 실행 상태를 모두 지웁니다.
+        reset: 로컬 앱 상태 초기화
     confirmations:
       tooltip: 정말 진행하실 건가요?
       'yes': '네'
@@ -447,7 +447,7 @@ pages:
       modules_reset: 모듈 설정이 초기화되었습니다.
       providers_reset: 제공자 설정이 초기화되었습니다.
       all_deleted: 로컬 데이터가 초기화되었습니다.
-      desktop_reset: 데스크탑 데이터가 초기화되었습니다.
+      desktop_reset: 로컬 앱 상태가 초기화되었습니다.
   models:
     description: Live2D, VRM, 기타 등등.
     title: 모델
@@ -1054,6 +1054,35 @@ pages:
               performance-visualizer:
                 title: 성능 비주얼라이저
                 description: FPS/긴 작업/메모리 오버레이 전환
+                panel:
+                  all-metrics:
+                    title: 모든 지표 활성화
+                    description: FPS, 프레임 시간, 긴 작업, 메모리 샘플링을 한꺼번에 전환합니다
+                  recording:
+                    title: 기록
+                    start: 기록 시작
+                    stop: 기록 중지 (최대 60초)
+                  export:
+                    title: CSV 내보내기
+                    button: 최근 기록 내보내기
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: FPS 샘플을 수집합니다
+                    frame-duration:
+                      title: 프레임 시간 (ms)
+                      description: 프레임 시간 샘플을 수집합니다
+                    long-task:
+                      title: 긴 작업
+                      description: 메인 스레드의 긴 작업을 관찰합니다
+                    memory:
+                      title: 메모리
+                      description: JS 힙 사용량을 매초 샘플링합니다
+                  summary:
+                    title: 최근 기록
+                    timing: 시작 시각 {startedAt} ms, 지속 시간 {duration} ms
+                    samples: '샘플: FPS {fps}, 프레임 {frameDuration}, 긴 작업 {longtask}, 메모리 {memory}'
+                    overlay-hint: 하나 이상의 지표가 활성화되어 있는 동안 오버레이가 유지됩니다. 기록은 60초 후 자동으로 중지됩니다.
               markdown-stress:
                 title: 마크다운 스트레스
                 description: 스트레스 마크다운 구문 분석 및 대량 채팅 페이로드 렌더링
@@ -1069,24 +1098,40 @@ pages:
               background-removal:
                 title: 배경 제거(WebGPU 필요)
                 description: 배경 제거를 위한유틸리티
-              chat:
-                title: 채팅
-                description: 채팅
               gesture-circle:
-                title: 제스처 서클(데스크탑 전용)
-                description: 제스처 인식 테스트
+                title: 제스처 서클
+                description: 원형 제스처 인식을 테스트
               image:
                 title: 이미지
-                description: 이미지
+                description: 이미지 데이터를 검사하고 변환
               polaroid:
                 title: 폴라로이드
                 description: 모델 촬영 시 유용성
               context-flow:
+                title: 컨텍스트 흐름
                 description: >-
                   들어오는 컨텍스트 업데이트 및 나가는 채팅 스트림 이벤트 검사
+              displays:
+                title: 디스플레이
+                description: 연결된 디스플레이와 커서 위치 시각화
+              widgets-calling:
+                title: 위젯 호출
+                description: 오버레이 위젯을 띄우고 컴포넌트 props를 테스트
+              relative-mouse:
+                title: 상대 마우스
+                description: 창 기준 커서 위치 확인
+              beat-sync:
+                title: Beat Sync 시각화
+                description: V 모션 목표값, 궤적, Y/Z 스칼라 변화를 시간축으로 표시
               websocket-inspector:
                 title: 웹소켓 분석기
                 description: 원시 웹소켓 트래픽 검사
+              plugin-host:
+                title: 플러그인 호스트 디버그
+                description: 발견됨, 활성화됨, 로드됨 플러그인과 capability 상태 검사
+              screen-capture:
+                title: 화면 캡처
+                description: 화면 및 창 캡처 소스 검사
               vibrant:
                 title: 색상 추출
                 description: 색상 추출 테스트
@@ -1096,7 +1141,17 @@ pages:
                   Aliyun NLS로 마이크 오디오 스트리밍 및 라이브 녹취록 검사
               performance-playground:
                 title: 성능 놀이터
-                description: 'VRM expressions + TTS lip sync playground'
+                description: VRM 표정과 TTS 립싱크 실험장
+              model-driver-mediapipe:
+                title: MediaPipe 워크숍
+                description: MediaPipe 스케줄링 조절이 있는 1인 모캡 실험장
+              notifications:
+                title: 알림
+                description: 로컬 알림 테스트
+          runtime-unavailable:
+            title: 데스크톱 앱이 필요합니다
+            description: >-
+              이 도구는 Electron 전용 창, 화면, 플러그인 API에 의존합니다. 전체 기능은 데스크톱 앱에서 사용할 수 있습니다.
         theme-presets:
           presets:
             default:

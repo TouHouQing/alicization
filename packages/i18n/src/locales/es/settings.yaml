@@ -432,9 +432,9 @@ pages:
         description: Limpia cada configuración local, configuración del proveedor y del modelo.
         delete: Eliminar todos los datos
       desktop:
-        title: Restablecer ajustes de escritorio y estados
-        description: Limpiar ajustes de escritorio y estado de ejecución de Alicization.
-        reset: Restablecer datos de escritorio
+        title: Restablecer ajustes y estado locales de la app
+        description: Borra la configuración local y el estado de ejecución de esta app en el dispositivo actual.
+        reset: Restablecer estado local de la app
     confirmations:
       tooltip: '¿Estás seguro?'
       'yes': 'Si'
@@ -447,7 +447,7 @@ pages:
       modules_reset: Ajustes del módulo restablecidos.
       providers_reset: Configuración del proveedor restablecida.
       all_deleted: Se eliminaron todos los datos locales.
-      desktop_reset: Datos de escritorio restablecidos.
+      desktop_reset: Se restableció el estado local de la app.
   models:
     description: Live2D, VRM, etc.
     title: Modelos
@@ -1052,51 +1052,109 @@ pages:
           sections:
             section:
               performance-visualizer:
-                title: Performance Visualizer
-                description: Toggle FPS/long task/memory overlay
+                title: Visualizador de rendimiento
+                description: Activa la superposición de FPS, tareas largas y memoria
+                panel:
+                  all-metrics:
+                    title: Activar todas las métricas
+                    description: Alterna el muestreo de FPS, tiempo de fotograma, tareas largas y memoria
+                  recording:
+                    title: Grabación
+                    start: Iniciar grabación
+                    stop: Detener grabación (máx. 60 s)
+                  export:
+                    title: Exportar CSV
+                    button: Exportar la última grabación
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: Recopilar muestras de FPS
+                    frame-duration:
+                      title: Tiempo de fotograma (ms)
+                      description: Recopilar muestras del tiempo de fotograma
+                    long-task:
+                      title: Tareas largas
+                      description: Observar tareas largas del hilo principal
+                    memory:
+                      title: Memoria
+                      description: Muestrear el uso del heap de JS cada segundo
+                  summary:
+                    title: Última grabación
+                    timing: Iniciada en {startedAt} ms, duración {duration} ms
+                    samples: 'Muestras: FPS {fps}, Fotogramas {frameDuration}, Tareas largas {longtask}, Memoria {memory}'
+                    overlay-hint: La superposición permanece visible mientras haya alguna métrica activa. La grabación se detiene automáticamente tras 60 segundos.
               markdown-stress:
-                title: Markdown Stress
-                description: Stress markdown parsing and rendering with heavy chat payloads
+                title: Estrés de Markdown
+                description: Fuerza el análisis y renderizado de Markdown con cargas de chat pesadas
               use-magic-keys:
-                title: useMagicKeys Tool
-                description: Test shortcuts
+                title: Herramienta useMagicKeys
+                description: Probar atajos
               audio-record:
-                title: Audio Record
-                description: Test Audio related composables
+                title: Grabación de audio
+                description: Probar composables relacionados con audio
               background-gradient-blending:
-                title: Background Theme color blending
-                description: Test blending & theme
+                title: Mezcla de colores del fondo
+                description: Probar mezcla y tema
               background-removal:
-                title: Background removal (WebGPU required)
-                description: Utility for background removal
+                title: Eliminación de fondo (requiere WebGPU)
+                description: Utilidad para eliminar el fondo
               chat:
                 title: Chat
                 description: Chat
               gesture-circle:
-                title: Gesture Circle (Desktop only)
-                description: Test gesture recognition
+                title: Círculo de gestos
+                description: Probar el reconocimiento de gestos circulares
               image:
-                title: Image
-                description: Image
+                title: Imagen
+                description: Inspeccionar y convertir cargas de imagen
               polaroid:
                 title: Polaroid
-                description: Utility for taking shots of models
+                description: Utilidad para capturar modelos
               context-flow:
+                title: Flujo de contexto
                 description: >-
-                  Inspect incoming context updates and outgoing chat stream events
+                  Inspecciona las actualizaciones de contexto entrantes y los eventos salientes del flujo de chat
+              displays:
+                title: Pantallas
+                description: Visualiza las pantallas conectadas y la posición del cursor
+              widgets-calling:
+                title: Llamada de widgets
+                description: Lanza widgets superpuestos y prueba las props de los componentes
+              relative-mouse:
+                title: Ratón relativo
+                description: Obtén la posición del cursor relativa a la ventana
+              beat-sync:
+                title: Visualizador Beat Sync
+                description: Traza objetivos de movimiento en V, la trayectoria y los valores Y/Z en el tiempo
               websocket-inspector:
-                title: WebSocket Inspector
-                description: Inspect raw WebSocket traffic
+                title: Inspector de WebSocket
+                description: Inspecciona el tráfico WebSocket en bruto
+              plugin-host:
+                title: Depuración del host de plugins
+                description: Inspecciona plugins descubiertos, habilitados y cargados, además del estado de capacidades
+              screen-capture:
+                title: Captura de pantalla
+                description: Inspecciona las fuentes de captura de pantalla y ventana
               vibrant:
-                title: Color extract
-                description: Test color extraction
+                title: Extracción de color
+                description: Probar la extracción de color
               providers-transcription-realtime-aliyun-nls:
-                title: Aliyun Real-time Transcriber
+                title: Transcriptor en tiempo real de Aliyun
                 description: >-
-                  Stream microphone audio to Aliyun NLS and inspect live transcripts
+                  Envía el audio del micrófono a Aliyun NLS e inspecciona las transcripciones en vivo
               performance-playground:
-                title: Performance Playground
-                description: 'VRM expressions + TTS lip sync playground'
+                title: Laboratorio de rendimiento
+                description: Laboratorio de expresiones VRM y sincronización labial TTS
+              model-driver-mediapipe:
+                title: Taller de MediaPipe
+                description: Entorno de mocap para una persona con controles de planificación de MediaPipe
+              notifications:
+                title: Notificaciones
+                description: Probar notificaciones locales
+          runtime-unavailable:
+            title: Se requiere la versión de escritorio
+            description: >-
+              Esta herramienta depende de APIs exclusivas de Electron para ventanas, pantalla o plugins. Usa la aplicación de escritorio para acceder a la capacidad completa.
         theme-presets:
           presets:
             default:

@@ -1,4 +1,4 @@
-import type { PerfTracer } from '@proj-alicization/stage-shared'
+import type { PerfTracer } from './tracer'
 
 interface LagEnabled {
   fps: boolean

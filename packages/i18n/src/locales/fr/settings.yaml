@@ -432,9 +432,9 @@ pages:
         description: Effacer tous les réglages, configurations de fournisseurs et modèles locaux.
         delete: Supprimer toutes les données
       desktop:
-        title: Réinitialiser les paramètres et états du bureau
-        description: Effacer les paramètres du bureau Alicization et l'état d'exécution.
-        reset: Réinitialiser les données du bureau
+        title: Réinitialiser les réglages et l'état locaux de l'app
+        description: Efface les réglages locaux et l'état d'exécution de cette app sur l'appareil actuel.
+        reset: Réinitialiser l'état local de l'app
     confirmations:
       tooltip: Êtes-vous sûr(e) ?
       'yes': 'Oui'
@@ -447,7 +447,7 @@ pages:
       modules_reset: Paramètres du module réinitialisés.
       providers_reset: Paramètres du fournisseur réinitialisés.
       all_deleted: Toutes les données locales ont été supprimées.
-      desktop_reset: Données du bureau réinitialisées.
+      desktop_reset: L'état local de l'app a été réinitialisé.
   models:
     description: Live2D, VRM, etc.
     title: Modèles
@@ -1054,6 +1054,35 @@ pages:
               performance-visualizer:
                 title: Visualiseur de performance
                 description: Afficher/masquer l'incrustation FPS / tâches longues / mémoire
+                panel:
+                  all-metrics:
+                    title: Activer toutes les métriques
+                    description: Active l'échantillonnage du FPS, du temps d'image, des tâches longues et de la mémoire
+                  recording:
+                    title: Enregistrement
+                    start: Démarrer l'enregistrement
+                    stop: Arrêter l'enregistrement (max. 60 s)
+                  export:
+                    title: Export CSV
+                    button: Exporter le dernier enregistrement
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: Collecter les échantillons FPS
+                    frame-duration:
+                      title: Temps d'image (ms)
+                      description: Collecter les échantillons du temps d'image
+                    long-task:
+                      title: Tâches longues
+                      description: Observer les tâches longues du thread principal
+                    memory:
+                      title: Mémoire
+                      description: Échantillonner l'utilisation du tas JS chaque seconde
+                  summary:
+                    title: Dernier enregistrement
+                    timing: Démarré à {startedAt} ms, durée {duration} ms
+                    samples: 'Échantillons : FPS {fps}, Images {frameDuration}, Tâches longues {longtask}, Mémoire {memory}'
+                    overlay-hint: L'incrustation reste visible tant qu'au moins une métrique est active. L'enregistrement s'arrête automatiquement après 60 secondes.
               markdown-stress:
                 title: Test de stress Markdown
                 description: Tester l'analyse et le rendu Markdown avec des charges de chat lourdes
@@ -1069,24 +1098,40 @@ pages:
               background-removal:
                 title: Suppression de l'arrière-plan (WebGPU requis)
                 description: Utilitaire pour la suppression de l'arrière-plan
-              chat:
-                title: Chat
-                description: Chat
               gesture-circle:
-                title: Cercle de geste (Bureau uniquement)
-                description: Tester la reconnaissance de gestes
+                title: Cercle gestuel
+                description: Tester la détection de gestes circulaires
               image:
                 title: Image
-                description: Image
+                description: Inspecter et convertir des charges d'image
               polaroid:
                 title: Polaroid
                 description: Utilitaire pour prendre des clichés de modèles
               context-flow:
+                title: Flux de contexte
                 description: >-
                   Inspecter les mises à jour de contexte entrantes et les événements de flux de chat sortants
+              displays:
+                title: Écrans
+                description: Visualiser les écrans connectés et la position du curseur
+              widgets-calling:
+                title: Invocation de widgets
+                description: Lancer des widgets superposés et tester les propriétés des composants
+              relative-mouse:
+                title: Souris relative
+                description: Obtenir la position du curseur relative à la fenêtre
+              beat-sync:
+                title: Visualiseur Beat Sync
+                description: Tracer les cibles de mouvement en V, la trajectoire et les valeurs Y/Z dans le temps
               websocket-inspector:
                 title: Inspecteur WebSocket
                 description: Inspecter le trafic WebSocket brut
+              plugin-host:
+                title: Débogage de l'hôte de plugins
+                description: Inspecter les plugins découverts, activés et chargés ainsi que l'état des capacités
+              screen-capture:
+                title: Capture d'écran
+                description: Inspecter les sources de capture d'écran et de fenêtre
               vibrant:
                 title: Extraction de couleur
                 description: Tester l'extraction de couleurs
@@ -1096,7 +1141,17 @@ pages:
                   Diffuser l'audio du microphone vers Aliyun NLS et inspecter les transcriptions en direct
               performance-playground:
                 title: Zone d'essai de performance
-                description: 'Expressions VRM + synchro labiale TTS'
+                description: Terrain d'essai pour les expressions VRM et la synchro labiale TTS
+              model-driver-mediapipe:
+                title: Atelier MediaPipe
+                description: Terrain de mocap solo avec réglages d'ordonnancement MediaPipe
+              notifications:
+                title: Notifications
+                description: Tester les notifications locales
+          runtime-unavailable:
+            title: Version bureau requise
+            description: >-
+              Cet outil dépend d'API Electron réservées aux fenêtres, à l'écran ou aux plugins. Utilisez l'application de bureau pour accéder à toutes ses capacités.
         theme-presets:
           presets:
             default:

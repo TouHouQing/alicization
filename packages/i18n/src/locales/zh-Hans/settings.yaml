@@ -432,9 +432,9 @@ pages:
         description: 清除每个本地设置、提供商配置和模型。
         delete: 删除所有数据
       desktop:
-        title: 重置桌面设置和状态
-        description: 清除 Alicization 桌面设置和运行状态。
-        reset: 重置桌面数据
+        title: 重置本地应用设置和状态
+        description: 清除当前设备上此应用的本地设置和运行状态。
+        reset: 重置本地应用状态
     confirmations:
       tooltip: 您确定吗？
       'yes': '是'
@@ -447,7 +447,7 @@ pages:
       modules_reset: 重置模块设置。
       providers_reset: 服务端设置重置。
       all_deleted: 已删除所有本地数据。
-      desktop_reset: 桌面数据重置。
+      desktop_reset: 本地应用状态已重置。
   models:
     description: 切换角色的 Live2D，VRM 模型
     title: 角色模型
@@ -1054,8 +1054,37 @@ pages:
               performance-visualizer:
                 title: 性能可视化工具
                 description: 切换 FPS/长任务/内存叠加
+                panel:
+                  all-metrics:
+                    title: 启用全部指标
+                    description: 一键切换 FPS、帧耗时、长任务与内存采样
+                  recording:
+                    title: 录制
+                    start: 开始录制
+                    stop: 停止录制（最长 60 秒）
+                  export:
+                    title: 导出 CSV
+                    button: 导出最近一次录制
+                  metrics:
+                    fps:
+                      title: FPS
+                      description: 收集 FPS 样本
+                    frame-duration:
+                      title: 帧耗时 (ms)
+                      description: 收集帧耗时样本
+                    long-task:
+                      title: 长任务
+                      description: 观察主线程长任务
+                    memory:
+                      title: 内存
+                      description: 每秒采样一次 JS 堆使用量
+                  summary:
+                    title: 最近一次录制
+                    timing: 开始于 {startedAt} ms，持续 {duration} ms
+                    samples: '样本数：FPS {fps}，帧耗时 {frameDuration}，长任务 {longtask}，内存 {memory}'
+                    overlay-hint: 只要有任一指标启用，叠加层就会保持显示。录制会在 60 秒后自动停止。
               markdown-stress:
-                title: Markdown Stress
+                title: Markdown 压力测试
                 description: 用大量聊天负载来测试 Markdown 的解析和渲染能力
               use-magic-keys:
                 title: 使用MagicKeys工具
@@ -1069,12 +1098,9 @@ pages:
               background-removal:
                 title: 背景移除 (需要 WebGPU)
                 description: 背景移除工具
-              chat:
-                title: 聊天
-                description: 聊天测试
               gesture-circle:
-                title: 手势识别（仅限桌面端）
-                description: 测试手势识别
+                title: 手势圆环
+                description: 测试圆形手势识别
               image:
                 title: 图像
                 description: 图像测试
@@ -1082,11 +1108,30 @@ pages:
                 title: 拍立得
                 description: 拍摄模型照片的工具
               context-flow:
+                title: 上下文流
                 description: >-
                   检查传入的上下文更新和传出的聊天流事件
+              displays:
+                title: 显示器
+                description: 可视化已连接的显示器和光标位置
+              widgets-calling:
+                title: 挂件调用
+                description: 生成悬浮挂件并测试组件 props
+              relative-mouse:
+                title: 相对鼠标
+                description: 获取相对于窗口的光标位置
+              beat-sync:
+                title: Beat Sync 可视化
+                description: 绘制 V 动作目标、轨迹和 Y/Z 标量随时间的变化
               websocket-inspector:
                 title: WebSocket 检查器
                 description: 检查原始 WebSocket 流量
+              plugin-host:
+                title: 插件宿主调试
+                description: 检查已发现、已启用、已加载的插件及 capability 状态
+              screen-capture:
+                title: 屏幕捕获
+                description: 检查屏幕与窗口捕获源
               vibrant:
                 title: 颜色提取
                 description: 测试颜色提取
@@ -1096,7 +1141,17 @@ pages:
                   将麦克风音频流式传输到阿里云 NLS 并检查实时转写
               performance-playground:
                 title: 性能测试场地
-                description: 'VRM expressions + TTS lip sync playground'
+                description: VRM 表情与 TTS 口型同步实验场
+              model-driver-mediapipe:
+                title: MediaPipe 工作坊
+                description: 带 MediaPipe 调度控制的单人动捕实验场
+              notifications:
+                title: 通知
+                description: 测试本地通知
+          runtime-unavailable:
+            title: 需要桌面端运行时
+            description: >-
+              这个工具依赖 Electron 独有的窗口、屏幕或插件 API。要使用完整能力，请使用桌面应用。
         theme-presets:
           presets:
             default:

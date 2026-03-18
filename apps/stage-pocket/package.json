@@ -38,6 +38,7 @@
     "@proj-alicization/pipelines-audio": "workspace:^",
     "@proj-alicization/server-sdk": "workspace:^",
     "@proj-alicization/stage-layouts": "workspace:^",
+    "@proj-alicization/stage-pages": "workspace:^",
     "@proj-alicization/stage-shared": "workspace:^",
     "@proj-alicization/stage-ui": "workspace:^",
     "@proj-alicization/stage-ui-three": "workspace:^",
