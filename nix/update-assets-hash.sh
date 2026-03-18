@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Ensure dependent pnpm deps hash is up to date before updating assets hash.
-"$(dirname "${BASH_SOURCE[0]}")/update-pnpm-deps-hash.sh"
+./update-pnpm-deps-hash.sh
 
 # Set fake hash to trigger rebuild
 echo -n "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" > assets-hash.txt

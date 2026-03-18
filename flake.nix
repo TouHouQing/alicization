@@ -29,7 +29,11 @@
       overlays = {
         default = self.overlays.alicization;
         alicization = final: _: {
-          alicization = final.callPackage ./nix/package.nix { };
+          # NOTICE: Prefer pnpm_9 for nix fetchDeps stability with lockfile v9;
+          # fall back to default pnpm when pnpm_9 is unavailable in nixpkgs.
+          alicization = final.callPackage ./nix/package.nix {
+            pnpm = if final ? pnpm_9 then final.pnpm_9 else final.pnpm;
+          };
         };
       };
 
