@@ -956,6 +956,20 @@ pages:
             volume:
               description: 调节语音的响度
               label: 响度
+        speech_model:
+          label: 模型
+          select_description: 选择用于语音合成播放的模型
+          manual_description: 当提供方支持自定义模型 ID 时，手动输入语音合成模型名称
+          manual_placeholder: '输入模型 ID，例如 {example}'
+          select_placeholder: 选择一个模型...
+        playground:
+          default_text: 你好！这是一段语音合成测试。
+        transcription_model:
+          description: 选择要使用的转写模型
+          label: 模型
+          manual_description: 手动输入转写模型名称（例如 whisper-1）
+          manual_when_loading: 你可以手动输入模型名称，或等待模型列表加载完成
+          placeholder: 选择一个模型...
       deepgram-tts:
         description: deepgram.com
         title: Deepgram
@@ -1039,7 +1053,7 @@ pages:
             region:
               description: 服务 Endpoint 地区（比如亚太 eastasia 区域）
               label: Endpoint 地区
-              placeholder: "例如 eastasia"
+              placeholder: '例如 eastasia'
         title: Microsoft / Azure 语音服务
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -1101,8 +1115,8 @@ pages:
         title: Perplexity
       player2:
         alert:
-          download_intro: "请先下载并启动 Player2 App："
-          discord_intro: "如果下载后仍无法使用，请在 Discord 联系我们："
+          download_intro: '请先下载并启动 Player2 App：'
+          discord_intro: '如果下载后仍无法使用，请在 Discord 联系我们：'
         description: player2.game
         title: Player2
       together:
@@ -1228,21 +1242,6 @@ pages:
             yes: 是
           title: 语音转写测试
         title: Web 语音API
-      common:
-        speech_model:
-          label: 模型
-          select_description: 选择用于语音合成播放的模型
-          manual_description: 当提供方支持自定义模型 ID 时，手动输入语音合成模型名称
-          manual_placeholder: "输入模型 ID，例如 {example}"
-          select_placeholder: 选择一个模型...
-        playground:
-          default_text: 你好！这是一段语音合成测试。
-        transcription_model:
-          description: 选择要使用的转写模型
-          label: 模型
-          manual_description: 手动输入转写模型名称（例如 whisper-1）
-          manual_when_loading: 你可以手动输入模型名称，或等待模型列表加载完成
-          placeholder: 选择一个模型...
       transcriptions:
         playground:
           title: 实验平台

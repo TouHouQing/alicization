@@ -27,10 +27,10 @@ about:
       download_short: 다운로드
     status:
       downloading: 업데이트 다운로드 중
-      ready: "버전 {version} 준비가 완료되었습니다. 다시 시작해 설치를 마무리하세요."
-      error: "업데이트 확인에 실패했습니다: {error}"
+      ready: '버전 {version} 준비가 완료되었습니다. 다시 시작해 설치를 마무리하세요.'
+      error: '업데이트 확인에 실패했습니다: {error}'
       available_title: 업데이트 가능
-      available_description: "버전 {version}을 다운로드할 수 있습니다. 먼저 릴리스 노트를 확인하세요."
+      available_description: '버전 {version}을 다운로드할 수 있습니다. 먼저 릴리스 노트를 확인하세요.'
       no_release_notes: 이 릴리스에는 릴리스 노트가 없습니다.
 pages:
   modules:
@@ -59,10 +59,10 @@ pages:
             title: useWindowMouse 도구
             description: Electron 창 커서 위치 테스트
           relative-mouse:
-            formula_x: "relativeX = cursorX - windowX"
-            formula_y: "relativeY = cursorY - windowY"
-            window: "창 {width} x {height}"
-            center: "중심 ({x}, {y})"
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: '창 {width} x {height}'
+            center: '중심 ({x}, {y})'
             legend: 초록 점은 창 내부 기준 현재 커서 위치입니다
 devtools:
   title: 개발자 옵션
@@ -109,7 +109,7 @@ devtools:
           placeholder: 비워 두면 자동 생성
         component_name:
           label: 컴포넌트 이름
-          description: 렌더링할 등록된 위젯 컴포넌트 이름입니다. 예: weather 또는 map
+          description: '렌더링할 등록된 위젯 컴포넌트 이름입니다. 예: weather 또는 map'
           placeholder: weather
         size_preset:
           label: 크기 프리셋
@@ -133,12 +133,12 @@ devtools:
         remove_widget: 위젯 제거
         clear_all: 모든 위젯 지우기
       feedback:
-        spawned: "위젯 창 준비 완료{suffix}"
-        updated: "위젯 {id} 업데이트 완료"
-        removed: "위젯 {id} 제거 완료"
+        spawned: '위젯 창 준비 완료{suffix}'
+        updated: '위젯 {id} 업데이트 완료'
+        removed: '위젯 {id} 제거 완료'
         cleared: 모든 위젯을 제거했습니다
       errors:
-        invalid_json: "잘못된 JSON: {error}"
+        invalid_json: '잘못된 JSON: {error}'
         invalid_ttl: TTL 은 0 또는 양수여야 합니다.
         component_name_required: 컴포넌트 이름은 필수입니다.
         spawn_failed: 위젯 생성에 실패했습니다.

@@ -831,6 +831,14 @@ pages:
             volume:
               description: 音声の音量を調整
               label: 音量
+        speech_model:
+          label: モデル
+          select_description: 再生に使用する音声合成モデルを選択
+          manual_description: このプロバイダーがカスタムモデル ID を受け付ける場合は、音声合成モデル名を手動で入力
+          manual_placeholder: 'モデル ID を入力してください（例: {example}）'
+          select_placeholder: モデルを選択...
+        playground:
+          default_text: こんにちは。これは音声合成のテストです。
       deepgram-tts:
         description: deepgram.com
         title: Deepgram
@@ -914,7 +922,7 @@ pages:
             region:
               description: 音声サービスリージョン
               label: リージョン
-              placeholder: "例: eastasia"
+              placeholder: '例: eastasia'
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -965,8 +973,8 @@ pages:
         title: Perplexity
       player2:
         alert:
-          download_intro: "Player2 アプリをダウンロードして起動してください:"
-          discord_intro: "ダウンロード後も動作しない場合は、Discord でご連絡ください:"
+          download_intro: 'Player2 アプリをダウンロードして起動してください:'
+          discord_intro: 'ダウンロード後も動作しない場合は、Discord でご連絡ください:'
         description: player2.game
         title: Player2
       together:
@@ -1013,15 +1021,6 @@ pages:
       browser-web-speech-api:
         description: ブラウザネイティブSTT (Chrome/Edge/Safariが必要)
         title: Web Speech API
-      common:
-        speech_model:
-          label: モデル
-          select_description: 再生に使用する音声合成モデルを選択
-          manual_description: このプロバイダーがカスタムモデル ID を受け付ける場合は、音声合成モデル名を手動で入力
-          manual_placeholder: "モデル ID を入力してください（例: {example}）"
-          select_placeholder: モデルを選択...
-        playground:
-          default_text: こんにちは。これは音声合成のテストです。
       transcriptions:
         playground:
           title: 文字起こし実験場

@@ -614,7 +614,7 @@ pages:
                 description: Automatically send transcribed text to chat after a delay. Disable this if you want to review and edit transcripts before sending.
               delay:
                 label: Auto-send delay
-                description: Delay in milliseconds before automatically sending transcribed text (0 = send immediately, recommended: 1000-3000ms)
+                description: 'Delay in milliseconds before automatically sending transcribed text (0 = send immediately, recommended: 1000-3000ms)'
                 immediate: Immediate
                 seconds: '{value}s'
           monitoring:
@@ -659,7 +659,7 @@ pages:
               stop: Stop Test
               transcribing: Transcribing...
             error_title: Transcription Error
-            streaming_hint: Streaming mode: Transcription will appear in real-time as you speak
+            streaming_hint: 'Streaming mode: Transcription will appear in real-time as you speak'
             result:
               title: Transcription Result
               current_streaming: Current transcription (streaming)
@@ -684,7 +684,7 @@ pages:
               recording: Recording audio for transcription... (3 seconds)
               processing: Processing transcription...
               stopped: Stopped
-              start_stream_error: Error: Failed to start audio stream
+              start_stream_error: 'Error: Failed to start audio stream'
             errors:
               no_result: No transcription result returned from provider
               select_provider: Please select a transcription provider first
@@ -988,6 +988,20 @@ pages:
             volume:
               description: Adjust the volume of speech
               label: Volume
+        speech_model:
+          label: Model
+          select_description: Select the speech synthesis model used for playback
+          manual_description: Enter the speech synthesis model name manually when this provider accepts custom model IDs
+          manual_placeholder: 'Enter a model ID, e.g. {example}'
+          select_placeholder: Select a model...
+        playground:
+          default_text: Hello! This is a speech synthesis test.
+        transcription_model:
+          description: Select which transcription model to use
+          label: Model
+          manual_description: Enter the transcription model name manually (for example, whisper-1)
+          manual_when_loading: Enter the model name manually, or wait for the model list to load
+          placeholder: Select a model...
       deepgram-tts:
         description: deepgram.com
         title: Deepgram
@@ -1072,7 +1086,7 @@ pages:
             region:
               description: Speech Service region
               label: Region
-              placeholder: "e.g. eastasia"
+              placeholder: 'e.g. eastasia'
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -1134,8 +1148,8 @@ pages:
         title: Perplexity
       player2:
         alert:
-          download_intro: "Please download and run the Player2 app:"
-          discord_intro: "After downloading, if it still does not work, please contact us on Discord:"
+          download_intro: 'Please download and run the Player2 app:'
+          discord_intro: 'After downloading, if it still does not work, please contact us on Discord:'
         description: player2.game
         title: Player2
       together:
@@ -1242,11 +1256,11 @@ pages:
             final: Final transcription
             title: Transcription result
           status:
-            audio_unavailable: Error: audio stream is unavailable
+            audio_unavailable: 'Error: audio stream is unavailable'
             complete: Transcription complete!
             generic_error: 'Error: {error}'
             listening: Listening for speech... (Web Speech API streaming mode)
-            start_stream_error: Error: failed to start audio stream
+            start_stream_error: 'Error: failed to start audio stream'
             starting_stream: Starting audio stream...
             starting_transcription: Starting Web Speech API transcription...
             stopped: Stopped
@@ -1264,21 +1278,6 @@ pages:
             yes: 'Yes'
           title: Speech-to-text test
         title: Web Speech API
-      common:
-        speech_model:
-          label: Model
-          select_description: Select the speech synthesis model used for playback
-          manual_description: Enter the speech synthesis model name manually when this provider accepts custom model IDs
-          manual_placeholder: "Enter a model ID, e.g. {example}"
-          select_placeholder: Select a model...
-        playground:
-          default_text: Hello! This is a speech synthesis test.
-        transcription_model:
-          description: Select which transcription model to use
-          label: Model
-          manual_description: Enter the transcription model name manually (for example, whisper-1)
-          manual_when_loading: Enter the model name manually, or wait for the model list to load
-          placeholder: Select a model...
       transcriptions:
         playground:
           title: Transcription Playground
@@ -1538,7 +1537,7 @@ pages:
                 toasts:
                   handle_error: 'Error handling spark:notify: {error}'
                   invalid_spark_notify: 'Invalid spark:notify: {error}'
-                  missing_required: Missing required spark:notify fields: headline and destinations[].
+                  missing_required: 'Missing required spark:notify fields: headline and destinations[].'
               displays:
                 title: Displays
                 description: Visualize connected displays and cursor position

@@ -831,6 +831,14 @@ pages:
             volume:
               description: Điều chỉnh âm lượng
               label: Âm lượng
+        speech_model:
+          label: Mô hình
+          select_description: Chọn mô hình tổng hợp giọng nói dùng để phát lại
+          manual_description: Nhập thủ công tên mô hình tổng hợp giọng nói khi nhà cung cấp này chấp nhận ID mô hình tùy chỉnh
+          manual_placeholder: 'Nhập ID mô hình, ví dụ {example}'
+          select_placeholder: Chọn một mô hình...
+        playground:
+          default_text: Xin chào! Đây là bài kiểm tra tổng hợp giọng nói.
       deepgram-tts:
         description: deepgram.com
         title: Deepgram
@@ -914,7 +922,7 @@ pages:
             region:
               description: Khu vực dịch vụ Speech
               label: Khu vực
-              placeholder: "ví dụ eastasia"
+              placeholder: 'ví dụ eastasia'
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -965,8 +973,8 @@ pages:
         title: Perplexity
       player2:
         alert:
-          download_intro: "Vui lòng tải xuống và chạy ứng dụng Player2:"
-          discord_intro: "Nếu sau khi tải xuống vẫn chưa hoạt động, hãy liên hệ với chúng tôi trên Discord:"
+          download_intro: 'Vui lòng tải xuống và chạy ứng dụng Player2:'
+          discord_intro: 'Nếu sau khi tải xuống vẫn chưa hoạt động, hãy liên hệ với chúng tôi trên Discord:'
         description: player2.game
         title: Player2
       together:
@@ -1013,15 +1021,6 @@ pages:
       browser-web-speech-api:
         description: STT gốc trình duyệt (yêu cầu Chrome/Edge/Safari)
         title: Web Speech API
-      common:
-        speech_model:
-          label: Mô hình
-          select_description: Chọn mô hình tổng hợp giọng nói dùng để phát lại
-          manual_description: Nhập thủ công tên mô hình tổng hợp giọng nói khi nhà cung cấp này chấp nhận ID mô hình tùy chỉnh
-          manual_placeholder: "Nhập ID mô hình, ví dụ {example}"
-          select_placeholder: Chọn một mô hình...
-        playground:
-          default_text: Xin chào! Đây là bài kiểm tra tổng hợp giọng nói.
       transcriptions:
         playground:
           title: Thử nghiệm chuyển văn bản

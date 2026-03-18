@@ -27,10 +27,10 @@ about:
       download_short: ダウンロード
     status:
       downloading: 更新をダウンロード中
-      ready: "バージョン {version} の準備ができました。再起動してインストールを完了してください。"
-      error: "更新の確認に失敗しました: {error}"
+      ready: 'バージョン {version} の準備ができました。再起動してインストールを完了してください。'
+      error: '更新の確認に失敗しました: {error}'
       available_title: 更新があります
-      available_description: "バージョン {version} をダウンロードできます。先にリリースノートを確認してください。"
+      available_description: 'バージョン {version} をダウンロードできます。先にリリースノートを確認してください。'
       no_release_notes: このリリースにはリリースノートがありません。
 pages:
   modules:
@@ -59,10 +59,10 @@ pages:
             title: useWindowMouse Tool
             description: Electronウィンドウのカーソル位置をテストします
           relative-mouse:
-            formula_x: "relativeX = cursorX - windowX"
-            formula_y: "relativeY = cursorY - windowY"
-            window: "ウィンドウ {width} x {height}"
-            center: "中心 ({x}, {y})"
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: 'ウィンドウ {width} x {height}'
+            center: '中心 ({x}, {y})'
             legend: 緑の点はウィンドウ内での現在のカーソル位置を示します
 devtools:
   title: 開発者
@@ -109,7 +109,7 @@ devtools:
           placeholder: 空欄で自動生成
         component_name:
           label: コンポーネント名
-          description: 描画する登録済みウィジェットコンポーネント名です。例: weather / map
+          description: '描画する登録済みウィジェットコンポーネント名です。例: weather / map'
           placeholder: weather
         size_preset:
           label: サイズプリセット
@@ -133,12 +133,12 @@ devtools:
         remove_widget: ウィジェットを削除
         clear_all: すべて削除
       feedback:
-        spawned: "ウィジェットウィンドウの準備ができました{suffix}"
-        updated: "ウィジェット {id} を更新しました"
-        removed: "ウィジェット {id} を削除しました"
+        spawned: 'ウィジェットウィンドウの準備ができました{suffix}'
+        updated: 'ウィジェット {id} を更新しました'
+        removed: 'ウィジェット {id} を削除しました'
         cleared: すべてのウィジェットを削除しました
       errors:
-        invalid_json: "JSON が無効です: {error}"
+        invalid_json: 'JSON が無効です: {error}'
         invalid_ttl: TTL は 0 または正の数である必要があります。
         component_name_required: コンポーネント名は必須です。
         spawn_failed: ウィジェットの生成に失敗しました。

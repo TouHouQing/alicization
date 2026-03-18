@@ -831,6 +831,14 @@ pages:
             volume:
               description: Ajuster le volume de la parole
               label: Volume
+        speech_model:
+          label: Modèle
+          select_description: Sélectionnez le modèle de synthèse vocale utilisé pour la lecture
+          manual_description: Saisissez manuellement le nom du modèle de synthèse vocale lorsque ce fournisseur accepte des ID de modèle personnalisés
+          manual_placeholder: 'Saisissez un ID de modèle, par exemple {example}'
+          select_placeholder: Sélectionnez un modèle...
+        playground:
+          default_text: 'Bonjour ! Ceci est un test de synthèse vocale.'
       deepgram-tts:
         description: deepgram.com
         title: Deepgram
@@ -914,7 +922,7 @@ pages:
             region:
               description: Région du service vocal
               label: Région
-              placeholder: "par ex. eastasia"
+              placeholder: 'par ex. eastasia'
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -965,8 +973,8 @@ pages:
         title: Perplexity
       player2:
         alert:
-          download_intro: "Veuillez télécharger et lancer l’application Player2 :"
-          discord_intro: "Si cela ne fonctionne toujours pas après le téléchargement, contactez-nous sur Discord :"
+          download_intro: 'Veuillez télécharger et lancer l’application Player2 :'
+          discord_intro: 'Si cela ne fonctionne toujours pas après le téléchargement, contactez-nous sur Discord :'
         description: player2.game
         title: Player2
       together:
@@ -1013,15 +1021,6 @@ pages:
       browser-web-speech-api:
         description: STT natif du navigateur (requiert Chrome/Edge/Safari)
         title: Web Speech API
-      common:
-        speech_model:
-          label: Modèle
-          select_description: Sélectionnez le modèle de synthèse vocale utilisé pour la lecture
-          manual_description: Saisissez manuellement le nom du modèle de synthèse vocale lorsque ce fournisseur accepte des ID de modèle personnalisés
-          manual_placeholder: "Saisissez un ID de modèle, par exemple {example}"
-          select_placeholder: Sélectionnez un modèle...
-        playground:
-          default_text: "Bonjour ! Ceci est un test de synthèse vocale."
       transcriptions:
         playground:
           title: Terrain de test de transcription
