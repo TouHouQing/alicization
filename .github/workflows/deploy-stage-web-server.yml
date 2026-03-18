@@ -98,6 +98,7 @@ jobs:
       - name: Upload stage-web dist
         run: |
           rsync -az --delete \
+            --filter='P .user.ini' \
             -e "ssh -p ${{ secrets.DEPLOY_PORT || '22' }}" \
             "${{ matrix.dist_directory }}/" \
             "${{ secrets.DEPLOY_USER }}@${{ matrix.deploy_host }}:${{ matrix.deploy_path }}/"
