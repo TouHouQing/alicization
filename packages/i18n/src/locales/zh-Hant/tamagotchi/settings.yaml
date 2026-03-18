@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: 跨桌面可見性
   description: 允許視窗在所有虛擬桌面中可見，僅限 macOS。
+about:
+  page:
+    title: 關於
+    highlight: Alicization
+    subtitle: 在這裡查看桌面機體、舞台渲染與 Alicization 執行時的整體資訊。
+    current_version: 目前版本
+    links: 相關連結
+  links:
+    home: 首頁
+    documentation: 文件
+    github: GitHub
+  update:
+    actions:
+      download: 下載更新
+      checking: 正在檢查更新...
+      latest: 已是最新版本
+      disabled: 更新已停用
+      retry: 重新檢查
+      check: 檢查更新
+      restart: 重新啟動並安裝
+      confirm_restart: 重新啟動並安裝
+      cancel: 取消
+      confirm_download: 立即下載
+      download_short: 下載
+    status:
+      downloading: 正在下載更新
+      ready: '版本 {version} 已準備完成，重新啟動後即可完成安裝。'
+      error: '檢查更新失敗：{error}'
+      available_title: 發現新版本
+      available_description: '版本 {version} 已可下載，建議先查看發行說明。'
+      no_release_notes: 此版本未提供發行說明。
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: 使用視窗滑鼠工具
             description: 測試 Electron 視窗滑鼠游標位置
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: '視窗 {width} x {height}'
+            center: '中心點 ({x}, {y})'
+            legend: 綠色圓點表示目前滑鼠在視窗內的相對位置
 devtools:
   title: 開發者
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: 使用大量聊天負載來進行 Markdown 解析與渲染的壓力測試
     widgets-calling:
       title: 小工具調用
+      description: 用於建立、更新與移除桌面浮動小工具，方便測試桌面整合能力。
+      hint: 先套用預設可快速填入元件參數，再送出小工具呼叫。
+      presets:
+        weather:
+          label: 天氣預設
+          data:
+            city: 東京
+            condition: 小雨
+        map:
+          label: 地圖預設
+          data:
+            title: 機場路線
+            mode: 機場巴士
+            status: 準點
+            origin: 家
+            stop_1: 第一站
+            stop_2: 轉乘點
+            stop_3: 航廈
+      size_presets:
+        small: 小
+        medium: 中
+        large: 大
+        custom: 自訂
+      fields:
+        widget_id:
+          label: 小工具 ID
+          description: 重用既有的小工具 ID 時，會直接取代或更新對應視窗。
+          placeholder: 留空則自動產生
+        component_name:
+          label: 元件名稱
+          description: 要渲染的小工具元件名稱，例如 weather 或 map。
+          placeholder: weather
+        size_preset:
+          label: 尺寸預設
+          description: 選擇預設尺寸，或切換到自訂格線大小。
+          placeholder: 請選擇尺寸預設...
+        custom_columns:
+          label: 自訂欄數
+          description: 當尺寸為自訂時使用的格線欄數。
+        custom_rows:
+          label: 自訂列數
+          description: 當尺寸為自訂時使用的格線列數。
+        ttl:
+          label: 自動移除時間（秒）
+          description: 設為 0 代表保留小工具，直到手動移除。
+        component_props:
+          label: 元件參數（JSON）
+          description: 傳遞給小工具元件的 JSON 資料。
+      actions:
+        spawn_replace: 建立 / 取代小工具
+        update_props: 更新參數
+        remove_widget: 移除小工具
+        clear_all: 清空全部小工具
+      feedback:
+        spawned: '小工具視窗已就緒{suffix}'
+        updated: '已更新小工具 {id}'
+        removed: '已移除小工具 {id}'
+        cleared: 已清空全部小工具
+      errors:
+        invalid_json: 'JSON 無效：{error}'
+        invalid_ttl: TTL 必須為 0 或正數。
+        component_name_required: 元件名稱不能為空。
+        spawn_failed: 建立小工具失敗。
+        widget_id_required_update: 更新參數時必須填寫小工具 ID。
+        update_failed: 更新小工具參數失敗。
+        widget_id_required_remove: 移除小工具時必須填寫小工具 ID。
+        remove_failed: 移除小工具失敗。
+        clear_failed: 清空小工具失敗。
+inlay:
+  title: 視窗材質實驗場
+  description: 調整目前內嵌視窗的 vibrancy 與背景材質。
+  vibrancy:
+    label: Vibrancy
+    description: 為目前視窗套用 macOS 的毛玻璃預設效果。
+    options:
+      titlebar: 標題列
+      selection: 選取
+      menu: 選單
+      popover: 彈出層
+      sidebar: 側邊欄
+      header: 頁首
+      sheet: 工作表
+      window: 視窗
+      hud: HUD
+      fullscreen_ui: 全螢幕介面
+      tooltip: 工具提示
+      content: 內容區
+      under_window: 視窗下層
+      under_page: 頁面下層
+  background_material:
+    label: 背景材質
+    description: 在可用時套用 Windows 系統材質效果。
+    options:
+      auto: 自動
+      none: 無
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: Tabbed
 screen-capture:
   permissions-prompt:
     title: 螢幕截圖
@@ -52,3 +187,25 @@ screen-capture:
       step-1: 打開「系統偏好設定」，從側邊欄中選擇「隱私與安全」。
       step-2: 在「螢幕與系統聲音錄製」以及「系統聲音錄製」區域，開啟 Alicization 的開關。
       step-2-note: 如果 Alicization 沒有被列出，則請手動按下「+」按鈕並從應用資料夾選擇 Alicization。
+  devtools:
+    categories:
+      applications: 應用視窗
+      displays: 顯示器
+      devices: 裝置
+    actions:
+      loading: 載入中...
+      refetching: 重新整理中...
+      refetch: 重新整理
+      share_screen: 分享螢幕
+      share_device: 分享裝置
+      share_window: 分享視窗
+      stop: 停止
+    capture_status: 目前正在共享
+    loading_sources: 正在載入可擷取來源...
+    alt:
+      thumbnail: 擷取來源縮圖
+      screen_icon: 螢幕圖示
+      window_icon: 視窗圖示
+    empty:
+      title: 此分類目前沒有可用來源
+      description: 請切換分類，或重新整理擷取來源清單後再試一次。

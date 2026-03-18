@@ -177,7 +177,7 @@ watch(model, async (newValue) => {
             v-model="model"
             :options="modelOptions"
             :disabled="modelsLoading"
-            placeholder="Choose a model..."
+            :placeholder="t('settings.pages.providers.common.speech_model.select_placeholder')"
           />
         </div>
       </div>

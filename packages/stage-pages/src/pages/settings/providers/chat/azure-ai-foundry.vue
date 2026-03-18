@@ -94,16 +94,16 @@ const {
         />
         <ProviderAccountIdInput
           v-model="resourceName"
-          label="Resouce name"
+          :label="t('settings.pages.providers.provider.azure-ai-foundry.fields.resource_name.label')"
           placeholder="..."
-          description="Prefix used in https://<prefix>.services.ai.azure.com"
+          :description="t('settings.pages.providers.provider.azure-ai-foundry.fields.resource_name.description')"
           required
         />
         <ProviderAccountIdInput
           v-model="modelId"
-          label="Model id"
+          :label="t('settings.pages.providers.provider.azure-ai-foundry.fields.model_id.label')"
           placeholder="..."
-          description="Model ID on Azure AI Foundry"
+          :description="t('settings.pages.providers.provider.azure-ai-foundry.fields.model_id.description')"
           required
         />
       </ProviderBasicSettings>
@@ -111,9 +111,9 @@ const {
       <ProviderAdvancedSettings :title="t('settings.pages.providers.common.section.advanced.title')">
         <ProviderAccountIdInput
           v-model="apiVersion"
-          label="API version"
-          placeholder="e.g. 2025-04-01-preview"
-          description="API version for snapshot of the models"
+          :label="t('settings.pages.providers.provider.azure-ai-foundry.fields.api_version.label')"
+          :placeholder="t('settings.pages.providers.provider.azure-ai-foundry.fields.api_version.placeholder')"
+          :description="t('settings.pages.providers.provider.azure-ai-foundry.fields.api_version.description')"
         />
       </ProviderAdvancedSettings>
 

@@ -914,6 +914,7 @@ pages:
             region:
               description: 服務 Endpoint 地區（例如亞太 eastasia 區域）
               label: Endpoint 地區
+              placeholder: "例如 eastasia"
         title: Microsoft / Azure 語音服務
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -963,6 +964,9 @@ pages:
         description: perplexity.ai
         title: Perplexity
       player2:
+        alert:
+          download_intro: "請先下載並啟動 Player2 App："
+          discord_intro: "若下載後仍無法使用，請在 Discord 與我們聯絡："
         description: player2.game
         title: Player2
       together:
@@ -1009,6 +1013,15 @@ pages:
       browser-web-speech-api:
         description: 瀏覽器原生 STT（需要 Chrome/Edge/Safari）
         title: 網頁語音 API
+      common:
+        speech_model:
+          label: 模型
+          select_description: 選擇用於語音合成播放的模型
+          manual_description: 當提供方支援自訂模型 ID 時，可手動輸入語音合成模型名稱
+          manual_placeholder: "輸入模型 ID，例如 {example}"
+          select_placeholder: 選擇一個模型...
+        playground:
+          default_text: 您好！這是一段語音合成測試。
       transcriptions:
         playground:
           title: 實驗平台

@@ -97,7 +97,7 @@ watch(speedRatio, async () => {
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="true"
-        default-text="Hello! This is a test of the Player 2 voice synthesis."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
   </SpeechProviderSettings>
@@ -108,13 +108,13 @@ watch(speedRatio, async () => {
     <template #content>
       <div class="whitespace-pre-wrap break-all">
         <div>
-          Please download and run the Player2 App:
+          {{ t('settings.pages.providers.provider.player2.alert.download_intro') }}
           <a href="https://player2.game" target="_blank" rel="noopener noreferrer">
             https://player2.game
           </a>
 
           <div>
-            After downloading, if you still are having trouble, please reach out to us on Discord:
+            {{ t('settings.pages.providers.provider.player2.alert.discord_intro') }}
             <a href="https://player2.game/discord" target="_blank" rel="noopener noreferrer">
               https://player2.game/discord
             </a>.

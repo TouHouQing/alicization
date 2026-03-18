@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: Межпространственная видимость
   description: Позволяет окну быть видимым на всех рабочих столах, только для macOS.
+about:
+  page:
+    title: О приложении
+    highlight: Alicization
+    subtitle: Здесь собраны сведения о настольном присутствии, рендеринге сцены и рантайме Alicization.
+    current_version: Текущая версия
+    links: Ссылки
+  links:
+    home: Главная
+    documentation: Документация
+    github: GitHub
+  update:
+    actions:
+      download: Скачать обновление
+      checking: Проверка обновлений...
+      latest: Установлена последняя версия
+      disabled: Обновления отключены
+      retry: Повторить проверку
+      check: Проверить обновления
+      restart: Перезапустить для установки
+      confirm_restart: Перезапустить и установить
+      cancel: Отмена
+      confirm_download: Скачать сейчас
+      download_short: Скачать
+    status:
+      downloading: Загрузка обновления
+      ready: 'Версия {version} готова. Перезапустите приложение, чтобы завершить установку.'
+      error: 'Не удалось проверить обновления: {error}'
+      available_title: Доступно обновление
+      available_description: 'Версия {version} готова к загрузке. Сначала ознакомьтесь с примечаниями к выпуску.'
+      no_release_notes: Для этого выпуска нет примечаний.
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: useWindowMouse Tool
             description: Test the Electron window cursor position
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: 'Окно {width} x {height}'
+            center: 'Центр ({x}, {y})'
+            legend: Зелёная точка показывает текущее положение курсора внутри окна
 devtools:
   title: Developer
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: Stress markdown parsing and rendering with heavy chat payloads
     widgets-calling:
       title: Widget Calling
+      description: Создавайте, обновляйте и удаляйте плавающие виджеты для тестирования интеграции рабочего стола.
+      hint: Используйте пресеты, чтобы быстро заполнить props компонента перед отправкой.
+      presets:
+        weather:
+          label: Пресет погоды
+          data:
+            city: Токио
+            condition: Небольшой дождь
+        map:
+          label: Пресет карты
+          data:
+            title: Маршрут в аэропорт
+            mode: Аэропортовый автобус
+            status: По расписанию
+            origin: Дом
+            stop_1: Остановка 1
+            stop_2: Пересадка
+            stop_3: Терминал
+      size_presets:
+        small: Маленький
+        medium: Средний
+        large: Большой
+        custom: Свой
+      fields:
+        widget_id:
+          label: ID виджета
+          description: Используйте существующий ID виджета, чтобы заменить или обновить это окно.
+          placeholder: Оставьте пустым для автогенерации
+        component_name:
+          label: Имя компонента
+          description: Имя зарегистрированного компонента виджета, например weather или map.
+          placeholder: weather
+        size_preset:
+          label: Пресет размера
+          description: Выберите готовый размер или перейдите к пользовательской сетке.
+          placeholder: Выберите пресет размера...
+        custom_columns:
+          label: Пользовательские столбцы
+          description: Количество столбцов сетки для пользовательского размера.
+        custom_rows:
+          label: Пользовательские строки
+          description: Количество строк сетки для пользовательского размера.
+        ttl:
+          label: Автоудаление через (сек)
+          description: Установите 0, чтобы виджет оставался до ручного удаления.
+        component_props:
+          label: Props компонента (JSON)
+          description: JSON-данные, передаваемые компоненту виджета.
+      actions:
+        spawn_replace: Создать / заменить виджет
+        update_props: Обновить props
+        remove_widget: Удалить виджет
+        clear_all: Очистить все виджеты
+      feedback:
+        spawned: 'Окно виджета подготовлено{suffix}'
+        updated: 'Виджет {id} обновлён'
+        removed: 'Виджет {id} удалён'
+        cleared: Все виджеты удалены
+      errors:
+        invalid_json: 'Неверный JSON: {error}'
+        invalid_ttl: TTL должен быть равен 0 или быть положительным числом.
+        component_name_required: Имя компонента обязательно.
+        spawn_failed: Не удалось создать виджет.
+        widget_id_required_update: Для обновления props нужен ID виджета.
+        update_failed: Не удалось обновить props виджета.
+        widget_id_required_remove: Для удаления нужен ID виджета.
+        remove_failed: Не удалось удалить виджет.
+        clear_failed: Не удалось очистить виджеты.
+inlay:
+  title: Лаборатория материалов окна
+  description: Настройте vibrancy и материал фона для текущего встроенного окна.
+  vibrancy:
+    label: Vibrancy
+    description: Применяет к этому окну предустановку vibrancy из macOS.
+    options:
+      titlebar: Заголовок окна
+      selection: Выделение
+      menu: Меню
+      popover: Popover
+      sidebar: Боковая панель
+      header: Заголовок
+      sheet: Sheet
+      window: Окно
+      hud: HUD
+      fullscreen_ui: Полноэкранный интерфейс
+      tooltip: Подсказка
+      content: Содержимое
+      under_window: Под окном
+      under_page: Под страницей
+  background_material:
+    label: Фоновый материал
+    description: Применяет системный материал Windows, если он доступен.
+    options:
+      auto: Авто
+      none: Нет
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: С вкладками
 screen-capture:
   permissions-prompt:
     title: Screen Capture
@@ -52,3 +187,25 @@ screen-capture:
       step-1: Open "System Preferences", select "Privacy & Security" from the sidebar.
       step-2: In the "Screen & System Audio Recording" and "System Audio Recording Only" sections, turn on the switches for Alicization.
       step-2-note: If Alicization is not listed, please add it manually by clicking the "+" button and selecting Alicization from the Applications folder.
+  devtools:
+    categories:
+      applications: Приложения
+      displays: Дисплеи
+      devices: Устройства
+    actions:
+      loading: Загрузка...
+      refetching: Обновление...
+      refetch: Обновить
+      share_screen: Поделиться экраном
+      share_device: Поделиться устройством
+      share_window: Поделиться окном
+      stop: Остановить
+    capture_status: Активный захват
+    loading_sources: Загрузка источников захвата...
+    alt:
+      thumbnail: Миниатюра источника захвата
+      screen_icon: Значок экрана
+      window_icon: Значок окна
+    empty:
+      title: В этой категории нет источников
+      description: Попробуйте другую категорию или обновите список источников захвата.

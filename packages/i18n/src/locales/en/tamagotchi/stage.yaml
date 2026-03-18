@@ -29,6 +29,12 @@ docs:
   connected: WebSocket connected
   disconnected: WebSocket disconnected
   'open-settings': Open WebSocket settings
+resources:
+  loading:
+    pending: Some modules are not ready yet...
+    ready: All modules are ready!
+    settings_link: settings
+    preparing: Preparing resources...
 
 notice:
   'fade-on-hover':

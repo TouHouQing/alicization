@@ -3,6 +3,7 @@ import type { FlowEntry, SparkNotifyEntryState } from '../context-flow-types'
 
 import { Input } from '@proj-alicization/ui'
 import { nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import ContextFlowEntryCard from './context-flow-entry-card.vue'
 
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>()
 
 const filterText = defineModel<string>('filterText', { required: true })
+const { t } = useI18n()
 
 const streamContainer = ref<HTMLDivElement>()
 
@@ -30,7 +32,7 @@ watch(() => filterText.value, scrollToTop)
     <div :class="['flex']">
       <Input
         v-model="filterText"
-        placeholder="Search type, source, text..."
+        :placeholder="t('settings.pages.system.sections.section.developer.sections.section.context-flow.stream.search_placeholder')"
       />
     </div>
     <div
@@ -49,7 +51,7 @@ watch(() => filterText.value, scrollToTop)
         v-if="!entries.length"
         :class="['h-full', 'w-full', 'flex', 'items-center', 'justify-center', 'text-sm', 'text-neutral-500', 'dark:text-neutral-400']"
       >
-        No data yet. Trigger a chat, send a context update, or enable broadcast capture.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.context-flow.stream.empty') }}
       </div>
       <div v-else v-auto-animate :class="['grid', 'gap-3']">
         <ContextFlowEntryCard

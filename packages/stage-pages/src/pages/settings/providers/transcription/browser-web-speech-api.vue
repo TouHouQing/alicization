@@ -125,8 +125,8 @@ const testRecognitionInstance = ref<any>(null)
 const testAbortController = ref<AbortController | null>(null)
 
 function handleStreamStartError() {
-  testTranscriptionError.value = 'Failed to start audio stream. Please check microphone permissions.'
-  testStatusMessage.value = 'Error: Failed to start audio stream'
+  testTranscriptionError.value = t('settings.pages.providers.provider.browser-web-speech-api.test.errors.start_stream')
+  testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.start_stream_error')
   isTranscribing.value = false
   isTestingSTT.value = false
   testStreamWasStarted.value = false
@@ -135,12 +135,12 @@ function handleStreamStartError() {
 // Speech-to-Text test functions (hardcoded to use Web Speech API)
 async function startSTTTest() {
   if (!selectedAudioInput.value) {
-    testTranscriptionError.value = 'Please select an audio input device first'
+    testTranscriptionError.value = t('settings.pages.providers.provider.browser-web-speech-api.test.errors.select_device')
     return
   }
 
   if (!isWebSpeechAPIAvailable.value) {
-    testTranscriptionError.value = 'Web Speech API is not available in this browser. Please use Chrome, Edge, or Safari.'
+    testTranscriptionError.value = t('settings.pages.providers.provider.browser-web-speech-api.test.errors.not_available')
     return
   }
 
@@ -154,7 +154,7 @@ async function startSTTTest() {
   try {
     // Ensure audio stream is available
     if (!stream.value) {
-      testStatusMessage.value = 'Starting audio stream...'
+      testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.starting_stream')
       testStreamWasStarted.value = true
       await startStream()
 
@@ -178,7 +178,7 @@ async function startSTTTest() {
     }
 
     // Always use Web Speech API for this provider page - call it directly
-    testStatusMessage.value = 'Starting Web Speech API transcription...'
+    testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.starting_transcription')
     console.info('Starting STT test with Web Speech API (direct call)')
 
     // Call Web Speech API directly instead of going through the hearing pipeline
@@ -187,8 +187,8 @@ async function startSTTTest() {
     testAbortController.value = abortController
 
     if (!stream.value) {
-      testTranscriptionError.value = 'Audio stream is not available'
-      testStatusMessage.value = 'Error: Audio stream is not available'
+      testTranscriptionError.value = t('settings.pages.providers.provider.browser-web-speech-api.test.errors.audio_unavailable')
+      testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.audio_unavailable')
       isTranscribing.value = false
       isTestingSTT.value = false
       return
@@ -202,7 +202,7 @@ async function startSTTTest() {
       onSentenceEnd: (delta) => {
         if (delta && delta.trim()) {
           testStreamingText.value += `${delta} `
-          testStatusMessage.value = 'Transcribing... (streaming)'
+          testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.transcribing')
           isTranscribing.value = true
           console.info('Web Speech API test received sentence:', delta)
         }
@@ -211,12 +211,12 @@ async function startSTTTest() {
         if (text) {
           testTranscriptionText.value = text
           testStreamingText.value = ''
-          testStatusMessage.value = 'Transcription complete!'
+          testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.complete')
           isTranscribing.value = false
           console.info('Web Speech API test completed with text:', text)
         }
         else {
-          testStatusMessage.value = 'Waiting for speech...'
+          testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.waiting')
           isTranscribing.value = false
         }
       },
@@ -226,12 +226,12 @@ async function startSTTTest() {
     testRecognitionInstance.value = (result as any).recognition
     testTranscriptionResult.value = result
 
-    testStatusMessage.value = 'Listening for speech... (Web Speech API streaming mode)'
+    testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.listening')
     isTranscribing.value = false // Not actively transcribing yet, just listening
   }
   catch (err) {
     testTranscriptionError.value = err instanceof Error ? err.message : String(err)
-    testStatusMessage.value = `Error: ${testTranscriptionError.value}`
+    testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.generic_error', { error: testTranscriptionError.value })
     isTranscribing.value = false
     isTestingSTT.value = false
     console.error('Web Speech API test error:', err)
@@ -241,7 +241,7 @@ async function startSTTTest() {
 async function stopSTTTest() {
   isTestingSTT.value = false
   isTranscribing.value = false
-  testStatusMessage.value = 'Stopped'
+  testStatusMessage.value = t('settings.pages.providers.provider.browser-web-speech-api.test.status.stopped')
 
   try {
     // Stop recognition instance if we have one
@@ -301,10 +301,10 @@ onUnmounted(() => {
           type="error"
         >
           <template #title>
-            Web Speech API Not Available
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.alerts.not_available.title') }}
           </template>
           <template #content>
-            Web Speech API is not available in this browser. It requires Chrome, Edge, Safari, or other Chromium-based browsers. This provider cannot be used in your current environment.
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.alerts.not_available.description') }}
           </template>
         </Alert>
 
@@ -313,10 +313,10 @@ onUnmounted(() => {
           type="info"
         >
           <template #title>
-            Free, Browser-Native Transcription
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.alerts.browser_native.title') }}
           </template>
           <template #content>
-            Web Speech API is a free, browser-native Speech-to-Text solution that requires no API keys or external services. It uses your browser's built-in speech recognition capabilities.
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.alerts.browser_native.description') }}
           </template>
         </Alert>
 
@@ -329,14 +329,14 @@ onUnmounted(() => {
             <div class="border border-blue-200 rounded-lg bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
               <div class="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <div i-solar:info-circle-line-duotone class="text-sm" />
-                <span class="text-xs font-medium">No API key required - Web Speech API is free and built into your browser</span>
+                <span class="text-xs font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.basic.no_api_key') }}</span>
               </div>
             </div>
 
             <FieldSelect
               v-model="language"
-              label="Recognition Language"
-              description="Select the language for speech recognition"
+              :label="t('settings.pages.providers.provider.browser-web-speech-api.basic.language.label')"
+              :description="t('settings.pages.providers.provider.browser-web-speech-api.basic.language.description')"
               :options="languageOptions"
               layout="vertical"
             />
@@ -348,10 +348,10 @@ onUnmounted(() => {
                   type="checkbox"
                   class="border-neutral-300 rounded text-primary-600 dark:border-neutral-700 dark:bg-neutral-900 focus:ring-primary-500"
                 >
-                <span class="text-sm font-medium">Continuous Recognition</span>
+                <span class="text-sm font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.basic.continuous.label') }}</span>
               </label>
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Keep listening continuously instead of stopping after each phrase
+                {{ t('settings.pages.providers.provider.browser-web-speech-api.basic.continuous.description') }}
               </p>
             </div>
 
@@ -362,10 +362,10 @@ onUnmounted(() => {
                   type="checkbox"
                   class="border-neutral-300 rounded text-primary-600 dark:border-neutral-700 dark:bg-neutral-900 focus:ring-primary-500"
                 >
-                <span class="text-sm font-medium">Show Interim Results</span>
+                <span class="text-sm font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.basic.interim_results.label') }}</span>
               </label>
               <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Display partial recognition results in real-time as you speak
+                {{ t('settings.pages.providers.provider.browser-web-speech-api.basic.interim_results.description') }}
               </p>
             </div>
           </div>
@@ -376,16 +376,16 @@ onUnmounted(() => {
       <div flex="~ col gap-6" class="w-full md:w-[60%]">
         <div w-full rounded-xl bg="neutral-50 dark:[rgba(0,0,0,0.3)]" p-4 flex="~ col gap-4">
           <h2 class="text-lg text-neutral-500 md:text-2xl dark:text-neutral-400">
-            Speech-to-Text Test
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.test.title') }}
           </h2>
           <div text="sm neutral-400 dark:neutral-500" mb-2>
-            Test Web Speech API transcription with your selected audio device. This test will always use Web Speech API regardless of your default hearing provider.
+            {{ t('settings.pages.providers.provider.browser-web-speech-api.test.description') }}
           </div>
 
           <div v-if="!isWebSpeechAPIAvailable" class="border border-amber-200 rounded-lg bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
             <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400">
               <div i-solar:warning-circle-line-duotone class="text-lg" />
-              <span class="text-sm font-medium">Web Speech API is not available in this browser</span>
+              <span class="text-sm font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.test.not_available') }}</span>
             </div>
           </div>
 
@@ -394,13 +394,13 @@ onUnmounted(() => {
             <div class="flex items-center gap-2">
               <FieldSelect
                 v-model="selectedAudioInput"
-                label="Audio Input Device"
-                description="Select the audio input device for testing"
+                :label="t('settings.pages.providers.provider.browser-web-speech-api.test.audio_input.label')"
+                :description="t('settings.pages.providers.provider.browser-web-speech-api.test.audio_input.description')"
                 :options="audioInputs.map(input => ({
                   label: input.label || input.deviceId,
                   value: input.deviceId,
                 }))"
-                placeholder="Select an audio input device"
+                :placeholder="t('settings.pages.providers.provider.browser-web-speech-api.test.audio_input.placeholder')"
                 layout="vertical"
                 class="flex-1"
               />
@@ -410,7 +410,7 @@ onUnmounted(() => {
             <div v-if="!selectedAudioInput" class="border border-amber-200 rounded-lg bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
               <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400">
                 <div i-solar:warning-circle-line-duotone class="text-lg" />
-                <span class="text-sm font-medium">Please select an audio input device to test</span>
+                <span class="text-sm font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.test.audio_input.select_hint') }}</span>
               </div>
             </div>
 
@@ -429,11 +429,11 @@ onUnmounted(() => {
                 <div v-else class="mr-2">
                   <div i-solar:microphone-line-duotone text-lg />
                 </div>
-                {{ isTestingSTT ? 'Stop Test' : isTranscribing ? 'Transcribing...' : 'Start Speech-to-Text Test' }}
+                {{ isTestingSTT ? t('settings.pages.providers.provider.browser-web-speech-api.test.actions.stop') : isTranscribing ? t('settings.pages.providers.provider.browser-web-speech-api.test.actions.transcribing') : t('settings.pages.providers.provider.browser-web-speech-api.test.actions.start') }}
               </Button>
             </div>
 
-            <ErrorContainer v-if="testTranscriptionError" title="Transcription Error" :error="testTranscriptionError" />
+            <ErrorContainer v-if="testTranscriptionError" :title="t('settings.pages.providers.provider.browser-web-speech-api.test.error_title')" :error="testTranscriptionError" />
 
             <div v-if="testStatusMessage" class="border border-primary-200 rounded-lg bg-primary-50 p-3 dark:border-primary-800 dark:bg-primary-900/20">
               <div class="flex items-center gap-2 text-primary-700 dark:text-primary-400">
@@ -446,14 +446,14 @@ onUnmounted(() => {
             <div class="border border-blue-200 rounded-lg bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
               <div class="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <div i-solar:info-circle-line-duotone class="text-sm" />
-                <span class="text-xs">Streaming mode: Transcription will appear in real-time as you speak (Web Speech API)</span>
+                <span class="text-xs">{{ t('settings.pages.providers.provider.browser-web-speech-api.test.streaming_hint') }}</span>
               </div>
             </div>
 
             <div class="space-y-3">
               <div>
                 <label class="mb-1 block text-sm text-neutral-700 font-medium dark:text-neutral-300">
-                  Transcription Result
+                  {{ t('settings.pages.providers.provider.browser-web-speech-api.test.result.title') }}
                 </label>
                 <div
                   v-if="testTranscriptionText || testStreamingText"
@@ -461,7 +461,7 @@ onUnmounted(() => {
                 >
                   <div v-if="testStreamingText" class="text-neutral-600 dark:text-neutral-400">
                     <div class="mb-2 font-medium">
-                      Current transcription (streaming):
+                      {{ t('settings.pages.providers.provider.browser-web-speech-api.test.result.current_streaming') }}
                     </div>
                     <div class="whitespace-pre-wrap">
                       {{ testStreamingText }}
@@ -469,7 +469,7 @@ onUnmounted(() => {
                   </div>
                   <div v-if="testTranscriptionText" class="text-neutral-700 dark:text-neutral-200">
                     <div v-if="testStreamingText" class="mb-2 mt-3 border-t border-neutral-200 pt-2 font-medium dark:border-neutral-700">
-                      Final transcription:
+                      {{ t('settings.pages.providers.provider.browser-web-speech-api.test.result.final') }}
                     </div>
                     <div class="whitespace-pre-wrap">
                       {{ testTranscriptionText }}
@@ -480,16 +480,16 @@ onUnmounted(() => {
                   v-else
                   class="min-h-[100px] border border-neutral-300 rounded-lg border-dashed bg-neutral-50 p-3 text-sm text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900/50 dark:text-neutral-500"
                 >
-                  No transcription yet. Click "Start Speech-to-Text Test" and speak into your microphone.
+                  {{ t('settings.pages.providers.provider.browser-web-speech-api.test.result.empty') }}
                 </div>
               </div>
 
               <div class="text-xs text-neutral-500 dark:text-neutral-400">
-                <div>Provider: <span class="font-medium">Web Speech API</span></div>
-                <div>Language: <span class="font-medium">{{ language }}</span></div>
-                <div>Mode: <span class="font-medium">Streaming (real-time)</span></div>
-                <div>Continuous: <span class="font-medium">{{ continuous ? 'Yes' : 'No' }}</span></div>
-                <div>Interim Results: <span class="font-medium">{{ interimResults ? 'Yes' : 'No' }}</span></div>
+                <div>{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.provider') }} <span class="font-medium">Web Speech API</span></div>
+                <div>{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.language') }} <span class="font-medium">{{ language }}</span></div>
+                <div>{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.mode') }} <span class="font-medium">{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.streaming_mode') }}</span></div>
+                <div>{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.continuous') }} <span class="font-medium">{{ continuous ? t('settings.pages.providers.provider.browser-web-speech-api.test.summary.yes') : t('settings.pages.providers.provider.browser-web-speech-api.test.summary.no') }}</span></div>
+                <div>{{ t('settings.pages.providers.provider.browser-web-speech-api.test.summary.interim_results') }} <span class="font-medium">{{ interimResults ? t('settings.pages.providers.provider.browser-web-speech-api.test.summary.yes') : t('settings.pages.providers.provider.browser-web-speech-api.test.summary.no') }}</span></div>
               </div>
             </div>
           </div>

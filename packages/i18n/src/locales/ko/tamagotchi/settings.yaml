@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: 모든 작업 공간에 표시
   description: 모든 작업 공간에 창을 볼 수 있도록 합니다. macOS 전용 기능입니다.
+about:
+  page:
+    title: 정보
+    highlight: Alicization
+    subtitle: 데스크톱 존재감, 스테이지 렌더링, Alicization 런타임을 한곳에서 확인하세요.
+    current_version: 현재 버전
+    links: 링크
+  links:
+    home: 홈
+    documentation: 문서
+    github: GitHub
+  update:
+    actions:
+      download: 업데이트 다운로드
+      checking: 업데이트 확인 중...
+      latest: 최신 버전입니다
+      disabled: 업데이트 비활성화됨
+      retry: 다시 시도
+      check: 업데이트 확인
+      restart: 다시 시작하여 설치
+      confirm_restart: 다시 시작 후 설치
+      cancel: 취소
+      confirm_download: 지금 다운로드
+      download_short: 다운로드
+    status:
+      downloading: 업데이트 다운로드 중
+      ready: "버전 {version} 준비가 완료되었습니다. 다시 시작해 설치를 마무리하세요."
+      error: "업데이트 확인에 실패했습니다: {error}"
+      available_title: 업데이트 가능
+      available_description: "버전 {version}을 다운로드할 수 있습니다. 먼저 릴리스 노트를 확인하세요."
+      no_release_notes: 이 릴리스에는 릴리스 노트가 없습니다.
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: useWindowMouse 도구
             description: Electron 창 커서 위치 테스트
+          relative-mouse:
+            formula_x: "relativeX = cursorX - windowX"
+            formula_y: "relativeY = cursorY - windowY"
+            window: "창 {width} x {height}"
+            center: "중심 ({x}, {y})"
+            legend: 초록 점은 창 내부 기준 현재 커서 위치입니다
 devtools:
   title: 개발자 옵션
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: 스트레스 마크다운 구문 분석 및 대량 채팅 페이로드 렌더링
     widgets-calling:
       title: 위젯 호출
+      description: 데스크톱 통합 테스트를 위해 떠다니는 위젯을 생성, 업데이트, 제거합니다.
+      hint: 프리셋을 사용하면 전송 전에 컴포넌트 props 를 빠르게 채울 수 있습니다.
+      presets:
+        weather:
+          label: 날씨 프리셋
+          data:
+            city: 도쿄
+            condition: 약한 비
+        map:
+          label: 지도 프리셋
+          data:
+            title: 공항 경로
+            mode: 공항 버스
+            status: 정시
+            origin: 집
+            stop_1: 정류장 1
+            stop_2: 환승
+            stop_3: 터미널
+      size_presets:
+        small: 작게
+        medium: 중간
+        large: 크게
+        custom: 사용자 지정
+      fields:
+        widget_id:
+          label: 위젯 ID
+          description: 기존 위젯 ID 를 재사용하면 해당 위젯 창을 교체하거나 업데이트합니다.
+          placeholder: 비워 두면 자동 생성
+        component_name:
+          label: 컴포넌트 이름
+          description: 렌더링할 등록된 위젯 컴포넌트 이름입니다. 예: weather 또는 map
+          placeholder: weather
+        size_preset:
+          label: 크기 프리셋
+          description: 미리 정의된 크기를 선택하거나 사용자 지정 그리드 크기로 전환합니다.
+          placeholder: 크기 프리셋 선택...
+        custom_columns:
+          label: 사용자 지정 열 수
+          description: 크기 프리셋이 사용자 지정일 때 사용할 그리드 열 수입니다.
+        custom_rows:
+          label: 사용자 지정 행 수
+          description: 크기 프리셋이 사용자 지정일 때 사용할 그리드 행 수입니다。
+        ttl:
+          label: 자동 제거 시간(초)
+          description: 0 으로 두면 수동으로 제거할 때까지 위젯을 유지합니다.
+        component_props:
+          label: 컴포넌트 Props (JSON)
+          description: 위젯 컴포넌트에 전달할 JSON 데이터입니다.
+      actions:
+        spawn_replace: 생성 / 교체
+        update_props: Props 업데이트
+        remove_widget: 위젯 제거
+        clear_all: 모든 위젯 지우기
+      feedback:
+        spawned: "위젯 창 준비 완료{suffix}"
+        updated: "위젯 {id} 업데이트 완료"
+        removed: "위젯 {id} 제거 완료"
+        cleared: 모든 위젯을 제거했습니다
+      errors:
+        invalid_json: "잘못된 JSON: {error}"
+        invalid_ttl: TTL 은 0 또는 양수여야 합니다.
+        component_name_required: 컴포넌트 이름은 필수입니다.
+        spawn_failed: 위젯 생성에 실패했습니다.
+        widget_id_required_update: Props 를 업데이트하려면 위젯 ID 가 필요합니다.
+        update_failed: 위젯 props 업데이트에 실패했습니다.
+        widget_id_required_remove: 위젯을 제거하려면 위젯 ID 가 필요합니다.
+        remove_failed: 위젯 제거에 실패했습니다.
+        clear_failed: 위젯 일괄 제거에 실패했습니다.
+inlay:
+  title: 창 재질 플레이그라운드
+  description: 현재 인레이 창의 vibrancy 와 배경 재질을 조정합니다.
+  vibrancy:
+    label: Vibrancy
+    description: 이 창에 macOS vibrancy 프리셋을 적용합니다.
+    options:
+      titlebar: 제목 표시줄
+      selection: 선택
+      menu: 메뉴
+      popover: 팝오버
+      sidebar: 사이드바
+      header: 헤더
+      sheet: 시트
+      window: 창
+      hud: HUD
+      fullscreen_ui: 전체 화면 UI
+      tooltip: 툴팁
+      content: 콘텐츠
+      under_window: 창 아래
+      under_page: 페이지 아래
+  background_material:
+    label: 배경 재질
+    description: 가능할 경우 Windows 시스템 재질을 적용합니다.
+    options:
+      auto: 자동
+      none: 없음
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: 탭형
 screen-capture:
   permissions-prompt:
     title: 화면 캡쳐
@@ -52,3 +187,25 @@ screen-capture:
       step-1: '"시스템 환경설정"을 열고 사이드 바에서 "프라이버시 및 보안"을 선택합니다.'
       step-2: '"화면 및 시스템 오디오 녹음" 및 "시스템 오디오 녹음 전용" 섹션에서 Alicization에 대한 스위치를 켭니다.'
       step-2-note: Alicization가 목록에 없는 경우, "+" 버튼을 클릭하고 애플리케이션 폴더에서 Alicization를 선택하여 수동으로 추가해 주세요.
+  devtools:
+    categories:
+      applications: 애플리케이션
+      displays: 디스플레이
+      devices: 장치
+    actions:
+      loading: 불러오는 중...
+      refetching: 새로 고치는 중...
+      refetch: 새로 고침
+      share_screen: 화면 공유
+      share_device: 장치 공유
+      share_window: 창 공유
+      stop: 중지
+    capture_status: 활성 캡처
+    loading_sources: 캡처 소스를 불러오는 중...
+    alt:
+      thumbnail: 캡처 소스 썸네일
+      screen_icon: 화면 아이콘
+      window_icon: 창 아이콘
+    empty:
+      title: 이 카테고리에 소스가 없습니다
+      description: 다른 카테고리를 시도하거나 캡처 소스 목록을 새로 고치세요.

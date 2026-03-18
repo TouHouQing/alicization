@@ -2,6 +2,18 @@ edition:
   desktop: 桌面版本
   mobile: 移动端版本
   web: 网页版本
+auth:
+  login:
+    title: 登录 Alicization Stage
+    mobile_title: Alicization Stage
+    providers:
+      google: Google
+      github: GitHub
+    legal: 继续即表示你同意我们的 {terms} 与 {privacy}。
+    terms: 服务条款
+    privacy: 隐私政策
+    errors:
+      unknown: 发生了未知错误
 prompt:
   prefix: ''
   suffix: ''

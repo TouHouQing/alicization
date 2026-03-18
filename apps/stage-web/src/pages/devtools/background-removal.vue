@@ -5,6 +5,7 @@ import { AutoModel, AutoProcessor, env, RawImage } from '@huggingface/transforme
 import { Button, Checkbox, InputFile } from '@proj-alicization/ui'
 import { check } from 'gpuu/webgpu'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const model = ref<PreTrainedModel>()
 const processor = ref<Processor>()
@@ -16,6 +17,7 @@ const currentProcessingIndex = ref(-1)
 const autoProcess = ref(false)
 const previewImage = ref<string | null>(null)
 const previewPosition = ref({ x: 0, y: 0 })
+const { t } = useI18n()
 
 interface ImageItem {
   file: File
@@ -211,7 +213,7 @@ function hidePreview() {
     <!-- Loading state -->
     <div v-if="loading" flex items-center justify-center gap-2 py-8 text-neutral-500>
       <div i-svg-spinners:ring-resize text-2xl />
-      <span>Loading model...</span>
+      <span>{{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.loading') }}</span>
     </div>
 
     <!-- Error state -->
@@ -229,13 +231,15 @@ function hidePreview() {
         <div flex items-center gap-3>
           <label flex cursor-pointer items-center gap-2>
             <Checkbox v-model="autoProcess" />
-            <span text-sm>Auto process on upload</span>
+            <span text-sm>{{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.auto_process') }}</span>
           </label>
         </div>
         <div flex gap-2>
           <Button
             v-if="pendingCount > 0"
-            :label="processing ? `Processing... ${progressPercent}%` : `Process ${pendingCount} image${pendingCount > 1 ? 's' : ''}`"
+            :label="processing
+              ? t('settings.pages.system.sections.section.developer.sections.section.background-removal.processing_progress', { progress: progressPercent })
+              : t('settings.pages.system.sections.section.developer.sections.section.background-removal.process_count', { count: pendingCount })"
             :disabled="processing || !model"
             :loading="processing"
             @click="processAllImages"
@@ -243,14 +247,14 @@ function hidePreview() {
           <Button
             v-if="doneCount > 0"
             variant="secondary"
-            :label="`Download All (${doneCount})`"
+            :label="t('settings.pages.system.sections.section.developer.sections.section.background-removal.download_all', { count: doneCount })"
             icon="i-solar:download-minimalistic-bold"
             @click="downloadAllImages"
           />
           <Button
             v-if="imageItems.length > 0"
             variant="secondary-muted"
-            label="Clear All"
+            :label="t('settings.pages.system.sections.section.developer.sections.section.background-removal.clear_all')"
             icon="i-solar:trash-bin-trash-line-duotone"
             @click="clearAllImages"
           />
@@ -263,26 +267,26 @@ function hidePreview() {
           <thead bg="neutral-100 dark:neutral-800">
             <tr>
               <th px-4 py-3 font-medium>
-                Original
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.table.original') }}
               </th>
               <th px-4 py-3 font-medium>
-                Processed
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.table.processed') }}
               </th>
               <th px-4 py-3 font-medium>
-                Filename
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.table.filename') }}
               </th>
               <th px-4 py-3 font-medium>
-                Status
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.table.status') }}
               </th>
               <th px-4 py-3 font-medium>
-                Actions
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.table.actions') }}
               </th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="imageItems.length === 0">
               <td colspan="5" px-4 py-8 text-center text-neutral-400>
-                No images uploaded yet
+                {{ t('settings.pages.system.sections.section.developer.sections.section.background-removal.empty') }}
               </td>
             </tr>
             <tr
@@ -343,7 +347,7 @@ function hidePreview() {
                   <div v-else-if="item.status === 'done'" i-solar:check-circle-bold text-xs />
                   <div v-else-if="item.status === 'error'" i-solar:close-circle-bold text-xs />
                   <div v-else i-solar:clock-circle-linear text-xs />
-                  {{ item.status === 'pending' ? 'Pending' : item.status === 'processing' ? 'Processing' : item.status === 'done' ? 'Done' : 'Error' }}
+                  {{ t(`settings.pages.system.sections.section.developer.sections.section.background-removal.statuses.${item.status}`) }}
                 </span>
               </td>
 

@@ -2,6 +2,7 @@
 import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { Button, FieldInput, FieldSelect, FieldTextArea } from '@proj-alicization/ui'
 import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { widgetsAdd, widgetsClear, widgetsOpenWindow, widgetsPrepareWindow, widgetsRemove, widgetsUpdate } from '../../../shared/eventa'
 
@@ -23,11 +24,12 @@ const addWidget = useElectronEventaInvoke(widgetsAdd)
 const updateWidget = useElectronEventaInvoke(widgetsUpdate)
 const removeWidget = useElectronEventaInvoke(widgetsRemove)
 const clearWidgets = useElectronEventaInvoke(widgetsClear)
+const { t } = useI18n()
 
 const defaultWeatherProps = {
-  city: 'Tokyo',
+  city: t('devtools.pages.widgets-calling.presets.weather.data.city'),
   temperature: '15°C',
-  condition: 'Light rain',
+  condition: t('devtools.pages.widgets-calling.presets.weather.data.condition'),
   high: '18°C',
   low: '12°C',
   humidity: '72%',
@@ -36,12 +38,12 @@ const defaultWeatherProps = {
 }
 
 const defaultMapProps = {
-  title: 'To Haneda Airport',
+  title: t('devtools.pages.widgets-calling.presets.map.data.title'),
   eta: '38 min',
   distance: '27 km',
-  mode: 'Transit',
-  status: 'Light traffic',
-  originLabel: 'You',
+  mode: t('devtools.pages.widgets-calling.presets.map.data.mode'),
+  status: t('devtools.pages.widgets-calling.presets.map.data.status'),
+  originLabel: t('devtools.pages.widgets-calling.presets.map.data.origin'),
   destinationLabel: 'HND',
   accent: '#22c55e',
   origin: { x: 18, y: 70 },
@@ -56,9 +58,9 @@ const defaultMapProps = {
     { x: 82, y: 26 },
   ],
   stops: [
-    { x: 28, y: 62, label: 'Mita' },
-    { x: 54, y: 50, label: 'Shinagawa' },
-    { x: 74, y: 34, label: 'Tenkubashi' },
+    { x: 28, y: 62, label: t('devtools.pages.widgets-calling.presets.map.data.stop_1') },
+    { x: 54, y: 50, label: t('devtools.pages.widgets-calling.presets.map.data.stop_2') },
+    { x: 74, y: 34, label: t('devtools.pages.widgets-calling.presets.map.data.stop_3') },
   ],
 }
 
@@ -76,12 +78,12 @@ const busy = ref(false)
 const lastAction = ref('')
 const lastError = ref('')
 
-const sizePresetOptions: Array<{ label: string, value: SizePreset }> = [
-  { label: 'Small (s)', value: 's' },
-  { label: 'Medium (m)', value: 'm' },
-  { label: 'Large (l)', value: 'l' },
-  { label: 'Custom grid', value: 'custom' },
-]
+const sizePresetOptions = computed<Array<{ label: string, value: SizePreset }>>(() => [
+  { label: t('devtools.pages.widgets-calling.size_presets.small'), value: 's' },
+  { label: t('devtools.pages.widgets-calling.size_presets.medium'), value: 'm' },
+  { label: t('devtools.pages.widgets-calling.size_presets.large'), value: 'l' },
+  { label: t('devtools.pages.widgets-calling.size_presets.custom'), value: 'custom' },
+])
 
 const resolvedSize = computed(() => {
   if (form.sizePreset !== 'custom')
@@ -105,7 +107,7 @@ function parseProps() {
     return JSON.parse(form.componentProps || '{}')
   }
   catch (error) {
-    throw new Error(`Invalid JSON in component props: ${(error as Error).message}`)
+    throw new Error(t('devtools.pages.widgets-calling.errors.invalid_json', { error: (error as Error).message }))
   }
 }
 
@@ -115,7 +117,7 @@ function parseTtl() {
 
   const ttl = Number(form.ttlSeconds)
   if (Number.isNaN(ttl) || ttl < 0)
-    throw new Error('TTL must be a positive number of seconds.')
+    throw new Error(t('devtools.pages.widgets-calling.errors.invalid_ttl'))
 
   return Math.floor(ttl * 1000)
 }
@@ -134,7 +136,7 @@ async function prepareAndOpenWindow(targetId?: string) {
 
 async function handleAdd() {
   if (!form.componentName.trim()) {
-    lastError.value = 'Component name is required.'
+    lastError.value = t('devtools.pages.widgets-calling.errors.component_name_required')
     return
   }
 
@@ -152,10 +154,12 @@ async function handleAdd() {
     if (!form.id && resolvedId)
       form.id = resolvedId
 
-    lastAction.value = `Spawned widget${resolvedId ? ` (${resolvedId})` : ''}.`
+    lastAction.value = t('devtools.pages.widgets-calling.feedback.spawned', {
+      suffix: resolvedId ? ` (${resolvedId})` : '',
+    })
   }
   catch (error) {
-    lastError.value = (error as Error).message || 'Failed to spawn widget.'
+    lastError.value = (error as Error).message || t('devtools.pages.widgets-calling.errors.spawn_failed')
   }
   finally {
     busy.value = false
@@ -164,7 +168,7 @@ async function handleAdd() {
 
 async function handleUpdate() {
   if (!form.id) {
-    lastError.value = 'Widget id is required to update.'
+    lastError.value = t('devtools.pages.widgets-calling.errors.widget_id_required_update')
     return
   }
 
@@ -177,10 +181,10 @@ async function handleUpdate() {
       id: form.id,
       componentProps,
     })
-    lastAction.value = `Updated widget (${form.id}).`
+    lastAction.value = t('devtools.pages.widgets-calling.feedback.updated', { id: form.id })
   }
   catch (error) {
-    lastError.value = (error as Error).message || 'Failed to update widget.'
+    lastError.value = (error as Error).message || t('devtools.pages.widgets-calling.errors.update_failed')
   }
   finally {
     busy.value = false
@@ -189,7 +193,7 @@ async function handleUpdate() {
 
 async function handleRemove() {
   if (!form.id) {
-    lastError.value = 'Widget id is required to remove.'
+    lastError.value = t('devtools.pages.widgets-calling.errors.widget_id_required_remove')
     return
   }
 
@@ -198,10 +202,10 @@ async function handleRemove() {
 
   try {
     await removeWidget({ id: form.id })
-    lastAction.value = `Removed widget (${form.id}).`
+    lastAction.value = t('devtools.pages.widgets-calling.feedback.removed', { id: form.id })
   }
   catch (error) {
-    lastError.value = (error as Error).message || 'Failed to remove widget.'
+    lastError.value = (error as Error).message || t('devtools.pages.widgets-calling.errors.remove_failed')
   }
   finally {
     busy.value = false
@@ -214,10 +218,10 @@ async function handleClear() {
 
   try {
     await clearWidgets()
-    lastAction.value = 'Cleared all widgets.'
+    lastAction.value = t('devtools.pages.widgets-calling.feedback.cleared')
   }
   catch (error) {
-    lastError.value = (error as Error).message || 'Failed to clear widgets.'
+    lastError.value = (error as Error).message || t('devtools.pages.widgets-calling.errors.clear_failed')
   }
   finally {
     busy.value = false
@@ -250,10 +254,10 @@ function applyMapPreset() {
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
         <p class="text-sm text-neutral-500 dark:text-neutral-300">
-          Spawn widgets in the overlay window to validate component-calling integrations.
+          {{ t('devtools.pages.widgets-calling.description') }}
         </p>
         <p class="text-xs text-neutral-400 dark:text-neutral-500">
-          Provide an existing id to mutate a widget or leave blank to spawn a new one.
+          {{ t('devtools.pages.widgets-calling.hint') }}
         </p>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -262,14 +266,14 @@ function applyMapPreset() {
           :disabled="busy"
           @click="applyWeatherPreset"
         >
-          Weather Preset
+          {{ t('devtools.pages.widgets-calling.presets.weather.label') }}
         </Button>
         <Button
           variant="secondary"
           :disabled="busy"
           @click="applyMapPreset"
         >
-          Map Preset
+          {{ t('devtools.pages.widgets-calling.presets.map.label') }}
         </Button>
       </div>
     </div>
@@ -277,39 +281,39 @@ function applyMapPreset() {
     <div class="grid gap-4 md:grid-cols-2">
       <FieldInput
         v-model="form.id"
-        label="Widget Id"
-        description="Optional. Fills automatically after spawning."
-        placeholder="Auto-generated if empty"
+        :label="t('devtools.pages.widgets-calling.fields.widget_id.label')"
+        :description="t('devtools.pages.widgets-calling.fields.widget_id.description')"
+        :placeholder="t('devtools.pages.widgets-calling.fields.widget_id.placeholder')"
         :required="false"
       />
       <FieldInput
         v-model="form.componentName"
-        label="Component Name"
-        description="Matches a component registered in the widgets overlay."
-        placeholder="e.g. weather"
+        :label="t('devtools.pages.widgets-calling.fields.component_name.label')"
+        :description="t('devtools.pages.widgets-calling.fields.component_name.description')"
+        :placeholder="t('devtools.pages.widgets-calling.fields.component_name.placeholder')"
       />
     </div>
 
     <div class="grid gap-4 md:grid-cols-3">
       <FieldSelect
         v-model="form.sizePreset"
-        label="Size Preset"
-        description="Choose a preset or opt into custom spans."
+        :label="t('devtools.pages.widgets-calling.fields.size_preset.label')"
+        :description="t('devtools.pages.widgets-calling.fields.size_preset.description')"
         :options="sizePresetOptions"
-        placeholder="Select size"
+        :placeholder="t('devtools.pages.widgets-calling.fields.size_preset.placeholder')"
       />
       <FieldInput
         v-model="form.customCols"
-        label="Custom Columns"
-        description="Used when preset is Custom."
+        :label="t('devtools.pages.widgets-calling.fields.custom_columns.label')"
+        :description="t('devtools.pages.widgets-calling.fields.custom_columns.description')"
         type="number"
         min="1"
         :disabled="form.sizePreset !== 'custom'"
       />
       <FieldInput
         v-model="form.customRows"
-        label="Custom Rows"
-        description="Used when preset is Custom."
+        :label="t('devtools.pages.widgets-calling.fields.custom_rows.label')"
+        :description="t('devtools.pages.widgets-calling.fields.custom_rows.description')"
         type="number"
         min="1"
         :disabled="form.sizePreset !== 'custom'"
@@ -318,8 +322,8 @@ function applyMapPreset() {
 
     <FieldInput
       v-model="form.ttlSeconds"
-      label="TTL (seconds)"
-      description="0 keeps the widget alive until closed manually."
+      :label="t('devtools.pages.widgets-calling.fields.ttl.label')"
+      :description="t('devtools.pages.widgets-calling.fields.ttl.description')"
       type="number"
       min="0"
       placeholder="0"
@@ -328,8 +332,8 @@ function applyMapPreset() {
 
     <FieldTextArea
       v-model="form.componentProps"
-      label="Component Props (JSON)"
-      description="Provide valid JSON for the widget props."
+      :label="t('devtools.pages.widgets-calling.fields.component_props.label')"
+      :description="t('devtools.pages.widgets-calling.fields.component_props.description')"
       :rows="8"
     />
 
@@ -339,21 +343,21 @@ function applyMapPreset() {
         :disabled="busy"
         @click="handleAdd"
       >
-        Spawn / Replace
+        {{ t('devtools.pages.widgets-calling.actions.spawn_replace') }}
       </Button>
       <Button
         variant="secondary"
         :disabled="busy"
         @click="handleUpdate"
       >
-        Update Props
+        {{ t('devtools.pages.widgets-calling.actions.update_props') }}
       </Button>
       <Button
         variant="secondary"
         :disabled="busy"
         @click="handleRemove"
       >
-        Remove Widget
+        {{ t('devtools.pages.widgets-calling.actions.remove_widget') }}
       </Button>
       <Button
         class="ml-auto"
@@ -361,7 +365,7 @@ function applyMapPreset() {
         :disabled="busy"
         @click="handleClear"
       >
-        Clear All
+        {{ t('devtools.pages.widgets-calling.actions.clear_all') }}
       </Button>
     </div>
 

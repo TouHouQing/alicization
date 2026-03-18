@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: Visibilité sur tous les bureaux
   description: Permet à la fenêtre d’être visible sur tous les bureaux, macOS uniquement.
+about:
+  page:
+    title: À propos
+    highlight: Alicization
+    subtitle: Consultez au même endroit la vie de bureau, le rendu de la scène et le runtime d’Alicization.
+    current_version: Version actuelle
+    links: Liens
+  links:
+    home: Accueil
+    documentation: Documentation
+    github: GitHub
+  update:
+    actions:
+      download: Télécharger la mise à jour
+      checking: Recherche des mises à jour...
+      latest: À jour
+      disabled: Mises à jour désactivées
+      retry: Réessayer
+      check: Vérifier les mises à jour
+      restart: Redémarrer pour installer
+      confirm_restart: Redémarrer et installer
+      cancel: Annuler
+      confirm_download: Télécharger maintenant
+      download_short: Télécharger
+    status:
+      downloading: Téléchargement de la mise à jour
+      ready: 'La version {version} est prête. Redémarrez pour terminer l’installation.'
+      error: 'La vérification des mises à jour a échoué : {error}'
+      available_title: Mise à jour disponible
+      available_description: 'La version {version} est prête à être téléchargée. Consultez d’abord les notes de version.'
+      no_release_notes: Aucune note de version n’a été fournie pour cette version.
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: Outil useWindowsMouse
             description: Tester la position du curseur dans la fenêtre Electron
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: 'Fenêtre {width} x {height}'
+            center: 'Centre ({x}, {y})'
+            legend: Le point vert indique la position actuelle du curseur dans la fenêtre
 devtools:
   title: Développeur
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: Tester l'analyse et le rendu Markdown avec des charges de chat lourdes
     widgets-calling:
       title: Appel de widgets
+      description: Créez, mettez à jour et supprimez des widgets flottants pour tester l’intégration du bureau.
+      hint: Utilisez les préréglages pour remplir rapidement les props du composant avant l’envoi.
+      presets:
+        weather:
+          label: Préréglage météo
+          data:
+            city: Tokyo
+            condition: Pluie légère
+        map:
+          label: Préréglage carte
+          data:
+            title: Trajet vers l’aéroport
+            mode: Navette aéroport
+            status: À l’heure
+            origin: Maison
+            stop_1: Arrêt 1
+            stop_2: Correspondance
+            stop_3: Terminal
+      size_presets:
+        small: Petit
+        medium: Moyen
+        large: Grand
+        custom: Personnalisé
+      fields:
+        widget_id:
+          label: ID du widget
+          description: Réutilisez un ID existant pour remplacer ou mettre à jour cette fenêtre de widget.
+          placeholder: Laisser vide pour générer automatiquement
+        component_name:
+          label: Nom du composant
+          description: Composant de widget enregistré à afficher, par exemple weather ou map.
+          placeholder: weather
+        size_preset:
+          label: Préréglage de taille
+          description: Choisissez une taille prédéfinie ou passez à une grille personnalisée.
+          placeholder: Sélectionnez un préréglage...
+        custom_columns:
+          label: Colonnes personnalisées
+          description: Colonnes de grille utilisées lorsque la taille est personnalisée.
+        custom_rows:
+          label: Lignes personnalisées
+          description: Lignes de grille utilisées lorsque la taille est personnalisée.
+        ttl:
+          label: Suppression automatique après (secondes)
+          description: Définissez 0 pour conserver le widget jusqu’à sa suppression manuelle.
+        component_props:
+          label: Props du composant (JSON)
+          description: Charge utile JSON transmise au composant du widget.
+      actions:
+        spawn_replace: Créer / Remplacer le widget
+        update_props: Mettre à jour les props
+        remove_widget: Supprimer le widget
+        clear_all: Tout supprimer
+      feedback:
+        spawned: 'La fenêtre du widget est prête{suffix}'
+        updated: 'Widget {id} mis à jour'
+        removed: 'Widget {id} supprimé'
+        cleared: Tous les widgets ont été supprimés
+      errors:
+        invalid_json: 'JSON invalide : {error}'
+        invalid_ttl: Le TTL doit être 0 ou un nombre positif.
+        component_name_required: Le nom du composant est requis.
+        spawn_failed: Impossible de créer le widget.
+        widget_id_required_update: L’ID du widget est requis pour mettre à jour les props.
+        update_failed: Impossible de mettre à jour les props du widget.
+        widget_id_required_remove: L’ID du widget est requis pour le supprimer.
+        remove_failed: Impossible de supprimer le widget.
+        clear_failed: Impossible d’effacer les widgets.
+inlay:
+  title: Laboratoire des matériaux de fenêtre
+  description: Ajustez la vibrance et le matériau d’arrière-plan de la fenêtre incrustée actuelle.
+  vibrancy:
+    label: Vibrancy
+    description: Appliquez à cette fenêtre un préréglage de vibrance macOS.
+    options:
+      titlebar: Barre de titre
+      selection: Sélection
+      menu: Menu
+      popover: Popover
+      sidebar: Barre latérale
+      header: En-tête
+      sheet: Feuille
+      window: Fenêtre
+      hud: HUD
+      fullscreen_ui: Interface plein écran
+      tooltip: Info-bulle
+      content: Contenu
+      under_window: Sous la fenêtre
+      under_page: Sous la page
+  background_material:
+    label: Matériau d’arrière-plan
+    description: Applique un matériau système Windows lorsqu’il est disponible.
+    options:
+      auto: Auto
+      none: Aucun
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: À onglets
 screen-capture:
   permissions-prompt:
     title: Capture d'écran
@@ -52,3 +187,25 @@ screen-capture:
       step-1: Ouvrir les "Préférences Système", sélectionnez "Confidentialité et Sécurité" dans la barre latérale.
       step-2: Dans les sections "Enregistrement de l'écran et de l'audio du système" et "Enregistrement de l'audio du système uniquement", activez les interrupteurs pour Alicization.
       step-2-note: Si Alicization n'est pas listé, veuillez l'ajouter manuellement en cliquant sur le bouton "+" et en sélectionnant Alicization dans le dossier Applications.
+  devtools:
+    categories:
+      applications: Applications
+      displays: Écrans
+      devices: Appareils
+    actions:
+      loading: Chargement...
+      refetching: Actualisation...
+      refetch: Actualiser
+      share_screen: Partager l’écran
+      share_device: Partager l’appareil
+      share_window: Partager la fenêtre
+      stop: Arrêter
+    capture_status: Capture active
+    loading_sources: Chargement des sources de capture...
+    alt:
+      thumbnail: Miniature de la source de capture
+      screen_icon: Icône d’écran
+      window_icon: Icône de fenêtre
+    empty:
+      title: Aucune source dans cette catégorie
+      description: Essayez une autre catégorie ou actualisez la liste des sources de capture.

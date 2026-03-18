@@ -56,7 +56,7 @@ function handleClick(providerId: string) {
 <template>
   <div h-full w-full flex flex-col gap-2>
     <h2 text="neutral-900 dark:neutral-100" mb-1 flex justify-between>
-      Provider Catalog
+      {{ t('settings.pages.providers.catalog_v2.title') }}
     </h2>
     <Splitpanes class="flex gap-0.8 bg-transparent">
       <Pane :min-size="10" :size="paneDatasourceListSize">
@@ -69,10 +69,10 @@ function handleClick(providerId: string) {
           <div relative h-full w-full flex flex-col gap-2>
             <div relative flex flex-1 flex-col gap-2>
               <div :class="['flex flex-row items-center gap-2']">
-                <Input placeholder="Search configured..." variant="primary-dimmed" />
+                <Input :placeholder="t('settings.pages.providers.catalog_v2.search_configured')" variant="primary-dimmed" />
 
                 <DropdownMenuRoot>
-                  <DropdownMenuTrigger as-child aria-label="Customize options">
+                  <DropdownMenuTrigger as-child :aria-label="t('settings.pages.providers.catalog_v2.actions.customize_options')">
                     <Button size="sm">
                       <div i-ph:plus-light />
                     </Button>
@@ -90,7 +90,7 @@ function handleClick(providerId: string) {
                       :side-offset="8"
                       align="start"
                     >
-                      <Input v-model="availableProviderSearchQuery" placeholder="Search supported providers..." class="mb-2" variant="primary-dimmed" />
+                      <Input v-model="availableProviderSearchQuery" :placeholder="t('settings.pages.providers.catalog_v2.search_supported')" class="mb-2" variant="primary-dimmed" />
                       <div class="max-h-50dvh flex flex-col gap-1 overflow-y-auto">
                         <div v-for="(provider) in availableProvidersFiltered" :key="provider.id" @click="() => handleAdd(provider.id)">
                           <div
@@ -113,7 +113,7 @@ function handleClick(providerId: string) {
               <div v-if="Object.keys(providerCatalogStore.configs).length === 0" class="text-neutral-500 <lg:px-4" flex flex-1 flex-col items-center justify-center gap-2>
                 <div i-ph:rectangle-dashed-light text-4xl />
                 <div flex items-center justify-center gap-2>
-                  <span>No providers</span>
+                  <span>{{ t('settings.pages.providers.catalog_v2.empty') }}</span>
                 </div>
               </div>
 

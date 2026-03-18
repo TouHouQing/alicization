@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: Hiển thị ở mọi nơi
   description: Cho phép cửa sổ hiển thị trên tất cả workspaces, chỉ áp dụng cho macOS.
+about:
+  page:
+    title: Giới thiệu
+    highlight: Alicization
+    subtitle: Xem tổng quan về hiện diện desktop, dựng cảnh sân khấu và runtime Alicization ở cùng một nơi.
+    current_version: Phiên bản hiện tại
+    links: Liên kết
+  links:
+    home: Trang chủ
+    documentation: Tài liệu
+    github: GitHub
+  update:
+    actions:
+      download: Tải bản cập nhật
+      checking: Đang kiểm tra cập nhật...
+      latest: Đã là bản mới nhất
+      disabled: Đã tắt cập nhật
+      retry: Thử lại
+      check: Kiểm tra cập nhật
+      restart: Khởi động lại để cài đặt
+      confirm_restart: Khởi động lại và cài đặt
+      cancel: Hủy
+      confirm_download: Tải ngay
+      download_short: Tải xuống
+    status:
+      downloading: Đang tải bản cập nhật
+      ready: 'Phiên bản {version} đã sẵn sàng. Hãy khởi động lại để hoàn tất cài đặt.'
+      error: 'Kiểm tra cập nhật thất bại: {error}'
+      available_title: Có bản cập nhật mới
+      available_description: 'Phiên bản {version} đã sẵn sàng để tải xuống. Hãy xem ghi chú phát hành trước.'
+      no_release_notes: Bản phát hành này không có ghi chú phát hành.
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: Công cụ useWindowMouse
             description: Kiểm tra vị trí con trỏ chuột trong cửa sổ Electron
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: 'Cửa sổ {width} x {height}'
+            center: 'Tâm ({x}, {y})'
+            legend: Chấm xanh biểu thị vị trí con trỏ hiện tại bên trong cửa sổ
 devtools:
   title: Nhà phát triển
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: Kiểm tra khả năng xử lý và hiển thị Markdown với dữ liệu hội thoại lớn
     widgets-calling:
       title: Gọi Widget
+      description: Tạo, cập nhật và xoá các widget nổi để kiểm thử tích hợp desktop.
+      hint: Hãy dùng preset để điền nhanh props của component trước khi gửi.
+      presets:
+        weather:
+          label: Preset thời tiết
+          data:
+            city: Tokyo
+            condition: Mưa nhẹ
+        map:
+          label: Preset bản đồ
+          data:
+            title: Tuyến đường ra sân bay
+            mode: Xe buýt sân bay
+            status: Đúng giờ
+            origin: Nhà
+            stop_1: Điểm dừng 1
+            stop_2: Trung chuyển
+            stop_3: Nhà ga
+      size_presets:
+        small: Nhỏ
+        medium: Vừa
+        large: Lớn
+        custom: Tùy chỉnh
+      fields:
+        widget_id:
+          label: ID widget
+          description: Dùng lại ID widget có sẵn để thay thế hoặc cập nhật cửa sổ đó.
+          placeholder: Để trống để tự tạo
+        component_name:
+          label: Tên component
+          description: Tên component widget đã đăng ký để hiển thị, ví dụ weather hoặc map.
+          placeholder: weather
+        size_preset:
+          label: Preset kích thước
+          description: Chọn kích thước có sẵn hoặc chuyển sang lưới tùy chỉnh.
+          placeholder: Chọn preset kích thước...
+        custom_columns:
+          label: Cột tùy chỉnh
+          description: Số cột lưới dùng khi kích thước ở chế độ tùy chỉnh.
+        custom_rows:
+          label: Hàng tùy chỉnh
+          description: Số hàng lưới dùng khi kích thước ở chế độ tùy chỉnh.
+        ttl:
+          label: Tự xóa sau (giây)
+          description: Đặt 0 để giữ widget cho đến khi bạn xóa thủ công.
+        component_props:
+          label: Props của component (JSON)
+          description: Dữ liệu JSON truyền vào component widget.
+      actions:
+        spawn_replace: Tạo / Thay thế widget
+        update_props: Cập nhật props
+        remove_widget: Xóa widget
+        clear_all: Xóa tất cả widget
+      feedback:
+        spawned: 'Cửa sổ widget đã sẵn sàng{suffix}'
+        updated: 'Đã cập nhật widget {id}'
+        removed: 'Đã xóa widget {id}'
+        cleared: Đã xóa toàn bộ widget
+      errors:
+        invalid_json: 'JSON không hợp lệ: {error}'
+        invalid_ttl: TTL phải bằng 0 hoặc là số dương.
+        component_name_required: Bắt buộc phải có tên component.
+        spawn_failed: Không thể tạo widget.
+        widget_id_required_update: Cần có ID widget để cập nhật props.
+        update_failed: Không thể cập nhật props của widget.
+        widget_id_required_remove: Cần có ID widget để xóa.
+        remove_failed: Không thể xóa widget.
+        clear_failed: Không thể xóa toàn bộ widget.
+inlay:
+  title: Khu thử nghiệm vật liệu cửa sổ
+  description: Điều chỉnh vibrancy và vật liệu nền cho cửa sổ inlay hiện tại.
+  vibrancy:
+    label: Vibrancy
+    description: Áp dụng preset vibrancy của macOS cho cửa sổ này.
+    options:
+      titlebar: Thanh tiêu đề
+      selection: Lựa chọn
+      menu: Menu
+      popover: Popover
+      sidebar: Thanh bên
+      header: Đầu trang
+      sheet: Sheet
+      window: Cửa sổ
+      hud: HUD
+      fullscreen_ui: Giao diện toàn màn hình
+      tooltip: Tooltip
+      content: Nội dung
+      under_window: Bên dưới cửa sổ
+      under_page: Bên dưới trang
+  background_material:
+    label: Vật liệu nền
+    description: Áp dụng vật liệu hệ thống Windows khi khả dụng.
+    options:
+      auto: Tự động
+      none: Không có
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: Theo tab
 screen-capture:
   permissions-prompt:
     title: Chụp ảnh màn hình
@@ -52,3 +187,25 @@ screen-capture:
       step-1: Mở "Tùy chọn hệ thống", chọn "Quyền riêng tư & Bảo mật" từ thanh bên.
       step-2: Trong phần "Ghi màn hình & Âm thanh hệ thống" và "Chỉ ghi âm thanh hệ thống", hãy bật công tắc cho Alicization.
       step-2-note: Nếu không thấy Alicization trong danh sách, vui lòng thêm thủ công bằng cách nhấn nút "+" và chọn Alicization từ thư mục Ứng dụng (Applications).
+  devtools:
+    categories:
+      applications: Ứng dụng
+      displays: Màn hình
+      devices: Thiết bị
+    actions:
+      loading: Đang tải...
+      refetching: Đang làm mới...
+      refetch: Làm mới
+      share_screen: Chia sẻ màn hình
+      share_device: Chia sẻ thiết bị
+      share_window: Chia sẻ cửa sổ
+      stop: Dừng
+    capture_status: Đang ghi hình
+    loading_sources: Đang tải nguồn chụp...
+    alt:
+      thumbnail: Ảnh thu nhỏ của nguồn chụp
+      screen_icon: Biểu tượng màn hình
+      window_icon: Biểu tượng cửa sổ
+    empty:
+      title: Không có nguồn nào trong danh mục này
+      description: Hãy thử danh mục khác hoặc làm mới danh sách nguồn chụp.

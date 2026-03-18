@@ -371,26 +371,26 @@ onBeforeUnmount(async () => {
         >
           <FieldInput
             v-model="credentials.accessKeyId"
-            label="Access Key ID"
+            :label="t('settings.pages.providers.provider.aliyun-nls.fields.access_key_id.label')"
             placeholder="LTAI..."
           />
 
           <FieldInput
             v-model="credentials.accessKeySecret"
-            label="Access Key Secret"
+            :label="t('settings.pages.providers.provider.aliyun-nls.fields.access_key_secret.label')"
             type="password"
             placeholder="****************"
           />
 
           <FieldInput
             v-model="credentials.appKey"
-            label="App Key"
-            placeholder="请输入 AppKey"
+            :label="t('settings.pages.providers.provider.aliyun-nls.fields.app_key.label')"
+            :placeholder="t('settings.pages.providers.provider.aliyun-nls.fields.app_key.placeholder')"
           />
 
           <FieldSelect
             v-model="credentials.region"
-            label="Region"
+            :label="t('settings.pages.providers.provider.aliyun-nls.fields.region.label')"
             :options="regionOptions"
             layout="vertical"
           />

@@ -914,6 +914,7 @@ pages:
             region:
               description: Región del Servicio de Voz
               label: Región
+              placeholder: "p. ej., eastasia"
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -963,6 +964,9 @@ pages:
         description: perplexity.ai
         title: Perplexity
       player2:
+        alert:
+          download_intro: "Descarga y ejecuta la aplicación Player2:"
+          discord_intro: "Si después de descargarla sigue sin funcionar, contáctanos en Discord:"
         description: player2.game
         title: Player2
       together:
@@ -1009,6 +1013,15 @@ pages:
       browser-web-speech-api:
         description: Browser-native STT (requires Chrome/Edge/Safari)
         title: Web Speech API
+      common:
+        speech_model:
+          label: Modelo
+          select_description: Selecciona el modelo de síntesis de voz que se usará para la reproducción
+          manual_description: Introduce manualmente el nombre del modelo de síntesis de voz cuando este proveedor acepte IDs de modelo personalizados
+          manual_placeholder: "Introduce un ID de modelo, por ejemplo {example}"
+          select_placeholder: Selecciona un modelo...
+        playground:
+          default_text: "¡Hola! Esto es una prueba de síntesis de voz."
       transcriptions:
         playground:
           title: Playground de Transcripción

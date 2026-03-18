@@ -17,6 +17,6 @@ const { x, y } = useElectronMouse()
 <route lang="yaml">
 meta:
   layout: settings
-  title: useWindowMouse
+  titleKey: tamagotchi.settings.pages.system.developer.sections.section.use-window-mouse.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

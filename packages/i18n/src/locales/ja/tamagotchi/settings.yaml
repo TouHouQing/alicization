@@ -1,6 +1,37 @@
 allow-visible-on-all-workspaces:
   title: すべてのワークスペースで表示
   description: ウィンドウをすべてのワークスペースで表示可能にします。macOSのみ。
+about:
+  page:
+    title: このアプリについて
+    highlight: Alicization
+    subtitle: デスクトップ上の存在感、ステージ描画、Alicization ランタイムをまとめて確認できます。
+    current_version: 現在のバージョン
+    links: リンク
+  links:
+    home: ホーム
+    documentation: ドキュメント
+    github: GitHub
+  update:
+    actions:
+      download: 更新をダウンロード
+      checking: 更新を確認中...
+      latest: 最新です
+      disabled: 更新は無効です
+      retry: 再試行
+      check: 更新を確認
+      restart: 再起動してインストール
+      confirm_restart: 再起動してインストール
+      cancel: キャンセル
+      confirm_download: 今すぐダウンロード
+      download_short: ダウンロード
+    status:
+      downloading: 更新をダウンロード中
+      ready: "バージョン {version} の準備ができました。再起動してインストールを完了してください。"
+      error: "更新の確認に失敗しました: {error}"
+      available_title: 更新があります
+      available_description: "バージョン {version} をダウンロードできます。先にリリースノートを確認してください。"
+      no_release_notes: このリリースにはリリースノートがありません。
 pages:
   modules:
     mcp-server:
@@ -27,6 +58,12 @@ pages:
           use-window-mouse:
             title: useWindowMouse Tool
             description: Electronウィンドウのカーソル位置をテストします
+          relative-mouse:
+            formula_x: "relativeX = cursorX - windowX"
+            formula_y: "relativeY = cursorY - windowY"
+            window: "ウィンドウ {width} x {height}"
+            center: "中心 ({x}, {y})"
+            legend: 緑の点はウィンドウ内での現在のカーソル位置を示します
 devtools:
   title: 開発者
   pages:
@@ -42,6 +79,104 @@ devtools:
       description: 大量のチャットデータを含むMarkdownの解析とレンダリング負荷のテスト
     widgets-calling:
       title: ウィジェット呼び出し
+      description: デスクトップ連携テスト用にフローティングウィジェットを生成、更新、削除します。
+      hint: プリセットを使うと、送信前にコンポーネント props をすばやく埋められます。
+      presets:
+        weather:
+          label: 天気プリセット
+          data:
+            city: 東京
+            condition: 小雨
+        map:
+          label: 地図プリセット
+          data:
+            title: 空港ルート
+            mode: 空港バス
+            status: 定刻
+            origin: 自宅
+            stop_1: 停留所 1
+            stop_2: 乗り換え
+            stop_3: ターミナル
+      size_presets:
+        small: 小
+        medium: 中
+        large: 大
+        custom: カスタム
+      fields:
+        widget_id:
+          label: ウィジェット ID
+          description: 既存のウィジェット ID を再利用すると、そのウィンドウを置き換えまたは更新します。
+          placeholder: 空欄で自動生成
+        component_name:
+          label: コンポーネント名
+          description: 描画する登録済みウィジェットコンポーネント名です。例: weather / map
+          placeholder: weather
+        size_preset:
+          label: サイズプリセット
+          description: 既定サイズを選ぶか、カスタムグリッド寸法に切り替えます。
+          placeholder: サイズプリセットを選択...
+        custom_columns:
+          label: カスタム列数
+          description: サイズがカスタムの場合に使うグリッド列数です。
+        custom_rows:
+          label: カスタム行数
+          description: サイズがカスタムの場合に使うグリッド行数です。
+        ttl:
+          label: 自動削除までの秒数
+          description: 0 にすると手動で削除するまでウィジェットを保持します。
+        component_props:
+          label: コンポーネント Props (JSON)
+          description: ウィジェットコンポーネントへ渡す JSON データです。
+      actions:
+        spawn_replace: 生成 / 置き換え
+        update_props: Props を更新
+        remove_widget: ウィジェットを削除
+        clear_all: すべて削除
+      feedback:
+        spawned: "ウィジェットウィンドウの準備ができました{suffix}"
+        updated: "ウィジェット {id} を更新しました"
+        removed: "ウィジェット {id} を削除しました"
+        cleared: すべてのウィジェットを削除しました
+      errors:
+        invalid_json: "JSON が無効です: {error}"
+        invalid_ttl: TTL は 0 または正の数である必要があります。
+        component_name_required: コンポーネント名は必須です。
+        spawn_failed: ウィジェットの生成に失敗しました。
+        widget_id_required_update: Props を更新するにはウィジェット ID が必要です。
+        update_failed: ウィジェット props の更新に失敗しました。
+        widget_id_required_remove: 削除するにはウィジェット ID が必要です。
+        remove_failed: ウィジェットの削除に失敗しました。
+        clear_failed: ウィジェットの一括削除に失敗しました。
+inlay:
+  title: ウィンドウ素材プレイグラウンド
+  description: 現在の埋め込みウィンドウの vibrancy と背景素材を調整します。
+  vibrancy:
+    label: Vibrancy
+    description: このウィンドウに macOS の vibrancy プリセットを適用します。
+    options:
+      titlebar: タイトルバー
+      selection: 選択
+      menu: メニュー
+      popover: ポップオーバー
+      sidebar: サイドバー
+      header: ヘッダー
+      sheet: シート
+      window: ウィンドウ
+      hud: HUD
+      fullscreen_ui: フルスクリーン UI
+      tooltip: ツールチップ
+      content: コンテンツ
+      under_window: ウィンドウ背面
+      under_page: ページ背面
+  background_material:
+    label: 背景素材
+    description: 利用可能な場合は Windows のシステム素材を適用します。
+    options:
+      auto: 自動
+      none: なし
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: タブ付き
 screen-capture:
   permissions-prompt:
     title: 画面キャプチャ
@@ -52,3 +187,25 @@ screen-capture:
       step-1: '「システム設定」を開き、サイドバーから「プライバシーとセキュリティ」を選択します。'
       step-2: '「画面&システム音声録音」および「システム音声録音のみ」のセクションで、Alicization用のスイッチをオンにしてください。'
       step-2-note: Alicizationが表示されていない場合は、「+」ボタンをクリックして「アプリケーション」フォルダから「Alicization」を選択して手動で追加してください。
+  devtools:
+    categories:
+      applications: アプリケーション
+      displays: ディスプレイ
+      devices: デバイス
+    actions:
+      loading: 読み込み中...
+      refetching: 更新中...
+      refetch: 再読み込み
+      share_screen: 画面を共有
+      share_device: デバイスを共有
+      share_window: ウィンドウを共有
+      stop: 停止
+    capture_status: 共有中のキャプチャ
+    loading_sources: キャプチャソースを読み込み中...
+    alt:
+      thumbnail: キャプチャソースのサムネイル
+      screen_icon: 画面アイコン
+      window_icon: ウィンドウアイコン
+    empty:
+      title: このカテゴリにはソースがありません
+      description: 別のカテゴリを試すか、キャプチャソース一覧を再読み込みしてください。

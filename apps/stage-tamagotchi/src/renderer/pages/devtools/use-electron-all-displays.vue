@@ -141,6 +141,6 @@ const containerDimensions = computed(() => {
 <route lang="yaml">
 meta:
   layout: settings
-  title: useElectronAllDisplays
+  titleKey: settings.pages.system.sections.section.developer.sections.section.displays.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

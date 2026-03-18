@@ -132,7 +132,7 @@ async function handleGenerateSpeech(input: string, voiceId: string, useSSML: boo
         v-model="region"
         :label="t('settings.pages.providers.provider.microsoft-speech.fields.field.region.label')"
         :description="t('settings.pages.providers.provider.microsoft-speech.fields.field.region.description')"
-        placeholder="eastasia"
+        :placeholder="t('settings.pages.providers.provider.microsoft-speech.fields.field.region.placeholder')"
         required
         type="text"
       />
@@ -176,7 +176,7 @@ async function handleGenerateSpeech(input: string, voiceId: string, useSSML: boo
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        default-text="Hello! This is a test of the Microsoft Speech synthesis."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
   </SpeechProviderSettings>

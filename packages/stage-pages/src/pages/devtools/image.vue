@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useClipboard } from '@vueuse/core'
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const image = ref<File>()
 const imageDataURL = ref<string>('')
 const { copy } = useClipboard({ source: imageDataURL })
+const { t } = useI18n()
 
 async function readAsDataURL(file: File) {
   return new Promise<string>((resolve, reject) => {
@@ -37,15 +39,15 @@ async function handleFileChange(event: Event) {
   <div>
     <label bg="neutral-100" flex="~ col" items-center justify-center rounded-lg px-4 py-3>
       <input type="file" accept="image/*" hidden @change="handleFileChange">
-      <span>Upload Image</span>
+      <span>{{ t('settings.pages.system.sections.section.developer.sections.section.image.actions.upload') }}</span>
     </label>
     <div v-if="imageDataURL">
-      <img :src="imageDataURL" alt="Uploaded Image" w-100>
+      <img :src="imageDataURL" :alt="t('settings.pages.system.sections.section.developer.sections.section.image.preview_alt')" w-100>
       <pre bg="neutral-100" class="text-wrap-any" max-h="100" overflow-scroll rounded-lg text-wrap text-black font-mono>
         {{ imageDataURL }}
       </pre>
       <button bg="primary-500" text="white" mt-4 rounded-lg px-4 py-2 @click="() => copy()">
-        Copy Data URL
+        {{ t('settings.pages.system.sections.section.developer.sections.section.image.actions.copy_data_url') }}
       </button>
     </div>
   </div>
@@ -62,6 +64,6 @@ async function handleFileChange(event: Event) {
 <route lang="yaml">
 meta:
   layout: settings
-  title: Image
+  titleKey: settings.pages.system.sections.section.developer.sections.section.image.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

@@ -33,18 +33,18 @@ const totalProgress = computed(() => {
       <div v-if="atLeastOneLoading" flex items-center gap-2 text="sm orange-600 dark:orange-400">
         <div i-solar:danger-triangle-bold-duotone />
         <div text-nowrap>
-          Some modules haven't been available yet...
+          {{ t('tamagotchi.resources.loading.pending') }}
         </div>
       </div>
       <div v-else flex items-center gap-2 text="sm green-600 dark:green-400">
         <div i-solar:check-circle-bold-duotone />
         <div text-nowrap>
-          All modules are ready!
+          {{ t('tamagotchi.resources.loading.ready') }}
         </div>
       </div>
       <ul ml-4 mt-3>
         <li v-for="[moduleName, module] in resources" :key="moduleName">
-          <WindowRouterLink :to="`/settings/modules/${moduleName}`" label="settings">
+          <WindowRouterLink :to="`/settings/modules/${moduleName}`" :label="t('tamagotchi.resources.loading.settings_link')">
             <div flex items-center gap-1>
               <div flex items-center gap-1>
                 <div i-solar:microphone-3-bold-duotone text="neutral-500 dark:neutral-400" />
@@ -62,7 +62,7 @@ const totalProgress = computed(() => {
       <div v-if="totalProgress < 100" i-svg-spinners:pulse-ring />
       <div v-else i-solar:check-circle-bold-duotone text="neutral-500 dark:neutral-400" />
       <div v-if="Array(pendingResources.values()).length > 0">
-        Preparing resources...
+        {{ t('tamagotchi.resources.loading.preparing') }}
       </div>
     </div>
     <div v-if="Array(pendingResources.values()).length > 0" max-w="100%" max-h="[calc(50dvh)]" w-full flex flex-col gap-2 overflow-x-hidden overflow-y-scroll scrollbar="none">

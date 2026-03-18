@@ -50,7 +50,7 @@ const { trackProviderClick } = useAnalytics()
 
 const voiceSearchQuery = ref('')
 const useSSML = ref(false)
-const testText = ref('Hello, my name is AI Assistant')
+const testText = ref(t('settings.pages.modules.speech.sections.section.playground.default_text'))
 const ssmlText = ref('')
 const isGenerating = ref(false)
 const audioUrl = ref('')
@@ -318,9 +318,8 @@ function handleDeleteProvider(providerId: string) {
               >
                 <div i-solar:warning-circle-line-duotone class="text-2xl text-amber-500 dark:text-amber-400" />
                 <div class="flex flex-col">
-                  <span class="font-medium">No Speech Providers Configured</span>
-                  <span class="text-sm text-neutral-400 dark:text-neutral-500">Click here to set up your speech
-                    providers</span>
+                  <span class="font-medium">{{ t('settings.pages.modules.speech.sections.section.empty_providers.title') }}</span>
+                  <span class="text-sm text-neutral-400 dark:text-neutral-500">{{ t('settings.pages.modules.speech.sections.section.empty_providers.description') }}</span>
                 </div>
                 <div i-solar:arrow-right-line-duotone class="ml-auto text-xl text-neutral-400 dark:text-neutral-500" />
               </RouterLink>
@@ -345,9 +344,9 @@ function handleDeleteProvider(providerId: string) {
               <div v-if="activeSpeechProvider === 'openai-compatible-audio-speech'">
                 <FieldInput
                   :model-value="activeSpeechModel || ''"
-                  label="Model"
-                  description="Enter the TTS model to use for speech generation"
-                  placeholder="tts-1"
+                  :label="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name')"
+                  :description="t('settings.pages.modules.speech.sections.section.models.manual.description')"
+                  :placeholder="t('settings.pages.modules.speech.sections.section.models.manual.placeholder')"
                   @update:model-value="updateCustomModelName"
                 />
               </div>
@@ -371,8 +370,8 @@ function handleDeleteProvider(providerId: string) {
 
                   <FieldInput
                     :model-value="activeSpeechModel || ''"
-                    label="Model"
-                    description="Enter model name manually if model discovery fails"
+                    :label="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name')"
+                    :description="t('settings.pages.modules.speech.sections.section.models.discovery_failed')"
                     :placeholder="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_placeholder')"
                     @update:model-value="updateCustomModelName"
                   />
@@ -391,8 +390,8 @@ function handleDeleteProvider(providerId: string) {
 
                   <FieldInput
                     :model-value="activeSpeechModel || ''"
-                    label="Model"
-                    description="Enter model name manually when no models are returned"
+                    :label="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name')"
+                    :description="t('settings.pages.modules.speech.sections.section.models.no_results_manual')"
                     :placeholder="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_placeholder')"
                     @update:model-value="updateCustomModelName"
                   />
@@ -426,10 +425,10 @@ function handleDeleteProvider(providerId: string) {
         <div flex="~ col gap-4">
           <div>
             <h2 class="text-lg text-neutral-500 md:text-2xl dark:text-neutral-400">
-              Voice Configuration
+              {{ t('settings.pages.modules.speech.sections.section.voice_configuration.title') }}
             </h2>
             <div text="neutral-400 dark:neutral-500">
-              <span>Customize how your AI assistant speaks</span>
+              <span>{{ t('settings.pages.modules.speech.sections.section.voice_configuration.description') }}</span>
             </div>
           </div>
 
@@ -498,7 +497,7 @@ function handleDeleteProvider(providerId: string) {
           <ErrorContainer
             v-else-if="speechProviderError"
             class="mb-2"
-            title="Error loading voices"
+            :title="t('settings.pages.modules.speech.sections.section.voice_configuration.error_loading_voices')"
             :error="speechProviderError"
           />
 
@@ -522,16 +521,16 @@ function handleDeleteProvider(providerId: string) {
           <div flex="~ col gap-4">
             <FieldRange
               v-model="pitch"
-              label="Pitch"
-              description="Tune the pitch of the voice"
+              :label="t('settings.pages.providers.provider.common.fields.field.pitch.label')"
+              :description="t('settings.pages.providers.provider.common.fields.field.pitch.description')"
               :min="-100" :max="100" :step="1"
               :format-value="value => `${value}%`"
             />
             <!-- SSML Support -->
             <FieldCheckbox
               v-model="ssmlEnabled"
-              label="Enable SSML"
-              description="Enable Speech Synthesis Markup Language for more control over speech output"
+              :label="t('settings.pages.modules.speech.sections.section.voice_configuration.ssml_enabled.label')"
+              :description="t('settings.pages.modules.speech.sections.section.voice_configuration.ssml_enabled.description')"
             />
           </div>
 
@@ -543,16 +542,16 @@ function handleDeleteProvider(providerId: string) {
             <FieldInput
               type="text"
               :model-value="activeSpeechVoiceId || ''"
-              label="Voice Name"
-              description="Enter the voice name for your custom voice"
-              placeholder="Enter voice name (e.g., 'alloy', 'echo')"
+              :label="t('settings.pages.modules.speech.sections.section.voice_configuration.custom_voice.label')"
+              :description="t('settings.pages.modules.speech.sections.section.voice_configuration.custom_voice.description')"
+              :placeholder="t('settings.pages.modules.speech.sections.section.voice_configuration.custom_voice.placeholder')"
               @update:model-value="updateCustomVoiceName"
             />
 
             <!-- Model selection for ElevenLabs -->
             <div v-if="activeSpeechProvider === 'elevenlabs'">
               <label class="mb-1 block text-sm font-medium">
-                Model
+                {{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name') }}
               </label>
               <select
                 v-model="activeSpeechModel"
@@ -587,8 +586,8 @@ function handleDeleteProvider(providerId: string) {
         <div flex="~ col gap-4">
           <FieldCheckbox
             v-model="useSSML"
-            label="Use Custom SSML"
-            description="Enable to input raw SSML instead of plain text"
+            :label="t('settings.pages.modules.speech.sections.section.voice-settings.use-ssml.label')"
+            :description="t('settings.pages.modules.speech.sections.section.voice-settings.use-ssml.description')"
           />
 
           <template v-if="!useSSML">
@@ -601,7 +600,7 @@ function handleDeleteProvider(providerId: string) {
           <template v-else>
             <textarea
               v-model="ssmlText"
-              placeholder="Enter SSML text..."
+              :placeholder="t('settings.pages.modules.speech.sections.section.voice-settings.input-ssml.placeholder')"
               border="neutral-100 dark:neutral-800 solid 2 focus:neutral-200 dark:focus:neutral-700"
               transition="all duration-250 ease-in-out"
               bg="neutral-100 dark:neutral-800 focus:neutral-50 dark:focus:neutral-900"
@@ -628,7 +627,7 @@ function handleDeleteProvider(providerId: string) {
             >
               <div flex="~ row" items-center gap-2>
                 <div i-solar:stop-circle-bold-duotone />
-                <span>Stop</span>
+                <span>{{ t('settings.pages.modules.speech.sections.section.playground.buttons.stop.label') }}</span>
               </div>
             </button>
           </div>

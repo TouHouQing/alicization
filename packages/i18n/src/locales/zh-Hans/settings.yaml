@@ -251,6 +251,9 @@ pages:
       title: Alicization 中枢
       inactive_hint: 请先激活这张 Alicization 角色卡，再编辑其人格与记忆。
       desktop_only: Alicization 面板仅在桌面端可用。
+      architecture_boundary: >-
+        架构边界：卡片页只管理卡壳与模块绑定；人格、记忆、执行熔断统一在
+        Alicization 中枢编辑。
       runtime:
         title: 执行熔断开关
         kill_switch:
@@ -578,8 +581,102 @@ pages:
       title: 听觉
       sections:
         section:
+          audio_input:
+            label: 音频输入设备
+            description: 为听觉模块选择音频输入设备。
+            placeholder: 选择音频输入设备
+          empty_providers:
+            title: 尚未配置提供商
+            description: 点击这里去配置语音转写提供商
+          model_hint: 输入要使用的转写模型（例如 `whisper-1`、`gpt-4o-transcribe`）
+          manual_model_placeholder: whisper-1
           provider-selection:
             description: 选择合适的语音转文本的服务来源
+          auto_send:
+            title: 自动发送设置
+            description: 配置转写文本自动发送到聊天的行为
+            fields:
+              enabled:
+                label: 自动发送转写文本
+                description: 在延迟后自动将转写结果发送到聊天。如果你希望先手动检查和编辑内容，请关闭此项。
+              delay:
+                label: 自动发送延迟
+                description: 自动发送前的延迟毫秒数（0 = 立即发送，建议 1000-3000 毫秒）
+                immediate: 立即
+                seconds: '{value} 秒'
+          monitoring:
+            error_title: 发生错误
+            actions:
+              start: 开始监听
+              stop: 停止监听
+            input_level: 输入电平
+            probability:
+              label: 语音概率
+              silence: 静音
+              speech: 语音
+              threshold: 检测阈值
+            sensitivity:
+              label: 灵敏度
+              description: 调整语音检测阈值
+            speaking_detected: 检测到说话
+            mode:
+              model_based: 模型检测
+              volume_based: 音量检测
+              description: 使用 AI 模型获得更准确的语音检测
+            vad:
+              loading: 正在加载...
+              error_title: 推理错误
+              activated: 已启用
+              probability: '概率：{value}%'
+            voice_activity:
+              title: 语音活动
+              subtitle: 最近 2 秒
+              active: 说话中
+              active_legend: 检测到语音
+              inactive_legend: 静音
+              threshold: 语音阈值
+          stt_test:
+            title: 语音转文字测试
+            description: 使用当前选中的音频设备测试转写提供商，确认 STT 是否正常工作。
+            warnings:
+              select_provider: 请先在上方选择一个转写提供商
+              select_audio_input: 请先选择一个音频输入设备
+            actions:
+              start: 开始语音转文字测试
+              stop: 停止测试
+              transcribing: 正在转写...
+            error_title: 转写错误
+            streaming_hint: 流式模式：当你说话时，转写会实时显示
+            result:
+              title: 转写结果
+              current_streaming: 当前转写（流式）
+              final: 最终转写
+              empty: 还没有转写结果。点击“开始语音转文字测试”，然后对着麦克风说话。
+            summary:
+              provider: '提供商：'
+              model: '模型：'
+              mode: '模式：'
+              streaming_mode: 流式（实时）
+              recording_mode: 录音（文件）
+            status:
+              transcribing_recording: 正在转写录音...
+              complete: 转写完成！
+              failed: 转写失败
+              generic_error: '错误：{error}'
+              starting_stream: 正在启动音频流...
+              starting_streaming: 正在启动流式转写...
+              streaming: 正在转写...（流式）
+              waiting: 等待语音...
+              listening: 正在监听语音...（流式模式已激活）
+              recording: 正在录制音频用于转写...（3 秒）
+              processing: 正在处理转写...
+              stopped: 已停止
+              start_stream_error: 错误：启动音频流失败
+            errors:
+              no_result: 提供商未返回转写结果
+              select_provider: 请先选择一个转写提供商
+              select_audio_input: 请先选择一个音频输入设备
+              start_stream: 启动音频流失败，请检查麦克风权限。
     memory-long-term:
       description: 长期记忆
       title: 长期记忆
@@ -599,7 +696,17 @@ pages:
       description: 语音合成
       sections:
         section:
+          empty_providers:
+            title: 尚未配置语音提供商
+            description: 点击这里去配置语音提供商
+          models:
+            manual:
+              description: 输入用于语音生成的 TTS 模型
+              placeholder: tts-1
+            discovery_failed: 当模型发现失败时手动输入模型名
+            no_results_manual: 当没有返回模型时手动输入模型名
           playground:
+            default_text: 你好，我的名字是 AI Assistant
             buttons:
               stop:
                 label: 停止
@@ -633,6 +740,17 @@ pages:
             use-ssml:
               description: 启用后可以输入原始 SSML 而不是纯文本
               label: 选用自定义 SSML
+          voice_configuration:
+            title: 声音配置
+            description: 自定义你的 AI 助手说话方式
+            error_loading_voices: 加载音色时出错
+            ssml_enabled:
+              label: 启用 SSML
+              description: 启用语音合成标记语言，以获得更细的语音输出控制
+            custom_voice:
+              label: 声线名称
+              description: 输入自定义声线的名称
+              placeholder: 输入声线名称（例如 `alloy`、`echo`）
       title: 发声
     title: 机体模块
     vision:
@@ -669,6 +787,13 @@ pages:
         restarted: >-
           MCP 服务已重新启动，启动了{started}，未启动{failed}，跳过{skipped}
   providers:
+    catalog_v2:
+      title: 服务目录
+      search_configured: 搜索已配置项目...
+      search_supported: 搜索支持的服务来源...
+      empty: 暂无服务来源
+      actions:
+        customize_options: 自定义选项
     explained:
       chat: 文本生成模型服务来源，例如 OpenRouter, OpenAI, Ollama
       Speech: 语音（文本转语音）模型服务来源，例如 ElevenLabs, Azure Speech
@@ -914,6 +1039,7 @@ pages:
             region:
               description: 服务 Endpoint 地区（比如亚太 eastasia 区域）
               label: Endpoint 地区
+              placeholder: "例如 eastasia"
         title: Microsoft / Azure 语音服务
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -922,6 +1048,17 @@ pages:
         callout_indextts2_unavailable: 目前尚未支持 IndexTTS2，请使用 IndexTTS。
       azure-ai-foundry:
         description: Azure AI Foundry
+        fields:
+          api_version:
+            description: 当前模型快照所使用的 API 版本
+            label: API 版本
+            placeholder: 例如 2025-04-01-preview
+          model_id:
+            description: Azure AI Foundry 中配置的模型 ID
+            label: 模型 ID
+          resource_name:
+            description: 用于 https://<prefix>.services.ai.azure.com 的前缀
+            label: 资源名称
         title: Azure AI Foundry
       minimax:
         description: minimaxi.com
@@ -963,6 +1100,9 @@ pages:
         description: perplexity.ai
         title: Perplexity
       player2:
+        alert:
+          download_intro: "请先下载并启动 Player2 App："
+          discord_intro: "如果下载后仍无法使用，请在 Discord 联系我们："
         description: player2.game
         title: Player2
       together:
@@ -1005,10 +1145,104 @@ pages:
         title: Cerebras
       aliyun-nls:
         description: Aliyun 智能语音服务
+        fields:
+          access_key_id:
+            label: Access Key ID
+          access_key_secret:
+            label: Access Key Secret
+          app_key:
+            label: App Key
+            placeholder: 请输入 AppKey
+          region:
+            label: 地域
         title: Aliyun 智能语音服务
       browser-web-speech-api:
         description: 浏览器原生STT (需要 Chrome/Edge/Safari)
+        alerts:
+          browser_native:
+            description: >-
+              Web Speech API 是免费的浏览器原生语音转文字方案，不需要 API Key
+              或外部服务。
+            title: 免费的浏览器原生转写
+          not_available:
+            description: >-
+              当前浏览器不支持 Web Speech API。请使用 Chrome、Edge、Safari
+              或其他 Chromium 内核浏览器。
+            title: Web Speech API 不可用
+        basic:
+          continuous:
+            description: 保持持续监听，而不是每句结束后就停止
+            label: 连续识别
+          interim_results:
+            description: 说话时实时显示中间识别结果
+            label: 显示中间结果
+          language:
+            description: 选择语音识别所用语言
+            label: 识别语言
+          no_api_key: Web Speech API 免费且内置于浏览器中，无需 API Key。
+        test:
+          actions:
+            start: 开始语音转写测试
+            stop: 停止测试
+            transcribing: 正在转写...
+          audio_input:
+            description: 选择测试时使用的音频输入设备
+            label: 音频输入设备
+            placeholder: 请选择音频输入设备
+            select_hint: 请先选择一个音频输入设备再开始测试
+          description: >-
+            使用所选音频输入设备测试 Web Speech API 转写。此页面始终直接使用
+            Web Speech API，不受默认听觉提供方影响。
+          error_title: 转写错误
+          errors:
+            audio_unavailable: 音频流当前不可用。
+            not_available: 当前浏览器不支持 Web Speech API。
+            select_device: 请先选择一个音频输入设备。
+            start_stream: 启动音频流失败，请检查麦克风权限。
+          not_available: 当前浏览器不支持 Web Speech API
+          result:
+            current_streaming: 当前转写（流式）
+            empty: 还没有转写结果。请开始测试并对着麦克风说话。
+            final: 最终转写
+            title: 转写结果
+          status:
+            audio_unavailable: 错误：音频流不可用
+            complete: 转写完成！
+            generic_error: '错误：{error}'
+            listening: 正在监听语音...（Web Speech API 流式模式）
+            start_stream_error: 错误：启动音频流失败
+            starting_stream: 正在启动音频流...
+            starting_transcription: 正在启动 Web Speech API 转写...
+            stopped: 已停止
+            transcribing: 正在转写...（流式）
+            waiting: 正在等待语音...
+          streaming_hint: 说话时会实时显示转写内容（Web Speech API）。
+          summary:
+            continuous: 连续识别：
+            interim_results: 中间结果：
+            language: 语言：
+            mode: 模式：
+            no: 否
+            provider: 提供方：
+            streaming_mode: 流式（实时）
+            yes: 是
+          title: 语音转写测试
         title: Web 语音API
+      common:
+        speech_model:
+          label: 模型
+          select_description: 选择用于语音合成播放的模型
+          manual_description: 当提供方支持自定义模型 ID 时，手动输入语音合成模型名称
+          manual_placeholder: "输入模型 ID，例如 {example}"
+          select_placeholder: 选择一个模型...
+        playground:
+          default_text: 你好！这是一段语音合成测试。
+        transcription_model:
+          description: 选择要使用的转写模型
+          label: 模型
+          manual_description: 手动输入转写模型名称（例如 whisper-1）
+          manual_when_loading: 你可以手动输入模型名称，或等待模型列表加载完成
+          placeholder: 选择一个模型...
       transcriptions:
         playground:
           title: 实验平台
@@ -1026,6 +1260,11 @@ pages:
   scene:
     description: 配置角色所在环境
     title: 场景
+    wip:
+      label: 仍在开发中，欢迎一起完善
+      description: 该功能仍在开发阶段。如果你有建议或愿意参与贡献，欢迎前往 {issues} 联系我们。本页面源码位于 {source}。
+      issues_link: GitHub issues 页面
+      source_link: 此处
   system:
     color-scheme:
       description: 更改舞台的配色方案
@@ -1086,9 +1325,58 @@ pages:
               markdown-stress:
                 title: Markdown 压力测试
                 description: 用大量聊天负载来测试 Markdown 的解析和渲染能力
+                actions:
+                  preview:
+                    text: 预览
+                    description: 生成载荷预览
+                  replay:
+                    text_idle: 重放
+                    text_running: 中止运行
+                    text_scheduled: 取消计划
+                    description_idle: 重放到提供商
+                    description_running: 立即中止
+                    description_scheduled: 取消重放
+                  capture:
+                    text: 捕获
+                    start: 开始捕获
+                    stop: 停止捕获
+                  export:
+                    text: 导出
+                    description: 导出上一次运行
+                  mode:
+                    mock: 模式：模拟
+                    live: 模式：在线
+                    switch_live: 切换到在线提供商
+                    switch_mock: 切换到模拟流
+                states:
+                  idle: 空闲
+                  running: 运行中
+                  scheduled: 已计划
+                capturing:
+                  yes: 是
+                  no: 否
+                fields:
+                  schedule_delay: 调度延迟（毫秒）
+                run_state:
+                  title: 运行状态
+                  summary: '运行：{state}，捕获：{capturing}，事件：{events}'
+                  hint: 开启捕获可记录最近事件；导出上一次运行可离线复盘。
+                last_run:
+                  title: 上一次运行
+                  summary: '{events} 条事件，耗时 {duration} 毫秒'
+                  hint: 将上一次运行导出为 CSV 以便与团队共享。
+                traces:
+                  title: 实时轨迹
+                  summary: '捕获：{capturing}，事件：{events}'
+                payload:
+                  title: 载荷预览
+                  subtitle: 最新载荷
+                  empty: 先生成一份载荷后才能查看预览。
               use-magic-keys:
                 title: 使用MagicKeys工具
                 description: 测试快捷键
+                instruction: 按下下面这些按键进行测试
+                keys_pressed: 已按下的键
               audio-record:
                 title: 音频录制
                 description: 测试音频相关逻辑
@@ -1098,6 +1386,24 @@ pages:
               background-removal:
                 title: 背景移除 (需要 WebGPU)
                 description: 背景移除工具
+                loading: 正在加载模型...
+                auto_process: 上传后自动处理
+                processing_progress: 正在处理... {progress}%
+                process_count: 处理 {count} 张图片
+                download_all: 全部下载（{count}）
+                clear_all: 全部清空
+                empty: 还没有上传任何图片
+                table:
+                  original: 原图
+                  processed: 处理后
+                  filename: 文件名
+                  status: 状态
+                  actions: 操作
+                statuses:
+                  pending: 待处理
+                  processing: 处理中
+                  done: 已完成
+                  error: 出错
               gesture-circle:
                 title: 手势圆环
                 description: 测试圆形手势识别
@@ -1111,6 +1417,86 @@ pages:
                 title: 上下文流
                 description: >-
                   检查传入的上下文更新和传出的聊天流事件
+                actions:
+                  attention:
+                    max_attempts:
+                      description: spark:notify 处理时允许的最大重试次数。
+                      label: 最大尝试次数
+                    requeue_delay:
+                      description: 重试重新入队前额外增加的延迟。
+                      label: 重排延迟（毫秒）
+                    task_window:
+                      description: 提前多远开始提醒待处理任务。
+                      label: 任务提醒窗口（毫秒）
+                    tick_interval:
+                      description: 注意力循环被唤醒的频率。
+                      label: Tick 间隔（毫秒）
+                    title: 注意力
+                  payload:
+                    description: 发送到 ContextUpdate.text 的原始文本载荷，允许 JSON。
+                    label: 载荷
+                  send:
+                    title: 发送
+                  send_context_update: 发送上下文更新
+                  send_spark_notify: 发送 spark:notify
+                  simulate:
+                    spark_notify:
+                      description: >-
+                        spark:notify 的原始 JSON 载荷。必须包含 headline 与
+                        destinations[]；缺失的 id/eventId 会自动补全。
+                      label: spark:notify
+                    title: 模拟传入事件
+                  strategy:
+                    append: 追加
+                    label: 策略
+                    replace: 替换
+                callout:
+                  description: >-
+                    实时检查传入的上下文更新（server + broadcast）以及发出的聊天
+                    hook，用于验证插件上下文如何流入聊天管线并再流向服务端事件。
+                  label: 上下文流
+                defaults:
+                  context_payload: '{"type":"coding:context","data":{"file":{"path":"README.md"}}}'
+                  spark_notify_payload: |
+                    {
+                      "kind": "ping",
+                      "urgency": "immediate",
+                      "headline": "Minecraft 实体 `zombie` 攻击了你，生命值下降了 2 点。",
+                      "note": "来自 Minecraft 的触发",
+                      "destinations": [
+                        "character"
+                      ],
+                      "payload": {
+                        "message": "来自 Context Flow devtools 的问候"
+                      }
+                    }
+                filters:
+                  broadcast: 广播
+                  channels: 通道
+                  chat: 聊天
+                  clear: 清空
+                  devtools: 开发工具
+                  direction: 方向
+                  direction_options:
+                    all: 全部
+                    incoming: 输入
+                    outgoing: 输出
+                  max_entries:
+                    description: 50-1000（默认 200）
+                    label: 最大条目数
+                  server: 服务端
+                  show_incoming: 显示输入
+                  show_outgoing: 显示输出
+                  title: 过滤器
+                  visibility: 可见性
+                stream:
+                  completed: 流已完成
+                  empty: 还没有数据。请触发聊天、发送上下文更新，或开启广播捕获。
+                  search_placeholder: 搜索类型、来源或文本...
+                toasts:
+                  handle_error: '处理 spark:notify 时出错：{error}'
+                  invalid_spark_notify: '无效的 spark:notify：{error}'
+                  missing_required: spark:notify 缺少必填字段：headline 与 destinations[]。
               displays:
                 title: 显示器
                 description: 可视化已连接的显示器和光标位置
@@ -1123,12 +1509,115 @@ pages:
               beat-sync:
                 title: Beat Sync 可视化
                 description: 绘制 V 动作目标、轨迹和 Y/Z 标量随时间的变化
+                page:
+                  driver_title: 节拍同步驱动
+                  signals_title: 信号与调试
+                  scalars: 标量（Y / Z 随时间变化，最近 {seconds} 秒）
+                actions:
+                  hit_beat: 触发节拍
+                  hit_sequence: 触发 V 序列
+                fields:
+                  auto_style:
+                    label: 按 BPM 自动切换样式
+                    description: 根据检测到的节奏切换样式
+                  style:
+                    label: 样式
+                    description: 选择节拍之间头部运动的塑形方式
+                  base_x:
+                    label: 基础 X
+                    description: 前后俯仰基线
+                  base_y:
+                    label: 基础 Y
+                    description: 左右倾斜基线
+                  base_z:
+                    label: 基础 Z
+                    description: 旋转滚转基线
+                  scale:
+                    label: 缩放（像素/度）
+                    description: 轨迹与标记缩放
+                  trail_fade:
+                    label: 轨迹淡出
+                    description: XY 轨迹叠层透明度
+                callouts:
+                  current_targets:
+                    title: 当前目标
+                    description: 实时目标会被送入弹簧求解器。
+                  controller:
+                    title: 控制器
+                    description: 节拍目标每帧更新；这里的弹簧模型与运行时 Live2D Hook 保持一致。
+                  spring:
+                    title: 弹簧模型
+                    description: 半隐式欧拉弹簧与 Live2D Hook 一致（刚度 120、阻尼 16），目标由节拍控制器驱动。
+                styles:
+                  punchy-v: 冲击 V（10/8/4）
+                  balanced-v: 均衡 V（6/0/6）
+                  swing-lr: 左右摆动（A 字横摆）
+                  sway-sine: 正弦摇摆（两侧抬升弧线）
+                debug:
+                  style: '样式：{value}'
+                  bpm: '平均 BPM：{value}'
+                  primed: '已预热：{value}'
+                  pattern_started: '模式已启动：{value}'
+                  segments: '片段数：{value}'
+                  next_segment: '下一段：toY {toY}，toZ {toZ}，{start} 毫秒后开始'
               websocket-inspector:
                 title: WebSocket 检查器
                 description: 检查原始 WebSocket 流量
+                filters:
+                  incoming: 入站
+                  outgoing: 出站
+                  heartbeats: 心跳
+                  placeholder: 过滤载荷...
+                  clear: 清空
+                empty: 没有找到消息。
+                payload: 载荷
               plugin-host:
                 title: 插件宿主调试
                 description: 检查已发现、已启用、已加载的插件及 capability 状态
+                actions:
+                  disable: 禁用
+                  enable: 启用
+                  load: 加载
+                  load_enabled: 加载已启用项
+                  load_plugin: 加载插件
+                  refresh: 刷新
+                  unload: 卸载
+                empty_capabilities: 尚未收到任何 capability 声明。
+                empty_discovered: 未发现任何插件清单。
+                enabled_summary: 注册表中已启用 {count} 个插件。
+                exact_name_placeholder: 通过精确名称加载已发现的插件...
+                filter_placeholder: 过滤已发现插件...
+                last_error: 最近一次错误
+                loaded_summary: 当前宿主会话中已加载 {count} 个插件。
+                phase: 阶段：
+                sections:
+                  capabilities: 能力
+                  discovered: 已发现插件
+                  enabled: 已启用插件
+                  loaded: 已加载插件
+                states:
+                  disabled: 已禁用
+                  enabled: 已启用
+                  loaded: 已加载
+                  new: 新增
+                  not_loaded: 未加载
+                stats:
+                  capabilities: 能力
+                  discovered: 已发现
+                  enabled: 已启用
+                  loaded: 已加载
+                toasts:
+                  enter_plugin_name: 请输入要加载的插件名称。
+                  load_enabled_failed: 加载已启用插件失败。
+                  load_plugin_failed: 加载插件 {name} 失败。
+                  refresh_failed: 刷新插件宿主调试状态失败。
+                  unload_plugin_failed: 卸载插件 {name} 失败。
+                  update_enabled_failed: 更新 {name} 的启用状态失败。
+                unavailable:
+                  description: 请在 Stage Tamagotchi 渲染器中打开此页，以使用 Electron 插件宿主管理能力。
+                  label: 当前运行时不支持插件宿主调试。
+                updated: 更新时间：
+                entrypoints: 入口点：
               screen-capture:
                 title: 屏幕捕获
                 description: 检查屏幕与窗口捕获源
@@ -1139,15 +1628,120 @@ pages:
                 title: 阿里云实时转写
                 description: >-
                   将麦克风音频流式传输到阿里云 NLS 并检查实时转写
+                actions:
+                  abort: 中止转写
+                  start: 开始录音
+                  stop: 停止录音
+                fields:
+                  access_key_id:
+                    description: 具备 SpeechTranscriber 权限的 RAM AccessKey ID。
+                    label: Access Key ID
+                  access_key_secret:
+                    description: 请妥善保管此密钥；它不会离开当前页面。
+                    label: Access Key Secret
+                  app_key:
+                    description: 用于绑定转写会话的 NLS 项目 AppKey。
+                    label: App Key
+                    placeholder: 请输入 AppKey
+                  region:
+                    description: 需与签发 token 时使用的地域保持一致。
+                    label: 地域
+                logs:
+                  title: 日志
+                page:
+                  description: 输入 Access Key、Secret 与 App Key，以测试阿里云 NLS 的麦克风流式转写。
+                  title: 阿里云 NLS 实时转写
+                status:
+                  recording: 录音中
+                  transcribing: 转写中
+                transcripts:
+                  partial: 中间结果
+                  title: 转写内容
+                  waiting: 正在等待服务端返回...
+                  waiting_final: 正在等待最终结果...
               performance-playground:
                 title: 性能测试场地
                 description: VRM 表情与 TTS 口型同步实验场
+                chat:
+                  empty: 输入一条消息开始对话。
+                  placeholder: 输入消息后发送
+                  reset: 重置对话
+                  send: 发送
+                  title: 对话 / 播放
+                logs:
+                  missing_chat_model: 尚未配置聊天模型或提供方。
+                  playback_end: '播放结束，special：{special}'
+                  playback_start: '播放开始：{text}'
+                  queue: '    - 已入队：{text} [special: {special}]'
+                  send_failed: 发送到 LLM 失败。
+                  special_dequeue: 'special 出队：{token}'
+                  special_enqueue: '    - special 入队：{token}'
+                  title: 播放队列 / 日志
+                page_title: Performance Layer Playground（复刻 Stage，移除 Live2D）
+                unsupported_model: 请选择 VRM 模型，当前模型类型不受支持。
               model-driver-mediapipe:
                 title: MediaPipe 工作坊
                 description: 带 MediaPipe 调度控制的单人动捕实验场
+                page_title: MediaPipe 工作坊演练场
+                hz: 频率
+                sections:
+                  config: 配置
+                  vrm_mapping: VRM 映射
+                  pose_filtering: 姿态过滤
+                states:
+                  idle: 空闲
+                  starting: 启动中
+                  running: 运行中
+                  error: 错误
+                status:
+                  running: 运行中
+                  stopped: 已停止
+                features:
+                  pose: 姿态
+                  hands: 手部
+                  face: 面部
+                mapping:
+                  flip_x: 翻转 X
+                  flip_y: 翻转 Y
+                  flip_z: 翻转 Z
+                pose_filtering:
+                  min_visibility: 最低可见度
+                note: >-
+                  注意：`@mediapipe/tasks-vision` 以同步方式运行，可能阻塞主线程。本工坊会在繁忙时丢帧以保持界面响应。
+                overlay:
+                  status: '状态：{value}'
+                unsupported_model: 请选择 VRM 模型（当前模型类型不受支持）。
+                summary:
+                  enabled: '已启用：{value}'
+                  hz: '频率：姿态 {pose}，手部 {hands}，面部 {face}'
+                  fps: 'FPS {value}'
+                  latency: '延迟 {value} 毫秒'
+                  dropped: '丢帧 {value}'
+                  features:
+                    pose: 姿态
+                    hands: 手部
+                    face: 面部
+                    none: 无
+                pose_debug:
+                  empty: '姿态：（无关键点）'
+                  vis_2d: '姿态 2D 可见 {visible}/{total}'
+                  vis_3d: '姿态 3D 可见 {visible}/{total}'
+                  shoulders_elbows: '左肩 {ls} 右肩 {rs} 左肘 {le} 右肘 {re}'
+                  wrists_hips: '左腕 {lw} 右腕 {rw} 左髋 {lh} 右髋 {rh}'
               notifications:
                 title: 通知
                 description: 测试本地通知
+                fields:
+                  title:
+                    label: 标题
+                    description: 通知的标题
+                  content:
+                    label: 内容
+                    description: 通知的正文
+                actions:
+                  send: 发送通知
+                toasts:
+                  permission_denied: 通知权限被拒绝，请到设置中开启
           runtime-unavailable:
             title: 需要桌面端运行时
             description: >-

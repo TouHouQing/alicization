@@ -199,7 +199,7 @@ function getModuleShortName(id: string, module: 'consciousness' | 'voice') {
 <template>
   <div rounded-xl p-4 flex="~ col gap-4">
     <div class="border border-neutral-200/80 rounded-lg bg-neutral-50 px-3 py-2 text-xs text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300">
-      架构边界：卡片页只管理卡壳与模块绑定；人格、记忆、执行熔断统一在「Alicization 中枢」编辑。
+      {{ t('settings.pages.card.alicization.architecture_boundary') }}
     </div>
     <!-- Toolbar with search and filters -->
     <div flex="~ row" flex-wrap items-center justify-between gap-4>

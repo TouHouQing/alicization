@@ -914,6 +914,7 @@ pages:
             region:
               description: Регион Speech Service
               label: Регион
+              placeholder: "например, eastasia"
         title: Microsoft / Azure Speech
       index-tts-vllm:
         description: https://index-tts.github.io/
@@ -963,6 +964,9 @@ pages:
         description: perplexity.ai
         title: Perplexity
       player2:
+        alert:
+          download_intro: "Скачайте и запустите приложение Player2:"
+          discord_intro: "Если после загрузки проблема не исчезнет, свяжитесь с нами в Discord:"
         description: player2.game
         title: Player2
       together:
@@ -1009,6 +1013,15 @@ pages:
       browser-web-speech-api:
         description: Browser-native STT (requires Chrome/Edge/Safari)
         title: Web Speech API
+      common:
+        speech_model:
+          label: Модель
+          select_description: Выберите модель синтеза речи для воспроизведения
+          manual_description: Введите имя модели синтеза речи вручную, если этот провайдер принимает пользовательские идентификаторы моделей
+          manual_placeholder: "Введите ID модели, например {example}"
+          select_placeholder: Выберите модель...
+        playground:
+          default_text: "Здравствуйте! Это тест синтеза речи."
       transcriptions:
         playground:
           title: Песочница транскрипции

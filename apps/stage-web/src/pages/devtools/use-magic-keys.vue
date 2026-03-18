@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useMagicKeys } from '@vueuse/core'
 import { computed, defineComponent, h } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const {
   shift,
@@ -19,6 +20,7 @@ const {
   current,
 } = useMagicKeys()
 const keys = computed(() => Array.from(current))
+const { t } = useI18n()
 
 const Key = defineComponent({
   props: {
@@ -49,7 +51,7 @@ const Key = defineComponent({
 
     <div>
       <div class="mb-5 mt-0 text-center">
-        Press the following keys to test out
+        {{ t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.instruction') }}
       </div>
       <div class="flex justify-center gap-3">
         <Key :value="v">
@@ -110,7 +112,7 @@ const Key = defineComponent({
       </div>
 
       <div class="mt-4 text-center">
-        <div>Keys Pressed</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.use-magic-keys.keys_pressed') }}</div>
         <div class="mt-2 min-h-1.5em flex justify-center space-x-1">
           <code
             v-for="key in keys"

@@ -139,6 +139,6 @@ const Key = defineComponent({
 <route lang="yaml">
 meta:
   layout: settings
-  title: useMagicKeys
+  titleKey: settings.pages.system.sections.section.developer.sections.section.use-magic-keys.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

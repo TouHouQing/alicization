@@ -1,6 +1,59 @@
 allow-visible-on-all-workspaces:
   title: Cross-Space Visibility
   description: Allow the window to be visible on all workspaces, macOS only.
+alicization:
+  redirect_notice: Persona settings have moved to the unified Soul Forge. Redirecting now.
+about:
+  page:
+    title: About
+    highlight: Alicization
+    subtitle: Embodied desktop life, stage rendering, and Alicization runtime in one place.
+    current_version: Current version
+    links: Links
+  links:
+    home: Home
+    documentation: Documentation
+    github: GitHub
+  update:
+    actions:
+      download: Download update
+      checking: Checking for updates...
+      latest: Up to date
+      disabled: Updates disabled
+      retry: Retry check
+      check: Check for updates
+      restart: Restart to install
+      confirm_restart: Restart and install
+      cancel: Cancel
+      confirm_download: Download now
+      download_short: Download
+    status:
+      downloading: Downloading update
+      ready: 'Version {version} is ready. Restart to finish installing.'
+      error: 'Update check failed: {error}'
+      available_title: Update available
+      available_description: 'Version {version} is ready to download. Review the release notes first.'
+      no_release_notes: No release notes were provided for this release.
+hitl:
+  actions:
+    allow: Allow
+    deny: Deny
+  arguments:
+    empty_summary: No argument summary
+    none: None
+  fields:
+    arguments_summary: 'Arguments summary: '
+    not_provided: Not provided
+    reason: 'Reason: '
+    target: 'Target: '
+    tool: 'Tool: '
+    type: 'Type: '
+  remember_session: Remember this read path for the current session
+  risk:
+    danger: High risk
+    safe: Safe
+    sensitive: Sensitive
+  title: Safety interception confirmation (HitL)
 pages:
   modules:
     mcp-server:
@@ -27,6 +80,12 @@ pages:
           use-window-mouse:
             title: useWindowMouse Tool
             description: Test the Electron window cursor position
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: 'Window {width} x {height}'
+            center: 'Center ({x}, {y})'
+            legend: Green dot = current cursor position inside the window
 devtools:
   title: Developer
   pages:
@@ -42,7 +101,104 @@ devtools:
       description: Stress markdown parsing and rendering with heavy chat payloads
     widgets-calling:
       title: Widget Calling
-
+      description: Spawn, update, and remove floating widgets for desktop integration tests.
+      hint: Use presets to quickly populate component props before dispatching.
+      presets:
+        weather:
+          label: Weather Preset
+          data:
+            city: Tokyo
+            condition: Light Rain
+        map:
+          label: Map Preset
+          data:
+            title: Airport Route
+            mode: Airport Bus
+            status: On time
+            origin: Home
+            stop_1: Stop 1
+            stop_2: Transfer
+            stop_3: Terminal
+      size_presets:
+        small: Small
+        medium: Medium
+        large: Large
+        custom: Custom
+      fields:
+        widget_id:
+          label: Widget ID
+          description: Reuse an existing widget ID to replace or update that widget window.
+          placeholder: Leave empty to auto-generate
+        component_name:
+          label: Component Name
+          description: Registered widget component to render, for example weather or map.
+          placeholder: weather
+        size_preset:
+          label: Size Preset
+          description: Choose a preset size or switch to custom grid dimensions.
+          placeholder: Select a size preset...
+        custom_columns:
+          label: Custom Columns
+          description: Grid columns used when the size preset is custom.
+        custom_rows:
+          label: Custom Rows
+          description: Grid rows used when the size preset is custom.
+        ttl:
+          label: Auto-remove After (seconds)
+          description: Set 0 to keep the widget until it is removed manually.
+        component_props:
+          label: Component Props (JSON)
+          description: JSON payload passed to the widget component.
+      actions:
+        spawn_replace: Spawn / Replace Widget
+        update_props: Update Props
+        remove_widget: Remove Widget
+        clear_all: Clear All Widgets
+      feedback:
+        spawned: 'Widget window prepared{suffix}'
+        updated: 'Updated widget {id}'
+        removed: 'Removed widget {id}'
+        cleared: Removed all widgets
+      errors:
+        invalid_json: 'Invalid JSON: {error}'
+        invalid_ttl: TTL must be 0 or a positive number.
+        component_name_required: Component name is required.
+        spawn_failed: Failed to spawn widget.
+        widget_id_required_update: Widget ID is required to update props.
+        update_failed: Failed to update widget props.
+        widget_id_required_remove: Widget ID is required to remove a widget.
+        remove_failed: Failed to remove widget.
+        clear_failed: Failed to clear widgets.
+inlay:
+  title: Window Material Playground
+  description: Adjust vibrancy and background material for the current inlay window.
+  vibrancy:
+    label: Vibrancy
+    description: Apply a macOS vibrancy preset to this window.
+    options:
+      titlebar: Titlebar
+      selection: Selection
+      menu: Menu
+      popover: Popover
+      sidebar: Sidebar
+      header: Header
+      sheet: Sheet
+      window: Window
+      hud: HUD
+      fullscreen_ui: Fullscreen UI
+      tooltip: Tooltip
+      content: Content
+      under_window: Under Window
+      under_page: Under Page
+  background_material:
+    label: Background Material
+    description: Apply a Windows system material when available.
+    options:
+      auto: Auto
+      none: None
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: Tabbed
 screen-capture:
   permissions-prompt:
     title: Screen Capture
@@ -53,3 +209,25 @@ screen-capture:
       step-1: Open "System Preferences", select "Privacy & Security" from the sidebar.
       step-2: In the "Screen & System Audio Recording" and "System Audio Recording Only" sections, turn on the switches for Alicization.
       step-2-note: If Alicization is not listed, please add it manually by clicking the "+" button and selecting Alicization from the Applications folder.
+  devtools:
+    categories:
+      applications: Applications
+      displays: Displays
+      devices: Devices
+    actions:
+      loading: Loading...
+      refetching: Refreshing...
+      refetch: Refresh
+      share_screen: Share Screen
+      share_device: Share Device
+      share_window: Share Window
+      stop: Stop
+    capture_status: Active capture
+    loading_sources: Loading capture sources...
+    alt:
+      thumbnail: Capture source thumbnail
+      screen_icon: Display icon
+      window_icon: Window icon
+    empty:
+      title: No sources in this category
+      description: Try another category or refresh the capture source list.

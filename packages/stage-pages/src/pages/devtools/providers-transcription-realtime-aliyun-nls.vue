@@ -6,6 +6,7 @@ import vadWorkletUrl from '@proj-alicization/stage-ui/workers/vad/process.workle
 import { createAliyunNLSProvider, streamAliyunTranscription } from '@proj-alicization/stage-ui/stores/providers/aliyun/stream-transcription'
 import { Button, FieldInput, FieldSelect } from '@proj-alicization/ui'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 type AliyunRegion
   = | 'cn-shanghai'
@@ -16,6 +17,7 @@ type AliyunRegion
     | 'cn-shenzhen-internal'
 
 const SAMPLE_RATE = 16000
+const { t } = useI18n()
 
 const credentials = reactive({
   accessKeyId: '',
@@ -356,10 +358,10 @@ onBeforeUnmount(async () => {
   <div class="space-y-6">
     <div>
       <h1 class="text-2xl font-semibold">
-        Aliyun NLS Realtime Transcription
+        {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.page.title') }}
       </h1>
       <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-        Provide your Access Key, Secret, and App Key to test Aliyun NLS streaming with microphone audio.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.page.description') }}
       </p>
     </div>
 
@@ -367,30 +369,30 @@ onBeforeUnmount(async () => {
       <div class="grid gap-4 md:grid-cols-2">
         <FieldInput
           v-model="credentials.accessKeyId"
-          label="Access Key ID"
-          description="RAM AccessKey ID with SpeechTranscriber permissions."
+          :label="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.access_key_id.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.access_key_id.description')"
           placeholder="LTAI..."
         />
 
         <FieldInput
           v-model="credentials.accessKeySecret"
-          label="Access Key Secret"
-          description="Keep this secret safe; it never leaves this page."
+          :label="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.access_key_secret.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.access_key_secret.description')"
           placeholder="****************"
           type="password"
         />
 
         <FieldInput
           v-model="credentials.appKey"
-          label="App Key"
-          description="NLS project AppKey to bind the transcription session."
-          placeholder="请输入 AppKey"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.app_key.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.app_key.description')"
+          :placeholder="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.app_key.placeholder')"
         />
 
         <FieldSelect
           v-model="credentials.region"
-          label="Region"
-          description="Match the region used when issuing the token."
+          :label="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.region.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.fields.region.description')"
           :options="regionOptions"
           placeholder="cn-shanghai"
           layout="vertical"
@@ -403,13 +405,13 @@ onBeforeUnmount(async () => {
             v-if="isRecording"
             class="ml-2 rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-500"
           >
-            Recording
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.status.recording') }}
           </span>
           <span
             v-else-if="isTranscribing"
             class="ml-2 rounded bg-blue-500/10 px-2 py-0.5 text-xs text-blue-500"
           >
-            Transcribing
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.status.transcribing') }}
           </span>
         </div>
 
@@ -419,7 +421,7 @@ onBeforeUnmount(async () => {
             variant="primary"
             @click="startRecording"
           >
-            Start Recording
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.actions.start') }}
           </Button>
 
           <Button
@@ -427,7 +429,7 @@ onBeforeUnmount(async () => {
             variant="primary"
             @click="stopRecording"
           >
-            Stop Recording
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.actions.stop') }}
           </Button>
 
           <Button
@@ -436,7 +438,7 @@ onBeforeUnmount(async () => {
             variant="secondary"
             @click="abortTranscription"
           >
-            Abort Transcription
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.actions.abort') }}
           </Button>
         </div>
       </div>
@@ -444,19 +446,19 @@ onBeforeUnmount(async () => {
 
     <section class="space-y-3">
       <h2 class="text-lg font-semibold">
-        Transcripts
+        {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.transcripts.title') }}
       </h2>
       <div class="border border-neutral-200/80 rounded bg-neutral-50/60 p-4 text-sm dark:border-neutral-700 dark:bg-neutral-900/50">
         <div v-if="currentPartial" class="mb-3 text-neutral-500 dark:text-neutral-400">
           <div class="text-xs text-neutral-400 tracking-wide uppercase dark:text-neutral-500">
-            Partial
+            {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.transcripts.partial') }}
           </div>
           <div class="mt-1 font-medium">
             {{ currentPartial }}
           </div>
         </div>
         <div v-if="!transcripts.length && !currentPartial" class="text-neutral-400 dark:text-neutral-600">
-          Waiting for server...
+          {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.transcripts.waiting') }}
         </div>
         <ul class="space-y-2">
           <li
@@ -472,7 +474,7 @@ onBeforeUnmount(async () => {
                 {{ sentence.text }}
               </div>
               <div v-if="!sentence.final" class="text-xs text-neutral-400">
-                Waiting for final result...
+                {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.transcripts.waiting_final') }}
               </div>
             </div>
           </li>
@@ -482,7 +484,7 @@ onBeforeUnmount(async () => {
 
     <section class="space-y-3">
       <h2 class="text-lg font-semibold">
-        Logs
+        {{ t('settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.logs.title') }}
       </h2>
       <div
         ref="logsContainer"
@@ -503,6 +505,6 @@ onBeforeUnmount(async () => {
 <route lang="yaml">
 meta:
   layout: settings
-  title: Aliyun NLS Realtime Transcription
+  titleKey: settings.pages.system.sections.section.developer.sections.section.providers-transcription-realtime-aliyun-nls.page.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

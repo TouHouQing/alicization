@@ -158,9 +158,9 @@ const {
       <!-- Model input -->
       <FieldInput
         v-model="model"
-        label="Model"
-        description="Enter the TTS model to use for speech generation"
-        placeholder="gpt-4o-mini-tts"
+        :label="t('settings.pages.providers.common.speech_model.label')"
+        :description="t('settings.pages.providers.common.speech_model.manual_description')"
+        :placeholder="t('settings.pages.providers.common.speech_model.manual_placeholder', { example: 'gpt-4o-mini-tts' })"
       />
       <!-- Speed control - common to most providers -->
       <FieldRange
@@ -178,7 +178,7 @@ const {
         v-model:voice="voice as any"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        default-text="Hello! This is a test of the CometAPI Speech."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
 

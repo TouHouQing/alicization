@@ -201,17 +201,17 @@ watch(model, () => {
           <FieldSelect
             v-if="providerModels.length > 0"
             v-model="model"
-            label="Model"
-            description="Select the transcription model to use"
+            :label="t('settings.pages.providers.provider.common.transcription_model.label')"
+            :description="t('settings.pages.providers.provider.common.transcription_model.description')"
             :options="providerModels.map(m => ({ value: m.id, label: m.name }))"
             :disabled="isLoadingModels"
-            placeholder="Select a model..."
+            :placeholder="t('settings.pages.providers.provider.common.transcription_model.placeholder')"
           />
           <FieldInput
             v-else
             v-model="model"
             :label="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name')"
-            :description="apiKey && baseUrl ? 'Enter model name manually, or wait for models to load...' : 'Enter the transcription model name (e.g., whisper-1)'"
+            :description="apiKey && baseUrl ? t('settings.pages.providers.provider.common.transcription_model.manual_when_loading') : t('settings.pages.providers.provider.common.transcription_model.manual_description')"
             :placeholder="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_placeholder')"
           />
         </ProviderBasicSettings>

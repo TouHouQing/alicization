@@ -29,6 +29,12 @@ docs:
   connected: WebSocket connected
   disconnected: WebSocket disconnected
   'open-settings': Open WebSocket settings
+resources:
+  loading:
+    pending: 部分模块暂未就绪...
+    ready: 所有模块都已准备完成！
+    settings_link: 设置
+    preparing: 正在准备资源...
 notice:
   'fade-on-hover':
     title: 悬停淡出

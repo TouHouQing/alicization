@@ -2,8 +2,10 @@
 import { useWebSocketInspectorStore } from '@proj-alicization/stage-ui/stores/devtools/websocket-inspector'
 import { Button, FieldCheckbox, Input } from '@proj-alicization/ui'
 import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const store = useWebSocketInspectorStore()
+const { t } = useI18n()
 
 const filter = ref('')
 const showIncoming = ref(true)
@@ -113,19 +115,19 @@ function payloadClasses(direction: 'incoming' | 'outgoing') {
     <!-- Header / Filters -->
     <div class="flex flex-col gap-4 rounded-xl bg-neutral-50 p-4 dark:bg-[rgba(0,0,0,0.3)]">
       <div class="flex items-center gap-2">
-        <FieldCheckbox v-model="showIncoming" label="Incoming" />
-        <FieldCheckbox v-model="showOutgoing" label="Outgoing" />
-        <FieldCheckbox v-model="showHeartbeats" label="Heartbeats" />
+        <FieldCheckbox v-model="showIncoming" :label="t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.filters.incoming')" />
+        <FieldCheckbox v-model="showOutgoing" :label="t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.filters.outgoing')" />
+        <FieldCheckbox v-model="showHeartbeats" :label="t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.filters.heartbeats')" />
       </div>
 
       <div class="flex gap-2">
         <Input
           v-model="filter"
-          placeholder="Filter payload..."
+          :placeholder="t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.filters.placeholder')"
           class="w-64"
         />
         <Button
-          label="Clear"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.filters.clear')"
           icon="i-solar:trash-bin-trash-bold-duotone"
           size="sm"
           variant="ghost"
@@ -146,7 +148,7 @@ function payloadClasses(direction: 'incoming' | 'outgoing') {
         v-if="filteredHistory.length === 0"
         class="h-full w-full flex justify-center p-3 text-sm"
       >
-        No messages found.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.empty') }}
       </div>
       <div v-else v-auto-animate class="grid gap-3">
         <div
@@ -172,7 +174,7 @@ function payloadClasses(direction: 'incoming' | 'outgoing') {
 
           <details class="group mt-2" :open="showingDetails === item.id">
             <summary class="cursor-pointer select-none text-sm font-medium" @click="showingDetails = showingDetails === item.id ? '' : item.id">
-              Payload
+              {{ t('settings.pages.system.sections.section.developer.sections.section.websocket-inspector.payload') }}
             </summary>
             <pre
               class="mt-2 w-full overflow-auto whitespace-pre-wrap rounded-lg p-3 text-sm"
@@ -188,6 +190,6 @@ function payloadClasses(direction: 'incoming' | 'outgoing') {
 <route lang="yaml">
 meta:
   layout: settings
-  title: WebSocket Inspector
+  titleKey: settings.pages.system.sections.section.developer.sections.section.websocket-inspector.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

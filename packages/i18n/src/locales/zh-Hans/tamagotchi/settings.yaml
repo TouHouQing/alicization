@@ -1,6 +1,59 @@
 allow-visible-on-all-workspaces:
   title: 跨桌面可见性
   description: 允许窗口在所有虚拟桌面中可见，仅限 macOS。
+alicization:
+  redirect_notice: 人格设定已迁移到统一的灵魂铸造舱，正在为你跳转。
+about:
+  page:
+    title: 关于
+    highlight: Alicization
+    subtitle: 在这里查看桌面机体、舞台渲染与 Alicization 运行时的整体信息。
+    current_version: 当前版本
+    links: 相关链接
+  links:
+    home: 主页
+    documentation: 文档
+    github: GitHub
+  update:
+    actions:
+      download: 下载更新
+      checking: 正在检查更新...
+      latest: 已是最新版本
+      disabled: 已禁用更新
+      retry: 重试检查
+      check: 检查更新
+      restart: 重启安装
+      confirm_restart: 重启并安装
+      cancel: 取消
+      confirm_download: 立即下载
+      download_short: 下载
+    status:
+      downloading: 正在下载更新
+      ready: '版本 {version} 已准备就绪，重启后即可完成安装。'
+      error: '检查更新失败：{error}'
+      available_title: 发现新版本
+      available_description: '版本 {version} 已可下载，建议先查看发行说明。'
+      no_release_notes: 当前版本未提供发行说明。
+hitl:
+  actions:
+    allow: 允许
+    deny: 拒绝
+  arguments:
+    empty_summary: 无参数摘要
+    none: 无
+  fields:
+    arguments_summary: 参数摘要：
+    not_provided: 未提供
+    reason: 原因：
+    target: 目标：
+    tool: 工具：
+    type: 类型：
+  remember_session: 在本次会话中记住该读取路径
+  risk:
+    danger: 高风险
+    safe: 安全
+    sensitive: 敏感
+  title: 安全拦截确认（HitL）
 pages:
   modules:
     mcp-server:
@@ -27,6 +80,12 @@ pages:
           use-window-mouse:
             title: 使用窗口鼠标工具
             description: 测试 Electron 窗口鼠标位置
+          relative-mouse:
+            formula_x: 'relativeX = cursorX - windowX'
+            formula_y: 'relativeY = cursorY - windowY'
+            window: '窗口 {width} x {height}'
+            center: '中心点 ({x}, {y})'
+            legend: 绿色圆点表示当前鼠标在窗口内部的相对位置
 devtools:
   title: 开发者选项
   pages:
@@ -42,6 +101,104 @@ devtools:
       description: 用大量聊天负载来测试 Markdown 的解析和渲染能力
     widgets-calling:
       title: 挂件调用
+      description: 用于生成、更新和移除桌面悬浮挂件，便于联调桌面挂件能力。
+      hint: 先套用预设可快速填充组件参数，再发起挂件调用。
+      presets:
+        weather:
+          label: 天气预设
+          data:
+            city: 东京
+            condition: 小雨
+        map:
+          label: 地图预设
+          data:
+            title: 机场路线
+            mode: 机场巴士
+            status: 准点
+            origin: 家
+            stop_1: 第一站
+            stop_2: 换乘点
+            stop_3: 航站楼
+      size_presets:
+        small: 小
+        medium: 中
+        large: 大
+        custom: 自定义
+      fields:
+        widget_id:
+          label: 挂件 ID
+          description: 复用已有挂件 ID 时，会直接替换或更新对应窗口。
+          placeholder: 留空则自动生成
+        component_name:
+          label: 组件名称
+          description: 要渲染的挂件组件名称，例如 weather 或 map。
+          placeholder: weather
+        size_preset:
+          label: 尺寸预设
+          description: 选择一个预设尺寸，或切换到自定义网格大小。
+          placeholder: 请选择尺寸预设...
+        custom_columns:
+          label: 自定义列数
+          description: 当尺寸为自定义时使用的网格列数。
+        custom_rows:
+          label: 自定义行数
+          description: 当尺寸为自定义时使用的网格行数。
+        ttl:
+          label: 自动移除时间（秒）
+          description: 设为 0 表示保留挂件，直到手动移除。
+        component_props:
+          label: 组件参数（JSON）
+          description: 传递给挂件组件的 JSON 数据。
+      actions:
+        spawn_replace: 创建 / 替换挂件
+        update_props: 更新参数
+        remove_widget: 移除挂件
+        clear_all: 清空全部挂件
+      feedback:
+        spawned: '挂件窗口已就绪{suffix}'
+        updated: '已更新挂件 {id}'
+        removed: '已移除挂件 {id}'
+        cleared: 已清空全部挂件
+      errors:
+        invalid_json: 'JSON 无效：{error}'
+        invalid_ttl: TTL 必须为 0 或正数。
+        component_name_required: 组件名称不能为空。
+        spawn_failed: 创建挂件失败。
+        widget_id_required_update: 更新参数时必须填写挂件 ID。
+        update_failed: 更新挂件参数失败。
+        widget_id_required_remove: 移除挂件时必须填写挂件 ID。
+        remove_failed: 移除挂件失败。
+        clear_failed: 清空挂件失败。
+inlay:
+  title: 窗口材质实验场
+  description: 调整当前内嵌窗口的 vibrancy 与背景材质。
+  vibrancy:
+    label: Vibrancy
+    description: 为当前窗口应用 macOS 的毛玻璃振动效果预设。
+    options:
+      titlebar: 标题栏
+      selection: 选区
+      menu: 菜单
+      popover: 弹出层
+      sidebar: 侧边栏
+      header: 页眉
+      sheet: 工作表
+      window: 窗口
+      hud: HUD
+      fullscreen_ui: 全屏界面
+      tooltip: 工具提示
+      content: 内容区
+      under_window: 窗口下层
+      under_page: 页面下层
+  background_material:
+    label: 背景材质
+    description: 在可用时应用 Windows 系统材质效果。
+    options:
+      auto: 自动
+      none: 无
+      mica: Mica
+      acrylic: Acrylic
+      tabbed: Tabbed
 screen-capture:
   permissions-prompt:
     title: 屏幕捕获
@@ -52,3 +209,25 @@ screen-capture:
       step-1: 打开「系统首选项」，从侧边栏选择「隐私与安全」。
       step-2: 在「屏幕和系统音频录制」和「系统音频录制」部分中，开启 Alicization 的开关。
       step-2-note: 如果没有列出 Alicization，请通过单击「+」按钮和从应用程序文件夹中选择 Alicization 来手动添加。
+  devtools:
+    categories:
+      applications: 应用窗口
+      displays: 显示器
+      devices: 设备
+    actions:
+      loading: 加载中...
+      refetching: 刷新中...
+      refetch: 刷新
+      share_screen: 共享屏幕
+      share_device: 共享设备
+      share_window: 共享窗口
+      stop: 停止
+    capture_status: 当前正在共享
+    loading_sources: 正在加载可捕获来源...
+    alt:
+      thumbnail: 捕获来源缩略图
+      screen_icon: 屏幕图标
+      window_icon: 窗口图标
+    empty:
+      title: 当前分类下没有可用来源
+      description: 请切换分类，或刷新捕获来源列表后重试。

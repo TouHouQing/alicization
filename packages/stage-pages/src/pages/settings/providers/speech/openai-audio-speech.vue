@@ -125,11 +125,11 @@ watch(model, async () => {
       <!-- Model selection -->
       <FieldSelect
         v-model="model"
-        label="Model"
-        description="Select the TTS model to use for speech generation"
+        :label="t('settings.pages.providers.common.speech_model.label')"
+        :description="t('settings.pages.providers.common.speech_model.select_description')"
         :options="providerModels.map(m => ({ value: m.id, label: m.name }))"
         :disabled="isLoadingModels || providerModels.length === 0"
-        placeholder="Select a model..."
+        :placeholder="t('settings.pages.providers.common.speech_model.select_placeholder')"
       />
       <!-- Speed control - common to most providers -->
       <FieldRange
@@ -146,7 +146,7 @@ watch(model, async () => {
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        default-text="Hello! This is a test of the OpenAI Speech."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
   </SpeechProviderSettings>

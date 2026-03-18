@@ -260,24 +260,24 @@ onStopRecord(async (recording) => {
 
   // Handle STT test transcription directly here
   if (isTestingSTT.value) {
-    testStatusMessage.value = 'Transcribing recording...'
+    testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.transcribing_recording')
     isTranscribing.value = true
 
     try {
       const result = await transcribeForRecording(recording)
       if (result) {
         testTranscriptionText.value = result
-        testStatusMessage.value = 'Transcription complete!'
+        testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.complete')
         console.info('STT test transcription result:', result)
       }
       else {
-        testTranscriptionError.value = transcriptionPipelineError.value || 'No transcription result returned from provider'
-        testStatusMessage.value = 'Transcription failed'
+        testTranscriptionError.value = transcriptionPipelineError.value || t('settings.pages.modules.hearing.sections.section.stt_test.errors.no_result')
+        testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.failed')
       }
     }
     catch (err) {
       testTranscriptionError.value = err instanceof Error ? err.message : String(err)
-      testStatusMessage.value = `Error: ${testTranscriptionError.value}`
+      testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.generic_error', { error: testTranscriptionError.value })
       console.error('STT test transcription error:', err)
     }
     finally {
@@ -304,12 +304,12 @@ onStopRecord(async (recording) => {
 // Speech-to-Text test functions
 async function startSTTTest() {
   if (!activeTranscriptionProvider.value) {
-    testTranscriptionError.value = 'Please select a transcription provider first'
+    testTranscriptionError.value = t('settings.pages.modules.hearing.sections.section.stt_test.errors.select_provider')
     return
   }
 
   if (!selectedAudioInput.value) {
-    testTranscriptionError.value = 'Please select an audio input device first'
+    testTranscriptionError.value = t('settings.pages.modules.hearing.sections.section.stt_test.errors.select_audio_input')
     return
   }
 
@@ -324,7 +324,7 @@ async function startSTTTest() {
   try {
     // Ensure audio stream is available
     if (!stream.value) {
-      testStatusMessage.value = 'Starting audio stream...'
+      testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.starting_stream')
       testStreamWasStarted.value = true
       await startStream()
 
@@ -349,14 +349,14 @@ async function startSTTTest() {
 
     // Check if provider supports streaming input
     if (shouldUseStreamInput.value && stream.value) {
-      testStatusMessage.value = 'Starting streaming transcription...'
+      testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.starting_streaming')
       console.info('Starting STT test with streaming input for provider:', activeTranscriptionProvider.value)
 
       await transcribeForMediaStream(stream.value, {
         onSentenceEnd: (delta) => {
           if (delta && delta.trim()) {
             testStreamingText.value += `${delta} `
-            testStatusMessage.value = 'Transcribing... (streaming)'
+            testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.streaming')
             isTranscribing.value = true
             console.info('STT test received sentence:', delta)
           }
@@ -365,23 +365,23 @@ async function startSTTTest() {
           if (text) {
             testTranscriptionText.value = text
             testStreamingText.value = ''
-            testStatusMessage.value = 'Transcription complete!'
+            testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.complete')
             isTranscribing.value = false
             console.info('STT test completed with text:', text)
           }
           else {
-            testStatusMessage.value = 'Waiting for speech...'
+            testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.waiting')
             isTranscribing.value = false
           }
         },
       })
 
-      testStatusMessage.value = 'Listening for speech... (streaming mode active)'
+      testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.listening')
       isTranscribing.value = false // Not actively transcribing yet, just listening
     }
     else {
       // Fallback to recording-based transcription
-      testStatusMessage.value = 'Recording audio for transcription... (3 seconds)'
+      testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.recording')
       console.info('Starting STT test with recording-based transcription for provider:', activeTranscriptionProvider.value)
 
       startRecord()
@@ -389,13 +389,13 @@ async function startSTTTest() {
       // Wait a bit for recording to start, then stop it after a delay
       setTimeout(async () => {
         stopRecord()
-        testStatusMessage.value = 'Processing transcription...'
+        testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.processing')
       }, 3000) // Record for 3 seconds
     }
   }
   catch (err) {
     testTranscriptionError.value = err instanceof Error ? err.message : String(err)
-    testStatusMessage.value = `Error: ${testTranscriptionError.value}`
+    testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.generic_error', { error: testTranscriptionError.value })
     isTranscribing.value = false
     isTestingSTT.value = false
     console.error('STT test error:', err)
@@ -405,7 +405,7 @@ async function startSTTTest() {
 async function stopSTTTest() {
   isTestingSTT.value = false
   isTranscribing.value = false
-  testStatusMessage.value = 'Stopped'
+  testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.stopped')
 
   try {
     // Stop streaming transcription if active
@@ -443,8 +443,8 @@ async function stopSTTTest() {
 watch(selectedAudioInput, async () => isMonitoring.value && await setupAudioMonitoring())
 
 function handleStreamStartError() {
-  testTranscriptionError.value = 'Failed to start audio stream. Please check microphone permissions.'
-  testStatusMessage.value = 'Error: Failed to start audio stream'
+  testTranscriptionError.value = t('settings.pages.modules.hearing.sections.section.stt_test.errors.start_stream')
+  testStatusMessage.value = t('settings.pages.modules.hearing.sections.section.stt_test.status.start_stream_error')
   isTranscribing.value = false
   isTestingSTT.value = false
   testStreamWasStarted.value = false
@@ -497,13 +497,13 @@ onUnmounted(() => {
         <div>
           <FieldSelect
             v-model="selectedAudioInput"
-            label="Audio Input Device"
-            description="Select the audio input device for your hearing module."
+            :label="t('settings.pages.modules.hearing.sections.section.audio_input.label')"
+            :description="t('settings.pages.modules.hearing.sections.section.audio_input.description')"
             :options="audioInputs.map(input => ({
               label: input.label || input.deviceId,
               value: input.deviceId,
             }))"
-            placeholder="Select an audio input device"
+            :placeholder="t('settings.pages.modules.hearing.sections.section.audio_input.placeholder')"
             layout="vertical"
           />
         </div>
@@ -569,8 +569,8 @@ onUnmounted(() => {
               >
                 <div i-solar:warning-circle-line-duotone class="text-2xl text-amber-500 dark:text-amber-400" />
                 <div class="flex flex-col">
-                  <span class="font-medium">No Providers Configured</span>
-                  <span class="text-sm text-neutral-400 dark:text-neutral-500">Click here to set up your Transcription providers</span>
+                  <span class="font-medium">{{ t('settings.pages.modules.hearing.sections.section.empty_providers.title') }}</span>
+                  <span class="text-sm text-neutral-400 dark:text-neutral-500">{{ t('settings.pages.modules.hearing.sections.section.empty_providers.description') }}</span>
                 </div>
                 <div i-solar:arrow-right-line-duotone class="ml-auto text-xl text-neutral-400 dark:text-neutral-500" />
               </RouterLink>
@@ -590,7 +590,7 @@ onUnmounted(() => {
                   {{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.subtitle') }}
                 </span>
                 <span v-else>
-                  Enter the transcription model to use (e.g., 'whisper-1', 'gpt-4o-transcribe')
+                  {{ t('settings.pages.modules.hearing.sections.section.model_hint') }}
                 </span>
                 <span v-if="activeTranscriptionModel" class="text-sm text-neutral-400 font-medium dark:text-neutral-400">{{ t('settings.pages.modules.consciousness.sections.section.provider-model-selection.current_model_label') }} {{ activeTranscriptionModel }}</span>
               </div>
@@ -618,7 +618,7 @@ onUnmounted(() => {
             >
               <FieldInput
                 :model-value="activeTranscriptionModel || activeCustomModelName || ''"
-                placeholder="whisper-1"
+                :placeholder="t('settings.pages.modules.hearing.sections.section.manual_model_placeholder')"
                 @update:model-value="updateCustomModelName"
               />
             </div>
@@ -660,29 +660,31 @@ onUnmounted(() => {
         <div class="border-t border-neutral-200 pt-4 dark:border-neutral-700">
           <div class="mb-4">
             <h2 class="text-lg text-neutral-500 md:text-2xl dark:text-neutral-500">
-              Auto-send Settings
+              {{ t('settings.pages.modules.hearing.sections.section.auto_send.title') }}
             </h2>
             <div text="neutral-400 dark:neutral-400">
-              Configure automatic sending of transcribed text to chat
+              {{ t('settings.pages.modules.hearing.sections.section.auto_send.description') }}
             </div>
           </div>
 
           <div class="space-y-4">
             <FieldCheckbox
               v-model="autoSendEnabled"
-              label="Auto-send transcribed text"
-              description="Automatically send transcribed text to chat after a delay. This may consume tokens, so disable if you want to manually review and edit transcriptions before sending."
+              :label="t('settings.pages.modules.hearing.sections.section.auto_send.fields.enabled.label')"
+              :description="t('settings.pages.modules.hearing.sections.section.auto_send.fields.enabled.description')"
             />
 
             <FieldRange
               v-if="autoSendEnabled"
               v-model="autoSendDelay"
-              label="Auto-send delay"
-              description="Delay in milliseconds before automatically sending transcribed text (0 = send immediately, recommended: 1000-3000ms)"
+              :label="t('settings.pages.modules.hearing.sections.section.auto_send.fields.delay.label')"
+              :description="t('settings.pages.modules.hearing.sections.section.auto_send.fields.delay.description')"
               :min="0"
               :max="10000"
               :step="100"
-              :format-value="value => value === 0 ? 'Immediate' : `${(value / 1000).toFixed(1)}s`"
+              :format-value="value => value === 0
+                ? t('settings.pages.modules.hearing.sections.section.auto_send.fields.delay.immediate')
+                : t('settings.pages.modules.hearing.sections.section.auto_send.fields.delay.seconds', { value: (value / 1000).toFixed(1) })"
             />
           </div>
         </div>
@@ -701,10 +703,12 @@ onUnmounted(() => {
           </div>
         </h2>
 
-        <ErrorContainer v-if="error" title="Error occurred" :error="error" mb-4 />
+        <ErrorContainer v-if="error" :title="t('settings.pages.modules.hearing.sections.section.monitoring.error_title')" :error="error" mb-4 />
 
         <Button class="mb-4" w-full @click="toggleMonitoring">
-          {{ isMonitoring ? 'Stop Monitoring' : 'Start Monitoring' }}
+          {{ isMonitoring
+            ? t('settings.pages.modules.hearing.sections.section.monitoring.actions.stop')
+            : t('settings.pages.modules.hearing.sections.section.monitoring.actions.start') }}
         </Button>
 
         <div>
@@ -721,25 +725,25 @@ onUnmounted(() => {
             <!-- Audio Level Visualization -->
             <div class="space-y-3">
               <!-- Volume Meter -->
-              <LevelMeter :level="volumeLevel" label="Input Level" />
+              <LevelMeter :level="volumeLevel" :label="t('settings.pages.modules.hearing.sections.section.monitoring.input_level')" />
 
               <!-- VAD Probability Meter (when VAD model is active) -->
               <ThresholdMeter
                 v-if="useVADModel && loadedVAD"
                 :value="isSpeechProb"
                 :threshold="useVADThreshold"
-                label="Probability of Speech"
-                below-label="Silence"
-                above-label="Speech"
-                threshold-label="Detection threshold"
+                :label="t('settings.pages.modules.hearing.sections.section.monitoring.probability.label')"
+                :below-label="t('settings.pages.modules.hearing.sections.section.monitoring.probability.silence')"
+                :above-label="t('settings.pages.modules.hearing.sections.section.monitoring.probability.speech')"
+                :threshold-label="t('settings.pages.modules.hearing.sections.section.monitoring.probability.threshold')"
               />
 
               <!-- Threshold Controls -->
               <div v-if="useVADModel && loadedVAD" class="space-y-3">
                 <FieldRange
                   v-model="useVADThreshold"
-                  label="Sensitivity"
-                  description="Adjust the threshold for speech detection"
+                  :label="t('settings.pages.modules.hearing.sections.section.monitoring.sensitivity.label')"
+                  :description="t('settings.pages.modules.hearing.sections.section.monitoring.sensitivity.description')"
                   :min="0.1"
                   :max="0.9"
                   :step="0.05"
@@ -750,8 +754,8 @@ onUnmounted(() => {
               <div v-else class="space-y-3">
                 <FieldRange
                   v-model="useVADThreshold"
-                  label="Sensitivity"
-                  description="Adjust the threshold for speech detection"
+                  :label="t('settings.pages.modules.hearing.sections.section.monitoring.sensitivity.label')"
+                  :description="t('settings.pages.modules.hearing.sections.section.monitoring.sensitivity.description')"
                   :min="1"
                   :max="80"
                   :step="1"
@@ -766,10 +770,14 @@ onUnmounted(() => {
                   :class="speakingIndicatorClass"
                 />
                 <span class="text-sm font-medium">
-                  {{ isSpeech ? 'Speaking Detected' : 'Silence' }}
+                  {{ isSpeech
+                    ? t('settings.pages.modules.hearing.sections.section.monitoring.speaking_detected')
+                    : t('settings.pages.modules.hearing.sections.section.monitoring.probability.silence') }}
                 </span>
                 <span class="ml-auto text-xs text-neutral-500">
-                  {{ useVADModel && loadedVAD ? 'Model Based' : 'Volume Based' }}
+                  {{ useVADModel && loadedVAD
+                    ? t('settings.pages.modules.hearing.sections.section.monitoring.mode.model_based')
+                    : t('settings.pages.modules.hearing.sections.section.monitoring.mode.volume_based') }}
                 </span>
               </div>
 
@@ -777,28 +785,28 @@ onUnmounted(() => {
               <div class="border-t border-neutral-200 pt-3 dark:border-neutral-700">
                 <FieldCheckbox
                   v-model="useVADModel"
-                  label="Model Based"
-                  description="Use AI models for more accurate speech detection"
+                  :label="t('settings.pages.modules.hearing.sections.section.monitoring.mode.model_based')"
+                  :description="t('settings.pages.modules.hearing.sections.section.monitoring.mode.description')"
                 />
 
                 <!-- VAD Model Status -->
                 <div v-if="useVADModel" class="mt-3 space-y-2">
                   <div v-if="loadingVAD" class="flex items-center gap-2 text-primary-600 dark:text-primary-400">
                     <div class="animate-spin text-sm" i-solar:spinner-line-duotone />
-                    <span class="text-sm">Loading...</span>
+                    <span class="text-sm">{{ t('settings.pages.modules.hearing.sections.section.monitoring.vad.loading') }}</span>
                   </div>
 
                   <ErrorContainer
                     v-else-if="vadModelError"
-                    title="Inference error"
+                    :title="t('settings.pages.modules.hearing.sections.section.monitoring.vad.error_title')"
                     :error="vadModelError"
                   />
 
                   <div v-else-if="loadedVAD" class="flex items-center gap-2 text-green-600 dark:text-green-400">
                     <div class="text-sm" i-solar:check-circle-bold-duotone />
-                    <span class="text-sm">Activated</span>
+                    <span class="text-sm">{{ t('settings.pages.modules.hearing.sections.section.monitoring.vad.activated') }}</span>
                     <span class="ml-auto text-xs text-neutral-500">
-                      Probability: {{ (isSpeechProb * 100).toFixed(1) }}%
+                      {{ t('settings.pages.modules.hearing.sections.section.monitoring.vad.probability', { value: (isSpeechProb * 100).toFixed(1) }) }}
                     </span>
                   </div>
                 </div>
@@ -811,12 +819,12 @@ onUnmounted(() => {
                 :current-value="isSpeechProb"
                 :threshold="useVADThreshold"
                 :is-active="isSpeech"
-                title="Voice Activity"
-                subtitle="Last 2 seconds"
-                active-label="Speaking"
-                active-legend-label="Voice detected"
-                inactive-legend-label="Silence"
-                threshold-label="Speech threshold"
+                :title="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.title')"
+                :subtitle="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.subtitle')"
+                :active-label="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.active')"
+                :active-legend-label="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.active_legend')"
+                :inactive-legend-label="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.inactive_legend')"
+                :threshold-label="t('settings.pages.modules.hearing.sections.section.monitoring.voice_activity.threshold')"
               />
             </div>
           </div>
@@ -826,23 +834,23 @@ onUnmounted(() => {
       <!-- Speech-to-Text Test Section -->
       <div w-full rounded-xl bg="neutral-50 dark:[rgba(0,0,0,0.3)]" p-4 flex="~ col gap-4">
         <h2 class="text-lg text-neutral-500 md:text-2xl dark:text-neutral-400">
-          Speech-to-Text Test
+          {{ t('settings.pages.modules.hearing.sections.section.stt_test.title') }}
         </h2>
         <div text="sm neutral-400 dark:neutral-500" mb-2>
-          Test your transcription provider with the selected audio device. This will help verify that STT is working correctly.
+          {{ t('settings.pages.modules.hearing.sections.section.stt_test.description') }}
         </div>
 
         <div v-if="!activeTranscriptionProvider" class="border border-amber-200 rounded-lg bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
           <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400">
             <div i-solar:warning-circle-line-duotone class="text-lg" />
-            <span class="text-sm font-medium">Please select a transcription provider above to test</span>
+            <span class="text-sm font-medium">{{ t('settings.pages.modules.hearing.sections.section.stt_test.warnings.select_provider') }}</span>
           </div>
         </div>
 
         <div v-else-if="!selectedAudioInput" class="border border-amber-200 rounded-lg bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
           <div class="flex items-center gap-2 text-amber-700 dark:text-amber-400">
             <div i-solar:warning-circle-line-duotone class="text-lg" />
-            <span class="text-sm font-medium">Please select an audio input device to test</span>
+            <span class="text-sm font-medium">{{ t('settings.pages.modules.hearing.sections.section.stt_test.warnings.select_audio_input') }}</span>
           </div>
         </div>
 
@@ -862,11 +870,15 @@ onUnmounted(() => {
               <div v-else class="mr-2">
                 <div i-solar:microphone-line-duotone text-lg />
               </div>
-              {{ isTestingSTT ? 'Stop Test' : isTranscribing ? 'Transcribing...' : 'Start Speech-to-Text Test' }}
+              {{ isTestingSTT
+                ? t('settings.pages.modules.hearing.sections.section.stt_test.actions.stop')
+                : isTranscribing
+                  ? t('settings.pages.modules.hearing.sections.section.stt_test.actions.transcribing')
+                  : t('settings.pages.modules.hearing.sections.section.stt_test.actions.start') }}
             </Button>
           </div>
 
-          <ErrorContainer v-if="testTranscriptionError" title="Transcription Error" :error="testTranscriptionError" />
+          <ErrorContainer v-if="testTranscriptionError" :title="t('settings.pages.modules.hearing.sections.section.stt_test.error_title')" :error="testTranscriptionError" />
 
           <div v-if="testStatusMessage" class="border border-primary-200 rounded-lg bg-primary-50 p-3 dark:border-primary-800 dark:bg-primary-900/20">
             <div class="flex items-center gap-2 text-primary-700 dark:text-primary-400">
@@ -879,14 +891,14 @@ onUnmounted(() => {
           <div v-if="shouldUseStreamInput" class="border border-blue-200 rounded-lg bg-blue-50 p-3 dark:border-blue-800 dark:bg-blue-900/20">
             <div class="flex items-center gap-2 text-blue-700 dark:text-blue-400">
               <div i-solar:info-circle-line-duotone class="text-sm" />
-              <span class="text-xs">Streaming mode: Transcription will appear in real-time as you speak</span>
+              <span class="text-xs">{{ t('settings.pages.modules.hearing.sections.section.stt_test.streaming_hint') }}</span>
             </div>
           </div>
 
           <div class="space-y-3">
             <div>
               <label class="mb-1 block text-sm text-neutral-700 font-medium dark:text-neutral-300">
-                Transcription Result
+                {{ t('settings.pages.modules.hearing.sections.section.stt_test.result.title') }}
               </label>
               <div
                 v-if="testTranscriptionText || testStreamingText"
@@ -894,7 +906,7 @@ onUnmounted(() => {
               >
                 <div v-if="testStreamingText && shouldUseStreamInput" class="text-neutral-600 dark:text-neutral-400">
                   <div class="mb-2 font-medium">
-                    Current transcription (streaming):
+                    {{ t('settings.pages.modules.hearing.sections.section.stt_test.result.current_streaming') }}:
                   </div>
                   <div class="whitespace-pre-wrap">
                     {{ testStreamingText }}
@@ -902,7 +914,7 @@ onUnmounted(() => {
                 </div>
                 <div v-if="testTranscriptionText" class="text-neutral-700 dark:text-neutral-200">
                   <div v-if="testStreamingText && shouldUseStreamInput" class="mb-2 mt-3 border-t border-neutral-200 pt-2 font-medium dark:border-neutral-700">
-                    Final transcription:
+                    {{ t('settings.pages.modules.hearing.sections.section.stt_test.result.final') }}:
                   </div>
                   <div class="whitespace-pre-wrap">
                     {{ testTranscriptionText }}
@@ -913,16 +925,16 @@ onUnmounted(() => {
                 v-else
                 class="min-h-[100px] border border-neutral-300 rounded-lg border-dashed bg-neutral-50 p-3 text-sm text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900/50 dark:text-neutral-500"
               >
-                No transcription yet. Click "Start Speech-to-Text Test" and speak into your microphone.
+                {{ t('settings.pages.modules.hearing.sections.section.stt_test.result.empty') }}
               </div>
             </div>
 
             <div v-if="activeTranscriptionProvider" class="text-xs text-neutral-500 dark:text-neutral-400">
-              <div>Provider: <span class="font-medium">{{ configuredTranscriptionProvidersMetadata.find(p => p.id === activeTranscriptionProvider)?.localizedName || activeTranscriptionProvider }}</span></div>
+              <div>{{ t('settings.pages.modules.hearing.sections.section.stt_test.summary.provider') }} <span class="font-medium">{{ configuredTranscriptionProvidersMetadata.find(p => p.id === activeTranscriptionProvider)?.localizedName || activeTranscriptionProvider }}</span></div>
               <div v-if="activeTranscriptionModel">
-                Model: <span class="font-medium">{{ activeTranscriptionModel }}</span>
+                {{ t('settings.pages.modules.hearing.sections.section.stt_test.summary.model') }} <span class="font-medium">{{ activeTranscriptionModel }}</span>
               </div>
-              <div>Mode: <span class="font-medium">{{ shouldUseStreamInput ? 'Streaming (real-time)' : 'Recording (file-based)' }}</span></div>
+              <div>{{ t('settings.pages.modules.hearing.sections.section.stt_test.summary.mode') }} <span class="font-medium">{{ shouldUseStreamInput ? t('settings.pages.modules.hearing.sections.section.stt_test.summary.streaming_mode') : t('settings.pages.modules.hearing.sections.section.stt_test.summary.recording_mode') }}</span></div>
             </div>
           </div>
         </div>

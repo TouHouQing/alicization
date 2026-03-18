@@ -2,6 +2,18 @@ edition:
   desktop: Desktop ver.
   mobile: Mobile ver.
   web: Web ver.
+auth:
+  login:
+    title: Sign in to Alicization Stage
+    mobile_title: Alicization Stage
+    providers:
+      google: Google
+      github: GitHub
+    legal: By continuing, you agree to our {terms} and {privacy}.
+    terms: Terms
+    privacy: Privacy Policy
+    errors:
+      unknown: An unknown error occurred
 prompt:
   prefix: ''
   suffix: ''

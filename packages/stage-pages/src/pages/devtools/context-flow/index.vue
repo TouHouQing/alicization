@@ -15,6 +15,7 @@ import { Callout } from '@proj-alicization/ui'
 import { useBroadcastChannel } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 
 import ContextFlowActions from './components/context-flow-actions.vue'
@@ -31,6 +32,7 @@ const {
   summarizeContextUpdate,
   truncateText,
 } = useContextFlowFormatters()
+const { t } = useI18n()
 
 const chatStore = useChatOrchestratorStore()
 const characterStore = useCharacterStore()
@@ -47,19 +49,10 @@ const showDevtools = ref(false)
 const filterText = ref('')
 const maxEntries = ref('200')
 
-const testPayload = ref('{"type":"coding:context","data":{"file":{"path":"README.md"}}}')
+const testPayload = ref(t('settings.pages.system.sections.section.developer.sections.section.context-flow.defaults.context_payload'))
 const testStrategy = ref<ContextUpdateStrategy>(ContextUpdateStrategy.ReplaceSelf)
 
-const testSparkNotifyPayload = ref(JSON.stringify({
-  kind: 'ping',
-  urgency: 'immediate',
-  headline: 'Minecraft entity `zombie` attacked you, health dropped 2 points.',
-  note: 'Triggered from minecraft',
-  destinations: ['character'],
-  payload: {
-    message: 'Hello from Context Flow devtools',
-  },
-}, null, 2))
+const testSparkNotifyPayload = ref(t('settings.pages.system.sections.section.developer.sections.section.context-flow.defaults.spark_notify_payload'))
 
 const directionFilter = ref<DirectionFilter>('all')
 
@@ -236,13 +229,13 @@ async function sendTestSparkNotify() {
     parsed = JSON.parse(raw)
   }
   catch (err) {
-    toast(`Invalid spark:notify: ${errorMessageFrom(err)}`)
+    toast(t('settings.pages.system.sections.section.developer.sections.section.context-flow.toasts.invalid_spark_notify', { error: errorMessageFrom(err) }))
     return
   }
 
   const destinations = Array.isArray(parsed?.destinations) ? parsed.destinations.filter((d: unknown) => typeof d === 'string') : []
   if (!parsed?.headline || !destinations.length) {
-    toast('Missing required fields (headline, destinations[]) for spark:notify')
+    toast(t('settings.pages.system.sections.section.developer.sections.section.context-flow.toasts.missing_required'))
     return
   }
 
@@ -307,7 +300,7 @@ async function sendTestSparkNotify() {
     }
   }
   catch (error) {
-    toast(`Error handling spark:notify: ${errorMessageFrom(error)}`)
+    toast(t('settings.pages.system.sections.section.developer.sections.section.context-flow.toasts.handle_error', { error: errorMessageFrom(error) }))
     updateSparkNotifyState(notify.id, current => ({
       ...current,
       handling: false,
@@ -443,7 +436,7 @@ onMounted(() => {
         direction: 'outgoing',
         channel: 'chat',
         type: 'stream-end',
-        summary: 'stream completed',
+        summary: t('settings.pages.system.sections.section.developer.sections.section.context-flow.stream.completed'),
         payload: { context },
       })
     }),
@@ -542,9 +535,8 @@ onUnmounted(() => {
 
 <template>
   <div :class="['flex', 'flex-col', 'gap-6']">
-    <Callout label="Context Flow">
-      Inspect incoming context updates (server + broadcast) and outgoing chat hooks in real time. Use this to verify
-      how plugin context (e.g. VSCode coding context) travels into the chat pipeline and out to server events.
+    <Callout :label="t('settings.pages.system.sections.section.developer.sections.section.context-flow.callout.label')">
+      {{ t('settings.pages.system.sections.section.developer.sections.section.context-flow.callout.description') }}
     </Callout>
 
     <div :class="['grid', 'gap-6', 'lg:grid-cols-[360px_1fr]']">

@@ -65,6 +65,6 @@ watch(files, (files) => {
 <route lang="yaml">
 meta:
   layout: settings
-  title: Vibrant
+  titleKey: settings.pages.system.sections.section.developer.sections.section.vibrant.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

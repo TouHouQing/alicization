@@ -9,6 +9,7 @@ import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
 import { Checkbox } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const status = ref<'idle' | 'starting' | 'running' | 'error'>('idle')
 const errorMessage = ref('')
@@ -46,6 +47,10 @@ const vrmMapping = ref({
 const poseFiltering = ref({
   minVisibility: 0.5,
 })
+const { t } = useI18n()
+const statusLabel = computed(() => {
+  return t(`settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.states.${status.value}`)
+})
 
 // MediaPipe assets config
 const latestState = ref<PerceptionState>()
@@ -70,19 +75,23 @@ const { stageModelRenderer, stageModelSelected, stageModelSelectedUrl, stageView
 const summary = computed(() => {
   const enabled = Object.entries(config.value.enabled)
     .filter(([, v]) => v)
-    .map(([k]) => k)
-    .join(', ') || 'none'
+    .map(([key]) => t(`settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.features.${key}`))
+    .join(', ') || t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.features.none')
 
   const fps = latestState.value?.quality.fps
   const latency = latestState.value?.quality.latencyMs
   const dropped = latestState.value?.quality.droppedFrames
 
   return [
-    `enabled: ${enabled}`,
-    `hz: pose ${config.value.hz.pose}, hands ${config.value.hz.hands}, face ${config.value.hz.face}`,
-    fps != null ? `fps ${fps.toFixed(1)}` : null,
-    latency != null ? `latency ${latency.toFixed(1)}ms` : null,
-    dropped != null ? `dropped ${dropped}` : null,
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.enabled', { value: enabled }),
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.hz', {
+      pose: config.value.hz.pose,
+      hands: config.value.hz.hands,
+      face: config.value.hz.face,
+    }),
+    fps != null ? t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.fps', { value: fps.toFixed(1) }) : null,
+    latency != null ? t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.latency', { value: latency.toFixed(1) }) : null,
+    dropped != null ? t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.summary.dropped', { value: dropped }) : null,
   ].filter(Boolean).join(' | ')
 })
 
@@ -91,7 +100,7 @@ const poseVisibilityDebug = computed(() => {
   const lm = pose?.landmarks2d
   const world = pose?.worldLandmarks
   if (!lm?.length)
-    return 'pose: (no landmarks)'
+    return t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_debug.empty')
 
   const pick = (i: number) => {
     const v = lm[i]?.visibility
@@ -101,10 +110,20 @@ const poseVisibilityDebug = computed(() => {
   const withVis = lm.filter(p => p.visibility != null && Number.isFinite(p.visibility)).length
   const worldWithVis = world?.filter(p => p.visibility != null && Number.isFinite(p.visibility)).length ?? 0
   return [
-    `pose 2d vis ${withVis}/${lm.length}`,
-    `pose 3d vis ${worldWithVis}/${world?.length ?? 0}`,
-    `LS ${pick(11)} RS ${pick(12)} LE ${pick(13)} RE ${pick(14)}`,
-    `LW ${pick(15)} RW ${pick(16)} LH ${pick(23)} RH ${pick(24)}`,
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_debug.vis_2d', { visible: withVis, total: lm.length }),
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_debug.vis_3d', { visible: worldWithVis, total: world?.length ?? 0 }),
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_debug.shoulders_elbows', {
+      ls: pick(11),
+      rs: pick(12),
+      le: pick(13),
+      re: pick(14),
+    }),
+    t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_debug.wrists_hips', {
+      lw: pick(15),
+      rw: pick(16),
+      lh: pick(23),
+      rh: pick(24),
+    }),
   ].join(' | ')
 })
 
@@ -286,7 +305,7 @@ onUnmounted(() => {
   <div :class="['p-4', 'space-y-4']">
     <div>
       <div :class="['text-lg', 'font-600']">
-        MediaPipe Workshop Playground
+        {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.page_title') }}
       </div>
     </div>
 
@@ -295,7 +314,7 @@ onUnmounted(() => {
       <div :class="['flex', 'items-start', 'justify-between', 'gap-3', 'flex-wrap']">
         <div :class="['space-y-1']">
           <div :class="['font-600']">
-            Config
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.sections.config') }}
           </div>
           <div :class="['text-xs', 'text-neutral-500']">
             {{ summary }}
@@ -304,7 +323,9 @@ onUnmounted(() => {
 
         <label :class="['flex', 'items-center', 'gap-3']">
           <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-            {{ pipelineEnabled ? 'Running' : 'Stopped' }}
+            {{ pipelineEnabled
+              ? t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.status.running')
+              : t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.status.stopped') }}
           </div>
           <Checkbox v-model="pipelineEnabled" />
         </label>
@@ -314,11 +335,11 @@ onUnmounted(() => {
         <div :class="['flex', 'items-center', 'justify-between', 'gap-3']">
           <label :class="['flex', 'items-center', 'gap-2', 'text-sm']">
             <input v-model="config.enabled.pose" type="checkbox">
-            Pose
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.features.pose') }}
           </label>
           <label :class="['flex', 'items-center', 'gap-2']">
             <div :class="['text-xs', 'text-neutral-500']">
-              Hz
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.hz') }}
             </div>
             <input
               v-model.number="config.hz.pose"
@@ -333,11 +354,11 @@ onUnmounted(() => {
         <div :class="['flex', 'items-center', 'justify-between', 'gap-3']">
           <label :class="['flex', 'items-center', 'gap-2', 'text-sm']">
             <input v-model="config.enabled.hands" type="checkbox">
-            Hands
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.features.hands') }}
           </label>
           <label :class="['flex', 'items-center', 'gap-2']">
             <div :class="['text-xs', 'text-neutral-500']">
-              Hz
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.hz') }}
             </div>
             <input
               v-model.number="config.hz.hands"
@@ -352,11 +373,11 @@ onUnmounted(() => {
         <div :class="['flex', 'items-center', 'justify-between', 'gap-3']">
           <label :class="['flex', 'items-center', 'gap-2', 'text-sm']">
             <input v-model="config.enabled.face" type="checkbox">
-            Face
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.features.face') }}
           </label>
           <label :class="['flex', 'items-center', 'gap-2']">
             <div :class="['text-xs', 'text-neutral-500']">
-              Hz
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.hz') }}
             </div>
             <input
               v-model.number="config.hz.face"
@@ -371,24 +392,24 @@ onUnmounted(() => {
 
       <div :class="['flex', 'items-center', 'justify-between', 'gap-4', 'flex-wrap']">
         <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-          VRM Mapping
+          {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.sections.vrm_mapping') }}
         </div>
         <div :class="['flex', 'items-center', 'gap-6', 'flex-wrap']">
           <label :class="['flex', 'items-center', 'gap-3']">
             <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-              Flip X
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.mapping.flip_x') }}
             </div>
             <Checkbox v-model="vrmMapping.flipX" />
           </label>
           <label :class="['flex', 'items-center', 'gap-3']">
             <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-              Flip Y
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.mapping.flip_y') }}
             </div>
             <Checkbox v-model="vrmMapping.flipY" />
           </label>
           <label :class="['flex', 'items-center', 'gap-3']">
             <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-              Flip Z
+              {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.mapping.flip_z') }}
             </div>
             <Checkbox v-model="vrmMapping.flipZ" />
           </label>
@@ -397,11 +418,11 @@ onUnmounted(() => {
 
       <div :class="['flex', 'items-center', 'justify-between', 'gap-4', 'flex-wrap']">
         <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-          Pose Filtering
+          {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.sections.pose_filtering') }}
         </div>
         <label :class="['flex', 'items-center', 'gap-3']">
           <div :class="['text-sm', 'text-neutral-600', 'dark:text-neutral-300']">
-            Min Visibility
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.pose_filtering.min_visibility') }}
           </div>
           <input
             v-model.number="poseFiltering.minVisibility"
@@ -415,7 +436,7 @@ onUnmounted(() => {
       </div>
 
       <div :class="['text-xs', 'text-neutral-500']">
-        Note: `@mediapipe/tasks-vision` runs sync and may block the main thread. This workshop drops frames when busy to keep UI responsive.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.note') }}
       </div>
       <div :class="['text-xs', 'text-neutral-500', 'break-words']">
         {{ poseVisibilityDebug }}
@@ -451,7 +472,7 @@ onUnmounted(() => {
               'backdrop-blur',
             ]"
           >
-            <div>Status: {{ status }}</div>
+            <div>{{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.overlay.status', { value: statusLabel }) }}</div>
             <div v-if="status === 'error'" :class="['text-red-300']">
               {{ errorMessage }}
             </div>
@@ -471,7 +492,7 @@ onUnmounted(() => {
             @error="console.error"
           />
           <div v-else :class="['p-4', 'text-sm', 'text-red-500']">
-            请选择 VRM 模型（当前模型类型不支持）。
+            {{ t('settings.pages.system.sections.section.developer.sections.section.model-driver-mediapipe.unsupported_model') }}
           </div>
         </div>
       </div>

@@ -2,6 +2,7 @@
 import type { AlicizationSafetyPermissionRequest } from '../../shared/eventa'
 
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
   request: AlicizationSafetyPermissionRequest | null
@@ -11,6 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   decide: [payload: { allow: boolean, rememberSession: boolean }]
 }>()
+const { t } = useI18n()
 
 const rememberSession = ref(false)
 
@@ -22,10 +24,10 @@ const riskLabel = computed(() => {
   if (!props.request)
     return ''
   if (props.request.riskLevel === 'danger')
-    return '高风险'
+    return t('tamagotchi.settings.hitl.risk.danger')
   if (props.request.riskLevel === 'sensitive')
-    return '敏感'
-  return '安全'
+    return t('tamagotchi.settings.hitl.risk.sensitive')
+  return t('tamagotchi.settings.hitl.risk.safe')
 })
 
 const riskBadgeClass = computed(() => {
@@ -41,10 +43,10 @@ const riskBadgeClass = computed(() => {
 const argumentsSummaryText = computed(() => {
   const summary = props.request?.argumentsSummary
   if (!summary)
-    return '无参数摘要'
+    return t('tamagotchi.settings.hitl.arguments.empty_summary')
   const keys = Array.isArray(summary.keys) && summary.keys.length > 0
     ? summary.keys.join(', ')
-    : '无'
+    : t('tamagotchi.settings.hitl.arguments.none')
   const keyCount = typeof summary.keyCount === 'number'
     ? summary.keyCount
     : 0
@@ -84,7 +86,7 @@ function onDeny() {
       >
         <div :class="['mb-4 flex items-center justify-between gap-3']">
           <h2 :class="['text-lg font-700 tracking-wide']">
-            安全拦截确认（HitL）
+            {{ t('tamagotchi.settings.hitl.title') }}
           </h2>
           <span
             :class="[
@@ -97,11 +99,11 @@ function onDeny() {
         </div>
 
         <div :class="['space-y-3 text-sm leading-6']">
-          <p><b>工具：</b>{{ request.serverName }}::{{ request.toolName }}</p>
-          <p><b>类型：</b>{{ request.actionCategory }}</p>
-          <p><b>目标：</b>{{ request.resourceLabel || '未提供' }}</p>
-          <p><b>原因：</b>{{ request.reason }}</p>
-          <p><b>参数摘要：</b>{{ argumentsSummaryText }}</p>
+          <p><b>{{ t('tamagotchi.settings.hitl.fields.tool') }}</b>{{ request.serverName }}::{{ request.toolName }}</p>
+          <p><b>{{ t('tamagotchi.settings.hitl.fields.type') }}</b>{{ request.actionCategory }}</p>
+          <p><b>{{ t('tamagotchi.settings.hitl.fields.target') }}</b>{{ request.resourceLabel || t('tamagotchi.settings.hitl.fields.not_provided') }}</p>
+          <p><b>{{ t('tamagotchi.settings.hitl.fields.reason') }}</b>{{ request.reason }}</p>
+          <p><b>{{ t('tamagotchi.settings.hitl.fields.arguments_summary') }}</b>{{ argumentsSummaryText }}</p>
         </div>
 
         <label
@@ -113,7 +115,7 @@ function onDeny() {
             type="checkbox"
             :disabled="resolving"
           >
-          本次会话记住该读取路径
+          {{ t('tamagotchi.settings.hitl.remember_session') }}
         </label>
 
         <div :class="['mt-6 flex items-center justify-end gap-3']">
@@ -126,7 +128,7 @@ function onDeny() {
             ]"
             @click="onDeny"
           >
-            拒绝
+            {{ t('tamagotchi.settings.hitl.actions.deny') }}
           </button>
           <button
             type="button"
@@ -137,7 +139,7 @@ function onDeny() {
             ]"
             @click="onAllow"
           >
-            允许
+            {{ t('tamagotchi.settings.hitl.actions.allow') }}
           </button>
         </div>
       </div>

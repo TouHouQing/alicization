@@ -8,11 +8,13 @@ import { Section } from '@proj-alicization/stage-ui/components'
 import { usePluginHostInspectorStore } from '@proj-alicization/stage-ui/stores/devtools/plugin-host-debug'
 import { Button, Callout, Input } from '@proj-alicization/ui'
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 
 const store = usePluginHostInspectorStore()
 const filter = ref('')
 const selectedPluginName = ref('')
+const { t } = useI18n()
 
 const discoveredPlugins = computed(() => {
   const query = filter.value.trim().toLowerCase()
@@ -93,7 +95,7 @@ async function refresh() {
     await store.refreshAll()
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : 'Failed to refresh plugin host debug state.')
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.refresh_failed'))
   }
 }
 
@@ -102,7 +104,7 @@ async function loadEnabled() {
     await store.loadEnabled()
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : 'Failed to load enabled plugins.')
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.load_enabled_failed'))
   }
 }
 
@@ -115,7 +117,7 @@ async function setEnabled(plugin: PluginManifestSummary, enabled: boolean) {
     })
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : `Failed to update enabled state for ${plugin.name}.`)
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.update_enabled_failed', { name: plugin.name }))
   }
 }
 
@@ -124,7 +126,7 @@ async function loadPlugin(plugin: PluginManifestSummary) {
     await store.load({ name: plugin.name })
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : `Failed to load plugin ${plugin.name}.`)
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.load_plugin_failed', { name: plugin.name }))
   }
 }
 
@@ -133,14 +135,14 @@ async function unloadPlugin(plugin: PluginManifestSummary) {
     await store.unload({ name: plugin.name })
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : `Failed to unload plugin ${plugin.name}.`)
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.unload_plugin_failed', { name: plugin.name }))
   }
 }
 
 async function loadSelectedPlugin() {
   const name = selectedPluginName.value.trim()
   if (!name) {
-    toast.error('Enter a plugin name to load.')
+    toast.error(t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.enter_plugin_name'))
     return
   }
 
@@ -148,7 +150,7 @@ async function loadSelectedPlugin() {
     await store.load({ name })
   }
   catch (error) {
-    toast.error(error instanceof Error ? error.message : `Failed to load plugin ${name}.`)
+    toast.error(error instanceof Error ? error.message : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.toasts.load_plugin_failed', { name }))
   }
 }
 
@@ -162,21 +164,21 @@ onMounted(async () => {
     <Callout
       v-if="!store.isAvailable"
       theme="orange"
-      label="Plugin host debug is unavailable in this runtime."
-      description="Open this page from Stage Tamagotchi renderer to use Electron plugin host controls."
+      :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.unavailable.label')"
+      :description="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.unavailable.description')"
     />
 
     <Callout
       v-if="store.error"
       theme="orange"
-      label="Last Error"
+      :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.last_error')"
       :description="store.error"
     />
 
     <div :class="['grid', 'gap-2', 'sm:grid-cols-2', 'xl:grid-cols-4']">
       <div :class="['rounded-xl', 'bg-neutral-100', 'p-3', 'dark:bg-neutral-900/70']">
         <div :class="['text-xs', 'uppercase', 'opacity-70']">
-          Discovered
+          {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.stats.discovered') }}
         </div>
         <div :class="['text-2xl', 'font-semibold']">
           {{ store.discoveredPlugins.length }}
@@ -184,7 +186,7 @@ onMounted(async () => {
       </div>
       <div :class="['rounded-xl', 'bg-neutral-100', 'p-3', 'dark:bg-neutral-900/70']">
         <div :class="['text-xs', 'uppercase', 'opacity-70']">
-          Enabled
+          {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.stats.enabled') }}
         </div>
         <div :class="['text-2xl', 'font-semibold']">
           {{ store.enabledPlugins.length }}
@@ -192,7 +194,7 @@ onMounted(async () => {
       </div>
       <div :class="['rounded-xl', 'bg-neutral-100', 'p-3', 'dark:bg-neutral-900/70']">
         <div :class="['text-xs', 'uppercase', 'opacity-70']">
-          Loaded
+          {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.stats.loaded') }}
         </div>
         <div :class="['text-2xl', 'font-semibold']">
           {{ store.loadedPlugins.length }}
@@ -200,7 +202,7 @@ onMounted(async () => {
       </div>
       <div :class="['rounded-xl', 'bg-neutral-100', 'p-3', 'dark:bg-neutral-900/70']">
         <div :class="['text-xs', 'uppercase', 'opacity-70']">
-          Capabilities
+          {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.stats.capabilities') }}
         </div>
         <div :class="['text-2xl', 'font-semibold']">
           {{ readyCapabilitiesCount }} / {{ store.capabilities.length }}
@@ -211,18 +213,18 @@ onMounted(async () => {
     <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2']">
       <Input
         v-model="filter"
-        placeholder="Filter discovered plugins..."
+        :placeholder="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.filter_placeholder')"
         class="max-w-[440px] min-w-[280px]"
       />
       <Button
-        label="Refresh"
+        :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.refresh')"
         icon="i-solar:refresh-bold-duotone"
         size="sm"
         :loading="store.loading"
         @click="refresh"
       />
       <Button
-        label="Load Enabled"
+        :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.load_enabled')"
         icon="i-solar:play-bold-duotone"
         size="sm"
         :loading="store.loading"
@@ -233,11 +235,11 @@ onMounted(async () => {
     <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2']">
       <Input
         v-model="selectedPluginName"
-        placeholder="Load discovered plugin by exact name..."
+        :placeholder="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.exact_name_placeholder')"
         class="max-w-[520px] min-w-[320px]"
       />
       <Button
-        label="Load Plugin"
+        :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.load_plugin')"
         icon="i-solar:download-minimalistic-bold-duotone"
         size="sm"
         :disabled="!selectedPluginName.trim()"
@@ -247,7 +249,7 @@ onMounted(async () => {
     </div>
 
     <Section
-      title="Discovered Plugins"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.sections.discovered')"
       icon="i-solar:list-check-bold-duotone"
       inner-class="gap-3"
     >
@@ -255,7 +257,7 @@ onMounted(async () => {
         v-if="discoveredPlugins.length === 0"
         :class="['rounded-xl', 'border', 'border-dashed', 'border-neutral-400/50', 'p-4', 'text-sm', 'opacity-70']"
       >
-        No discovered plugin manifests found.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.empty_discovered') }}
       </div>
 
       <div v-else :class="['grid', 'gap-3']">
@@ -270,20 +272,20 @@ onMounted(async () => {
                 {{ plugin.name }}
               </div>
               <span :class="['rounded-full', 'border', 'px-2', 'py-0.5', 'text-xs', ...chipClasses(plugin.enabled ? 'emerald' : 'neutral')]">
-                {{ plugin.enabled ? 'enabled' : 'disabled' }}
+                {{ plugin.enabled ? t('settings.pages.system.sections.section.developer.sections.section.plugin-host.states.enabled') : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.states.disabled') }}
               </span>
               <span :class="['rounded-full', 'border', 'px-2', 'py-0.5', 'text-xs', ...chipClasses(plugin.loaded ? 'emerald' : 'neutral')]">
-                {{ plugin.loaded ? 'loaded' : 'not loaded' }}
+                {{ plugin.loaded ? t('settings.pages.system.sections.section.developer.sections.section.plugin-host.states.loaded') : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.states.not_loaded') }}
               </span>
               <span v-if="plugin.isNew" :class="['rounded-full', 'border', 'px-2', 'py-0.5', 'text-xs', ...chipClasses('amber')]">
-                new
+                {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.states.new') }}
               </span>
             </div>
             <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2']">
               <Button
                 size="sm"
                 variant="secondary"
-                :label="plugin.enabled ? 'Disable' : 'Enable'"
+                :label="plugin.enabled ? t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.disable') : t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.enable')"
                 :icon="plugin.enabled ? 'i-solar:lock-keyhole-minimalistic-unlocked-bold-duotone' : 'i-solar:lock-keyhole-bold-duotone'"
                 :loading="store.loading"
                 @click="setEnabled(plugin, !plugin.enabled)"
@@ -291,7 +293,7 @@ onMounted(async () => {
               <Button
                 size="sm"
                 variant="secondary"
-                label="Load"
+                :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.load')"
                 icon="i-solar:play-bold-duotone"
                 :disabled="plugin.loaded"
                 :loading="store.loading"
@@ -300,7 +302,7 @@ onMounted(async () => {
               <Button
                 size="sm"
                 variant="ghost"
-                label="Unload"
+                :label="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.actions.unload')"
                 icon="i-solar:stop-bold-duotone"
                 :disabled="!plugin.loaded"
                 :loading="store.loading"
@@ -313,13 +315,13 @@ onMounted(async () => {
             {{ plugin.path }}
           </div>
           <div :class="['mt-2', 'text-xs', 'opacity-70']">
-            entrypoints: {{ JSON.stringify(plugin.entrypoints) }}
+            {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.entrypoints') }} {{ JSON.stringify(plugin.entrypoints) }}
           </div>
           <div
             v-if="sessionByPluginName.get(plugin.name)"
             :class="['mt-2', 'flex', 'items-center', 'gap-2', 'text-sm']"
           >
-            <span>phase:</span>
+            <span>{{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.phase') }}</span>
             <span :class="['rounded-full', 'border', 'px-2', 'py-0.5', 'text-xs', ...chipClasses(phaseChipTheme(sessionByPluginName.get(plugin.name)!.phase))]">
               {{ sessionByPluginName.get(plugin.name)!.phase }}
             </span>
@@ -330,12 +332,12 @@ onMounted(async () => {
     </Section>
 
     <Section
-      title="Enabled Plugins"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.sections.enabled')"
       icon="i-solar:check-circle-bold-duotone"
       inner-class="gap-2"
     >
       <div :class="['text-sm', 'opacity-80']">
-        {{ enabledPlugins.length }} plugin(s) enabled in registry.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.enabled_summary', { count: enabledPlugins.length }) }}
       </div>
       <div :class="['flex', 'flex-wrap', 'gap-2']">
         <span
@@ -349,12 +351,12 @@ onMounted(async () => {
     </Section>
 
     <Section
-      title="Loaded Plugins"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.sections.loaded')"
       icon="i-solar:play-circle-bold-duotone"
       inner-class="gap-2"
     >
       <div :class="['text-sm', 'opacity-80']">
-        {{ loadedPlugins.length }} plugin(s) currently loaded in host sessions.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.loaded_summary', { count: loadedPlugins.length }) }}
       </div>
       <div :class="['grid', 'gap-2']">
         <div
@@ -373,7 +375,7 @@ onMounted(async () => {
     </Section>
 
     <Section
-      title="Capabilities"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.plugin-host.sections.capabilities')"
       icon="i-solar:widget-2-bold-duotone"
       inner-class="gap-2"
     >
@@ -381,7 +383,7 @@ onMounted(async () => {
         v-if="store.capabilities.length === 0"
         :class="['text-sm', 'opacity-70']"
       >
-        No capabilities announced.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.empty_capabilities') }}
       </div>
       <div v-else :class="['grid', 'gap-2']">
         <div
@@ -396,7 +398,7 @@ onMounted(async () => {
             </span>
           </div>
           <div :class="['mt-2', 'text-xs', 'opacity-70']">
-            updated: {{ new Date(capability.updatedAt).toLocaleString() }}
+            {{ t('settings.pages.system.sections.section.developer.sections.section.plugin-host.updated') }} {{ new Date(capability.updatedAt).toLocaleString() }}
           </div>
           <pre :class="['mt-2', 'overflow-auto', 'rounded-lg', 'bg-neutral-100', 'p-2', 'text-xs', 'dark:bg-neutral-900/70']">{{ JSON.stringify(capability.metadata ?? {}, null, 2) }}</pre>
         </div>
@@ -408,6 +410,6 @@ onMounted(async () => {
 <route lang="yaml">
 meta:
   layout: settings
-  title: Plugin Host Debug
+  titleKey: settings.pages.system.sections.section.developer.sections.section.plugin-host.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

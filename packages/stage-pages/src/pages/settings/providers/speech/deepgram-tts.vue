@@ -9,6 +9,7 @@ import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { storeToRefs } from 'pinia'
 import { computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const providerId = 'deepgram-tts'
 const defaultModel = 'aura-2-thalia-en'
@@ -18,6 +19,7 @@ const defaultVoiceSettings = {}
 const speechStore = useSpeechStore()
 const providersStore = useProvidersStore()
 const { providers } = storeToRefs(providersStore)
+const { t } = useI18n()
 
 const apiKeyConfigured = computed(() => !!providers.value[providerId]?.apiKey)
 
@@ -72,7 +74,7 @@ watch(providers, async () => {
         :available-voices="availableVoices"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        default-text="Hello! This is a test of the Deepgram voice synthesis."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
   </SpeechProviderSettings>

@@ -11,6 +11,12 @@ const { t } = useI18n()
 const { capturing, events, isMock, lastRun, payloadPreview, scheduleDelayMs, runState } = storeToRefs(stressStore)
 
 const previewText = computed(() => payloadPreview.value ?? '')
+const runStateLabel = computed(() => {
+  return t(`settings.pages.system.sections.section.developer.sections.section.markdown-stress.states.${runState.value}`)
+})
+const capturingLabel = computed(() => {
+  return t(`settings.pages.system.sections.section.developer.sections.section.markdown-stress.capturing.${capturing.value ? 'yes' : 'no'}`)
+})
 const lastRunSummary = computed(() => {
   if (!lastRun.value)
     return undefined
@@ -21,7 +27,11 @@ const lastRunSummary = computed(() => {
   }
 })
 const runSummary = computed(() => {
-  return `Run: ${runState.value}, capturing: ${capturing.value ? 'yes' : 'no'}, events: ${events.value.length}`
+  return t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.run_state.summary', {
+    state: runStateLabel.value,
+    capturing: capturingLabel.value,
+    events: events.value.length,
+  })
 })
 
 function toggleCapture() {
@@ -48,49 +58,65 @@ function toggleMode() {
         <ButtonBar
           class="w-full sm:w-auto"
           icon="i-solar:magic-stick-bold-duotone"
-          text="Preview"
+          :text="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.preview.text')"
           @click="stressStore.generatePreview()"
         >
-          Generate payload preview
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.preview.description') }}
         </ButtonBar>
         <ButtonBar
           class="w-full sm:w-auto"
           icon="i-solar:play-circle-bold-duotone"
-          :text="runState === 'running' ? 'Abort run' : runState === 'scheduled' ? 'Unschedule' : 'Replay'"
+          :text="runState === 'running'
+            ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.text_running')
+            : runState === 'scheduled'
+              ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.text_scheduled')
+              : t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.text_idle')"
           :disabled="!isMock && !stressStore.canRunOnline"
           @click="stressStore.scheduleRun()"
         >
-          {{ runState === 'running' ? 'Abort now' : runState === 'scheduled' ? 'Cancel replay' : 'Replay to provider' }}
+          {{ runState === 'running'
+            ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.description_running')
+            : runState === 'scheduled'
+              ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.description_scheduled')
+              : t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.replay.description_idle') }}
         </ButtonBar>
         <ButtonBar
           class="w-full sm:w-auto"
           :icon="capturing ? 'i-solar:stop-circle-bold-duotone' : 'i-solar:recive-bold-duotone'"
-          text="Capture"
+          :text="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.capture.text')"
           @click="toggleCapture"
         >
-          {{ capturing ? 'Stop capture' : 'Start capture' }}
+          {{ capturing
+            ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.capture.stop')
+            : t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.capture.start') }}
         </ButtonBar>
         <ButtonBar
           class="w-full sm:w-auto"
           icon="i-solar:export-bold-duotone"
-          text="Export"
+          :text="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.export.text')"
           :disabled="!lastRun?.events.length"
           @click="stressStore.exportCsv()"
         >
-          Export last run
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.export.description') }}
         </ButtonBar>
         <ButtonBar
           class="w-full sm:w-auto"
           :icon="isMock ? 'i-solar:simplerockets-bold-duotone' : 'i-solar:cloud-bold-duotone'"
-          :text="isMock ? 'Mode: Mock' : 'Mode: Live'"
+          :text="isMock
+            ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.mode.mock')
+            : t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.mode.live')"
           @click="toggleMode"
         >
-          {{ isMock ? 'Switch to live provider' : 'Switch to mock stream' }}
+          {{ isMock
+            ? t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.mode.switch_live')
+            : t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.actions.mode.switch_mock') }}
         </ButtonBar>
       </div>
 
       <div class="grid gap-3 md:grid-cols-[auto_1fr] md:items-center">
-        <label class="text-xs text-neutral-400">Schedule delay (ms)</label>
+        <label class="text-xs text-neutral-400">
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.fields.schedule_delay') }}
+        </label>
         <input
           v-model.number="scheduleDelayMs"
           type="number"
@@ -99,31 +125,37 @@ function toggleMode() {
         >
       </div>
 
-      <Callout label="Run state" theme="violet">
+      <Callout :label="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.run_state.title')" theme="violet">
         <div class="text-xs text-neutral-200">
           {{ runSummary }}
         </div>
         <div class="text-xs text-neutral-500">
-          Capture to record recent events; export last run for offline review.
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.run_state.hint') }}
         </div>
       </Callout>
 
-      <Callout v-if="lastRunSummary" label="Last run" theme="orange">
+      <Callout v-if="lastRunSummary" :label="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.last_run.title')" theme="orange">
         <div class="text-xs text-neutral-200">
-          {{ lastRunSummary.events }} events, duration {{ lastRunSummary.durationMs }} ms
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.last_run.summary', {
+            events: lastRunSummary.events,
+            duration: lastRunSummary.durationMs,
+          }) }}
         </div>
         <div class="text-xs text-neutral-500">
-          Export the last run to CSV to share with the team.
+          {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.last_run.hint') }}
         </div>
       </Callout>
     </Section>
 
     <div class="border border-neutral-800/70 rounded-xl bg-neutral-900/60 p-4 shadow-sm lg:col-span-1 space-y-3">
       <div class="text-sm text-neutral-200">
-        Live traces
+        {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.traces.title') }}
       </div>
       <div class="text-xs text-neutral-400">
-        Capturing: {{ capturing ? 'yes' : 'no' }}, events: {{ events.length }}
+        {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.traces.summary', {
+          capturing: capturingLabel,
+          events: events.length,
+        }) }}
       </div>
       <ul class="max-h-64 overflow-auto text-xs text-neutral-300 space-y-1">
         <li v-for="(event, idx) in events.slice(-20).reverse()" :key="idx">
@@ -135,20 +167,20 @@ function toggleMode() {
     </div>
 
     <Section
-      title="Payload preview"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.payload.title')"
       icon="i-solar:code-file-bold-duotone"
       inner-class="gap-3"
       class="lg:col-span-2"
     >
       <div class="text-xs text-neutral-300">
-        Latest payload
+        {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.payload.subtitle') }}
       </div>
 
       <div v-if="previewText" class="border border-neutral-700 rounded-lg border-dashed bg-neutral-900/60 p-3 space-y-2">
         <pre class="max-h-60 overflow-auto whitespace-pre-wrap text-xs text-neutral-200">{{ previewText }}</pre>
       </div>
       <div v-else class="text-xs text-neutral-500">
-        Generate a payload to see the preview.
+        {{ t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.payload.empty') }}
       </div>
     </Section>
   </div>

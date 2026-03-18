@@ -33,11 +33,11 @@ const {
   selectWithSource,
 } = useElectronScreenCapture(window.electron.ipcRenderer, sourcesOptions)
 
-const categoryOptions = [
-  { label: 'Applications', value: 'applications', icon: 'i-solar:window-frame-line-duotone' },
-  { label: 'Displays', value: 'displays', icon: 'i-solar:screencast-2-line-duotone' },
-  { label: 'Devices', value: 'devices', icon: 'i-solar:smartphone-2-line-duotone' },
-]
+const categoryOptions = computed(() => [
+  { label: t('screen-capture.devtools.categories.applications'), value: 'applications', icon: 'i-solar:window-frame-line-duotone' },
+  { label: t('screen-capture.devtools.categories.displays'), value: 'displays', icon: 'i-solar:screencast-2-line-duotone' },
+  { label: t('screen-capture.devtools.categories.devices'), value: 'devices', icon: 'i-solar:smartphone-2-line-duotone' },
+])
 
 const isDisplaySource = (source: ScreenCaptureSource) => source.id.startsWith('screen:')
 const isWindowSource = (source: ScreenCaptureSource) => source.id.startsWith('window:')
@@ -61,8 +61,8 @@ const isInitialLoading = computed(() => !hasFetchedOnce.value && isRefetching.va
 
 const refetchLabel = computed(() => {
   if (isInitialLoading.value)
-    return 'Loading...'
-  return isRefetching.value ? 'Refetching...' : 'Refetch'
+    return t('screen-capture.devtools.actions.loading')
+  return isRefetching.value ? t('screen-capture.devtools.actions.refetching') : t('screen-capture.devtools.actions.refetch')
 })
 
 const refetchIcon = computed(() =>
@@ -71,10 +71,10 @@ const refetchIcon = computed(() =>
 
 function getShareLabel(source: ScreenCaptureSource) {
   if (isDisplaySource(source))
-    return 'Share Screen'
+    return t('screen-capture.devtools.actions.share_screen')
   if (isDeviceSource(source))
-    return 'Share Device'
-  return 'Share Window'
+    return t('screen-capture.devtools.actions.share_device')
+  return t('screen-capture.devtools.actions.share_window')
 }
 
 function toLocalArrayBuffer(bytes: Uint8Array) {
@@ -186,7 +186,7 @@ onBeforeUnmount(() => {
         >
           <div :class="['flex', 'items-center', 'gap-2']">
             <div class="i-solar:videocamera-record-line-duotone" />
-            <div>Capturing</div>
+            <div>{{ t('screen-capture.devtools.capture_status') }}</div>
           </div>
           <div :class="['flex', 'w-full', 'items-center', 'gap-3', 'overflow-x-auto']">
             <div
@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
               >
                 <div class="i-solar:stop-line-duotone" />
                 <div class="text-sm">
-                  Stop
+                  {{ t('screen-capture.devtools.actions.stop') }}
                 </div>
               </div>
               <video
@@ -256,7 +256,7 @@ onBeforeUnmount(() => {
           >
             <div :class="['flex', 'items-center', 'gap-2']">
               <div class="i-svg-spinners:ring-resize text-lg" />
-              <span>Loading sources...</span>
+              <span>{{ t('screen-capture.devtools.loading_sources') }}</span>
             </div>
           </div>
 
@@ -311,7 +311,7 @@ onBeforeUnmount(() => {
                 <img
                   v-if="source.thumbnailURL"
                   :src="source.thumbnailURL"
-                  alt="Thumbnail"
+                  :alt="t('screen-capture.devtools.alt.thumbnail')"
                   class="h-full w-full object-contain"
                 >
                 <div
@@ -326,7 +326,7 @@ onBeforeUnmount(() => {
                     <img
                       v-if="source.appIconURL"
                       :src="source.appIconURL"
-                      :alt="source.id.startsWith('screen:') ? 'Screen Icon' : 'Window Icon'"
+                      :alt="source.id.startsWith('screen:') ? t('screen-capture.devtools.alt.screen_icon') : t('screen-capture.devtools.alt.window_icon')"
                       class="h-full w-full shrink-0"
                     >
                     <div
@@ -360,9 +360,9 @@ onBeforeUnmount(() => {
             ]"
           >
             <div class="i-solar:shield-warning-line-duotone text-2xl" />
-            <div>No sources found for this category.</div>
+            <div>{{ t('screen-capture.devtools.empty.title') }}</div>
             <div class="text-xs text-neutral-400">
-              Try switching tabs or refetching the sources.
+              {{ t('screen-capture.devtools.empty.description') }}
             </div>
           </div>
         </div>
@@ -387,6 +387,6 @@ onBeforeUnmount(() => {
 <route lang="yaml">
 meta:
   layout: settings
-  title: Screen Capture
+  titleKey: settings.pages.system.sections.section.developer.sections.section.screen-capture.title
   subtitleKey: tamagotchi.settings.devtools.title
 </route>

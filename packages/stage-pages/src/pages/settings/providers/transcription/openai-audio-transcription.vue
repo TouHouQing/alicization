@@ -84,11 +84,11 @@ watch(model, async () => {
       <!-- Model selection -->
       <FieldSelect
         v-model="model"
-        label="Model"
-        description="Select the transcription model to use"
+        :label="t('settings.pages.providers.provider.common.transcription_model.label')"
+        :description="t('settings.pages.providers.provider.common.transcription_model.description')"
         :options="providerModels.map(m => ({ value: m.id, label: m.name }))"
         :disabled="isLoadingModels || providerModels.length === 0"
-        placeholder="Select a model..."
+        :placeholder="t('settings.pages.providers.provider.common.transcription_model.placeholder')"
       />
     </template>
     <template #playground>

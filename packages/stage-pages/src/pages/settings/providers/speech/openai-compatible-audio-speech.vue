@@ -162,16 +162,16 @@ const {
     :provider-id="providerId"
     :default-model="defaultModel"
     :additional-settings="defaultVoiceSettings"
-    placeholder="sk-..."
+    :placeholder="t('settings.pages.providers.catalog.edit.config.common.fields.field.api-key.placeholder')"
   >
     <!-- Voice settings specific to OpenAI Compatible -->
     <template #voice-settings>
       <!-- Model input -->
       <FieldInput
         v-model="model"
-        label="Model"
-        description="Enter the TTS model to use for speech generation"
-        placeholder="tts-1"
+        :label="t('settings.pages.providers.common.speech_model.label')"
+        :description="t('settings.pages.providers.common.speech_model.manual_description')"
+        :placeholder="t('settings.pages.providers.common.speech_model.manual_placeholder', { example: 'tts-1' })"
       />
       <!-- Speed control - common to most providers -->
       <FieldRange
@@ -189,7 +189,7 @@ const {
         v-model:voice="voice as any"
         :generate-speech="handleGenerateSpeech"
         :api-key-configured="apiKeyConfigured"
-        default-text="Hello! This is a test of the OpenAI Compatible Speech."
+        :default-text="t('settings.pages.providers.common.playground.default_text')"
       />
     </template>
 

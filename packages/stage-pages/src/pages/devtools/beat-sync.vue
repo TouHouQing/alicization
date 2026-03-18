@@ -6,6 +6,7 @@ import { Section } from '@proj-alicization/stage-ui/components'
 import { Button, Callout, FieldCheckbox, FieldRange, FieldSelect } from '@proj-alicization/ui'
 import { useRafFn } from '@vueuse/core'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface TrailPoint { x: number, y: number, t: number }
 interface ScalarSample { t: number, x: number, y: number, z: number }
@@ -18,6 +19,7 @@ const dampingOverlay = ref(0.08)
 const timeWindowMs = 4000
 const style = ref<BeatSyncStyleName>('punchy-v')
 const autoStyleShift = ref(false)
+const { t } = useI18n()
 
 const controller = createBeatSyncController({
   baseAngles: () => ({ x: baseAngleX.value, y: baseAngleY.value, z: baseAngleZ.value }),
@@ -40,12 +42,12 @@ const scalars = ref<ScalarSample[]>([])
 const canvasXY = ref<HTMLCanvasElement>()
 const debugState = computed(() => controller.debugState())
 const nowTs = ref(performance.now())
-const styleOptions: Array<{ label: string, value: BeatSyncStyleName }> = [
-  { label: 'Punchy V (10/8/4)', value: 'punchy-v' },
-  { label: 'Balanced V (6/0/6)', value: 'balanced-v' },
-  { label: 'Swing L/R (A-shape side-to-side)', value: 'swing-lr' },
-  { label: 'Sway Sine (lifted arc between sides)', value: 'sway-sine' },
-]
+const styleOptions = computed<Array<{ label: string, value: BeatSyncStyleName }>>(() => [
+  { label: t('settings.pages.system.sections.section.developer.sections.section.beat-sync.styles.punchy-v'), value: 'punchy-v' },
+  { label: t('settings.pages.system.sections.section.developer.sections.section.beat-sync.styles.balanced-v'), value: 'balanced-v' },
+  { label: t('settings.pages.system.sections.section.developer.sections.section.beat-sync.styles.swing-lr'), value: 'swing-lr' },
+  { label: t('settings.pages.system.sections.section.developer.sections.section.beat-sync.styles.sway-sine'), value: 'sway-sine' },
+])
 
 watch(style, val => controller.setStyle(val))
 watch(autoStyleShift, enabled => controller.setAutoStyleShift(enabled))
@@ -211,14 +213,14 @@ function hitVSequence() {
 <template>
   <div class="grid gap-4 p-4 lg:grid-cols-[2fr_1fr]">
     <Section
-      title="Beat sync driver"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.page.driver_title')"
       icon="i-solar:cursor-linear"
       inner-class="gap-4"
     >
       <div class="flex flex-wrap items-center gap-3">
-        <Button label="Hit beat" icon="i-solar:flash-bold-duotone" size="sm" @click="hitBeat" />
+        <Button :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.actions.hit_beat')" icon="i-solar:flash-bold-duotone" size="sm" @click="hitBeat" />
         <Button
-          label="Hit V sequence"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.actions.hit_sequence')"
           icon="i-solar:repeat-one-minimalistic-bold-duotone"
           size="sm"
           variant="secondary"
@@ -227,26 +229,26 @@ function hitVSequence() {
         <FieldCheckbox
           v-model="autoStyleShift"
           class="min-w-[240px]"
-          label="Auto style by BPM"
-          description="Switch styles based on detected tempo"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.auto_style.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.auto_style.description')"
         />
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
         <FieldSelect
           v-model="style"
-          label="Style"
-          description="Choose how head motion is sculpted between beats"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.style.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.style.description')"
           :options="styleOptions"
           layout="vertical"
           select-class="w-full"
         />
-        <Callout label="Current targets" theme="violet">
+        <Callout :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.current_targets.title')" theme="violet">
           <div class="text-sm text-neutral-800 dark:text-neutral-100">
             X/Y/Z: {{ currentPose.x.toFixed(2) }} / {{ currentPose.y.toFixed(2) }} / {{ currentPose.z.toFixed(2) }}
           </div>
           <div class="text-xs text-neutral-500 dark:text-neutral-400">
-            Live targets fed into the spring solver.
+            {{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.current_targets.description') }}
           </div>
         </Callout>
       </div>
@@ -254,8 +256,8 @@ function hitVSequence() {
       <div class="grid gap-4 md:grid-cols-2">
         <FieldRange
           v-model="baseAngleX"
-          label="Base X"
-          description="Baseline tilt forward/back"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_x.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_x.description')"
           :min="-20"
           :max="20"
           :step="0.1"
@@ -263,8 +265,8 @@ function hitVSequence() {
         />
         <FieldRange
           v-model="baseAngleY"
-          label="Base Y"
-          description="Baseline tilt left/right"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_y.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_y.description')"
           :min="-20"
           :max="20"
           :step="0.1"
@@ -272,8 +274,8 @@ function hitVSequence() {
         />
         <FieldRange
           v-model="baseAngleZ"
-          label="Base Z"
-          description="Baseline roll"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_z.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.base_z.description')"
           :min="-20"
           :max="20"
           :step="0.1"
@@ -281,8 +283,8 @@ function hitVSequence() {
         />
         <FieldRange
           v-model="scale"
-          label="Scale (px/deg)"
-          description="Trail & marker scale"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.scale.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.scale.description')"
           :min="2"
           :max="18"
           :step="0.5"
@@ -293,16 +295,16 @@ function hitVSequence() {
       <div class="grid gap-4 md:grid-cols-2">
         <FieldRange
           v-model="dampingOverlay"
-          label="Trail fade"
-          description="Overlay alpha for XY trace"
+          :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.trail_fade.label')"
+          :description="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.fields.trail_fade.description')"
           :min="0.02"
           :max="0.3"
           :step="0.01"
           :format-value="formatFade"
         />
-        <Callout label="Controller" theme="lime">
+        <Callout :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.controller.title')" theme="lime">
           <div class="text-xs text-neutral-700 dark:text-neutral-200">
-            Beat targets update each frame; the spring here mirrors the runtime Live2D hook.
+            {{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.controller.description') }}
           </div>
         </Callout>
       </div>
@@ -313,31 +315,34 @@ function hitVSequence() {
     </Section>
 
     <Section
-      title="Signals & debug"
+      :title="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.page.signals_title')"
       icon="i-solar:chart-2-bold-duotone"
       inner-class="gap-4"
     >
       <div class="space-y-3">
         <div class="text-sm text-neutral-500 dark:text-neutral-400">
-          Scalars (Y / Z over time, last {{ (timeWindowMs / 1000).toFixed(1) }}s)
+          {{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.page.scalars', { seconds: (timeWindowMs / 1000).toFixed(1) }) }}
         </div>
       </div>
 
-      <Callout label="Spring model" theme="orange">
+      <Callout :label="t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.spring.title')" theme="orange">
         <div class="text-xs text-neutral-700 dark:text-neutral-200">
-          Semi-implicit Euler spring matches Live2D hook (stiffness 120, damping 16). Targets driven by beat controller.
+          {{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.callouts.spring.description') }}
         </div>
       </Callout>
 
       <div class="text-xs text-neutral-500 space-y-1 dark:text-neutral-400">
-        <div>Style: {{ debugState.style }}</div>
-        <div>BPM (avg): {{ debugState.bpm ? debugState.bpm.toFixed(1) : '—' }}</div>
-        <div>Primed: {{ debugState.primed }}</div>
-        <div>Pattern started: {{ debugState.patternStarted }}</div>
-        <div>Segments: {{ debugState.segments.length }}</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.style', { value: debugState.style }) }}</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.bpm', { value: debugState.bpm ? debugState.bpm.toFixed(1) : '—' }) }}</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.primed', { value: debugState.primed }) }}</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.pattern_started', { value: debugState.patternStarted }) }}</div>
+        <div>{{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.segments', { value: debugState.segments.length }) }}</div>
         <div v-if="debugState.segments.length">
-          Next segment: toY {{ debugState.segments[0].toY.toFixed(2) }}, toZ {{ debugState.segments[0].toZ.toFixed(2) }},
-          starts in {{ Math.max(0, debugState.segments[0].start - nowTs).toFixed(0) }} ms
+          {{ t('settings.pages.system.sections.section.developer.sections.section.beat-sync.debug.next_segment', {
+            toY: debugState.segments[0].toY.toFixed(2),
+            toZ: debugState.segments[0].toZ.toFixed(2),
+            start: Math.max(0, debugState.segments[0].start - nowTs).toFixed(0),
+          }) }}
         </div>
       </div>
     </Section>

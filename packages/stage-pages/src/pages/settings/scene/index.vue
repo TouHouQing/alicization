@@ -1,17 +1,24 @@
 <script setup lang="ts">
 import { Callout } from '@proj-alicization/ui'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div>
     <Callout
-      label="In development, needs your help!"
+      :label="t('settings.pages.scene.wip.label')"
       theme="orange"
     >
-      <div>
-        This functionality is still under development. If you have any suggestions or would like to contribute, please reach out to us on our <a underline decoration-dotted href="https://github.com/TouHouQing/alicization/issues">GitHub issues page</a>.
-        The source code of this page is located at <a underline decoration-dotted href="https://github.com/TouHouQing/alicization/tree/main/apps/stage-web/src/pages/settings/scene/index.vue">here</a>.
-      </div>
+      <i18n-t keypath="settings.pages.scene.wip.description" tag="div">
+        <template #issues>
+          <a underline decoration-dotted href="https://github.com/TouHouQing/alicization/issues">{{ t('settings.pages.scene.wip.issues_link') }}</a>
+        </template>
+        <template #source>
+          <a underline decoration-dotted href="https://github.com/TouHouQing/alicization/tree/main/apps/stage-web/src/pages/settings/scene/index.vue">{{ t('settings.pages.scene.wip.source_link') }}</a>
+        </template>
+      </i18n-t>
     </Callout>
   </div>
   <div
