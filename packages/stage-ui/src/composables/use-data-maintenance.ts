@@ -62,7 +62,7 @@ export function useDataMaintenance() {
   async function deleteAllChatSessions() {
     await chatOrchestrator.abortActiveTurns('session-reset')
     chatOrchestrator.cancelPendingSends()
-    if (isStageTamagotchi() && hasAlicizationBridge()) {
+    if (hasAlicizationBridge()) {
       await getAlicizationBridge().clearAllConversations?.()
     }
     await chatStore.resetAllSessions()
@@ -98,7 +98,7 @@ export function useDataMaintenance() {
     await chatOrchestrator.abortActiveTurns('session-reset')
     chatOrchestrator.cancelPendingSends()
 
-    if (isStageTamagotchi() && hasAlicizationBridge()) {
+    if (hasAlicizationBridge()) {
       await getAlicizationBridge().deleteAllData?.()
     }
 

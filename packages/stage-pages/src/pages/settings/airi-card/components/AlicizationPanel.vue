@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
 import { useCharacterOrchestratorStore } from '@proj-alicization/stage-ui/stores/character'
 import { storeToRefs } from 'pinia'
@@ -37,7 +37,7 @@ const killSwitchLoading = ref(false)
 const organicMemorySearchLoading = ref(false)
 const organicMemorySearchQuery = ref('')
 const personaSaving = ref(false)
-const supported = computed(() => isStageTamagotchi())
+const supported = computed(() => hasAlicizationBridge())
 const personaDraft = ref(createDefaultPersonaDraft())
 
 function createDefaultPersonaDraft(seedAlicizationName?: string) {

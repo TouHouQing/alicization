@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { OnboardingDialog, ToasterRoot } from '@proj-alicization/stage-ui/components'
+import { useBrowserAlicizationRuntime } from '@proj-alicization/stage-ui/composables/use-browser-alicization-runtime'
 import { useSharedAnalyticsStore } from '@proj-alicization/stage-ui/stores/analytics'
 import { useCharacterOrchestratorStore } from '@proj-alicization/stage-ui/stores/character'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
@@ -36,6 +37,7 @@ const { showingSetup } = storeToRefs(onboardingStore)
 const { isDark } = useTheme()
 const cardStore = useAiriCardStore()
 const analyticsStore = useSharedAnalyticsStore()
+const browserAlicizationRuntime = useBrowserAlicizationRuntime({ runtime: 'web' })
 
 const primaryColor = computed(() => {
   return isDark.value
@@ -75,6 +77,7 @@ watch(settings.themeColorsHueDynamic, () => {
 onMounted(async () => {
   analyticsStore.initialize()
   cardStore.initialize()
+  await browserAlicizationRuntime.initialize()
 
   if (onboardingStore.needsOnboarding) {
     onboardingStore.showingSetup = true

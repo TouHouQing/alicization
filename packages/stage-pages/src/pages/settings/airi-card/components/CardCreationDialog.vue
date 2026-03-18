@@ -7,7 +7,7 @@ import type { SoulForgeDraft } from './soul-forge'
 import kebabcase from '@stdlib/string-base-kebabcase'
 
 import { errorMessageFrom } from '@moeru/std'
-import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
 import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
@@ -64,8 +64,8 @@ const { activeSpeechProvider: speechProvider, activeSpeechModel: defaultSpeechMo
 const dialogMode = ref<'create' | 'edit'>('create')
 const dialogCardId = ref('')
 const isEditMode = computed(() => dialogMode.value === 'edit')
-const supportsAlicizationEdit = computed(() => isStageTamagotchi() && isEditMode.value)
-const supportsAlicizationCreate = computed(() => isStageTamagotchi() && !isEditMode.value)
+const supportsAlicizationEdit = computed(() => hasAlicizationBridge() && isEditMode.value)
+const supportsAlicizationCreate = computed(() => hasAlicizationBridge() && !isEditMode.value)
 
 const selectedConsciousnessProvider = ref<string>('')
 const selectedConsciousnessModel = ref<string>('')
