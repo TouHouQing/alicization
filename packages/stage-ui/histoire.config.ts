@@ -6,8 +6,8 @@ export default defineConfig({
   theme: {
     title: 'Alicization UI',
     logo: {
-      dark: './public/logo.svg',
-      light: './public/logo.svg',
+      dark: './public/logo.png',
+      light: './public/logo.png',
     },
     colors: {
       primary: {

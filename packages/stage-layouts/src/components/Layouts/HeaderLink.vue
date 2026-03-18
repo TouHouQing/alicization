@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import { useTheme } from '@proj-alicization/ui'
 import { RouterLink } from 'vue-router'
 
-import LogoDark from '../../assets/logo-dark.svg'
-import Logo from '../../assets/logo.svg'
-
-const { isDark: dark } = useTheme()
+import Logo from '../../assets/logo.png'
 </script>
 
 <template>
@@ -13,12 +9,7 @@ const { isDark: dark } = useTheme()
     to="/" flex="~"
     w-max items-center gap-2 px-2 text-nowrap text-2xl outline-none
   >
-    <template v-if="dark">
-      <img :src="LogoDark" h-8 w-8 class="theme-colored">
-    </template>
-    <template v-else>
-      <img :src="Logo" h-8 w-8 class="theme-colored">
-    </template>
+    <img :src="Logo" h-8 w-8 class="theme-colored">
     <div translate-y="[2px]" font-quicksand font-semibold>
       <span>Alicization</span>
     </div>

@@ -9,6 +9,8 @@ import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 
+import alicizationLogo from '../../assets/logo.png'
+
 const router = useRouter()
 
 const isDesktop = useMediaQuery('(min-width: 768px)')
@@ -78,7 +80,7 @@ watch(isDesktop, (val) => {
 
   <div v-else class="min-h-screen flex flex-col items-center justify-center bg-neutral-100 dark:bg-neutral-950">
     <div class="mb-12 flex flex-col items-center gap-4">
-      <img src="../../assets/logo.svg" class="h-24 w-24 rounded-3xl shadow-lg">
+      <img :src="alicizationLogo" class="h-24 w-24 rounded-3xl shadow-lg">
       <div class="text-3xl font-bold">
         Alicization Stage
       </div>
