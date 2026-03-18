@@ -14,6 +14,10 @@ This repository is a fork of AIRI, but the project documented here is **Alicizat
 
 If you want a default-permission, opaque, cloud-first autonomous agent, this is not it.
 If you want a local-first, structured, traceable, long-lived digital life architecture, this repository is aiming directly at that problem.
+<p align="center">
+  <img width="600" src="./docs/content/public/show1.png" alt="Project Alicization show" />
+</p>
+
 
 ## Why Alicization
 
