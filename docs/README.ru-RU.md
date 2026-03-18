@@ -8,6 +8,8 @@
 
 **Языки:** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**Онлайн-демо:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > Этот файл — зеркало корневого README для тех, кто читает репозиторий из каталога `docs/`.
 >
 > Последняя синхронизация с канонической версией: **17 марта 2026 года**

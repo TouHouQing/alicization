@@ -8,6 +8,8 @@
 
 **Languages:** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**Online Demo:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > Mirror of the canonical repository README for readers browsing the `docs/` directory.
 >
 > Last synced with the canonical README on **March 17, 2026**.

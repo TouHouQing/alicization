@@ -8,6 +8,8 @@
 
 **言語:** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**オンライン体験:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > このファイルは、`docs/` ディレクトリを閲覧する人のための、リポジトリルート README のミラーです。
 >
 > 正式版との最終同期日: **2026年3月17日**

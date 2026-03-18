@@ -8,6 +8,8 @@
 
 **Languages:** [English](./README.md) · [简体中文](./docs/README.zh-CN.md) · [日本語](./docs/README.ja-JP.md) · [한국어](./docs/README.ko-KR.md) · [Français](./docs/README.fr.md) · [Русский](./docs/README.ru-RU.md) · [Tiếng Việt](./docs/README.vi.md)
 
+**Online Demo:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 Project Alicization is not trying to generate slightly better answers. Its goal is to build a digital symbiote that can persist on a host device, evolve over time, stay auditable, remain interruptible, and gain agency in controlled stages.
 
 This repository is a fork of AIRI, but the project documented here is **Alicization**.

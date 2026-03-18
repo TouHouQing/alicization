@@ -8,6 +8,8 @@
 
 **语言版本：** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**在线体验：** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > 此文件是仓库根 README 的镜像版本，方便在 `docs/` 目录下浏览。
 >
 > 最近一次与主文档同步：**2026 年 3 月 17 日**。

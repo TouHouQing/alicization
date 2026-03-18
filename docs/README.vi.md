@@ -8,6 +8,8 @@
 
 **Ngôn ngữ:** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**Trải nghiệm trực tuyến:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > Tệp này là bản mirror của README gốc để thuận tiện cho người đọc trong thư mục `docs/`.
 >
 > Lần đồng bộ gần nhất với tài liệu chuẩn: **17 tháng 3, 2026**

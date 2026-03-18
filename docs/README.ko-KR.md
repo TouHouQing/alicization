@@ -8,6 +8,8 @@
 
 **언어:** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**온라인 체험:** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > 이 파일은 `docs/` 디렉터리에서 읽기 쉽도록 만든 저장소 루트 README의 미러입니다.
 >
 > 기준 문서와 마지막 동기화: **2026년 3월 17일**

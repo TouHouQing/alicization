@@ -8,6 +8,8 @@
 
 **Langues :** [English](../README.md) · [简体中文](./README.zh-CN.md) · [日本語](./README.ja-JP.md) · [한국어](./README.ko-KR.md) · [Français](./README.fr.md) · [Русский](./README.ru-RU.md) · [Tiếng Việt](./README.vi.md)
 
+**Démo en ligne :** [alz.tohoqing.com](https://alz.tohoqing.com)
+
 > Ce fichier est un miroir du README racine pour les lecteurs qui parcourent le dossier `docs/`.
 >
 > Dernière synchronisation avec le document canonique : **17 mars 2026**
