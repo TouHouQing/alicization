@@ -45,9 +45,9 @@ describe('pickServerUrl', () => {
 describe('resolveCapRunArgs', () => {
   it('keeps an explicit --target argument untouched', () => {
     expect(resolveCapRunArgs(
-      ['ios', '--target', 'iPhone 16 Pro', '--scheme', 'AIRI'],
+      ['ios', '--target', 'iPhone 16 Pro', '--scheme', 'Alicization'],
       { CAPACITOR_DEVICE_ID: 'ignored-device' },
-    )).toEqual(['ios', '--target', 'iPhone 16 Pro', '--scheme', 'AIRI'])
+    )).toEqual(['ios', '--target', 'iPhone 16 Pro', '--scheme', 'Alicization'])
   })
 
   it('injects --target from CAPACITOR_DEVICE_ID when it is missing', () => {

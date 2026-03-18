@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DoubleCheckButton } from '@proj-airi/ui'
+import { DoubleCheckButton } from '@proj-alicization/ui'
 import { ref } from 'vue'
 
 const actionLog = ref('Waiting for action...')

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ButtonBar } from '@proj-airi/stage-ui/components'
+import { ButtonBar } from '@proj-alicization/stage-ui/components'
 import { storeToRefs } from 'pinia'
 import { onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'

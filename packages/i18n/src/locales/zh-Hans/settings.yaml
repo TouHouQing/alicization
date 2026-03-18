@@ -404,7 +404,7 @@ pages:
     title: 记忆体
   data:
     title: Data
-    description: 管理存储 AIRI 数据、导出和重置
+    description: 管理存储 Alicization 数据、导出和重置
     sections:
       chats:
         title: 聊天会话
@@ -433,7 +433,7 @@ pages:
         delete: 删除所有数据
       desktop:
         title: 重置桌面设置和状态
-        description: 清除 AIRI 桌面设置和运行状态。
+        description: 清除 Alicization 桌面设置和运行状态。
         reset: 重置桌面数据
     confirmations:
       tooltip: 您确定吗？
@@ -549,7 +549,7 @@ pages:
       description: 一起玩 Factorio！
       title: 异星工厂 Factorio
       enable: 启用异星工厂集成
-      enable-description: 允许AIRI与异星工厂游戏互动
+      enable-description: 允许Alicization与异星工厂游戏互动
       server-address: 服务器地址
       server-address-description: 异星工厂服务器的IP地址或主机名
       server-address-placeholder: 输入服务器地址（例如：localhost或192.168.1.100）
@@ -563,7 +563,7 @@ pages:
       description: 一起玩 Minecraft！
       title: 我的世界 Minecraft
       enable: 启用我的世界集成
-      enable-description: 允许AIRI与我的世界游戏互动
+      enable-description: 允许Alicization与我的世界游戏互动
       server-address: 服务器地址
       server-address-description: 我的世界服务器的IP地址或主机名
       server-address-placeholder: 输入服务器地址（例如：localhost或play.example.com）
@@ -590,7 +590,7 @@ pages:
       description: Discord 发消息和语音聊天
       title: Discord
       enable: 启用Discord集成
-      enable-description: 允许AIRI通过Discord进行互动
+      enable-description: 允许Alicization通过Discord进行互动
       token: 机器人令牌
       token-description: 您的Discord机器人令牌
       token-placeholder: 输入您的Discord机器人令牌
@@ -623,7 +623,7 @@ pages:
             search_voices_results: 找到 {count} / {total} 个声线
             unsupported_voice_warning_title: 没有支持的声线
             unsupported_voice_warning_content: >-
-              我们正在尽快支持该模型的所有音色，如果你迫切希望支持该模型音色，请在 GitHub 上联系我们 https://github.com/moeru-ai/airi/issues
+              我们正在尽快支持该模型的所有音色，如果你迫切希望支持该模型音色，请在 GitHub 上联系我们 https://github.com/TouHouQing/alicization/issues
             show_less: 显示更少
             show_more: 显示更多
             title: 选择语音合成服务来源
@@ -642,7 +642,7 @@ pages:
       description: X / Twitter 的浏览和使用
       title: X / Twitter
       enable: 启用X / Twitter集成
-      enable-description: 允许AIRI与X / Twitter互动
+      enable-description: 允许Alicization与X / Twitter互动
       api-key: API密钥
       api-key-description: 您的X / Twitter API密钥
       api-key-placeholder: 输入您的X / Twitter API密钥
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: 第一次使用？
       description: >
-        AIRI 需要配置至少一个 {chat} 服务来源，才能正常思考和运作。你可以把它看作是 AIRI 系统中角色的大脑。
+        Alicization 需要配置至少一个 {chat} 服务来源，才能正常思考和运作。你可以把它看作是 Alicization 系统中角色的大脑。
     catalog:
       edit:
         config-id-not-found: 未找到服务来源配置。
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: Ollama需要额外的配置
                     content: >-
-                      很抱歉，Ollama 连接检查失败。不要担心，如果是 Ollama，需要额外配置才能通过 Ollama。 您需要在启动 Olama 应用程序或 Ollama CLI 服务器时明确设置 <code>OLLAMA_HOST</code> 详情，请检查 <a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 集成指南</a>。
+                      很抱歉，Ollama 连接检查失败。不要担心，如果是 Ollama，需要额外配置才能通过 Ollama。 您需要在启动 Olama 应用程序或 Ollama CLI 服务器时明确设置 <code>OLLAMA_HOST</code> 详情，请检查 <a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 集成指南</a>。
     common:
       continueAnyway: 仍然继续
       goToModelSelection: '选择模型→'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRI Green
-              description: 默认的绿色主题，由 AIRI 为您带来！
+                color-1: Alicization Green
+              description: 默认的绿色主题，由 Alicization 为您带来！
               title: 默认颜色
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: 主题
   description: |
-    切换 AIRI 的基础主题，亮色模式或暗色模式。
+    切换 Alicization 的基础主题，亮色模式或暗色模式。
 title: 设置
 voices: 声线
 vrm:

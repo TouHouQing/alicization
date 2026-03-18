@@ -1,4 +1,4 @@
-import { builtinActionBindings } from '@proj-airi/stage-ui-three/assets/vrm'
+import { builtinActionBindings } from '@proj-alicization/stage-ui-three/assets/vrm'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

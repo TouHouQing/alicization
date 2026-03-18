@@ -1,4 +1,4 @@
-import type { StageModelRenderer } from '@proj-airi/stage-ui/stores/settings'
+import type { StageModelRenderer } from '@proj-alicization/stage-ui/stores/settings'
 
 export type StageComponentState = 'pending' | 'loading' | 'mounted'
 

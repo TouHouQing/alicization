@@ -86,8 +86,8 @@ const projectAIRIAsciiArt = computed(() => {
 })
 
 const projectAIRIMetadata = `
-Project AIRI team from Moeru AI (https://moeru.ai) and other contributors
-Open sourced on https://github.com/moeru-ai/airi
+Project Alicization team from Moeru AI (https://moeru.ai) and other contributors
+Open sourced on https://github.com/TouHouQing/alicization
 `
 
 const bootMessages = computed<BootMessage[]>(() => [
@@ -97,7 +97,7 @@ const bootMessages = computed<BootMessage[]>(() => [
     withoutTimestamp: true,
   })),
   {
-    template: `Project AIRI version ${import.meta.env.VITE_AIRI_VERSION || '1.0.0'} @ ${import.meta.env.VITE_AIRI_COMMIT || '0240602'} build`,
+    template: `Project Alicization version ${import.meta.env.VITE_AIRI_VERSION || '1.0.0'} @ ${import.meta.env.VITE_AIRI_COMMIT || '0240602'} build`,
     typingSpeed: 5,
     withoutTimestamp: true,
   },
@@ -117,7 +117,7 @@ const bootMessages = computed<BootMessage[]>(() => [
     withoutTimestamp: true,
   },
   {
-    template: 'Command line: BOOT_IMAGE=/boot/airi.moeru.ai root=UUID=io.github.moeru-ai.airi',
+    template: 'Command line: BOOT_IMAGE=/boot/alicization.moeru.ai root=UUID=ai.moeru.alicization',
     typingSpeed: 1,
   },
   {
@@ -125,7 +125,7 @@ const bootMessages = computed<BootMessage[]>(() => [
     typingSpeed: 1,
   },
   {
-    template: 'Initializing AIRI subsystems...',
+    template: 'Initializing Alicization subsystems...',
     typingSpeed: 1,
     pending: true,
     onPendingCheck: () => {
@@ -160,7 +160,7 @@ const bootMessages = computed<BootMessage[]>(() => [
     },
   },
   {
-    template: 'AIRI core services initialized',
+    template: 'Alicization core services initialized',
     typingSpeed: 1,
   },
   {
@@ -236,7 +236,7 @@ const bootMessages = computed<BootMessage[]>(() => [
     typingSpeed: 1,
   },
   {
-    template: 'AIRI ready',
+    template: 'Alicization ready',
     typingSpeed: 1,
   },
 ])

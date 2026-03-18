@@ -1,6 +1,6 @@
 ---
 title: Telegram Bot
-description: 参与并贡献 Project AIRI
+description: 参与并贡献 Project Alicization
 ---
 
 ### Telegram Bot / 机器人
@@ -23,14 +23,14 @@ cp .env .env.local
 执行数据库迁移：
 
 ```shell
-pnpm -F @proj-airi/telegram-bot db:generate
-pnpm -F @proj-airi/telegram-bot db:push
+pnpm -F @proj-alicization/telegram-bot db:generate
+pnpm -F @proj-alicization/telegram-bot db:push
 ```
 
 启动机器人：
 
 ```shell
-pnpm -F @proj-airi/telegram-bot start
+pnpm -F @proj-alicization/telegram-bot start
 ```
 
 ::: tip
@@ -38,7 +38,7 @@ pnpm -F @proj-airi/telegram-bot start
 如果你使用 [@antfu/ni](https://github.com/antfu-collective/ni)，你可以：
 
 ```shell
-nr -F @proj-airi/telegram-bot dev
+nr -F @proj-alicization/telegram-bot dev
 ```
 
 :::

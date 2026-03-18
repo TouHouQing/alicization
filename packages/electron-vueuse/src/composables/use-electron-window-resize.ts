@@ -1,6 +1,6 @@
-import type { ResizeDirection } from '@proj-airi/electron-eventa'
+import type { ResizeDirection } from '@proj-alicization/electron-eventa'
 
-import { electron } from '@proj-airi/electron-eventa'
+import { electron } from '@proj-alicization/electron-eventa'
 
 import { useElectronEventaInvoke } from './use-electron-eventa-context'
 

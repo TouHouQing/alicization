@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 
 import { createContext, defineEventa, defineInvoke, defineInvokeHandler } from '@moeru/eventa'
-import { moduleCompatibilityResult, moduleStatus, registryModulesSync } from '@proj-airi/plugin-protocol/types'
+import { moduleCompatibilityResult, moduleStatus, registryModulesSync } from '@proj-alicization/plugin-protocol/types'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FileSystemLoader, PluginHost } from '.'
@@ -25,7 +25,7 @@ describe('for FileSystemPluginHost', () => {
 
     const pluginDef = await host.loadPluginFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {
         electron: join(import.meta.dirname, 'testdata', 'test-normal-plugin.ts'),
@@ -46,7 +46,7 @@ describe('for FileSystemPluginHost', () => {
 
     const pluginDef = await host.loadPluginFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {
         node: join(import.meta.dirname, 'testdata', 'test-normal-plugin.ts'),
@@ -62,7 +62,7 @@ describe('for FileSystemPluginHost', () => {
 
     await expect(host.loadPluginFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {
         electron: join(import.meta.dirname, 'testdata', 'test-error-plugin.ts'),
@@ -74,7 +74,7 @@ describe('for FileSystemPluginHost', () => {
     const host = new FileSystemLoader()
     const baseManifest = {
       apiVersion: 'v1' as const,
-      kind: 'manifest.plugin.airi.moeru.ai' as const,
+      kind: 'manifest.plugin.alicization.moeru.ai' as const,
       name: 'test-plugin',
     }
 
@@ -121,7 +121,7 @@ describe('for FileSystemPluginHost', () => {
 
     expect(host.resolveEntrypointFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {
         node: '/opt/plugins/entry.ts',
@@ -137,7 +137,7 @@ describe('for FileSystemPluginHost', () => {
 
     expect(() => host.resolveEntrypointFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {},
     }, { runtime: 'node' })).toThrow('Plugin entrypoint is required for runtime `node`.')
@@ -145,10 +145,10 @@ describe('for FileSystemPluginHost', () => {
 })
 
 describe('for PluginHost', () => {
-  const providersCapability = 'proj-airi:plugin-sdk:apis:protocol:resources:providers:list-providers'
+  const providersCapability = 'proj-alicization:plugin-sdk:apis:protocol:resources:providers:list-providers'
   const testManifest = {
     apiVersion: 'v1' as const,
-    kind: 'manifest.plugin.airi.moeru.ai' as const,
+    kind: 'manifest.plugin.alicization.moeru.ai' as const,
     name: 'test-plugin',
     entrypoints: {
       electron: join(import.meta.dirname, 'testdata', 'test-normal-plugin.ts'),
@@ -194,7 +194,7 @@ describe('for PluginHost', () => {
 
     const session = await host.load({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin-no-connect',
       entrypoints: {
         electron: join(import.meta.dirname, 'testdata', 'test-no-connect-plugin.ts'),
@@ -221,7 +221,7 @@ describe('for PluginHost', () => {
 
     const pluginDef = await loader.loadPluginFor({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-plugin',
       entrypoints: {
         electron: join(import.meta.dirname, 'testdata', 'test-normal-plugin.ts'),
@@ -243,7 +243,7 @@ describe('for PluginHost', () => {
     })
     defineInvokeHandler(ctx, protocolCapabilityWait, async () => {
       return {
-        key: 'proj-airi:plugin-sdk:apis:protocol:resources:providers:list-providers',
+        key: 'proj-alicization:plugin-sdk:apis:protocol:resources:providers:list-providers',
         state: 'ready',
         updatedAt: Date.now(),
       }
@@ -414,7 +414,7 @@ describe('for PluginHost', () => {
 
     const session = await host.start({
       apiVersion: 'v1',
-      kind: 'manifest.plugin.airi.moeru.ai',
+      kind: 'manifest.plugin.alicization.moeru.ai',
       name: 'test-reload-relative-entrypoint',
       entrypoints: {
         electron: './test-normal-plugin.ts',

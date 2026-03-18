@@ -6,7 +6,7 @@ import type {
   WebSocketEvent,
   WebSocketEventOptionalSource,
   WebSocketEvents,
-} from '@proj-airi/server-shared/types'
+} from '@proj-alicization/server-shared/types'
 
 import WebSocket from 'crossws/websocket'
 import superjson from 'superjson'
@@ -15,7 +15,7 @@ import { sleep } from '@moeru/std'
 import {
   MessageHeartbeat,
   MessageHeartbeatKind,
-} from '@proj-airi/server-shared/types'
+} from '@proj-alicization/server-shared/types'
 
 export interface ClientOptions<C = undefined> {
   url?: string

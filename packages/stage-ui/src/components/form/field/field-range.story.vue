@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FieldRange } from '@proj-airi/ui'
+import { FieldRange } from '@proj-alicization/ui'
 import { ref } from 'vue'
 
 const minValue = ref(0)

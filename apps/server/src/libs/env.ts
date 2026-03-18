@@ -17,8 +17,8 @@ const EnvSchema = object({
   AUTH_GITHUB_CLIENT_SECRET: pipe(string(), nonEmpty('AUTH_GITHUB_CLIENT_SECRET is required')),
 
   // OpenTelemetry
-  OTEL_SERVICE_NAMESPACE: optional(string(), 'airi'),
-  OTEL_SERVICE_NAME: optional(string(), 'server'),
+  OTEL_SERVICE_NAMESPACE: optional(string(), 'alicization'),
+  OTEL_SERVICE_NAME: optional(string(), 'alicization-server'),
   OTEL_TRACES_SAMPLING_RATIO: optional(string(), '1.0'),
   OTEL_EXPORTER_OTLP_ENDPOINT: optional(string()),
   OTEL_EXPORTER_OTLP_HEADERS: optional(string()),

@@ -25,7 +25,7 @@
 
   desktopItems = [
     (makeDesktopItem {
-      desktopName = "AIRI";
+      desktopName = "Alicization";
       comment = final.meta.description;
       categories = [
         "AudioVideo"
@@ -68,19 +68,19 @@
     runHook preInstall
 
     mkdir -p "$out/opt"
-    cp -r dist/*-unpacked "$out/opt/AIRI"
+    cp -r dist/*-unpacked "$out/opt/Alicization"
     # The icon is actually 1500x1500... install it anyway
-    install -Dm644 resources/icon.png "$out/share/icons/hicolor/64x64/apps/airi.png"
+    install -Dm644 resources/icon.png "$out/share/icons/hicolor/64x64/apps/alicization.png"
 
     # Patch the asar to include the assets
-    cd "$out/opt/AIRI/resources"
+    cd "$out/opt/Alicization/resources"
     asar extract app.asar app
     rm -r app.asar.unpacked
     cp -r "$assets"/{vrm,live2d} app/out/renderer/assets
     asar pack app app.asar
 
-    makeWrapper "${electron}/bin/electron" "$out/bin/airi" \
-      --add-flags "$out/opt/AIRI/resources/app.asar" \
+    makeWrapper "${electron}/bin/electron" "$out/bin/alicization" \
+      --add-flags "$out/opt/Alicization/resources/app.asar" \
       --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--enable-wayland-ime=true --wayland-text-input-version=3}}"
 
     runHook postInstall

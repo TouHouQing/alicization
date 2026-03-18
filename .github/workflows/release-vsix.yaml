@@ -3,7 +3,7 @@ name: Release VSCE & OVSX
 on:
   push:
     tags:
-      - '@proj-airi/airi-plugin-vscode@v*'
+      - '@proj-alicization/alicization-plugin-vscode@v*'
       - 'v*'
 
 permissions:
@@ -31,10 +31,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build:packages
-      - run: pnpm run -F @proj-airi/airi-plugin-vscode build
-      - run: pnpm run -F vscode-airi build
+      - run: pnpm run -F @proj-alicization/alicization-plugin-vscode build
+      - run: pnpm run -F vscode-alicization build
       - run: pnpm run publish
-        working-directory: ./integrations/vscode/vscode-airi
+        working-directory: ./integrations/vscode/vscode-alicization
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}

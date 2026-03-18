@@ -7,7 +7,7 @@ Allow アイリ to talk to you and many other users in Telegram.
 Clone & install dependencies:
 
 ```shell
-git clone git@github.com:moeru-ai/airi.git
+git clone git.com:TouHouQing/alicization.git
 pnpm i
 pnpm run build:packages
 ```
@@ -72,5 +72,5 @@ Start both DB and the bot:
 
 ```shell
 docker compose up -d
-pnpm run -F @proj-airi/telegram-bot start
+pnpm run -F @proj-alicization/telegram-bot start
 ```

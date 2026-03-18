@@ -199,21 +199,21 @@ First build the Electron app artifacts:
 ```shell
 pnpm build:tamagotchi
 # Equivalent to:
-# pnpm -F @proj-airi/stage-tamagotchi run app:build
+# pnpm -F @proj-alicization/stage-tamagotchi run app:build
 ```
 
 If you want distributable installers or platform-specific bundles:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:mac
-pnpm -F @proj-airi/stage-tamagotchi run build:win
-pnpm -F @proj-airi/stage-tamagotchi run build:linux
+pnpm -F @proj-alicization/stage-tamagotchi run build:mac
+pnpm -F @proj-alicization/stage-tamagotchi run build:win
+pnpm -F @proj-alicization/stage-tamagotchi run build:linux
 ```
 
 If you only need the unpacked directory for local validation:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+pnpm -F @proj-alicization/stage-tamagotchi run build:unpack
 ```
 
 `pnpm build:tamagotchi` writes the raw Electron build output to `apps/stage-tamagotchi/out`.

@@ -70,7 +70,7 @@ vi.mock('../../database/repos/chat-sessions.repo', () => ({
   chatSessionsRepo: mocks.chatSessionsRepo,
 }))
 
-vi.mock('@proj-airi/stage-shared', () => ({
+vi.mock('@proj-alicization/stage-shared', () => ({
   isStageTamagotchi: () => true,
 }))
 

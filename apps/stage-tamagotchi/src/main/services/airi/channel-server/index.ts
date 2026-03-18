@@ -1,4 +1,4 @@
-import type { Server, ServerOptions } from '@proj-airi/server-runtime/server'
+import type { Server, ServerOptions } from '@proj-alicization/server-runtime/server'
 import type { Lifecycle } from 'injeca'
 
 import { X509Certificate } from 'node:crypto'
@@ -9,7 +9,7 @@ import { env, platform } from 'node:process'
 import { useLogg } from '@guiiai/logg'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { createServer, getLocalIPs } from '@proj-airi/server-runtime/server'
+import { createServer, getLocalIPs } from '@proj-alicization/server-runtime/server'
 import { Mutex } from 'async-mutex'
 import { app, ipcMain } from 'electron'
 import { createCA, createCert } from 'mkcert'
@@ -110,7 +110,7 @@ async function installCACertificate(caCert: string) {
     }
     else if (platform === 'linux') {
       const caDir = '/usr/local/share/ca-certificates'
-      const caFileName = 'airi-websocket-ca.crt'
+      const caFileName = 'alicization-websocket-ca.crt'
       try {
         writeFileSync(join(caDir, caFileName), caCert)
         await x('update-ca-certificates', [], { nodeOptions: { stdio: 'ignore' } })
@@ -149,7 +149,7 @@ async function generateCertificate() {
   }
   else {
     ca = await createCA({
-      organization: 'AIRI',
+      organization: 'Alicization',
       countryCode: 'US',
       state: 'Development',
       locality: 'Local',

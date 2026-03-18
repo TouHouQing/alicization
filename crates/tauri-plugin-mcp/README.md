@@ -14,15 +14,15 @@ This plugin requires a Rust version of at least 1.77.2
 [dependencies]
 tauri-plugin-mcp = { version = "0.4.27" }
 # or
-tauri-plugin-mcp = { git = "https://github.com/moeru-ai/airi", tag = "0.4.27" }
+tauri-plugin-mcp = { git = "https://github.com/TouHouQing/alicization", tag = "0.4.27" }
 ```
 
 You can install the JavaScript Guest bindings using your preferred JavaScript package manager:
 
 ```bash
-pnpm add @proj-airi/tauri-plugin-mcp
+pnpm add @proj-alicization/tauri-plugin-mcp
 # or use @antfu/ni
-ni @proj-airi/tauri-plugin-mcp
+ni @proj-alicization/tauri-plugin-mcp
 ```
 
 ## Usage
@@ -43,9 +43,9 @@ fn main() {
 Afterwards all the plugin's APIs are available through the JavaScript guest bindings:
 
 ```ts
-import { callTool, connectServer, disconnectServer, listTools } from '@proj-airi/tauri-plugin-mcp'
+import { callTool, connectServer, disconnectServer, listTools } from '@proj-alicization/tauri-plugin-mcp'
 
-// Sample: Connect to a container running AIRI Android
+// Sample: Connect Alicization to an Android-side MCP container
 await connectServer('docker', 'run -i --rm -e ADB_HOST=host.docker.internal ghcr.io/lemonnekogh/airi-android:v0.1.0')
 
 console.log(await listTools())

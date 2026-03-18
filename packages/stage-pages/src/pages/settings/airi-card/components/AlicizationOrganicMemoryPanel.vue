@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AlicizationOrganicMemorySnapshot, AlicizationSubconsciousFragment } from '@proj-airi/stage-ui/stores/alicization-bridge'
+import type { AlicizationOrganicMemorySnapshot, AlicizationSubconsciousFragment } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -24,17 +24,17 @@ jobs:
         include:
           - app_name: stage-web
             environment_name: Production
-            environment_url: https://airi.moeru.ai/docs/
-            cloudflare_pages_id: moeru-ai-airi
+            environment_url: https://github.com/TouHouQing/alicization
+            cloudflare_pages_id: touhouqing-alicization
             dist_directory: ./apps/stage-web/dist
             command: |
-              pnpm -F @proj-airi/stage-web run build
+              pnpm -F @proj-alicization/stage-web run build
 
-              pnpm -F @proj-airi/docs run build:base
+              pnpm -F @proj-alicization/docs run build:base
               mv ./docs/.vitepress/dist ./apps/stage-web/dist/docs
               cp ./apps/stage-web/dist/docs/sitemap.xml ./apps/stage-web/dist/sitemap.xml
 
-              pnpm -F @proj-airi/stage-ui run story:build
+              pnpm -F @proj-alicization/stage-ui run story:build
               mv ./packages/stage-ui/.histoire/dist ./apps/stage-web/dist/ui
 
     environment:

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { IconItem, RippleGrid } from '@proj-airi/stage-ui/components'
-import { useRippleGridState } from '@proj-airi/stage-ui/composables/use-ripple-grid-state'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { IconItem, RippleGrid } from '@proj-alicization/stage-ui/components'
+import { useRippleGridState } from '@proj-alicization/stage-ui/composables/use-ripple-grid-state'
+import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -12,12 +12,6 @@ const { t } = useI18n()
 const { lastClickedIndex, setLastClickedIndex } = useRippleGridState()
 
 const settingsStore = useSettings()
-
-function normalizeAlicizationLabel(value: string | undefined) {
-  if (!value)
-    return ''
-  return value.replace(/AIRI/gi, 'Alicization')
-}
 
 const removeBeforeEach = router.beforeEach(async (_, __, next) => {
   if (!settingsStore.usePageSpecificTransitions || settingsStore.disableTransitions) {
@@ -44,10 +38,9 @@ const settings = computed(() => {
     .map((route) => {
       const title = route.meta?.titleKey ? t(route.meta.titleKey as string) : (route.meta?.title as string | undefined)
       const description = route.meta?.descriptionKey ? t(route.meta.descriptionKey as string) : (route.meta?.description as string | undefined) || ''
-      const isAlicizationCardEntry = route.path === '/settings/airi-card'
       return {
-        title: isAlicizationCardEntry ? normalizeAlicizationLabel(title) : title,
-        description: isAlicizationCardEntry ? normalizeAlicizationLabel(description) : description,
+        title,
+        description,
         icon: route.meta?.icon as string | undefined,
         to: route.path,
       }

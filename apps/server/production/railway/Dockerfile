@@ -14,8 +14,8 @@ COPY packages/server-schema packages/server-schema
 RUN --mount=type=cache,id=s/fec8bf0d-37e0-4283-8202-5f1bd7e6cd0e-/root/.pnpm-store,target=/root/.pnpm-store \
     pnpm install --frozen-lockfile --ignore-scripts
 
-RUN pnpm -F @proj-airi/server-schema run build
+RUN pnpm -F @proj-alicization/server-schema run build
 
 EXPOSE 3000
 
-CMD ["pnpm", "-F", "@proj-airi/server", "start"]
+CMD ["pnpm", "-F", "@proj-alicization/server", "start"]

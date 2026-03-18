@@ -1,6 +1,6 @@
-import type { ModuleIdentity, ProtocolEvents, RouteConfig, WebSocketEventSource } from '@proj-airi/plugin-protocol/types'
+import type { ModuleIdentity, ProtocolEvents, RouteConfig, WebSocketEventSource } from '@proj-alicization/plugin-protocol/types'
 
-export * from '@proj-airi/plugin-protocol/types'
+export * from '@proj-alicization/plugin-protocol/types'
 
 export interface WebSocketEventBaseMetadata {
   source?: ModuleIdentity

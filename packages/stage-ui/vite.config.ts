@@ -8,15 +8,15 @@ import Unocss from 'unocss/vite'
 import Yaml from 'unplugin-yaml/vite'
 import Inspect from 'vite-plugin-inspect'
 
-import { createS3Provider, WarpDrivePlugin } from '@proj-airi/vite-plugin-warpdrive'
+import { createS3Provider, WarpDrivePlugin } from '@proj-alicization/vite-plugin-warpdrive'
 import { defineConfig } from 'vite'
 
 // For Histoire
 export default defineConfig({
   resolve: {
     alias: {
-      '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-      '@proj-airi/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+      '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+      '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
     },
   },
   server: {

@@ -220,7 +220,7 @@ export function setupTray(params: {
       rebuildContextMenu()
     })
 
-    appTray.setToolTip('Project AIRI')
+    appTray.setToolTip('Project Alicization')
     appTray.addListener('click', () => toggleWindowShow(params.mainWindow))
 
     // On macOS, there's a special double-click event

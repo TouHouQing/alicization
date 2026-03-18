@@ -1,4 +1,4 @@
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { defineStore } from 'pinia'
 
 export const useSettingsControlsIsland = defineStore('settings-controls-island', () => {

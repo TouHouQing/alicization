@@ -1,5 +1,5 @@
-appId: ai.moeru.airi
-productName: AIRI
+appId: ai.moeru.alicization
+productName: Alicization
 
 directories:
   output: dist
@@ -26,14 +26,14 @@ asarUnpack:
   - '**/*.node' # native binaries
 
 extraMetadata:
-  name: ai.moeru.airi
+  name: ai.moeru.alicization
   main: 'out/main/index.js'
-  homepage: 'https://airi.moeru.ai/docs/'
-  repository: 'https://github.com/moeru-ai/airi'
+  homepage: 'https://github.com/TouHouQing/alicization'
+  repository: 'https://github.com/TouHouQing/alicization'
   license: 'MIT'
 
 win:
-  executableName: airi
+  executableName: alicization
 nsis:
   artifactName: ${productName}-${version}-windows-${arch}-setup.${ext}
   shortcutName: ${productName}
@@ -46,14 +46,14 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSMicrophoneUsageDescription: 'AIRI requires microphone access for voice interaction'
-    - NSCameraUsageDescription: 'AIRI requires camera access for vision understanding'
+    - NSMicrophoneUsageDescription: 'Alicization requires microphone access for voice interaction'
+    - NSCameraUsageDescription: 'Alicization requires camera access for vision understanding'
   # If still fails, check:
   # https://github.com/electron-userland/electron-builder/issues/3989#issuecomment-557013674
   notarize: false
   hardenedRuntime: false
-  executableName: airi
-  icon: icon.icon
+  executableName: alicization
+  icon: icon.icns
 dmg:
   artifactName: ${productName}-${version}-darwin-${arch}.${ext}
 
@@ -63,8 +63,8 @@ linux:
     - rpm
   category: Utility
   synopsis: 'AI VTuber/Waifu chatbot app inspired by Neuro-sama.'
-  description: 'AIRI is an AI VTuber/Waifu chatbot supporting Live2D/VRM avatars, featuring human-like interactions and modular stage-based rendering.'
-  executableName: airi
+  description: 'Alicization is an AI VTuber/Waifu chatbot supporting Live2D/VRM avatars, featuring human-like interactions and modular stage-based rendering.'
+  executableName: alicization
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
   icon: build/icons/icon.png
 
@@ -75,5 +75,5 @@ npmRebuild: false
 
 publish:
   provider: github
-  owner: moeru-ai
-  repo: airi
+  owner: TouHouQing
+  repo: alicization

@@ -26,7 +26,7 @@ export async function imagineAnAction(
   },
 ): Promise<Action | undefined> {
   const logger = useLogg('imagineAnAction').useGlobalConfig()
-  const tracer = trace.getTracer('airi.telegram.bot')
+  const tracer = trace.getTracer('alicization.telegram.bot')
 
   return await tracer.startActiveSpan('telegram.module.generate_agent_action.generate', async (s) => {
     s.setAttribute('telegram.bot.id', botId)

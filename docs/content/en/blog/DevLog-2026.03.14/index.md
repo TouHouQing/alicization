@@ -284,7 +284,7 @@ One part of this PR that I especially wanted was tracing.
 
 The current tracing work is still fairly basic, but it is already much better than having to debug the VRM stage entirely from intuition and `console.log`.
 
-The trace layer now lives inside `@proj-airi/stage-ui-three`, with Eventa as its event contract. On the performance side, it records things like renderer info snapshots, hit-test readback timing, and per-frame VRM update breakdowns. On the lifecycle side, it traces load and dispose, cache `take` / `stash` / `clear`, scene phase changes, and transaction begin / end / reset. On desktop, those events are forwarded through Eventa into a simple diagnostics view.
+The trace layer now lives inside `@proj-alicization/stage-ui-three`, with Eventa as its event contract. On the performance side, it records things like renderer info snapshots, hit-test readback timing, and per-frame VRM update breakdowns. On the lifecycle side, it traces load and dispose, cache `take` / `stash` / `clear`, scene phase changes, and transaction begin / end / reset. On desktop, those events are forwarded through Eventa into a simple diagnostics view.
 
 The future TODO here is to build a proper observability tool for `ThreeScene`:
 

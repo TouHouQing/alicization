@@ -1,10 +1,10 @@
-app-id: ai.moeru.airi
+app-id: ai.moeru.alicization
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
 base: org.electronjs.Electron2.BaseApp
 base-version: '24.08'
-command: airi.sh
+command: alicization.sh
 
 finish-args:
   # GUI environment
@@ -25,15 +25,15 @@ finish-args:
   - --filesystem=home:rw
 
 modules:
-  - name: AIRI-App
+  - name: Alicization-App
     buildsystem: simple
     build-commands:
       - mkdir -p /app/bin
-      - mkdir -p /app/bin/airi
-      - cp -r ./* /app/bin/airi/
-      - install airi.sh /app/bin/airi.sh
-      - chmod +x /app/bin/airi/airi.sh
-      - chmod +x /app/bin/airi/airi
+      - mkdir -p /app/bin/alicization
+      - cp -r ./* /app/bin/alicization/
+      - install alicization.sh /app/bin/alicization.sh
+      - chmod +x /app/bin/alicization/alicization.sh
+      - chmod +x /app/bin/alicization/alicization
     sources:
       - type: dir
         only-arches: [x86_64]
@@ -41,7 +41,7 @@ modules:
       - type: dir
         only-arches: [aarch64]
         path: dist/linux-arm64-unpacked
-      # First discovered by [@gg582](https://github.com/gg582) in https://github.com/moeru-ai/airi/pull/647
+      # First discovered during early Flatpak sandbox debugging.
       #
       # Without the correct zypak-wrapper, application launch will result in this error:
       # content/browser/zygote_host/zygote_host_impl_linux.cc:132] No usable sandbox! ... If you want to live
@@ -69,8 +69,8 @@ modules:
       # almost the same as ours, most of the structure of this manifest is based on bitwarden's:
       # https://github.com/bitwarden/clients/blob/b8d55c4db178de67f1778bc307f7c22aad01f4a9/apps/desktop/resources/com.bitwarden.desktop.devel.yaml
       - type: script
-        dest-filename: airi.sh
+        dest-filename: alicization.sh
         commands:
           - ulimit -c 0
           - export TMPDIR="$XDG_RUNTIME_DIR/app/$FLATPAK_ID"
-          - exec zypak-wrapper /app/bin/airi/airi "$@"
+          - exec zypak-wrapper /app/bin/alicization/alicization "$@"

@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/telegram-bot",
+  "name": "@proj-alicization/telegram-bot",
   "type": "module",
   "private": true,
-  "description": "Telegram bot for AIRI",
+  "description": "Telegram bot for Alicization",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "services/telegram-bot"
   },
   "scripts": {

@@ -1,28 +1,28 @@
 <script setup lang="ts">
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
-import workletUrl from '@proj-airi/stage-ui/workers/vad/process.worklet?worker&url'
+import workletUrl from '@proj-alicization/stage-ui/workers/vad/process.worklet?worker&url'
 
-import { electron } from '@proj-airi/electron-eventa'
+import { electron } from '@proj-alicization/electron-eventa'
 import {
   useElectronEventaInvoke,
   useElectronMouseAroundWindowBorder,
   useElectronMouseInElement,
   useElectronMouseInWindow,
   useElectronRelativeMouse,
-} from '@proj-airi/electron-vueuse'
-import { useThreeSceneIsTransparentAtPoint } from '@proj-airi/stage-ui-three'
-import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
-import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
-import { useCanvasPixelIsTransparentAtPoint } from '@proj-airi/stage-ui/composables/canvas-alpha'
-import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
-import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
-import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
-import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
-import { useHearingSpeechInputPipeline } from '@proj-airi/stage-ui/stores/modules/hearing'
-import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
+} from '@proj-alicization/electron-vueuse'
+import { useThreeSceneIsTransparentAtPoint } from '@proj-alicization/stage-ui-three'
+import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
+import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
+import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
+import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
+import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
+import { useHearingSpeechInputPipeline } from '@proj-alicization/stage-ui/stores/modules/hearing'
+import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
 import { refDebounced, useBroadcastChannel, useFocusWithin } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'

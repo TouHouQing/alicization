@@ -203,21 +203,21 @@ pnpm dev:tamagotchi
 ```shell
 pnpm build:tamagotchi
 # 동일:
-# pnpm -F @proj-airi/stage-tamagotchi run app:build
+# pnpm -F @proj-alicization/stage-tamagotchi run app:build
 ```
 
 배포용 설치 파일이나 플랫폼별 번들이 필요하다면:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:mac
-pnpm -F @proj-airi/stage-tamagotchi run build:win
-pnpm -F @proj-airi/stage-tamagotchi run build:linux
+pnpm -F @proj-alicization/stage-tamagotchi run build:mac
+pnpm -F @proj-alicization/stage-tamagotchi run build:win
+pnpm -F @proj-alicization/stage-tamagotchi run build:linux
 ```
 
 로컬 검증용으로 unpacked 디렉터리만 필요하다면:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+pnpm -F @proj-alicization/stage-tamagotchi run build:unpack
 ```
 
 `pnpm build:tamagotchi` 는 원시 Electron 빌드 결과를 `apps/stage-tamagotchi/out` 에 출력합니다.

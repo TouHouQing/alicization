@@ -3,7 +3,7 @@ import type { UserMessage } from '@xsai/shared-chat'
 
 import type { ChatStreamEvent, ContextMessage } from '../../../types/chat'
 
-import { isStageTamagotchi, isStageWeb } from '@proj-airi/stage-shared'
+import { isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
 import { useBroadcastChannel } from '@vueuse/core'
 import { Mutex } from 'es-toolkit'
 import { nanoid } from 'nanoid'

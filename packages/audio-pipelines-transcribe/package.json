@@ -1,5 +1,5 @@
 {
-  "name": "@proj-airi/audio-pipelines-transcribe",
+  "name": "@proj-alicization/audio-pipelines-transcribe",
   "type": "module",
   "private": true,
   "exports": "./src/index.ts",

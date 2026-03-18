@@ -1,6 +1,6 @@
 ---
 title: ツール
-description: Project AIRI の UI、UX を設計するためのツール
+description: Project Alicization の UI、UX を設計するためのツール
 ---
 
 ## 色

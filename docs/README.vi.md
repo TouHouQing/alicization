@@ -203,21 +203,21 @@ Trước hết hãy build ra các artifact của Electron:
 ```shell
 pnpm build:tamagotchi
 # Tương đương:
-# pnpm -F @proj-airi/stage-tamagotchi run app:build
+# pnpm -F @proj-alicization/stage-tamagotchi run app:build
 ```
 
 Nếu bạn cần installer phát hành hoặc bundle theo nền tảng:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:mac
-pnpm -F @proj-airi/stage-tamagotchi run build:win
-pnpm -F @proj-airi/stage-tamagotchi run build:linux
+pnpm -F @proj-alicization/stage-tamagotchi run build:mac
+pnpm -F @proj-alicization/stage-tamagotchi run build:win
+pnpm -F @proj-alicization/stage-tamagotchi run build:linux
 ```
 
 Nếu bạn chỉ cần thư mục unpacked để kiểm thử cục bộ:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+pnpm -F @proj-alicization/stage-tamagotchi run build:unpack
 ```
 
 `pnpm build:tamagotchi` sẽ ghi build Electron thô vào `apps/stage-tamagotchi/out`.

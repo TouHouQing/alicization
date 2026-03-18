@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { ServerEvent, ServerEvents } from '@proj-airi/stage-ui/stores/providers/aliyun'
+import type { ServerEvent, ServerEvents } from '@proj-alicization/stage-ui/stores/providers/aliyun'
 
-import vadWorkletUrl from '@proj-airi/stage-ui/workers/vad/process.worklet?worker&url'
+import vadWorkletUrl from '@proj-alicization/stage-ui/workers/vad/process.worklet?worker&url'
 
-import { createAliyunNLSProvider, streamAliyunTranscription } from '@proj-airi/stage-ui/stores/providers/aliyun/stream-transcription'
-import { Button, FieldInput, FieldSelect } from '@proj-airi/ui'
+import { createAliyunNLSProvider, streamAliyunTranscription } from '@proj-alicization/stage-ui/stores/providers/aliyun/stream-transcription'
+import { Button, FieldInput, FieldSelect } from '@proj-alicization/ui'
 import { computed, nextTick, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
 
 type AliyunRegion

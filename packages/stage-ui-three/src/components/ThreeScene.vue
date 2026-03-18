@@ -18,7 +18,7 @@ import type {
   VrmRuntimeCapabilitySnapshot,
 } from '../types/performance'
 
-import { Screen } from '@proj-airi/ui'
+import { Screen } from '@proj-alicization/ui'
 import { TresCanvas } from '@tresjs/core'
 import { EffectComposerPmndrs, HueSaturationPmndrs } from '@tresjs/post-processing'
 import { formatHex } from 'culori'

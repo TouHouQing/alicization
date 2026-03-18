@@ -1,13 +1,13 @@
 {
-  "name": "@proj-airi/airi-plugin-vscode",
+  "name": "@proj-alicization/alicization-plugin-vscode",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
-  "description": "AIRI host plugin that bridges VS Code context and UI",
+  "description": "Alicization host plugin that bridges VS Code context and UI",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
-    "directory": "integrations/vscode/airi-plugin-vscode"
+    "url": "https://github.com/TouHouQing/alicization.git",
+    "directory": "integrations/vscode/alicization-plugin-vscode"
   },
   "exports": {
     ".": {
@@ -28,6 +28,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@proj-airi/plugin-sdk": "workspace:*"
+    "@proj-alicization/plugin-sdk": "workspace:*"
   }
 }

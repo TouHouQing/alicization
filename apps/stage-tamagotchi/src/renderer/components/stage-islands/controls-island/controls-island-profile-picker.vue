@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
-import { ProfileSwitcherPopover } from '@proj-airi/stage-ui/components'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { ProfileSwitcherPopover } from '@proj-alicization/stage-ui/components'
 
 import { electronOpenSettings } from '../../../../shared/eventa'
 

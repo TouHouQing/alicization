@@ -1,9 +1,9 @@
-import type { AutoUpdaterState } from '@proj-airi/electron-eventa/electron-updater'
+import type { AutoUpdaterState } from '@proj-alicization/electron-eventa/electron-updater'
 
 import {
   autoUpdater,
   electronAutoUpdaterStateChanged,
-} from '@proj-airi/electron-eventa/electron-updater'
+} from '@proj-alicization/electron-eventa/electron-updater'
 import { computed, onMounted, ref } from 'vue'
 
 import { useElectronEventaContext, useElectronEventaInvoke } from './use-electron-eventa-context'

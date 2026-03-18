@@ -1,11 +1,11 @@
 import type { createContext } from '@moeru/eventa/adapters/electron/main'
-import type { ResizeDirection } from '@proj-airi/electron-eventa'
+import type { ResizeDirection } from '@proj-alicization/electron-eventa'
 import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 
 import type { I18n } from '../../libs/i18n'
 import type { ServerChannel } from '../../services/airi/channel-server'
 
-import { isRendererUnavailable } from '@proj-airi/electron-vueuse/main'
+import { isRendererUnavailable } from '@proj-alicization/electron-vueuse/main'
 import { isMacOS } from 'std-env'
 
 import { createServerChannelService } from '../../services/airi/channel-server'

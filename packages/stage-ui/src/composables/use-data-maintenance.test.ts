@@ -25,11 +25,11 @@ const mocks = vi.hoisted(() => ({
   alicizationDeleteAllData: vi.fn(async () => {}),
 }))
 
-vi.mock('@proj-airi/stage-shared', () => ({
+vi.mock('@proj-alicization/stage-shared', () => ({
   isStageTamagotchi: () => true,
 }))
 
-vi.mock('@proj-airi/stage-ui-live2d', () => ({
+vi.mock('@proj-alicization/stage-ui-live2d', () => ({
   useLive2d: () => ({
     resetState: mocks.live2dResetState,
   }),

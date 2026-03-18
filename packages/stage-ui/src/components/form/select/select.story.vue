@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Select } from '@proj-airi/ui'
+import { Select } from '@proj-alicization/ui'
 import { ref } from 'vue'
 
 const singleValue = ref('option1')

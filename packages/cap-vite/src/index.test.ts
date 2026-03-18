@@ -53,7 +53,7 @@ describe('runCapVite', () => {
 
     await runCapVite(
       ['--host', '0.0.0.0', '--config', 'vite.mobile.ts', '--configLoader=runner'],
-      ['ios', '--target', 'iPhone 16 Pro', '--scheme', 'AIRI'],
+      ['ios', '--target', 'iPhone 16 Pro', '--scheme', 'Alicization'],
     )
 
     expect(x).toHaveBeenCalledWith('vite', [
@@ -67,7 +67,7 @@ describe('runCapVite', () => {
         cwd: process.cwd(),
         env: {
           CAP_VITE_BASE_CONFIG: resolve(process.cwd(), 'vite.mobile.ts'),
-          CAP_VITE_CAP_ARGS_JSON: JSON.stringify(['ios', '--target', 'iPhone 16 Pro', '--scheme', 'AIRI']),
+          CAP_VITE_CAP_ARGS_JSON: JSON.stringify(['ios', '--target', 'iPhone 16 Pro', '--scheme', 'Alicization']),
           CAP_VITE_CONFIG_LOADER: 'runner',
           CAP_VITE_ROOT: process.cwd(),
         },

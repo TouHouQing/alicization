@@ -1,4 +1,4 @@
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
 import { createOpenAI } from '@xsai-ext/providers/create'
 import { z } from 'zod'
 

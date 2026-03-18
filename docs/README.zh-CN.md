@@ -203,21 +203,21 @@ pnpm dev:tamagotchi
 ```shell
 pnpm build:tamagotchi
 # 等价于：
-# pnpm -F @proj-airi/stage-tamagotchi run app:build
+# pnpm -F @proj-alicization/stage-tamagotchi run app:build
 ```
 
 如果你要进一步打包成可分发安装包或平台产物：
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:mac
-pnpm -F @proj-airi/stage-tamagotchi run build:win
-pnpm -F @proj-airi/stage-tamagotchi run build:linux
+pnpm -F @proj-alicization/stage-tamagotchi run build:mac
+pnpm -F @proj-alicization/stage-tamagotchi run build:win
+pnpm -F @proj-alicization/stage-tamagotchi run build:linux
 ```
 
 如果你只需要未打包目录，便于本地验证：
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+pnpm -F @proj-alicization/stage-tamagotchi run build:unpack
 ```
 
 `pnpm build:tamagotchi` 会把原始 Electron 构建产物输出到 `apps/stage-tamagotchi/out`。

@@ -1,6 +1,6 @@
 ---
 title: Telegram Bot
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### Telegram bot 統合
@@ -23,14 +23,14 @@ cp .env .env.local
 データベースのマイグレーション
 
 ```shell
-pnpm -F @proj-airi/telegram-bot db:generate
-pnpm -F @proj-airi/telegram-bot db:push
+pnpm -F @proj-alicization/telegram-bot db:generate
+pnpm -F @proj-alicization/telegram-bot db:push
 ```
 
 ボットの実行
 
 ```shell
-pnpm -F @proj-airi/telegram-bot start
+pnpm -F @proj-alicization/telegram-bot start
 ```
 
 ::: tip
@@ -38,7 +38,7 @@ pnpm -F @proj-airi/telegram-bot start
 [@antfu/ni](https://github.com/antfu-collective/ni) ユーザーの場合：
 
 ```shell
-nr -F @proj-airi/telegram-bot dev
+nr -F @proj-alicization/telegram-bot dev
 ```
 
 :::

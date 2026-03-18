@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { PageHeader } from '@proj-airi/stage-ui/components'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { useTheme } from '@proj-airi/ui'
+import { PageHeader } from '@proj-alicization/stage-ui/components'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useTheme } from '@proj-alicization/ui'
 import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute } from 'vue-router'

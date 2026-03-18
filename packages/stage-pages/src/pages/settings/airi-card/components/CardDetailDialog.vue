@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { AiriCard } from '@proj-airi/stage-ui/stores/modules/airi-card'
+import type { AiriCard } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 
-import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
-import { Button } from '@proj-airi/ui'
+import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
+import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import {
   DialogContent,

@@ -9,10 +9,10 @@
       "DOM.AsyncIterable"
     ],
     "paths": {
-      "@proj-airi/stage-ui/*": [
+      "@proj-alicization/stage-ui/*": [
         "../../packages/stage-ui/src/*"
       ],
-      "@proj-airi/stage-layouts/*": [
+      "@proj-alicization/stage-layouts/*": [
         "../../packages/stage-layouts/src/*"
       ]
     },

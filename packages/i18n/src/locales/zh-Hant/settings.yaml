@@ -9,7 +9,7 @@ animations:
     title: 是否使用頁面特定過場動畫
 dialogs:
   onboarding:
-    title: 歡迎來到 AIRI！
+    title: 歡迎來到 Alicization！
     description: 讓我們先設定您的第一個服務來源來開始使用。
     selectProvider: 選擇服務來源
     configureProvider: 設定 {provider}
@@ -404,7 +404,7 @@ pages:
     title: 記憶體
   data:
     title: 資料
-    description: 管理已儲存的 AIRI 資料、匯出與重置作業
+    description: 管理已儲存的 Alicization 資料、匯出與重置作業
     sections:
       chats:
         title: 對話紀錄
@@ -433,7 +433,7 @@ pages:
         delete: 刪除所有資料
       desktop:
         title: 重設桌面設定與狀態
-        description: 清除 AIRI 桌面設定與執行階段狀態
+        description: 清除 Alicization 桌面設定與執行階段狀態
         reset: 重設桌面資料
     confirmations:
       tooltip: 您確定嗎？
@@ -549,7 +549,7 @@ pages:
       description: 一起玩 Factorio！
       title: 異星工廠 Factorio
       enable: 啟用異星工廠集成
-      enable-description: 允許 AIRI 與異星工廠遊戲互動
+      enable-description: 允許 Alicization 與異星工廠遊戲互動
       server-address: 伺服器地址
       server-address-description: 異星工廠伺服器的 IP 地址或主機名稱
       server-address-placeholder: 輸入伺服器地址（例如：localhost 或 192.168.1.100）
@@ -563,7 +563,7 @@ pages:
       description: 一起玩 Minecraft！
       title: 我的世界 Minecraft
       enable: 啟用我的世界集成
-      enable-description: 允許 AIRI 與我的世界遊戲互動
+      enable-description: 允許 Alicization 與我的世界遊戲互動
       server-address: 伺服器地址
       server-address-description: 我的世界伺服器的 IP 地址或主機名稱
       server-address-placeholder: 輸入伺服器地址（例如：localhost 或 play.example.com）
@@ -590,7 +590,7 @@ pages:
       description: Discord 訊息與語音聊天
       title: Discord
       enable: 啟用 Discord 集成
-      enable-description: 允許 AIRI 透過 Discord 進行互動
+      enable-description: 允許 Alicization 透過 Discord 進行互動
       token: 機器人權杖
       token-description: 您的 Discord 機器人权杖
       token-placeholder: 輸入您的 Discord 機器人权杖
@@ -623,7 +623,7 @@ pages:
             search_voices_results: 找到 {count} / {total} 條聲線
             unsupported_voice_warning_title: 未支援的語音
             unsupported_voice_warning_content: >-
-              嘗試使用不同的模型或提供者。我們正努力盡快支援此模型的所有語音；若你急需此功能，請在 GitHub 回報：https://github.com/moeru-ai/airi/issues。
+              嘗試使用不同的模型或提供者。我們正努力盡快支援此模型的所有語音；若你急需此功能，請在 GitHub 回報：https://github.com/TouHouQing/alicization/issues。
             show_less: 顯示更少
             show_more: 顯示更多
             title: 選擇語音合成服務來源
@@ -642,7 +642,7 @@ pages:
       description: X / Twitter 的瀏覽與使用
       title: X / Twitter
       enable: 啟用 X / Twitter 集成
-      enable-description: 允許 AIRI 與 X / Twitter 互動
+      enable-description: 允許 Alicization 與 X / Twitter 互動
       api-key: API 金鑰
       api-key-description: 您的 X / Twitter API 金鑰
       api-key-placeholder: 輸入您的 X / Twitter API 金鑰
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: 第一次使用？
       description: >
-        AIRI 需要設定至少一個 {chat} 服務來源，才能正常思考與運作。你可以把它看作是 AIRI 系統中角色的大腦。
+        Alicization 需要設定至少一個 {chat} 服務來源，才能正常思考與運作。你可以把它看作是 Alicization 系統中角色的大腦。
     catalog:
       edit:
         config-id-not-found: 找不到提供者設定。
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: 需要為 Ollama 進行額外配置
                     content: >-
-                      很抱歉，Ollama 連接檢查失敗。不要擔心，如果使用 Ollama，需要額外配置才能通過 Ollama。 您需要在啟動 Olama 應用程序或 Ollama CLI 伺服器時明確設置 <code>OLLAMA_HOST</code> 詳情，請檢查 <a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 集成指南</a>。
+                      很抱歉，Ollama 連接檢查失敗。不要擔心，如果使用 Ollama，需要額外配置才能通過 Ollama。 您需要在啟動 Olama 應用程序或 Ollama CLI 伺服器時明確設置 <code>OLLAMA_HOST</code> 詳情，請檢查 <a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 集成指南</a>。
     common:
       continueAnyway: 仍然繼續
       goToModelSelection: '選擇模型→'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRI 綠
-              description: AIRI 為您帶來的預設綠色系主題色彩！
+                color-1: Alicization 綠
+              description: Alicization 為您帶來的預設綠色系主題色彩！
               title: 預設色彩
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: 主題
   description: |
-    切換 AIRI 的基礎主題，亮色模式或暗色模式。
+    切換 Alicization 的基礎主題，亮色模式或暗色模式。
 title: 設定
 voices: 聲線
 vrm:

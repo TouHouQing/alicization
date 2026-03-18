@@ -1,7 +1,7 @@
-import type { ContextUpdate, WebSocketBaseEvent, WebSocketEvent, WebSocketEventOptionalSource, WebSocketEvents } from '@proj-airi/server-sdk'
+import type { ContextUpdate, WebSocketBaseEvent, WebSocketEvent, WebSocketEventOptionalSource, WebSocketEvents } from '@proj-alicization/server-sdk'
 
-import { Client, WebSocketEventSource } from '@proj-airi/server-sdk'
-import { isStageTamagotchi, isStageWeb } from '@proj-airi/stage-shared'
+import { Client, WebSocketEventSource } from '@proj-alicization/server-sdk'
+import { isStageTamagotchi, isStageWeb } from '@proj-alicization/stage-shared'
 import { useLocalStorage } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
@@ -9,7 +9,7 @@ import { ref, watch } from 'vue'
 
 import { useWebSocketInspectorStore } from '../../devtools/websocket-inspector'
 
-export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:server', () => {
+export const useModsServerChannelStore = defineStore('mods:channels:proj-alicization:server', () => {
   const connected = ref(false)
   const client = ref<Client>()
   const initializing = ref<Promise<void> | null>(null)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FieldCheckbox } from '@proj-airi/ui'
+import { FieldCheckbox } from '@proj-alicization/ui'
 import { ref } from 'vue'
 
 const checkedValue = ref(true)

@@ -20,17 +20,17 @@ interface IntervalHandle {
 export async function activate(context: vscode.ExtensionContext) {
   initLogger(LoggerLevel.Debug, LoggerFormat.Pretty)
 
-  useLogger().log('AIRI is activating...')
+  useLogger().log('Alicization is activating...')
 
   // Get the configuration
-  const config = workspace.getConfiguration('airi-vscode')
+  const config = workspace.getConfiguration('alicization-vscode')
   const isEnabled = config.get<boolean>('enabled', true)
   const contextLines = config.get<number>('contextLines', 5)
   const sendInterval = config.get<number>('sendInterval', 3000)
 
   // Initialize
   const vscodeContext = injeca.provide('vscode:context', () => context)
-  const client = injeca.provide('proj-airi:client', () => new Client())
+  const client = injeca.provide('proj-alicization:client', () => new Client())
   const contextCollector = injeca.provide('self:context-collector', () => new ContextCollector(contextLines))
   const eventListeners = injeca.provide('self:event-listeners', () => [] as vscode.Disposable[])
   const controlLoopInterval = injeca.provide('self:control-loop:interval:send', () => {
@@ -76,32 +76,32 @@ async function setup(params: {
   if (params.isEnabled) {
     const connected = await params.client.connect()
     if (connected) {
-      window.showInformationMessage('AIRI Server Channel connected!')
+      window.showInformationMessage('Alicization Server Channel connected!')
     }
     else {
-      window.showWarningMessage('AIRI Server Channel connection failed!')
+      window.showWarningMessage('Alicization Server Channel connection failed!')
     }
   }
 
   // Register commands
   params.vscodeContext.subscriptions.push(
-    commands.registerCommand('airi-vscode.enable', async () => {
+    commands.registerCommand('alicization-vscode.enable', async () => {
       params.isEnabled = true
       await params.client.connect()
       await registerListeners({ ...params })
-      window.showInformationMessage('AIRI enabled!')
+      window.showInformationMessage('Alicization enabled!')
     }),
 
-    commands.registerCommand('airi-vscode.disable', () => {
+    commands.registerCommand('alicization-vscode.disable', () => {
       params.isEnabled = false
       unregisterListeners({ eventListeners: params.eventListeners, controlLoopInterval: params.controlLoopInterval })
       params.client.disconnect()
-      window.showInformationMessage('AIRI disabled!')
+      window.showInformationMessage('Alicization disabled!')
     }),
 
-    commands.registerCommand('airi-vscode.status', () => {
+    commands.registerCommand('alicization-vscode.status', () => {
       const status = params.isEnabled && params.client ? 'Connected' : 'Disconnected'
-      window.showInformationMessage(`AIRI Server Channel status: ${status}.`)
+      window.showInformationMessage(`Alicization Server Channel status: ${status}.`)
     }),
   )
 
@@ -110,7 +110,7 @@ async function setup(params: {
     await registerListeners({ ...params })
   }
 
-  useLogger().log('AIRI activated successfully')
+  useLogger().log('Alicization activated successfully')
 }
 
 /**
@@ -232,11 +232,11 @@ function stopMonitoring(params: { controlLoopInterval: IntervalHandle }) {
  * Deactivate the plugin
  */
 export async function deactivate() {
-  const { client } = await injeca.resolve({ client: { key: 'proj-airi:client' } as unknown as ProvidedBy<Client> })
+  const { client } = await injeca.resolve({ client: { key: 'proj-alicization:client' } as unknown as ProvidedBy<Client> })
   const { eventListeners } = await injeca.resolve({ eventListeners: { key: 'self:event-listeners' } as unknown as ProvidedBy<vscode.Disposable[]> })
   const { controlLoopInterval } = await injeca.resolve({ controlLoopInterval: { key: 'self:control-loop:interval:send' } as unknown as ProvidedBy<IntervalHandle> })
 
   unregisterListeners({ eventListeners, controlLoopInterval })
   client?.disconnect()
-  useLogger().log('AIRI deactivated!')
+  useLogger().log('Alicization deactivated!')
 }

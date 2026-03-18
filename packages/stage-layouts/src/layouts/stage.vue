@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { LoginDrawer } from '@proj-airi/stage-ui/components/auth/index'
-import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
+import { LoginDrawer } from '@proj-alicization/stage-ui/components/auth/index'
+import { useAuthStore } from '@proj-alicization/stage-ui/stores/auth'
 import { storeToRefs } from 'pinia'
 import { RouterView } from 'vue-router'
 

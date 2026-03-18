@@ -470,12 +470,12 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["airi", "observability", "grafana-cloud"],
+  "tags": ["alicization", "observability", "grafana-cloud"],
   "templating": {
     "list": [
       {
-        "current": { "selected": false, "text": "server", "value": "server" },
-        "datasource": { "type": "prometheus", "uid": "grafanacloud-projairi-prom" },
+        "current": { "selected": false, "text": "alicization-server", "value": "alicization-server" },
+        "datasource": { "type": "prometheus", "uid": "grafanacloud-projalicization-prom" },
         "definition": "label_values(http_server_request_duration_milliseconds_count, service_name)",
         "hide": 0,
         "includeAll": true,
@@ -488,6 +488,6 @@
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "AIRI Server Overview (Cloud)",
-  "uid": "airi-server-overview-cloud"
+  "title": "Alicization Server Overview (Cloud)",
+  "uid": "alicization-server-overview-cloud"
 }

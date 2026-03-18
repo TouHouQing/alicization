@@ -1,6 +1,6 @@
-import type { Card, ccv3 } from '@proj-airi/ccc'
+import type { Card, ccv3 } from '@proj-alicization/ccc'
 
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, watch } from 'vue'

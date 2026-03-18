@@ -1,6 +1,6 @@
 ---
 title: 工具
-description: 用于设计 Project AIRI UI/UX 的工具
+description: 用于设计 Project Alicization UI/UX 的工具
 ---
 
 ## 颜色

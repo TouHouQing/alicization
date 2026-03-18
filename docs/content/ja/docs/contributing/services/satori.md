@@ -1,6 +1,6 @@
 ---
 title: Satori Bot
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### Satori Bot / ボット
@@ -20,7 +20,7 @@ cp .env .env.local
 ボットの起動：
 
 ```shell
-pnpm -F @proj-airi/satori-bot dev
+pnpm -F @proj-alicization/satori-bot dev
 ```
 
 ::: tip
@@ -28,7 +28,7 @@ pnpm -F @proj-airi/satori-bot dev
 [@antfu/ni](https://github.com/antfu-collective/ni) を使用している場合、以下のように実行できます：
 
 ```shell
-nr -F @proj-airi/satori-bot dev
+nr -F @proj-alicization/satori-bot dev
 ```
 
 :::

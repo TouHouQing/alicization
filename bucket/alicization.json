@@ -1,11 +1,11 @@
 {
   "version": "0.9.0-alpha.12",
   "description": "A self-hosted AI companion desktop app with voice chat and game integrations",
-  "homepage": "https://airi.moeru.ai/",
+  "homepage": "https://alicization.moeru.ai/",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/moeru-ai/airi/releases/download/v0.9.0-alpha.12/AIRI-0.9.0-alpha.12-windows-x64-setup.exe#/dl.7z",
+      "url": "https://github.com/TouHouQing/alicization/releases/download/v0.9.0-alpha.12/Alicization-0.9.0-alpha.12-windows-x64-setup.exe#/dl.7z",
       "hash": "cf4698c7c483ce58e81e05b08a5015a753243e79c54aa2e4baec81c92041e5a7"
     }
   },
@@ -16,15 +16,15 @@
   ],
   "shortcuts": [
     [
-      "airi.exe",
-      "AIRI"
+      "alicization.exe",
+      "Alicization"
     ]
   ],
   "checkver": "github",
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/moeru-ai/airi/releases/download/v$version/AIRI-$version-windows-x64-setup.exe#/dl.7z"
+        "url": "https://github.com/TouHouQing/alicization/releases/download/v$version/Alicization-$version-windows-x64-setup.exe#/dl.7z"
       }
     },
     "hash": {

@@ -1,9 +1,9 @@
 ---
 title: Web UI
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
-### Stage Web (Browser version for [airi.moeru.ai](https://airi.moeru.ai))
+### Stage Web (Browser version for [alicization.moeru.ai](https://alicization.moeru.ai))
 
 ```shell
 pnpm dev

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { SoulForgeDraft } from './soul-forge'
 
-import { Range } from '@proj-airi/ui/components/form'
+import { Range } from '@proj-alicization/ui/components/form'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

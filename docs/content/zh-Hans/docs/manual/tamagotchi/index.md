@@ -1,6 +1,6 @@
 ---
 title: 桌面版上手指南
-description: 如何使用桌面版的 Project AIRI
+description: 如何使用桌面版的 Project Alicization
 ---
 
 ## 我现在就想聊天！
@@ -49,7 +49,7 @@ description: 如何使用桌面版的 Project AIRI
 感谢你下载并试用它！
 :::
 
-下载完成后，你可以从任何位置启动 AIRI。你将看到用户界面由两部分组成：
+下载完成后，你可以从任何位置启动 Alicization。你将看到用户界面由两部分组成：
 
 - 新手引导 / 设置向导
 - 模型（可显示 Live2D 和 VRM 模型）

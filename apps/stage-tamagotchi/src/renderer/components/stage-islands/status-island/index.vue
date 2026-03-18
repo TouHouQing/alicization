@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
-import { useModsServerChannelStore } from '@proj-airi/stage-ui/stores/mods/api/channel-server'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { useModsServerChannelStore } from '@proj-alicization/stage-ui/stores/mods/api/channel-server'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

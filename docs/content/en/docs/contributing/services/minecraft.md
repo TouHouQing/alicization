@@ -1,6 +1,6 @@
 ---
 title: Minecraft
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Minecraft agent
@@ -22,7 +22,7 @@ Edit the credentials in `.env.local`.
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/minecraft-bot start
+pnpm -F @proj-alicization/minecraft-bot start
 ```
 
 ::: tip
@@ -30,7 +30,7 @@ pnpm -F @proj-airi/minecraft-bot start
 For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 
 ```shell
-nr -F @proj-airi/minecraft-bot dev
+nr -F @proj-alicization/minecraft-bot dev
 ```
 
 :::

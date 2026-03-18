@@ -2,11 +2,11 @@ import type {
   VrmActionBinding,
   VrmCustomExpressionBinding,
   VrmExternalAnimationBinding,
-} from '@proj-airi/stage-ui-three'
+} from '@proj-alicization/stage-ui-three'
 
 import localforage from 'localforage'
 
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 

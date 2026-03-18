@@ -114,7 +114,7 @@ export default defineConfig({
           next: 'Next page',
         },
         editLink: {
-          pattern: 'https://github.com/moeru-ai/airi/edit/main/docs/content/:path',
+          pattern: 'https://github.com/TouHouQing/alicization/edit/main/docs/content/:path',
           text: 'Edit this page on GitHub',
         },
         lastUpdated: {
@@ -236,7 +236,7 @@ export default defineConfig({
           next: '下一页',
         },
         editLink: {
-          pattern: 'https://github.com/moeru-ai/airi/edit/main/docs/content/:path',
+          pattern: 'https://github.com/TouHouQing/alicization/edit/main/docs/content/:path',
           text: '在 GitHub 编辑此页',
         },
         lastUpdated: {
@@ -369,7 +369,7 @@ export default defineConfig({
           next: '次のページ',
         },
         editLink: {
-          pattern: 'https://github.com/moeru-ai/airi/edit/main/docs/content/:path',
+          pattern: 'https://github.com/TouHouQing/alicization/edit/main/docs/content/:path',
           text: 'GitHub でこのページを編集',
         },
         lastUpdated: {
@@ -472,7 +472,7 @@ export default defineConfig({
       provider: 'local',
     },
     editLink: {
-      pattern: 'https://github.com/moeru-ai/airi/edit/main/docs/content/:path',
+      pattern: 'https://github.com/TouHouQing/alicization/edit/main/docs/content/:path',
     },
   },
   srcDir: 'content',
@@ -528,8 +528,8 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: {
-        '@proj-airi/stage-ui/components': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'components')),
-        '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+        '@proj-alicization/stage-ui/components': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'components')),
+        '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
       },
     },
     plugins: [

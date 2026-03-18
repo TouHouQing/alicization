@@ -13,10 +13,10 @@
     "useDefineForClassFields": true,
     "baseUrl": "./src/renderer",
     "paths": {
-      "@proj-airi/stage-ui/*": [
+      "@proj-alicization/stage-ui/*": [
         "../../packages/stage-ui/src/*"
       ],
-      "@proj-airi/stage-layouts/*": [
+      "@proj-alicization/stage-layouts/*": [
         "../../packages/stage-layouts/src/*"
       ]
     },
@@ -29,7 +29,7 @@
       "unplugin-vue-router/client",
       "@types/audioworklet",
       "unplugin-info/client",
-      "@proj-airi/stage-shared/electron-renderer"
+      "@proj-alicization/stage-shared/electron-renderer"
     ],
     "allowJs": true,
     "strict": true,

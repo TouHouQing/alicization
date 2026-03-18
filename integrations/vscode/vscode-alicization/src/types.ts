@@ -6,9 +6,9 @@ export interface CodingContext {
    * File information
    *
    * @example {
-   *  "path": "/home/neko/Git/github.com/moeru-ai/airi/package.json",
+   *  "path": "/home/neko/Git/github.com/TouHouQing/alicization/package.json",
    *  "languageId": "json",
-   *  "fileName": "/home/neko/Git/github.com/moeru-ai/airi/package.json"
+   *  "fileName": "/home/neko/Git/github.com/TouHouQing/alicization/package.json"
    * }
    */
   file: {
@@ -46,7 +46,7 @@ export interface CodingContext {
    * @example {
    *   "before": [
    *     "{",
-   *     "  \"name\": \"@proj-airi/root\",",
+   *     "  \"name\": \"@proj-alicization/root\",",
    *     "  \"type\": \"module\",",
    *     "  \"version\": \"0.8.1-beta.12\",",
    *     "  \"private\": true,"
@@ -54,9 +54,9 @@ export interface CodingContext {
    *   "after": [
    *     "  \"description\": \"LLM powered virtual character\",",
    *     "  \"author\": {",
-   *     "    \"name\": \"Moeru AI Project AIRI Team\",",
-   *     "    \"email\": \"airi@moeru.ai\",",
-   *     "    \"url\": \"https://github.com/moeru-ai\""
+   *     "    \"name\": \"Moeru AI Project Alicization Team\",",
+   *     "    \"email\": \"alicization@moeru.ai\",",
+   *     "    \"url\": \"https://github.com/TouHouQing\""
    *   ]
    * }
    */

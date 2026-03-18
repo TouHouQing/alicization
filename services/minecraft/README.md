@@ -4,7 +4,7 @@
 
 ## 🧠 Cognitive Architecture
 
-AIRI's Minecraft agent is built on a **four-layered cognitive architecture** inspired by cognitive science, enabling reactive, conscious, and physically grounded behaviors.
+Alicization's Minecraft agent is built on a **four-layered cognitive architecture** inspired by cognitive science, enabling reactive, conscious, and physically grounded behaviors.
 
 ### Architecture Overview
 

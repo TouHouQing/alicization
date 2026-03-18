@@ -6,7 +6,7 @@ import type { ServerChannel } from '../../services/airi/channel-server'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { safeClose } from '@proj-airi/electron-vueuse/main'
+import { safeClose } from '@proj-alicization/electron-vueuse/main'
 import { ipcMain } from 'electron'
 
 import { setupBaseWindowElectronInvokes } from './window'

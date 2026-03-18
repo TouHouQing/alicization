@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineInvoke } from '@moeru/eventa'
-import { useElectronEventaContext, useElectronMouseAroundWindowBorder, useElectronMouseInWindow } from '@proj-airi/electron-vueuse'
+import { useElectronEventaContext, useElectronMouseAroundWindowBorder, useElectronMouseInWindow } from '@proj-alicization/electron-vueuse'
 import { refDebounced, useBroadcastChannel } from '@vueuse/core'
 import { computed, onMounted, ref, watch } from 'vue'
 

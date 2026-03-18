@@ -1,8 +1,8 @@
 import process from 'node:process'
 
 import { Format, LogLevel, setGlobalFormat, setGlobalLogLevel } from '@guiiai/logg'
-import { Client } from '@proj-airi/server-sdk'
-import { runUntilSignal } from '@proj-airi/server-sdk/utils/node'
+import { Client } from '@proj-alicization/server-sdk'
+import { runUntilSignal } from '@proj-alicization/server-sdk/utils/node'
 
 setGlobalFormat(Format.Pretty)
 setGlobalLogLevel(LogLevel.Log)

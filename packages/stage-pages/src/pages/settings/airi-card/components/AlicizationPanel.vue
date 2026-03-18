@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { useAlicizationEpoch1Store } from '@proj-airi/stage-ui/stores/alicization-epoch1'
-import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
+import { useCharacterOrchestratorStore } from '@proj-alicization/stage-ui/stores/character'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'

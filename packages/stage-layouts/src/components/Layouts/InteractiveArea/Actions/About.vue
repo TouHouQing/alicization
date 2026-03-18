@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { isStageCapacitor, isStageTamagotchi } from '@proj-airi/stage-shared'
-import { AboutContent, AboutDialog } from '@proj-airi/stage-ui/components'
-import { useBuildInfo } from '@proj-airi/stage-ui/composables'
+import { isStageCapacitor, isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { AboutContent, AboutDialog } from '@proj-alicization/stage-ui/components'
+import { useBuildInfo } from '@proj-alicization/stage-ui/composables'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -11,9 +11,9 @@ const show = ref(false)
 const buildInfo = useBuildInfo()
 
 const aboutLinks = [
-  { label: 'Home', href: 'https://airi.moeru.ai/docs/', icon: 'i-solar:home-smile-outline' },
-  { label: 'Documentations', href: 'https://airi.moeru.ai/docs/en/docs/overview/', icon: 'i-solar:document-add-outline' },
-  { label: 'GitHub', href: 'https://github.com/moeru-ai/airi', icon: 'i-simple-icons:github' },
+  { label: 'Home', href: 'https://alicization.moeru.ai/docs/', icon: 'i-solar:home-smile-outline' },
+  { label: 'Documentations', href: 'https://alicization.moeru.ai/docs/en/docs/overview/', icon: 'i-solar:document-add-outline' },
+  { label: 'GitHub', href: 'https://github.com/TouHouQing/alicization', icon: 'i-simple-icons:github' },
 ]
 
 const edition = isStageTamagotchi()

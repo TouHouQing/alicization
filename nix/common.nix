@@ -10,7 +10,7 @@
 }:
 
 stdenvNoCC.mkDerivation (final: {
-  pname = "airi";
+  pname = "alicization";
   version = (builtins.fromJSON (builtins.readFile ../package.json)).version;
 
   src = ../.;
@@ -23,7 +23,7 @@ stdenvNoCC.mkDerivation (final: {
 
   # Cache of assets downloaded during vite build
   assets = stdenvNoCC.mkDerivation {
-    pname = "airi-assets";
+    pname = "alicization-assets";
     inherit (final) version src pnpmDeps;
 
     nativeBuildInputs = [
@@ -37,7 +37,7 @@ stdenvNoCC.mkDerivation (final: {
       runHook preBuild
 
       pnpm run build:packages
-      pnpm -F @proj-airi/stage-web run build
+      pnpm -F @proj-alicization/stage-web run build
 
       runHook postBuild
     '';
@@ -60,14 +60,14 @@ stdenvNoCC.mkDerivation (final: {
   meta = {
     description = "Self-hostable AI waifu / companion / VTuber";
     longDescription = ''
-      AIRI is a soul container of AI waifu / virtual characters to bring them into our world,
+      Alicization is a soul container of AI waifu / virtual characters to bring them into our world,
       wishing to achieve Neuro-sama's altitude. It's completely LLM and AI driven, capable of
       realtime voice chat, playing Minecraft and Factorio. It can be run in browser or on desktop.
       This is the desktop version.
     '';
-    homepage = "https://github.com/moeru-ai/airi";
-    changelog = "https://github.com/moeru-ai/airi/releases/tag/v${final.version}";
-    # While airi itself is licensed under MIT, it uses the nonfree Cubism SDK. Whether it's
+    homepage = "https://github.com/TouHouQing/alicization";
+    changelog = "https://github.com/TouHouQing/alicization/releases/tag/v${final.version}";
+    # While Alicization itself is licensed under MIT, it uses the nonfree Cubism SDK. Whether it's
     # redistributable remains a question, so we say it's not.
     license = lib.licenses.unfree;
     platforms = [

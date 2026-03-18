@@ -1,4 +1,4 @@
-import { useElectronRelativeMouse } from '@proj-airi/electron-vueuse'
+import { useElectronRelativeMouse } from '@proj-alicization/electron-vueuse'
 import { useWindowSize } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed } from 'vue'

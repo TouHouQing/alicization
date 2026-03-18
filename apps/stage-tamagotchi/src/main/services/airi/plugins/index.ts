@@ -1,4 +1,4 @@
-import type { ManifestV1 } from '@proj-airi/plugin-sdk/plugin-host'
+import type { ManifestV1 } from '@proj-alicization/plugin-sdk/plugin-host'
 
 import type {
   PluginHostDebugSnapshot,
@@ -12,7 +12,7 @@ import { dirname, extname, join } from 'node:path'
 import { useLogg } from '@guiiai/logg'
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { manifestV1Schema, PluginHost } from '@proj-airi/plugin-sdk/plugin-host'
+import { manifestV1Schema, PluginHost } from '@proj-alicization/plugin-sdk/plugin-host'
 import { app, ipcMain } from 'electron'
 import { array, object, record, safeParse, string } from 'valibot'
 

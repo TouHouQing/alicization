@@ -1,18 +1,18 @@
 {
-  "name": "@proj-airi/electron-vueuse",
+  "name": "@proj-alicization/electron-vueuse",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
   "description": "VueUse-like composables and helpers for Electron apps",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/electron-vueuse"
   },
   "exports": {
@@ -43,6 +43,6 @@
     "std-env": "catalog:"
   },
   "devDependencies": {
-    "@proj-airi/electron-eventa": "workspace:^"
+    "@proj-alicization/electron-eventa": "workspace:^"
   }
 }

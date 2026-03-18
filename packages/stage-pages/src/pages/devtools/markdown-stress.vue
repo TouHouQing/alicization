@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ButtonBar, Section } from '@proj-airi/stage-ui/components'
-import { useMarkdownStressStore } from '@proj-airi/stage-ui/stores/markdown-stress'
-import { Callout } from '@proj-airi/ui'
+import { ButtonBar, Section } from '@proj-alicization/stage-ui/components'
+import { useMarkdownStressStore } from '@proj-alicization/stage-ui/stores/markdown-stress'
+import { Callout } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

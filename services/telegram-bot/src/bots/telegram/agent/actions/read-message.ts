@@ -26,7 +26,7 @@ export async function readMessage(
   result: string
 }> {
   const logger = useLogg('readMessage').useGlobalConfig()
-  const tracer = trace.getTracer('airi.telegram.bot')
+  const tracer = trace.getTracer('alicization.telegram.bot')
 
   return await tracer.startActiveSpan('telegram.module.read_message', async (span) => {
     span.setAttribute('telegram.bot.id', botId)

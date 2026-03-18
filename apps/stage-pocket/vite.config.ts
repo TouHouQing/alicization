@@ -23,7 +23,7 @@ import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk/vite'
 import { templateCompilerOptions } from '@tresjs/core'
 import { defineConfig } from 'vite'
 
-// import { isEnvTruthy } from '@proj-airi/stage-shared'
+// import { isEnvTruthy } from '@proj-alicization/stage-shared'
 function isEnvTruthy(value: string | undefined | null): boolean {
   if (value == null)
     return false
@@ -37,7 +37,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: [
       // Internal Packages
-      '@proj-airi/stage-ui/*',
+      '@proj-alicization/stage-ui/*',
       '@proj-airi/drizzle-duckdb-wasm',
       '@proj-airi/drizzle-duckdb-wasm/*',
 
@@ -63,12 +63,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@proj-airi/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
-      '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-      '@proj-airi/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
-      '@proj-airi/stage-layouts': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
-      '@proj-airi/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
-      '@proj-airi/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+      '@proj-alicization/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
+      '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+      '@proj-alicization/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
+      '@proj-alicization/stage-layouts': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
+      '@proj-alicization/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
+      '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
     },
   },
   server: {
@@ -165,7 +165,7 @@ export default defineConfig({
 
     ...isEnvTruthy(process.env.VITE_CAP_SYNC_IOS_AFTER_BUILD ?? '')
       ? [{
-          name: 'proj-airi:capacitor-sync',
+          name: 'proj-alicization:capacitor-sync',
           closeBundle: {
             sequential: true,
             handler() {
@@ -178,7 +178,7 @@ export default defineConfig({
       : [],
 
     {
-      name: 'proj-airi:defines',
+      name: 'proj-alicization:defines',
       config(ctx) {
         const define: Record<string, any> = {
           'import.meta.env.RUNTIME_ENVIRONMENT': '\'capacitor\'',

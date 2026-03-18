@@ -1,6 +1,6 @@
 ---
 title: 环境配置与基础准备
-description: 参与并贡献 Project AIRI
+description: 参与并贡献 Project Alicization
 ---
 
 你好呀！感谢你有兴趣参与这个项目。本指南将帮助你快速上手
@@ -117,13 +117,13 @@ git rebase main
 
 ## Fork 本项目
 
-请点击 [moeru-ai/airi](https://github.com/moeru-ai/airi) 页面右上角的 **Fork** 按钮来 fork（分叉一个归属于你的账户的副本）本项目。
+请点击 [TouHouQing/alicization](https://github.com/TouHouQing/alicization) 页面右上角的 **Fork** 按钮来 fork（分叉一个归属于你的账户的副本）本项目。
 
 ## 克隆本项目
 
 ```shell
-git clone https://github.com/<your-github-username>/airi.git
-cd airi
+git clone https://github.com/<your-github-username>/alicization.git
+cd alicization
 ```
 
 ## 创建你自己的工作分支
@@ -187,7 +187,7 @@ git add .
 git commit -m "<your-commit-message>"
 ```
 
-### 将你的代码推送（push）至先前 fork 或者拥有写入权限的 AIRI 仓库
+### 将你的代码推送（push）至先前 fork 或者拥有写入权限的 Alicization 仓库
 
 ```shell
 git push origin <your-branch-name> -u
@@ -200,14 +200,14 @@ git push origin <your-branch-name> -u
 如果这是你第一次贡献本项目，请添加上游（upstream，指向本项目）：
 
 ```shell
-git remote add upstream https://github.com/moeru-ai/airi.git
+git remote add upstream https://github.com/TouHouQing/alicization.git
 ```
 
 :::
 
 ## 创建拉取请求（Pull Request）
 
-请前往 [moeru-ai/airi](https://github.com/moeru-ai/airi) 页面：
+请前往 [TouHouQing/alicization](https://github.com/TouHouQing/alicization) 页面：
 
 * 点击 **Pull requests** 按钮；
 * 再点击 **New pull request** 按钮；

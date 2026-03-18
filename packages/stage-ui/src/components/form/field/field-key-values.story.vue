@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FieldKeyValues } from '@proj-airi/ui'
+import { FieldKeyValues } from '@proj-alicization/ui'
 import { ref, watch } from 'vue'
 
 const emptyHeaders = ref<{ key: string, value: string }[]>([

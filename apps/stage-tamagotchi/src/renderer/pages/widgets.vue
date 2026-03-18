@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { WidgetSnapshot } from '../../shared/eventa'
 
-import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
+import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { computed, defineAsyncComponent, defineComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 

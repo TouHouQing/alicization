@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
-import { FieldInput } from '@proj-airi/ui'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
+import { FieldInput } from '@proj-alicization/ui'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()

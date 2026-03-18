@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ChatAssistantMessage } from '../../../types/chat'
 
-import { Collapsible } from '@proj-airi/ui'
+import { Collapsible } from '@proj-alicization/ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

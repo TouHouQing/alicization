@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { Progress } from '@proj-airi/ui'
+import { Progress } from '@proj-alicization/ui'
 </script>
 
 <template>

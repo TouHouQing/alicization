@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GamingFactorio } from '@proj-airi/stage-ui/components'
+import { GamingFactorio } from '@proj-alicization/stage-ui/components'
 </script>
 
 <template>

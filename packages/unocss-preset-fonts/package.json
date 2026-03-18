@@ -1,18 +1,18 @@
 {
-  "name": "@proj-airi/unocss-preset-fonts",
+  "name": "@proj-alicization/unocss-preset-fonts",
   "type": "module",
   "version": "0.9.0-alpha.16",
-  "description": "Fonts that are not included by Google Fonts, FontSource but open-source used by Project AIRI",
+  "description": "Fonts that are not included by Google Fonts, FontSource but open-source used by Project Alicization",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
-  "homepage": "https://github.com/moeru-ai/airi",
+  "homepage": "https://github.com/TouHouQing/alicization",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/unocss-preset-fonts"
   },
   "exports": {
@@ -30,8 +30,8 @@
     "@unocss/preset-web-fonts": ">=66"
   },
   "dependencies": {
-    "@proj-airi/font-cjkfonts-allseto": "workspace:^",
-    "@proj-airi/font-departure-mono": "workspace:^",
-    "@proj-airi/font-xiaolai": "workspace:^"
+    "@proj-alicization/font-cjkfonts-allseto": "workspace:^",
+    "@proj-alicization/font-departure-mono": "workspace:^",
+    "@proj-alicization/font-xiaolai": "workspace:^"
   }
 }

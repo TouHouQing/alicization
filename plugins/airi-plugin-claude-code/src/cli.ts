@@ -7,7 +7,7 @@ import { argv, exit, stdin } from 'node:process'
 import debug from 'debug'
 
 import { Format, LogLevel, LogLevelString, useLogg } from '@guiiai/logg'
-import { Client } from '@proj-airi/server-sdk'
+import { Client } from '@proj-alicization/server-sdk'
 import { cac } from 'cac'
 
 import { name, version } from '../package.json'
@@ -26,7 +26,7 @@ interface Options {
 
 let logger = useLogg(name).withLogLevel(LogLevel.Log).withFormat(Format.Pretty)
 
-const cli = cac('airi-plugin-claude-code-cli')
+const cli = cac('alicization-plugin-claude-code-cli')
 cli.help().version(version)
 
 cli
@@ -68,7 +68,7 @@ cli
     const hookEvent = JSON.parse(stdinInput) as HookInput
 
     if (hookEvent.hook_event_name === 'UserPromptSubmit') {
-      const channelServer = new Client({ name: 'proj-airi:plugin-claude-code', autoConnect: false })
+      const channelServer = new Client({ name: 'proj-alicization:plugin-claude-code', autoConnect: false })
       await channelServer.connect()
 
       channelServer.send({ type: 'input:text', data: { text: hookEvent.prompt } })

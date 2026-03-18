@@ -3,7 +3,7 @@
 import { packageJSONForVSCode } from './shared'
 
 async function run() {
-  await packageJSONForVSCode('airi-vscode')
+  await packageJSONForVSCode('alicization-vscode')
 }
 
 run()

@@ -2,7 +2,7 @@ import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 
 import type { VoiceInfo } from '../providers'
 
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { refManualReset } from '@vueuse/core'
 import { generateSpeech } from '@xsai/generate-speech'
 import { defineStore, storeToRefs } from 'pinia'

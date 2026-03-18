@@ -141,12 +141,12 @@ catalogs:
     builder-util-runtime:
       specifier: ^9.5.1
       version: 9.5.1
-    copy-anything:
-      specifier: ^3.0.5
-      version: 3.0.5
     capacitor-native-settings:
       specifier: ^8.0.0
       version: 8.0.0
+    copy-anything:
+      specifier: ^3.0.5
+      version: 3.0.5
     crossws:
       specifier: ^0.4.4
       version: 0.4.4
@@ -419,7 +419,7 @@ importers:
 
   apps/component-calling:
     dependencies:
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../../packages/ui
       '@valibot/to-json-schema':
@@ -543,7 +543,7 @@ importers:
       '@proj-airi/drizzle-orm-browser-migrator':
         specifier: ^0.1.6
         version: 0.1.6(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0)(@types/pg@8.16.0)(better-sqlite3@12.5.0)(kysely@0.28.11)(pg@8.19.0)(postgres@3.4.8)(sqlite3@5.1.7))
-      '@proj-airi/server-schema':
+      '@proj-alicization/server-schema':
         specifier: workspace:*
         version: link:../../packages/server-schema
       better-auth:
@@ -610,49 +610,49 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/audio':
-        specifier: workspace:^
-        version: link:../../packages/audio
-      '@proj-airi/ccc':
-        specifier: workspace:^
-        version: link:../../packages/ccc
       '@proj-airi/drizzle-duckdb-wasm':
         specifier: 'catalog:'
         version: 0.4.29(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0)(@types/pg@8.16.0)(better-sqlite3@12.5.0)(kysely@0.28.11)(pg@8.19.0)(postgres@3.4.8)(sqlite3@5.1.7))
-      '@proj-airi/font-cjkfonts-allseto':
+      '@proj-alicization/audio':
+        specifier: workspace:^
+        version: link:../../packages/audio
+      '@proj-alicization/ccc':
+        specifier: workspace:^
+        version: link:../../packages/ccc
+      '@proj-alicization/font-cjkfonts-allseto':
         specifier: workspace:^
         version: link:../../packages/font-cjkfonts-allseto
-      '@proj-airi/font-xiaolai':
+      '@proj-alicization/font-xiaolai':
         specifier: workspace:^
         version: link:../../packages/font-xiaolai
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
-      '@proj-airi/pipelines-audio':
+      '@proj-alicization/pipelines-audio':
         specifier: workspace:^
         version: link:../../packages/pipelines-audio
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../../packages/server-sdk
-      '@proj-airi/stage-layouts':
+      '@proj-alicization/stage-layouts':
         specifier: workspace:^
         version: link:../../packages/stage-layouts
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../../packages/stage-shared
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:^
         version: link:../../packages/stage-ui
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:^
         version: link:../../packages/stage-ui-three
-      '@proj-airi/stream-kit':
+      '@proj-alicization/stream-kit':
         specifier: workspace:^
         version: link:../../packages/stream-kit
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../../packages/ui
-      '@proj-airi/ui-transitions':
+      '@proj-alicization/ui-transitions':
         specifier: workspace:^
         version: link:../../packages/ui-transitions
       '@tresjs/cientos':
@@ -854,9 +854,6 @@ importers:
       '@intlify/unplugin-vue-i18n':
         specifier: ^11.0.7
         version: 11.0.7(@vue/compiler-dom@3.5.29)(eslint@9.39.3(jiti@2.6.1))(rollup@2.80.0)(typescript@5.9.3)(vue-i18n@11.2.8(vue@3.5.29(typescript@5.9.3)))(vue@3.5.29(typescript@5.9.3))
-      '@proj-airi/cap-vite':
-        specifier: workspace:*
-        version: link:../../packages/cap-vite
       '@proj-airi/iconify-meteocons':
         specifier: 'catalog:'
         version: 0.1.4
@@ -869,7 +866,10 @@ importers:
       '@proj-airi/unplugin-live2d-sdk':
         specifier: ^0.1.6
         version: 0.1.6(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
-      '@proj-airi/vite-plugin-warpdrive':
+      '@proj-alicization/cap-vite':
+        specifier: workspace:*
+        version: link:../../packages/cap-vite
+      '@proj-alicization/vite-plugin-warpdrive':
         specifier: workspace:*
         version: link:../../packages/vite-plugin-warpdrive
       '@shikijs/markdown-it':
@@ -1013,58 +1013,58 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/audio':
-        specifier: workspace:^
-        version: link:../../packages/audio
-      '@proj-airi/ccc':
-        specifier: workspace:^
-        version: link:../../packages/ccc
       '@proj-airi/drizzle-duckdb-wasm':
         specifier: 'catalog:'
         version: 0.4.29(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0)(@types/pg@8.16.0)(better-sqlite3@12.5.0)(kysely@0.28.11)(pg@8.19.0)(postgres@3.4.8)(sqlite3@5.1.7))
-      '@proj-airi/electron-eventa':
+      '@proj-alicization/audio':
+        specifier: workspace:^
+        version: link:../../packages/audio
+      '@proj-alicization/ccc':
+        specifier: workspace:^
+        version: link:../../packages/ccc
+      '@proj-alicization/electron-eventa':
         specifier: workspace:^
         version: link:../../packages/electron-eventa
-      '@proj-airi/electron-screen-capture':
+      '@proj-alicization/electron-screen-capture':
         specifier: workspace:^
         version: link:../../packages/electron-screen-capture
-      '@proj-airi/electron-vueuse':
+      '@proj-alicization/electron-vueuse':
         specifier: workspace:^
         version: link:../../packages/electron-vueuse
-      '@proj-airi/font-cjkfonts-allseto':
+      '@proj-alicization/font-cjkfonts-allseto':
         specifier: workspace:^
         version: link:../../packages/font-cjkfonts-allseto
-      '@proj-airi/font-xiaolai':
+      '@proj-alicization/font-xiaolai':
         specifier: workspace:^
         version: link:../../packages/font-xiaolai
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
-      '@proj-airi/plugin-sdk':
+      '@proj-alicization/plugin-sdk':
         specifier: workspace:^
         version: link:../../packages/plugin-sdk
-      '@proj-airi/server-runtime':
+      '@proj-alicization/server-runtime':
         specifier: workspace:^
         version: link:../../packages/server-runtime
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../../packages/server-sdk
-      '@proj-airi/stage-layouts':
+      '@proj-alicization/stage-layouts':
         specifier: workspace:^
         version: link:../../packages/stage-layouts
-      '@proj-airi/stage-pages':
+      '@proj-alicization/stage-pages':
         specifier: workspace:^
         version: link:../../packages/stage-pages
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:^
         version: link:../../packages/stage-ui
-      '@proj-airi/stage-ui-live2d':
+      '@proj-alicization/stage-ui-live2d':
         specifier: workspace:^
         version: link:../../packages/stage-ui-live2d
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:^
         version: link:../../packages/stage-ui-three
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../../packages/ui
       '@tresjs/cientos':
@@ -1320,18 +1320,18 @@ importers:
       '@proj-airi/lobe-icons':
         specifier: ^1.0.18
         version: 1.0.18
-      '@proj-airi/stage-shared':
-        specifier: workspace:^
-        version: link:../../packages/stage-shared
-      '@proj-airi/ui-transitions':
-        specifier: workspace:^
-        version: link:../../packages/ui-transitions
       '@proj-airi/unplugin-fetch':
         specifier: 'catalog:'
         version: 0.2.2(vite@8.0.0-beta.15(@types/node@24.10.14)(esbuild@0.27.2)(jiti@2.6.1)(less@4.5.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       '@proj-airi/unplugin-live2d-sdk':
         specifier: ^0.1.6
         version: 0.1.6(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+      '@proj-alicization/stage-shared':
+        specifier: workspace:^
+        version: link:../../packages/stage-shared
+      '@proj-alicization/ui-transitions':
+        specifier: workspace:^
+        version: link:../../packages/ui-transitions
       '@shikijs/markdown-it':
         specifier: ^3.23.0
         version: 3.23.0
@@ -1440,52 +1440,52 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/audio':
-        specifier: workspace:^
-        version: link:../../packages/audio
-      '@proj-airi/ccc':
-        specifier: workspace:^
-        version: link:../../packages/ccc
       '@proj-airi/drizzle-duckdb-wasm':
         specifier: 'catalog:'
         version: 0.4.29(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0)(@types/pg@8.16.0)(better-sqlite3@12.5.0)(kysely@0.28.11)(pg@8.19.0)(postgres@3.4.8)(sqlite3@5.1.7))
-      '@proj-airi/font-cjkfonts-allseto':
+      '@proj-alicization/audio':
+        specifier: workspace:^
+        version: link:../../packages/audio
+      '@proj-alicization/ccc':
+        specifier: workspace:^
+        version: link:../../packages/ccc
+      '@proj-alicization/font-cjkfonts-allseto':
         specifier: workspace:^
         version: link:../../packages/font-cjkfonts-allseto
-      '@proj-airi/font-xiaolai':
+      '@proj-alicization/font-xiaolai':
         specifier: workspace:^
         version: link:../../packages/font-xiaolai
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
-      '@proj-airi/model-driver-mediapipe':
+      '@proj-alicization/model-driver-mediapipe':
         specifier: workspace:^
         version: link:../../packages/model-driver-mediapipe
-      '@proj-airi/pipelines-audio':
+      '@proj-alicization/pipelines-audio':
         specifier: workspace:^
         version: link:../../packages/pipelines-audio
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../../packages/server-sdk
-      '@proj-airi/stage-layouts':
+      '@proj-alicization/stage-layouts':
         specifier: workspace:^
         version: link:../../packages/stage-layouts
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../../packages/stage-shared
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:^
         version: link:../../packages/stage-ui
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:^
         version: link:../../packages/stage-ui-three
-      '@proj-airi/stream-kit':
+      '@proj-alicization/stream-kit':
         specifier: workspace:^
         version: link:../../packages/stream-kit
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../../packages/ui
-      '@proj-airi/ui-transitions':
+      '@proj-alicization/ui-transitions':
         specifier: workspace:^
         version: link:../../packages/ui-transitions
       '@tresjs/cientos':
@@ -1705,7 +1705,7 @@ importers:
       '@proj-airi/unplugin-live2d-sdk':
         specifier: ^0.1.6
         version: 0.1.6(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
-      '@proj-airi/vite-plugin-warpdrive':
+      '@proj-alicization/vite-plugin-warpdrive':
         specifier: workspace:*
         version: link:../../packages/vite-plugin-warpdrive
       '@shikijs/markdown-it':
@@ -1804,7 +1804,7 @@ importers:
       '@proj-airi/chromatic':
         specifier: ^1.0.2
         version: 1.0.2
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:^
         version: link:../packages/i18n
       '@vueuse/core':
@@ -1868,7 +1868,7 @@ importers:
       '@napi-rs/image':
         specifier: ^1.12.0
         version: 1.12.0
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:^
         version: link:../packages/stage-ui
       '@radix-ui/colors':
@@ -1926,13 +1926,13 @@ importers:
         specifier: ^3.2.5
         version: 3.2.5(typescript@5.9.3)
 
-  integrations/vscode/airi-plugin-vscode:
+  integrations/vscode/alicization-plugin-vscode:
     devDependencies:
-      '@proj-airi/plugin-sdk':
+      '@proj-alicization/plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
-  integrations/vscode/vscode-airi:
+  integrations/vscode/vscode-alicization:
     devDependencies:
       '@guiiai/logg':
         specifier: 'catalog:'
@@ -1940,7 +1940,7 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../../../packages/server-sdk
       '@types/vscode':
@@ -2020,7 +2020,7 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/stream-kit':
+      '@proj-alicization/stream-kit':
         specifier: workspace:^
         version: link:../stream-kit
       clustr:
@@ -2097,7 +2097,7 @@ importers:
         specifier: '>=3'
         version: 3.5.29(typescript@5.9.3)
     devDependencies:
-      '@proj-airi/electron-eventa':
+      '@proj-alicization/electron-eventa':
         specifier: workspace:^
         version: link:../electron-eventa
 
@@ -2118,7 +2118,7 @@ importers:
       '@guiiai/logg':
         specifier: 'catalog:'
         version: 1.2.11
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../server-sdk
       drizzle-orm:
@@ -2192,10 +2192,10 @@ importers:
       '@moeru/eventa':
         specifier: 'catalog:'
         version: 1.0.0-alpha.14(electron@40.8.0)
-      '@proj-airi/plugin-protocol':
+      '@proj-alicization/plugin-protocol':
         specifier: workspace:*
         version: link:../plugin-protocol
-      '@proj-airi/server-shared':
+      '@proj-alicization/server-shared':
         specifier: workspace:*
         version: link:../server-shared
       valibot:
@@ -2213,7 +2213,7 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/server-shared':
+      '@proj-alicization/server-shared':
         specifier: workspace:^
         version: link:../server-shared
       crossws:
@@ -2240,7 +2240,7 @@ importers:
 
   packages/server-sdk:
     dependencies:
-      '@proj-airi/server-shared':
+      '@proj-alicization/server-shared':
         specifier: workspace:^
         version: link:../server-shared
       crossws:
@@ -2256,7 +2256,7 @@ importers:
 
   packages/server-shared:
     dependencies:
-      '@proj-airi/plugin-protocol':
+      '@proj-alicization/plugin-protocol':
         specifier: workspace:*
         version: link:../plugin-protocol
 
@@ -2268,22 +2268,22 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/ccc':
+      '@proj-alicization/ccc':
         specifier: workspace:*
         version: link:../ccc
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../server-sdk
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:*
         version: link:../stage-ui
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:*
         version: link:../stage-ui-three
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:*
         version: link:../ui
       '@vueuse/core':
@@ -2347,7 +2347,7 @@ importers:
       '@nekopaw/tempora':
         specifier: 'catalog:'
         version: 0.4.0-alpha.1
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../stage-shared
       '@types/audioworklet':
@@ -2371,25 +2371,25 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/ccc':
+      '@proj-alicization/ccc':
         specifier: workspace:*
         version: link:../ccc
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:*
         version: link:../i18n
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../server-sdk
-      '@proj-airi/stage-ui':
+      '@proj-alicization/stage-ui':
         specifier: workspace:*
         version: link:../stage-ui
-      '@proj-airi/stage-ui-live2d':
+      '@proj-alicization/stage-ui-live2d':
         specifier: workspace:*
         version: link:../stage-ui-live2d
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:*
         version: link:../stage-ui-three
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:*
         version: link:../ui
       '@shopify/draggable':
@@ -2462,7 +2462,7 @@ importers:
       '@nekopaw/tempora':
         specifier: 'catalog:'
         version: 0.4.0-alpha.1
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../stage-shared
       '@types/audioworklet':
@@ -2502,7 +2502,7 @@ importers:
       '@nekopaw/tempora':
         specifier: 'catalog:'
         version: 0.4.0-alpha.1
-      '@proj-airi/electron-screen-capture':
+      '@proj-alicization/electron-screen-capture':
         specifier: workspace:^
         version: link:../electron-screen-capture
       '@types/audioworklet':
@@ -2523,49 +2523,49 @@ importers:
       '@moeru/eventa':
         specifier: ^1.0.0-beta.1
         version: 1.0.0-beta.1(electron@40.8.0)(h3@2.0.1-rc.14(crossws@0.4.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))))
-      '@proj-airi/audio':
-        specifier: workspace:^
-        version: link:../audio
-      '@proj-airi/ccc':
-        specifier: workspace:^
-        version: link:../ccc
       '@proj-airi/chromatic':
         specifier: ^1.0.2
         version: 1.0.2
-      '@proj-airi/core-character':
-        specifier: workspace:^
-        version: link:../core-character
       '@proj-airi/drizzle-duckdb-wasm':
         specifier: 'catalog:'
         version: 0.4.29(drizzle-orm@0.45.1(@electric-sql/pglite@0.3.15)(@opentelemetry/api@1.9.0)(@prisma/client@5.22.0)(@types/pg@8.16.0)(better-sqlite3@12.5.0)(kysely@0.28.11)(pg@8.19.0)(postgres@3.4.8)(sqlite3@5.1.7))
-      '@proj-airi/font-cjkfonts-allseto':
+      '@proj-alicization/audio':
+        specifier: workspace:^
+        version: link:../audio
+      '@proj-alicization/ccc':
+        specifier: workspace:^
+        version: link:../ccc
+      '@proj-alicization/core-character':
+        specifier: workspace:^
+        version: link:../core-character
+      '@proj-alicization/font-cjkfonts-allseto':
         specifier: workspace:^
         version: link:../font-cjkfonts-allseto
-      '@proj-airi/font-xiaolai':
+      '@proj-alicization/font-xiaolai':
         specifier: workspace:^
         version: link:../font-xiaolai
-      '@proj-airi/i18n':
+      '@proj-alicization/i18n':
         specifier: workspace:^
         version: link:../i18n
-      '@proj-airi/model-driver-lipsync':
+      '@proj-alicization/model-driver-lipsync':
         specifier: workspace:^
         version: link:../model-driver-lipsync
-      '@proj-airi/pipelines-audio':
+      '@proj-alicization/pipelines-audio':
         specifier: workspace:^
         version: link:../pipelines-audio
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../server-sdk
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../stage-shared
-      '@proj-airi/stage-ui-live2d':
+      '@proj-alicization/stage-ui-live2d':
         specifier: workspace:^
         version: link:../stage-ui-live2d
-      '@proj-airi/stage-ui-three':
+      '@proj-alicization/stage-ui-three':
         specifier: workspace:^
         version: link:../stage-ui-three
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../ui
       '@ricky0123/vad-web':
@@ -2821,10 +2821,10 @@ importers:
       '@proj-airi/lobe-icons':
         specifier: ^1.0.18
         version: 1.0.18
-      '@proj-airi/stream-kit':
+      '@proj-alicization/stream-kit':
         specifier: workspace:*
         version: link:../stream-kit
-      '@proj-airi/vite-plugin-warpdrive':
+      '@proj-alicization/vite-plugin-warpdrive':
         specifier: workspace:*
         version: link:../vite-plugin-warpdrive
       '@types/audioworklet':
@@ -2923,10 +2923,10 @@ importers:
       '@pixi/utils':
         specifier: ^6.5.10
         version: 6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:^
         version: link:../stage-shared
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../ui
       '@vueuse/core':
@@ -2981,10 +2981,10 @@ importers:
       '@pixiv/three-vrm-core':
         specifier: ^3.5.0
         version: 3.5.0(three@0.183.1)
-      '@proj-airi/stage-shared':
+      '@proj-alicization/stage-shared':
         specifier: workspace:*
         version: link:../stage-shared
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:*
         version: link:../ui
       '@tresjs/cientos':
@@ -3067,7 +3067,7 @@ importers:
 
   packages/ui-loading-screens:
     dependencies:
-      '@proj-airi/font-departure-mono':
+      '@proj-alicization/font-departure-mono':
         specifier: workspace:^
         version: link:../font-departure-mono
       '@rive-app/canvas-lite':
@@ -3083,7 +3083,7 @@ importers:
         specifier: 'catalog:'
         version: 3.5.29(typescript@5.9.3)
     devDependencies:
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../ui
       '@unocss/reset':
@@ -3144,13 +3144,13 @@ importers:
 
   packages/unocss-preset-fonts:
     dependencies:
-      '@proj-airi/font-cjkfonts-allseto':
+      '@proj-alicization/font-cjkfonts-allseto':
         specifier: workspace:^
         version: link:../font-cjkfonts-allseto
-      '@proj-airi/font-departure-mono':
+      '@proj-alicization/font-departure-mono':
         specifier: workspace:^
         version: link:../font-departure-mono
-      '@proj-airi/font-xiaolai':
+      '@proj-alicization/font-xiaolai':
         specifier: workspace:^
         version: link:../font-xiaolai
       '@unocss/core':
@@ -3187,7 +3187,7 @@ importers:
       '@laplace.live/event-types':
         specifier: ^2.0.14
         version: 2.0.14(typescript@5.9.3)
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../../packages/server-sdk
 
@@ -3196,7 +3196,7 @@ importers:
       '@guiiai/logg':
         specifier: 'catalog:'
         version: 1.2.11
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../../packages/server-sdk
       cac:
@@ -3227,7 +3227,7 @@ importers:
       '@guiiai/logg':
         specifier: 'catalog:'
         version: 1.2.11
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:*
         version: link:../../packages/server-sdk
 
@@ -3242,10 +3242,10 @@ importers:
       '@moeru/eventa':
         specifier: ^1.0.0-beta.1
         version: 1.0.0-beta.1(electron@40.8.0)(h3@2.0.1-rc.14(crossws@0.4.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))))
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../../packages/server-sdk
-      '@proj-airi/ui':
+      '@proj-alicization/ui':
         specifier: workspace:^
         version: link:../../packages/ui
       '@unocss/reset':
@@ -3281,13 +3281,13 @@ importers:
       '@huggingface/transformers':
         specifier: ^3.8.1
         version: 3.8.1
-      '@proj-airi/audio':
+      '@proj-alicization/audio':
         specifier: workspace:^
         version: link:../../packages/audio
-      '@proj-airi/server-sdk':
+      '@proj-alicization/server-sdk':
         specifier: workspace:^
         version: link:../../packages/server-sdk
-      '@proj-airi/server-shared':
+      '@proj-alicization/server-shared':
         specifier: workspace:^
         version: link:../../packages/server-shared
       '@snazzah/davey':
@@ -3335,9 +3335,9 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/server-sdk':
-        specifier: ^0.8.4
-        version: 0.8.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))
+      '@proj-alicization/server-sdk':
+        specifier: workspace:^
+        version: link:../../packages/server-sdk
       '@xsai/generate-text':
         specifier: 'catalog:'
         version: 0.4.3
@@ -3614,9 +3614,9 @@ importers:
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
-      '@proj-airi/server-sdk':
-        specifier: ^0.8.4
-        version: 0.8.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))
+      '@proj-alicization/server-sdk':
+        specifier: workspace:^
+        version: link:../../packages/server-sdk
       h3:
         specifier: ^2.0.1-rc.14
         version: 2.0.1-rc.14(crossws@0.4.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d)))
@@ -7797,12 +7797,6 @@ packages:
 
   '@proj-airi/lobe-icons@1.0.18':
     resolution: {integrity: sha512-Yft/DzWxq5MEChgJKlKXrGASAKBD6tCjr9NvGYvGViyLCHuzgRT6DUdBKKCRXxxI5M99Ilvw+i37kw873YEUpA==}
-
-  '@proj-airi/server-sdk@0.8.4':
-    resolution: {integrity: sha512-Y/5+vQSXZ+k01doXWT2VvZnQoJMagqfigrxNR9lu4ADbWA+ca3LeesfJh41TeQCOxlON2gLArcQjJbrGN1yAYQ==}
-
-  '@proj-airi/server-shared@0.8.4':
-    resolution: {integrity: sha512-pwZHi1NmsRhR7++KExo6WuYTFi5OGuWDqOkbNhzqZ49Yd64rWrkQ5vXuGKmTKsu2wKq6IoWg++NllEAi1TpjrQ==}
 
   '@proj-airi/unocss-preset-chromatic@1.0.2':
     resolution: {integrity: sha512-qotJTmQcP58ZECsdgzP9nQPWpkLA7PB2qcamkDtjNkLNt0hr9MZMQteTt7bLvSYCTcMVOmJznoOBlTc0P1vi6Q==}
@@ -21958,20 +21952,6 @@ snapshots:
   '@proj-airi/lobe-icons@1.0.18':
     dependencies:
       '@iconify/types': 2.0.0
-
-  '@proj-airi/server-sdk@0.8.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))':
-    dependencies:
-      '@proj-airi/server-shared': 0.8.4
-      crossws: 0.4.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))
-      defu: 6.1.4
-      superjson: 2.2.6
-    transitivePeerDependencies:
-      - srvx
-
-  '@proj-airi/server-shared@0.8.4':
-    dependencies:
-      '@xsai/shared': 0.4.0-beta.13
-      '@xsai/shared-chat': 0.4.0-beta.13
 
   '@proj-airi/unocss-preset-chromatic@1.0.2': {}
 

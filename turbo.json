@@ -4,8 +4,8 @@
     "build": {
       "outputs": ["dist/**"]
     },
-    "@proj-airi/electron-vueuse#build": {
-      "dependsOn": ["@proj-airi/electron-eventa#build"],
+    "@proj-alicization/electron-vueuse#build": {
+      "dependsOn": ["@proj-alicization/electron-eventa#build"],
       "outputs": ["dist/**"]
     }
   }

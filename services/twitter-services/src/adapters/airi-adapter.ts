@@ -8,7 +8,7 @@ import type { TwitterServices } from '../types/services'
 
 import * as fs from 'node:fs/promises'
 
-import { Client } from '@proj-airi/server-sdk'
+import { Client } from '@proj-alicization/server-sdk'
 
 import { getDefaultConfig } from '../config/types'
 import { initBrowser, useContext, useSessionFileAsync } from '../core/browser/context'
@@ -111,9 +111,9 @@ export class AiriAdapter {
       }
     })
 
-    // Handle input from AIRI system
+    // Handle input from Alicization system
     this.client.onEvent('input:text', async (event) => {
-      logger.main.log('Received input from AIRI system:', event.data.text)
+      logger.main.log('Received input from Alicization system:', event.data.text)
       // Process Twitter-related commands
       await this.handleInput(event.data.text)
     })
@@ -121,7 +121,7 @@ export class AiriAdapter {
     // Handle authentication
     this.client.onEvent('module:authenticated', async (event) => {
       if (event.data.authenticated) {
-        logger.main.log('X module authenticated with AIRI server')
+        logger.main.log('X module authenticated with Alicization server')
       }
       else {
         logger.main.warn('X module authentication failed')
@@ -282,7 +282,7 @@ ${tweets.map((t: Tweet) => `- ${t.author.displayName}: ${t.text.substring(0, 80)
   }
 
   /**
-   * Start the AiriAdapter and connect to the AIRI server
+   * Start the AiriAdapter and connect to the Alicization server
    */
   async start(): Promise<void> {
     logger.main.log('Starting Airi adapter for X...')
@@ -297,7 +297,7 @@ ${tweets.map((t: Tweet) => `- ${t.author.displayName}: ${t.text.substring(0, 80)
   }
 
   /**
-   * Stop the AiriAdapter and disconnect from the AIRI server
+   * Stop the AiriAdapter and disconnect from the Alicization server
    */
   async stop(): Promise<void> {
     logger.main.log('Stopping Airi adapter for X...')

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ContextUpdateStrategy } from '@proj-airi/server-sdk'
-import { Section } from '@proj-airi/stage-ui/components'
-import { Button, FieldInput, FieldTextArea, SelectTab } from '@proj-airi/ui'
+import { ContextUpdateStrategy } from '@proj-alicization/server-sdk'
+import { Section } from '@proj-alicization/stage-ui/components'
+import { Button, FieldInput, FieldTextArea, SelectTab } from '@proj-alicization/ui'
 
 const emit = defineEmits<{
   (event: 'sendContextUpdate'): void

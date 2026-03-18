@@ -1,4 +1,4 @@
-# Start contributing to [Project AIRI](https://github.com/moeru-ai/airi)
+# Start contributing to [Project Alicization](https://github.com/TouHouQing/alicization)
 
 Hello! Thank you for your interest in contributing to this project. This guide will help you get started.
 
@@ -116,13 +116,13 @@ git rebase main
 
 ## Fork this project
 
-Click on the **Fork** button on the top right corner of the [moeru-ai/airi](https://github.com/moeru-ai/airi) page.
+Click on the **Fork** button on the top right corner of the [TouHouQing/alicization](https://github.com/TouHouQing/alicization) page.
 
 ## Clone
 
 ```shell
-git clone https://github.com/<your-github-username>/airi.git
-cd airi
+git clone https://github.com/<your-github-username>/alicization.git
+cd alicization
 ```
 
 ## Create your working branch
@@ -174,7 +174,7 @@ pnpm dev:tamagotchi
 > nr dev:tamagotchi
 > ```
 
-### Stage Web (Browser version for [airi.moeru.ai](https://airi.moeru.ai))
+### Stage Web (Browser version for Alicization Web)
 
 ```shell
 pnpm dev
@@ -190,7 +190,7 @@ pnpm dev
 
 ### UI Storyboard
 
-Browse the live UI component storyboard at [airi.moeru.ai/ui](https://airi.moeru.ai/ui/).
+Browse the live UI component storyboard from the current Alicization deployment target.
 
 ### Documentation site
 
@@ -226,14 +226,14 @@ Edit the credentials in `.env.local`.
 Migrate the database
 
 ```shell
-pnpm -F @proj-airi/telegram-bot db:generate
-pnpm -F @proj-airi/telegram-bot db:push
+pnpm -F @proj-alicization/telegram-bot db:generate
+pnpm -F @proj-alicization/telegram-bot db:push
 ```
 
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/telegram-bot start
+pnpm -F @proj-alicization/telegram-bot start
 ```
 
 > [!NOTE]
@@ -241,7 +241,7 @@ pnpm -F @proj-airi/telegram-bot start
 > For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 >
 > ```shell
-> nr -F @proj-airi/telegram-bot dev
+> nr -F @proj-alicization/telegram-bot dev
 > ```
 
 ### Discord bot integration
@@ -261,7 +261,7 @@ Edit the credentials in `.env.local`.
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/discord-bot start
+pnpm -F @proj-alicization/discord-bot start
 ```
 
 > [!NOTE]
@@ -269,7 +269,7 @@ pnpm -F @proj-airi/discord-bot start
 > For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 >
 > ```shell
-> nr -F @proj-airi/discord-bot dev
+> nr -F @proj-alicization/discord-bot dev
 > ```
 
 ### Minecraft agent
@@ -291,7 +291,7 @@ Edit the credentials in `.env.local`.
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/minecraft-bot start
+pnpm -F @proj-alicization/minecraft-bot start
 ```
 
 > [!NOTE]
@@ -299,7 +299,7 @@ pnpm -F @proj-airi/minecraft-bot start
 > For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 >
 > ```shell
-> nr -F @proj-airi/minecraft-bot dev
+> nr -F @proj-alicization/minecraft-bot dev
 > ```
 
 ## Commit
@@ -346,12 +346,12 @@ You should be able to browse the branch on your fork repository.
 > If this is your first time contributing to this project, you need to add the upstream repository too:
 >
 > ```shell
-> git remote add upstream https://github.com/moeru-ai/airi.git
+> git remote add upstream https://github.com/TouHouQing/alicization.git
 > ```
 
 ## Creating Pull Request
 
-Navigate to [moeru-ai/airi](https://github.com/moeru-ai/airi) page, click on the **Pull requests** tab, and click on the **New pull request** button, click on the **Compare across forks** link, and select your fork repository.
+Navigate to [TouHouQing/alicization](https://github.com/TouHouQing/alicization) page, click on the **Pull requests** tab, and click on the **New pull request** button, click on the **Compare across forks** link, and select your fork repository.
 
 Review the changes, and click on the **Create pull request** button.
 

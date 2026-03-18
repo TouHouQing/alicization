@@ -4,11 +4,11 @@ import type { SpeechProvider } from '@xsai-ext/providers/utils'
 import {
   SpeechPlayground,
   SpeechProviderSettings,
-} from '@proj-airi/stage-ui/components'
-import { useSpeechStore } from '@proj-airi/stage-ui/stores/modules/speech'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { getDefaultKokoroModel } from '@proj-airi/stage-ui/workers/kokoro/constants'
-import { Callout, Select } from '@proj-airi/ui'
+} from '@proj-alicization/stage-ui/components'
+import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { getDefaultKokoroModel } from '@proj-alicization/stage-ui/workers/kokoro/constants'
+import { Callout, Select } from '@proj-alicization/ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 

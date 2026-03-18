@@ -1,4 +1,4 @@
-import type { WebSocketEventInputs } from '@proj-airi/server-sdk'
+import type { WebSocketEventInputs } from '@proj-alicization/server-sdk'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
@@ -8,7 +8,7 @@ import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, Streamin
 import type { AlicizationEmotion, AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
-import { createQueue } from '@proj-airi/stream-kit'
+import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, toRaw } from 'vue'

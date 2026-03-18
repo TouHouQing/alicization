@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CursorFloating } from '@proj-airi/stage-ui/components'
+import { CursorFloating } from '@proj-alicization/stage-ui/components'
 import { useI18n } from 'vue-i18n'
 
 interface Props {

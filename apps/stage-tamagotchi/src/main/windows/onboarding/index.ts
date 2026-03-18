@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
-import { safeClose } from '@proj-airi/electron-vueuse/main'
+import { safeClose } from '@proj-alicization/electron-vueuse/main'
 import { BrowserWindow, ipcMain, shell } from 'electron'
 import { isMacOS } from 'std-env'
 
@@ -35,7 +35,7 @@ export function setupOnboardingWindowManager(params: {
 
   const reusableWindow = createReusableWindow(async () => {
     const newWindow = new BrowserWindow({
-      title: 'Welcome to AIRI',
+      title: 'Welcome to Alicization',
       width: 1000,
       height: 650,
       minWidth: 400,

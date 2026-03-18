@@ -203,21 +203,21 @@ pnpm dev:tamagotchi
 ```shell
 pnpm build:tamagotchi
 # 同等:
-# pnpm -F @proj-airi/stage-tamagotchi run app:build
+# pnpm -F @proj-alicization/stage-tamagotchi run app:build
 ```
 
 配布用インストーラやプラットフォーム別バンドルが必要な場合:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:mac
-pnpm -F @proj-airi/stage-tamagotchi run build:win
-pnpm -F @proj-airi/stage-tamagotchi run build:linux
+pnpm -F @proj-alicization/stage-tamagotchi run build:mac
+pnpm -F @proj-alicization/stage-tamagotchi run build:win
+pnpm -F @proj-alicization/stage-tamagotchi run build:linux
 ```
 
 ローカル検証用に unpacked ディレクトリだけ必要な場合:
 
 ```shell
-pnpm -F @proj-airi/stage-tamagotchi run build:unpack
+pnpm -F @proj-alicization/stage-tamagotchi run build:unpack
 ```
 
 `pnpm build:tamagotchi` は未パッケージの Electron ビルドを `apps/stage-tamagotchi/out` に出力します。

@@ -14,7 +14,7 @@
       "vitest",
       "vite/client",
       "electron-vite/node",
-      "@proj-airi/stage-shared/electron-renderer"
+      "@proj-alicization/stage-shared/electron-renderer"
     ],
     "allowJs": true,
     "strict": true,

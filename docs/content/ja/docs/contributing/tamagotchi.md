@@ -1,6 +1,6 @@
 ---
 title: デスクトップ
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### Stage Tamagotchi (デスクトップ版)

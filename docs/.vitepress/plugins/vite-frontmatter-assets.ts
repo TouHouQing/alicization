@@ -115,7 +115,7 @@ export function frontmatterAssets(): Plugin {
   }
 
   return {
-    name: '@proj-airi/docs:vite-plugin-frontmatter-assets',
+    name: '@proj-alicization/docs:vite-plugin-frontmatter-assets',
     enforce: 'pre',
     async configResolved(config) {
       resolvedConfig = config as VitePressConfig

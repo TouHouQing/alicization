@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Screen } from '@proj-airi/ui'
+import { Screen } from '@proj-alicization/ui'
 </script>
 
 <template>

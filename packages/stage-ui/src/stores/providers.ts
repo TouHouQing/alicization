@@ -20,7 +20,7 @@ import type {
 
 import type { AliyunRealtimeSpeechExtraOptions } from './providers/aliyun/stream-transcription'
 
-import { isStageTamagotchi, isUrl } from '@proj-airi/stage-shared'
+import { isStageTamagotchi, isUrl } from '@proj-alicization/stage-shared'
 import { computedAsync, useIntervalFn, useLocalStorage } from '@vueuse/core'
 import {
   createOpenAI,
@@ -293,7 +293,7 @@ export const useProvidersStore = defineStore('providers', () => {
           if (!config.baseUrl) {
             return {
               errors: [new Error('Base URL is required.')],
-              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/moeru-ai/airi/issues.',
+              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/TouHouQing/alicization/issues.',
               valid: false,
             }
           }
@@ -323,7 +323,7 @@ export const useProvidersStore = defineStore('providers', () => {
           if (!config.baseUrl) {
             return {
               errors: [new Error('Base URL is required.')],
-              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/moeru-ai/airi/issues.',
+              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/TouHouQing/alicization/issues.',
               valid: false,
             }
           }
@@ -353,7 +353,7 @@ export const useProvidersStore = defineStore('providers', () => {
           if (!config.baseUrl) {
             return {
               errors: [new Error('Base URL is required.')],
-              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/moeru-ai/airi/issues.',
+              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/TouHouQing/alicization/issues.',
               valid: false,
             }
           }
@@ -383,7 +383,7 @@ export const useProvidersStore = defineStore('providers', () => {
           if (!config.baseUrl) {
             return {
               errors: [new Error('Base URL is required.')],
-              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/moeru-ai/airi/issues.',
+              reason: 'Base URL is required. This is likely a bug, report to developers on https://github.com/TouHouQing/alicization/issues.',
               valid: false,
             }
           }

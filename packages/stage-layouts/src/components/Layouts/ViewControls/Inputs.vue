@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useModelStore } from '@proj-airi/stage-ui-three'
-import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
-import { RoundRange } from '@proj-airi/ui'
+import { useModelStore } from '@proj-alicization/stage-ui-three'
+import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
+import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
+import { RoundRange } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 

@@ -1,5 +1,5 @@
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
-import { StageEnvironment } from '@proj-airi/stage-shared'
+import { StageEnvironment } from '@proj-alicization/stage-shared'
 import {
   beatSyncBeatSignaledInvokeEventa,
   beatSyncGetInputByteFrequencyDataInvokeEventa,
@@ -9,7 +9,7 @@ import {
   beatSyncUpdateParametersInvokeEventa,
   createBeatSyncDetector,
   createContext,
-} from '@proj-airi/stage-shared/beat-sync'
+} from '@proj-alicization/stage-shared/beat-sync'
 
 const context = createContext()
 

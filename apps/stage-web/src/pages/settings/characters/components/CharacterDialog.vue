@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { Character, CreateCharacterPayload } from '@proj-airi/stage-ui/types/character'
+import type { Character, CreateCharacterPayload } from '@proj-alicization/stage-ui/types/character'
 
-import { useCharacterStore } from '@proj-airi/stage-ui/stores/characters'
-import { CreateCharacterSchema } from '@proj-airi/stage-ui/types/character'
-import { Button, FieldInput } from '@proj-airi/ui'
+import { useCharacterStore } from '@proj-alicization/stage-ui/stores/characters'
+import { CreateCharacterSchema } from '@proj-alicization/stage-ui/types/character'
+import { Button, FieldInput } from '@proj-alicization/ui'
 import {
   DialogContent,
   DialogOverlay,

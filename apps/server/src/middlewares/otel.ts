@@ -4,7 +4,7 @@ import type { HonoEnv } from '../types/hono'
 
 import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 
-const tracer = trace.getTracer('airi-server-hono')
+const tracer = trace.getTracer('alicization-server-hono')
 
 /**
  * Hono middleware that creates spans for each request and records

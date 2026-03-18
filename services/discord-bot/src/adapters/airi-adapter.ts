@@ -1,11 +1,11 @@
-import type { Discord } from '@proj-airi/server-shared/types'
+import type { Discord } from '@proj-alicization/server-shared/types'
 import type { Interaction } from 'discord.js'
 
 import { env } from 'node:process'
 
 import { useLogg } from '@guiiai/logg'
-import { Client as ServerChannel } from '@proj-airi/server-sdk'
-import { ContextUpdateStrategy } from '@proj-airi/server-shared/types'
+import { Client as ServerChannel } from '@proj-alicization/server-sdk'
+import { ContextUpdateStrategy } from '@proj-alicization/server-shared/types'
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js'
 
 import { handlePing, registerCommands, VoiceManager } from '../bots/discord/commands'
@@ -74,7 +74,7 @@ export class DiscordAdapter {
       partials: [Partials.Channel],
     })
 
-    // Initialize AIRI client
+    // Initialize Alicization client
     this.airiClient = new ServerChannel({
       name: 'discord',
       possibleEvents: [
@@ -149,14 +149,14 @@ export class DiscordAdapter {
       }
     })
 
-    // Handle input from AIRI system
+    // Handle input from Alicization system
     this.airiClient.onEvent('input:text', async (event) => {
-      log.log('Received input from AIRI system:', event.data.text)
+      log.log('Received input from Alicization system:', event.data.text)
       // Process Discord-related commands
       // For now, we'll just log the input
     })
 
-    // Handle output from AIRI system (IA response)
+    // Handle output from Alicization system (IA response)
     this.airiClient.onEvent('output:gen-ai:chat:message', async (event) => {
       try {
         const message = (event.data as { message?: { content: string } }).message

@@ -412,7 +412,7 @@ pages:
     title: Memory
   data:
     title: Data
-    description: Manage stored AIRI data, exports, and resets
+    description: Manage stored Alicization data, exports, and resets
     sections:
       chats:
         title: Chat sessions
@@ -441,7 +441,7 @@ pages:
         delete: Delete all data
       desktop:
         title: Reset desktop settings & states
-        description: Clear AIRI desktop settings and runtime state.
+        description: Clear Alicization desktop settings and runtime state.
         reset: Reset desktop data
     confirmations:
       tooltip: Are you sure?
@@ -561,7 +561,7 @@ pages:
       description: Playing Factorio!
       title: Factorio
       enable: Enable Factorio Integration
-      enable-description: Allow AIRI to interact with Factorio game
+      enable-description: Allow Alicization to interact with Factorio game
       server-address: Server Address
       server-address-description: The IP address or hostname of the Factorio server
       server-address-placeholder: Enter server address (e.g., localhost or 192.168.1.100)
@@ -575,7 +575,7 @@ pages:
       description: Playing Minecraft!
       title: Minecraft
       enable: Enable Minecraft Integration
-      enable-description: Allow AIRI to interact with Minecraft game
+      enable-description: Allow Alicization to interact with Minecraft game
       server-address: Server Address
       server-address-description: The IP address or hostname of the Minecraft server
       server-address-placeholder: Enter server address (e.g., localhost or play.example.com)
@@ -602,7 +602,7 @@ pages:
       description: Chat & voice chat over Discord
       title: Discord
       enable: Enable Discord Integration
-      enable-description: Allow AIRI to interact through Discord
+      enable-description: Allow Alicization to interact through Discord
       token: Bot Token
       token-description: Your Discord bot token
       token-placeholder: Enter your Discord bot token
@@ -638,7 +638,7 @@ pages:
               Try a different model or provider. We are working on supporting
               all the voice for this model as quickly as possible. If you need
               it urgently, please let us know on GitHub at
-              https://github.com/moeru-ai/airi/issues.
+              https://github.com/TouHouQing/alicization/issues.
             show_less: Show less
             show_more: Show more
             title: Provider
@@ -657,7 +657,7 @@ pages:
       description: X / Twitter browsing and usage
       title: X / Twitter
       enable: Enable X / Twitter Integration
-      enable-description: Allow AIRI to interact with X / Twitter
+      enable-description: Allow Alicization to interact with X / Twitter
       api-key: API Key
       api-key-description: Your X / Twitter API key
       api-key-placeholder: Enter your X / Twitter API key
@@ -694,9 +694,9 @@ pages:
     helpinfo:
       title: First time here?
       description: >
-        AIRI requires at least one {chat} provider to be configured to think,
+        Alicization requires at least one {chat} provider to be configured to think,
         and behave properly. You could think of it as the brain of the
-        characters living in AIRI system.
+        characters living in Alicization system.
     catalog:
       edit:
         config-id-not-found: Provider configuration not found.
@@ -775,7 +775,7 @@ pages:
                       <code>OLLAMA_HOST</code> explicitly when start the Ollama
                       application or Ollama CLI server, for detailed
                       information, check <a
-                      href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama
+                      href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama
                       integration guide</a>.
     common:
       continueAnyway: Continue Anyway
@@ -1135,8 +1135,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRI Green
-              description: The default greenish theme color, brought by AIRI to you!
+                color-1: Alicization Green
+              description: The default greenish theme color, brought by Alicization to you!
               title: Default Color
             morandi:
               colors:
@@ -1214,7 +1214,7 @@ sections:
 theme:
   title: Theme
   description: |
-    Switch the base theme of AIRI, Light mode or Dark mode.
+    Switch the base theme of Alicization, Light mode or Dark mode.
 title: Settings
 voices: Voice
 vrm:

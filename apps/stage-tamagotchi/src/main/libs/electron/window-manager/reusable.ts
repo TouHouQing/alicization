@@ -1,6 +1,6 @@
 import type { BrowserWindow } from 'electron'
 
-import { isRendererUnavailable } from '@proj-airi/electron-vueuse/main'
+import { isRendererUnavailable } from '@proj-alicization/electron-vueuse/main'
 
 export function createReusableWindow(setupFn: () => BrowserWindow | Promise<BrowserWindow>): { getWindow: () => Promise<BrowserWindow> } {
   let window: BrowserWindow | undefined

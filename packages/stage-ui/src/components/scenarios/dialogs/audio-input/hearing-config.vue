@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Callout, FieldSelect } from '@proj-airi/ui'
+import { Callout, FieldSelect } from '@proj-alicization/ui'
 import { computed } from 'vue'
 
 const props = withDefaults(defineProps<{

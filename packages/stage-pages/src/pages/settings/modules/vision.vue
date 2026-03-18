@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { WIP } from '@proj-airi/stage-ui/components'
+import { WIP } from '@proj-alicization/stage-ui/components'
 </script>
 
 <template>

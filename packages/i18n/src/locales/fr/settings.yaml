@@ -9,7 +9,7 @@ animations:
     title: Utiliser les transitions spécifiques à chaque page
 dialogs:
   onboarding:
-    title: Bienvenue dans AIRI!
+    title: Bienvenue dans Alicization!
     description: Configurez votre premier fournisseur d’IA pour commencer.
     selectProvider: Choisissez un fournisseur d'IA.
     configureProvider: Configurer {provider}
@@ -50,7 +50,7 @@ dialogs:
 language:
   title: Langage
   description: >
-    Modifier le langage de l'inteface d'AIRI. Cela n'affectera pas le langage des réponses du personnage.
+    Modifier le langage de l'inteface d'Alicization. Cela n'affectera pas le langage des réponses du personnage.
 controls-island:
   icon-size:
     title: Taille des icônes de l'îlot de contrôle
@@ -404,7 +404,7 @@ pages:
     title: Mémoire
   data:
     title: Données
-    description: Gérer les données AIRI enregistrées, les exports et les réinitialisations
+    description: Gérer les données Alicization enregistrées, les exports et les réinitialisations
     sections:
       chats:
         title: Sessions de chat
@@ -433,7 +433,7 @@ pages:
         delete: Supprimer toutes les données
       desktop:
         title: Réinitialiser les paramètres et états du bureau
-        description: Effacer les paramètres du bureau AIRI et l'état d'exécution.
+        description: Effacer les paramètres du bureau Alicization et l'état d'exécution.
         reset: Réinitialiser les données du bureau
     confirmations:
       tooltip: Êtes-vous sûr(e) ?
@@ -549,7 +549,7 @@ pages:
       description: Jouer à Factorio !
       title: Factorio
       enable: Activer l'intégration Factorio
-      enable-description: Autoriser AIRI à interagir avec le jeu Factorio
+      enable-description: Autoriser Alicization à interagir avec le jeu Factorio
       server-address: Adresse du serveur
       server-address-description: L'adresse IP ou le nom d'hôte du serveur Factorio
       server-address-placeholder: Entrez l'adresse du serveur (ex. localhost ou 192.168.1.100)
@@ -563,7 +563,7 @@ pages:
       description: Jouer à Minecraft !
       title: Minecraft
       enable: Activer l'intégration Minecraft
-      enable-description: Autoriser AIRI à interagir avec le jeu Minecraft
+      enable-description: Autoriser Alicization à interagir avec le jeu Minecraft
       server-address: Adresse du serveur
       server-address-description: L'adresse IP ou le nom d'hôte du serveur Minecraft
       server-address-placeholder: Entrez l'adresse du serveur (ex. localhost ou play.exemple.com)
@@ -590,7 +590,7 @@ pages:
       description: Chat et chat vocal via Discord
       title: Discord
       enable: Activer l'intégration Discord
-      enable-description: Autoriser AIRI à interagir via Discord
+      enable-description: Autoriser Alicization à interagir via Discord
       token: Jeton du bot
       token-description: Votre jeton de bot Discord
       token-placeholder: Entrez votre jeton de bot Discord
@@ -623,7 +623,7 @@ pages:
             search_voices_results: '{count} voix trouvées sur {total}'
             unsupported_voice_warning_title: Aucune voix prise en charge
             unsupported_voice_warning_content: >-
-              Essayez un autre modèle ou fournisseur. Nous travaillons à prendre en charge toutes les voix pour ce modèle dès que possible. En cas d'urgence, n'hésitez pas à nous le signaler sur GitHub : https://github.com/moeru-ai/airi/issues.
+              Essayez un autre modèle ou fournisseur. Nous travaillons à prendre en charge toutes les voix pour ce modèle dès que possible. En cas d'urgence, n'hésitez pas à nous le signaler sur GitHub : https://github.com/TouHouQing/alicization/issues.
             show_less: Afficher moins
             show_more: Afficher plus
             title: Fournisseur
@@ -642,7 +642,7 @@ pages:
       description: Navigation et utilisation X / Twitter
       title: X / Twitter
       enable: Activer l'intégration X / Twitter
-      enable-description: Autoriser AIRI à interagir avec X / Twitter
+      enable-description: Autoriser Alicization à interagir avec X / Twitter
       api-key: Clé API
       api-key-description: Votre clé API X / Twitter
       api-key-placeholder: Entrez votre clé API X / Twitter
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: Première fois ici ?
       description: >
-        AIRI nécessite qu’au moins un fournisseur {chat} soit configuré pour penser et se comporter correctement. On peut le considérer comme le cerveau des personnages vivant dans le système AIRI.
+        Alicization nécessite qu’au moins un fournisseur {chat} soit configuré pour penser et se comporter correctement. On peut le considérer comme le cerveau des personnages vivant dans le système Alicization.
     catalog:
       edit:
         config-id-not-found: Configuration du fournisseur introuvable.
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: Configuration supplémentaire requise pour Ollama
                     content: >-
-                      Nous sommes désolés que le test de connectivité pour Ollama ait échoué. Ne vous inquiétez pas, une configuration supplémentaire est nécessaire pour les instances Ollama. Vous devez définir explicitement <code>OLLAMA_HOST</code> lors du lancement de l'application ou du serveur CLI Ollama. Pour plus d'informations, consultez le <a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">guide d'intégration Ollama</a>.
+                      Nous sommes désolés que le test de connectivité pour Ollama ait échoué. Ne vous inquiétez pas, une configuration supplémentaire est nécessaire pour les instances Ollama. Vous devez définir explicitement <code>OLLAMA_HOST</code> lors du lancement de l'application ou du serveur CLI Ollama. Pour plus d'informations, consultez le <a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">guide d'intégration Ollama</a>.
     common:
       continueAnyway: Continuer quand même
       goToModelSelection: 'Sélectionnez un Modèle'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: Vert AIRI
-              description: La couleur de thème verdâtre par défaut, offerte par AIRI !
+                color-1: Vert Alicization
+              description: La couleur de thème verdâtre par défaut, offerte par Alicization !
               title: Couleur par défaut
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: Thème
   description: |
-    Changez le thème de base d’AIRI, mode clair ou mode sombre.
+    Changez le thème de base d’Alicization, mode clair ou mode sombre.
 title: Paramètres
 voices: Voix
 vrm:

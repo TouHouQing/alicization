@@ -1,5 +1,5 @@
 {
-  "name": "@proj-airi/twitter-services",
+  "name": "@proj-alicization/twitter-services",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
@@ -16,7 +16,7 @@
     "@guiiai/logg": "catalog:",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@moeru/std": "catalog:",
-    "@proj-airi/server-sdk": "^0.8.4",
+    "@proj-alicization/server-sdk": "workspace:^",
     "h3": "^2.0.1-rc.14",
     "ofetch": "^1.5.1",
     "playwright": "^1.58.2",

@@ -29,7 +29,7 @@ const { t } = useI18n()
 const { width: innerWidth, height: innerHeight } = useWindowSize({ includeScrollbar: true })
 
 function handleClickTryLive() {
-  window.location.replace('https://airi.moeru.ai/')
+  window.location.replace('https://alicization.moeru.ai/')
 }
 
 const DURATION = 1200
@@ -126,7 +126,7 @@ watchEffect((onCleanup) => {
                 <div i-twemoji:christmas-tree />Merry Christmas!<div i-twemoji:christmas-tree />
               </div>
               <div :class="[isBetweenHalloweenAndHalfOfNovember(new Date()) ? 'font-sans-serif-halloween' : '']">
-                Project AIRI
+                Project Alicization
               </div>
             </ClientOnly>
           </div>
@@ -150,7 +150,7 @@ watchEffect((onCleanup) => {
               {{ t('docs.theme.home.try-live.title') }}
             </a>
             <a
-              href="https://github.com/moeru-ai/airi/releases/latest"
+              href="https://github.com/TouHouQing/alicization/releases/latest"
               :class="[
                 'rounded-xl px-3 py-2 lg:px-5 lg:py-3 font-extrabold outline-none backdrop-blur-md active:scale-95 focus:outline-none text-nowrap text-sm md:text-base',
                 'text-slate-700 dark:text-slate-100',
@@ -214,7 +214,7 @@ watchEffect((onCleanup) => {
 
     <footer class="fixed bottom-3 left-1/2 z-40 flex justify-end -translate-x-1/2">
       <div class="rounded-full bg-white/80 px-3 py-2 text-sm text-slate-700 backdrop-blur-md dark:bg-white/20 dark:text-slate-900" text="nowrap">
-        Since 2024 @ <a href="https://github.com/proj-airi">Project AIRI</a> × <a href="https://github.com/moeru-ai">萌える AI 研究会</a>
+        Since 2024 @ <a href="https://github.com/TouHouQing/alicization">Project Alicization</a> × <a href="https://github.com/moeru-ai">萌える AI 研究会</a>
       </div>
     </footer>
   </div>

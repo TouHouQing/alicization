@@ -31,17 +31,17 @@ description: Epoch2（M2.1/M2.2/M2.3）闭环门禁执行结果与追溯记录
 ## 3. 验证命令与结果
 
 ```bash
-pnpm -F @proj-airi/stage-ui exec vitest run src/composables/alicization-guardrails.test.ts
+pnpm -F @proj-alicization/stage-ui exec vitest run src/composables/alicization-guardrails.test.ts
 # PASS (15 tests)
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi exec vitest run src/main/services/airi/mcp-servers/index.test.ts
+pnpm -F @proj-alicization/stage-tamagotchi exec vitest run src/main/services/airi/mcp-servers/index.test.ts
 # PASS (15 tests)
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi exec vitest run src/main/services/alicization/epoch2-e2e-closure.test.ts
+pnpm -F @proj-alicization/stage-tamagotchi exec vitest run src/main/services/alicization/epoch2-e2e-closure.test.ts
 # PASS (2 tests)
 ```
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import ConnectionSettings from '@proj-airi/stage-pages/pages/settings/connection/ConnectionSettings.vue'
+import ConnectionSettings from '@proj-alicization/stage-pages/pages/settings/connection/ConnectionSettings.vue'
 
-import { FieldCheckbox } from '@proj-airi/ui'
+import { FieldCheckbox } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { Character } from '@proj-airi/stage-ui/types/character'
+import type { Character } from '@proj-alicization/stage-ui/types/character'
 
-import { CursorFloating } from '@proj-airi/stage-ui/components'
+import { CursorFloating } from '@proj-alicization/stage-ui/components'
 import { computed } from 'vue'
 
 interface Props {

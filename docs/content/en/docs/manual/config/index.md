@@ -1,12 +1,12 @@
 ---
 title: Configuration Guide
-description: How to use Project AIRI
+description: How to use Project Alicization
 ---
 
 ## Settings
 
 You can open settings in the system tray for further customization, for example,
-changing the theme color of AIRI, or switching to another model, either
+changing the theme color of Alicization, or switching to another model, either
 Live2D (2D) or VRM (3D, like Grok Companion).
 
 <video autoplay loop muted>
@@ -38,7 +38,7 @@ to exclude the following files:
 
 ::: warning Bugs inside
 Currently the functionality of the reloading the scene of models is not working as intended.
-You will have to restart AIRI after loaded the model.
+You will have to restart Alicization after loaded the model.
 :::
 
 <br />

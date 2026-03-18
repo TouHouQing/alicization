@@ -83,13 +83,13 @@ const emptyStateConfig = computed(() => {
   if (props.type === 'nightly-builds') {
     return {
       messageKey: 'docs.versions.releases-list.no-nightly',
-      linkUrl: 'https://github.com/moeru-ai/airi/releases',
+      linkUrl: 'https://github.com/TouHouQing/alicization/releases',
       linkTextKey: 'docs.versions.releases-list.workflow-page',
     }
   }
   return {
     messageKey: 'docs.versions.releases-list.no-releases',
-    linkUrl: 'https://github.com/moeru-ai/airi/actions/workflows/release-tamagotchi.yml',
+    linkUrl: 'https://github.com/TouHouQing/alicization/actions/workflows/release-tamagotchi.yml',
     linkTextKey: 'docs.versions.releases-list.releases-page',
   }
 })

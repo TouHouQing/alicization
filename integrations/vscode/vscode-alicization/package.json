@@ -1,15 +1,15 @@
 {
-  "publisher": "proj-airi",
-  "name": "vscode-airi",
-  "displayName": "AIRI VSCode adapter",
+  "publisher": "proj-alicization",
+  "name": "vscode-alicization",
+  "displayName": "Alicization VSCode adapter",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
-  "description": "Adapter that connects VSCode into Project AIRI",
+  "description": "Adapter that connects VSCode into Project Alicization",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
-    "directory": "integrations/vscode/vscode-airi"
+    "url": "https://github.com/TouHouQing/alicization.git",
+    "directory": "integrations/vscode/vscode-alicization"
   },
   "categories": [
     "Other"
@@ -26,32 +26,32 @@
   "contributes": {
     "commands": [
       {
-        "command": "airi-vscode.enable",
-        "title": "AIRI: Enable"
+        "command": "alicization-vscode.enable",
+        "title": "Alicization: Enable"
       },
       {
-        "command": "airi-vscode.disable",
-        "title": "AIRI: Disable"
+        "command": "alicization-vscode.disable",
+        "title": "Alicization: Disable"
       },
       {
-        "command": "airi-vscode.status",
-        "title": "AIRI: Show Status"
+        "command": "alicization-vscode.status",
+        "title": "Alicization: Show Status"
       }
     ],
     "configuration": {
-      "title": "AIRI",
+      "title": "Alicization",
       "properties": {
-        "airi-vscode.enabled": {
+        "alicization-vscode.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable or disable the AIRI extension"
+          "description": "Enable or disable the Alicization extension"
         },
-        "airi-vscode.contextLines": {
+        "alicization-vscode.contextLines": {
           "type": "number",
           "default": 5,
           "description": "Number of context lines to send (before and after current line)"
         },
-        "airi-vscode.sendInterval": {
+        "alicization-vscode.sendInterval": {
           "type": "number",
           "default": 3000,
           "description": "Interval in milliseconds to send updates (0 for real-time)"
@@ -70,7 +70,7 @@
   "devDependencies": {
     "@guiiai/logg": "catalog:",
     "@moeru/std": "catalog:",
-    "@proj-airi/server-sdk": "workspace:*",
+    "@proj-alicization/server-sdk": "workspace:*",
     "@types/vscode": "^1.109.0",
     "es-toolkit": "catalog:",
     "injeca": "catalog:",

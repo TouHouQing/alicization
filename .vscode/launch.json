@@ -7,7 +7,7 @@
       "request": "launch",
       // Where to run the command
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-F", "@proj-airi/stage-tamagotchi", "exec", "electron-vite", "--sourcemap"],
+      "runtimeArgs": ["-F", "@proj-alicization/stage-tamagotchi", "exec", "electron-vite", "--sourcemap"],
       // Open terminal when debugging starts (Optional)
       // Useful to see console.logs
       // "console": "integratedTerminal",
@@ -23,7 +23,7 @@
       // Where to run the command
       // Where to run the command
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["-F", "@proj-airi/minecraft-bot", "exec", "tsx"],
+      "runtimeArgs": ["-F", "@proj-alicization/minecraft-bot", "exec", "tsx"],
       "args": ["--env-file=.env", "--env-file-if-exists=.env.local", "src/main.ts"],
       "envFile": "${workspaceFolder}/services/minecraft/.env",
       // Open terminal when debugging starts (Optional)
@@ -50,10 +50,10 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}/plugins/airi-plugin-vscode"
+        "--extensionDevelopmentPath=${workspaceFolder}/integrations/vscode/vscode-alicization"
       ],
       "outFiles": [
-        "${workspaceFolder}/plugins/airi-plugin-vscode/dist/**/*.cjs"
+        "${workspaceFolder}/integrations/vscode/vscode-alicization/dist/**/*.cjs"
       ]
     }
   ],

@@ -1,6 +1,6 @@
-# `@proj-airi/stage-ui-three`
+# `@proj-alicization/stage-ui-three`
 
-Three.js runtime components, stores, composables, and diagnostics used by AIRI stage surfaces.
+Three.js runtime components, stores, composables, and diagnostics used by Alicization stage surfaces.
 
 ## What It Does
 
@@ -14,9 +14,9 @@ Three.js runtime components, stores, composables, and diagnostics used by AIRI s
 
 - `ThreeScene`: the main Three-backed stage component.
 - `useModelStore`: Pinia store for Three scene and model configuration.
-- `@proj-airi/stage-ui-three/trace`: local Eventa trace bus and snapshot helpers.
-- `@proj-airi/stage-ui-three/composables/vrm`: VRM loading and animation helpers.
-- `@proj-airi/stage-ui-three/utils/vrm-preview`: one-off VRM preview rendering.
+- `@proj-alicization/stage-ui-three/trace`: local Eventa trace bus and snapshot helpers.
+- `@proj-alicization/stage-ui-three/composables/vrm`: VRM loading and animation helpers.
+- `@proj-alicization/stage-ui-three/utils/vrm-preview`: one-off VRM preview rendering.
 - `composables/hit-test` and `composables/render-target`: renderer readback helpers.
 
 ## VRM Lifecycle
@@ -67,7 +67,7 @@ Whichever signal arrives second completes the binding. The first signal to arriv
 
 ## `trace` Submodule
 
-`@proj-airi/stage-ui-three/trace` provides:
+`@proj-alicization/stage-ui-three/trace` provides:
 
 - A local Eventa context for Three/VRM runtime trace events.
 - Ref-counted enable/disable controls so hot paths can short-circuit when tracing is off.
@@ -85,7 +85,7 @@ The trace bus is intentionally local to `stage-ui-three`. Desktop apps can bridg
 
 - Use it when a stage surface needs a Three-backed renderer.
 - Use `useModelStore` when the page needs to control camera, lighting, model transforms, or renderer-facing state.
-- Use `@proj-airi/stage-ui-three/trace` when you need Three/VRM runtime telemetry without routing through Vue parent chains.
+- Use `@proj-alicization/stage-ui-three/trace` when you need Three/VRM runtime telemetry without routing through Vue parent chains.
 - Use `utils/vrm-preview` for isolated preview rendering that should not participate in the main stage lifecycle.
 
 ## When Not To Use It

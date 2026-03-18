@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ElectronMcpStdioRuntimeStatus } from '../../../../shared/eventa'
 
-import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
-import { Button } from '@proj-airi/ui'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { Button } from '@proj-alicization/ui'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 

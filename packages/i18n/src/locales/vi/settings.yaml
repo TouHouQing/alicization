@@ -9,7 +9,7 @@ animations:
     title: Dùng hiệu ứng chuyển cảnh riêng cho từng trang
 dialogs:
   onboarding:
-    title: Chào mừng đến với AIRI!
+    title: Chào mừng đến với Alicization!
     description: Hãy thiết lập nhà cung cấp AI đầu tiên để bắt đầu.
     selectProvider: Chọn nhà cung cấp AI
     configureProvider: Cấu hình {provider}
@@ -50,7 +50,7 @@ dialogs:
 language:
   title: Ngôn ngữ
   description: >
-    Thay đổi ngôn ngữ giao diện AIRI. Điều này sẽ không ảnh hưởng đến ngôn ngữ phản hồi của nhân vật.
+    Thay đổi ngôn ngữ giao diện Alicization. Điều này sẽ không ảnh hưởng đến ngôn ngữ phản hồi của nhân vật.
 controls-island:
   icon-size:
     title: Kích thước biểu tượng đảo
@@ -404,7 +404,7 @@ pages:
     title: Bộ nhớ
   data:
     title: Dữ liệu
-    description: Quản lý dữ liệu AIRI đã lưu, xuất và đặt lại
+    description: Quản lý dữ liệu Alicization đã lưu, xuất và đặt lại
     sections:
       chats:
         title: Phiên trò chuyện
@@ -433,7 +433,7 @@ pages:
         delete: Xóa sạch dữ liệu
       desktop:
         title: Đặt lại thiết lập máy tính
-        description: Xóa các cài đặt và trạng thái thực thi của AIRI trên máy tính.
+        description: Xóa các cài đặt và trạng thái thực thi của Alicization trên máy tính.
         reset: Đặt lại dữ liệu desktop
     confirmations:
       tooltip: Bạn chắc chứ?
@@ -549,7 +549,7 @@ pages:
       description: Chơi Factorio!
       title: Factorio
       enable: Bật tích hợp Factorio
-      enable-description: Cho phép AIRI tương tác với trò chơi Factorio
+      enable-description: Cho phép Alicization tương tác với trò chơi Factorio
       server-address: Địa chỉ máy chủ
       server-address-description: Địa chỉ IP hoặc tên máy chủ của máy chủ Factorio
       server-address-placeholder: Nhập địa chỉ máy chủ (ví dụ localhost hoặc 192.168.1.100)
@@ -563,7 +563,7 @@ pages:
       description: Chơi Minecraft!
       title: Minecraft
       enable: Bật tích hợp Minecraft
-      enable-description: Cho phép AIRI tương tác với trò chơi Minecraft
+      enable-description: Cho phép Alicization tương tác với trò chơi Minecraft
       server-address: Địa chỉ máy chủ
       server-address-description: Địa chỉ IP hoặc tên máy chủ của máy chủ Minecraft
       server-address-placeholder: Nhập địa chỉ máy chủ (ví dụ localhost hoặc play.example.com)
@@ -590,7 +590,7 @@ pages:
       description: Trò chuyện & gọi thoại qua Discord
       title: Discord
       enable: Bật tích hợp Discord
-      enable-description: Cho phép AIRI tương tác qua Discord
+      enable-description: Cho phép Alicization tương tác qua Discord
       token: Mã token của bot
       token-description: Mã token bot Discord của bạn
       token-placeholder: Nhập mã token bot Discord của bạn
@@ -642,7 +642,7 @@ pages:
       description: Sử Dụng Twitter
       title: X / Twitter
       enable: Bật tích hợp X / Twitter
-      enable-description: Cho phép AIRI tương tác với X / Twitter
+      enable-description: Cho phép Alicization tương tác với X / Twitter
       api-key: Khóa API
       api-key-description: Khóa API X / Twitter của bạn
       api-key-placeholder: Nhập khóa API X / Twitter của bạn
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: Lần đầu tới đây?
       description: >
-        {chat} AIRI cần ít nhất một nhà cung cấp để suy nghĩ và hoạt động đúng cách. Có thể coi nó như bộ não của nhân vật AIRI trong hệ thống.
+        {chat} Alicization cần ít nhất một nhà cung cấp để suy nghĩ và hoạt động đúng cách. Có thể coi nó như bộ não của nhân vật Alicization trong hệ thống.
     catalog:
       edit:
         config-id-not-found: Không tìm thấy cấu hình nhà cung cấp.
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: Xanh AIRI
-              description: Màu xanh lá mặc định do AIRI mang đến cho bạn!
+                color-1: Xanh Alicization
+              description: Màu xanh lá mặc định do Alicization mang đến cho bạn!
               title: Màu mặc định
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: Chủ Đề
   description: |
-    Chuyển đổi chủ đề cơ bản của AIRI, Chế độ Sáng hoặc Chế độ Tối.
+    Chuyển đổi chủ đề cơ bản của Alicization, Chế độ Sáng hoặc Chế độ Tối.
 title: Cài Đặt
 voices: Giọng Nói
 vrm:

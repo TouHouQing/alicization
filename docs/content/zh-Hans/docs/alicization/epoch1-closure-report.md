@@ -27,7 +27,7 @@ description: Epoch1 最终收官门禁执行结果与可追溯记录
 ## 3. 验证命令与结果
 
 ```bash
-pnpm -F @proj-airi/stage-ui exec vitest run \
+pnpm -F @proj-alicization/stage-ui exec vitest run \
   src/stores/chat.test.ts \
   src/composables/alicization-guardrails.test.ts \
   src/composables/alicization-prompt-composer.test.ts \
@@ -38,7 +38,7 @@ pnpm -F @proj-airi/stage-ui exec vitest run \
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi exec vitest run \
+pnpm -F @proj-alicization/stage-tamagotchi exec vitest run \
   src/main/services/alicization/runtime.test.ts \
   src/main/services/alicization/db.test.ts \
   src/main/services/airi/mcp-servers/index.test.ts
@@ -46,28 +46,28 @@ pnpm -F @proj-airi/stage-tamagotchi exec vitest run \
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi typecheck
+pnpm -F @proj-alicization/stage-tamagotchi typecheck
 # 结果：PASS（存在历史 volar ESM 警告，不阻断）
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi build
+pnpm -F @proj-alicization/stage-tamagotchi build
 # 结果：PASS（存在历史构建告警，不阻断）
 ```
 
 ```bash
-pnpm -F @proj-airi/stage-tamagotchi build:mac
+pnpm -F @proj-alicization/stage-tamagotchi build:mac
 # 结果：PASS
 # 产物：
-# - apps/stage-tamagotchi/dist/AIRI-0.9.0-alpha.5-darwin-arm64.dmg
+# - apps/stage-tamagotchi/dist/Alicization-0.9.0-alpha.5-darwin-arm64.dmg
 #   mtime: 2026-03-09 12:43:34 +0800
-# - apps/stage-tamagotchi/dist/AIRI-0.9.0-alpha.5-arm64-mac.zip
+# - apps/stage-tamagotchi/dist/Alicization-0.9.0-alpha.5-arm64-mac.zip
 #   mtime: 2026-03-09 12:46:42 +0800
 ```
 
 ## 4. 非阻断已知项
 
-1. `pnpm -F @proj-airi/stage-ui typecheck` 与 `pnpm -F @proj-airi/stage-tamagotchi typecheck` 过程中存在上游 `@vue-macros/volar` ESM 兼容告警（当前环境历史问题，不阻断）。
+1. `pnpm -F @proj-alicization/stage-ui typecheck` 与 `pnpm -F @proj-alicization/stage-tamagotchi typecheck` 过程中存在上游 `@vue-macros/volar` ESM 兼容告警（当前环境历史问题，不阻断）。
 2. 根级 `pnpm lint:fix` 受 `oxlint` native binding 缺失与仓库其他目录历史 lint 问题影响失败，不属于本次 Alicization Epoch1 变更引入。
 3. `build:mac` 日志中的 Xcode/asset/plugin timing 警告为环境与工具链常见告警，不影响打包产物可运行性。
 

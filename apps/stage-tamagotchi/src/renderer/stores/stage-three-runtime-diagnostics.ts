@@ -10,7 +10,7 @@ import type {
   VrmLoadStartTracePayload,
   VrmSceneSummarySnapshot,
   VrmUpdateFrameTracePayload,
-} from '@proj-airi/stage-ui-three/trace'
+} from '@proj-alicization/stage-ui-three/trace'
 
 import type { StageThreeRuntimeTraceEnvelope, StageThreeRuntimeTraceForwardedPayload } from '../../shared/eventa'
 
@@ -25,7 +25,7 @@ import {
   stageThreeTraceVrmLoadErrorEvent,
   stageThreeTraceVrmLoadStartEvent,
   stageThreeTraceVrmUpdateFrameEvent,
-} from '@proj-airi/stage-ui-three/trace'
+} from '@proj-alicization/stage-ui-three/trace'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 

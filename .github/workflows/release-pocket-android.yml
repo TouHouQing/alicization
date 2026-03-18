@@ -43,10 +43,10 @@ jobs:
       - run: pnpm run build:packages
 
       - name: Build web assets
-        run: pnpm -F @proj-airi/stage-pocket run build
+        run: pnpm -F @proj-alicization/stage-pocket run build
 
       - name: Capacitor sync
-        run: pnpm -F @proj-airi/stage-pocket exec cap sync android
+        run: pnpm -F @proj-alicization/stage-pocket exec cap sync android
 
       - name: Build debug APK
         working-directory: apps/stage-pocket/android
@@ -55,7 +55,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: airi-pocket-android-debug
+          name: alicization-pocket-android-debug
           path: apps/stage-pocket/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 

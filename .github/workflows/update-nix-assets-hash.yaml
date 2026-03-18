@@ -22,8 +22,8 @@ jobs:
       # Why?
       #
       # failed to
-      # $ nix build .#airi-pnpm-deps
-      # > airi-pnpm-deps> Running phase: fixupPhase
+      # $ nix build .#alicization-pnpm-deps
+      # > alicization-pnpm-deps> Running phase: fixupPhase
       # > error: writing to file: No space left on device
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main

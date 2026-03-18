@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { PageHeader } from '@proj-airi/stage-ui/components'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { PageHeader } from '@proj-alicization/stage-ui/components'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRoute } from 'vue-router'
@@ -22,12 +22,6 @@ const routeMeta = computed(() => route.meta as {
   title?: string
   subtitle?: string
 })
-
-function normalizeAlicizationLabel(value: string | undefined) {
-  if (!value)
-    return ''
-  return value.replace(/AIRI/gi, 'Alicization')
-}
 
 const providerTitle = computed(() => {
   if (!route.path.startsWith('/settings/providers/'))
@@ -53,13 +47,10 @@ const routeHeaderMetadata = computed(() => {
   const { titleKey, subtitleKey, title, subtitle } = routeMeta.value
   const resolvedTitle = titleKey ? t(titleKey) : title
   const resolvedSubtitle = subtitleKey ? t(subtitleKey) : subtitle
-  const normalizedTitle = route.path === '/settings/airi-card'
-    ? normalizeAlicizationLabel(resolvedTitle)
-    : resolvedTitle
 
-  if (normalizedTitle || resolvedSubtitle) {
+  if (resolvedTitle || resolvedSubtitle) {
     return {
-      title: normalizedTitle,
+      title: resolvedTitle,
       subtitle: resolvedSubtitle,
     }
   }

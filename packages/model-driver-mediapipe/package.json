@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/model-driver-mediapipe",
+  "name": "@proj-alicization/model-driver-mediapipe",
   "type": "module",
   "private": true,
-  "description": "MediaPipe motion capture workshop (experimental) for Project AIRI",
+  "description": "MediaPipe motion capture workshop (experimental) for Project Alicization",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/model-driver-mediapipe"
   },
   "exports": {

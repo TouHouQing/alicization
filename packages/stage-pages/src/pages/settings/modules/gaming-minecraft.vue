@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { GamingMinecraft } from '@proj-airi/stage-ui/components'
-import { Callout } from '@proj-airi/ui'
+import { GamingMinecraft } from '@proj-alicization/stage-ui/components'
+import { Callout } from '@proj-alicization/ui'
 </script>
 
 <template>
@@ -29,8 +29,8 @@ import { Callout } from '@proj-airi/ui'
       <ol list="decimal pl-4 space-y-2" text="sm neutral-600 dark:neutral-300">
         <li>
           <div>
-            <span font="medium neutral-700 dark:neutral-200">Checkout the AIRI repo</span>
-            <code text="xs neutral-500 dark:neutral-400" block>git clone https://github.com/moeru-ai/airi</code>
+            <span font="medium neutral-700 dark:neutral-200">Checkout the Alicization repo</span>
+            <code text="xs neutral-500 dark:neutral-400" block>git clone https://github.com/TouHouQing/alicization</code>
           </div>
         </li>
         <li>

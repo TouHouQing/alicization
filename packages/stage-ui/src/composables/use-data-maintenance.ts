@@ -1,7 +1,7 @@
 import type { ChatSessionsExport } from '../types/chat-session'
 
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { useLive2d } from '@proj-airi/stage-ui-live2d'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { useLive2d } from '@proj-alicization/stage-ui-live2d'
 
 import { getAlicizationBridge, hasAlicizationBridge } from '../stores/alicization-bridge'
 import { useChatOrchestratorStore } from '../stores/chat'

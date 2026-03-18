@@ -8,7 +8,7 @@ import ChatHistory from './history.vue'
 const markdownMessages = ref<ChatHistoryItem[]>([
   {
     role: 'user',
-    content: 'Hey AIRI, can you summarize today\'s tasks?',
+    content: 'Hey Alicization, can you summarize today\'s tasks?',
   },
   {
     role: 'assistant',

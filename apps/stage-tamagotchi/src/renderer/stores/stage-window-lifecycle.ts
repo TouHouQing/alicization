@@ -1,7 +1,7 @@
 import type { ElectronWindowLifecycleState } from '../../shared/eventa'
 
 import { defineInvoke } from '@moeru/eventa'
-import { getElectronEventaContext } from '@proj-airi/electron-vueuse'
+import { getElectronEventaContext } from '@proj-alicization/electron-vueuse'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 

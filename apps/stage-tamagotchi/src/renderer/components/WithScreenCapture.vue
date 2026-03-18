@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { SourcesOptions } from 'electron'
 
-import { useElectronScreenCapture } from '@proj-airi/electron-screen-capture/vue'
-import { Button } from '@proj-airi/ui'
+import { useElectronScreenCapture } from '@proj-alicization/electron-screen-capture/vue'
+import { Button } from '@proj-alicization/ui'
 import { useWindowFocus } from '@vueuse/core'
 import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { onMounted, ref, toRef, watch } from 'vue'

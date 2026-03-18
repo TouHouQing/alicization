@@ -2,7 +2,7 @@
 import type { AssistantMessage, SystemMessage, ToolMessage, Message as UpstreamMessage, UserMessage } from '@xsai/shared-chat'
 import type { Element, Root } from 'xast'
 
-import { Input, Textarea } from '@proj-airi/ui'
+import { Input, Textarea } from '@proj-alicization/ui'
 import { useLocalStorage } from '@vueuse/core'
 import { streamText } from '@xsai/stream-text'
 import { ref, toRaw } from 'vue'

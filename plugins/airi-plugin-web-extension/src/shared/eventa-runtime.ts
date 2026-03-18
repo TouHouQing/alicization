@@ -2,7 +2,7 @@ import { createContext } from '@moeru/eventa/adapters/event-target'
 import { nanoid } from 'nanoid'
 
 const EVENTA_MESSAGE_EVENT = 'eventa:message'
-const EVENTA_RUNTIME_CHANNEL = 'airi:web-extension:eventa'
+const EVENTA_RUNTIME_CHANNEL = 'alicization:web-extension:eventa'
 
 const runtimeInstanceId = nanoid()
 

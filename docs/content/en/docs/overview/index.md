@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Get to know the UI of Project AIRI
+description: Get to know the UI of Project Alicization
 ---
 
 ### TL;DR
@@ -31,7 +31,7 @@ currently the best companion capable of playing games, chatting, and interacting
 with you and the participants (in VTuber community), some call this kind of being,
 "digital human" too. **Sadly, it's not open sourced, you cannot interact with her after she went offline from live stream**.
 
-Therefore, this project, AIRI, offers another possibility here:
+Therefore, this project, Alicization, offers another possibility here:
 **let you own your digital life, cyber living, easily, anywhere, anytime**.
 
 ## Getting started
@@ -44,7 +44,7 @@ We do support both Web and Desktop.
       <div i-lucide:app-window />
     </div>
     <span>Web</span>
-    <a href="https://airi.moeru.ai/" target="_blank" decoration-none class="text-primary-900 dark:text-primary-400 text-base not-prose bg-primary-400/10 dark:bg-primary-600/10 block px-4 py-2 rounded-lg active:scale-95 transition-all duration-200 ease-in-out">
+    <a href="https://alicization.moeru.ai/" target="_blank" decoration-none class="text-primary-900 dark:text-primary-400 text-base not-prose bg-primary-400/10 dark:bg-primary-600/10 block px-4 py-2 rounded-lg active:scale-95 transition-all duration-200 ease-in-out">
       Open
     </a>
   </div>
@@ -55,7 +55,7 @@ We do support both Web and Desktop.
       <div i-lucide:computer />
     </div>
     <span>Desktop</span>
-    <a href="https://github.com/moeru-ai/airi/releases/latest" target="_blank" decoration-none class="text-primary-900 dark:text-primary-400 text-base not-prose bg-primary-400/10 dark:bg-primary-600/10 block px-4 py-2 rounded-lg active:scale-95 transition-all duration-200 ease-in-out">
+    <a href="https://github.com/TouHouQing/alicization/releases/latest" target="_blank" decoration-none class="text-primary-900 dark:text-primary-400 text-base not-prose bg-primary-400/10 dark:bg-primary-600/10 block px-4 py-2 rounded-lg active:scale-95 transition-all duration-200 ease-in-out">
       Download
     </a>
   </div>
@@ -64,7 +64,7 @@ We do support both Web and Desktop.
 The web version offers easy access from anywhere, even on mobile devices.
 Desktop suits for more advanced usage such as VTuber streaming, computer use
 and accessing to local LLMs where you don't need to pay for massive amount
-of tokens for running AIRI.
+of tokens for running Alicization.
 
 <div flex gap-2 w-full flex-col justify-center text-base>
   <a href="../overview/guide/tamagotchi/" w-full flex items-center gap-2 border="2 solid gray-500/10" rounded-lg px-4 py-2>
@@ -95,4 +95,4 @@ of tokens for running AIRI.
 
 For guides that help you understand how to contribute to this project, please refer to [Contributing](../overview/contributing/) page.
 
-For references Contributing help you design and improve the UI of Project AIRI, please refer to [Design Guidelines](../overview/contributing/design-guidelines/resources) page.
+For references Contributing help you design and improve the UI of Project Alicization, please refer to [Design Guidelines](../overview/contributing/design-guidelines/resources) page.

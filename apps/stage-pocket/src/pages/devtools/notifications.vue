@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { Button, FieldInput } from '@proj-airi/ui'
+import { Button, FieldInput } from '@proj-alicization/ui'
 import { useLocalStorage } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 

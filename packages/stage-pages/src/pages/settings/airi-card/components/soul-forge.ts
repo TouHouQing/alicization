@@ -1,4 +1,4 @@
-import type { AlicizationGender, AlicizationPersonalityState } from '@proj-airi/stage-ui/stores/alicization-bridge'
+import type { AlicizationGender, AlicizationPersonalityState } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
 const soulPersonaNotesEnd = '<!-- ALICIZATION_PERSONA_NOTES_END -->'

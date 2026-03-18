@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AnalyserWorkletParameters } from '@nekopaw/tempora'
-import type { BeatSyncDetectorState } from '@proj-airi/stage-shared/beat-sync'
+import type { BeatSyncDetectorState } from '@proj-alicization/stage-shared/beat-sync'
 
 import { DEFAULT_ANALYSER_WORKLET_PARAMS } from '@nekopaw/tempora'
 import {
@@ -10,9 +10,9 @@ import {
   listenBeatSyncStateChange,
   toggleBeatSync,
   updateBeatSyncParameters,
-} from '@proj-airi/stage-shared/beat-sync'
-import { Alert, AudioSpectrumVisualizer } from '@proj-airi/stage-ui/components'
-import { Button, FieldCheckbox, FieldRange, SelectTab } from '@proj-airi/ui'
+} from '@proj-alicization/stage-shared/beat-sync'
+import { Alert, AudioSpectrumVisualizer } from '@proj-alicization/stage-ui/components'
+import { Button, FieldCheckbox, FieldRange, SelectTab } from '@proj-alicization/ui'
 import { createTimeline } from 'animejs'
 import { nanoid } from 'nanoid'
 import { computed, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'

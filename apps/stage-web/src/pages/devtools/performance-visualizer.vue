@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ButtonBar, CheckBar } from '@proj-airi/stage-ui/components'
+import { ButtonBar, CheckBar } from '@proj-alicization/stage-ui/components'
 import { useMagicKeys, whenever } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'

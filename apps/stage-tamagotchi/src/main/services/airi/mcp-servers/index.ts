@@ -447,7 +447,7 @@ export function createMcpStdioManager(): McpStdioManager {
       stderr: 'pipe',
     })
     const client = new Client({
-      name: `proj-airi:stage-tamagotchi:mcp:${name}`,
+      name: `proj-alicization:stage-tamagotchi:mcp:${name}`,
       version: app.getVersion(),
     })
 

@@ -9,12 +9,12 @@ const ROOT_DIR = resolve(import.meta.dirname, '..', '..', '..')
 const DOCS_DIR = resolve(ROOT_DIR, 'docs')
 
 // GitHub releases download URLs
-const GITHUB_WINDOWS_RE = /https:\/\/github\.com\/moeru-ai\/airi\/releases\/download\/v[^/]+\/AIRI-[^")\s]+-windows-x64-setup\.exe/g
-const GITHUB_MACOS_RE = /https:\/\/github\.com\/moeru-ai\/airi\/releases\/download\/v[^/]+\/AIRI-[^")\s]+-darwin-arm64\.dmg/g
+const GITHUB_WINDOWS_RE = /https:\/\/github\.com\/TouHouQing\/alicization\/releases\/download\/v[^/]+\/Alicization-[^")\s]+-windows-x64-setup\.exe/g
+const GITHUB_MACOS_RE = /https:\/\/github\.com\/TouHouQing\/alicization\/releases\/download\/v[^/]+\/Alicization-[^")\s]+-darwin-arm64\.dmg/g
 
 // Aliyun OSS mirror download URLs (used by zh-CN README)
-const OSS_WINDOWS_RE = /https:\/\/static-cn-proj-airi\.oss-cn-shanghai\.aliyuncs\.com\/artifacts\/apps\/desktop\/versions\/v[^/]+\/AIRI-[^")\s]+-windows-x64-setup\.exe/g
-const OSS_MACOS_RE = /https:\/\/static-cn-proj-airi\.oss-cn-shanghai\.aliyuncs\.com\/artifacts\/apps\/desktop\/versions\/v[^/]+\/AIRI-[^")\s]+-darwin-arm64\.dmg/g
+const OSS_WINDOWS_RE = /https:\/\/static-cn-proj-alicization\.oss-cn-shanghai\.aliyuncs\.com\/artifacts\/apps\/desktop\/versions\/v[^/]+\/Alicization-[^")\s]+-windows-x64-setup\.exe/g
+const OSS_MACOS_RE = /https:\/\/static-cn-proj-alicization\.oss-cn-shanghai\.aliyuncs\.com\/artifacts\/apps\/desktop\/versions\/v[^/]+\/Alicization-[^")\s]+-darwin-arm64\.dmg/g
 
 async function main() {
   const version = process.argv[2]
@@ -43,10 +43,10 @@ async function main() {
 
   function updateContent(content: string): string {
     return content
-      .replace(GITHUB_WINDOWS_RE, `https://github.com/moeru-ai/airi/releases/download/v${cleanVersion}/${windowsExe}`)
-      .replace(GITHUB_MACOS_RE, `https://github.com/moeru-ai/airi/releases/download/v${cleanVersion}/${macosDmg}`)
-      .replace(OSS_WINDOWS_RE, `https://static-cn-proj-airi.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v${cleanVersion}/${windowsExe}`)
-      .replace(OSS_MACOS_RE, `https://static-cn-proj-airi.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v${cleanVersion}/${macosDmg}`)
+      .replace(GITHUB_WINDOWS_RE, `https://github.com/TouHouQing/alicization/releases/download/v${cleanVersion}/${windowsExe}`)
+      .replace(GITHUB_MACOS_RE, `https://github.com/TouHouQing/alicization/releases/download/v${cleanVersion}/${macosDmg}`)
+      .replace(OSS_WINDOWS_RE, `https://static-cn-proj-alicization.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v${cleanVersion}/${windowsExe}`)
+      .replace(OSS_MACOS_RE, `https://static-cn-proj-alicization.oss-cn-shanghai.aliyuncs.com/artifacts/apps/desktop/versions/v${cleanVersion}/${macosDmg}`)
   }
 
   const readmeFiles: string[] = [

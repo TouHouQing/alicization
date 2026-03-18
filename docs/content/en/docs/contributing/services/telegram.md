@@ -1,6 +1,6 @@
 ---
 title: Telegram Bot
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Telegram bot integration
@@ -23,14 +23,14 @@ Edit the credentials in `.env.local`.
 Migrate the database
 
 ```shell
-pnpm -F @proj-airi/telegram-bot db:generate
-pnpm -F @proj-airi/telegram-bot db:push
+pnpm -F @proj-alicization/telegram-bot db:generate
+pnpm -F @proj-alicization/telegram-bot db:push
 ```
 
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/telegram-bot start
+pnpm -F @proj-alicization/telegram-bot start
 ```
 
 ::: tip
@@ -38,7 +38,7 @@ pnpm -F @proj-airi/telegram-bot start
 For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 
 ```shell
-nr -F @proj-airi/telegram-bot dev
+nr -F @proj-alicization/telegram-bot dev
 ```
 
 :::

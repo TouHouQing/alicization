@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/cap-vite",
+  "name": "@proj-alicization/cap-vite",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "description": "CLI that starts a Vite dev server and runs Capacitor live reload",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/cap-vite"
   },
   "exports": {

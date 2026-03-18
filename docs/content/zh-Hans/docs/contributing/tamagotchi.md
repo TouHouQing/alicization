@@ -1,6 +1,6 @@
 ---
 title: 桌面端
-description: 参与并贡献 Project AIRI
+description: 参与并贡献 Project Alicization
 ---
 
 ### Stage Tamagotchi (桌面端)

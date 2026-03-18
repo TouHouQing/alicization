@@ -1,6 +1,6 @@
 import type { ContextMessage } from '../../../types/chat'
 
-import { ContextUpdateStrategy } from '@proj-airi/server-sdk'
+import { ContextUpdateStrategy } from '@proj-alicization/server-sdk'
 import { nanoid } from 'nanoid'
 
 const DATETIME_CONTEXT_ID = 'system:datetime'

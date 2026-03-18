@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import SettingsGeneralFields from '@proj-airi/stage-pages/components/settings-general-fields.vue'
+import SettingsGeneralFields from '@proj-alicization/stage-pages/components/settings-general-fields.vue'
 </script>
 
 <template>

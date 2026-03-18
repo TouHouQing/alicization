@@ -52,7 +52,7 @@ const testDataRoot = resolve(
 async function writeManifest(params: { dir: string, name: string, entrypoint: string }) {
   const manifest = {
     apiVersion: 'v1',
-    kind: 'manifest.plugin.airi.moeru.ai',
+    kind: 'manifest.plugin.alicization.moeru.ai',
     name: params.name,
     entrypoints: {
       electron: params.entrypoint,
@@ -90,7 +90,7 @@ describe('setupPluginHost', () => {
   let pluginsDir: string
 
   beforeEach(async () => {
-    userDataDir = await mkdtemp(join(tmpdir(), 'airi-plugins-'))
+    userDataDir = await mkdtemp(join(tmpdir(), 'alicization-plugins-'))
     pluginsDir = join(userDataDir, 'plugins', 'v1')
     await mkdir(pluginsDir, { recursive: true })
     appMock.getPath.mockReturnValue(userDataDir)

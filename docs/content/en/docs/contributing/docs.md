@@ -1,6 +1,6 @@
 ---
 title: Documentation Site
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Documentation site

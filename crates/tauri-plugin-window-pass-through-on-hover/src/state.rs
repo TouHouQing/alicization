@@ -24,7 +24,7 @@ pub fn set_pass_through_enabled<R: Runtime>(
     .map_err(|e| format!("Failed to set pass-through state: {e}"))?;
 
   let _ = window.emit(
-    "tauri-app:proj-airi:window-pass-through-on-hover:pass-through-enabled",
+    "tauri-app:proj-alicization:window-pass-through-on-hover:pass-through-enabled",
     enabled,
   );
 

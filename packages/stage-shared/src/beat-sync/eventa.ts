@@ -5,7 +5,7 @@ import type { BeatSyncDetectorState } from './types'
 
 import { createContext as createWebContext, defineInvokeEventa } from '@moeru/eventa'
 import { createContext as createBroadcastChannelContext } from '@moeru/eventa/adapters/broadcast-channel'
-import { isElectronWindow } from '@proj-airi/stage-shared'
+import { isElectronWindow } from '@proj-alicization/stage-shared'
 
 // Functions
 export const beatSyncToggleInvokeEventa = defineInvokeEventa<void, boolean>('eventa:invoke:electron:beat-sync:toggle')

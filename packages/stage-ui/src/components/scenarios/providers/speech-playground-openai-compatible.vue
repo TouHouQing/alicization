@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FieldCheckbox, FieldInput } from '@proj-airi/ui'
+import { FieldCheckbox, FieldInput } from '@proj-alicization/ui'
 import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 

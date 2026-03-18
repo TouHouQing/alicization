@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/ui-loading-screens",
+  "name": "@proj-alicization/ui-loading-screens",
   "type": "module",
   "private": true,
-  "description": "A collection of loading screens that used by Project AIRI",
+  "description": "A collection of loading screens that used by Project Alicization",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/ui-loading-screens"
   },
   "exports": {
@@ -27,14 +27,14 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@proj-airi/font-departure-mono": "workspace:^",
+    "@proj-alicization/font-departure-mono": "workspace:^",
     "@rive-app/canvas-lite": "^2.35.0",
     "@vueuse/core": "^14.2.1",
     "@vueuse/motion": "^3.0.3",
     "vue": "catalog:"
   },
   "devDependencies": {
-    "@proj-airi/ui": "workspace:^",
+    "@proj-alicization/ui": "workspace:^",
     "@unocss/reset": "^66.6.2",
     "@vitejs/plugin-vue": "^6.0.4",
     "unplugin-vue-router": "^0.19.2",

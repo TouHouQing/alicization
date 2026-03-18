@@ -8,7 +8,7 @@ import wavefile from 'wavefile'
 
 import { useLogg } from '@guiiai/logg'
 import { pipeline } from '@huggingface/transformers'
-import { toWav } from '@proj-airi/audio'
+import { toWav } from '@proj-alicization/audio'
 import { createOpenAI } from '@xsai-ext/providers/create'
 import { generateTranscription } from '@xsai/generate-transcription'
 

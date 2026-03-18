@@ -1,3 +1,3 @@
-# @proj-airi/plugin-sdk
+# @proj-alicization/plugin-sdk
 
-Runtime-agnostic SDK for AIRI plugins.
+Runtime-agnostic SDK for Alicization plugins.

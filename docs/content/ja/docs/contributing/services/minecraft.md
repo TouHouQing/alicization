@@ -1,6 +1,6 @@
 ---
 title: Minecraft
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### Minecraft エージェント
@@ -22,7 +22,7 @@ cp .env .env.local
 ボットの実行
 
 ```shell
-pnpm -F @proj-airi/minecraft-bot start
+pnpm -F @proj-alicization/minecraft-bot start
 ```
 
 ::: tip
@@ -30,7 +30,7 @@ pnpm -F @proj-airi/minecraft-bot start
 [@antfu/ni](https://github.com/antfu-collective/ni) ユーザーの場合：
 
 ```shell
-nr -F @proj-airi/minecraft-bot dev
+nr -F @proj-alicization/minecraft-bot dev
 ```
 
 :::

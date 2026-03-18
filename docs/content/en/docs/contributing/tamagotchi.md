@@ -1,6 +1,6 @@
 ---
 title: Desktop
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Stage Tamagotchi (Desktop version)

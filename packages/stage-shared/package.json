@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/stage-shared",
+  "name": "@proj-alicization/stage-shared",
   "type": "module",
   "private": true,
   "description": "Shared",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/stage-shared"
   },
   "exports": {
@@ -33,7 +33,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@moeru/eventa": "^1.0.0-beta.1",
     "@nekopaw/tempora": "catalog:",
-    "@proj-airi/electron-screen-capture": "workspace:^",
+    "@proj-alicization/electron-screen-capture": "workspace:^",
     "@types/audioworklet": "catalog:"
   }
 }

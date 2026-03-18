@@ -1,4 +1,4 @@
-name: proj-airi-server
+name: proj-alicization-server
 
 services:
   db:

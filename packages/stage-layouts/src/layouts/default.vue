@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
 import { RouterView } from 'vue-router'
 
 import HeaderLink from '../components/Layouts/HeaderLink.vue'

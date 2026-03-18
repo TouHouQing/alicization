@@ -1,6 +1,6 @@
 **Privacy Policy**
 
-This privacy policy applies to the AIRI app (as known as Project AIRI app, hereby referred to as "Application") for mobile devices that was created by Project AIRI team (hereby referred to as "Service Provider") as an Open Source service and partially Paid commercial service. This service is intended for use "AS IS".
+This privacy policy applies to the Alicization app (as known as Project Alicization app, hereby referred to as "Application") for mobile devices that was created by Project Alicization team (hereby referred to as "Service Provider") as an Open Source service and partially Paid commercial service. This service is intended for use "AS IS".
 
 **Information Collection and Use**
 
@@ -50,13 +50,13 @@ You can stop all collection of information by the Application easily by uninstal
 
 **Data Retention Policy**
 
-The Service Provider will retain User Provided data for as long as you use the Application and for a reasonable time thereafter. If you'd like them to delete User Provided Data that you have provided via the Application, please contact them at airi@moeru.ai and they will respond in a reasonable time.
+The Service Provider will retain User Provided data for as long as you use the Application and for a reasonable time thereafter. If you'd like them to delete User Provided Data that you have provided via the Application, please contact them at alicization.ai and they will respond in a reasonable time.
 
 **Children**
 
 The Service Provider does not use the Application to knowingly solicit data from or market to children under the age of 13.
 
-The Application does not address anyone under the age of 13\. The Service Provider does not knowingly collect personally identifiable information from children under 13 years of age. In the case the Service Provider discover that a child under 13 has provided personal information, the Service Provider will immediately delete this from their servers. If you are a parent or guardian and you are aware that your child has provided us with personal information, please contact the Service Provider (airi@moeru.ai) so that they will be able to take the necessary actions.
+The Application does not address anyone under the age of 13\. The Service Provider does not knowingly collect personally identifiable information from children under 13 years of age. In the case the Service Provider discover that a child under 13 has provided personal information, the Service Provider will immediately delete this from their servers. If you are a parent or guardian and you are aware that your child has provided us with personal information, please contact the Service Provider (alicization.ai) so that they will be able to take the necessary actions.
 
 **Security**
 
@@ -74,7 +74,7 @@ By using the Application, you are consenting to the processing of your informati
 
 **Contact Us**
 
-If you have any questions regarding privacy while using the Application, or have questions about the practices, please contact the Service Provider via email at airi@moeru.ai.
+If you have any questions regarding privacy while using the Application, or have questions about the practices, please contact the Service Provider via email at alicization.ai.
 
 * * *
 

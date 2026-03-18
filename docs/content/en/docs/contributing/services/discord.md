@@ -1,6 +1,6 @@
 ---
 title: Discord Bot
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Discord bot integration
@@ -20,7 +20,7 @@ Edit the credentials in `.env.local`.
 Run the bot
 
 ```shell
-pnpm -F @proj-airi/discord-bot start
+pnpm -F @proj-alicization/discord-bot start
 ```
 
 ::: tip
@@ -28,7 +28,7 @@ pnpm -F @proj-airi/discord-bot start
 For [@antfu/ni](https://github.com/antfu-collective/ni) users, you can
 
 ```shell
-nr -F @proj-airi/discord-bot dev
+nr -F @proj-alicization/discord-bot dev
 ```
 
 :::

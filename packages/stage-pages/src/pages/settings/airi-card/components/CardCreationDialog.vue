@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import type { Card } from '@proj-airi/ccc'
-import type { AiriExtension } from '@proj-airi/stage-ui/stores/modules/airi-card'
+import type { Card } from '@proj-alicization/ccc'
+import type { AiriExtension } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 
 import type { SoulForgeDraft } from './soul-forge'
 
 import kebabcase from '@stdlib/string-base-kebabcase'
 
 import { errorMessageFrom } from '@moeru/std'
-import { isStageTamagotchi } from '@proj-airi/stage-shared'
-import { useAlicizationEpoch1Store } from '@proj-airi/stage-ui/stores/alicization-epoch1'
-import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
-import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
-import { useSpeechStore } from '@proj-airi/stage-ui/stores/modules/speech'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { Button, FieldInput } from '@proj-airi/ui'
-import { Select } from '@proj-airi/ui/components/form'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
+import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
+import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
+import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { Button, FieldInput } from '@proj-alicization/ui'
+import { Select } from '@proj-alicization/ui/components/form'
 import { storeToRefs } from 'pinia'
 import {
   DialogContent,

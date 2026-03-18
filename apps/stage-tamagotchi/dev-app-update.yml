@@ -1,6 +1,6 @@
 provider: github
-owner: moeru-ai
-repo: airi
+owner: TouHouQing
+repo: alicization
 updaterCacheDirName: electron-app-updater
 allowPrerelease: true
 channel: nightly

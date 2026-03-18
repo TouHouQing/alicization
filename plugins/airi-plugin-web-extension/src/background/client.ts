@@ -1,13 +1,13 @@
-import type { ContextUpdate } from '@proj-airi/server-sdk'
+import type { ContextUpdate } from '@proj-alicization/server-sdk'
 
 import type { ExtensionSettings, ExtensionStatus, PageContextPayload, SubtitlePayload, VideoContextPayload } from '../shared/types'
 
-import { Client, ContextUpdateStrategy } from '@proj-airi/server-sdk'
+import { Client, ContextUpdateStrategy } from '@proj-alicization/server-sdk'
 import { nanoid } from 'nanoid'
 
 import packageJSON from '../../package.json'
 
-const PLUGIN_NAME = 'proj-airi:plugin-web-extension'
+const PLUGIN_NAME = 'proj-alicization:plugin-web-extension'
 
 export interface ClientState {
   client: Client | null

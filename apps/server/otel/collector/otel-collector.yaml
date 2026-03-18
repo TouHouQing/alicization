@@ -17,7 +17,7 @@ processors:
   resource:
     attributes:
       - key: service.namespace
-        value: proj-airi
+        value: proj-alicization
         action: upsert
   # Tail-based sampling: keeps all errors and slow requests,
   # samples a percentage of normal traffic to reduce storage costs.
@@ -45,7 +45,7 @@ exporters:
   # Prometheus exporter for metrics
   prometheus:
     endpoint: 0.0.0.0:8889
-    namespace: airi
+    namespace: alicization
     resource_to_telemetry_conversion:
       enabled: true
 

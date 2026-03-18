@@ -1,6 +1,6 @@
 ---
 title: Discord Bot
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### Discord bot 統合
@@ -20,7 +20,7 @@ cp .env .env.local
 ボットの実行
 
 ```shell
-pnpm -F @proj-airi/discord-bot start
+pnpm -F @proj-alicization/discord-bot start
 ```
 
 ::: tip
@@ -28,7 +28,7 @@ pnpm -F @proj-airi/discord-bot start
 [@antfu/ni](https://github.com/antfu-collective/ni) ユーザーの場合：
 
 ```shell
-nr -F @proj-airi/discord-bot dev
+nr -F @proj-alicization/discord-bot dev
 ```
 
 :::

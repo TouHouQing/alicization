@@ -4,7 +4,7 @@ import {
   alicizationFixedSensoryContextHeader,
   alicizationFixedStructuredContractAnchor,
   alicizationFixedStructuredContractHeader,
-} from '@proj-airi/stage-shared/alicization-prompting'
+} from '@proj-alicization/stage-shared/alicization-prompting'
 
 interface PromptBudgetOptions {
   totalTokens?: number

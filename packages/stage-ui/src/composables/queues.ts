@@ -1,9 +1,9 @@
-import type { UseQueueReturn } from '@proj-airi/stream-kit'
+import type { UseQueueReturn } from '@proj-alicization/stream-kit'
 
 import type { Emotion, EmotionPayload } from '../constants/emotions'
 
 import { sleep } from '@moeru/std'
-import { createQueue } from '@proj-airi/stream-kit'
+import { createQueue } from '@proj-alicization/stream-kit'
 
 import { EMOTION_VALUES } from '../constants/emotions'
 

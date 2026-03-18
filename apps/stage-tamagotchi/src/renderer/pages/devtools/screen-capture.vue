@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { SerializableDesktopCapturerSource } from '@proj-airi/electron-screen-capture'
+import type { SerializableDesktopCapturerSource } from '@proj-alicization/electron-screen-capture'
 import type { SourcesOptions } from 'electron'
 
-import { useElectronScreenCapture } from '@proj-airi/electron-screen-capture/vue'
-import { Button, SelectTab } from '@proj-airi/ui'
+import { useElectronScreenCapture } from '@proj-alicization/electron-screen-capture/vue'
+import { Button, SelectTab } from '@proj-alicization/ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 

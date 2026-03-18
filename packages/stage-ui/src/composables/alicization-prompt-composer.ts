@@ -11,7 +11,7 @@ import {
   alicizationFixedSensoryContextTemplate,
   alicizationFixedStructuredContractAnchor,
   renderAlicizationPromptTemplate,
-} from '@proj-airi/stage-shared/alicization-prompting'
+} from '@proj-alicization/stage-shared/alicization-prompting'
 
 interface AlicizationPersonalityState {
   obedience: number

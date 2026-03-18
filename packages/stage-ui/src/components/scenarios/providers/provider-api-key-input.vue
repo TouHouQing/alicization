@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FieldInput } from '@proj-airi/ui'
+import { FieldInput } from '@proj-alicization/ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

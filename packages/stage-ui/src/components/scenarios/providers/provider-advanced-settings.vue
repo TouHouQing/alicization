@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Collapsible } from '@proj-airi/ui'
+import { Collapsible } from '@proj-alicization/ui'
 import { ref } from 'vue'
 
 const props = defineProps<{

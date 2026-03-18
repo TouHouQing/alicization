@@ -1,6 +1,6 @@
 ---
 title: Satori Bot
-description: Contribute to Project AIRI
+description: Contribute to Project Alicization
 ---
 
 ### Satori Bot
@@ -20,7 +20,7 @@ Edit various keys and configuration information in `.env.local`.
 Start the bot:
 
 ```shell
-pnpm -F @proj-airi/satori-bot dev
+pnpm -F @proj-alicization/satori-bot dev
 ```
 
 ::: tip
@@ -28,7 +28,7 @@ pnpm -F @proj-airi/satori-bot dev
 If you use [@antfu/ni](https://github.com/antfu-collective/ni), you can:
 
 ```shell
-nr -F @proj-airi/satori-bot dev
+nr -F @proj-alicization/satori-bot dev
 ```
 
 :::

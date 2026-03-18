@@ -9,7 +9,7 @@ animations:
     title: Использовать переходы для страниц
 dialogs:
   onboarding:
-    title: Добро пожаловать в AIRI!
+    title: Добро пожаловать в Alicization!
     description: Давайте настроим вашего первого AI-провайдера, чтобы начать работу.
     selectProvider: Выберите AI-провайдера
     configureProvider: Настроить {provider}
@@ -50,7 +50,7 @@ dialogs:
 language:
   title: Language
   description: >
-    Change the language of the AIRI interface. This will not affect the language of the character's responses.
+    Change the language of the Alicization interface. This will not affect the language of the character's responses.
 controls-island:
   icon-size:
     title: Controls Island Icon Size
@@ -404,7 +404,7 @@ pages:
     title: Память
   data:
     title: Data
-    description: Manage stored AIRI data, exports, and resets
+    description: Manage stored Alicization data, exports, and resets
     sections:
       chats:
         title: Chat sessions
@@ -433,7 +433,7 @@ pages:
         delete: Delete all data
       desktop:
         title: Reset desktop settings & states
-        description: Clear AIRI desktop settings and runtime state.
+        description: Clear Alicization desktop settings and runtime state.
         reset: Reset desktop data
     confirmations:
       tooltip: Are you sure?
@@ -549,7 +549,7 @@ pages:
       description: Играем в Factorio!
       title: Factorio
       enable: Включить интеграцию Factorio
-      enable-description: Разрешить AIRI взаимодействовать с игрой Factorio
+      enable-description: Разрешить Alicization взаимодействовать с игрой Factorio
       server-address: Адрес сервера
       server-address-description: IP-адрес или имя хоста сервера Factorio
       server-address-placeholder: Введите адрес сервера (например, localhost или 192.168.1.100)
@@ -563,7 +563,7 @@ pages:
       description: Играем в Minecraft!
       title: Minecraft
       enable: Включить интеграцию Minecraft
-      enable-description: Разрешить AIRI взаимодействовать с игрой Minecraft
+      enable-description: Разрешить Alicization взаимодействовать с игрой Minecraft
       server-address: Адрес сервера
       server-address-description: IP-адрес или имя хоста сервера Minecraft
       server-address-placeholder: Введите адрес сервера (например, localhost или play.example.com)
@@ -590,7 +590,7 @@ pages:
       description: Чат и голосовой чат через Discord
       title: Discord
       enable: Включить интеграцию Discord
-      enable-description: Разрешить AIRI взаимодействовать через Discord
+      enable-description: Разрешить Alicization взаимодействовать через Discord
       token: Токен бота
       token-description: Ваш токен бота Discord
       token-placeholder: Введите токен бота Discord
@@ -623,7 +623,7 @@ pages:
             search_voices_results: Найдено {count} из {total} голосов
             unsupported_voice_warning_title: No supported voices
             unsupported_voice_warning_content: >-
-              Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
+              Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/TouHouQing/alicization/issues.
             show_less: Показать меньше
             show_more: Показать больше
             title: Провайдер
@@ -642,7 +642,7 @@ pages:
       description: Просмотр и использование X / Twitter
       title: X / Twitter
       enable: Включить интеграцию X / Twitter
-      enable-description: Разрешить AIRI взаимодействовать с X / Twitter
+      enable-description: Разрешить Alicization взаимодействовать с X / Twitter
       api-key: API-ключ
       api-key-description: Ваш API-ключ X / Twitter
       api-key-placeholder: Введите ваш API-ключ X / Twitter
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: Впервые здесь?
       description: >
-        AIRI требует как минимум одного {chat}-провайдера для корректной работы. Можно считать его "мозгом" персонажей в системе AIRI.
+        Alicization требует как минимум одного {chat}-провайдера для корректной работы. Можно считать его "мозгом" персонажей в системе Alicization.
     catalog:
       edit:
         config-id-not-found: Provider configuration not found.
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: Extra configuration needed for Ollama
                     content: >-
-                      Sorry to hear that Connectivity check failed for Ollama. Don't worry, for Ollama instances, extra configuration is needed for making it pass for Ollama. You need to set <code>OLLAMA_HOST</code> explicitly when start the Ollama application or Ollama CLI server, for detailed information, check <a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama integration guide</a>.
+                      Sorry to hear that Connectivity check failed for Ollama. Don't worry, for Ollama instances, extra configuration is needed for making it pass for Ollama. You need to set <code>OLLAMA_HOST</code> explicitly when start the Ollama application or Ollama CLI server, for detailed information, check <a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama integration guide</a>.
     common:
       continueAnyway: Продолжить всё равно
       goToModelSelection: 'Select Model →'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRI Green
-              description: The default greenish theme color, brought by AIRI to you!
+                color-1: Alicization Green
+              description: The default greenish theme color, brought by Alicization to you!
               title: Default Color
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: Тема
   description: |
-    Переключение основной темы AIRI: светлая или тёмная.
+    Переключение основной темы Alicization: светлая или тёмная.
 title: Настройки
 voices: Голос
 vrm:

@@ -1,6 +1,6 @@
 ---
 title: Satori Bot
-description: 参与并贡献 Project AIRI
+description: 参与并贡献 Project Alicization
 ---
 
 ### Satori Bot / 机器人
@@ -20,7 +20,7 @@ cp .env .env.local
 启动机器人：
 
 ```shell
-pnpm -F @proj-airi/satori-bot dev
+pnpm -F @proj-alicization/satori-bot dev
 ```
 
 ::: tip
@@ -28,7 +28,7 @@ pnpm -F @proj-airi/satori-bot dev
 如果你使用 [@antfu/ni](https://github.com/antfu-collective/ni)，你可以：
 
 ```shell
-nr -F @proj-airi/satori-bot dev
+nr -F @proj-alicization/satori-bot dev
 ```
 
 :::

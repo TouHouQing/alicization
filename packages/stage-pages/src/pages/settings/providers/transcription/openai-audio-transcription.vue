@@ -4,10 +4,10 @@ import type { TranscriptionProviderWithExtraOptions } from '@xsai-ext/providers/
 import {
   TranscriptionPlayground,
   TranscriptionProviderSettings,
-} from '@proj-airi/stage-ui/components'
-import { useHearingStore } from '@proj-airi/stage-ui/stores/modules/hearing'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { FieldSelect } from '@proj-airi/ui'
+} from '@proj-alicization/stage-ui/components'
+import { useHearingStore } from '@proj-alicization/stage-ui/stores/modules/hearing'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { FieldSelect } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, watch } from 'vue'
 

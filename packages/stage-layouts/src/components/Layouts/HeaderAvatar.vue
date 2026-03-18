@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { listSessions, signOut } from '@proj-airi/stage-ui/libs/auth'
-import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
+import { listSessions, signOut } from '@proj-alicization/stage-ui/libs/auth'
+import { useAuthStore } from '@proj-alicization/stage-ui/stores/auth'
 import { onClickOutside, useMediaQuery } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'

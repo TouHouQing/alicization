@@ -1,5 +1,5 @@
 import type { Locale } from '@intlify/core'
-import type { ServerOptions } from '@proj-airi/server-runtime/server'
+import type { ServerOptions } from '@proj-alicization/server-runtime/server'
 import type {
   ThreeHitTestReadTracePayload,
   ThreeSceneRenderInfoTracePayload,
@@ -9,7 +9,7 @@ import type {
   VrmLoadErrorTracePayload,
   VrmLoadStartTracePayload,
   VrmUpdateFrameTracePayload,
-} from '@proj-airi/stage-ui-three/trace'
+} from '@proj-alicization/stage-ui-three/trace'
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 
@@ -37,7 +37,7 @@ export const electronPluginUnload = defineInvokeEventa<PluginRegistrySnapshot, {
 export const electronPluginInspect = defineInvokeEventa<PluginHostDebugSnapshot>('eventa:invoke:electron:plugins:inspect')
 export const electronPluginUpdateCapability = defineInvokeEventa<PluginCapabilityState, PluginCapabilityPayload>('eventa:invoke:electron:plugins:capability:update')
 
-export const pluginProtocolListProvidersEventName = 'proj-airi:plugin-sdk:apis:protocol:resources:providers:list-providers'
+export const pluginProtocolListProvidersEventName = 'proj-alicization:plugin-sdk:apis:protocol:resources:providers:list-providers'
 export const pluginProtocolListProviders = defineInvokeEventa<Array<{ name: string }>>(pluginProtocolListProvidersEventName)
 
 export const captionIsFollowingWindowChanged = defineEventa<boolean>('eventa:event:electron:windows:caption-overlay:is-following-window-changed')
@@ -106,7 +106,7 @@ export interface PluginRegistrySnapshot {
 }
 
 // TODO: Replace these manually duplicated IPC types with re-exports from
-// @proj-airi/plugin-sdk (CapabilityDescriptor) once stage-ui and the shared
+// @proj-alicization/plugin-sdk (CapabilityDescriptor) once stage-ui and the shared
 // eventa layer can depend on the SDK without introducing unwanted coupling.
 export interface PluginCapabilityPayload {
   key: string
@@ -1005,5 +1005,5 @@ export const alicizationChatStreamToolResult = defineEventa<AlicizationChatToolR
 export const alicizationChatStreamFinish = defineEventa<AlicizationChatFinishEvent>('eventa:event:electron:alicization:chat:stream-finish')
 export const alicizationChatStreamError = defineEventa<AlicizationChatErrorEvent>('eventa:event:electron:alicization:chat:stream-error')
 
-export { electron } from '@proj-airi/electron-eventa'
-export * from '@proj-airi/electron-eventa/electron-updater'
+export { electron } from '@proj-alicization/electron-eventa'
+export * from '@proj-alicization/electron-eventa/electron-updater'

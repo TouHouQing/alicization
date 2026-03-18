@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import type { VrmActionBinding } from '@proj-airi/stage-ui-three'
+import type { VrmActionBinding } from '@proj-alicization/stage-ui-three'
 
 import type { DisplayModel } from '../../../../stores/display-models'
 
-import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
-import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { builtinActionBindings } from '@proj-airi/stage-ui-three/assets/vrm'
-import { Button, Callout } from '@proj-airi/ui'
+import { Live2DScene, useLive2d } from '@proj-alicization/stage-ui-live2d'
+import { ThreeScene } from '@proj-alicization/stage-ui-three'
+import { builtinActionBindings } from '@proj-alicization/stage-ui-three/assets/vrm'
+import { Button, Callout } from '@proj-alicization/ui'
 import { useMouse } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'

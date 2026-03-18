@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ColorPalette, Section } from '@proj-airi/stage-ui/components'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
-import { ColorHueRange } from '@proj-airi/ui'
+import { ColorPalette, Section } from '@proj-alicization/stage-ui/components'
+import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
+import { ColorHueRange } from '@proj-alicization/ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

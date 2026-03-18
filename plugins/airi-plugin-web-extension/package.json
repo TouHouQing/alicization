@@ -1,9 +1,9 @@
 {
-  "name": "@proj-airi/airi-plugin-web-extension",
+  "name": "@proj-alicization/alicization-plugin-web-extension",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
-  "description": "manifest.json description",
+  "description": "Browser extension bridge for Project Alicization",
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
@@ -18,8 +18,8 @@
     "@iconify-json/solar": "^1.2.5",
     "@iconify-json/svg-spinners": "^1.2.4",
     "@moeru/eventa": "^1.0.0-beta.1",
-    "@proj-airi/server-sdk": "workspace:^",
-    "@proj-airi/ui": "workspace:^",
+    "@proj-alicization/server-sdk": "workspace:^",
+    "@proj-alicization/ui": "workspace:^",
     "@unocss/reset": "^66.6.2",
     "@vueuse/core": "catalog:",
     "@wxt-dev/module-vue": "^1.0.3",

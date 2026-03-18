@@ -1,4 +1,4 @@
-import type { MetadataEventSource, WebSocketEvent } from '@proj-airi/server-shared/types'
+import type { MetadataEventSource, WebSocketEvent } from '@proj-alicization/server-shared/types'
 
 import type {
   RouteContext,
@@ -9,7 +9,7 @@ import type {
 import type { AuthenticatedPeer, Peer } from './types'
 
 import { availableLogLevelStrings, Format, LogLevelString, logLevelStringToLogLevelMap, useLogg } from '@guiiai/logg'
-import { MessageHeartbeat, MessageHeartbeatKind, WebSocketEventSource } from '@proj-airi/server-shared/types'
+import { MessageHeartbeat, MessageHeartbeatKind, WebSocketEventSource } from '@proj-alicization/server-shared/types'
 import { defineWebSocketHandler, H3 } from 'h3'
 import { nanoid } from 'nanoid'
 import { parse, stringify } from 'superjson'
@@ -112,8 +112,8 @@ export function setupApp(options?: AppOptions): { app: H3, closeAllPeers: () => 
 
   const { appLogLevel, appLogFormat, websocketLogLevel, websocketLogFormat } = normalizeLoggerConfig(options)
 
-  const appLogger = useLogg('@proj-airi/server-runtime').withLogLevel(logLevelStringToLogLevelMap[appLogLevel]).withFormat(appLogFormat)
-  const logger = useLogg('@proj-airi/server-runtime:websocket').withLogLevel(logLevelStringToLogLevelMap[websocketLogLevel]).withFormat(websocketLogFormat)
+  const appLogger = useLogg('@proj-alicization/server-runtime').withLogLevel(logLevelStringToLogLevelMap[appLogLevel]).withFormat(appLogFormat)
+  const logger = useLogg('@proj-alicization/server-runtime:websocket').withLogLevel(logLevelStringToLogLevelMap[websocketLogLevel]).withFormat(websocketLogFormat)
 
   const app = new H3({
     onError: error => appLogger.withError(error).error('an error occurred'),

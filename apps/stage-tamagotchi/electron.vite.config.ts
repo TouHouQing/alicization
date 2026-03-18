@@ -68,7 +68,7 @@ export default defineConfig({
 
     resolve: {
       alias: {
-        '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+        '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
       },
     },
   },
@@ -103,10 +103,10 @@ export default defineConfig({
     optimizeDeps: {
       exclude: [
         // Internal Packages
-        '@proj-airi/stage-ui/*',
+        '@proj-alicization/stage-ui/*',
         '@proj-airi/drizzle-duckdb-wasm',
         '@proj-airi/drizzle-duckdb-wasm/*',
-        '@proj-airi/electron-screen-capture',
+        '@proj-alicization/electron-screen-capture',
 
         // Static Assets: Models, Images, etc.
         'src/renderer/public/assets/*',
@@ -131,11 +131,11 @@ export default defineConfig({
 
     resolve: {
       alias: {
-        '@proj-airi/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
-        '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-        '@proj-airi/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
-        '@proj-airi/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
-        '@proj-airi/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+        '@proj-alicization/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
+        '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+        '@proj-alicization/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
+        '@proj-alicization/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
+        '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
       },
     },
 
@@ -161,7 +161,7 @@ export default defineConfig({
       Info(),
 
       {
-        name: 'proj-airi:defines',
+        name: 'proj-alicization:defines',
         config(ctx) {
           const define: Record<string, any> = {
             'import.meta.env.RUNTIME_ENVIRONMENT': '\'electron\'',

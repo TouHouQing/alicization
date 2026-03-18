@@ -1,7 +1,7 @@
 import type { ContextMessage } from '../../../types/chat'
 import type { AlicizationSensoryCacheSnapshot } from '../../alicization-bridge'
 
-import { ContextUpdateStrategy } from '@proj-airi/server-sdk'
+import { ContextUpdateStrategy } from '@proj-alicization/server-sdk'
 import { nanoid } from 'nanoid'
 
 const SENSORY_CONTEXT_ID = 'alicization:sensory'

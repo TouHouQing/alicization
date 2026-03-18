@@ -5,7 +5,7 @@ import { computed, reactive, ref, watch } from 'vue'
 
 import { clearError, onBackgroundStatus, requestStatus, requestVisionFrame, toggleEnabled, updateSettings } from '../../../src/popup/bridge'
 
-const STORAGE_KEY = 'airi-popup-settings'
+const STORAGE_KEY = 'alicization-popup-settings'
 
 export const usePopupStore = createGlobalState(() => {
   const status = ref<ExtensionStatus | null>(null)

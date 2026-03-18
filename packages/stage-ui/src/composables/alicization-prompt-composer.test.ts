@@ -1,6 +1,6 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { ContextUpdateStrategy } from '@proj-airi/server-sdk'
+import { ContextUpdateStrategy } from '@proj-alicization/server-sdk'
 import { describe, expect, it } from 'vitest'
 
 import { composeAlicizationPromptMessages } from './alicization-prompt-composer'

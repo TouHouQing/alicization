@@ -1,4 +1,4 @@
-import type { BackgroundOption } from '@proj-airi/stage-ui/components'
+import type { BackgroundOption } from '@proj-alicization/stage-ui/components'
 import type { Ref, ShallowRef } from 'vue'
 
 import localforage from 'localforage'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useTheme } from '@proj-airi/ui'
+import { useTheme } from '@proj-alicization/ui'
 import { RouterLink } from 'vue-router'
 
 import LogoDark from '../../assets/logo-dark.svg'
@@ -20,7 +20,7 @@ const { isDark: dark } = useTheme()
       <img :src="Logo" h-8 w-8 class="theme-colored">
     </template>
     <div translate-y="[2px]" font-quicksand font-semibold>
-      <span>AIRI</span>
+      <span>Alicization</span>
     </div>
   </RouterLink>
 </template>

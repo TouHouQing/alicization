@@ -2,7 +2,7 @@
 import type { ProviderMetadata } from '../../../../stores/providers'
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
-import { Button, Callout, FieldInput } from '@proj-airi/ui'
+import { Button, Callout, FieldInput } from '@proj-alicization/ui'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -186,11 +186,11 @@ initializeForm()
       <Callout label="Keep your API keys and credentials safe!" theme="violet">
         <div>
           <div>
-            AIRI is running pure locally in your browser, and we will never steal your credentials for AI / LLM providers. But keep in mind that your API keys are sensitive information. Make sure to keep them safe and do not share them with anyone.
+            Alicization is running pure locally in your browser, and we will never steal your credentials for AI / LLM providers. But keep in mind that your API keys are sensitive information. Make sure to keep them safe and do not share them with anyone.
           </div>
           <div>
-            AIRI is open sourced at <div inline-flex translate-y-1 items-center gap-1>
-              <div i-simple-icons:github inline-block /><a decoration-underline decoration-dashed href="https://github.com/moeru-ai/airi" target="_blank" rel="noopener noreferrer">GitHub</a>
+            Alicization is open sourced at <div inline-flex translate-y-1 items-center gap-1>
+              <div i-simple-icons:github inline-block /><a decoration-underline decoration-dashed href="https://github.com/TouHouQing/alicization" target="_blank" rel="noopener noreferrer">GitHub</a>
             </div>, if you want to check how we handle your credentials, feel free to inspect our code.
           </div>
         </div>

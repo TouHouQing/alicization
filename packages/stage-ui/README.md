@@ -7,7 +7,7 @@ Shared core for stage
 https://histoire.dev/
 
 ```shell
-pnpm -F @proj-airi/stage-ui run story:dev
+pnpm -F @proj-alicization/stage-ui run story:dev
 ```
 
 ### Project structure

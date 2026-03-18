@@ -17,7 +17,7 @@ jobs:
           lfs: true
 
       - run: |-
-          git clone https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/moeru-ai/airi --depth 1 apps/stage-web/dist
+          git clone https://$HF_USERNAME:$HF_TOKEN@huggingface.co/spaces/TouHouQing/alicization --depth 1 apps/stage-web/dist
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
@@ -34,7 +34,7 @@ jobs:
           TARGET_HUGGINGFACE_SPACE: 'true'
           VITE_APP_TARGET_HUGGINGFACE_SPACE: 'true'
 
-      - id: airi_diff
+      - id: alicization_diff
         working-directory: ./apps/stage-web/dist
         run: |-
           git lfs ls-files --all
@@ -43,7 +43,7 @@ jobs:
               echo "changes=true" >> "$GITHUB_OUTPUT";
           fi
 
-      - if: steps.airi_diff.outputs.changes == 'true'
+      - if: steps.alicization_diff.outputs.changes == 'true'
         working-directory: ./apps/stage-web/dist
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

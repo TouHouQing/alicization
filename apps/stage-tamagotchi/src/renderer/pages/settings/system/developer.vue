@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
-import { ButtonBar, CheckBar, IconItem } from '@proj-airi/stage-ui/components'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { ButtonBar, CheckBar, IconItem } from '@proj-alicization/stage-ui/components'
+import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

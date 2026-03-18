@@ -7,8 +7,8 @@ import { generate } from 'vscode-ext-gen'
 import { packageJSONForVSCode } from './shared'
 
 async function run() {
-  const { restore, json } = await packageJSONForVSCode('airi-vscode')
-  const generated = await generate(json, { extensionScope: 'airi-vscode' })
+  const { restore, json } = await packageJSONForVSCode('alicization-vscode')
+  const generated = await generate(json, { extensionScope: 'alicization-vscode' })
   const url = fileURLToPath(new URL('.', import.meta.url))
   const dir = dirname(url)
 

@@ -38,7 +38,7 @@ export const speechIntentFlushEvent = defineEventa<SpeechIntentTokenPayload>('ev
 export const speechIntentEndEvent = defineEventa<SpeechIntentEndPayload>('eventa:audio:speech:intent:end')
 export const speechIntentCancelEvent = defineEventa<SpeechIntentCancelPayload>('eventa:audio:speech:intent:cancel')
 
-const BUS_CHANNEL_NAME = 'proj-airi:pipelines:outputs:speech'
+const BUS_CHANNEL_NAME = 'proj-alicization:pipelines:outputs:speech'
 
 let context: ReturnType<typeof createBroadcastChannelContext>['context'] | undefined
 let channel: BroadcastChannel | undefined

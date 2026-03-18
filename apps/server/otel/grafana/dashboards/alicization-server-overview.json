@@ -48,7 +48,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(airi_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum(rate(alicization_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "req/s"
         }
       ]
@@ -80,7 +80,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(rate(airi_http_server_request_duration_milliseconds_count{service_name=~\"$service\", http_status_code=~\"5..\"}[$__rate_interval])) / sum(rate(airi_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum(rate(alicization_http_server_request_duration_milliseconds_count{service_name=~\"$service\", http_status_code=~\"5..\"}[$__rate_interval])) / sum(rate(alicization_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "error rate"
         }
       ]
@@ -112,7 +112,7 @@
       "type": "stat",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(airi_http_server_request_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(alicization_http_server_request_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95"
         }
       ]
@@ -136,7 +136,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (http_route) (rate(airi_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum by (http_route) (rate(alicization_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{http_route}}"
         }
       ]
@@ -159,7 +159,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(airi_http_server_request_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, http_route) (rate(alicization_http_server_request_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
           "legendFormat": "{{http_route}}"
         }
       ]
@@ -182,7 +182,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (http_status_code) (rate(airi_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum by (http_status_code) (rate(alicization_http_server_request_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{http_status_code}}"
         }
       ]
@@ -212,11 +212,11 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "airi_process_runtime_nodejs_memory_heap_total{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_memory_heap_total{service_name=~\"$service\"}",
           "legendFormat": "heap total"
         },
         {
-          "expr": "airi_process_runtime_nodejs_memory_heap_used{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_memory_heap_used{service_name=~\"$service\"}",
           "legendFormat": "heap used"
         }
       ]
@@ -239,11 +239,11 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "airi_process_runtime_nodejs_memory_rss{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_memory_rss{service_name=~\"$service\"}",
           "legendFormat": "RSS"
         },
         {
-          "expr": "airi_process_runtime_nodejs_memory_array_buffers{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_memory_array_buffers{service_name=~\"$service\"}",
           "legendFormat": "array buffers"
         }
       ]
@@ -266,11 +266,11 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "airi_process_runtime_nodejs_event_loop_lag_p99{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_event_loop_lag_p99{service_name=~\"$service\"}",
           "legendFormat": "p99 lag"
         },
         {
-          "expr": "airi_process_runtime_nodejs_event_loop_lag_p50{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_event_loop_lag_p50{service_name=~\"$service\"}",
           "legendFormat": "p50 lag"
         }
       ]
@@ -293,11 +293,11 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "airi_process_runtime_nodejs_active_handles_total{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_active_handles_total{service_name=~\"$service\"}",
           "legendFormat": "active handles"
         },
         {
-          "expr": "airi_process_runtime_nodejs_active_requests_total{service_name=~\"$service\"}",
+          "expr": "alicization_process_runtime_nodejs_active_requests_total{service_name=~\"$service\"}",
           "legendFormat": "active requests"
         }
       ]
@@ -327,7 +327,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, db_operation) (rate(airi_db_client_operation_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, db_operation) (rate(alicization_db_client_operation_duration_milliseconds_bucket{service_name=~\"$service\"}[$__rate_interval])))",
           "legendFormat": "{{db_operation}}"
         }
       ]
@@ -350,7 +350,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (db_operation) (rate(airi_db_client_operation_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
+          "expr": "sum by (db_operation) (rate(alicization_db_client_operation_duration_milliseconds_count{service_name=~\"$service\"}[$__rate_interval]))",
           "legendFormat": "{{db_operation}}"
         }
       ]
@@ -373,15 +373,15 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "airi_db_client_connections_usage{service_name=~\"$service\", state=\"used\"}",
+          "expr": "alicization_db_client_connections_usage{service_name=~\"$service\", state=\"used\"}",
           "legendFormat": "used"
         },
         {
-          "expr": "airi_db_client_connections_usage{service_name=~\"$service\", state=\"idle\"}",
+          "expr": "alicization_db_client_connections_usage{service_name=~\"$service\", state=\"idle\"}",
           "legendFormat": "idle"
         },
         {
-          "expr": "airi_db_client_connections_pending_requests{service_name=~\"$service\"}",
+          "expr": "alicization_db_client_connections_pending_requests{service_name=~\"$service\"}",
           "legendFormat": "pending"
         }
       ]
@@ -411,7 +411,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le, db_operation) (rate(airi_db_client_operation_duration_milliseconds_bucket{service_name=~\"$service\", db_system=\"redis\"}[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le, db_operation) (rate(alicization_db_client_operation_duration_milliseconds_bucket{service_name=~\"$service\", db_system=\"redis\"}[$__rate_interval])))",
           "legendFormat": "{{db_operation}}"
         }
       ]
@@ -434,7 +434,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (db_operation) (rate(airi_db_client_operation_duration_milliseconds_count{service_name=~\"$service\", db_system=\"redis\"}[$__rate_interval]))",
+          "expr": "sum by (db_operation) (rate(alicization_db_client_operation_duration_milliseconds_count{service_name=~\"$service\", db_system=\"redis\"}[$__rate_interval]))",
           "legendFormat": "{{db_operation}}"
         }
       ]
@@ -470,7 +470,7 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["airi", "observability"],
+  "tags": ["alicization", "observability"],
   "templating": {
     "list": [
       {
@@ -484,20 +484,20 @@
         "type": "datasource"
       },
       {
-        "current": { "selected": false, "text": "airi-server", "value": "airi-server" },
+        "current": { "selected": false, "text": "alicization-server", "value": "alicization-server" },
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "definition": "label_values(airi_http_server_request_duration_milliseconds_count, service_name)",
+        "definition": "label_values(alicization_http_server_request_duration_milliseconds_count, service_name)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "service",
-        "query": "label_values(airi_http_server_request_duration_milliseconds_count, service_name)",
+        "query": "label_values(alicization_http_server_request_duration_milliseconds_count, service_name)",
         "refresh": 2,
         "type": "query"
       }
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "AIRI Server Overview",
-  "uid": "airi-server-overview"
+  "title": "Alicization Server Overview",
+  "uid": "alicization-server-overview"
 }

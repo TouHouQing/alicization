@@ -1,9 +1,9 @@
-import type { WebSocketEventOptionalSource } from '@proj-airi/server-sdk'
+import type { WebSocketEventOptionalSource } from '@proj-alicization/server-sdk'
 
 import type { Events } from './types'
 
 import { useLogger } from '@guiiai/logg'
-import { ContextUpdateStrategy, Client as ServerClient } from '@proj-airi/server-sdk'
+import { ContextUpdateStrategy, Client as ServerClient } from '@proj-alicization/server-sdk'
 import { nanoid } from 'nanoid'
 
 export class Client {
@@ -11,13 +11,13 @@ export class Client {
 
   async connect(): Promise<boolean> {
     try {
-      this.client = new ServerClient<Events>({ name: 'proj-airi:plugin-vscode' })
+      this.client = new ServerClient<Events>({ name: 'proj-alicization:plugin-vscode' })
       await this.client.connect()
-      useLogger().log('AIRI connected to Server Channel')
+      useLogger().log('Alicization connected to Server Channel')
       return true
     }
     catch (error) {
-      useLogger().errorWithError('Failed to connect to AIRI Server Channel:', error)
+      useLogger().errorWithError('Failed to connect to Alicization Server Channel:', error)
       return false
     }
   }
@@ -26,13 +26,13 @@ export class Client {
     if (this.client) {
       this.client.close()
       this.client = null
-      useLogger().log('AIRI disconnected')
+      useLogger().log('Alicization disconnected')
     }
   }
 
   private async send(event: WebSocketEventOptionalSource<Events>): Promise<void> {
     if (!this.client) {
-      useLogger().warn('Cannot send event: not connected to AIRI Server Channel')
+      useLogger().warn('Cannot send event: not connected to Alicization Server Channel')
       return
     }
 
@@ -41,7 +41,7 @@ export class Client {
       this.client.send(event)
     }
     catch (error) {
-      useLogger().errorWithError('Failed to send event to AIRI:', error)
+      useLogger().errorWithError('Failed to send event to Alicization:', error)
     }
   }
 

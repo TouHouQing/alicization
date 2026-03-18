@@ -1,6 +1,6 @@
 ---
 title: 文档站
-description: 参与并贡献 Project AIRI
+description: 参与并贡献 Project Alicization
 ---
 
 ### 文档站

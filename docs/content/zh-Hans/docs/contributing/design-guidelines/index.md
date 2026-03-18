@@ -1,6 +1,6 @@
 ---
 title: 设计指南
-description: 如何为 Project AIRI 贡献设计
+description: 如何为 Project Alicization 贡献设计
 ---
 
 ::: warning 施工中

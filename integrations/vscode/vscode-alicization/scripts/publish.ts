@@ -14,7 +14,7 @@ const dir = typeof __dirname === 'string' ? __dirname : dirname(fileURLToPath(im
 const root = dirname(dir)
 
 async function publish() {
-  const { restore, isPreview } = await packageJSONForVSCode('airi-vscode')
+  const { restore, isPreview } = await packageJSONForVSCode('alicization-vscode')
   const pkgPath = join(root, 'package.json')
   const rawJSON = await readFile(pkgPath, 'utf-8')
 

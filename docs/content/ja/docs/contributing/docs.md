@@ -1,6 +1,6 @@
 ---
 title: ドキュメントサイト
-description: Project AIRI への貢献
+description: Project Alicization への貢献
 ---
 
 ### ドキュメントサイト

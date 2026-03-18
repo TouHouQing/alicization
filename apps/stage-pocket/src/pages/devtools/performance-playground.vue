@@ -1,22 +1,22 @@
 <script setup lang="ts">
-import type { EmotionPayload } from '@proj-airi/stage-ui/constants/emotions'
+import type { EmotionPayload } from '@proj-alicization/stage-ui/constants/emotions'
 import type { ChatProvider, SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 
-import { createPlaybackManager, createSpeechPipeline } from '@proj-airi/pipelines-audio'
-import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
-import { useDelayMessageQueue, useEmotionsMessageQueue } from '@proj-airi/stage-ui/composables/queues'
-import { llmInferenceEndToken } from '@proj-airi/stage-ui/constants'
-import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '@proj-airi/stage-ui/constants/emotions'
-import { useAudioContext, useSpeakingStore } from '@proj-airi/stage-ui/stores/audio'
-import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
-import { useChatMaintenanceStore } from '@proj-airi/stage-ui/stores/chat/maintenance'
-import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
-import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
-import { useSpeechStore } from '@proj-airi/stage-ui/stores/modules/speech'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
-import { createQueue } from '@proj-airi/stream-kit'
+import { createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
+import { ThreeScene } from '@proj-alicization/stage-ui-three'
+import { animations } from '@proj-alicization/stage-ui-three/assets/vrm'
+import { useDelayMessageQueue, useEmotionsMessageQueue } from '@proj-alicization/stage-ui/composables/queues'
+import { llmInferenceEndToken } from '@proj-alicization/stage-ui/constants'
+import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '@proj-alicization/stage-ui/constants/emotions'
+import { useAudioContext, useSpeakingStore } from '@proj-alicization/stage-ui/stores/audio'
+import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { useChatMaintenanceStore } from '@proj-alicization/stage-ui/stores/chat/maintenance'
+import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
+import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
+import { createQueue } from '@proj-alicization/stream-kit'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -294,7 +294,7 @@ onUnmounted(() => {
         <div class="h-60 overflow-auto border border-neutral-200/60 rounded-lg p-2 dark:border-neutral-700/60">
           <div v-for="(msg, idx) in chatMessages" :key="idx" class="mb-2">
             <div class="text-[11px] text-neutral-500">
-              {{ msg.role === 'user' ? 'User' : 'AIRI' }}
+              {{ msg.role === 'user' ? 'User' : 'Alicization' }}
             </div>
             <div class="whitespace-pre-wrap break-words text-sm">
               {{ msg.text }}

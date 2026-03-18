@@ -1,18 +1,18 @@
 {
-  "name": "@proj-airi/pipelines-audio",
+  "name": "@proj-alicization/pipelines-audio",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
-  "description": "Audio pipeline orchestration for AIRI (capture, VAD, encode, stream)",
+  "description": "Audio pipeline orchestration for Alicization (capture, VAD, encode, stream)",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/pipelines-audio"
   },
   "exports": {

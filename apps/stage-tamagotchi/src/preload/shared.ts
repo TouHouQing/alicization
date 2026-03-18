@@ -1,4 +1,4 @@
-import type { ElectronWindow } from '@proj-airi/stage-shared'
+import type { ElectronWindow } from '@proj-alicization/stage-shared'
 
 import { contextIsolated, platform } from 'node:process'
 

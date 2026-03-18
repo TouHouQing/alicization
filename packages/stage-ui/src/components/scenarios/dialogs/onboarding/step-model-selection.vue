@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
-import { Button } from '@proj-airi/ui'
+import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 

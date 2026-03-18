@@ -13,4 +13,4 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   enableVision: false,
 }
 
-export const STORAGE_KEY = 'airi:web-extension:settings'
+export const STORAGE_KEY = 'alicization:web-extension:settings'

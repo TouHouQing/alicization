@@ -50,5 +50,5 @@ screen-capture:
     dismiss: Dismiss
     instructions:
       step-1: Open "System Preferences", select "Privacy & Security" from the sidebar.
-      step-2: In the "Screen & System Audio Recording" and "System Audio Recording Only" sections, turn on the switches for AIRI.
-      step-2-note: If AIRI is not listed, please add it manually by clicking the "+" button and selecting AIRI from the Applications folder.
+      step-2: In the "Screen & System Audio Recording" and "System Audio Recording Only" sections, turn on the switches for Alicization.
+      step-2-note: If Alicization is not listed, please add it manually by clicking the "+" button and selecting Alicization from the Applications folder.

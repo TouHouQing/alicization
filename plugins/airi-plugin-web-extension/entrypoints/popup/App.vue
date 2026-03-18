@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { Button, Callout } from '@proj-airi/ui'
+import { Button, Callout } from '@proj-alicization/ui'
 import { onMounted } from 'vue'
 
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@proj-airi/server",
+  "name": "@proj-alicization/server",
   "type": "module",
   "version": "0.9.0-alpha.16",
   "private": true,
@@ -32,7 +32,7 @@
     "@opentelemetry/sdk-trace-node": "^2.6.0",
     "@opentelemetry/semantic-conventions": "^1.40.0",
     "@proj-airi/drizzle-orm-browser-migrator": "^0.1.6",
-    "@proj-airi/server-schema": "workspace:*",
+    "@proj-alicization/server-schema": "workspace:*",
     "better-auth": "^1.4.19",
     "drizzle-orm": "^0.45.1",
     "drizzle-valibot": "catalog:",

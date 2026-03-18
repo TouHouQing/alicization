@@ -1,11 +1,11 @@
 ---
 title: 設定ガイド
-description: Project AIRI デスクトップ版の使い方
+description: Project Alicization デスクトップ版の使い方
 ---
 
 ## 設定
 
-システムトレイの設定を開いて、AIRI のテーマカラーを変更したり、Live2D (2D) または VRM (3D、Grok Companion など) の別のモデルに切り替えたりするなど、さらにカスタマイズすることができます。
+システムトレイの設定を開いて、Alicization のテーマカラーを変更したり、Live2D (2D) または VRM (3D、Grok Companion など) の別のモデルに切り替えたりするなど、さらにカスタマイズすることができます。
 
 <video autoplay loop muted>
  <source src="/assets/tutorial-basic-open-settings.mp4" type="video/mp4">
@@ -31,7 +31,7 @@ description: Project AIRI デスクトップ版の使い方
 
 ::: warning バグあり
 現在、モデルのシーンをリロードする機能は意図したとおりに機能していません。
-モデルをロードした後、AIRI を再起動する必要があります。
+モデルをロードした後、Alicization を再起動する必要があります。
 :::
 
 <br />

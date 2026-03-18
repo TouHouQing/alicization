@@ -1,6 +1,6 @@
 # stage-pocket — Android
 
-AIRI mobile app for Android, built with [Capacitor](https://capacitorjs.com/).
+Alicization mobile app for Android, built with [Capacitor](https://capacitorjs.com/).
 
 - Min SDK: 24 (Android 7.0)
 - Target SDK: 36 (Android 16)

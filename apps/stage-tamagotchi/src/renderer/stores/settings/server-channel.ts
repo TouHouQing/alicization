@@ -1,4 +1,4 @@
-import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { useAsyncState, useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { watch } from 'vue'

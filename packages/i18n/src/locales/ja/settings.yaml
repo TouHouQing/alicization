@@ -9,7 +9,7 @@ animations:
     title: ページ固有の遷移を使用する
 dialogs:
   onboarding:
-    title: AIRI へようこそ！
+    title: Alicization へようこそ！
     description: まず最初のAIプロバイダーを設定しましょう。
     selectProvider: AIプロバイダーを選択
     configureProvider: 設定 {provider}
@@ -50,7 +50,7 @@ dialogs:
 language:
   title: 言語
   description: >
-    AIRIインターフェースの言語を変更します。これはキャラクターの応答言語には影響しません。
+    Alicizationインターフェースの言語を変更します。これはキャラクターの応答言語には影響しません。
 controls-island:
   icon-size:
     title: アイランドアイコンのサイズを制御
@@ -404,7 +404,7 @@ pages:
     title: 記憶
   data:
     title: データ
-    description: AIRIデータの保存、エクスポート、およびリセットの管理
+    description: Alicizationデータの保存、エクスポート、およびリセットの管理
     sections:
       chats:
         title: チャット セッション
@@ -433,7 +433,7 @@ pages:
         delete: すべてのデータを削除
       desktop:
         title: デスクトップの設定と状態をリセット
-        description: AIRIデスクトップの設定と実行時の状態を消去します。
+        description: Alicizationデスクトップの設定と実行時の状態を消去します。
         reset: デスクトップのデータをリセット
     confirmations:
       tooltip: 本当によろしいですか？
@@ -549,7 +549,7 @@ pages:
       description: Factorioをプレイ！
       title: Factorio
       enable: Factorio連携を有効にする
-      enable-description: AIRIがFactorioゲームと通信できるようにする
+      enable-description: AlicizationがFactorioゲームと通信できるようにする
       server-address: サーバーアドレス
       server-address-description: FactorioサーバーのIPアドレスまたはホスト名
       server-address-placeholder: サーバーアドレスを入力 (例： localhostまたは192.168.1.100)
@@ -563,7 +563,7 @@ pages:
       description: Minecraftをプレイ！
       title: Minecraft
       enable: Minecraft連携を有効にする
-      enable-description: AIRIがMinecraftゲームと対話できるようにする
+      enable-description: AlicizationがMinecraftゲームと対話できるようにする
       server-address: サーバーアドレス
       server-address-description: MinecraftサーバーのIPアドレスまたはホスト名
       server-address-placeholder: サーバーアドレスを入力 (例： localhostまたはplay.example.com)
@@ -590,7 +590,7 @@ pages:
       description: Discordでのチャットとボイスチャット
       title: Discord
       enable: Discord連携を有効にする
-      enable-description: AIRIがDiscordを介して対話できるようにする
+      enable-description: AlicizationがDiscordを介して対話できるようにする
       token: ボットトークン
       token-description: あなたのDiscordボットトークン
       token-placeholder: Discordボットトークンを入力
@@ -623,7 +623,7 @@ pages:
             search_voices_results: 結果{total}個中{count}個の音声が見つかりました
             unsupported_voice_warning_title: サポートされている音声がありません
             unsupported_voice_warning_content: >-
-              別のモデルまたはプロバイダーを試してください。このモデルのすべての音声をできるだけ早くサポートできるように取り組んでいます。 緊急に必要な場合は、GitHubの https://github.com/moeru-ai/airi/issues でお知らせください。
+              別のモデルまたはプロバイダーを試してください。このモデルのすべての音声をできるだけ早くサポートできるように取り組んでいます。 緊急に必要な場合は、GitHubの https://github.com/TouHouQing/alicization/issues でお知らせください。
             show_less: 表示を減らす
             show_more: もっと表示
             title: プロバイダー
@@ -642,7 +642,7 @@ pages:
       description: X / Twitterの閲覧と使用
       title: X / Twitter
       enable: X / Twitter連携を有効にする
-      enable-description: AIRIがX / Twitterと対話できるようにする
+      enable-description: AlicizationがX / Twitterと対話できるようにする
       api-key: APIキー
       api-key-description: あなたのX / Twitter APIキー
       api-key-placeholder: あなたのX / Twitter APIキーを入力
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: ここを初めて利用しますか？
       description: >
-        AIRIが正常に思考し動作するためには、少なくとも1つの{chat}プロバイダーの設定が必要です。 これはAIRIシステム内に存在するキャラクターの脳と考えることができます。
+        Alicizationが正常に思考し動作するためには、少なくとも1つの{chat}プロバイダーの設定が必要です。 これはAlicizationシステム内に存在するキャラクターの脳と考えることができます。
     catalog:
       edit:
         config-id-not-found: プロバイダ設定が見つかりません。
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: Ollamaに追加設定が必要です
                     content: >-
-                      残念ながら、Ollamaの接続チェックが失敗したようです。Ollamaインスタンスの場合、正常に動作させるためには追加の設定が必要です。OllamaアプリケーションまたはOllama CLIサーバーを起動する際には、<code>OLLAMA_HOST</code>環境変数を明示的に設定する必要があります。詳細な手順については、<a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama統合ガイド</a>をご参照ください。
+                      残念ながら、Ollamaの接続チェックが失敗したようです。Ollamaインスタンスの場合、正常に動作させるためには追加の設定が必要です。OllamaアプリケーションまたはOllama CLIサーバーを起動する際には、<code>OLLAMA_HOST</code>環境変数を明示的に設定する必要があります。詳細な手順については、<a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama統合ガイド</a>をご参照ください。
     common:
       continueAnyway: 続行する
       goToModelSelection: 'Select Model →'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRIグリーン
-              description: AIRIによって用意された、デフォルトの緑がかったテーマカラー！
+                color-1: Alicizationグリーン
+              description: Alicizationによって用意された、デフォルトの緑がかったテーマカラー！
               title: デフォルトカラー
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: テーマ
   description: |
-    AIRIの基本テーマをライトモードまたはダークモードに切り替えます。
+    Alicizationの基本テーマをライトモードまたはダークモードに切り替えます。
 title: 設定
 voices: 音声
 vrm:

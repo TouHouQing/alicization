@@ -3,7 +3,7 @@ import type { WithUnknown } from '@xsai/shared'
 import type { StreamTranscriptionResult, StreamTranscriptionOptions as XSAIStreamTranscriptionOptions } from '@xsai/stream-transcription'
 
 import { tryCatch } from '@moeru/std'
-import { useLocalStorageManualReset } from '@proj-airi/stage-shared/composables'
+import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { refManualReset } from '@vueuse/core'
 import { generateTranscription } from '@xsai/generate-transcription'
 import { defineStore, storeToRefs } from 'pinia'

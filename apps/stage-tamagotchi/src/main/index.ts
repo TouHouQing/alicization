@@ -5,11 +5,11 @@ import process, { env, platform } from 'node:process'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import messages from '@proj-airi/i18n/locales'
+import messages from '@proj-alicization/i18n/locales'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
-import { initScreenCaptureForMain } from '@proj-airi/electron-screen-capture/main'
+import { initScreenCaptureForMain } from '@proj-alicization/electron-screen-capture/main'
 import { app, ipcMain } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
@@ -65,10 +65,8 @@ if (isLinux) {
   app.commandLine.appendSwitch('enable-unsafe-webgpu')
   app.commandLine.appendSwitch('enable-features', 'Vulkan')
 
-  // NOTICE: we need UseOzonePlatform, WaylandWindowDecorations for working on Wayland.
-  // Partially related to https://github.com/electron/electron/issues/41551, since X11 is deprecating now,
-  // we can safely remove the feature flags for Electron once they made it default supported.
-  // Fixes: https://github.com/moeru-ai/airi/issues/757
+  // NOTICE: we need UseOzonePlatform and WaylandWindowDecorations for reliable Wayland support.
+  // X11 is deprecating, so these switches can be removed once Electron enables them by default.
   // Ref: https://github.com/mmaura/poe2linuxcompanion/blob/90664607a147ea5ccea28df6139bd95fb0ebab0e/electron/main/index.ts#L28-L46
   if (env.XDG_SESSION_TYPE === 'wayland') {
     app.commandLine.appendSwitch('enable-features', 'GlobalShortcutsPortal')
@@ -79,7 +77,7 @@ if (isLinux) {
 }
 
 app.dock?.setIcon(icon)
-electronApp.setAppUserModelId('ai.moeru.airi')
+electronApp.setAppUserModelId('ai.moeru.alicization')
 
 initScreenCaptureForMain()
 

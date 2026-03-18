@@ -9,7 +9,7 @@ animations:
     title: 페이지별 전환 사용
 dialogs:
   onboarding:
-    title: AIRI에 오신 것을 환영합니다!
+    title: Alicization에 오신 것을 환영합니다!
     description: 시작하기 위해 당신의 첫 번째 AI 제공자를 설정해 보겠습니다.
     selectProvider: AI 제공자를 선택해주세요
     configureProvider: '{provider} 구성'
@@ -50,7 +50,7 @@ dialogs:
 language:
   title: 언어
   description: >
-    AIRI 인터페이스의 언어를 바꿉니다. 다만 캐릭터의 응답 언어는 변경되지 않습니다.
+    Alicization 인터페이스의 언어를 바꿉니다. 다만 캐릭터의 응답 언어는 변경되지 않습니다.
 controls-island:
   icon-size:
     title: 아일랜드 아이콘 크기 조정
@@ -404,7 +404,7 @@ pages:
     title: 메모리
   data:
     title: 데이터
-    description: 저장된 AIRI 데이터, 내보낸 항목, 초기화된 항목 관리
+    description: 저장된 Alicization 데이터, 내보낸 항목, 초기화된 항목 관리
     sections:
       chats:
         title: 채팅 세션
@@ -433,7 +433,7 @@ pages:
         delete: 모든 데이터 삭제
       desktop:
         title: 데스크탑 설정 및 상태 초기화
-        description: AIRI 데스크탑 설정 및 런타임 상태를 전부 지웁니다.
+        description: Alicization 데스크탑 설정 및 런타임 상태를 전부 지웁니다.
         reset: 데스크탑 데이터 지우기
     confirmations:
       tooltip: 정말 진행하실 건가요?
@@ -549,7 +549,7 @@ pages:
       description: Factorio 플레이 중!
       title: Factorio
       enable: Factorio 통합 사용
-      enable-description: AIRI가 Factorio를 접근하기 위해 허용
+      enable-description: Alicization가 Factorio를 접근하기 위해 허용
       server-address: 서버 주소
       server-address-description: Factorio 서버의 IP 주소 및 호스트 이름
       server-address-placeholder: '서버 주소 입력 (예시: localhost 및 192.168.1.100)'
@@ -563,7 +563,7 @@ pages:
       description: Minecraft 플레이 중!
       title: Minecraft
       enable: Minecraft 통합 사용
-      enable-description: AIRI가 Minecraft를 접근하기 위해 허용
+      enable-description: Alicization가 Minecraft를 접근하기 위해 허용
       server-address: 서버 주소
       server-address-description: Minecraft 서버의 IP 주소 및 호스트 이름
       server-address-placeholder: '서버 주소 입력 (예시: localhost 및 play.example.com)'
@@ -590,7 +590,7 @@ pages:
       description: Discord를 통한 채팅 및 음성 채팅
       title: Discord
       enable: Discord 통합 사용
-      enable-description: AIRI가 Discord를 접근하기 위해 허용
+      enable-description: Alicization가 Discord를 접근하기 위해 허용
       token: 봇 토큰
       token-description: 당신의 Discord 봇 토큰
       token-placeholder: Discord 봇 토큰을 입력해주세요
@@ -623,7 +623,7 @@ pages:
             search_voices_results: '{total}개의 항목 중에 {count}개의 모델 찾음'
             unsupported_voice_warning_title: 지원되는 음성 없음
             unsupported_voice_warning_content: >-
-              다른 모델 및 제공자를 이용해 주세요. 이 모델의 모든 음성을 최대한 빨리 지원하기 위해 노력하고 있습니다. 긴급하게 필요한 경우 GitHub(https://github.com/moeru-ai/airi/issues)로 알려주시기 바랍니다.
+              다른 모델 및 제공자를 이용해 주세요. 이 모델의 모든 음성을 최대한 빨리 지원하기 위해 노력하고 있습니다. 긴급하게 필요한 경우 GitHub(https://github.com/TouHouQing/alicization/issues)로 알려주시기 바랍니다.
             show_less: 간략히 보기
             show_more: 더 보기
             title: 제공자
@@ -642,7 +642,7 @@ pages:
       description: X / 트위터 탐색 및 사용량
       title: X / 트위터
       enable: X / 트위터 통합 사용
-      enable-description: AIRI가 X / 트위터를 접근하기 위해 허용
+      enable-description: Alicization가 X / 트위터를 접근하기 위해 허용
       api-key: API 키
       api-key-description: X / 트위터의 API 키
       api-key-placeholder: X / 트위터의 API 키를 입력해주세요
@@ -677,7 +677,7 @@ pages:
     helpinfo:
       title: 여기 처음 오셨나요?
       description: >
-        AIRI는 적어도 하나의 {chat} 제공자가 올바르게 생각하고 행동하도록 구성되어야 합니다. AIRI 시스템에 거주하는 캐릭터의 두뇌라고 생각할 수 있습니다.
+        Alicization는 적어도 하나의 {chat} 제공자가 올바르게 생각하고 행동하도록 구성되어야 합니다. Alicization 시스템에 거주하는 캐릭터의 두뇌라고 생각할 수 있습니다.
     catalog:
       edit:
         config-id-not-found: 제공자 구성을 찾을 수 없습니다.
@@ -748,7 +748,7 @@ pages:
                   openai-compatible-check-connectivity:
                     label: Ollama에 필요한 추가 구성
                     content: >-
-                      Ollama에 대한 연결 검사가 실패했다는 소식을 듣게 되어 유감입니다. 걱정하지 마세요. Ollama 인스턴스의 경우 Ollama를 통과시키기 위해 추가 구성이 필요합니다. Ollama 애플리케이션 또는 Ollama CLI 서버를 시작할 때 <code>OLLAMA_HOST</code>를 명시적으로 설정해야 하며, 자세한 정보는 <a href="https://airi.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 통합 가이드</a>를 확인하세요.
+                      Ollama에 대한 연결 검사가 실패했다는 소식을 듣게 되어 유감입니다. 걱정하지 마세요. Ollama 인스턴스의 경우 Ollama를 통과시키기 위해 추가 구성이 필요합니다. Ollama 애플리케이션 또는 Ollama CLI 서버를 시작할 때 <code>OLLAMA_HOST</code>를 명시적으로 설정해야 하며, 자세한 정보는 <a href="https://alicization.moeru.ai/docs/en/docs/manual/integrations/providers/chat/ollama">Ollama 통합 가이드</a>를 확인하세요.
     common:
       continueAnyway: 계속 진행
       goToModelSelection: 'Select Model →'
@@ -1101,8 +1101,8 @@ pages:
           presets:
             default:
               colors:
-                color-1: AIRI 녹색
-              description: AIRI가 가져온 기본 녹색 테마 색상!
+                color-1: Alicization 녹색
+              description: Alicization가 가져온 기본 녹색 테마 색상!
               title: 기본 색상
             morandi:
               colors:
@@ -1179,7 +1179,7 @@ sections:
 theme:
   title: 테마
   description: |
-    AIRI의 전반적인 테마를 바꿉니다.
+    Alicization의 전반적인 테마를 바꿉니다.
 title: 설정
 voices: 음성
 vrm:

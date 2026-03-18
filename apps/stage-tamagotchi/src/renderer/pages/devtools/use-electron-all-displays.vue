@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useElectronAllDisplays, useElectronMouse } from '@proj-airi/electron-vueuse'
+import { useElectronAllDisplays, useElectronMouse } from '@proj-alicization/electron-vueuse'
 import { useWindowSize } from '@vueuse/core'
 import { computed } from 'vue'
 

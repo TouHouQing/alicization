@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { Button, FieldCheckbox } from '@proj-airi/ui'
+import { Button, FieldCheckbox } from '@proj-alicization/ui'
 
 const emit = defineEmits<{
   (event: 'capture'): void

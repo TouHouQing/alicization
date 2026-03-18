@@ -2,7 +2,7 @@
 import type { ProviderMetadata } from '../../../../stores/providers'
 import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './types'
 
-import { Button } from '@proj-airi/ui'
+import { Button } from '@proj-alicization/ui'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 

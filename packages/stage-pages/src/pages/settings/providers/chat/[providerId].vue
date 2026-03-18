@@ -9,10 +9,10 @@ import {
   ProviderSettingsContainer,
   ProviderSettingsLayout,
   ProviderValidationAlerts,
-} from '@proj-airi/stage-ui/components'
-import { useProviderValidation } from '@proj-airi/stage-ui/composables/use-provider-validation'
-import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
+} from '@proj-alicization/stage-ui/components'
+import { useProviderValidation } from '@proj-alicization/stage-ui/composables/use-provider-validation'
+import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
+import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'

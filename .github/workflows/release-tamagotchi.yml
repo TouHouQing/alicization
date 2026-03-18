@@ -9,7 +9,7 @@ env:
   DEB_BUNDLE_NAME: ''
   RPM_BUNDLE_NAME: ''
   FLATPAK_BUNDLE_NAME: ''
-  PRODUCT_NAME: 'AIRI'
+  PRODUCT_NAME: 'Alicization'
   VERSION: ''
 
 on:
@@ -97,7 +97,7 @@ jobs:
 
       # Why?
       #
-      # failed to build archive at `/home/runner/work/airi/airi/target/x86_64-unknown-linux-gnu/release/deps/libapp_lib.rlib`:
+      # failed to build archive at `/home/runner/work/alicization/alicization/target/x86_64-unknown-linux-gnu/release/deps/libapp_lib.rlib`:
       # No space left on device (os error 28)
       - name: Free Disk Space
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
@@ -134,7 +134,7 @@ jobs:
 
       - name: Build (Windows Only) # Windows
         if: matrix.os == 'windows-latest'
-        run: pnpm run -F @proj-airi/stage-tamagotchi build && pnpm -F @proj-airi/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
+        run: pnpm run -F @proj-alicization/stage-tamagotchi build && pnpm -F @proj-alicization/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -143,7 +143,7 @@ jobs:
         run: |
           echo "$CSC_CONTENT" | base64 --decode > apps/stage-tamagotchi/apple-developer-code-signing.p12
           export CSC_LINK="./apple-developer-code-signing.p12"
-          pnpm run -F @proj-airi/stage-tamagotchi build && pnpm -F @proj-airi/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
+          pnpm run -F @proj-alicization/stage-tamagotchi build && pnpm -F @proj-alicization/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_CONTENT: ${{ secrets.CSC_CONTENT }}
@@ -154,7 +154,7 @@ jobs:
 
       - name: Build (Linux Only) # Linux
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
-        run: pnpm run -F @proj-airi/stage-tamagotchi build && pnpm -F @proj-airi/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
+        run: pnpm run -F @proj-alicization/stage-tamagotchi build && pnpm -F @proj-alicization/stage-tamagotchi exec electron-builder build ${{ matrix.builder-args }} --publish=${{ (inputs.build_only || inputs.artifacts_only) && 'never' || 'onTagOrDraft' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -172,10 +172,10 @@ jobs:
         run: |
           mkdir -p dist
           # Auto-install required SDK/Platform/BaseApp from Flathub in user scope
-          flatpak-builder --user --install-deps-from=flathub ./flatpak ai.moeru.airi.flatpak.yml --force-clean
+          flatpak-builder --user --install-deps-from=flathub ./flatpak ai.moeru.alicization.flatpak.yml --force-clean
           flatpak build-export ./flatpak-repo ./flatpak
           export FLATPAK_OUTPUT_NAME=$(pnpm exec tsx scripts/artifacts-metadata.ts ${{ matrix.target }} --get-output-filename flatpak)
-          flatpak build-bundle ./flatpak-repo dist/${FLATPAK_OUTPUT_NAME} ai.moeru.airi
+          flatpak build-bundle ./flatpak-repo dist/${FLATPAK_OUTPUT_NAME} ai.moeru.alicization
 
       # ---------
       # Nightly (schedule) builds only
@@ -203,7 +203,7 @@ jobs:
       - name: Rename Artifacts (Nightly)
         if: ${{ github.event_name == 'schedule' }}
         run:
-          pnpm run -F @proj-airi/stage-tamagotchi rename-artifacts ${{ matrix.target }}
+          pnpm run -F @proj-alicization/stage-tamagotchi rename-artifacts ${{ matrix.target }}
 
       - name: Get Linux Artifact Names (Nightly + Linux Only)
         if: ${{ github.event_name == 'schedule' && (matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm') }}
@@ -244,11 +244,11 @@ jobs:
 
       - name: Sign Windows Artifacts with SignPath (Nightly + Windows Only)
         uses: signpath/github-action-submit-signing-request@v2
-        if: ${{ github.event_name == 'schedule' && (matrix.os == 'windows-latest' && github.repository == 'moeru-ai/airi') }}
+        if: ${{ github.event_name == 'schedule' && (matrix.os == 'windows-latest' && github.repository == 'TouHouQing/alicization') }}
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
-          project-slug: 'airi'
+          project-slug: 'alicization'
           signing-policy-slug: 'test-signing'
           artifact-configuration-slug: ci-github-actions-artifacts-windows
           github-artifact-id: '${{ steps.unsigned-artifacts-nightly.outputs.artifact-id }}'
@@ -291,7 +291,7 @@ jobs:
       - name: Rename Artifacts (Manual)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          pnpm run -F @proj-airi/stage-tamagotchi rename-artifacts ${{ matrix.target }} --release ${{ !inputs.build_only && !inputs.artifacts_only }} --tag ${{ inputs.tag }} --auto-tag ${{ !inputs.build_only }}
+          pnpm run -F @proj-alicization/stage-tamagotchi rename-artifacts ${{ matrix.target }} --release ${{ !inputs.build_only && !inputs.artifacts_only }} --tag ${{ inputs.tag }} --auto-tag ${{ !inputs.build_only }}
 
       - name: Get Linux Artifact Names (Manual + Non-Release + Linux Only)
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.build_only && inputs.artifacts_only && (matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm') }}
@@ -332,11 +332,11 @@ jobs:
 
       - name: Sign Windows Artifacts with SignPath (Manual + Windows Only)
         uses: signpath/github-action-submit-signing-request@v2
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.build_only && inputs.artifacts_only && (matrix.os == 'windows-latest' && github.repository == 'moeru-ai/airi') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.build_only && inputs.artifacts_only && (matrix.os == 'windows-latest' && github.repository == 'TouHouQing/alicization') }}
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
-          project-slug: 'airi'
+          project-slug: 'alicization'
           signing-policy-slug: 'test-signing'
           artifact-configuration-slug: ci-github-actions-artifacts-windows
           github-artifact-id: '${{ steps.unsigned-artifacts-workflow-dispatch.outputs.artifact-id }}'
@@ -381,7 +381,7 @@ jobs:
       - name: Rename Artifacts (Automatic)
         if: ${{ github.event_name == 'release' }}
         run: |
-          pnpm run -F @proj-airi/stage-tamagotchi rename-artifacts ${{ matrix.target }} --release --auto-tag
+          pnpm run -F @proj-alicization/stage-tamagotchi rename-artifacts ${{ matrix.target }} --release --auto-tag
 
       - name: Upload macOS update info (Automatic + macOS Only)
         if: ${{ github.event_name == 'release' && (matrix.os == 'macos-26' || matrix.os == 'macos-15-intel') }}
@@ -408,11 +408,11 @@ jobs:
 
       - name: Sign Windows Artifacts with SignPath (Nightly + Windows Only)
         uses: signpath/github-action-submit-signing-request@v2
-        if: ${{ github.event_name == 'release' && (matrix.os == 'windows-latest' && github.repository == 'moeru-ai/airi') }}
+        if: ${{ github.event_name == 'release' && (matrix.os == 'windows-latest' && github.repository == 'TouHouQing/alicization') }}
         with:
           api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
           organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
-          project-slug: 'airi'
+          project-slug: 'alicization'
           signing-policy-slug: 'test-signing'
           artifact-configuration-slug: ci-github-actions-artifacts-windows
           github-artifact-id: '${{ steps.unsigned-artifacts-release.outputs.artifact-id }}'
@@ -476,7 +476,7 @@ jobs:
 
       - name: Merge latest-mac.yml
         run: |
-          pnpm -F @proj-airi/stage-tamagotchi exec tsx scripts/merge-latest-mac.ts \
+          pnpm -F @proj-alicization/stage-tamagotchi exec tsx scripts/merge-latest-mac.ts \
             --dir artifacts \
             --output apps/stage-tamagotchi/bundle/latest-mac.yml
 

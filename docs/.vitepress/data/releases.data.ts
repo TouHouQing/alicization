@@ -35,11 +35,11 @@ export { data }
 
 export default defineLoader({
   async load(): Promise<ReleasesData> {
-    const nightlyUrl = 'https://github.com/moeru-ai/airi/actions/workflows/release-tamagotchi.yml'
+    const nightlyUrl = 'https://github.com/TouHouQing/alicization/actions/workflows/release-tamagotchi.yml'
 
     try {
       // Fetch releases from GitHub API
-      const releasesResponse = await fetch('https://api.github.com/repos/moeru-ai/airi/releases', {
+      const releasesResponse = await fetch('https://api.github.com/repos/TouHouQing/alicization/releases', {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'VitePress',
@@ -79,7 +79,7 @@ export default defineLoader({
       try {
         // https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28#list-workflow-runs-for-a-repository
         const actionsResponse = await fetch(
-          'https://api.github.com/repos/moeru-ai/airi/actions/workflows/release-tamagotchi.yml/runs?status=success&per_page=10',
+          'https://api.github.com/repos/TouHouQing/alicization/actions/workflows/release-tamagotchi.yml/runs?status=success&per_page=10',
           {
             headers: {
               'Accept': 'application/vnd.github.v3+json',

@@ -1,18 +1,18 @@
-# @proj-airi/server-shared
+# @proj-alicization/server-shared
 
-The shared type definitions for all server-side packages of Project AIRI.
+The shared type definitions for all server-side packages of Project Alicization.
 
 ## Usage
 
 ```shell
-ni @proj-airi/server-shared -D # from @antfu/ni, can be installed via `npm i -g @antfu/ni`
-pnpm i @proj-airi/server-shared -D
-yarn i @proj-airi/server-shared -D
-npm i @proj-airi/server-shared -D
+ni @proj-alicization/server-shared -D # from @antfu/ni, can be installed via `npm i -g @antfu/ni`
+pnpm i @proj-alicization/server-shared -D
+yarn i @proj-alicization/server-shared -D
+npm i @proj-alicization/server-shared -D
 ```
 
 ```typescript
-import type { WebSocketEvents } from '@proj-airi/server-shared'
+import type { WebSocketEvents } from '@proj-alicization/server-shared'
 ```
 
 ## How to use the events in distributed use cases?

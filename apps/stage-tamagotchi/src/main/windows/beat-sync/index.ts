@@ -1,7 +1,7 @@
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { initScreenCaptureForWindow } from '@proj-airi/electron-screen-capture/main'
+import { initScreenCaptureForWindow } from '@proj-alicization/electron-screen-capture/main'
 import { BrowserWindow } from 'electron'
 
 import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/location'

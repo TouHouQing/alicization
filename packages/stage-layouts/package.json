@@ -1,17 +1,17 @@
 {
-  "name": "@proj-airi/stage-layouts",
+  "name": "@proj-alicization/stage-layouts",
   "type": "module",
   "private": true,
   "description": "Shared Layouts",
   "author": {
-    "name": "Moeru AI Project AIRI Team",
-    "email": "airi@moeru.ai",
-    "url": "https://github.com/moeru-ai"
+    "name": "Moeru AI Project Alicization Team",
+    "email": "alicization@moeru.ai",
+    "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/moeru-ai/airi.git",
+    "url": "https://github.com/TouHouQing/alicization.git",
     "directory": "packages/stage-layouts"
   },
   "exports": {
@@ -31,12 +31,12 @@
   "dependencies": {
     "@moeru/eventa": "^1.0.0-beta.1",
     "@moeru/std": "catalog:",
-    "@proj-airi/ccc": "workspace:*",
-    "@proj-airi/i18n": "workspace:*",
-    "@proj-airi/server-sdk": "workspace:*",
-    "@proj-airi/stage-ui": "workspace:*",
-    "@proj-airi/stage-ui-three": "workspace:*",
-    "@proj-airi/ui": "workspace:*",
+    "@proj-alicization/ccc": "workspace:*",
+    "@proj-alicization/i18n": "workspace:*",
+    "@proj-alicization/server-sdk": "workspace:*",
+    "@proj-alicization/stage-ui": "workspace:*",
+    "@proj-alicization/stage-ui-three": "workspace:*",
+    "@proj-alicization/ui": "workspace:*",
     "@vueuse/core": "^14.2.1",
     "@vueuse/shared": "^14.2.1",
     "@xsai-ext/providers": "catalog:",
@@ -59,7 +59,7 @@
   },
   "devDependencies": {
     "@nekopaw/tempora": "catalog:",
-    "@proj-airi/stage-shared": "workspace:^",
+    "@proj-alicization/stage-shared": "workspace:^",
     "@types/audioworklet": "catalog:",
     "@types/three": "^0.183.1",
     "unplugin-info": "catalog:",

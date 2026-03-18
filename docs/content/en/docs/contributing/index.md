@@ -1,6 +1,6 @@
 ---
 title: Contributing
-description: Contributing to Project AIRI
+description: Contributing to Project Alicization
 ---
 
 Hello! Thank you for your interest in contributing to this project. This guide will help you get started.
@@ -117,13 +117,13 @@ git rebase main
 
 ## Fork this project
 
-Click on the **Fork** button on the top right corner of the [moeru-ai/airi](https://github.com/moeru-ai/airi) page.
+Click on the **Fork** button on the top right corner of the [TouHouQing/alicization](https://github.com/TouHouQing/alicization) page.
 
 ## Clone
 
 ```shell
-git clone https://github.com/<your-github-username>/airi.git
-cd airi
+git clone https://github.com/<your-github-username>/alicization.git
+cd alicization
 ```
 
 ## Create your working branch
@@ -206,14 +206,14 @@ You should be able to browse the branch on your fork repository.
 If this is your first time contributing with this project, you need to add the upstream repository too:
 
 ```shell
-git remote add upstream https://github.com/moeru-ai/airi.git
+git remote add upstream https://github.com/TouHouQing/alicization.git
 ```
 
 :::
 
 ## Creating Pull Request
 
-Navigate to [moeru-ai/airi](https://github.com/moeru-ai/airi) page, click on the **Pull requests** tab, and click on the **New pull request** button, click on the **Compare across forks** link, and select your fork repository.
+Navigate to the [TouHouQing/alicization](https://github.com/TouHouQing/alicization) page, click on the **Pull requests** tab, and click on the **New pull request** button, click on the **Compare across forks** link, and select your fork repository.
 
 Review the changes, and click on the **Create pull request** button.
 

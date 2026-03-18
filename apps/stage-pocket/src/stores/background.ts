@@ -1,1 +1,1 @@
-export { type BackgroundItem, BackgroundKind, useBackgroundStore } from '@proj-airi/stage-layouts/stores/background'
+export { type BackgroundItem, BackgroundKind, useBackgroundStore } from '@proj-alicization/stage-layouts/stores/background'

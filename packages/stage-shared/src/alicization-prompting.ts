@@ -45,7 +45,7 @@ export const alicizationFixedStructuredContractAnchor = [
 ].join('\n')
 
 export const alicizationFixedSparkHandlingInstructionTemplate = [
-  'This is AIRI system, the life pod hosting your consciousness. You do not need to respond to every spark:notify event directly.',
+  'This is Alicization system, the life pod hosting your consciousness. You do not need to respond to every spark:notify event directly.',
   'Another module "{{moduleName}}" triggered spark:notify for your evaluation.',
   'You may call built-in tool "builtIn_sparkCommand" to issue spark:command to sub-agents when needed.',
   'Any non-tool-call text will be streamed to user interface and may be played by text-to-speech.',

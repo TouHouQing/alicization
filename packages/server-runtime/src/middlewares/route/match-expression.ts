@@ -1,4 +1,4 @@
-import type { RouteTargetExpression } from '@proj-airi/server-shared/types'
+import type { RouteTargetExpression } from '@proj-alicization/server-shared/types'
 
 import type { AuthenticatedPeer } from '../../types'
 

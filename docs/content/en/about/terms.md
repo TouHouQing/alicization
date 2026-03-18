@@ -1,9 +1,9 @@
 ---
 title: Terms & Conditions
-description: Terms & Conditions of Project AIRI
+description: Terms & Conditions of Project Alicization
 ---
 
-These terms and conditions apply to the AIRI app (as known as Project AIRI app, hereby referred to as "Application") for mobile devices that was created by Project AIRI team (hereby referred to as "Service Provider") as an Open Source service, and partially Paid commercial service.
+These terms and conditions apply to the Alicization app (as known as Project Alicization app, hereby referred to as "Application") for mobile devices that was created by Project Alicization team (hereby referred to as "Service Provider") as an Open Source service, and partially Paid commercial service.
 
 Upon downloading or utilizing the Application, you are automatically agreeing to the following terms. It is strongly advised that you thoroughly read and understand these terms prior to using the Application.
 
@@ -36,7 +36,7 @@ These terms and conditions are effective as of 2025-12-15
 
 ## Contact Us
 
-If you have any questions or suggestions about the Terms and Conditions, please do not hesitate to contact the Service Provider at airi@moeru.ai.
+If you have any questions or suggestions about the Terms and Conditions, please do not hesitate to contact the Service Provider at alicization.ai.
 
 * * *
 

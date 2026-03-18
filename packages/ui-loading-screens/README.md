@@ -1,4 +1,4 @@
-# @proj-airi/ui-loading-screens
+# @proj-alicization/ui-loading-screens
 
 <p align="center">
   [<a href="https://proj-airi-packages-ui-loading-screens.netlify.app/">Try it</a>]

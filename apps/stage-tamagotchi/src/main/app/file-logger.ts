@@ -3,7 +3,7 @@
  *
  * Sets up file-based logging by creating timestamped log files in the userData directory.
  *
- * Log file naming: airi-tamagotchi-{timestamp}.log
+ * Log file naming: alicization-tamagotchi-{timestamp}.log
  * - No rotation needed due to unique timestamp per session
  * - Unique timestamp per session avoids cross-process log file sharing
  * - Easy to identify and debug specific sessions
@@ -31,7 +31,7 @@ import { app } from 'electron'
 // Constants
 // ============================================================================
 
-const LOG_FILE_PREFIX = 'airi-tamagotchi'
+const LOG_FILE_PREFIX = 'alicization-tamagotchi'
 
 // ============================================================================
 // Public Types
@@ -76,7 +76,7 @@ function getErrorMessage(error: unknown): string {
 
 /**
  * Generates the log file path for the current session.
- * Format: {userData}/logs/airi-tamagotchi-{timestamp}.log
+ * Format: {userData}/logs/alicization-tamagotchi-{timestamp}.log
  */
 function createLogFilePath(logsDir: string, timestamp: number): string {
   return join(logsDir, `${LOG_FILE_PREFIX}-${timestamp}.log`)

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { DuckDBWasmDrizzleDatabase } from '@proj-airi/drizzle-duckdb-wasm'
-import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-airi/model-driver-lipsync'
-import type { Profile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
+import type { Live2DLipSync, Live2DLipSyncOptions } from '@proj-alicization/model-driver-lipsync'
+import type { Profile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
 import type {
   VrmActionBinding,
   VrmRuntimeCapabilitySnapshot,
-} from '@proj-airi/stage-ui-three'
+} from '@proj-alicization/stage-ui-three'
 import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { UnElevenLabsOptions } from 'unspeech'
 
@@ -13,17 +13,17 @@ import type { EmotionPayload } from '../../constants/emotions'
 
 import { drizzle } from '@proj-airi/drizzle-duckdb-wasm'
 import { getImportUrlBundles } from '@proj-airi/drizzle-duckdb-wasm/bundles/import-url-browser'
-import { createLive2DLipSync } from '@proj-airi/model-driver-lipsync'
-import { wlipsyncProfile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
-import { createPlaybackManager, createSpeechPipeline } from '@proj-airi/pipelines-audio'
-import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
-import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { animations, builtinActionBindings } from '@proj-airi/stage-ui-three/assets/vrm'
+import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
+import { wlipsyncProfile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
+import { createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
+import { Live2DScene, useLive2d } from '@proj-alicization/stage-ui-live2d'
+import { ThreeScene } from '@proj-alicization/stage-ui-three'
+import { animations, builtinActionBindings } from '@proj-alicization/stage-ui-three/assets/vrm'
 import {
   listVrmPresetFacialCapabilities,
   supportsVrmBaseEmotion,
-} from '@proj-airi/stage-ui-three/composables/vrm'
-import { createQueue } from '@proj-airi/stream-kit'
+} from '@proj-alicization/stage-ui-three/composables/vrm'
+import { createQueue } from '@proj-alicization/stream-kit'
 import { useBroadcastChannel, useMediaQuery } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'

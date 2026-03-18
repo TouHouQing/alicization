@@ -1,11 +1,11 @@
-import type { WebSocketEventOf, WebSocketEvents } from '@proj-airi/server-sdk'
+import type { WebSocketEventOf, WebSocketEvents } from '@proj-alicization/server-sdk'
 import type { ChatProvider, ChatProviderWithExtraOptions, EmbedProvider, EmbedProviderWithExtraOptions, SpeechProvider, SpeechProviderWithExtraOptions, TranscriptionProvider, TranscriptionProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { Message } from '@xsai/shared-chat'
 
 import type { StreamEvent } from '../../../../llm'
 
 import { errorMessageFrom } from '@moeru/std'
-import { renderAlicizationSparkHandlingInstruction } from '@proj-airi/stage-shared/alicization-prompting'
+import { renderAlicizationSparkHandlingInstruction } from '@proj-alicization/stage-shared/alicization-prompting'
 import { tool } from '@xsai/tool'
 import { nanoid } from 'nanoid'
 import { validate } from 'xsschema'
@@ -137,7 +137,7 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
       parameters: z.object({}).strict(),
       execute: async () => {
         noResponse = true
-        return 'AIRI System: Acknowledged, no response or action will be processed.'
+        return 'Alicization System: Acknowledged, no response or action will be processed.'
       },
     })
 
@@ -180,10 +180,10 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
           }))
         }
         catch (error) {
-          return `AIRI System: Error - invalid spark_command parameters: ${errorMessageFrom(error)}`
+          return `Alicization System: Error - invalid spark_command parameters: ${errorMessageFrom(error)}`
         }
 
-        return 'AIRI System: Acknowledged, command fired.'
+        return 'Alicization System: Acknowledged, command fired.'
       },
     })
 

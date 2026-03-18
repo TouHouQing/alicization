@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { Button } from '@proj-airi/ui'
+import { Button } from '@proj-alicization/ui'
 import { AndroidSettings, IOSSettings, NativeSettings } from 'capacitor-native-settings'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'

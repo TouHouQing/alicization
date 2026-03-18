@@ -7,7 +7,7 @@ import analyserWorklet from '@nekopaw/tempora/worklet?url'
 
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { startAnalyser as startTemporaAnalyser } from '@nekopaw/tempora'
-import { setupElectronScreenCapture } from '@proj-airi/electron-screen-capture/renderer'
+import { setupElectronScreenCapture } from '@proj-alicization/electron-screen-capture/renderer'
 
 import { isStageTamagotchi, isStageWeb, StageEnvironment } from '../environment'
 import { isElectronWindow } from '../window'

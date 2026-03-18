@@ -13,7 +13,7 @@ import VueMacros from 'vue-macros/vite'
 
 import { Download } from '@proj-airi/unplugin-fetch/vite'
 import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk/vite'
-import { createS3Provider, WarpDrivePlugin } from '@proj-airi/vite-plugin-warpdrive'
+import { createS3Provider, WarpDrivePlugin } from '@proj-alicization/vite-plugin-warpdrive'
 import { templateCompilerOptions } from '@tresjs/core'
 import { LFS, SpaceCard } from 'hfup/vite'
 import { defineConfig } from 'vite'
@@ -26,7 +26,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: [
       // Internal Packages
-      '@proj-airi/stage-ui/*',
+      '@proj-alicization/stage-ui/*',
       '@proj-airi/drizzle-duckdb-wasm',
       '@proj-airi/drizzle-duckdb-wasm/*',
 
@@ -52,12 +52,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@proj-airi/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
-      '@proj-airi/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-      '@proj-airi/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
-      '@proj-airi/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
-      '@proj-airi/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
-      '@proj-airi/stage-layouts': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
+      '@proj-alicization/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
+      '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+      '@proj-alicization/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
+      '@proj-alicization/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
+      '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+      '@proj-alicization/stage-layouts': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-layouts', 'src')),
     },
   },
   server: {
@@ -127,8 +127,8 @@ export default defineConfig({
           registerType: 'autoUpdate',
           includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
           manifest: {
-            name: 'AIRI',
-            short_name: 'AIRI',
+            name: 'Alicization',
+            short_name: 'Alicization',
             icons: [
               {
                 src: '/web-app-manifest-192x192.png',
@@ -202,7 +202,7 @@ export default defineConfig({
     ] }),
     SpaceCard({
       root: cwd(),
-      title: 'AIRI: Virtual Companion',
+      title: 'Alicization: Virtual Companion',
       emoji: '🧸',
       colorFrom: 'pink',
       colorTo: 'pink',
@@ -213,7 +213,7 @@ export default defineConfig({
         'onnx-community/whisper-base',
         'onnx-community/silero-vad',
       ],
-      short_description: 'AI driven VTuber & Companion, supports Live2D and VRM.',
+      short_description: 'AI driven VTuber & companion, supports Live2D and VRM.',
     }),
 
     // For the following example assets:
@@ -231,7 +231,7 @@ export default defineConfig({
       ? []
       : [
           WarpDrivePlugin({
-            prefix: env.STAGE_WEB_WARP_DRIVE_PREFIX || 'proj-airi/stage-web/main/',
+            prefix: env.STAGE_WEB_WARP_DRIVE_PREFIX || 'proj-alicization/stage-web/main/',
             include: [/\.wasm$/i, /\.ttf$/i, /\.vrm$/i, /\.zip$/i], // in existing assets, wasm, ttf, vrm files are the largest ones
             manifest: true,
             clean: false,
