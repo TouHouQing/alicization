@@ -36,7 +36,7 @@ description: Project Alicization 的使用条款
 
 ## 联系我们
 
-如果您对条款与条件有任何疑问或建议，请随时通过 alicization.ai 联系服务提供商。
+如果您对条款与条件有任何疑问或建议，请随时通过 qinghaoyang@foxmail.com 联系服务提供商。
 
 * * *
 
