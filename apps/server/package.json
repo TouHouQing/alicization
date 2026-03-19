@@ -8,8 +8,10 @@
     "auth:generate": "pnpm run apply:env -- better-auth generate --config src/scripts/auth.ts --output src/schemas/accounts.ts -y",
     "dev": "pnpm run apply:env -- tsx --watch src/app.ts",
     "start": "tsx src/app.ts",
+    "db:down": "docker compose stop db",
     "db:generate": "drizzle-kit generate",
-    "db:push": "pnpm run apply:env -- drizzle-kit push"
+    "db:push": "pnpm run apply:env -- drizzle-kit push",
+    "db:up": "docker compose up -d db"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.5.3",
@@ -17,6 +19,7 @@
     "@electric-sql/pglite": "catalog:",
     "@guiiai/logg": "catalog:",
     "@hono/node-server": "^1.19.11",
+    "@moeru/std": "catalog:",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/exporter-logs-otlp-proto": "^0.213.0",
     "@opentelemetry/exporter-metrics-otlp-proto": "^0.213.0",
@@ -33,6 +36,8 @@
     "@opentelemetry/semantic-conventions": "^1.40.0",
     "@proj-airi/drizzle-orm-browser-migrator": "^0.1.6",
     "@proj-alicization/server-schema": "workspace:*",
+    "@xsai-ext/providers": "catalog:",
+    "@xsai/stream-text": "catalog:",
     "better-auth": "^1.4.19",
     "drizzle-orm": "^0.45.1",
     "drizzle-valibot": "catalog:",

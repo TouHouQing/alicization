@@ -21,6 +21,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
+const localApiServerTarget = (env.VITE_SERVER_URL?.trim() || env.API_SERVER_URL?.trim() || 'http://localhost:3000').replace(/\/+$/, '')
 
 export default defineConfig({
   optimizeDeps: {
@@ -61,11 +62,27 @@ export default defineConfig({
     },
   },
   server: {
+    proxy: {
+      '/api': {
+        target: localApiServerTarget,
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     warmup: {
       clientFiles: [
         `${resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src'))}/*.vue`,
         `${resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src'))}/*.vue`,
       ],
+    },
+  },
+  preview: {
+    proxy: {
+      '/api': {
+        target: localApiServerTarget,
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   build: {

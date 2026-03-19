@@ -25,6 +25,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:example-PAssw0rd-xHjDYR.b7N@db:5432/postgres
     env_file:
       - path: .env
         required: false

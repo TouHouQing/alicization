@@ -4,7 +4,18 @@ import { useAuthStore } from '../stores/auth'
 
 export type OAuthProvider = 'google' | 'github'
 
-export const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'https://airi-api.moeru.ai'
+function resolveServerUrl() {
+  const configuredServerUrl = typeof import.meta.env.VITE_SERVER_URL === 'string'
+    ? import.meta.env.VITE_SERVER_URL.trim()
+    : ''
+  const fallbackServerUrl = typeof window !== 'undefined'
+    ? window.location.origin
+    : ''
+
+  return (configuredServerUrl || fallbackServerUrl).replace(/\/+$/, '')
+}
+
+export const SERVER_URL = resolveServerUrl()
 
 export const authClient = createAuthClient({
   baseURL: SERVER_URL,

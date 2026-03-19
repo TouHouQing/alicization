@@ -17,6 +17,8 @@
     "dev:docs": "pnpm -rF @proj-alicization/docs run dev",
     "dev:ui": "pnpm -rF @proj-alicization/stage-ui run story:dev",
     "dev:web": "pnpm -rF @proj-alicization/stage-web run dev",
+    "dev:web:local": "pnpm -F @proj-alicization/server run db:up && pnpm -r --parallel -F @proj-alicization/server -F @proj-alicization/stage-web run dev",
+    "dev:web:local:stop": "pnpm -F @proj-alicization/server run db:down",
     "dev:pocket:ios": "pnpm -rF @proj-alicization/stage-pocket run dev:ios",
     "dev:pocket:android": "pnpm -rF @proj-alicization/stage-pocket run dev:android",
     "dev:server": "pnpm -rF @proj-alicization/server-runtime run dev",

@@ -1,6 +1,8 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationBridgeChatStreamEvent,
   AlicizationCardScope,
+  AlicizationChatAbortResult,
   AlicizationConversationTurnInput,
   AlicizationGenesisInput,
   AlicizationInitializeGenesisResult,
@@ -30,6 +32,7 @@ import { errorMessageFrom } from '@moeru/std'
 import { nanoid } from 'nanoid'
 
 import { storage } from '../database/storage'
+import { SERVER_URL } from '../libs/auth'
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
 import { useCharacterNotebookStore } from './character'
 import { useAiriCardStore } from './modules/airi-card'
@@ -50,6 +53,14 @@ const browserCardsIndexKey = 'local:alicization/browser/card-ids:v1'
 const browserLlmConfigKey = 'local:alicization/browser/llm-config:v1'
 
 type BrowserRuntimeKind = 'web' | 'mobile'
+
+interface BrowserStreamServerErrorPayload {
+  message?: string
+}
+
+type BrowserStreamServerEvent
+  = AlicizationBridgeChatStreamEvent
+    | { type: 'error', error?: BrowserStreamServerErrorPayload | string | null }
 
 interface BrowserSoulRecord {
   revision: number
@@ -118,6 +129,57 @@ function sanitizeMultilineText(raw: unknown, fallback = '') {
   if (typeof raw !== 'string')
     return fallback
   return raw.replace(/\r\n/g, '\n').trim()
+}
+
+function createAbortError(reason = 'aborted') {
+  return new DOMException(`Turn aborted: ${reason}`, 'AbortError')
+}
+
+function normalizeServerStreamError(error: unknown) {
+  if (typeof error === 'string')
+    return new Error(error)
+
+  const message = typeof error === 'object' && error && 'message' in error
+    ? errorMessageFrom((error as { message?: unknown }).message)
+    : errorMessageFrom(error)
+
+  return new Error(message ?? 'Server stream failed.')
+}
+
+function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEvent {
+  if (!raw || typeof raw !== 'object')
+    throw new Error('Invalid server stream event payload.')
+
+  const event = raw as BrowserStreamServerEvent
+  switch (event.type) {
+    case 'text-delta':
+      return {
+        type: 'text-delta',
+        text: typeof event.text === 'string' ? event.text : '',
+      }
+    case 'tool-call':
+      return {
+        type: 'tool-call',
+        toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : '',
+        toolName: typeof event.toolName === 'string' ? event.toolName : '',
+        args: typeof event.args === 'string' ? event.args : '',
+        toolCallType: 'function',
+      }
+    case 'tool-result':
+      return {
+        type: 'tool-result',
+        toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : '',
+        result: event.result,
+      }
+    case 'finish':
+      return {
+        type: 'finish',
+      }
+    case 'error':
+      throw normalizeServerStreamError(event.error)
+    default:
+      throw new Error('Unsupported server stream event type.')
+  }
 }
 
 function normalizeCustomDirectives(raw: unknown) {
@@ -777,6 +839,7 @@ async function buildSensorySnapshot(runtime: BrowserRuntimeKind): Promise<Aliciz
 
 export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRuntimeKind }) {
   const runtime = options?.runtime ?? 'web'
+  const pendingChatStreams = new Map<string, AbortController>()
 
   setAlicizationBridge({
     bootstrap: async () => {
@@ -1164,6 +1227,112 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       await storage.removeItem(buildConversationTurnsKey(cardId))
     },
+    chatAbort: async (payload): Promise<AlicizationChatAbortResult> => {
+      if (runtime !== 'web') {
+        return {
+          accepted: false,
+          state: 'not-found',
+        }
+      }
+
+      const controller = pendingChatStreams.get(payload.turnId)
+      if (!controller) {
+        return {
+          accepted: false,
+          state: 'not-found',
+        }
+      }
+
+      controller.abort(createAbortError(payload.reason ?? 'renderer-abort'))
+      pendingChatStreams.delete(payload.turnId)
+      return {
+        accepted: true,
+        state: 'aborted',
+      }
+    },
+    streamChat: runtime === 'web'
+      ? async (payload, options) => {
+        const controller = new AbortController()
+        const outerAbortHandler = () => {
+          controller.abort(options.abortSignal?.reason ?? createAbortError('renderer-abort'))
+        }
+
+        if (options.abortSignal?.aborted) {
+          throw options.abortSignal.reason ?? createAbortError('renderer-abort')
+        }
+
+        pendingChatStreams.set(payload.turnId, controller)
+        options.abortSignal?.addEventListener('abort', outerAbortHandler, { once: true })
+
+        try {
+          const response = await fetch(`${SERVER_URL}/api/chats/stream`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              cardId: resolveActiveCardId(),
+              ...payload,
+            }),
+            signal: controller.signal,
+          })
+
+          if (!response.ok) {
+            let reason = `HTTP ${response.status}`
+            try {
+              const data = await response.json() as { message?: string }
+              if (typeof data?.message === 'string' && data.message.trim())
+                reason = data.message.trim()
+            }
+            catch {}
+            throw new Error(`Alicization server chat proxy failed: ${reason}`)
+          }
+
+          if (!response.body) {
+            throw new Error('Alicization server chat proxy returned no response body.')
+          }
+
+          const reader = response.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ''
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done)
+              break
+
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split('\n')
+            buffer = lines.pop() ?? ''
+
+            for (const rawLine of lines) {
+              const line = rawLine.trim()
+              if (!line)
+                continue
+              const event = normalizeServerStreamEvent(JSON.parse(line))
+              await options.onStreamEvent?.(event)
+            }
+          }
+
+          const tail = buffer.trim()
+          if (tail) {
+            const event = normalizeServerStreamEvent(JSON.parse(tail))
+            await options.onStreamEvent?.(event)
+          }
+        }
+        catch (error) {
+          if (controller.signal.aborted) {
+            throw controller.signal.reason ?? createAbortError('renderer-abort')
+          }
+          throw error
+        }
+        finally {
+          pendingChatStreams.delete(payload.turnId)
+          options.abortSignal?.removeEventListener('abort', outerAbortHandler)
+        }
+      }
+      : undefined,
     deleteCardScope: async (scope: AlicizationCardScope) => {
       const normalizedCardId = normalizeCardId(scope.cardId)
       await removeCardStorage(normalizedCardId)
@@ -1181,6 +1350,8 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
   })
 
   return () => {
+    pendingChatStreams.forEach(controller => controller.abort(createAbortError('bridge-dispose')))
+    pendingChatStreams.clear()
     clearAlicizationBridge()
   }
 }

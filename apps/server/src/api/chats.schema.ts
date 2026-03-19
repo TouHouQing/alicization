@@ -1,4 +1,4 @@
-import { array, literal, number, object, optional, string, union } from 'valibot'
+import { array, boolean, literal, number, object, optional, record, string, union, unknown } from 'valibot'
 
 const ChatTypeSchema = union([
   literal('private'),
@@ -42,4 +42,27 @@ export const ChatSyncSchema = object({
     characterId: optional(string()),
   }))),
   messages: array(ChatSyncMessageSchema),
+})
+
+export const ChatStreamMessageSchema = object({
+  role: union([
+    literal('system'),
+    literal('user'),
+    literal('assistant'),
+    literal('tool'),
+  ]),
+  content: unknown(),
+  toolCallId: optional(string()),
+  toolName: optional(string()),
+})
+
+export const ChatStreamSchema = object({
+  cardId: optional(string()),
+  turnId: string(),
+  providerId: string(),
+  model: string(),
+  providerConfig: optional(record(string(), unknown())),
+  messages: array(ChatStreamMessageSchema),
+  supportsTools: optional(boolean()),
+  waitForTools: optional(boolean()),
 })

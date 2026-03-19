@@ -1,5 +1,8 @@
 import type { Database } from '../libs/db'
 
+import { errorMessageFrom } from '@moeru/std'
+import { createOpenAI } from '@xsai-ext/providers/create'
+import { streamText } from '@xsai/stream-text'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { createConflictError, createForbiddenError } from '../utils/error'
@@ -35,6 +38,39 @@ interface SyncChatPayload {
   messages: SyncChatMessagePayload[]
 }
 
+interface StreamChatMessagePayload {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: unknown
+  toolCallId?: string
+  toolName?: string
+}
+
+interface StreamChatPayload {
+  cardId?: string
+  turnId: string
+  providerId: string
+  model: string
+  providerConfig?: Record<string, unknown>
+  messages: StreamChatMessagePayload[]
+  supportsTools?: boolean
+  waitForTools?: boolean
+}
+
+type StreamChatEvent
+  = | { type: 'text-delta', text: string }
+    | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
+    | { type: 'tool-result', toolCallId: string, result?: unknown }
+    | ({ type: 'finish' } & Record<string, unknown>)
+
+type NormalizedStreamMessage
+  = | { role: 'tool', content: any, tool_call_id: string }
+    | { role: 'system' | 'user' | 'assistant', content: any }
+
+interface StreamChatOptions {
+  signal?: AbortSignal
+  onEvent: (event: StreamChatEvent) => Promise<void> | void
+}
+
 function resolveSenderId(role: MessageRole, userId: string, characterId?: string) {
   if (role === 'user')
     return userId
@@ -43,6 +79,55 @@ function resolveSenderId(role: MessageRole, userId: string, characterId?: string
 
 function pickCharacterId(members: SyncChatMemberPayload[] | undefined) {
   return members?.find(member => member.type === 'character' && member.characterId)?.characterId
+}
+
+function sanitizeText(raw: unknown, fallback = '') {
+  if (typeof raw !== 'string')
+    return fallback
+  const trimmed = raw.trim()
+  return trimmed || fallback
+}
+
+function normalizeProviderConfig(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return {} as Record<string, unknown>
+  return raw as Record<string, unknown>
+}
+
+function normalizeRequestHeaders(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return undefined
+
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter((entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string')
+
+  return entries.length > 0
+    ? Object.fromEntries(entries)
+    : undefined
+}
+
+function normalizeStreamMessageContent(content: unknown) {
+  if (typeof content === 'string')
+    return content
+
+  return JSON.stringify(content ?? '')
+}
+
+function resolveStreamMessages(messages: StreamChatMessagePayload[]): NormalizedStreamMessage[] {
+  return messages.map((message) => {
+    if (message.role === 'tool') {
+      return {
+        role: 'tool' as const,
+        content: normalizeStreamMessageContent(message.content),
+        tool_call_id: sanitizeText(message.toolCallId),
+      }
+    }
+
+    return {
+      role: message.role,
+      content: normalizeStreamMessageContent(message.content),
+    }
+  })
 }
 
 export function createChatService(db: Database) {
@@ -161,6 +246,110 @@ export function createChatService(db: Database) {
         }
 
         return { chatId }
+      })
+    },
+    async streamChat(payload: StreamChatPayload, options: StreamChatOptions) {
+      const providerId = sanitizeText(payload.providerId)
+      const model = sanitizeText(payload.model)
+      if (!providerId || !model) {
+        throw new Error('Missing providerId/model for chat stream.')
+      }
+
+      const providerConfig = normalizeProviderConfig(payload.providerConfig)
+      const apiKey = sanitizeText(providerConfig.apiKey)
+      const baseUrlRaw = sanitizeText(providerConfig.baseUrl ?? providerConfig.baseURL, 'https://api.openai.com/v1')
+      const baseUrl = baseUrlRaw.endsWith('/') ? baseUrlRaw : `${baseUrlRaw}/`
+      const requestHeaders = normalizeRequestHeaders(providerConfig.headers)
+
+      if (!apiKey) {
+        throw new Error('Missing API key for chat stream.')
+      }
+
+      const provider = createOpenAI(apiKey, baseUrl)
+      const chatConfig = provider.chat(model)
+
+      return await new Promise<void>((resolve, reject) => {
+        let settled = false
+        const finish = () => {
+          if (settled)
+            return
+          settled = true
+          resolve()
+        }
+        const fail = (error: unknown) => {
+          if (settled)
+            return
+          settled = true
+          reject(error)
+        }
+
+        if (options.signal?.aborted) {
+          fail(options.signal.reason ?? new DOMException('Aborted', 'AbortError'))
+          return
+        }
+
+        const abortHandler = () => {
+          fail(options.signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+        }
+
+        options.signal?.addEventListener('abort', abortHandler, { once: true })
+
+        void Promise.resolve(streamText({
+          ...chatConfig,
+          maxSteps: 10,
+          messages: resolveStreamMessages(payload.messages),
+          headers: requestHeaders,
+          abortSignal: options.signal,
+          onEvent: async (event: any) => {
+            try {
+              switch (event?.type) {
+                case 'text-delta':
+                  await options.onEvent({ type: 'text-delta', text: String(event.text ?? '') })
+                  break
+                case 'tool-call':
+                  await options.onEvent({
+                    type: 'tool-call',
+                    toolCallId: sanitizeText(event.toolCallId),
+                    toolName: sanitizeText(event.toolName ?? event.name),
+                    args: typeof event.args === 'string'
+                      ? event.args
+                      : JSON.stringify(event.args ?? event.arguments ?? {}),
+                    toolCallType: 'function',
+                  })
+                  break
+                case 'tool-result':
+                  await options.onEvent({
+                    type: 'tool-result',
+                    toolCallId: sanitizeText(event.toolCallId),
+                    result: event.result,
+                  })
+                  break
+                case 'finish':
+                  await options.onEvent({
+                    type: 'finish',
+                    finishReason: sanitizeText(event.finishReason),
+                    usage: event.usage ?? undefined,
+                  })
+                  finish()
+                  break
+                case 'error':
+                  fail(event.error ?? new Error('Stream error'))
+                  break
+                default:
+                  break
+              }
+            }
+            catch (error) {
+              fail(error)
+            }
+          },
+        }))
+          .catch((error) => {
+            fail(new Error(errorMessageFrom(error) ?? String(error)))
+          })
+          .finally(() => {
+            options.signal?.removeEventListener('abort', abortHandler)
+          })
       })
     },
   }
