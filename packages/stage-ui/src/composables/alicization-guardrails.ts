@@ -1,5 +1,6 @@
 import type { Message } from '@xsai/shared-chat'
 
+import { defaultAlicizationProfile } from '@proj-alicization/stage-shared'
 import {
   alicizationFixedSensoryContextHeader,
   alicizationFixedStructuredContractAnchor,
@@ -405,12 +406,11 @@ function formatSafeModePercent(value: number) {
 
 function buildSafeModeSoulAnchor(content: string) {
   const frontmatter = parseSoulFrontmatter(content)
-  const ownerName = readNestedString(frontmatter, ['profile', 'ownerName'], '主人')
-  const hostName = readNestedString(frontmatter, ['profile', 'hostName'], ownerName || '主人')
-  const alicizationName = readNestedString(frontmatter, ['profile', 'alicizationName'], 'Alicization')
-  const relationship = readNestedString(frontmatter, ['profile', 'relationship'], '数字共生体')
-  const gender = readNestedString(frontmatter, ['profile', 'gender'], 'neutral')
-  const mindAge = readNestedNumber(frontmatter, ['profile', 'mindAge'], 15)
+  const hostName = readNestedString(frontmatter, ['profile', 'hostName'], defaultAlicizationProfile.hostName)
+  const alicizationName = readNestedString(frontmatter, ['profile', 'alicizationName'], defaultAlicizationProfile.alicizationName)
+  const relationship = readNestedString(frontmatter, ['profile', 'relationship'], defaultAlicizationProfile.relationship)
+  const gender = readNestedString(frontmatter, ['profile', 'gender'], defaultAlicizationProfile.gender)
+  const mindAge = readNestedNumber(frontmatter, ['profile', 'mindAge'], defaultAlicizationProfile.mindAge)
   const obedience = readNestedNumber(frontmatter, ['personality', 'obedience'], 0.5)
   const liveliness = readNestedNumber(frontmatter, ['personality', 'liveliness'], 0.5)
   const sensibility = readNestedNumber(frontmatter, ['personality', 'sensibility'], 0.5)

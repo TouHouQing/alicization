@@ -29,6 +29,11 @@ import type {
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
+import {
+  defaultAlicizationCustomDirectives,
+  defaultAlicizationPersonality,
+  defaultAlicizationProfile,
+} from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
 import { storage } from '../database/storage'
@@ -83,23 +88,11 @@ interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConvers
 const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
-  custom_directives: '',
+  custom_directives: defaultAlicizationCustomDirectives,
   host_attitude: '礼貌而克制，保持观察',
   core_incarnation: '',
-  profile: {
-    ownerName: '',
-    hostName: '',
-    alicizationName: 'Alicization',
-    gender: 'neutral',
-    genderCustom: '',
-    relationship: '数字共生体',
-    mindAge: 15,
-  },
-  personality: {
-    obedience: 0.5,
-    liveliness: 0.5,
-    sensibility: 0.5,
-  },
+  profile: { ...defaultAlicizationProfile },
+  personality: { ...defaultAlicizationPersonality },
   boundaries: {
     killSwitch: true,
     mcpGuard: true,

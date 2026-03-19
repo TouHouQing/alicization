@@ -3,6 +3,7 @@ import type { OnboardingStepNextHandler, OnboardingStepPrevHandler } from './typ
 
 import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
+import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import Alert from '../../../misc/alert.vue'
@@ -23,6 +24,22 @@ const {
   providerModels,
   isLoadingActiveProviderModels,
 } = storeToRefs(consciousnessStore)
+
+const autoNavigating = ref(false)
+
+watch(activeModel, async (nextModel, previousModel) => {
+  if (autoNavigating.value)
+    return
+
+  const trimmedModel = nextModel.trim()
+  if (!trimmedModel)
+    return
+  if (trimmedModel === previousModel.trim())
+    return
+
+  autoNavigating.value = true
+  await props.onNext()
+})
 </script>
 
 <template>

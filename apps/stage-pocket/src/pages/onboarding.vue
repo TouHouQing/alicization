@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { OnboardingConfiguredPayload } from '@proj-alicization/stage-ui/components'
+
 import { OnboardingScreen } from '@proj-alicization/stage-ui/components'
 import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding'
 import { useTheme } from '@proj-alicization/ui'
@@ -11,13 +13,13 @@ const { isDark } = useTheme()
 
 const bgClass = computed(() => isDark.value ? 'bg-[#0f0f0f]' : 'bg-white')
 
-async function finishOnboarding(mode: 'configured' | 'skipped') {
+async function finishOnboarding(mode: 'configured' | 'skipped', payload?: OnboardingConfiguredPayload) {
   if (mode === 'configured')
     onboardingStore.markSetupCompleted()
   else
     onboardingStore.markSetupSkipped()
 
-  await router.replace('/')
+  await router.replace(payload?.followUpRoute ?? '/')
 }
 </script>
 
@@ -26,7 +28,7 @@ async function finishOnboarding(mode: 'configured' | 'skipped') {
     <div class="onboarding-scroll" w-full flex-1 px-3>
       <div class="onboarding-content" h-full>
         <OnboardingScreen
-          @configured="finishOnboarding('configured')"
+          @configured="payload => finishOnboarding('configured', payload)"
           @skipped="finishOnboarding('skipped')"
         />
       </div>

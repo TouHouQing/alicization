@@ -8,21 +8,43 @@ function toCsv(rows: Array<Array<unknown>>): string {
     .join('\n')
 }
 
+interface CsvDownloadLink {
+  href: string
+  download: string
+  click: () => void
+}
+
+interface CsvDocumentLike {
+  createElement: (tagName: 'a') => CsvDownloadLink
+}
+
+interface CsvUrlLike {
+  createObjectURL: (blob: Blob) => string
+  revokeObjectURL: (url: string) => void
+}
+
 export function exportCsv(rows: Array<Array<unknown>>, basename: string) {
   if (!rows.length)
     return
 
-  if (typeof Blob === 'undefined' || typeof document === 'undefined' || typeof URL === 'undefined') {
+  const browserScope = globalThis as typeof globalThis & {
+    document?: CsvDocumentLike
+    URL?: CsvUrlLike
+  }
+  const browserDocument = browserScope.document
+  const browserUrl = browserScope.URL
+
+  if (typeof Blob === 'undefined' || !browserDocument || !browserUrl) {
     console.warn('[CSV] Export is only supported in browser environments')
     return
   }
 
   const csv = toCsv(rows)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
+  const url = browserUrl.createObjectURL(blob)
+  const link = browserDocument.createElement('a')
   link.href = url
   link.download = `${basename}-${Date.now()}.csv`
   link.click()
-  URL.revokeObjectURL(url)
+  browserUrl.revokeObjectURL(url)
 }

@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import type { OnboardingConfiguredPayload } from '@proj-alicization/stage-ui/components'
+
 import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { OnboardingScreen } from '@proj-alicization/stage-ui/components'
 import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding'
 import { useTheme } from '@proj-alicization/ui'
 import { computed } from 'vue'
 
-import { electronOnboardingClose } from '../../shared/eventa'
+import { electronOnboardingClose, electronOpenSettings } from '../../shared/eventa'
 
 const onboardingStore = useOnboardingStore()
 const { isDark } = useTheme()
@@ -13,15 +15,18 @@ const { isDark } = useTheme()
 const bgClass = computed(() => isDark.value ? 'bg-[#0f0f0f]' : 'bg-white')
 
 const closeWindow = useElectronEventaInvoke(electronOnboardingClose)
+const openSettings = useElectronEventaInvoke(electronOpenSettings)
 
 async function handleSkipped() {
   onboardingStore.markSetupSkipped()
   await closeWindow()
 }
 
-async function handleConfigured() {
+async function handleConfigured(payload?: OnboardingConfiguredPayload) {
   onboardingStore.markSetupCompleted()
   await closeWindow()
+  if (payload?.followUpRoute)
+    await openSettings({ route: payload.followUpRoute })
 }
 </script>
 
@@ -30,7 +35,7 @@ async function handleConfigured() {
     <div :class="bgClass" w="100dvw" min-h="12" w-full flex-shrink-0 select-none data-tauri-drag-region />
     <div class="onboarding-scroll" w-full flex-1 px-3>
       <div class="onboarding-content" h-full>
-        <OnboardingScreen @skipped="handleSkipped" @configured="handleConfigured" />
+        <OnboardingScreen @skipped="handleSkipped" @configured="payload => handleConfigured(payload)" />
       </div>
     </div>
   </div>

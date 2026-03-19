@@ -1,3 +1,4 @@
+export * from './alicization-defaults'
 export * from './alicization-prompting'
 export * from './env-vars'
 export * from './environment'

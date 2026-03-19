@@ -1,5 +1,6 @@
 import type { Card, ccv3 } from '@proj-alicization/ccc'
 
+import { defaultAlicizationCardName } from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
@@ -56,6 +57,7 @@ export interface AiriCard extends Card {
 
 export const useAiriCardStore = defineStore('airi-card', () => {
   const defaultCardId = 'default'
+  const legacyDefaultCardName = 'ReLU'
   const cards = useLocalStorageManualReset<Map<string, AiriCard>>('airi-cards', new Map())
   const activeCardId = useLocalStorageManualReset<string>('airi-card-active-id', defaultCardId)
 
@@ -122,6 +124,40 @@ export const useAiriCardStore = defineStore('airi-card', () => {
 
   const getCard = (id: string) => {
     return cards.value.get(id)
+  }
+
+  function syncCurrentConsciousnessToCard(cardId = activeCardId.value || defaultCardId) {
+    initialize()
+
+    const normalizedCardId = cardId.trim() || defaultCardId
+    const existingCard = cards.value.get(normalizedCardId)
+    if (!existingCard)
+      return false
+
+    const provider = activeConsciousnessProvider.value.trim()
+    const model = activeConsciousnessModel.value.trim()
+    if (!provider || !model)
+      return false
+
+    const extension = resolveAiriExtension(existingCard)
+    cards.value.set(normalizedCardId, newAiriCard({
+      ...existingCard,
+      extensions: {
+        ...existingCard.extensions,
+        airi: {
+          ...extension,
+          modules: {
+            ...extension.modules,
+            consciousness: {
+              provider,
+              model,
+            },
+          },
+        },
+      },
+    }))
+
+    return true
   }
 
   function resolveAiriExtension(card: Card | ccv3.CharacterCardV3): AiriExtension {
@@ -225,10 +261,19 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   function initialize() {
     if (!cards.value.has(defaultCardId)) {
       cards.value.set(defaultCardId, newAiriCard({
-        name: 'ReLU',
+        name: defaultAlicizationCardName,
         version: '1.0.0',
         description: '',
       }))
+    }
+    else {
+      const defaultCard = cards.value.get(defaultCardId)
+      if (defaultCard?.name === legacyDefaultCardName) {
+        cards.value.set(defaultCardId, newAiriCard({
+          ...defaultCard,
+          name: defaultAlicizationCardName,
+        }))
+      }
     }
     if (!activeCardId.value || !cards.value.has(activeCardId.value))
       activeCardId.value = defaultCardId
@@ -278,6 +323,7 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     removeCard,
     updateCard,
     getCard,
+    syncCurrentConsciousnessToCard,
     resetState,
     initialize,
 

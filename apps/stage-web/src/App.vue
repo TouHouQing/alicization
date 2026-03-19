@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { OnboardingConfiguredPayload } from '@proj-alicization/stage-ui/components'
+
 import { OnboardingDialog, ToasterRoot } from '@proj-alicization/stage-ui/components'
 import { useBrowserAlicizationRuntime } from '@proj-alicization/stage-ui/composables/use-browser-alicization-runtime'
 import { useSharedAnalyticsStore } from '@proj-alicization/stage-ui/stores/analytics'
@@ -15,7 +17,7 @@ import { StageTransitionGroup } from '@proj-alicization/ui-transitions'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterView } from 'vue-router'
+import { RouterView, useRouter } from 'vue-router'
 import { toast, Toaster } from 'vue-sonner'
 
 import PerformanceOverlay from './components/Devtools/PerformanceOverlay.vue'
@@ -38,6 +40,7 @@ const { isDark } = useTheme()
 const cardStore = useAiriCardStore()
 const analyticsStore = useSharedAnalyticsStore()
 const browserAlicizationRuntime = useBrowserAlicizationRuntime({ runtime: 'web' })
+const router = useRouter()
 
 const primaryColor = computed(() => {
   return isDark.value
@@ -97,8 +100,10 @@ onUnmounted(() => {
 })
 
 // Handle first-time setup events
-function handleSetupConfigured() {
+async function handleSetupConfigured(payload?: OnboardingConfiguredPayload) {
   onboardingStore.markSetupCompleted()
+  if (payload?.followUpRoute)
+    await router.push(payload.followUpRoute)
 }
 
 function handleSetupSkipped() {

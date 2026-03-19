@@ -210,9 +210,6 @@ const editPersonaPanelRef = ref<AlicizationPanelExposed | null>(null)
 function createDefaultPersonaDraft(seed?: Card) {
   return createDefaultSoulForgeDraft({
     seedAlicizationName: seed?.name,
-    ownerName: t('settings.pages.card.alicization.soul_forge.defaults.owner_name'),
-    hostName: t('settings.pages.card.alicization.soul_forge.defaults.host_name'),
-    relationship: t('settings.pages.card.alicization.soul_forge.defaults.relationship'),
   })
 }
 

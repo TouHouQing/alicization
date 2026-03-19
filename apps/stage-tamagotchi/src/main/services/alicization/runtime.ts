@@ -52,6 +52,11 @@ import { pid, platform } from 'node:process'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
+import {
+  defaultAlicizationCustomDirectives,
+  defaultAlicizationPersonality,
+  defaultAlicizationProfile,
+} from '@proj-alicization/stage-shared'
 import { createOpenAI } from '@xsai-ext/providers/create'
 import { streamText } from '@xsai/stream-text'
 import { tool } from '@xsai/tool'
@@ -135,23 +140,11 @@ const legacySoulPersonaNotesEnd = `<!-- ${['AL', 'ICE'].join('')}_PERSONA_NOTES_
 const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
-  custom_directives: '',
+  custom_directives: defaultAlicizationCustomDirectives,
   host_attitude: '礼貌而克制，保持观察',
   core_incarnation: '',
-  profile: {
-    ownerName: '',
-    hostName: '',
-    alicizationName: 'Alicization',
-    gender: 'neutral',
-    genderCustom: '',
-    relationship: '数字共生体',
-    mindAge: 15,
-  },
-  personality: {
-    obedience: 0.5,
-    liveliness: 0.5,
-    sensibility: 0.5,
-  },
+  profile: { ...defaultAlicizationProfile },
+  personality: { ...defaultAlicizationPersonality },
   boundaries: {
     killSwitch: true,
     mcpGuard: true,

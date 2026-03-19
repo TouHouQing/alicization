@@ -363,6 +363,28 @@ describe('chat orchestrator', () => {
     expect(userMessages[0]?.id).toBe(`${turnPayload?.turnId}:user`)
   })
 
+  it('uses deterministic assistant message id derived from turnId to prevent replay duplicates', async () => {
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"stable","emotion":"neutral","reply":"在这里。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你在吗', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const turnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    const assistantMessages = ensureSessionMessages(activeSessionId.value).filter(message => message.role === 'assistant')
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.id).toBe(turnPayload?.turnId)
+  })
+
   it('drops in-flight turn persistence after kill-switch abort', async () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await new Promise<void>((resolve, reject) => {

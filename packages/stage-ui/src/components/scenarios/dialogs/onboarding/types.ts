@@ -9,15 +9,15 @@ export interface ProviderConfigData {
   accountId: string
 }
 
+export interface OnboardingConfiguredPayload {
+  followUpRoute?: string
+}
+
 export type OnboardingStepNextHandler = (configData?: ProviderConfigData) => Promise<void> | void
 
 export interface OnboardingStep {
   id: string
-  component: Component<{
-    configData?: ProviderConfigData
-    onNext: OnboardingStepNextHandler
-    onPrevious?: OnboardingStepPrevHandler
-  }>
+  component: Component
   props?: () => Record<string, unknown>
   beforeNext?: OnboardingStepGuard
   beforePrev?: OnboardingStepGuard

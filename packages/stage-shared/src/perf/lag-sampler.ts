@@ -7,21 +7,61 @@ interface LagEnabled {
   memory: boolean
 }
 
+interface AnimationFrameScope {
+  requestAnimationFrame?: (callback: (ts: number) => void) => number
+  cancelAnimationFrame?: (id: number) => void
+}
+
+interface LongTaskEntryLike {
+  startTime: number
+  duration: number
+}
+
+interface PerformanceObserverEntryListLike {
+  getEntries: () => LongTaskEntryLike[]
+}
+
+interface PerformanceObserverLike {
+  disconnect: () => void
+  observe: (options?: unknown) => void
+}
+
+interface PerformanceObserverConstructorLike {
+  new (callback: (list: PerformanceObserverEntryListLike) => void): PerformanceObserverLike
+}
+
+interface PerformanceMemoryLike {
+  usedJSHeapSize: number
+}
+
+interface PerformanceLike {
+  now: () => number
+  memory?: PerformanceMemoryLike
+}
+
 export function createLagSampler(tracer: PerfTracer) {
+  const browserScope = globalThis as typeof globalThis & AnimationFrameScope & {
+    PerformanceObserver?: PerformanceObserverConstructorLike
+    performance?: PerformanceLike
+  }
   let rafId: number | undefined
   let lastTs: number | undefined
-  let longTaskObserver: PerformanceObserver | undefined
+  let longTaskObserver: PerformanceObserverLike | undefined
   let memoryTimer: ReturnType<typeof setInterval> | undefined
 
   function stopRaf() {
     if (rafId !== undefined) {
-      cancelAnimationFrame(rafId)
+      browserScope.cancelAnimationFrame?.(rafId)
       rafId = undefined
     }
     lastTs = undefined
   }
 
   function startRaf() {
+    const requestFrame = browserScope.requestAnimationFrame
+    if (!requestFrame)
+      return
+
     stopRaf()
 
     const loop = (ts: number) => {
@@ -45,10 +85,10 @@ export function createLagSampler(tracer: PerfTracer) {
       }
 
       lastTs = ts
-      rafId = requestAnimationFrame(loop)
+      rafId = requestFrame(loop)
     }
 
-    rafId = requestAnimationFrame(loop)
+    rafId = requestFrame(loop)
   }
 
   function stopLongTaskObserver() {
@@ -58,11 +98,12 @@ export function createLagSampler(tracer: PerfTracer) {
 
   function startLongTaskObserver() {
     stopLongTaskObserver()
-    if (!('PerformanceObserver' in window))
+    const PerformanceObserverCtor = browserScope.PerformanceObserver as PerformanceObserverConstructorLike | undefined
+    if (!PerformanceObserverCtor)
       return
 
     try {
-      longTaskObserver = new PerformanceObserver((list) => {
+      const observer: PerformanceObserverLike = new PerformanceObserverCtor((list) => {
         for (const entry of list.getEntries()) {
           tracer.emit({
             tracerId: 'lag',
@@ -72,7 +113,8 @@ export function createLagSampler(tracer: PerfTracer) {
           })
         }
       })
-      longTaskObserver.observe({ type: 'longtask', buffered: true })
+      observer.observe({ type: 'longtask', buffered: true } as unknown)
+      longTaskObserver = observer
     }
     catch (error) {
       console.warn('[LagSampler] Failed to start longtask observer', error)
@@ -88,7 +130,7 @@ export function createLagSampler(tracer: PerfTracer) {
 
   function startMemoryTimer() {
     stopMemoryTimer()
-    const perfWithMemory = performance as Performance & { memory?: { usedJSHeapSize: number } }
+    const perfWithMemory = browserScope.performance
     if (!perfWithMemory.memory)
       return
 
@@ -96,7 +138,7 @@ export function createLagSampler(tracer: PerfTracer) {
       tracer.emit({
         tracerId: 'lag',
         name: 'memory',
-        ts: performance.now(),
+        ts: perfWithMemory.now(),
         duration: perfWithMemory.memory?.usedJSHeapSize ?? 0,
       })
     }, 1000)

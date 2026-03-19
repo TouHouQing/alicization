@@ -34,6 +34,15 @@ dialogs:
     no-models: 找不到可用模型
     no-models-help: >-
       请返回上一步并检查您的 API Key，或检查网络连接。
+    action-mapping-guide:
+      title: 已同步到默认 Alicization 角色卡
+      description: 您刚刚配置的服务来源和默认模型已经自动绑定到当前默认激活的 Alicization 角色卡。
+      summaryTitle: 下一步建议
+      summaryDescription: 接下来请前往“角色模型”页面，为 Alicization 配置动作映射描述，让她更准确地理解什么时候该调用哪些动作。
+      nextTitle: 为什么现在要配动作映射？
+      nextDescription: 补全 Action Key、Label 和 Description 之后，这些动作才会作为可调用能力暴露给 Alicization。
+      skip: 稍后再说
+      open: 去配置动作映射
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.
@@ -330,9 +339,9 @@ pages:
           neutral: 中性
           custom: 自定义
         defaults:
-          owner_name: 主人
+          owner_name: 指挥官
           host_name: 主人
-          relationship: 数字共生体
+          relationship: 女仆
         temperament:
           eyebrow: 气质轴
           title: 气质基线

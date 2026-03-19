@@ -177,45 +177,39 @@ async function loadModel() {
   await until(modelLoading).not.toBeTruthy()
 
   await modelLoadMutex.acquire()
+  try {
+    modelLoading.value = true
+    componentState.value = 'loading'
 
-  modelLoading.value = true
-  componentState.value = 'loading'
-
-  if (!pixiApp.value || !pixiApp.value.stage) {
-    try {
-      // NOTICE: shouldUpdateView can fire while the canvas (pixiApp) is being torn down/recreated.
-      // Wait briefly for the new stage instead of bailing out, otherwise we keep a blank screen.
-      await until(() => !!pixiApp.value && !!pixiApp.value.stage).toBeTruthy({ timeout: 1500 })
+    if (!pixiApp.value || !pixiApp.value.stage) {
+      try {
+        // NOTICE: shouldUpdateView can fire while the canvas (pixiApp) is being torn down/recreated.
+        // Wait briefly for the new stage instead of bailing out, otherwise we keep a blank screen.
+        await until(() => !!pixiApp.value && !!pixiApp.value.stage).toBeTruthy({ timeout: 1500 })
+      }
+      catch {
+        return
+      }
     }
-    catch {
-      modelLoading.value = false
-      componentState.value = 'mounted'
+
+    // REVIEW: here as await until(...) guarded the pixiApp and stage to be valid.
+    if (model.value && pixiApp.value?.stage) {
+      try {
+        pixiApp.value.stage.removeChild(model.value)
+        model.value.destroy()
+      }
+      catch (error) {
+        console.warn('Error removing old model:', error)
+      }
+      model.value = undefined
+    }
+
+    if (!modelSrcRef.value) {
+      console.warn('No Live2D model source provided.')
       return
     }
-  }
 
-  // REVIEW: here as await until(...) guarded the pixiApp and stage to be valid.
-  if (model.value && pixiApp.value?.stage) {
-    try {
-      pixiApp.value.stage.removeChild(model.value)
-      model.value.destroy()
-    }
-    catch (error) {
-      console.warn('Error removing old model:', error)
-    }
-    model.value = undefined
-  }
-  if (!modelSrcRef.value) {
-    console.warn('No Live2D model source provided.')
-    modelLoading.value = false
-    componentState.value = 'mounted'
-    return
-  }
-
-  try {
     if (isUnmounted) {
-      modelLoading.value = false
-      componentState.value = 'mounted'
       return
     }
 

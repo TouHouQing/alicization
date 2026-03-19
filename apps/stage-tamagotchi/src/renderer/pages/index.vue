@@ -17,6 +17,7 @@ import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/a
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
 import { useVAD } from '@proj-alicization/stage-ui/stores/ai/models/vad'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
+import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useLive2d } from '@proj-alicization/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline } from '@proj-alicization/stage-ui/stores/modules/hearing'
@@ -77,7 +78,9 @@ const isTransparentByThree = useThreeSceneIsTransparentAtPoint(
   { regionRadius: 25 },
 )
 
-const { stageModelRenderer } = storeToRefs(useSettings())
+const settingsStore = useSettings()
+const displayModelsStore = useDisplayModelsStore()
+const { stageModelRenderer, stageModelSelectedUrl } = storeToRefs(settingsStore)
 const { stagePaused } = storeToRefs(useStageWindowLifecycleStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
 const shouldUseThreeTransparencyHitTest = computed(() => shouldSampleStageTransparency({
@@ -107,6 +110,11 @@ const setIgnoreMouseEvents = useElectronEventaInvoke(electron.window.setIgnoreMo
 const live2dStore = useLive2d()
 const { scale, positionInPercentageString } = storeToRefs(live2dStore)
 const { live2dLookAtX, live2dLookAtY } = storeToRefs(useWindowStore())
+const stageLoadRecoveryAttempts = ref(0)
+const stageLoadRecoveryInFlight = ref(false)
+let stageLoadRecoveryTimer: ReturnType<typeof setTimeout> | undefined
+const stageLoadRecoveryDelayMs = 8000
+const maxStageLoadRecoveryAttempts = 2
 
 watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
 
@@ -339,13 +347,86 @@ watch(enabled, async (val) => {
   }
 }, { immediate: true })
 
+function clearStageLoadRecoveryTimer() {
+  if (!stageLoadRecoveryTimer)
+    return
+
+  clearTimeout(stageLoadRecoveryTimer)
+  stageLoadRecoveryTimer = undefined
+}
+
+async function ensureStageModelInitialized() {
+  await displayModelsStore.loadDisplayModelsFromIndexedDB()
+  await settingsStore.initializeStageModel()
+}
+
+async function recoverStageLoading(reason: 'init' | 'watchdog') {
+  if (stageLoadRecoveryInFlight.value)
+    return
+
+  stageLoadRecoveryInFlight.value = true
+
+  try {
+    await ensureStageModelInitialized()
+
+    if (stageModelRenderer.value === 'live2d') {
+      live2dStore.shouldUpdateView()
+    }
+    else {
+      await settingsStore.updateStageModel()
+    }
+
+    if (reason === 'watchdog')
+      stageLoadRecoveryAttempts.value += 1
+  }
+  catch (error) {
+    console.warn('[Main Page] Failed to recover stage loading state:', error)
+  }
+  finally {
+    stageLoadRecoveryInFlight.value = false
+  }
+}
+
+watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl], ([state, renderer, modelUrl]) => {
+  clearStageLoadRecoveryTimer()
+
+  if (state === 'mounted') {
+    stageLoadRecoveryAttempts.value = 0
+    return
+  }
+
+  if (renderer === 'disabled')
+    return
+
+  if (stageLoadRecoveryAttempts.value >= maxStageLoadRecoveryAttempts)
+    return
+
+  stageLoadRecoveryTimer = setTimeout(() => {
+    if (componentStateStage.value === 'mounted')
+      return
+
+    if (stageLoadRecoveryInFlight.value)
+      return
+
+    if (!stageModelRenderer.value || !stageModelSelectedUrl.value || modelUrl !== stageModelSelectedUrl.value || renderer !== stageModelRenderer.value) {
+      void recoverStageLoading('init')
+      return
+    }
+
+    void recoverStageLoading('watchdog')
+  }, stageLoadRecoveryDelayMs)
+}, { immediate: true })
+
 onMounted(() => {
+  void recoverStageLoading('init')
+
   if (onboardingStore.needsOnboarding) {
     openOnboarding()
   }
 })
 
 onUnmounted(() => {
+  clearStageLoadRecoveryTimer()
   stopAudioInteraction()
 })
 

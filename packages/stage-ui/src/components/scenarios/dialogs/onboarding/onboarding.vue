@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ProviderMetadata } from '../../../../stores/providers'
 import type {
+  OnboardingConfiguredPayload,
   OnboardingStep,
   OnboardingStepGuard,
   OnboardingStepNextHandler,
@@ -11,16 +12,18 @@ import type {
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref } from 'vue'
 
+import StepActionMappingGuide from './step-action-mapping-guide.vue'
 import StepModelSelection from './step-model-selection.vue'
 import StepProviderConfiguration from './step-provider-configuration.vue'
 import StepProviderSelection from './step-provider-selection.vue'
 import StepWelcome from './step-welcome.vue'
 
+import { useAiriCardStore } from '../../../../stores/modules/airi-card'
 import { useConsciousnessStore } from '../../../../stores/modules/consciousness'
 import { useProvidersStore } from '../../../../stores/providers'
 
 interface Emits {
-  (e: 'configured'): void
+  (e: 'configured', payload?: OnboardingConfiguredPayload): void
   (e: 'skipped'): void
 }
 
@@ -34,6 +37,7 @@ const pendingProviderConfig = ref<ProviderConfigData | null>(null)
 
 const providersStore = useProvidersStore()
 const { providers, allChatProvidersMetadata } = storeToRefs(providersStore)
+const cardStore = useAiriCardStore()
 const consciousnessStore = useConsciousnessStore()
 const {
   activeProvider,
@@ -98,8 +102,12 @@ async function saveProviderConfiguration(data: ProviderConfigData) {
   }
 }
 
-async function handleSave() {
-  emit('configured')
+function syncAlicizationCardConsciousnessBinding() {
+  return cardStore.syncCurrentConsciousnessToCard()
+}
+
+async function handleSave(payload?: OnboardingConfiguredPayload) {
+  emit('configured', payload)
 }
 
 const allSteps = computed<OnboardingStep[]>(() => {
@@ -142,6 +150,15 @@ const allSteps = computed<OnboardingStep[]>(() => {
     {
       id: 'model-selection',
       component: StepModelSelection,
+      beforeNext: async () => syncAlicizationCardConsciousnessBinding(),
+    },
+    {
+      id: 'action-mapping-guide',
+      component: StepActionMappingGuide,
+      props: () => ({
+        onComplete: () => handleSave(),
+        onOpenActionMapping: () => handleSave({ followUpRoute: '/settings/models' }),
+      }),
     },
   ]
 

@@ -36,6 +36,15 @@ dialogs:
     no-models-help: >-
       Please return to the previous step and check your API key, or check the
       network connection.
+    action-mapping-guide:
+      title: Saved to the default Alicization card
+      description: The provider and default model you just configured have already been bound to the currently active default Alicization card.
+      summaryTitle: Recommended next step
+      summaryDescription: Open the Models page and fill in Alicization action mapping descriptions so she can understand when each motion should be used.
+      nextTitle: Why configure action mapping now?
+      nextDescription: Motions are only exposed to Alicization as callable capabilities after Action Key, Label, and Description are all filled in.
+      skip: Maybe later
+      open: Configure action mapping
     permissions:
       title: Notifications
       description: You can allow notifications now or continue and set it up later.
@@ -339,9 +348,9 @@ pages:
           neutral: Neutral
           custom: Custom
         defaults:
-          owner_name: You
-          host_name: You
-          relationship: Digital companion
+          owner_name: Commander
+          host_name: Master
+          relationship: Maid
         temperament:
           eyebrow: Temperament Axes
           title: Temperament baseline

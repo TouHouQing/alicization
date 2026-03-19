@@ -940,7 +940,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     const isForegroundSession = () => sessionId === activeSessionId.value
 
-    const buildingMessage: StreamingAssistantMessage = { role: 'assistant', content: '', slices: [], tool_results: [], createdAt: Date.now(), id: nanoid() }
+    // NOTICE: Keep the assistant message id stable per turn so renderer-side
+    // reconcile can upsert the main-process replay instead of inserting a duplicate.
+    const buildingMessage: StreamingAssistantMessage = { role: 'assistant', content: '', slices: [], tool_results: [], createdAt: Date.now(), id: turnId }
     let stagedAssistantResolution: StagedAssistantResolution | null = null
     let stagedSpeechDraft = ''
     let finalAssistantDisplayText = ''
@@ -2067,8 +2069,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
 
-      let fullText = ''
-
       if (shouldAbort())
         return
 
@@ -2105,7 +2105,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             onStreamEvent: async (event: StreamEvent) => {
               switch (event.type) {
                 case 'text-delta':
-                  fullText += event.text
                   await parser.consume(event.text)
                   break
                 case 'tool-call':
@@ -2246,7 +2245,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
               break
             case 'text-delta':
-              fullText += event.text
               await parser.consume(event.text)
               break
             case 'finish':

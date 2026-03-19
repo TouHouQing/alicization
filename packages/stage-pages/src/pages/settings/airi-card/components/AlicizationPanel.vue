@@ -43,9 +43,6 @@ const personaDraft = ref(createDefaultPersonaDraft())
 function createDefaultPersonaDraft(seedAlicizationName?: string) {
   return createDefaultSoulForgeDraft({
     seedAlicizationName,
-    ownerName: t('settings.pages.card.alicization.soul_forge.defaults.owner_name'),
-    hostName: t('settings.pages.card.alicization.soul_forge.defaults.host_name'),
-    relationship: t('settings.pages.card.alicization.soul_forge.defaults.relationship'),
   })
 }
 

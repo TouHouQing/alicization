@@ -1,5 +1,12 @@
 import type { AlicizationGender, AlicizationPersonalityState } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
+import {
+  defaultAlicizationCardName,
+  defaultAlicizationCustomDirectives,
+  defaultAlicizationPersonality,
+  defaultAlicizationProfile,
+} from '@proj-alicization/stage-shared'
+
 const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
 const soulPersonaNotesEnd = '<!-- ALICIZATION_PERSONA_NOTES_END -->'
 // NOTICE: Read legacy markers so the settings panel can still display persona notes
@@ -41,29 +48,48 @@ export interface CreateDefaultSoulForgeDraftOptions {
   seedAlicizationName?: string
   ownerName?: string
   hostName?: string
+  alicizationName?: string
+  gender?: AlicizationGender
   relationship?: string
+  mindAge?: number
+  customDirectives?: string
+}
+
+function resolveDefaultAlicizationName(seedAlicizationName: string | undefined, fallbackName: string) {
+  const trimmedSeed = seedAlicizationName?.trim()
+
+  // NOTICE: The default card is named "Alicization", but the persona call name
+  // is intentionally seeded as "小艾" unless the user gives the card another name.
+  if (trimmedSeed && trimmedSeed !== defaultAlicizationCardName)
+    return trimmedSeed
+
+  return fallbackName
 }
 
 export function createDefaultSoulForgeDraft(options: CreateDefaultSoulForgeDraftOptions = {}): SoulForgeDraft {
   const {
     seedAlicizationName,
-    ownerName = 'Owner',
-    hostName = 'Owner',
-    relationship = 'Digital companion',
+    ownerName = defaultAlicizationProfile.ownerName,
+    hostName = defaultAlicizationProfile.hostName,
+    alicizationName = defaultAlicizationProfile.alicizationName,
+    gender = defaultAlicizationProfile.gender,
+    relationship = defaultAlicizationProfile.relationship,
+    mindAge = defaultAlicizationProfile.mindAge,
+    customDirectives = defaultAlicizationCustomDirectives,
   } = options
 
   return {
     ownerName,
     hostName,
-    alicizationName: seedAlicizationName?.trim() || 'Alicization',
-    gender: 'neutral',
+    alicizationName: resolveDefaultAlicizationName(seedAlicizationName, alicizationName),
+    gender,
     genderCustom: '',
     relationship,
-    mindAge: 15,
-    obedience: 0.5,
-    liveliness: 0.5,
-    sensibility: 0.5,
-    customDirectives: '',
+    mindAge,
+    obedience: defaultAlicizationPersonality.obedience,
+    liveliness: defaultAlicizationPersonality.liveliness,
+    sensibility: defaultAlicizationPersonality.sensibility,
+    customDirectives,
   }
 }
 

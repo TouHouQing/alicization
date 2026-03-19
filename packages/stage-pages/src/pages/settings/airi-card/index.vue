@@ -11,7 +11,6 @@ import { useI18n } from 'vue-i18n'
 
 import CardCreate from './components/CardCreate.vue'
 import CardCreationDialog from './components/CardCreationDialog.vue'
-import CardDetailDialog from './components/CardDetailDialog.vue'
 import CardListItem from './components/CardListItem.vue'
 import DeleteCardDialog from './components/DeleteCardDialog.vue'
 
@@ -20,12 +19,9 @@ const cardStore = useAiriCardStore()
 const { addCard, removeCard } = cardStore
 const { cards, activeCardId } = storeToRefs(cardStore)
 
-// Currently selected card ID (different from active card ID)
-const selectedCardId = ref<string>('')
 // Currently editing card ID
 const editingCardId = ref<string>('')
 // Dialog state
-const isCardDialogOpen = ref(false)
 const isCardCreationDialogOpen = ref(false)
 
 // Search query
@@ -54,9 +50,9 @@ watch(inputFiles, async (newFiles) => {
     const content = await file.text()
     const cardJSON = JSON.parse(content) as ccv3.CharacterCardV3
 
-    // Add card and select it
-    selectedCardId.value = addCard(cardJSON)
-    isCardDialogOpen.value = true
+    const createdCardId = addCard(cardJSON)
+    editingCardId.value = createdCardId
+    isCardCreationDialogOpen.value = true
   }
   catch (error) {
     console.error('Error processing card file:', error)
@@ -134,17 +130,7 @@ function handleDeleteCancel() {
   deleteErrorMessage.value = ''
 }
 
-function handleSelectCard(cardId: string) {
-  // Verify card exists before opening dialog
-  if (!cards.value.has(cardId)) {
-    console.error(`Card with id ${cardId} not found`)
-    return
-  }
-  selectedCardId.value = cardId
-  isCardDialogOpen.value = true
-}
-
-function handleEditCard(cardId: string) {
+function openCardBindingsDialog(cardId: string) {
   // Verify card exists before opening edit dialog
   if (!cards.value.has(cardId)) {
     console.error(`Card with id ${cardId} not found`)
@@ -279,14 +265,14 @@ function getModuleShortName(id: string, module: 'consciousness' | 'voice') {
           :name="item.name"
           :description="item.description"
           :is-active="item.id === activeCardId"
-          :is-selected="item.id === selectedCardId && isCardDialogOpen"
+          :is-selected="item.id === editingCardId && isCardCreationDialogOpen"
           :version="getVersionNumber(item.id)"
           :consciousness-model="getModuleShortName(item.id, 'consciousness')"
           :voice-model="getModuleShortName(item.id, 'voice')"
-          @select="handleSelectCard(item.id)"
+          @select="openCardBindingsDialog(item.id)"
           @activate="activateCard(item.id)"
           @delete="confirmDelete(item.id)"
-          @edit="handleEditCard(item.id)"
+          @edit="openCardBindingsDialog(item.id)"
         />
       </template>
 
@@ -328,12 +314,6 @@ function getModuleShortName(id: string, module: 'consciousness' | 'voice') {
     :card-name="cardToDelete ? cardStore.getCard(cardToDelete)?.name : ''"
     @confirm="handleDeleteConfirm"
     @cancel="handleDeleteCancel"
-  />
-
-  <!-- Card detail dialog -->
-  <CardDetailDialog
-    v-model="isCardDialogOpen"
-    :card-id="selectedCardId"
   />
 
   <!-- Card creation/edit dialog -->
