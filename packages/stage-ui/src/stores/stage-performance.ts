@@ -21,8 +21,62 @@ export interface Live2DActionBinding {
 }
 
 type StoredVrmExternalAnimationBinding = Omit<VrmExternalAnimationBinding, 'file'>
+type Live2DActionBindingDefaults = Pick<Live2DActionBinding, 'actionKey' | 'label' | 'description'>
+type Live2DMotionIdentity = Pick<Live2DActionBinding, 'fileName' | 'motionName' | 'motionIndex'>
 
 const vrmExternalAnimationStoragePrefix = 'stage-performance:vrm-animation'
+const defaultAlicizationLive2DActionBindingSeeds: Record<string, Live2DActionBindingDefaults> = {
+  'Idle:0': {
+    actionKey: 'idle_gentle_nod',
+    label: '轻轻点头',
+    description: '轻轻低头再抬起，像在安静回应主人，适合默认待机、温柔附和或乖巧应声。',
+  },
+  'Idle:1': {
+    actionKey: 'idle_surprised_smile',
+    label: '惊讶后眯眼笑',
+    description: '先露出一点小惊讶，再眯起眼睛甜甜地笑起来，适合听到好消息、被夸奖或轻松接话。',
+  },
+  'Idle:2': {
+    actionKey: 'idle_smile_then_surprised',
+    label: '眯眼笑后小惊讶',
+    description: '先带着眯眼笑意放松回应，随后像忽然意识到什么般微微一怔，适合可爱发呆或慢半拍反应。',
+  },
+  'Flick:0': {
+    actionKey: 'sway_relaxed',
+    label: '悠闲晃身',
+    description: '身体轻松地左右摇摆，节奏悠哉，像心情不错时自然晃来晃去，适合闲聊、放松或撒娇。',
+  },
+  'FlickDown:0': {
+    actionKey: 'tsundere_pout',
+    label: '羞恼别扭',
+    description: '带一点害羞和嘴硬的小情绪，像被说中心事后假装生气，适合傲娇、轻微抗议或被调侃时回应。',
+  },
+  'FlickUp:0': {
+    actionKey: 'cheer_raise_hand',
+    label: '开心举手',
+    description: '开心地抬手回应，动作轻快明亮，适合答应主人、庆祝成功或主动求表扬。',
+  },
+  'Tap:0': {
+    actionKey: 'shock_freeze',
+    label: '震惊发愣',
+    description: '像突然被戳到一样明显吃惊，短暂发愣，适合意外、被吓一跳或难以置信的时候。',
+  },
+  'Tap:1': {
+    actionKey: 'raise_hand_excited',
+    label: '超开心举手',
+    description: '比普通开心更夸张，带着强烈雀跃感举手回应，适合特别高兴、收到惊喜或兴奋庆祝。',
+  },
+  'Tap@Body:0': {
+    actionKey: 'pout_confused',
+    label: '惊讶疑惑闷气',
+    description: '先露出惊讶与疑惑，随后带点呆萌地小小生闷气，适合委屈抗议、没听懂或被误会时使用。',
+  },
+  'Flick@Body:0': {
+    actionKey: 'disdain_side_glance',
+    label: '小嫌弃',
+    description: '带一点嫌弃和无语的身体反应，不到真的生气，更像轻轻吐槽、挑剔或不满地哼一声。',
+  },
+}
 
 function normalizeModelId(raw: unknown) {
   return typeof raw === 'string' ? raw.trim() : ''
@@ -48,6 +102,43 @@ function normalizeDescription(raw: unknown) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().slice(0, 240)
+}
+
+function buildLive2DMotionCapabilityKey(motionName: string, motionIndex: number) {
+  const normalizedMotionName = normalizeCapabilityText(motionName)
+  const normalizedMotionIndex = Number.isFinite(motionIndex) ? Math.max(0, Math.floor(motionIndex)) : Number.NaN
+  if (!normalizedMotionName || !Number.isFinite(normalizedMotionIndex))
+    return ''
+
+  return `${normalizedMotionName}:${normalizedMotionIndex}`
+}
+
+export function getDefaultLive2DActionBindingDefaults(motion: Pick<Live2DActionBinding, 'motionName' | 'motionIndex'>): Live2DActionBindingDefaults | null {
+  const key = buildLive2DMotionCapabilityKey(motion.motionName, motion.motionIndex)
+  if (!key)
+    return null
+
+  return defaultAlicizationLive2DActionBindingSeeds[key] ?? null
+}
+
+export function resolveLive2DActionBindingForMotion(
+  motion: Live2DMotionIdentity,
+  stored?: Partial<Live2DActionBinding> | null,
+): Live2DActionBinding | null {
+  const defaults = getDefaultLive2DActionBindingDefaults(motion)
+  const actionKey = normalizeCapabilityKey(stored?.actionKey) || defaults?.actionKey || ''
+  const label = normalizeCapabilityText(stored?.label) || defaults?.label || normalizeCapabilityText(motion.motionName, actionKey)
+  const description = normalizeDescription(stored?.description) || defaults?.description || ''
+
+  return normalizeLive2DActionBinding({
+    fileName: motion.fileName,
+    motionName: motion.motionName,
+    motionIndex: motion.motionIndex,
+    actionKey,
+    label,
+    description,
+    source: 'live2d-motion',
+  })
 }
 
 function buildVrmExternalAnimationStorageKey(modelId: string, entryId: string) {

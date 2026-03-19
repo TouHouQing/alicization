@@ -7,7 +7,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { useSettings } from '../../../../stores/settings'
-import { useStagePerformanceStore } from '../../../../stores/stage-performance'
+import { resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../../../stores/stage-performance'
 import { Section } from '../../../layouts'
 import { ColorPalette } from '../../../widgets'
 
@@ -52,6 +52,48 @@ const fpsOptions = computed(() => [
 const currentModelAvailableMotions = computed(() => live2d.getAvailableMotionsForModel(props.modelId))
 const currentModelActionBindings = computed(() => stagePerformanceStore.listLive2DActions(props.modelId ?? ''))
 
+function applyRuntimeMotionSelection(
+  motion: { name: string, displayPath: string, group: string, index: number },
+  options?: {
+    closeSelector?: boolean
+    enableIdleAnimation?: boolean
+  },
+) {
+  selectedRuntimeMotion.value = motion.displayPath
+  selectedRuntimeMotionName.value = motion.name
+  localStorage.setItem('selected-runtime-motion', motion.displayPath)
+  localStorage.setItem('selected-runtime-motion-name', motion.name)
+  localStorage.setItem('selected-runtime-motion-group', motion.group)
+  localStorage.setItem('selected-runtime-motion-index', motion.index.toString())
+
+  if (options?.enableIdleAnimation !== false)
+    live2dIdleAnimationEnabled.value = true
+  currentMotion.value = { group: motion.group, index: motion.index }
+
+  if (options?.closeSelector !== false)
+    showMotionSelector.value = false
+}
+
+function ensureDefaultRuntimeMotionSelection(motions: Array<{ name: string, displayPath: string, group: string, index: number }>) {
+  if (motions.length === 0)
+    return
+
+  const savedPath = localStorage.getItem('selected-runtime-motion')
+  const savedGroup = localStorage.getItem('selected-runtime-motion-group')
+  const savedIndexRaw = localStorage.getItem('selected-runtime-motion-index')
+  const savedIndex = savedIndexRaw ? Number.parseInt(savedIndexRaw, 10) : Number.NaN
+
+  const matchedMotion = motions.find(motion =>
+    (savedPath && motion.displayPath === savedPath)
+    || (savedGroup && Number.isFinite(savedIndex) && motion.group === savedGroup && motion.index === savedIndex),
+  )
+
+  applyRuntimeMotionSelection(matchedMotion ?? motions[0]!, {
+    closeSelector: false,
+    enableIdleAnimation: false,
+  })
+}
+
 // Get available runtime motions from the model
 onMounted(() => {
   // Listen for available motions updates
@@ -66,17 +108,8 @@ onMounted(() => {
     }))
 
     console.info('Available motions:', runtimeMotions.value)
+    ensureDefaultRuntimeMotionSelection(runtimeMotions.value)
   }, { immediate: true })
-
-  // Restore selected motion
-  const savedPath = localStorage.getItem('selected-runtime-motion')
-  const savedName = localStorage.getItem('selected-runtime-motion-name')
-  if (savedPath) {
-    selectedRuntimeMotion.value = savedPath
-  }
-  if (savedName) {
-    selectedRuntimeMotionName.value = savedName
-  }
 
   // Add click outside handler
   document.addEventListener('click', handleClickOutside)
@@ -101,20 +134,9 @@ async function clearModelCache() {
 
 // Runtime motion selection handlers
 function handleMotionSelect(motion: any) {
-  selectedRuntimeMotion.value = motion.displayPath // Store full path
-  selectedRuntimeMotionName.value = motion.name // Store just the filename for display
-  localStorage.setItem('selected-runtime-motion', motion.displayPath)
-  localStorage.setItem('selected-runtime-motion-name', motion.name)
-  localStorage.setItem('selected-runtime-motion-group', motion.group)
-  localStorage.setItem('selected-runtime-motion-index', motion.index.toString())
-
-  // Enable idle animation
-  live2dIdleAnimationEnabled.value = true
-
-  // Set the current motion to the selected runtime motion
-  currentMotion.value = { group: motion.group, index: motion.index }
-
-  showMotionSelector.value = false
+  applyRuntimeMotionSelection(motion, {
+    enableIdleAnimation: true,
+  })
 
   console.info('✅ Selected runtime motion:', motion.name)
   console.info('Full path:', motion.displayPath)
@@ -147,8 +169,19 @@ function suggestActionKey(rawName: string) {
     .slice(0, 80)
 }
 
+function resolveActionBinding(motion: { fileName: string, motionName: string, motionIndex: number }) {
+  return resolveLive2DActionBindingForMotion(
+    motion,
+    currentModelActionBindings.value.find(item => item.fileName === motion.fileName),
+  )
+}
+
 function readActionBinding(fileName: string) {
-  return currentModelActionBindings.value.find(item => item.fileName === fileName)
+  const motion = currentModelAvailableMotions.value.find(item => item.fileName === fileName)
+  if (!motion)
+    return currentModelActionBindings.value.find(item => item.fileName === fileName)
+
+  return resolveActionBinding(motion)
 }
 
 function updateActionBinding(
@@ -158,13 +191,14 @@ function updateActionBinding(
   if (!props.modelId)
     return
 
+  const resolvedBinding = resolveActionBinding(motion)
   stagePerformanceStore.upsertLive2DAction(props.modelId, {
     fileName: motion.fileName,
     motionName: motion.motionName,
     motionIndex: motion.motionIndex,
-    actionKey: readActionBinding(motion.fileName)?.actionKey ?? suggestActionKey(motion.motionName || motion.fileName),
-    label: readActionBinding(motion.fileName)?.label ?? motion.motionName,
-    description: readActionBinding(motion.fileName)?.description ?? '',
+    actionKey: resolvedBinding?.actionKey ?? suggestActionKey(motion.motionName || motion.fileName),
+    label: resolvedBinding?.label ?? motion.motionName,
+    description: resolvedBinding?.description ?? '',
     source: 'live2d-motion',
     ...patch,
   })

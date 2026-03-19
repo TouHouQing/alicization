@@ -1,4 +1,5 @@
 export const defaultAlicizationCardName = 'Alicization'
+export const defaultAlicizationStageModelId = 'preset-live2d-1'
 
 export const defaultAlicizationProfile = {
   ownerName: '指挥官',

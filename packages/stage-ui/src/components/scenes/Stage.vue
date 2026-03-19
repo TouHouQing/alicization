@@ -53,7 +53,7 @@ import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
-import { isVrmCustomExpressionConfigured, useStagePerformanceStore } from '../../stores/stage-performance'
+import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 
@@ -475,7 +475,18 @@ function dedupeCapabilityItemsByKey<T extends { key: string }>(items: T[]) {
 }
 
 const currentLive2DActionCapabilities = computed(() => {
-  return stagePerformanceStore.listLive2DActions(stageModelSelected.value).map(item => ({
+  return live2dStore.getAvailableMotionsForModel(stageModelSelected.value)
+    .map((motion) => {
+      return resolveLive2DActionBindingForMotion(
+        motion,
+        stagePerformanceStore.listLive2DActions(stageModelSelected.value).find(item => item.fileName === motion.fileName),
+      )
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+})
+
+const currentLive2DResolvedActionCapabilities = computed(() => {
+  return currentLive2DActionCapabilities.value.map(item => ({
     key: item.actionKey,
     label: item.label,
     description: item.description,
@@ -544,7 +555,7 @@ const currentPerformanceManifest = computed(() => {
       renderer: 'live2d' as const,
       supportedBaseEmotions: [...alicizationEmotionWhitelist],
       supportedFacialCues: [],
-      supportedActions: currentLive2DActionCapabilities.value,
+      supportedActions: currentLive2DResolvedActionCapabilities.value,
       supportsLookAt: !live2dDisableFocus.value,
       supportsVisemeLipSync: true,
       supportsMicroDynamics: false,
@@ -606,7 +617,7 @@ presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DControlle
       return
     }
 
-    const mappedAction = stagePerformanceStore.resolveLive2DActionByCue(stageModelSelected.value, clampedPerformance.actionCue)
+    const mappedAction = currentLive2DActionCapabilities.value.find(item => item.actionKey === clampedPerformance.actionCue)
     if (mappedAction) {
       currentMotion.value = {
         group: mappedAction.motionName,

@@ -3,8 +3,10 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  getDefaultLive2DActionBindingDefaults,
   isVrmCustomExpressionConfigured,
   isVrmExternalAnimationConfigured,
+  resolveLive2DActionBindingForMotion,
   useStagePerformanceStore,
 } from './stage-performance'
 
@@ -116,5 +118,42 @@ describe('stage performance helpers', () => {
         label: 'Settle',
       }),
     ])
+  })
+
+  it('provides semantic default bindings for Alicization live2d motions', () => {
+    expect(getDefaultLive2DActionBindingDefaults({
+      motionName: 'Idle',
+      motionIndex: 0,
+    })).toEqual({
+      actionKey: 'idle_gentle_nod',
+      label: '轻轻点头',
+      description: '轻轻低头再抬起，像在安静回应主人，适合默认待机、温柔附和或乖巧应声。',
+    })
+
+    expect(resolveLive2DActionBindingForMotion({
+      fileName: 'motion/hiyori_m10.motion3.json',
+      motionName: 'Flick@Body',
+      motionIndex: 0,
+    })).toEqual(expect.objectContaining({
+      actionKey: 'disdain_side_glance',
+      label: '小嫌弃',
+      description: expect.stringContaining('嫌弃'),
+    }))
+  })
+
+  it('keeps explicit live2d action overrides while filling missing semantic fields from defaults', () => {
+    expect(resolveLive2DActionBindingForMotion({
+      fileName: 'motion/hiyori_m04.motion3.json',
+      motionName: 'FlickDown',
+      motionIndex: 0,
+    }, {
+      actionKey: 'custom_tsundere',
+      label: '',
+      description: '',
+    })).toEqual(expect.objectContaining({
+      actionKey: 'custom_tsundere',
+      label: '羞恼别扭',
+      description: expect.stringContaining('嘴硬'),
+    }))
   })
 })

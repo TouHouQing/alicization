@@ -1,5 +1,6 @@
 import type { ChatSessionsExport } from '../types/chat-session'
 
+import { defaultAlicizationStageModelId } from '@proj-alicization/stage-shared'
 import { useLive2d } from '@proj-alicization/stage-ui-live2d'
 
 import { getAlicizationBridge, hasAlicizationBridge } from '../stores/alicization-bridge'
@@ -40,7 +41,7 @@ export function useDataMaintenance() {
 
   async function deleteAllModels() {
     await displayModelsStore.resetDisplayModels()
-    settingsStore.stageModelSelected = 'preset-live2d-1'
+    settingsStore.stageModelSelected = defaultAlicizationStageModelId
     await settingsStore.updateStageModel()
   }
 
