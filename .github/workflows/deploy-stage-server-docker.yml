@@ -1,0 +1,116 @@
+name: Deploy Stage Server Docker
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - '.github/workflows/deploy-stage-server-docker.yml'
+      - 'apps/server/**'
+      - 'packages/server-schema/**'
+      - 'patches/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'package.json'
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy server docker stack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      DEPLOY_HOST: 103.85.226.171
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      REMOTE_REPO_DIR: ${{ secrets.SERVER_REPO_DIR || '/opt/alicization' }}
+      API_SERVER_URL: ${{ secrets.API_SERVER_URL || 'https://alz.tohoqing.com' }}
+      AUTH_GOOGLE_CLIENT_ID: ${{ secrets.SERVER_AUTH_GOOGLE_CLIENT_ID || secrets.AUTH_GOOGLE_CLIENT_ID }}
+      AUTH_GOOGLE_CLIENT_SECRET: ${{ secrets.SERVER_AUTH_GOOGLE_CLIENT_SECRET || secrets.AUTH_GOOGLE_CLIENT_SECRET }}
+      AUTH_GITHUB_CLIENT_ID: ${{ secrets.SERVER_AUTH_GITHUB_CLIENT_ID || secrets.AUTH_GITHUB_CLIENT_ID }}
+      AUTH_GITHUB_CLIENT_SECRET: ${{ secrets.SERVER_AUTH_GITHUB_CLIENT_SECRET || secrets.AUTH_GITHUB_CLIENT_SECRET }}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+      OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+      OTEL_DEBUG: ${{ secrets.OTEL_DEBUG }}
+
+    steps:
+      - name: Validate deploy secrets
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOY_USER}" || { echo "::error::Missing secret DEPLOY_USER"; exit 1; }
+          test -n "${AUTH_GOOGLE_CLIENT_ID}" || { echo "::error::Missing Google OAuth client id secret"; exit 1; }
+          test -n "${AUTH_GOOGLE_CLIENT_SECRET}" || { echo "::error::Missing Google OAuth client secret"; exit 1; }
+          test -n "${AUTH_GITHUB_CLIENT_ID}" || { echo "::error::Missing GitHub OAuth client id secret"; exit 1; }
+          test -n "${AUTH_GITHUB_CLIENT_SECRET}" || { echo "::error::Missing GitHub OAuth client secret"; exit 1; }
+
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+      - name: Trust deploy host
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${DEPLOY_PORT}" "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Sync repository on remote host
+        run: |
+          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -euo pipefail
+            mkdir -p \"\$(dirname '${REMOTE_REPO_DIR}')\"
+
+            if [ ! -d '${REMOTE_REPO_DIR}/.git' ]; then
+              git clone --depth 1 'https://github.com/${{ github.repository }}.git' '${REMOTE_REPO_DIR}'
+            else
+              if ! git -C '${REMOTE_REPO_DIR}' diff --quiet || ! git -C '${REMOTE_REPO_DIR}' diff --cached --quiet; then
+                echo 'Remote repository has local changes. Refusing to deploy.'
+                exit 1
+              fi
+
+              git -C '${REMOTE_REPO_DIR}' fetch --depth 1 origin main
+              git -C '${REMOTE_REPO_DIR}' checkout main
+              git -C '${REMOTE_REPO_DIR}' pull --ff-only origin main
+            fi
+          "
+
+      - name: Upload production env overrides
+        run: |
+          set -euo pipefail
+          {
+            printf 'API_SERVER_URL=%s\n' "${API_SERVER_URL}"
+            printf 'AUTH_GOOGLE_CLIENT_ID=%s\n' "${AUTH_GOOGLE_CLIENT_ID}"
+            printf 'AUTH_GOOGLE_CLIENT_SECRET=%s\n' "${AUTH_GOOGLE_CLIENT_SECRET}"
+            printf 'AUTH_GITHUB_CLIENT_ID=%s\n' "${AUTH_GITHUB_CLIENT_ID}"
+            printf 'AUTH_GITHUB_CLIENT_SECRET=%s\n' "${AUTH_GITHUB_CLIENT_SECRET}"
+
+            if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT}" ]; then
+              printf 'OTEL_EXPORTER_OTLP_ENDPOINT=%s\n' "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+            fi
+
+            if [ -n "${OTEL_EXPORTER_OTLP_HEADERS}" ]; then
+              printf 'OTEL_EXPORTER_OTLP_HEADERS=%s\n' "${OTEL_EXPORTER_OTLP_HEADERS}"
+            fi
+
+            if [ -n "${OTEL_DEBUG}" ]; then
+              printf 'OTEL_DEBUG=%s\n' "${OTEL_DEBUG}"
+            fi
+          } > /tmp/stage-server.env.local
+
+          scp -P "${DEPLOY_PORT}" /tmp/stage-server.env.local "${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_REPO_DIR}/apps/server/.env.local"
+
+      - name: Deploy docker compose stack
+        run: |
+          ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
+            set -euo pipefail
+            cd '${REMOTE_REPO_DIR}/apps/server'
+            docker compose pull db || true
+            docker compose up -d --build db server
+            docker compose ps
+            curl -fsS 'http://127.0.0.1:6112/health'
+          "
