@@ -8,6 +8,25 @@ import { bearer } from 'better-auth/plugins'
 import * as authSchema from '../schemas/accounts'
 
 export function createAuth(db: Database, env: Env) {
+  const socialProviders = {
+    ...(env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: env.AUTH_GOOGLE_CLIENT_ID,
+            clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
+          },
+        }
+      : {}),
+    ...(env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET
+      ? {
+          github: {
+            clientId: env.AUTH_GITHUB_CLIENT_ID,
+            clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+          },
+        }
+      : {}),
+  }
+
   return betterAuth({
     database: drizzleAdapter(db, {
       provider: 'pg',
@@ -36,15 +55,6 @@ export function createAuth(db: Database, env: Env) {
       },
     },
 
-    socialProviders: {
-      google: {
-        clientId: env.AUTH_GOOGLE_CLIENT_ID,
-        clientSecret: env.AUTH_GOOGLE_CLIENT_SECRET,
-      },
-      github: {
-        clientId: env.AUTH_GITHUB_CLIENT_ID,
-        clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
-      },
-    },
+    socialProviders,
   })
 }

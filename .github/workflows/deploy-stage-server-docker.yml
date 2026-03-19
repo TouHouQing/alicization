@@ -44,10 +44,6 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${DEPLOY_USER}" || { echo "::error::Missing secret DEPLOY_USER"; exit 1; }
-          test -n "${AUTH_GOOGLE_CLIENT_ID}" || { echo "::error::Missing Google OAuth client id secret"; exit 1; }
-          test -n "${AUTH_GOOGLE_CLIENT_SECRET}" || { echo "::error::Missing Google OAuth client secret"; exit 1; }
-          test -n "${AUTH_GITHUB_CLIENT_ID}" || { echo "::error::Missing GitHub OAuth client id secret"; exit 1; }
-          test -n "${AUTH_GITHUB_CLIENT_SECRET}" || { echo "::error::Missing GitHub OAuth client secret"; exit 1; }
 
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -84,10 +80,16 @@ jobs:
           set -euo pipefail
           {
             printf 'API_SERVER_URL=%s\n' "${API_SERVER_URL}"
-            printf 'AUTH_GOOGLE_CLIENT_ID=%s\n' "${AUTH_GOOGLE_CLIENT_ID}"
-            printf 'AUTH_GOOGLE_CLIENT_SECRET=%s\n' "${AUTH_GOOGLE_CLIENT_SECRET}"
-            printf 'AUTH_GITHUB_CLIENT_ID=%s\n' "${AUTH_GITHUB_CLIENT_ID}"
-            printf 'AUTH_GITHUB_CLIENT_SECRET=%s\n' "${AUTH_GITHUB_CLIENT_SECRET}"
+
+            if [ -n "${AUTH_GOOGLE_CLIENT_ID}" ] && [ -n "${AUTH_GOOGLE_CLIENT_SECRET}" ]; then
+              printf 'AUTH_GOOGLE_CLIENT_ID=%s\n' "${AUTH_GOOGLE_CLIENT_ID}"
+              printf 'AUTH_GOOGLE_CLIENT_SECRET=%s\n' "${AUTH_GOOGLE_CLIENT_SECRET}"
+            fi
+
+            if [ -n "${AUTH_GITHUB_CLIENT_ID}" ] && [ -n "${AUTH_GITHUB_CLIENT_SECRET}" ]; then
+              printf 'AUTH_GITHUB_CLIENT_ID=%s\n' "${AUTH_GITHUB_CLIENT_ID}"
+              printf 'AUTH_GITHUB_CLIENT_SECRET=%s\n' "${AUTH_GITHUB_CLIENT_SECRET}"
+            fi
 
             if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT}" ]; then
               printf 'OTEL_EXPORTER_OTLP_ENDPOINT=%s\n' "${OTEL_EXPORTER_OTLP_ENDPOINT}"
