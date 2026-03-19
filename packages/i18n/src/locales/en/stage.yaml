@@ -11,6 +11,7 @@ dialogue:
   expand-history: Open history
   collapse-history: Close history
   sending: Sending...
+  stop-reply: Stop reply
   window-title: Dialogue
   expand-panel: Expand dialogue
   minimize-panel: Minimize dialogue

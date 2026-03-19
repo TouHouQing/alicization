@@ -11,6 +11,7 @@ dialogue:
   expand-history: Открыть историю
   collapse-history: Скрыть историю
   sending: Отправка...
+  stop-reply: Остановить ответ
   window-title: Диалог
   expand-panel: Развернуть диалог
   minimize-panel: Свернуть диалог

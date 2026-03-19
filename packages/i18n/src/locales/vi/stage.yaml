@@ -11,6 +11,7 @@ dialogue:
   expand-history: Mở lịch sử
   collapse-history: Thu gọn lịch sử
   sending: Đang gửi...
+  stop-reply: Dừng phản hồi
   window-title: Đối thoại
   expand-panel: Mở khung đối thoại
   minimize-panel: Thu gọn đối thoại

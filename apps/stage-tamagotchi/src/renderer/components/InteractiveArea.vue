@@ -3,6 +3,7 @@ import type { ChatHistoryItem } from '@proj-alicization/stage-ui/types/chat'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import { ChatHistory } from '@proj-alicization/stage-ui/components'
+import { useChatReplyAbort } from '@proj-alicization/stage-ui/composables'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { useChatStreamStore } from '@proj-alicization/stage-ui/stores/chat/stream-store'
@@ -21,17 +22,17 @@ const attachments = ref<{ type: 'image', data: string, mimeType: string, url: st
 const chatOrchestrator = useChatOrchestratorStore()
 const chatSession = useChatSessionStore()
 const chatStream = useChatStreamStore()
+const { sending, aborting, abortReply } = useChatReplyAbort()
 const { ingest, onAfterMessageComposed, discoverToolsCompatibility } = chatOrchestrator
 const { messages } = storeToRefs(chatSession)
 const { streamingMessage } = storeToRefs(chatStream)
-const { sending } = storeToRefs(chatOrchestrator)
 const { t } = useI18n()
 const providersStore = useProvidersStore()
 const { activeModel, activeProvider } = storeToRefs(useConsciousnessStore())
 const isComposing = ref(false)
 
 async function handleSend() {
-  if (isComposing.value) {
+  if (isComposing.value || sending.value) {
     return
   }
 
@@ -133,20 +134,40 @@ const historyMessages = computed(() => messages.value as unknown as ChatHistoryI
         </button>
       </div>
     </div>
-    <BasicTextarea
-      v-model="messageInput"
-      :placeholder="t('stage.message')"
-      class="ph-no-capture"
-      text="primary-600 dark:primary-100  placeholder:primary-500 dark:placeholder:primary-200"
-      border="solid 2 primary-200/20 dark:primary-400/20"
-      bg="primary-100/50 dark:primary-900/70"
-      max-h="[10lh]" min-h="[1lh]"
-      w-full shrink-0 resize-none overflow-y-scroll rounded-xl p-2 font-medium outline-none
-      transition="all duration-250 ease-in-out placeholder:all placeholder:duration-250 placeholder:ease-in-out"
-      @compositionstart="isComposing = true"
-      @compositionend="isComposing = false"
-      @keydown.enter.exact.prevent="handleSend"
-      @paste-file="handleFilePaste"
-    />
+    <div class="relative w-full shrink-0">
+      <BasicTextarea
+        v-model="messageInput"
+        :placeholder="t('stage.message')"
+        class="ph-no-capture"
+        text="primary-600 dark:primary-100  placeholder:primary-500 dark:placeholder:primary-200"
+        border="solid 2 primary-200/20 dark:primary-400/20"
+        bg="primary-100/50 dark:primary-900/70"
+        max-h="[10lh]" min-h="[1lh]"
+        w-full shrink-0 resize-none overflow-y-scroll rounded-xl p-2 font-medium outline-none
+        transition="all duration-250 ease-in-out placeholder:all placeholder:duration-250 placeholder:ease-in-out"
+        :class="[
+          sending ? 'pb-12 pr-12' : '',
+        ]"
+        @compositionstart="isComposing = true"
+        @compositionend="isComposing = false"
+        @keydown.enter.exact.prevent="handleSend"
+        @paste-file="handleFilePaste"
+      />
+
+      <button
+        v-if="sending"
+        type="button"
+        class="absolute bottom-2 right-2 h-8 w-8 flex items-center justify-center rounded-full bg-primary-500 text-white shadow-md outline-none transition-all duration-200 active:scale-95"
+        :title="t('stage.dialogue.stop-reply')"
+        :aria-label="t('stage.dialogue.stop-reply')"
+        :disabled="aborting"
+        :class="[
+          aborting ? 'cursor-wait opacity-70' : 'hover:bg-primary-600',
+        ]"
+        @click="abortReply"
+      >
+        <div class="i-solar:stop-circle-linear h-5 w-5" aria-hidden="true" />
+      </button>
+    </div>
   </div>
 </template>

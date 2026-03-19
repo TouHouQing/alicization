@@ -11,6 +11,7 @@ dialogue:
   expand-history: 展开历史
   collapse-history: 收起历史
   sending: 发送中...
+  stop-reply: 中断回复
   window-title: 角色对白
   expand-panel: 展开对白窗
   minimize-panel: 收起对白窗

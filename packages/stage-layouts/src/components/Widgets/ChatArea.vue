@@ -2,7 +2,7 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import { isStageTamagotchi } from '@proj-alicization/stage-shared'
-import { useAudioAnalyzer } from '@proj-alicization/stage-ui/composables'
+import { useAudioAnalyzer, useChatReplyAbort } from '@proj-alicization/stage-ui/composables'
 import { useAudioContext } from '@proj-alicization/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useChatTextComposerStore } from '@proj-alicization/stage-ui/stores/chat/text-composer-store'
@@ -22,11 +22,12 @@ import IndicatorMicVolume from './IndicatorMicVolume.vue'
 const hearingPopoverOpen = ref(false)
 const isListening = ref(false) // Transcription listening state (separate from microphone enabled)
 const composerStore = useChatTextComposerStore()
+const { sending, aborting, abortReply } = useChatReplyAbort()
 
 const providersStore = useProvidersStore()
 const { activeProvider, activeModel } = storeToRefs(useConsciousnessStore())
 const { themeColorsHueDynamic } = storeToRefs(useSettings())
-const { draft, isComposing, sending } = storeToRefs(composerStore)
+const { draft, isComposing } = storeToRefs(composerStore)
 
 const { askPermission, startStream } = useSettingsAudioDevice()
 const { enabled, selectedAudioInput, stream, audioInputs } = storeToRefs(useSettingsAudioDevice())
@@ -371,13 +372,29 @@ watch(autoSendEnabled, (enabled) => {
         min-h="[100px]" max-h="[300px]" w-full
         rounded-t-xl p-4 font-medium pb="[60px]"
         outline-none transition="all duration-250 ease-in-out placeholder:all placeholder:duration-250 placeholder:ease-in-out"
-        :class="{
-          'transition-colors-none placeholder:transition-colors-none': themeColorsHueDynamic,
-        }"
+        :class="[
+          themeColorsHueDynamic ? 'transition-colors-none placeholder:transition-colors-none' : '',
+          sending ? 'pr-[60px]' : '',
+        ]"
         @submit="handleSend"
         @compositionstart="isComposing = true"
         @compositionend="isComposing = false"
       />
+
+      <button
+        v-if="sending"
+        type="button"
+        class="absolute bottom-2 right-2 z-10 h-8 w-8 flex items-center justify-center rounded-md bg-primary-500 text-white shadow-md outline-none transition-all duration-200 active:scale-95"
+        :title="t('stage.dialogue.stop-reply')"
+        :aria-label="t('stage.dialogue.stop-reply')"
+        :disabled="aborting"
+        :class="[
+          aborting ? 'cursor-wait opacity-70' : 'hover:bg-primary-600',
+        ]"
+        @click="abortReply"
+      >
+        <div class="i-solar:stop-circle-linear h-5 w-5" aria-hidden="true" />
+      </button>
 
       <!-- Bottom-left action button: Microphone -->
       <div

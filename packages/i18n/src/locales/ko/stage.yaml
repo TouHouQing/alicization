@@ -11,6 +11,7 @@ dialogue:
   expand-history: 기록 펼치기
   collapse-history: 기록 접기
   sending: 전송 중...
+  stop-reply: 응답 중단
   window-title: 대화
   expand-panel: 대화 펼치기
   minimize-panel: 대화 접기

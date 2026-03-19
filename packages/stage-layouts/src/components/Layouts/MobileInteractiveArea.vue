@@ -3,7 +3,7 @@ import type { ChatHistoryItem } from '@proj-alicization/stage-ui/types/chat'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import { ChatHistory, HearingConfigDialog } from '@proj-alicization/stage-ui/components'
-import { useAudioAnalyzer } from '@proj-alicization/stage-ui/composables'
+import { useAudioAnalyzer, useChatReplyAbort } from '@proj-alicization/stage-ui/composables'
 import { useAudioContext } from '@proj-alicization/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
@@ -33,7 +33,7 @@ const chatSession = useChatSessionStore()
 const chatStream = useChatStreamStore()
 const { messages } = storeToRefs(chatSession)
 const { streamingMessage } = storeToRefs(chatStream)
-const { sending } = storeToRefs(chatOrchestrator)
+const { sending, aborting, abortReply } = useChatReplyAbort()
 const historyMessages = computed(() => messages.value as unknown as ChatHistoryItem[])
 const composerStore = useChatTextComposerStore()
 
@@ -203,14 +203,23 @@ onMounted(() => {
           @compositionend="isComposing = false"
         />
         <button
-          v-if="draft.trim() || isComposing"
+          v-if="sending || draft.trim() || isComposing"
+          type="button"
           w="[calc(1lh+4px+4px)]" h="[calc(1lh+4px+4px)]" aspect-square flex items-center self-end justify-center rounded-full outline-none backdrop-blur-md
+          :title="sending ? t('stage.dialogue.stop-reply') : undefined"
+          :aria-label="sending ? t('stage.dialogue.stop-reply') : undefined"
+          :disabled="sending ? aborting : false"
           text="neutral-500 hover:neutral-600 dark:neutral-900 dark:hover:neutral-800"
-          bg="primary-50/80 dark:neutral-100/80 hover:neutral-50"
           transition="all duration-250 ease-in-out"
-          @click="handleSend"
+          :class="[
+            sending
+              ? 'bg-amber-100/90 hover:bg-amber-50 dark:bg-neutral-100/90'
+              : 'bg-primary-50/80 hover:bg-neutral-50 dark:bg-neutral-100/80',
+            sending && aborting ? 'cursor-wait opacity-70' : '',
+          ]"
+          @click="sending ? abortReply() : handleSend()"
         >
-          <div i-solar:arrow-up-outline />
+          <div :class="sending ? 'i-solar:stop-circle-linear' : 'i-solar:arrow-up-outline'" />
         </button>
       </div>
     </div>

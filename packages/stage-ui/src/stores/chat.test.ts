@@ -26,7 +26,7 @@ function ensureSessionMessages(sessionId: string) {
   return sessionMessagesMap.get(sessionId)!
 }
 
-vi.mock('../composables', () => ({
+vi.mock('../composables/use-analytics', () => ({
   useAnalytics: () => ({
     trackFirstMessage: vi.fn(),
   }),
@@ -408,6 +408,55 @@ describe('chat orchestrator', () => {
     await expect(pending).rejects.toThrow('Alicization turn aborted')
 
     expect(appendConversationTurnMock).toBeCalledTimes(0)
+  })
+
+  it('clears streaming state without fallback output after manual abort', async () => {
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"partial","emotion":"neutral","reply":"这一句不该完整落盘',
+      })
+
+      await new Promise<void>((resolve, reject) => {
+        options.abortSignal?.addEventListener('abort', () => {
+          reject(options.abortSignal.reason ?? new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      })
+    })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('先说到一半再中断', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await vi.waitFor(() => {
+      expect(streamMock).toBeCalledTimes(1)
+    })
+
+    streamingMessage.value = {
+      role: 'assistant',
+      content: '这一句不该完整落盘',
+      slices: [{ type: 'text', text: '这一句不该完整落盘' }],
+      tool_results: [],
+    } as any
+
+    await store.abortAllPipelines('manual').catch(() => {})
+    await expect(pending).rejects.toThrow('Alicization turn aborted')
+
+    expect(streamingMessage.value).toEqual({
+      role: 'assistant',
+      content: '',
+      slices: [],
+      tool_results: [],
+    })
+    expect(appendConversationTurnMock).toBeCalledTimes(0)
+
+    const sessionMessages = ensureSessionMessages(activeSessionId.value)
+    expect(sessionMessages).toHaveLength(0)
+    expect(sessionMessages.some(message => message.role === 'assistant')).toBe(false)
+    expect(sessionMessages.some(message => message.role === 'error')).toBe(false)
   })
 
   it('retries structured output when emotion is outside whitelist and keeps personality-consistent result', async () => {

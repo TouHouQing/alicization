@@ -11,6 +11,7 @@ dialogue:
   expand-history: 履歴を開く
   collapse-history: 履歴を閉じる
   sending: 送信中...
+  stop-reply: 返信を中断
   window-title: Dialogue
   expand-panel: 対話を開く
   minimize-panel: 対話をしまう

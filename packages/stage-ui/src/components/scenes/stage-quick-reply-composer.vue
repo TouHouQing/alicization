@@ -3,14 +3,25 @@ import { BasicTextarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
+import { useChatReplyAbort } from '../../composables'
 import { useChatTextComposerStore } from '../../stores/chat/text-composer-store'
 
 const composerStore = useChatTextComposerStore()
-const { draft, isComposing, sending } = storeToRefs(composerStore)
+const { draft, isComposing } = storeToRefs(composerStore)
+const { sending, aborting, abortReply } = useChatReplyAbort()
 const { t } = useI18n()
 
 async function handleSubmit() {
   await composerStore.sendCurrentMessage()
+}
+
+async function handleActionButtonClick() {
+  if (sending.value) {
+    await abortReply()
+    return
+  }
+
+  await handleSubmit()
 }
 </script>
 
@@ -27,11 +38,16 @@ async function handleSubmit() {
     />
     <button
       type="button"
-      class="stage-quick-reply__send"
-      :disabled="sending || isComposing"
-      @click="handleSubmit"
+      :class="[
+        'stage-quick-reply__send',
+        sending ? 'stage-quick-reply__send--stop' : '',
+      ]"
+      :title="sending ? t('stage.dialogue.stop-reply') : undefined"
+      :aria-label="sending ? t('stage.dialogue.stop-reply') : undefined"
+      :disabled="sending ? aborting : isComposing"
+      @click="handleActionButtonClick"
     >
-      <span v-if="sending">{{ t('stage.dialogue.sending') }}</span>
+      <span v-if="sending" class="stage-quick-reply__stop-icon i-solar:stop-circle-linear" aria-hidden="true" />
       <span v-else class="stage-quick-reply__send-icon i-solar:arrow-up-linear" aria-hidden="true" />
     </button>
   </div>
@@ -91,6 +107,10 @@ async function handleSubmit() {
     background-color 180ms ease;
 }
 
+.stage-quick-reply__send--stop {
+  background: rgb(125 63 47 / 92%);
+}
+
 .stage-quick-reply__send:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -105,6 +125,10 @@ async function handleSubmit() {
 }
 
 .stage-quick-reply__send-icon {
+  font-size: 1rem;
+}
+
+.stage-quick-reply__stop-icon {
   font-size: 1rem;
 }
 </style>
