@@ -17,7 +17,11 @@ stdenvNoCC.mkDerivation (final: {
 
   pnpmDeps = pnpm.fetchDeps {
     inherit (final) pname version src;
-    fetcherVersion = 2;
+    # NOTICE: fetcherVersion = 2 normalizes every *.json in the pnpm store via jq.
+    # Some transitive packages ship non-strict JSON (e.g. JSONC in tsconfig.json),
+    # which breaks the Nix hash updater in fixupPhase with "Invalid numeric literal".
+    # Keep v1 until nixpkgs fetchDeps narrows normalization to strict metadata files.
+    fetcherVersion = 1;
     hash = builtins.readFile ./pnpm-deps-hash.txt;
   };
 
