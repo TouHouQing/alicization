@@ -111,8 +111,18 @@ jobs:
           ssh -p "${DEPLOY_PORT}" "${DEPLOY_USER}@${DEPLOY_HOST}" "
             set -euo pipefail
             cd '${REMOTE_REPO_DIR}/apps/server'
-            docker compose pull db || true
-            docker compose up -d --build db server
-            docker compose ps
+
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD='docker compose'
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE_CMD='docker-compose'
+            else
+              echo 'Neither docker compose nor docker-compose is available on the remote host.'
+              exit 1
+            fi
+
+            \$COMPOSE_CMD pull db || true
+            \$COMPOSE_CMD up -d --build db server
+            \$COMPOSE_CMD ps
             curl -fsS 'http://127.0.0.1:6112/health'
           "
