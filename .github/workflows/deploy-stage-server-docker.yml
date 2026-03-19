@@ -120,5 +120,16 @@ jobs:
             \$COMPOSE_CMD pull db || true
             \$COMPOSE_CMD up -d --build db server
             \$COMPOSE_CMD ps
-            curl -fsS 'http://127.0.0.1:6112/health'
+
+            for i in \$(seq 1 30); do
+              if curl -fsS 'http://127.0.0.1:6112/health'; then
+                exit 0
+              fi
+
+              sleep 2
+            done
+
+            \$COMPOSE_CMD ps
+            \$COMPOSE_CMD logs --tail=200 server
+            exit 1
           "
