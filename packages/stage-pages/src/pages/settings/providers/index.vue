@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { IconStatusItem, RippleGrid } from '@proj-alicization/stage-ui/components'
+import { IconStatusItem, RippleGrid, Section } from '@proj-alicization/stage-ui/components'
 import { useAnalytics, useScrollToHash } from '@proj-alicization/stage-ui/composables'
 import { useRippleGridState } from '@proj-alicization/stage-ui/composables/use-ripple-grid-state'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
+import { computed, reactive, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 
 const route = useRoute()
+const { t } = useI18n()
 const providersStore = useProvidersStore()
 const { lastClickedIndex, setLastClickedIndex } = useRippleGridState()
 const { trackProviderClick } = useAnalytics()
@@ -18,43 +20,68 @@ const {
   allAudioTranscriptionProvidersMetadata,
 } = storeToRefs(providersStore)
 
-const providerBlocksConfig = [
-  {
-    id: 'chat',
-    icon: 'i-solar:chat-square-like-bold-duotone',
-    title: 'Chat',
-    description: 'Text generation model providers. e.g. OpenRouter, OpenAI, Ollama.',
-    providersRef: allChatProvidersMetadata,
-  },
-  {
-    id: 'speech',
-    icon: 'i-solar:user-speak-rounded-bold-duotone',
-    title: 'Speech',
-    description: 'Speech (text-to-speech) model providers. e.g. ElevenLabs, Azure Speech.',
-    providersRef: allAudioSpeechProvidersMetadata,
-  },
-  {
-    id: 'transcription',
-    icon: 'i-solar:microphone-3-bold-duotone',
-    title: 'Transcription',
-    description: 'Transcription (speech-to-text) model providers. e.g. Whisper.cpp, OpenAI, Azure Speech',
-    providersRef: allAudioTranscriptionProvidersMetadata,
-  },
-]
+type ProviderBlockId = 'chat' | 'speech' | 'transcription'
+
+const expandedProviderBlocks = reactive<Record<ProviderBlockId, boolean>>({
+  chat: false,
+  speech: false,
+  transcription: false,
+})
 
 const providerBlocks = computed(() => {
   let globalIndex = 0
-  return providerBlocksConfig.map(block => ({
-    id: block.id,
-    icon: block.icon,
-    title: block.title,
-    description: block.description,
-    providers: block.providersRef.value.map(provider => ({
-      ...provider,
-      renderIndex: globalIndex++,
-    })),
-  }))
+
+  return [
+    {
+      id: 'chat' as const,
+      icon: 'i-solar:chat-square-like-bold-duotone',
+      title: 'Chat',
+      description: t('settings.providers.explained.chat'),
+      providers: allChatProvidersMetadata.value,
+    },
+    {
+      id: 'speech' as const,
+      icon: 'i-solar:user-speak-rounded-bold-duotone',
+      title: 'Speech',
+      description: t('settings.providers.explained.Speech'),
+      providers: allAudioSpeechProvidersMetadata.value,
+    },
+    {
+      id: 'transcription' as const,
+      icon: 'i-solar:microphone-3-bold-duotone',
+      title: 'Transcription',
+      description: t('settings.providers.explained.Transcription'),
+      providers: allAudioTranscriptionProvidersMetadata.value,
+    },
+  ].map((block) => {
+    const startIndex = globalIndex
+
+    return {
+      ...block,
+      startIndex,
+      providers: block.providers.map(provider => ({
+        ...provider,
+        renderIndex: globalIndex++,
+      })),
+    }
+  })
 })
+
+watch(
+  () => route.hash,
+  (hash) => {
+    const blockId = hash.startsWith('#') ? hash.slice(1) as ProviderBlockId : undefined
+    if (!blockId || !(blockId in expandedProviderBlocks))
+      return
+    expandedProviderBlocks[blockId] = true
+  },
+  { immediate: true },
+)
+
+function getBlockOriginIndex(startIndex: number, providerCount: number) {
+  const localIndex = lastClickedIndex.value - startIndex
+  return localIndex >= 0 && localIndex < providerCount ? localIndex : 0
+}
 
 useScrollToHash(() => route.hash, {
   auto: true, // automatically react to route hash
@@ -84,42 +111,43 @@ useScrollToHash(() => route.hash, {
       </div>
     </div>
 
-    <RippleGrid
-      :sections="providerBlocks"
-      :get-items="block => block.providers"
-      :columns="{ default: 1, sm: 2, xl: 3 }"
-      :origin-index="lastClickedIndex"
-      @item-click="({ globalIndex }) => setLastClickedIndex(globalIndex)"
+    <div
+      v-for="block in providerBlocks"
+      :id="block.id"
+      :key="block.id"
     >
-      <template #header="{ section: block }">
-        <div flex="~ row items-center gap-2">
-          <div :id="block.id" :class="block.icon" text="neutral-500 dark:neutral-400 4xl" />
-          <div>
-            <div>
-              <span text="neutral-300 dark:neutral-500 sm sm:base">{{ block.description }}</span>
-            </div>
-            <div flex text-nowrap text="2xl sm:3xl" font-normal>
-              <div>
-                {{ block.title }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </template>
+      <Section
+        :title="block.title"
+        :icon="block.icon"
+        :expand="expandedProviderBlocks[block.id]"
+      >
+        <div :class="['flex', 'flex-col', 'gap-4']">
+          <p :class="['text-sm', 'text-neutral-400', 'sm:text-base', 'dark:text-neutral-500']">
+            {{ block.description }}
+          </p>
 
-      <template #item="{ item: provider }">
-        <IconStatusItem
-          :title="provider.localizedName || 'Unknown'"
-          :description="provider.localizedDescription"
-          :icon="provider.icon"
-          :icon-color="provider.iconColor"
-          :icon-image="provider.iconImage"
-          :to="`/settings/providers/${provider.category}/${provider.id}`"
-          :configured="provider.configured"
-          @click="trackProviderClick(provider.id, provider.category)"
-        />
-      </template>
-    </RippleGrid>
+          <RippleGrid
+            :items="block.providers"
+            :columns="{ default: 1, sm: 2, xl: 3 }"
+            :origin-index="getBlockOriginIndex(block.startIndex, block.providers.length)"
+            @item-click="({ item }) => setLastClickedIndex(item.renderIndex)"
+          >
+            <template #item="{ item: provider }">
+              <IconStatusItem
+                :title="provider.localizedName || 'Unknown'"
+                :description="provider.localizedDescription"
+                :icon="provider.icon"
+                :icon-color="provider.iconColor"
+                :icon-image="provider.iconImage"
+                :to="`/settings/providers/${provider.category}/${provider.id}`"
+                :configured="provider.configured"
+                @click="trackProviderClick(provider.id, provider.category)"
+              />
+            </template>
+          </RippleGrid>
+        </div>
+      </Section>
+    </div>
   </div>
   <div
     v-motion
