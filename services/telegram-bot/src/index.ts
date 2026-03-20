@@ -17,7 +17,7 @@ setGlobalLogLevel(LogLevel.Debug)
 async function main() {
   const sdk = new NodeSDK({
     resource: resourceFromAttributes({
-      [ATTR_SERVICE_NAME]: 'moeru_ai.alicization.telegram_bot',
+      [ATTR_SERVICE_NAME]: 'tohoqing.alicization.telegram_bot',
       [ATTR_SERVICE_VERSION]: '1.0.0',
     }),
     traceExporter: new OTLPTraceExporter({

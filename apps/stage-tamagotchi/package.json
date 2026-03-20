@@ -1,12 +1,12 @@
 {
   "name": "@proj-alicization/stage-tamagotchi",
   "type": "module",
-  "version": "0.9.0-alpha.16",
+  "version": "0.3.0",
   "private": true,
   "description": "LLM powered virtual character",
   "author": {
-    "name": "Moeru AI",
-    "email": "alicization@moeru.ai",
+    "name": "TouHouQing",
+    "email": "qinghaoyang@foxmail.com",
     "url": "https://github.com/TouHouQing"
   },
   "homepage": "https://github.com/TouHouQing/alicization",
@@ -192,7 +192,7 @@
     "yaml": "^2.8.2"
   },
   "build": {
-    "appId": "ai.moeru.alicization",
+    "appId": "com.tohoqing.alicization",
     "extends": "electron-builder.config.ts"
   }
 }

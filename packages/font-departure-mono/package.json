@@ -1,7 +1,7 @@
 {
   "name": "@proj-alicization/font-departure-mono",
   "type": "module",
-  "version": "0.9.0-alpha.16",
+  "version": "0.3.0",
   "description": "Essential CSS for font, Departure Mono, used by Project Alicization",
   "author": {
     "name": "Tobias Fried",

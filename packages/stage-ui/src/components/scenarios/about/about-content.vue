@@ -8,14 +8,15 @@ const props = withDefaults(defineProps<{
   highlight?: string
   subtitle?: string
   buildInfo?: AboutBuildInfo
+  copyright?: string
   links?: AboutLink[]
 }>(), {
   title: 'Project',
   highlight: 'Alicization',
   subtitle: '',
+  copyright: '2026 touhouqing',
   links: () => ([
-    { label: 'Home', href: 'https://alicization.moeru.ai/docs/', icon: 'i-solar:home-smile-outline' },
-    { label: 'Documentations', href: 'https://alicization.moeru.ai/docs/en/docs/overview/', icon: 'i-solar:document-add-outline' },
+    { label: 'Home', href: 'https://alz.tohoqing.com', icon: 'i-solar:home-smile-outline' },
     { label: 'GitHub', href: 'https://github.com/TouHouQing/alicization', icon: 'i-simple-icons:github' },
   ]),
 })
@@ -76,6 +77,14 @@ const hasBuildInfo = computed(() => {
           </div>
           <div :class="['font-mono']">
             {{ buildInfo.builtOn }}
+          </div>
+        </template>
+        <template v-if="copyright">
+          <div :class="['text-neutral-500 dark:text-neutral-400']">
+            Copyright
+          </div>
+          <div :class="['font-mono']">
+            {{ copyright }}
           </div>
         </template>
       </div>

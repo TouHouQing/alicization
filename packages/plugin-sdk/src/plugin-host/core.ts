@@ -427,7 +427,7 @@ export type ModuleCompatibilityResult = ProtocolEvents['module:compatibility:res
 
 export interface ManifestV1 {
   apiVersion: 'v1'
-  kind: 'manifest.plugin.alicization.moeru.ai'
+  kind: 'manifest.plugin.alicization.tohoqing.com'
   name: string
   entrypoints: {
     default?: string
@@ -439,7 +439,7 @@ export interface ManifestV1 {
 
 export const manifestV1Schema = object({
   apiVersion: literal('v1'),
-  kind: literal('manifest.plugin.alicization.moeru.ai'),
+  kind: literal('manifest.plugin.alicization.tohoqing.com'),
   name: string(),
   entrypoints: object({
     default: optional(string()),

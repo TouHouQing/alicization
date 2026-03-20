@@ -86,7 +86,7 @@ const projectAIRIAsciiArt = computed(() => {
 })
 
 const projectAIRIMetadata = `
-Project Alicization team from Moeru AI (https://moeru.ai) and other contributors
+Project Alicization by TouHouQing (https://tohoqing.com) and other contributors
 Open sourced on https://github.com/TouHouQing/alicization
 `
 
@@ -117,11 +117,11 @@ const bootMessages = computed<BootMessage[]>(() => [
     withoutTimestamp: true,
   },
   {
-    template: 'Command line: BOOT_IMAGE=/boot/alicization.moeru.ai root=UUID=ai.moeru.alicization',
+    template: 'Command line: BOOT_IMAGE=/boot/alz.tohoqing.com root=UUID=com.tohoqing.alicization',
     typingSpeed: 1,
   },
   {
-    template: 'moeru-ai/NPU: Initialized power management',
+    template: 'tohoqing/NPU: Initialized power management',
     typingSpeed: 1,
   },
   {

@@ -108,7 +108,7 @@ interface CardExtra {
 }
 
 /**
- * Moeru-AI Character Card
+ * Alicization Character Card
  */
 export type Card = CardAdditional & CardCore & CardDescription & CardMeta & CardExtra
 

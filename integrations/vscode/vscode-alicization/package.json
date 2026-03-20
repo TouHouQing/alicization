@@ -3,7 +3,7 @@
   "name": "vscode-alicization",
   "displayName": "Alicization VSCode adapter",
   "type": "module",
-  "version": "0.9.0-alpha.16",
+  "version": "0.3.0",
   "private": true,
   "description": "Adapter that connects VSCode into Project Alicization",
   "repository": {

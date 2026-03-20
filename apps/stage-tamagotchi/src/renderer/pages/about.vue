@@ -90,12 +90,18 @@ const releaseNotesContent = computed(() => {
       <div :class="['mb-12', 'rounded-2xl', 'bg-white/50 dark:bg-black/20', 'p-6', 'backdrop-blur-sm']">
         <!-- Build Info -->
         <div :class="['flex flex-wrap items-center justify-between gap-4', 'mb-6', 'border-b border-neutral-200/50 dark:border-neutral-800/50', 'pb-6']">
-          <div>
+          <div :class="['flex flex-col gap-2']">
             <div :class="['text-sm text-neutral-500 dark:text-neutral-400']">
               {{ t('about.page.current_version') }}
             </div>
             <div :class="['text-xl font-medium font-mono']">
               {{ buildInfo.version }}
+            </div>
+            <div :class="['text-sm text-neutral-500 dark:text-neutral-400']">
+              Copyright
+            </div>
+            <div :class="['font-mono text-sm']">
+              2026 touhouqing
             </div>
           </div>
           <div :class="['text-right text-xs text-neutral-400 dark:text-neutral-500']">

@@ -3,7 +3,7 @@ title: 网页端
 description: 参与并贡献 Project Alicization
 ---
 
-### 网页端 ([alicization.moeru.ai](https://alicization.moeru.ai))
+### 网页端 ([alz.tohoqing.com](https://alz.tohoqing.com))
 
 ```shell
 pnpm dev

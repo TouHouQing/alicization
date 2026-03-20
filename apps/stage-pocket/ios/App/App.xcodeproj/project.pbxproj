@@ -317,7 +317,7 @@
 				);
 				MARKETING_VERSION = 0.8.5;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
-				PRODUCT_BUNDLE_IDENTIFIER = "ai.moeru.alicization-pocket";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tohoqing.alicization-pocket";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -344,7 +344,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.8.5;
-				PRODUCT_BUNDLE_IDENTIFIER = "ai.moeru.alicization-pocket";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tohoqing.alicization-pocket";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

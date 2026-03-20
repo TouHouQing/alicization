@@ -11,8 +11,8 @@ const show = ref(false)
 const buildInfo = useBuildInfo()
 
 const aboutLinks = [
-  { label: 'Home', href: 'https://alicization.moeru.ai/docs/', icon: 'i-solar:home-smile-outline' },
-  { label: 'Documentations', href: 'https://alicization.moeru.ai/docs/en/docs/overview/', icon: 'i-solar:document-add-outline' },
+  { label: 'Home', href: 'https://alz.tohoqing.com', icon: 'i-solar:home-smile-outline' },
+  { label: 'Documentations', href: 'https://alz.tohoqing.com/docs/en/docs/overview/', icon: 'i-solar:document-add-outline' },
   { label: 'GitHub', href: 'https://github.com/TouHouQing/alicization', icon: 'i-simple-icons:github' },
 ]
 

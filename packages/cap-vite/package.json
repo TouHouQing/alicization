@@ -1,11 +1,11 @@
 {
   "name": "@proj-alicization/cap-vite",
   "type": "module",
-  "version": "0.9.0-alpha.16",
+  "version": "0.3.0",
   "description": "CLI that starts a Vite dev server and runs Capacitor live reload",
   "author": {
-    "name": "Moeru AI Project Alicization Team",
-    "email": "alicization@moeru.ai",
+    "name": "TouHouQing",
+    "email": "qinghaoyang@foxmail.com",
     "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",

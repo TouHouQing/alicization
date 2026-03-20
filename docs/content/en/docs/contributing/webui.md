@@ -3,7 +3,7 @@ title: Web UI
 description: Contribute to Project Alicization
 ---
 
-### Stage Web (Browser version for [alicization.moeru.ai](https://alicization.moeru.ai))
+### Stage Web (Browser version for [alz.tohoqing.com](https://alz.tohoqing.com))
 
 ```shell
 pnpm dev

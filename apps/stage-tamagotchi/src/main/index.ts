@@ -77,7 +77,7 @@ if (isLinux) {
 }
 
 app.dock?.setIcon(icon)
-electronApp.setAppUserModelId('ai.moeru.alicization')
+electronApp.setAppUserModelId('com.tohoqing.alicization')
 
 initScreenCaptureForMain()
 

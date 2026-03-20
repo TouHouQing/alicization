@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) Alec Armbruster, Licensed under MIT License
-// SPDX-FileCopyrightText: Copyright (c) Moeru AI Project Alicization Team
+// SPDX-FileCopyrightText: Copyright (c) Moeru AI
+// SPDX-FileCopyrightText: Copyright (c) TouHouQing
 
 import type { Format, LogLevelString } from '@guiiai/logg'
 import type { MutexInterface } from 'async-mutex'

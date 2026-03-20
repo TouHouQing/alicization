@@ -1,11 +1,11 @@
 {
   "name": "@proj-alicization/unocss-preset-fonts",
   "type": "module",
-  "version": "0.9.0-alpha.16",
+  "version": "0.3.0",
   "description": "Fonts that are not included by Google Fonts, FontSource but open-source used by Project Alicization",
   "author": {
-    "name": "Moeru AI Project Alicization Team",
-    "email": "alicization@moeru.ai",
+    "name": "TouHouQing",
+    "email": "qinghaoyang@foxmail.com",
     "url": "https://github.com/TouHouQing"
   },
   "license": "MIT",

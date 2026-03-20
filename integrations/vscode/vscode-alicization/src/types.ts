@@ -54,8 +54,8 @@ export interface CodingContext {
    *   "after": [
    *     "  \"description\": \"LLM powered virtual character\",",
    *     "  \"author\": {",
-   *     "    \"name\": \"Moeru AI Project Alicization Team\",",
-   *     "    \"email\": \"alicization@moeru.ai\",",
+   *     "    \"name\": \"TouHouQing\",",
+   *     "    \"email\": \"qinghaoyang@foxmail.com\",",
    *     "    \"url\": \"https://github.com/TouHouQing\""
    *   ]
    * }

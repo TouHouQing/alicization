@@ -1,5 +1,5 @@
 /**
- * Moeru-AI Character Card Markdown Extension
+ * Alicization Character Card Markdown Extension
  */
 export interface Ext {}
 

@@ -5,7 +5,7 @@ export function getTrustedOrigin(origin: string): string {
   }
 
   // 2. Allow Production (Exact Match)
-  if (origin === 'https://alicization.moeru.ai') {
+  if (origin === 'https://alz.tohoqing.com') {
     return origin
   }
 

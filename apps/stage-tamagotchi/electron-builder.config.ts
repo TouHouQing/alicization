@@ -5,7 +5,7 @@ import type { Configuration } from 'electron-builder'
 import { env } from 'node:process'
 
 export default {
-  appId: 'ai.moeru.alicization',
+  appId: 'com.tohoqing.alicization',
   productName: 'Alicization',
   directories: {
     output: 'dist',
@@ -57,7 +57,7 @@ export default {
     '**/*.node',
   ],
   extraMetadata: {
-    name: 'ai.moeru.alicization',
+    name: 'com.tohoqing.alicization',
     main: 'out/main/index.js',
     homepage: 'https://github.com/TouHouQing/alicization',
     repository: 'https://github.com/TouHouQing/alicization',

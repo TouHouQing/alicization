@@ -1,4 +1,4 @@
-app-id: ai.moeru.alicization
+app-id: com.tohoqing.alicization
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk

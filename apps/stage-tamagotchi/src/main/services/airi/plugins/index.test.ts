@@ -52,7 +52,7 @@ const testDataRoot = resolve(
 async function writeManifest(params: { dir: string, name: string, entrypoint: string }) {
   const manifest = {
     apiVersion: 'v1',
-    kind: 'manifest.plugin.alicization.moeru.ai',
+    kind: 'manifest.plugin.alicization.tohoqing.com',
     name: params.name,
     entrypoints: {
       electron: params.entrypoint,

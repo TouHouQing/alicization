@@ -4,7 +4,7 @@ import { argv, env } from 'node:process'
 
 const serverURL = env.CAPACITOR_DEV_SERVER_URL
 
-const appId = argv.includes('android') ? 'ai.moeru.alicization_pocket' : 'ai.moeru.alicization-pocket'
+const appId = argv.includes('android') ? 'com.tohoqing.alicization_pocket' : 'com.tohoqing.alicization-pocket'
 
 const config: CapacitorConfig = {
   appId,

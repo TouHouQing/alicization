@@ -1,4 +1,4 @@
-package ai.moeru.alicization_pocket;
+package com.tohoqing.alicization_pocket;
 
 import android.net.Uri;
 import android.net.http.SslError;

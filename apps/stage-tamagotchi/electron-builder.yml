@@ -1,4 +1,4 @@
-appId: ai.moeru.alicization
+appId: com.tohoqing.alicization
 productName: Alicization
 
 directories:
@@ -26,7 +26,7 @@ asarUnpack:
   - '**/*.node' # native binaries
 
 extraMetadata:
-  name: ai.moeru.alicization
+  name: com.tohoqing.alicization
   main: 'out/main/index.js'
   homepage: 'https://github.com/TouHouQing/alicization'
   repository: 'https://github.com/TouHouQing/alicization'

@@ -1,7 +1,7 @@
 {
   "version": "0.9.0-alpha.12",
   "description": "A self-hosted AI companion desktop app with voice chat and game integrations",
-  "homepage": "https://alicization.moeru.ai/",
+  "homepage": "https://alz.tohoqing.com/",
   "license": "MIT",
   "architecture": {
     "64bit": {
