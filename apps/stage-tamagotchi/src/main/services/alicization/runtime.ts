@@ -5250,22 +5250,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   function resolveChatMessages(payload: AlicizationChatStartPayload): Message[] {
-    return payload.messages.map((message) => {
-      const role = message.role
+    return payload.messages.flatMap((message) => {
+      const rawRole = typeof (message as { role?: unknown }).role === 'string'
+        ? (message as { role: string }).role
+        : ''
+      const role = rawRole === 'developer'
+        ? 'system'
+        : rawRole
+
+      if (role === 'error')
+        return []
+      if (role !== 'system' && role !== 'user' && role !== 'assistant' && role !== 'tool')
+        return []
+
       if (role === 'tool') {
-        return {
+        return [{
           role: 'tool',
           content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
           tool_call_id: sanitizeText(message.toolCallId),
-        } as Message
+        } as Message]
       }
 
-      return {
+      return [{
+        // NOTICE: Renderer session history may contain UI-only pseudo roles such as
+        // `error`. OpenAI-compatible providers only accept the standard chat roles,
+        // and some compatibility gateways hang instead of returning a validation error.
         role,
         content: typeof message.content === 'string'
           ? message.content
           : JSON.stringify(message.content),
-      } as Message
+      } as Message]
     })
   }
 

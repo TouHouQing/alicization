@@ -1155,6 +1155,52 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(String(firstSystem?.content)).toContain('严格而克制的教练型人格')
   })
 
+  it('drops renderer-only error messages and normalizes developer role before provider streaming', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'sanitized' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    const turnId = 'turn-drop-error-role'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        { role: 'developer', content: 'developer block' },
+        { role: 'assistant', content: 'previous reply' },
+        { role: 'error', content: 'previous failure' },
+        { role: 'user', content: 'hello again' },
+      ] as any,
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    expect(capturedMessages.some(message => message.role === 'error')).toBe(false)
+    expect(capturedMessages.some(message => message.role === 'system' && message.content === 'developer block')).toBe(true)
+    expect(capturedMessages.some(message => message.role === 'user' && message.content === 'hello again')).toBe(true)
+  })
+
   it('aborts main chat stream over direct ipc transport', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(({ onEvent, abortSignal }) => {

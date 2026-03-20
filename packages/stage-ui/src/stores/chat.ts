@@ -1187,11 +1187,22 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const bridge = hasAlicizationBridge() ? getAlicizationBridge() : null
         const bridgeStreamChat = bridge?.streamChat
         if (bridgeStreamChat) {
-          const messagePayload = messages.map((message) => {
+          const messagePayload = messages.flatMap((message) => {
             const entry = message as unknown as Record<string, unknown>
-            const role = message.role === 'developer' ? 'system' : message.role
-            return {
-              role,
+            const rawRole = typeof entry.role === 'string' ? entry.role : ''
+            const normalizedRole: 'system' | 'user' | 'assistant' | 'tool' | null
+              = rawRole === 'developer'
+                ? 'system'
+                : rawRole === 'system' || rawRole === 'user' || rawRole === 'assistant' || rawRole === 'tool'
+                  ? rawRole
+                  : null
+            if (!normalizedRole)
+              return []
+
+            return [{
+              // NOTICE: OpenAI-compatible transports reject or hang on unsupported roles
+              // such as renderer-only `error`; keep the bridge payload provider-safe.
+              role: normalizedRole,
               content: message.content ?? '',
               toolCallId: typeof entry.tool_call_id === 'string'
                 ? entry.tool_call_id
@@ -1199,7 +1210,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               toolName: typeof entry.toolName === 'string'
                 ? entry.toolName
                 : undefined,
-            }
+            }]
           })
 
           const runBridgeStream = async (
