@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Card } from '@proj-alicization/ccc'
+import type { DisplayModel } from '@proj-alicization/stage-ui/stores/display-models'
 import type { AiriExtension } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 
 import type { SoulForgeDraft } from './soul-forge'
@@ -7,12 +8,16 @@ import type { SoulForgeDraft } from './soul-forge'
 import kebabcase from '@stdlib/string-base-kebabcase'
 
 import { errorMessageFrom } from '@moeru/std'
+import { defaultAlicizationStageModelId } from '@proj-alicization/stage-shared'
+import { ModelSelectorDialog } from '@proj-alicization/stage-ui/components/scenarios/dialogs/model-selector'
 import { hasAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
+import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
 import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { useSpeechStore } from '@proj-alicization/stage-ui/stores/modules/speech'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
+import { useSettingsStageModel } from '@proj-alicization/stage-ui/stores/settings/stage-model'
 import { Button, FieldInput } from '@proj-alicization/ui'
 import { Select } from '@proj-alicization/ui/components/form'
 import { storeToRefs } from 'pinia'
@@ -55,11 +60,15 @@ const cardStore = useAiriCardStore()
 const consciousnessStore = useConsciousnessStore()
 const speechStore = useSpeechStore()
 const providersStore = useProvidersStore()
+const displayModelsStore = useDisplayModelsStore()
+const stageModelStore = useSettingsStageModel()
 const alicizationEpoch1Store = useAlicizationEpoch1Store()
 
 const { activeCardId } = storeToRefs(cardStore)
 const { activeProvider: consciousnessProvider, activeModel: defaultConsciousnessModel } = storeToRefs(consciousnessStore)
 const { activeSpeechProvider: speechProvider, activeSpeechModel: defaultSpeechModel, activeSpeechVoiceId: defaultSpeechVoiceId } = storeToRefs(speechStore)
+const { displayModels } = storeToRefs(displayModelsStore)
+const { stageModelSelected } = storeToRefs(stageModelStore)
 
 const dialogMode = ref<'create' | 'edit'>('create')
 const dialogCardId = ref('')
@@ -72,6 +81,8 @@ const selectedConsciousnessModel = ref<string>('')
 const selectedSpeechProvider = ref<string>('')
 const selectedSpeechModel = ref<string>('')
 const selectedSpeechVoiceId = ref<string>('')
+const selectedDisplayModelId = ref<string>('')
+const modelSelectorOpen = ref(false)
 
 const consciousnessProviderOptions = computed(() => {
   return providersStore.configuredChatProvidersMetadata.map(provider => ({
@@ -118,6 +129,34 @@ const speechVoiceOptions = computed(() => {
     value: voice.id,
     label: voice.name || voice.id,
   }))
+})
+
+const selectedDisplayModel = computed<DisplayModel | undefined>(() => {
+  return displayModels.value.find(model => model.id === selectedDisplayModelId.value)
+})
+
+const selectedDisplayModelLabel = computed(() => {
+  return selectedDisplayModel.value?.name
+    || selectedDisplayModelId.value
+    || defaultAlicizationStageModelId
+})
+
+const selectedDisplayModelDescription = computed(() => {
+  const selectedModel = selectedDisplayModel.value
+  if (!selectedModel && displayModels.value.length > 0)
+    return t('settings.pages.card.alicization.creation.model_missing', { id: selectedDisplayModelId.value })
+  if (!selectedModel)
+    return selectedDisplayModelId.value
+
+  switch (selectedModel.format) {
+    case 'live2d-zip':
+    case 'live2d-directory':
+      return `Live2D · ${selectedModel.id}`
+    case 'vrm':
+      return `VRM · ${selectedModel.id}`
+    default:
+      return selectedModel.id
+  }
 })
 
 watch(() => [consciousnessProvider.value, speechProvider.value], async ([consProvider, spProvider]) => {
@@ -224,6 +263,9 @@ function initializeCard(): Card {
   selectedSpeechProvider.value = airiExt?.modules?.speech?.provider || speechProvider.value
   selectedSpeechModel.value = airiExt?.modules?.speech?.model || defaultSpeechModel.value
   selectedSpeechVoiceId.value = airiExt?.modules?.speech?.voice_id || defaultSpeechVoiceId.value
+  selectedDisplayModelId.value = airiExt?.modules?.displayModel?.modelId?.trim()
+    || stageModelSelected.value
+    || defaultAlicizationStageModelId
 
   if (existingCard) {
     return { ...toRaw(existingCard) }
@@ -290,6 +332,43 @@ function getDefaultPlaceholder(defaultValue: string | undefined): string {
   return defaultValue
     ? `${t('settings.pages.card.creation.use_default')} (${defaultValue})`
     : t('settings.pages.card.creation.use_default_not_configured')
+}
+
+function resolveSelectedDisplayModelId() {
+  return selectedDisplayModelId.value.trim()
+    || stageModelSelected.value?.trim()
+    || defaultAlicizationStageModelId
+}
+
+function buildAiriExtension(existingExtension?: AiriExtension): AiriExtension {
+  return {
+    modules: {
+      consciousness: {
+        provider: selectedConsciousnessProvider.value || consciousnessProvider.value,
+        model: selectedConsciousnessModel.value || defaultConsciousnessModel.value,
+      },
+      speech: {
+        provider: selectedSpeechProvider.value || speechProvider.value,
+        model: selectedSpeechModel.value || defaultSpeechModel.value,
+        voice_id: selectedSpeechVoiceId.value || defaultSpeechVoiceId.value,
+        pitch: existingExtension?.modules?.speech?.pitch,
+        rate: existingExtension?.modules?.speech?.rate,
+        ssml: existingExtension?.modules?.speech?.ssml,
+        language: existingExtension?.modules?.speech?.language,
+      },
+      displayModel: {
+        modelId: resolveSelectedDisplayModelId(),
+      },
+    },
+    agents: existingExtension?.agents ?? {},
+  }
+}
+
+function handleDisplayModelPick(selectedModel: DisplayModel | undefined) {
+  if (!selectedModel)
+    return
+
+  selectedDisplayModelId.value = selectedModel.id
 }
 
 function validateCreatePersonaDraft() {
@@ -379,27 +458,15 @@ async function saveCard(nextCard: Card) {
     errorMessage.value = t('settings.pages.card.creation.errors.version')
     return
   }
+  if (!resolveSelectedDisplayModelId()) {
+    showError.value = true
+    errorMessage.value = t('settings.pages.card.alicization.creation.errors.display_model_required')
+    return
+  }
 
   showError.value = false
   errorMessage.value = ''
   creating.value = true
-
-  const extensionPatch = {
-    airi: {
-      modules: {
-        consciousness: {
-          provider: selectedConsciousnessProvider.value || consciousnessProvider.value,
-          model: selectedConsciousnessModel.value || defaultConsciousnessModel.value,
-        },
-        speech: {
-          provider: selectedSpeechProvider.value || speechProvider.value,
-          model: selectedSpeechModel.value || defaultSpeechModel.value,
-          voice_id: selectedSpeechVoiceId.value || defaultSpeechVoiceId.value,
-        },
-      },
-      agents: {},
-    } as AiriExtension,
-  }
 
   try {
     if (isEditMode.value && activeTab.value === 'alicization-persona') {
@@ -413,11 +480,12 @@ async function saveCard(nextCard: Card) {
         errorMessage.value = t('settings.pages.card.card_not_found')
         return
       }
+      const existingExtension = existingCard.extensions?.airi as AiriExtension | undefined
       cardStore.updateCard(dialogCardId.value, {
         ...toRaw(existingCard),
         extensions: {
           ...existingCard.extensions,
-          ...extensionPatch,
+          airi: buildAiriExtension(existingExtension),
         },
       })
     }
@@ -427,6 +495,7 @@ async function saveCard(nextCard: Card) {
 
       let newCardId = ''
       try {
+        const existingExtension = rawCard.extensions?.airi as AiriExtension | undefined
         newCardId = cardStore.addCard({
           ...rawCard,
           personality: '',
@@ -437,7 +506,7 @@ async function saveCard(nextCard: Card) {
           messageExample: [],
           extensions: {
             ...rawCard.extensions,
-            ...extensionPatch,
+            airi: buildAiriExtension(existingExtension),
           },
         })
         await initializeGenesisForNewCard(newCardId)
@@ -610,6 +679,34 @@ async function saveCard(nextCard: Card) {
                   :disabled="!selectedSpeechProvider && !speechProvider"
                   class="w-full"
                 />
+              </div>
+
+              <div :class="['sm:col-span-2', 'flex', 'flex-col', 'gap-2']">
+                <label :class="['flex', 'flex-row', 'items-center', 'gap-2', 'text-sm', 'text-neutral-500', 'dark:text-neutral-400']">
+                  <div i-solar:face-scan-circle-bold-duotone />
+                  {{ t('settings.pages.card.body-model') }}
+                </label>
+
+                <div :class="['flex', 'flex-col', 'gap-3', 'rounded-xl', 'border', 'border-neutral-200', 'bg-neutral-50/80', 'p-3', 'dark:border-neutral-700', 'dark:bg-neutral-900/40', 'sm:flex-row', 'sm:items-center', 'sm:justify-between']">
+                  <div :class="['min-w-0', 'flex-1']">
+                    <div :class="['truncate', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+                      {{ selectedDisplayModelLabel }}
+                    </div>
+                    <div :class="['mt-1', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+                      {{ selectedDisplayModelDescription }}
+                    </div>
+                  </div>
+
+                  <ModelSelectorDialog
+                    v-model:show="modelSelectorOpen"
+                    :selected-model="selectedDisplayModel"
+                    @pick="handleDisplayModelPick"
+                  >
+                    <Button variant="secondary">
+                      {{ t('settings.pages.models.actions.select-model') }}
+                    </Button>
+                  </ModelSelectorDialog>
+                </div>
               </div>
             </div>
           </div>

@@ -184,6 +184,9 @@ describe('store character-orchestrator', () => {
               model: 'mock-speech-model',
               voice_id: 'alloy',
             },
+            displayModel: {
+              modelId: 'preset-live2d-1',
+            },
           },
         },
       },

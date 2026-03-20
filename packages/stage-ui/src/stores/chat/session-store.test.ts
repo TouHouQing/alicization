@@ -1,9 +1,10 @@
 import type { ChatSessionRecord, ChatSessionsIndex } from '../../types/chat-session'
 
-import { createPinia, setActivePinia } from 'pinia'
+import { createPinia, defineStore, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
+import { useAiriCardStore } from '../modules/airi-card'
 import { useChatSessionStore } from './session-store'
 
 const authState = vi.hoisted(() => ({
@@ -89,8 +90,12 @@ vi.mock('../auth', () => ({
 }))
 
 vi.mock('../modules/airi-card', () => ({
-  useAiriCardStore: () => ({
-    activeCardId: ref('default'),
+  useAiriCardStore: defineStore('mock-airi-card', () => {
+    const activeCardId = ref('default')
+
+    return {
+      activeCardId,
+    }
   }),
 }))
 
@@ -126,6 +131,7 @@ describe('chat session store reset stability', () => {
     setActivePinia(createPinia())
     mocks.resetStorage()
     authState.userId = 'local-user'
+    useAiriCardStore().activeCardId = 'default'
   })
 
   it('does not lose freshly sent messages after resetAllSessions under delayed persistence', async () => {
@@ -199,5 +205,49 @@ describe('chat session store reset stability', () => {
 
     expect(store.activeSessionId).toBe(initialSessionId)
     expect(store.activeSessionId).toBeTruthy()
+  })
+
+  it('isolates active sessions and messages across card switches', async () => {
+    const store = useChatSessionStore()
+    const cardStore = useAiriCardStore()
+
+    await store.initialize()
+
+    const defaultSessionId = store.activeSessionId
+    store.setSessionMessages(defaultSessionId, [
+      {
+        id: 'msg-default-1',
+        role: 'user',
+        content: 'message for default card',
+        createdAt: Date.now(),
+      },
+    ])
+
+    cardStore.activeCardId = 'card-b'
+    await vi.waitFor(() => {
+      expect(store.activeSessionId).not.toBe(defaultSessionId)
+    })
+
+    const cardBSessionId = store.activeSessionId
+    store.setSessionMessages(cardBSessionId, [
+      {
+        id: 'msg-card-b-1',
+        role: 'user',
+        content: 'message for card b',
+        createdAt: Date.now(),
+      },
+    ])
+
+    cardStore.activeCardId = 'default'
+    await vi.waitFor(() => {
+      expect(store.activeSessionId).toBe(defaultSessionId)
+    })
+    expect(store.messages.map(message => message.id)).toEqual(['msg-default-1'])
+
+    cardStore.activeCardId = 'card-b'
+    await vi.waitFor(() => {
+      expect(store.activeSessionId).toBe(cardBSessionId)
+    })
+    expect(store.messages.map(message => message.id)).toEqual(['msg-card-b-1'])
   })
 })

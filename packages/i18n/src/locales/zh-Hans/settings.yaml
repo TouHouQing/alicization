@@ -381,6 +381,7 @@ pages:
       creation:
         title_edit: 编辑卡片模块绑定
         title_create: 创建 Alicization 角色卡
+        model_missing: 绑定的人物模型已不存在（{id}）
         tabs:
           shell: 卡片壳信息
           modules: 模块绑定
@@ -407,6 +408,7 @@ pages:
           alicization_name_required: 人格设定中的角色称呼不能为空。
           relationship_required: 人格设定中的关系定位不能为空。
           gender_custom_required: 选择自定义性别时必须填写描述。
+          display_model_required: Alicization 角色卡必须绑定一个人物模型。
           genesis_conflict: Alicization 初始化冲突，请重试。
           save_failed: 保存 Alicization 角色卡失败。
       actions:

@@ -390,6 +390,7 @@ pages:
       creation:
         title_edit: Edit card bindings
         title_create: Create Alicization card
+        model_missing: Bound model is no longer available ({id})
         tabs:
           shell: Card shell
           modules: Module bindings
@@ -416,6 +417,7 @@ pages:
           alicization_name_required: Alicization name in persona settings cannot be empty.
           relationship_required: Relationship in persona settings cannot be empty.
           gender_custom_required: A custom gender description is required when custom gender is selected.
+          display_model_required: A bound display model is required.
           genesis_conflict: Alicization initialization conflicted. Please try again.
           save_failed: Failed to save Alicization card.
       actions:

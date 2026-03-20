@@ -1,14 +1,19 @@
 import type { Card, ccv3 } from '@proj-alicization/ccc'
 
-import { defaultAlicizationCardName } from '@proj-alicization/stage-shared'
+import { defaultAlicizationCardName, defaultAlicizationStageModelId } from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, watch } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge } from '../alicization-bridge'
+import { useSettingsStageModel } from '../settings/stage-model'
 import { useConsciousnessStore } from './consciousness'
 import { useSpeechStore } from './speech'
+
+export interface AiriDisplayModelBinding {
+  modelId: string
+}
 
 export interface AiriExtension {
   modules: {
@@ -28,17 +33,7 @@ export interface AiriExtension {
       language?: string
     }
 
-    vrm?: {
-      source?: 'file' | 'url'
-      file?: string // Example: "vrm/model.vrm"
-      url?: string // Example: "https://example.com/vrm/model.vrm"
-    }
-
-    live2d?: {
-      source?: 'file' | 'url'
-      file?: string // Example: "live2d/model.json"
-      url?: string // Example: "https://example.com/live2d/model.json"
-    }
+    displayModel: AiriDisplayModelBinding
   }
 
   agents: {
@@ -65,6 +60,7 @@ export const useAiriCardStore = defineStore('airi-card', () => {
 
   const consciousnessStore = useConsciousnessStore()
   const speechStore = useSpeechStore()
+  const stageModelStore = useSettingsStageModel()
 
   const {
     activeProvider: activeConsciousnessProvider,
@@ -76,6 +72,20 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     activeSpeechVoiceId,
     activeSpeechModel,
   } = storeToRefs(speechStore)
+  const { stageModelSelected } = storeToRefs(stageModelStore)
+
+  function getCurrentStageModelId() {
+    const currentModelId = stageModelSelected.value?.trim()
+    return currentModelId || defaultAlicizationStageModelId
+  }
+
+  function normalizeDisplayModelId(raw: unknown, fallback = getCurrentStageModelId()) {
+    if (typeof raw !== 'string')
+      return fallback
+
+    const trimmed = raw.trim()
+    return trimmed || fallback
+  }
 
   const addCard = (card: AiriCard | Card | ccv3.CharacterCardV3) => {
     const newCardId = nanoid()
@@ -160,11 +170,18 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     return true
   }
 
-  function resolveAiriExtension(card: Card | ccv3.CharacterCardV3): AiriExtension {
+  function resolveAiriExtension(
+    card: Card | ccv3.CharacterCardV3,
+    options?: {
+      displayModelFallbackId?: string
+    },
+  ): AiriExtension {
     // Get existing extension if available
     const existingExtension = ('data' in card
       ? card.data?.extensions?.airi
       : card.extensions?.airi) as AiriExtension
+
+    const displayModelFallbackId = normalizeDisplayModelId(options?.displayModelFallbackId, getCurrentStageModelId())
 
     // Create default modules config
     const defaultModules = {
@@ -176,6 +193,9 @@ export const useAiriCardStore = defineStore('airi-card', () => {
         provider: activeSpeechProvider.value,
         model: activeSpeechModel.value,
         voice_id: activeSpeechVoiceId.value,
+      },
+      displayModel: {
+        modelId: displayModelFallbackId,
       },
     }
 
@@ -203,14 +223,23 @@ export const useAiriCardStore = defineStore('airi-card', () => {
           ssml: existingExtension.modules?.speech?.ssml,
           language: existingExtension.modules?.speech?.language,
         },
-        vrm: existingExtension.modules?.vrm,
-        live2d: existingExtension.modules?.live2d,
+        displayModel: {
+          modelId: normalizeDisplayModelId(
+            existingExtension.modules?.displayModel?.modelId,
+            defaultModules.displayModel.modelId,
+          ),
+        },
       },
       agents: existingExtension.agents ?? {},
     }
   }
 
-  function newAiriCard(card: Card | ccv3.CharacterCardV3): AiriCard {
+  function newAiriCard(
+    card: Card | ccv3.CharacterCardV3,
+    options?: {
+      displayModelFallbackId?: string
+    },
+  ): AiriCard {
     // Handle ccv3 format if needed
     if ('data' in card) {
       const ccv3Card = card as ccv3.CharacterCardV3
@@ -243,8 +272,8 @@ export const useAiriCardStore = defineStore('airi-card', () => {
           : [],
         tags: ccv3Card.data.tags ?? [],
         extensions: {
-          airi: resolveAiriExtension(ccv3Card),
           ...ccv3Card.data.extensions,
+          airi: resolveAiriExtension(ccv3Card, options),
         },
       }
     }
@@ -252,48 +281,65 @@ export const useAiriCardStore = defineStore('airi-card', () => {
     return {
       ...card,
       extensions: {
-        airi: resolveAiriExtension(card),
         ...card.extensions,
+        airi: resolveAiriExtension(card, options),
       },
     }
   }
 
   function initialize() {
     if (!cards.value.has(defaultCardId)) {
-      cards.value.set(defaultCardId, newAiriCard({
-        name: defaultAlicizationCardName,
-        version: '1.0.0',
-        description: '',
-      }))
-    }
-    else {
-      const defaultCard = cards.value.get(defaultCardId)
-      if (defaultCard?.name === legacyDefaultCardName) {
-        cards.value.set(defaultCardId, newAiriCard({
-          ...defaultCard,
+      cards.value.set(defaultCardId, newAiriCard(
+        {
           name: defaultAlicizationCardName,
-        }))
-      }
+          version: '1.0.0',
+          description: '',
+        },
+        {
+          displayModelFallbackId: defaultAlicizationStageModelId,
+        },
+      ))
     }
+
+    for (const [cardId, existingCard] of cards.value.entries()) {
+      const shouldRenameDefaultCard = cardId === defaultCardId && existingCard.name === legacyDefaultCardName
+      const hasDisplayModelBinding = Boolean(existingCard.extensions?.airi?.modules?.displayModel?.modelId?.trim())
+
+      if (!shouldRenameDefaultCard && hasDisplayModelBinding)
+        continue
+
+      cards.value.set(cardId, newAiriCard(
+        {
+          ...existingCard,
+          name: shouldRenameDefaultCard ? defaultAlicizationCardName : existingCard.name,
+        },
+        {
+          displayModelFallbackId: cardId === defaultCardId
+            ? defaultAlicizationStageModelId
+            : getCurrentStageModelId(),
+        },
+      ))
+    }
+
     if (!activeCardId.value || !cards.value.has(activeCardId.value))
       activeCardId.value = defaultCardId
   }
 
-  watch(activeCard, (newCard: AiriCard | undefined) => {
+  async function applyActiveCardBindings(newCard: AiriCard | undefined) {
     if (!newCard)
       return
 
-    // TODO: live2d, vrm
     // TODO: Minecraft Agent, etc
     const extension = resolveAiriExtension(newCard)
     if (!extension)
       return
 
-    const consciousnessProvider = extension?.modules?.consciousness?.provider?.trim()
-    const consciousnessModel = extension?.modules?.consciousness?.model?.trim()
-    const speechProvider = extension?.modules?.speech?.provider?.trim()
-    const speechModel = extension?.modules?.speech?.model?.trim()
-    const speechVoiceId = extension?.modules?.speech?.voice_id?.trim()
+    const consciousnessProvider = extension.modules.consciousness.provider.trim()
+    const consciousnessModel = extension.modules.consciousness.model.trim()
+    const speechProvider = extension.modules.speech.provider.trim()
+    const speechModel = extension.modules.speech.model.trim()
+    const speechVoiceId = extension.modules.speech.voice_id.trim()
+    const displayModelId = normalizeDisplayModelId(extension.modules.displayModel.modelId)
 
     // NOTICE: avoid clobbering persisted runtime selections with empty card fields.
     // Card metadata can be stale/missing for legacy cards, while runtime selections remain valid.
@@ -308,7 +354,16 @@ export const useAiriCardStore = defineStore('airi-card', () => {
       activeSpeechModel.value = speechModel
     if (speechVoiceId)
       activeSpeechVoiceId.value = speechVoiceId
-  })
+
+    if (stageModelSelected.value !== displayModelId)
+      stageModelSelected.value = displayModelId
+
+    await stageModelStore.updateStageModel()
+  }
+
+  watch(activeCard, (newCard: AiriCard | undefined) => {
+    void applyActiveCardBindings(newCard)
+  }, { immediate: true })
 
   function resetState() {
     activeCardId.reset()
@@ -337,6 +392,9 @@ export const useAiriCardStore = defineStore('airi-card', () => {
           provider: activeSpeechProvider.value,
           model: activeSpeechModel.value,
           voice_id: activeSpeechVoiceId.value,
+        },
+        displayModel: {
+          modelId: getCurrentStageModelId(),
         },
       } satisfies AiriExtension['modules']
     }),
