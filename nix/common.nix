@@ -15,15 +15,26 @@ stdenvNoCC.mkDerivation (final: {
 
   src = ../.;
 
-  pnpmDeps = pnpm.fetchDeps {
+  pnpmDeps = (pnpm.fetchDeps {
     inherit (final) pname version src;
-    # NOTICE: fetcherVersion = 2 normalizes every *.json in the pnpm store via jq.
-    # Some transitive packages ship non-strict JSON (e.g. JSONC in tsconfig.json),
-    # which breaks the Nix hash updater in fixupPhase with "Invalid numeric literal".
-    # Keep v1 until nixpkgs fetchDeps narrows normalization to strict metadata files.
+    # NOTICE: In the pinned nixpkgs revision, pnpm.fetchDeps still runs jq over every
+    # `*.json` during fixupPhase even when fetcherVersion = 1.
+    # That breaks on dependencies shipping non-strict JSON / JSONC files such as
+    # tsconfig variants, causing:
+    # `jq: parse error: Invalid numeric literal`.
+    # Keep fetcherVersion at 1 and override the derivation's fixupPhase to restore
+    # actual v1 behavior until upstream gates JSON normalization behind v2.
     fetcherVersion = 1;
     hash = builtins.readFile ./pnpm-deps-hash.txt;
-  };
+  }).overrideAttrs (_: {
+    fixupPhase = ''
+      runHook preFixup
+
+      rm -rf $out/{v3,v10}/tmp
+
+      runHook postFixup
+    '';
+  });
 
   # Cache of assets downloaded during vite build
   assets = stdenvNoCC.mkDerivation {
