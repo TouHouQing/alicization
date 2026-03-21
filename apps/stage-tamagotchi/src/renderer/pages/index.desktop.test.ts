@@ -50,8 +50,24 @@ describe('stage desktop page helpers', () => {
         stageCapturePixel: true,
         stagePaused: false,
       })).toEqual({
-        shouldCaptureMouse: true,
+        shouldCaptureMouse: false,
         shouldFadeOnCursorWithin: true,
+      })
+    })
+
+    it('still captures the dialogue overlay while fade-on-hover is enabled', () => {
+      expect(resolveDesktopMouseCaptureState({
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: true,
+        isOutsideWindow: false,
+        stageInteractionActive: false,
+        stageCapturePixel: true,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: true,
+        shouldFadeOnCursorWithin: false,
       })
     })
   })

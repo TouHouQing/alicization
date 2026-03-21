@@ -25,12 +25,13 @@ export interface DesktopLayoutResetInput {
 }
 
 export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateInput) {
+  const shouldCaptureStagePixels = input.stageCapturePixel && !input.fadeOnHoverEnabled
   const shouldCaptureMouse = input.stagePaused
     || input.hearingDialogOpen
     || input.stageInteractionActive
     || input.insideControls
     || input.insideDialogueOverlay
-    || input.stageCapturePixel
+    || shouldCaptureStagePixels
 
   if (input.stagePaused || input.hearingDialogOpen) {
     return {
