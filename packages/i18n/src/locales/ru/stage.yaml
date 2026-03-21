@@ -19,6 +19,8 @@ dialogue:
   move-panel: Переместить панель
   restore-panel-size: Восстановить размер панели
   resize-panel: Изменить размер панели
+  proactive-dismiss: Сейчас не надо
+  proactive-positive: Неплохо
 message: Спроси что-нибудь
 operations:
   load-models: Загрузить модели

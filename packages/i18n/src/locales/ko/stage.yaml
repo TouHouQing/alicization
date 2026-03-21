@@ -19,6 +19,8 @@ dialogue:
   move-panel: 패널 이동
   restore-panel-size: 패널 크기 복원
   resize-panel: 패널 크기 조절
+  proactive-dismiss: 지금은 말 걸지 마
+  proactive-positive: 이번엔 좋았어
 message: 듣고 있어요...
 operations:
   load-models: 모델 불러오기

@@ -19,6 +19,8 @@ dialogue:
   move-panel: 拖動對白窗
   restore-panel-size: 恢復預設尺寸
   resize-panel: 縮放對白窗
+  proactive-dismiss: 先別打擾
+  proactive-positive: 這次不錯
 message: 說點什麼...
 operations:
   load-models: 載入模型

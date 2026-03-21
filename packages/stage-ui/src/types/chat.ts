@@ -1,6 +1,8 @@
 import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@proj-alicization/server-sdk'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
+import type { AlicizationDialogueStructuredFormat, AlicizationProactiveMetadata } from '../stores/alicization-bridge'
+
 export interface ChatSlicesText {
   type: 'text'
   text: string
@@ -28,6 +30,7 @@ export interface ChatSlicesExecutionStatus {
 export type ChatSlices = ChatSlicesText | ChatSlicesToolCall | ChatSlicesToolCallResult | ChatSlicesExecutionStatus
 
 export interface ChatAssistantMessage extends AssistantMessage {
+  origin?: 'user-turn' | 'subconscious-proactive'
   slices: ChatSlices[]
   tool_results: {
     id: string
@@ -44,11 +47,12 @@ export interface ChatAssistantMessage extends AssistantMessage {
     userSentimentScore?: number
     sentimentConfidenceRaw?: number
     sentimentConfidence?: number
-    format: 'epoch1-v1' | 'fallback-v1'
+    format: AlicizationDialogueStructuredFormat
     parsePath?: 'json' | 'repair-json' | 'act' | 'fallback'
     repairTimedOut?: boolean
     contractFailed?: boolean
     policyLocked?: 'epoch1-strict-realtime'
+    proactive?: AlicizationProactiveMetadata
   }
 }
 

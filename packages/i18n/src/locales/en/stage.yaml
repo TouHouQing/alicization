@@ -19,6 +19,8 @@ dialogue:
   move-panel: Drag panel
   restore-panel-size: Restore panel size
   resize-panel: Resize panel
+  proactive-dismiss: Not now
+  proactive-positive: Good call
 message: Say something...
 operations:
   load-models: Load Models

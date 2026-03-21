@@ -165,6 +165,68 @@ describe('chat session store reset stability', () => {
     expect(store.getSessionMessages(sessionId)).toHaveLength(1)
   })
 
+  it('filters persisted manual abort error bubbles when loading a stored session', async () => {
+    const sessionId = 'session-with-manual-abort'
+    const now = Date.now()
+
+    await mocks.chatSessionsRepo.saveIndex({
+      userId: 'local',
+      characters: {
+        default: {
+          activeSessionId: sessionId,
+          sessions: {
+            [sessionId]: {
+              sessionId,
+              userId: 'local',
+              characterId: 'default',
+              title: 'Loaded Session',
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+        },
+      },
+    })
+    await mocks.chatSessionsRepo.saveSession(sessionId, {
+      meta: {
+        sessionId,
+        userId: 'local',
+        characterId: 'default',
+        title: 'Loaded Session',
+        createdAt: now,
+        updatedAt: now,
+      },
+      messages: [
+        {
+          id: 'msg-user-1',
+          role: 'user',
+          content: '看看我屏幕',
+          createdAt: now,
+        },
+        {
+          id: 'msg-error-abort',
+          role: 'error',
+          content: 'Alicization turn aborted (manual)',
+          createdAt: now + 1,
+        },
+      ],
+    })
+    mocks.chatSessionsRepo.saveSession.mockClear()
+
+    const store = useChatSessionStore()
+    await store.initialize()
+
+    expect(store.messages.some(message => message.role === 'error')).toBe(false)
+    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith(sessionId, expect.objectContaining({
+      messages: expect.not.arrayContaining([
+        expect.objectContaining({
+          role: 'error',
+          content: 'Alicization turn aborted (manual)',
+        }),
+      ]),
+    }))
+  })
+
   it('keeps message array reference stable when loadSession resolves during an active turn', async () => {
     vi.useFakeTimers()
     mocks.setNonEmptySaveDelayMs(0)

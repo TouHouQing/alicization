@@ -16,6 +16,9 @@ const sourcesOptions = toRef(props, 'sourcesOptions')
 
 const hasPermissions = ref(false)
 const showDialog = ref(false)
+const screenPermissionStatus = ref<string>('unknown')
+const lastPermissionPromptAt = ref(0)
+const permissionPromptCooldownMs = 90_000
 
 const { t } = useI18n()
 const {
@@ -27,32 +30,56 @@ const {
 } = useElectronScreenCapture(window.electron.ipcRenderer, sourcesOptions)
 const focused = useWindowFocus()
 
-async function checkPermissions() {
+async function checkPermissions(options: { autoPrompt?: boolean } = {}) {
   if (window.platform === 'darwin') {
     const status = await checkMacOSPermission()
-    hasPermissions.value = status === 'granted'
+    screenPermissionStatus.value = status
+
+    let sourceProbeSucceeded = false
+    try {
+      const sources = await getSources()
+      sourceProbeSucceeded = Array.isArray(sources) && sources.length > 0
+    }
+    catch {
+      sourceProbeSucceeded = false
+    }
+
+    hasPermissions.value = status === 'granted' || sourceProbeSucceeded
   }
   else {
+    screenPermissionStatus.value = 'granted'
     hasPermissions.value = true
   }
-  if (!hasPermissions.value) {
+
+  if (hasPermissions.value) {
+    showDialog.value = false
+    return
+  }
+
+  if (
+    options.autoPrompt
+    && Date.now() - lastPermissionPromptAt.value >= permissionPromptCooldownMs
+  ) {
+    lastPermissionPromptAt.value = Date.now()
     showDialog.value = true
   }
 }
 
 async function requestPermission() {
   if (window.platform === 'darwin') {
+    lastPermissionPromptAt.value = Date.now()
+    showDialog.value = false
     await requestMacOSPermission()
   }
 }
 
 onMounted(async () => {
-  await checkPermissions()
+  await checkPermissions({ autoPrompt: true })
 })
 
 watch(focused, async (isFocused) => {
   if (isFocused) {
-    await checkPermissions()
+    await checkPermissions({ autoPrompt: false })
   }
 })
 </script>

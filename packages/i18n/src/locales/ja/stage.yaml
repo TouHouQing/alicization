@@ -19,6 +19,8 @@ dialogue:
   move-panel: パネルを動かす
   restore-panel-size: パネルサイズを戻す
   resize-panel: パネルサイズを変える
+  proactive-dismiss: 今はやめて
+  proactive-positive: 今回はよかった
 message: 何か話しかけてみましょう…
 operations:
   load-models: モデルの読み込み

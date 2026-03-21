@@ -48,6 +48,12 @@ export const stageDialoguePanelChromeWidth = 0
 
 type StageBubbleMessage = ChatHistoryItem | ChatAssistantMessage | StreamingAssistantMessage | null | undefined
 
+export interface StageDialogueProactiveFeedbackTarget {
+  turnId: string
+  expiresAt: number
+  feedbackWindowMs: number
+}
+
 function clampNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value))
     return min
@@ -221,6 +227,43 @@ export function resolveStageBubbleText(message: StageBubbleMessage) {
   }
 
   return normalizeBubbleText(readContentText(message.content))
+}
+
+export function resolveStageProactiveFeedbackTarget(
+  message: StageBubbleMessage,
+  options: {
+    now?: number
+    maxWindowMs?: number
+  } = {},
+): StageDialogueProactiveFeedbackTarget | null {
+  if (!message || message.role !== 'assistant')
+    return null
+  if ('origin' in message && message.origin !== 'subconscious-proactive')
+    return null
+
+  const messageLike = message as { id?: unknown, createdAt?: unknown, structured?: ChatAssistantMessage['structured'] }
+  const turnId = typeof messageLike.id === 'string' ? messageLike.id.trim() : ''
+  const createdAt = typeof messageLike.createdAt === 'number' && Number.isFinite(messageLike.createdAt)
+    ? Math.floor(messageLike.createdAt)
+    : 0
+  const feedbackWindowMs = Number(messageLike.structured?.proactive?.feedbackWindowMs)
+  if (!turnId || createdAt <= 0 || !Number.isFinite(feedbackWindowMs) || feedbackWindowMs <= 0)
+    return null
+
+  const now = Number.isFinite(options.now) ? Number(options.now) : Date.now()
+  const effectiveWindowMs = Math.max(1_000, Math.min(
+    Number.isFinite(options.maxWindowMs) ? Number(options.maxWindowMs) : 90_000,
+    feedbackWindowMs,
+  ))
+  const expiresAt = createdAt + effectiveWindowMs
+  if (now > expiresAt)
+    return null
+
+  return {
+    turnId,
+    expiresAt,
+    feedbackWindowMs: effectiveWindowMs,
+  }
 }
 
 export function resolveStageBubblePlacement(

@@ -16,7 +16,7 @@ import { ref, toRaw } from 'vue'
 import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
 import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
 import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-query'
-import { normalizeStructuredOutput, validateStructuredContract } from '../composables/alicization-structured-output'
+import { normalizeStructuredOutput, repairStructuredContractLocally, validateStructuredContract } from '../composables/alicization-structured-output'
 import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
@@ -131,6 +131,9 @@ const strictRealtimeRefusalSystemPrompt = [
   'Explain this limitation naturally in your current personality, one-shot, without promising delayed follow-up.',
   'Keep response in strict JSON contract: thought, emotion, reply, performance.',
 ].join(' ')
+const invitedInspectionRequestPattern = /帮我看看?|看(?:下|一下|看)?(?:这个)?|review|inspect|look at|take a look|check (?:this|that)/i
+const invitedInspectionSubjectPattern = /屏幕|窗口|界面|截图|代码|diff|改动|报错|错误|error|exception|traceback|stack trace|terminal|终端|日志|log|console|输出|pr|pull request|commit|cursor|vs code|xcode|jetbrains|pycharm|intellij|goland|webstorm|zed|iterm|warp|wezterm|docker|github desktop|gitkraken|fork/i
+const invitedInspectionProblemPattern = /(?:这个|这里|这边|当前).*?(?:有啥|有什么|哪里|怎么|问题)|what'?s wrong|what is wrong|problem with|issue with/i
 
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
   return {
@@ -205,6 +208,14 @@ function normalizeReminderMessageForFallback(raw: string) {
   return raw
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function detectInvitedInspectionLikeTurn(message: string) {
+  const normalized = message.trim()
+  if (!normalized)
+    return false
+  return (invitedInspectionRequestPattern.test(normalized) && invitedInspectionSubjectPattern.test(normalized))
+    || (invitedInspectionSubjectPattern.test(normalized) && invitedInspectionProblemPattern.test(normalized))
 }
 
 function parseReminderIntentPayload(message: string): { minutes: number, message: string } | null {
@@ -1098,6 +1109,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       chatSession.persistSessionMessages(sessionId)
 
       const origin = options.origin ?? 'ui-user'
+      const hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
+      const inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn(sendingMessage)
+      const preferLocalContractRepair = hasVisualAttachment || inspectionLikeTurn
       const strictEpoch1Mode = alicizationEpoch1StrictModeEnabled && hasAlicizationBridge()
       const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'
         ? detectRealtimeQueryIntent(sendingMessage)
@@ -1517,6 +1531,39 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         if (hasStructuredJsonContract(candidate) && validationIssues.length === 0)
           return candidate
+
+        if (preferLocalContractRepair) {
+          const locallyRepaired = repairStructuredContractLocally({
+            structured: candidate,
+            validationIssues,
+            personalityState: turnPersonalityState,
+            preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+            fallbackReply: payload.reply,
+          })
+          if (locallyRepaired) {
+            const localRepairIssues = validateStructuredContract(locallyRepaired, turnPersonalityState, {
+              toolDenied: turnToolEvidence.deniedBySafety,
+              denialSource: turnToolEvidence.denialSource,
+              reminderScheduled: turnToolEvidence.reminderScheduled,
+              reminderMessage: turnToolEvidence.reminderMessage,
+            })
+            if (hasStructuredJsonContract(locallyRepaired) && localRepairIssues.length === 0) {
+              await appendAlicizationAuditLog({
+                level: 'notice',
+                category: 'alicization.structured',
+                action: 'contract-local-repair',
+                message: 'Locally repaired a simple structured contract miss without remote retry.',
+                details: {
+                  parsePath: candidate.parsePath ?? 'fallback',
+                  issues: summarizeValidationIssues(validationIssues),
+                  inspectionLikeTurn,
+                  hasVisualAttachment,
+                },
+              })
+              return locallyRepaired
+            }
+          }
+        }
 
         for (let attempt = 1; attempt <= 2; attempt += 1) {
           await appendAlicizationAuditLog({

@@ -37,6 +37,10 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
     draft.value = ''
   }
 
+  function isManualTurnAbort(error: unknown) {
+    return (errorMessageFrom(error) ?? '').includes('Alicization turn aborted (manual)')
+  }
+
   async function sendCurrentMessage() {
     if (isComposing.value || sending.value)
       return false
@@ -61,6 +65,9 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
       return true
     }
     catch (error) {
+      if (isManualTurnAbort(error))
+        return false
+
       draft.value = rawDraft
       messages.value.pop()
       messages.value.push({

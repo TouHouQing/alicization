@@ -29,6 +29,7 @@ import {
   electronAlicizationKillSwitchSuspend,
   electronAlicizationLlmSyncConfig,
   electronAlicizationReminderSchedule,
+  electronAlicizationReportProactiveFeedback,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSubconsciousForceDream,
@@ -36,15 +37,18 @@ import {
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
 } from '../../../shared/eventa'
-import { setAlicizationKillSwitchState } from './state'
+import { setAlicizationCardKillSwitchState, setAlicizationKillSwitchState } from './state'
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
 const sandboxDirs: string[] = []
 const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const streamTextMock = vi.fn()
+const generateTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
+const desktopCapturerGetSourcesMock = vi.fn<() => Promise<any[]>>(async () => [])
+const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
 let sensoryCpuUsage = 12
 let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
 
@@ -143,6 +147,12 @@ vi.mock('electron', () => ({
     on: vi.fn(),
     removeListener: vi.fn(),
   },
+  desktopCapturer: {
+    getSources: desktopCapturerGetSourcesMock,
+  },
+  systemPreferences: {
+    getMediaAccessStatus: systemPreferencesGetMediaAccessStatusMock,
+  },
   ipcMain: {
     handle: vi.fn((channel: string, handler: (event: any, payload?: any) => Promise<any> | any) => {
       directIpcHandlers.set(channel, handler)
@@ -213,6 +223,10 @@ vi.mock('@xsai/stream-text', () => ({
   streamText: (...args: any[]) => streamTextMock(...args),
 }))
 
+vi.mock('@xsai/generate-text', () => ({
+  generateText: (...args: any[]) => generateTextMock(...args),
+}))
+
 const { setupAlicizationRuntime } = await import('./runtime')
 
 async function createSandboxPath() {
@@ -234,19 +248,52 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     contextEmitMock.mockReset()
     metaStore.clear()
     streamTextMock.mockReset()
+    generateTextMock.mockReset()
     directIpcHandlers.clear()
     sensoryCpuUsage = 12
     foregroundWindowSample = undefined
+    desktopCapturerGetSourcesMock.mockReset()
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
+    systemPreferencesGetMediaAccessStatusMock.mockReset()
+    systemPreferencesGetMediaAccessStatusMock.mockReturnValue('granted')
     listWebContentsMock.mockReset()
     listWebContentsMock.mockReturnValue([])
+    generateTextMock.mockImplementation(async (options: any) => {
+      let text = ''
+      let finishReason = 'stop'
+      await streamTextMock({
+        ...options,
+        onEvent: async (event: any) => {
+          if (event?.type === 'text-delta')
+            text += event.text ?? ''
+          if (event?.type === 'finish' && typeof event.finishReason === 'string')
+            finishReason = event.finishReason
+        },
+      })
+      return {
+        text,
+        finishReason,
+      }
+    })
+    setAlicizationKillSwitchState('ACTIVE', 'test-reset')
+    setAlicizationCardKillSwitchState('default', 'ACTIVE', 'test-reset')
   })
 
   afterEach(async () => {
+    const deleteAllData = invokeHandlers.get(electronAlicizationDeleteAllData)
+    if (deleteAllData)
+      await deleteAllData!()
+
     while (sandboxDirs.length > 0) {
       const dir = sandboxDirs.pop()
       if (!dir)
         continue
-      await rm(dir, { recursive: true, force: true })
+      await rm(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 4,
+        retryDelay: 50,
+      })
     }
   })
 
@@ -1201,6 +1248,527 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(capturedMessages.some(message => message.role === 'user' && message.content === 'hello again')).toBe(true)
   })
 
+  it('preserves multimodal user content instead of stringifying image parts', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'vision-ready' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    const turnId = 'turn-preserve-multimodal-user-content'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: '帮我看看这个 diff' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,user-supplied-image' } },
+        ],
+      }] as any,
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('image_url')
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('user-supplied-image')
+  })
+
+  it('uses Alicization attention anchor to ground invited inspection after the chat window becomes frontmost', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'anchored inspection reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - diff',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:chat:0',
+        name: 'Alicization Chat Overlay',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,self-window',
+        },
+      },
+      {
+        id: 'window:cursor:0',
+        name: 'main.ts - diff',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,anchored-cursor-diff',
+        },
+      },
+    ])
+
+    const turnId = 'turn-attention-anchored-inspection'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我在 Cursor 里面这个 diff 有什么问题',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('anchored-cursor-diff')
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('[ALICIZATION_PERCEPTION]')
+    expect(systemText).toContain('Inspection mode: invited-by-user')
+    expect(systemText).toContain('Attention anchor: Cursor')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        candidateSource: 'main.ts - diff',
+        captureSource: 'main.ts - diff',
+        focusTarget: expect.stringContaining('Cursor'),
+      }),
+    }))
+  })
+
+  it('still grounds invited inspection when macOS permission status is stale but desktop capture sources are available', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'stale permission grounded reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    systemPreferencesGetMediaAccessStatusMock.mockReturnValue('denied')
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+      title: 'review.diff - Project Alice',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:self:0',
+        name: 'Alicization Chat Overlay',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,self-window',
+        },
+      },
+      {
+        id: 'window:vscode:0',
+        name: 'review.diff - Project Alice',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,stale-permission-diff',
+        },
+      },
+    ])
+
+    const turnId = 'turn-stale-permission-grounded-inspection'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 VS Code 里面这个 diff',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale-permission-diff')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        permissionStatus: 'denied',
+        permissionProbeMismatch: true,
+        focusTarget: expect.stringContaining('Visual Studio Code'),
+      }),
+    }))
+  })
+
+  it('suppresses weak generic browser anchors during a whole-screen recheck so old page details do not dominate the new screenshot', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'generic screen recheck reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,entire-screen-generic-recheck',
+        },
+      },
+    ])
+
+    const turnId = 'turn-generic-screen-recheck-suppresses-stale-browser-focus'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '看我屏幕，猜猜我在做什么',
+        },
+        {
+          role: 'assistant',
+          content: '整个屏幕还是 Google Chrome 的 https://taka.tohoojin.com/ 东方的小店 页面。',
+        },
+        {
+          role: 'user',
+          content: '重新看看我屏幕，有什么内容描述给我',
+        },
+      ],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    const serializedMessages = JSON.stringify(capturedMessages)
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale memory')
+    expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
+    expect(serializedMessages).not.toContain('东方的小店')
+    expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
+
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        candidateSource: 'Entire screen',
+        focusTarget: 'none',
+        focusSuppressed: 'weak-generic-browser-screen-fallback',
+      }),
+    }))
+  })
+
+  it('refreshes a contaminated browser perception state when the user asks to re-describe the current screen', async () => {
+    const sandboxPath = await createSandboxPath()
+    const now = Date.now()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'fresh screen reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    metaStore.set('perception_state_v1', JSON.stringify({
+      attentionAnchor: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        anchoredAt: now - 30 * 60_000,
+        lastObservedAt: now - 25 * 60_000,
+        reason: 'invited-inspection',
+        workloadKind: 'browser',
+        confidence: 0.9,
+      },
+      lastNonSelfForegroundTarget: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        observedAt: now - 25 * 60_000,
+        source: 'chat-start',
+        workloadKind: 'browser',
+      },
+      recentObservations: [{
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        observedAt: now - 25 * 60_000,
+        source: 'chat-start',
+        workloadKind: 'browser',
+      }],
+      invitedInspection: {
+        requestedAt: now - 2_000,
+        activeUntil: now + 120_000,
+        hintText: [
+          'Rewrite the draft assistant output into strict JSON contract.',
+          'User input:',
+          '忘掉之前的内容，重新描述一下我屏幕的内容',
+          'Assistant draft:',
+          '整个屏幕还是 Google Chrome 的 https://taka.tohoojin.com/ 东方的小店 页面。',
+        ].join('\n'),
+      },
+      recentSceneResidue: {
+        observedAt: now - 25 * 60_000,
+        source: 'invited-inspection',
+        workloadKind: 'browser',
+        contentKind: 'unknown',
+        confidence: 0.92,
+        focusTarget: {
+          appName: 'Google Chrome',
+          processName: 'Google Chrome',
+        },
+        focusSource: 'attention-anchor',
+        captureSourceName: 'Entire screen',
+        captureStrategy: 'screen-fallback',
+      },
+      updatedAt: now - 1_000,
+    }))
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,entire-screen-refreshed-after-contamination',
+        },
+      },
+    ])
+
+    const turnId = 'turn-generic-screen-recheck-clears-contaminated-browser-memory'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '忘掉之前的内容，重新描述一下我屏幕的内容',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    const serializedMessages = JSON.stringify(capturedMessages)
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale memory')
+    expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
+    expect(serializedMessages).not.toContain('东方的小店')
+    expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
+    expect(serializedMessages).not.toContain('Invited inspection hint: Rewrite the draft assistant output into strict JSON contract')
+
+    const persistedState = JSON.parse(metaStore.get('perception_state_v1') ?? '{}')
+    expect(persistedState.invitedInspection?.hintText).toBe('忘掉之前的内容，重新描述一下我屏幕的内容')
+
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        candidateSource: 'Entire screen',
+        focusTarget: 'none',
+        focusSuppressed: 'weak-generic-browser-screen-fallback',
+      }),
+    }))
+  })
+
+  it('falls back to perception-only inspection guidance when screenshot grounding is unavailable', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'perception only reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    systemPreferencesGetMediaAccessStatusMock.mockReturnValue('denied')
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'index.ts - diff',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+
+    const turnId = 'turn-perception-only-inspection'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 Cursor 里这个 diff 有什么问题',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('[ALICIZATION_INSPECTION_CONTRACT]')
+    expect(systemText).toContain('Grounding mode: perception-only.')
+    expect(systemText).toContain('answer from that evidence instead of claiming total blindness')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounding-skipped',
+      payload: expect.objectContaining({
+        reason: 'screen-capture-permission-denied',
+        permissionStatus: 'denied',
+      }),
+    }))
+  })
+
   it('aborts main chat stream over direct ipc transport', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(({ onEvent, abortSignal }) => {
@@ -1716,8 +2284,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
   it('processes due reminder tasks during subconscious tick with overdue tier auditing', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      const systemMessage = messages?.find(message => message.role === 'system')
-      const systemText = typeof systemMessage?.content === 'string' ? systemMessage.content : ''
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
       const reminderMatch = /Reminder content: "([^"]+)"/.exec(systemText)
       const reminderText = reminderMatch?.[1] ?? '提醒事项'
       await onEvent?.({
@@ -2052,9 +2624,14 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
   it('injects card custom directives into proactive and dream one-shot prompts', async () => {
     const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - error diff',
+    }
     metaStore.set('subconscious_state_v1', JSON.stringify({
       boredom: 95,
-      loneliness: 40,
+      loneliness: 95,
       fatigue: 20,
       lastTickAt: Date.now() - 60_000,
       lastInteractionAt: Date.now() - 60_000,
@@ -2751,6 +3328,408 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
     expect(proactiveSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(proactiveSystemText).toContain('Steam')
+  })
+
+  it('uses screen semantic summaries to refine proactive scenario and content understanding', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Arc',
+      processName: 'Arc',
+      title: 'Work Dashboard',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:321:0',
+        name: 'Work Dashboard',
+        thumbnail: {
+          toDataURL: () => 'data:image/jpeg;base64,screen-semantic-snapshot',
+        },
+      },
+    ])
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 86,
+      fatigue: 18,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const serialized = JSON.stringify(messages ?? [])
+      if (serialized.includes('image_url')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            workload: 'coding',
+            content: 'error',
+            summary: 'red TypeScript error panel',
+            confidence: 0.91,
+            matchedLabels: ['typescript-error', 'editor'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'screen semantic summary detected coding error context',
+          emotion: 'thinking',
+          reply: '这块像是已经报错了，你先回头确认一下。',
+          performance: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+
+    const proactiveEvent = getDialogueRespondedEvents().find(event => event.structured?.proactive)
+    expect(proactiveEvent?.structured.proactive?.scenario).toBe('coding')
+    expect(proactiveEvent?.structured.proactive?.reasonCodes).toContain('foreground-error')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'proactive-policy-evaluated',
+      payload: expect.objectContaining({
+        layeredContext: expect.objectContaining({
+          workload: expect.objectContaining({
+            source: 'screen-semantic-summary',
+            kind: 'coding',
+          }),
+          content: expect.objectContaining({
+            source: 'screen-semantic-summary',
+            kind: 'error',
+            summary: 'red TypeScript error panel',
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('reuses invited inspection residue instead of running duplicate screen semantic analysis', async () => {
+    const sandboxPath = await createSandboxPath()
+    const now = Date.now()
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 86,
+      fatigue: 18,
+      lastTickAt: now - 60_000,
+      lastInteractionAt: now - 60_000,
+      lastSavedAt: now - 60_000,
+      updatedAt: now - 60_000,
+    }))
+    metaStore.set('perception_state_v1', JSON.stringify({
+      attentionAnchor: {
+        appName: 'Code',
+        processName: 'Code',
+        title: 'review.diff - Project Alice',
+        anchoredAt: now - 45_000,
+        lastObservedAt: now - 12_000,
+        reason: 'invited-inspection',
+        workloadKind: 'coding',
+        confidence: 0.9,
+      },
+      lastNonSelfForegroundTarget: {
+        appName: 'Code',
+        processName: 'Code',
+        title: 'review.diff - Project Alice',
+        observedAt: now - 12_000,
+        source: 'chat-start',
+        workloadKind: 'coding',
+      },
+      recentObservations: [{
+        appName: 'Code',
+        processName: 'Code',
+        title: 'review.diff - Project Alice',
+        observedAt: now - 12_000,
+        source: 'chat-start',
+        workloadKind: 'coding',
+      }],
+      invitedInspection: {
+        requestedAt: now - 15_000,
+        activeUntil: now + 120_000,
+        hintText: '帮我看看 VS Code 里的 diff',
+      },
+      recentSceneResidue: {
+        observedAt: now - 10_000,
+        source: 'invited-inspection',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        summary: 'coding diff focus',
+        confidence: 0.88,
+        focusTarget: {
+          appName: 'Code',
+          processName: 'Code',
+          title: 'review.diff - Project Alice',
+        },
+        focusSource: 'attention-anchor',
+        captureSourceName: 'Entire screen',
+        captureStrategy: 'screen-fallback',
+      },
+      updatedAt: now - 10_000,
+    }))
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const serialized = JSON.stringify(messages ?? [])
+      expect(serialized).not.toContain('Classify this screen snapshot for Alicization proactive policy.')
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'obedience=0.50, liveliness=0.50, sensibility=0.50, invited inspection residue still points at a coding diff.',
+          emotion: 'thinking',
+          reply: '我还记得你刚才盯着那个 diff，这里像是该先查空值分支。',
+          performance: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+
+    expect(streamTextMock).toBeCalledTimes(1)
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'proactive-policy-evaluated',
+      payload: expect.objectContaining({
+        layeredContext: expect.objectContaining({
+          workload: expect.objectContaining({
+            source: 'screen-semantic-summary',
+            kind: 'coding',
+          }),
+          content: expect.objectContaining({
+            source: 'screen-semantic-summary',
+            kind: 'diff',
+            summary: 'coding diff focus',
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('preserves proactive format and metadata in live dialogue payloads', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+      title: 'index.ts - TypeError: test failed',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 95,
+      loneliness: 88,
+      fatigue: 20,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    expect(forceTick).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+
+    const proactiveEvent = getDialogueRespondedEvents().find(event => event.structured?.proactive)
+    expect([
+      'subconscious-proactive-v1',
+      'subconscious-proactive-llm-v1',
+    ]).toContain(proactiveEvent?.structured.format)
+    expect(proactiveEvent?.structured.proactive).toEqual(expect.objectContaining({
+      style: 'light-nudge',
+      feedbackWindowMs: 120_000,
+      policyVersion: 'epoch3-v1',
+    }))
+    expect(['coding', 'media', 'late-night-care', 'general']).toContain(proactiveEvent?.structured.proactive?.scenario)
+    expect(['low', 'medium', 'high']).toContain(proactiveEvent?.structured.proactive?.urgency)
+    expect(Array.isArray(proactiveEvent?.structured.proactive?.reasonCodes)).toBe(true)
+  })
+
+  it('applies explicit dismiss feedback and suppresses the next same-scenario proactive tick', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - error',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 96,
+      loneliness: 84,
+      fatigue: 24,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    const reportFeedback = invokeHandlers.get(electronAlicizationReportProactiveFeedback)
+    expect(forceTick).toBeTypeOf('function')
+    expect(reportFeedback).toBeTypeOf('function')
+
+    const firstTick = await forceTick!({ cardId: 'default' })
+    const proactiveEvent = getDialogueRespondedEvents().find(event => event.origin === 'subconscious-proactive')
+    expect(firstTick.proactiveTriggered).toContain('default')
+    expect(proactiveEvent?.turnId).toBeTruthy()
+
+    await reportFeedback!({
+      cardId: 'default',
+      turnId: proactiveEvent!.turnId,
+      feedback: 'dismiss',
+    })
+
+    const secondTick = await forceTick!({ cardId: 'default' })
+    const proactiveLoopState = JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')
+
+    expect(secondTick.proactiveTriggered).toHaveLength(0)
+    expect(proactiveLoopState.scenarioBias?.coding).toBe(0.15)
+    expect(proactiveLoopState.globalCooldownUntil).toBeGreaterThan(Date.now())
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'alicization.subconscious.suppressed',
+      payload: expect.objectContaining({
+        reasonCodes: expect.arrayContaining(['global-cooldown-active']),
+      }),
+    }))
+  })
+
+  it('treats a user turn within 120 seconds as positive proactive feedback', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Spotify',
+      processName: 'Spotify',
+      title: 'Lo-fi Playlist',
+    }
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 99,
+      loneliness: 96,
+      fatigue: 18,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(forceTick).toBeTypeOf('function')
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+    await appendConversationTurn!({
+      cardId: 'default',
+      sessionId: 'session-test',
+      userText: '好，我知道了',
+      createdAt: Date.now() + 30_000,
+    })
+
+    const proactiveLoopState = JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')
+    const recentOutcomes = Array.isArray(proactiveLoopState.recentOutcomes) ? proactiveLoopState.recentOutcomes : []
+
+    expect(proactiveLoopState.scenarioBias?.media).toBe(-0.05)
+    expect(recentOutcomes.at(-1)?.outcome).toBe('reply-within-120s')
+  })
+
+  it('settles unanswered proactive turns as ignored after 10 minutes', async () => {
+    vi.useFakeTimers()
+    try {
+      const now = new Date('2026-03-21T14:00:00.000Z')
+      vi.setSystemTime(now)
+      const sandboxPath = await createSandboxPath()
+      foregroundWindowSample = {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: 'index.ts - diff',
+      }
+      metaStore.set('subconscious_state_v1', JSON.stringify({
+        boredom: 96,
+        loneliness: 84,
+        fatigue: 20,
+        lastTickAt: Date.now() - 60_000,
+        lastInteractionAt: Date.now() - 60_000,
+        lastSavedAt: Date.now() - 60_000,
+        updatedAt: Date.now() - 60_000,
+      }))
+
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+      })
+
+      const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+      expect(forceTick).toBeTypeOf('function')
+
+      await forceTick!({ cardId: 'default' })
+      sensoryCpuUsage = 85
+      vi.advanceTimersByTime(11 * 60_000)
+      await forceTick!({ cardId: 'default' })
+
+      const proactiveLoopState = JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')
+      const recentOutcomes = Array.isArray(proactiveLoopState.recentOutcomes) ? proactiveLoopState.recentOutcomes : []
+      expect(proactiveLoopState.consecutiveIgnored?.coding).toBeGreaterThanOrEqual(1)
+      expect(recentOutcomes.some((entry: any) => entry?.outcome === 'ignored')).toBe(true)
+    }
+    finally {
+      vi.useRealTimers()
+    }
   })
 
   it('exposes organic memory snapshot and search via invoke handlers', async () => {

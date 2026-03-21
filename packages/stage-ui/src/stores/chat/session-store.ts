@@ -56,6 +56,16 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     return JSON.parse(JSON.stringify(messages)) as ChatHistoryItem[]
   }
 
+  function isManualAbortErrorMessage(message: ChatHistoryItem) {
+    return message.role === 'error'
+      && typeof message.content === 'string'
+      && message.content.includes('Alicization turn aborted (manual)')
+  }
+
+  function sanitizeSessionMessages(messages: ChatHistoryItem[]) {
+    return messages.filter(message => !isManualAbortErrorMessage(message))
+  }
+
   function extractMessageContent(message: ChatHistoryItem) {
     if (typeof message.content === 'string')
       return message.content
@@ -91,8 +101,9 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   function normalizeMessagesWithIds(messages: ChatHistoryItem[]) {
+    const sanitizedMessages = sanitizeSessionMessages(messages)
     let changed = false
-    const normalized = messages.map((message) => {
+    const normalized = sanitizedMessages.map((message) => {
       if (message.id)
         return message
       changed = true
@@ -101,7 +112,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         id: nanoid(),
       }
     })
-    return { normalized, changed }
+    return {
+      normalized,
+      changed: changed || sanitizedMessages.length !== messages.length,
+    }
   }
 
   function mergeStoredAndLocalMessages(storedMessages: ChatHistoryItem[], localMessages: ChatHistoryItem[]) {
@@ -263,12 +277,13 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   }
 
   function setSessionMessages(sessionId: string, next: ChatHistoryItem[]) {
+    const sanitizedNext = sanitizeSessionMessages(next)
     const current = sessionMessages.value[sessionId]
     if (current) {
-      current.splice(0, current.length, ...next)
+      current.splice(0, current.length, ...sanitizedNext)
     }
     else {
-      sessionMessages.value[sessionId] = next
+      sessionMessages.value[sessionId] = sanitizedNext
     }
     void persistSession(sessionId)
   }
@@ -292,7 +307,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
           })
         }
 
-        const localMessages = sessionMessages.value[sessionId] ?? []
+        const localMessages = sanitizeSessionMessages(sessionMessages.value[sessionId] ?? [])
         const hasLocalMessages = localMessages.length > 0
         const mergedMessages = hasLocalMessages
           ? mergeStoredAndLocalMessages(normalizedStoredMessages, localMessages)
@@ -329,7 +344,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       updatedAt: now,
     }
 
-    const initialMessages = options?.messages?.length ? options.messages : []
+    const initialMessages = options?.messages?.length ? sanitizeSessionMessages(options.messages) : []
 
     sessionMetas.value[sessionId] = meta
     sessionMessages.value[sessionId] = initialMessages
@@ -484,10 +499,10 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         return
       const current = sessionMessages.value[activeSessionId.value]
       if (current) {
-        current.splice(0, current.length, ...value)
+        current.splice(0, current.length, ...sanitizeSessionMessages(value))
       }
       else {
-        sessionMessages.value[activeSessionId.value] = value
+        sessionMessages.value[activeSessionId.value] = sanitizeSessionMessages(value)
       }
       void persistSession(activeSessionId.value)
     },

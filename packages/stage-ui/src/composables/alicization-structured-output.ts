@@ -602,6 +602,60 @@ export function validateStructuredContract(
   return issues
 }
 
+function buildLocalRepairThought(
+  personalityState?: StructuredValidationPersonalityState | null,
+  preferGroundedEvidence?: boolean,
+) {
+  const evidenceClause = preferGroundedEvidence
+    ? 'keep the reply grounded in the current visual/context evidence.'
+    : 'keep the reply concise and stable.'
+  if (!personalityState)
+    return `Review the current turn and ${evidenceClause}`
+  return [
+    `obedience=${personalityState.obedience.toFixed(2)}`,
+    `liveliness=${personalityState.liveliness.toFixed(2)}`,
+    `sensibility=${personalityState.sensibility.toFixed(2)}`,
+    evidenceClause,
+  ].join(', ')
+}
+
+export function repairStructuredContractLocally(input: {
+  structured: StructuredOutputResult
+  validationIssues: StructuredValidationIssue[]
+  personalityState?: StructuredValidationPersonalityState | null
+  preferGroundedEvidence?: boolean
+  fallbackReply?: string
+}): StructuredOutputResult | null {
+  if (input.validationIssues.length === 0)
+    return null
+
+  const allowedCodes = new Set<StructuredValidationIssueCode>([
+    'json-contract-missing',
+    'thought-missing-personality-eval',
+  ])
+  if (input.validationIssues.some(issue => !allowedCodes.has(issue.code)))
+    return null
+
+  const reply = input.structured.reply.trim() || input.fallbackReply?.trim()
+  if (!reply)
+    return null
+
+  const emotion = normalizeAlicizationEmotion(input.structured.emotion).emotion
+  const needsThoughtRepair = input.validationIssues.some(issue => issue.code === 'thought-missing-personality-eval')
+  return {
+    ...input.structured,
+    thought: !needsThoughtRepair && input.structured.thought.trim()
+      ? input.structured.thought.trim()
+      : buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
+    emotion,
+    reply,
+    performance: normalizeAlicizationPerformancePayload(input.structured.performance, emotion),
+    format: 'epoch1-v1',
+    parsePath: 'repair-json',
+    repairTimedOut: false,
+  }
+}
+
 export function normalizeStructuredOutput(input: StructuredOutputInput): StructuredOutputResult {
   const parsedFromFullText = parseStructuredPayloadFromText(input.fullText)
   const parsed = parsedFromFullText.payload || parsedFromFullText.repairTimedOut

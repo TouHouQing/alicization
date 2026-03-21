@@ -19,6 +19,8 @@ dialogue:
   move-panel: Mover panel
   restore-panel-size: Restaurar tamano del panel
   resize-panel: Redimensionar panel
+  proactive-dismiss: Ahora no
+  proactive-positive: Bien visto
 message: Dile algo...
 operations:
   load-models: Cargar Modelos

@@ -9,15 +9,26 @@ const props = withDefaults(defineProps<{
   streaming?: boolean
   placement?: StageBubblePlacement
   maxBodyHeight?: number
+  proactiveFeedbackActions?: {
+    dismissLabel: string
+    positiveLabel: string
+  } | null
 }>(), {
   loading: false,
   streaming: false,
   placement: 'top-right',
   maxBodyHeight: 220,
+  proactiveFeedbackActions: null,
 })
+const emit = defineEmits<{
+  (e: 'proactiveFeedback', kind: 'dismiss' | 'positive'): void
+}>()
 
 const resolvedText = computed(() => props.text.trim())
 const showTypingDots = computed(() => props.loading || props.streaming)
+const showProactiveFeedbackActions = computed(() => {
+  return Boolean(resolvedText.value && props.proactiveFeedbackActions && !props.loading && !props.streaming)
+})
 </script>
 
 <template>
@@ -38,6 +49,22 @@ const showTypingDots = computed(() => props.loading || props.streaming)
         <span class="stage-dialogue-bubble__dot" />
         <span class="stage-dialogue-bubble__dot" />
       </span>
+    </div>
+    <div v-if="showProactiveFeedbackActions" class="stage-dialogue-bubble__actions">
+      <button
+        type="button"
+        class="stage-dialogue-bubble__action"
+        @click="emit('proactiveFeedback', 'dismiss')"
+      >
+        {{ props.proactiveFeedbackActions?.dismissLabel }}
+      </button>
+      <button
+        type="button"
+        class="stage-dialogue-bubble__action stage-dialogue-bubble__action--positive"
+        @click="emit('proactiveFeedback', 'positive')"
+      >
+        {{ props.proactiveFeedbackActions?.positiveLabel }}
+      </button>
     </div>
     <div v-else-if="loading" class="stage-dialogue-bubble__loading" aria-hidden="true">
       <span class="stage-dialogue-bubble__dot" />
@@ -141,6 +168,36 @@ const showTypingDots = computed(() => props.loading || props.streaming)
   background: linear-gradient(180deg, rgb(255 250 240 / 88%), rgb(255 242 220 / 76%));
   box-shadow: 0 0.6rem 1.25rem rgb(73 45 23 / 8%);
   animation: stage-dialogue-tail 3.8s ease-in-out infinite;
+}
+
+.stage-dialogue-bubble__actions {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0 1rem 1rem;
+}
+
+.stage-dialogue-bubble__action {
+  border: 1px solid rgb(109 78 46 / 18%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 64%);
+  color: rgb(82 55 30 / 90%);
+  padding: 0.28rem 0.72rem;
+  font-size: 0.76rem;
+  line-height: 1.1;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.stage-dialogue-bubble__action:hover {
+  transform: translateY(-1px);
+  border-color: rgb(124 88 50 / 30%);
+  background: rgb(255 255 255 / 84%);
+}
+
+.stage-dialogue-bubble__action--positive {
+  background: rgb(242 249 235 / 82%);
 }
 
 .stage-dialogue-bubble--top-right .stage-dialogue-bubble__tail {

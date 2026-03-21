@@ -1124,4 +1124,37 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).not.toContain('提醒你喝水')
     expect(String(payload?.assistantText ?? '')).not.toContain('一分钟后')
   })
+
+  it('locally repairs inspection-like replies without triggering remote contract retry', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      streamInvocation += 1
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '看起来这个 diff 里少了一层 null check，所以这个分支会直接炸掉。',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('帮我看看这个 diff 有什么问题', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamInvocation).toBe(1)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.structured',
+      action: 'contract-local-repair',
+    }))
+    expect(appendAuditLogMock).not.toBeCalledWith(expect.objectContaining({
+      category: 'alicization.structured',
+      action: 'contract-retry-reasoned',
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(payload?.structured?.parsePath).toBe('repair-json')
+    expect(String(payload?.assistantText ?? '')).toContain('null check')
+  })
 })

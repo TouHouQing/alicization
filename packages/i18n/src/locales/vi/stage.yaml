@@ -19,6 +19,8 @@ dialogue:
   move-panel: Di chuyển khung
   restore-panel-size: Khoi phuc kich thuoc khung
   resize-panel: Đổi kích thước khung
+  proactive-dismiss: Lúc khác nhé
+  proactive-positive: Lần này ổn
 message: Nói gì đó...
 operations:
   load-models: Tải mô hình

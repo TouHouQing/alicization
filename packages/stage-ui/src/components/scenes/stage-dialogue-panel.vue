@@ -25,6 +25,10 @@ const props = withDefaults(defineProps<{
   streaming?: boolean
   placement?: StageBubblePlacement
   quickReplyEnabled?: boolean
+  proactiveFeedbackActions?: {
+    dismissLabel: string
+    positiveLabel: string
+  } | null
   characterFrame?: StageCharacterFrame | null
   visible?: boolean
 }>(), {
@@ -32,6 +36,7 @@ const props = withDefaults(defineProps<{
   streaming: false,
   placement: 'top-right',
   quickReplyEnabled: true,
+  proactiveFeedbackActions: null,
   characterFrame: null,
   visible: false,
 })
@@ -40,6 +45,7 @@ const emit = defineEmits<{
   (e: 'hoverChange', hovered: boolean): void
   (e: 'focusChange', focused: boolean): void
   (e: 'interactionChange', active: boolean): void
+  (e: 'proactiveFeedback', kind: 'dismiss' | 'positive'): void
 }>()
 
 type InteractionSource = 'panel' | 'orb'
@@ -512,6 +518,8 @@ defineExpose({
             :text="props.text"
             :placement="props.placement"
             :max-body-height="bubbleBodyHeight"
+            :proactive-feedback-actions="props.proactiveFeedbackActions"
+            @proactive-feedback="emit('proactiveFeedback', $event)"
           />
           <StageQuickReplyComposer v-if="props.quickReplyEnabled" />
         </div>

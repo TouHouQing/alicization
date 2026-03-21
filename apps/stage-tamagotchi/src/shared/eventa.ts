@@ -588,6 +588,61 @@ export type AlicizationPerformanceDelivery
     | 'hesitant'
     | 'teasing'
 
+export type AlicizationProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
+export type AlicizationProactiveStyle = 'silent-observe' | 'light-nudge' | 'gentle-care' | 'firm-warning'
+export type AlicizationProactiveUrgency = 'low' | 'medium' | 'high'
+export type AlicizationProactiveReasonCode
+  = | 'busy-host'
+    | 'fullscreen-host'
+    | 'kill-switch-suspended'
+    | 'global-cooldown-active'
+    | 'attention-anchor-active'
+    | 'recent-observation-memory'
+    | 'invited-inspection-active'
+    | 'scenario-bias-raised'
+    | 'recent-ignored-penalty'
+    | 'recent-dismiss-penalty'
+    | 'recent-positive-feedback'
+    | 'coding-focus'
+    | 'media-playback'
+    | 'late-night-activity'
+    | 'late-night-fatigue'
+    | 'high-loneliness'
+    | 'high-boredom'
+    | 'user-idle'
+    | 'foreground-error'
+    | 'foreground-diff'
+    | 'reminder-backlog'
+
+export interface AlicizationProactiveDecision {
+  shouldInterrupt: boolean
+  confidence: number
+  reasonCodes: AlicizationProactiveReasonCode[]
+  urgency: AlicizationProactiveUrgency
+  style: AlicizationProactiveStyle
+  cooldownMs: number
+  scenario: AlicizationProactiveScenario
+  policyVersion: string
+}
+
+export interface AlicizationProactiveMetadata extends AlicizationProactiveDecision {
+  feedbackWindowMs: number
+}
+
+export type AlicizationDialogueStructuredFormat
+  = | 'subconscious-proactive-v1'
+    | 'subconscious-proactive-llm-v1'
+    | 'subconscious-reminder-v1'
+    | 'epoch1-v1'
+    | 'fallback-v1'
+
+export type AlicizationProactiveFeedbackKind = 'positive' | 'dismiss'
+
+export interface AlicizationProactiveFeedbackPayload extends AlicizationCardScope {
+  turnId: string
+  feedback: AlicizationProactiveFeedbackKind
+}
+
 export interface AlicizationDialoguePerformancePayload {
   baseEmotion: AlicizationEmotion
   emotion: AlicizationEmotion
@@ -772,6 +827,8 @@ export interface AlicizationDialogueStructuredPayload {
   emotion: AlicizationEmotion
   reply: string
   performance: AlicizationDialoguePerformancePayload
+  format?: AlicizationDialogueStructuredFormat
+  proactive?: AlicizationProactiveMetadata
   policyLocked?: string
   rawEmotion?: string
 }
@@ -975,6 +1032,7 @@ export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
+export const electronAlicizationReportProactiveFeedback = defineInvokeEventa<void, AlicizationProactiveFeedbackPayload>('eventa:invoke:electron:alicization:conversation:report-proactive-feedback')
 export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')
 export const electronAlicizationClearAllConversations = defineInvokeEventa<void>('eventa:invoke:electron:alicization:conversation:clear-all')
 export const electronAlicizationSetActiveSession = defineInvokeEventa<void, AlicizationSetActiveSessionPayload>('eventa:invoke:electron:alicization:conversation:set-active-session')

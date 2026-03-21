@@ -76,6 +76,7 @@ import {
   electronAlicizationRealtimeExecute,
   electronAlicizationReminderSchedule,
   electronAlicizationReplayDialogues,
+  electronAlicizationReportProactiveFeedback,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSafetyResolvePermission,
   electronAlicizationSearchOrganicSubconsciousFragments,
@@ -103,6 +104,7 @@ import {
   pluginProtocolListProviders,
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
+import { normalizeProactiveMetadata, normalizeStructuredFormat } from './alicization-dialogue-normalization'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
@@ -174,6 +176,7 @@ const alicizationGetSensorySnapshot = useElectronEventaInvoke(electronAlicizatio
 const alicizationGetSubconsciousState = useElectronEventaInvoke(electronAlicizationSubconsciousGetState)
 const alicizationForceSubconsciousTick = useElectronEventaInvoke(electronAlicizationSubconsciousForceTick)
 const alicizationForceDreaming = useElectronEventaInvoke(electronAlicizationSubconsciousForceDream)
+const alicizationReportProactiveFeedback = useElectronEventaInvoke(electronAlicizationReportProactiveFeedback)
 const alicizationSyncLlmConfig = useElectronEventaInvoke(electronAlicizationLlmSyncConfig)
 const alicizationGetLlmConfig = useElectronEventaInvoke(electronAlicizationLlmGetConfig)
 const alicizationAckDialogue = useElectronEventaInvoke(electronAlicizationAckDialogue)
@@ -293,10 +296,8 @@ async function upsertProactiveAssistantTurn(payload: {
   const structuredEmotion = typeof payload.structured?.emotion === 'string'
     ? payload.structured.emotion.trim()
     : 'neutral'
-  const structuredFormat: 'epoch1-v1' | 'fallback-v1'
-    = payload.structured?.format === 'epoch1-v1'
-      ? 'epoch1-v1'
-      : 'fallback-v1'
+  const structuredFormat = normalizeStructuredFormat(payload.structured?.format)
+  const proactive = normalizeProactiveMetadata(payload.structured?.proactive)
 
   const sessionMessages = chatSessionStore.getSessionMessages(ensuredSessionId)
   const existing = sessionMessages.find(message => message.id === turnId && message.role === 'assistant')
@@ -306,11 +307,13 @@ async function upsertProactiveAssistantTurn(payload: {
     existingAssistant.createdAt = normalizedCreatedAt
     existingAssistant.slices = [{ type: 'text', text: assistantText }]
     existingAssistant.tool_results = []
+    existingAssistant.origin = 'subconscious-proactive'
     existingAssistant.structured = {
       thought: structuredThought,
       emotion: structuredEmotion,
       reply: assistantText,
       format: structuredFormat,
+      proactive,
     }
     existingAssistant.categorization = {
       speech: assistantText,
@@ -323,6 +326,7 @@ async function upsertProactiveAssistantTurn(payload: {
       role: 'assistant',
       content: assistantText,
       createdAt: normalizedCreatedAt,
+      origin: 'subconscious-proactive',
       slices: [{ type: 'text', text: assistantText }],
       tool_results: [],
       structured: {
@@ -330,6 +334,7 @@ async function upsertProactiveAssistantTurn(payload: {
         emotion: structuredEmotion,
         reply: assistantText,
         format: structuredFormat,
+        proactive,
       },
       categorization: {
         speech: assistantText,
@@ -481,10 +486,14 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
           : {}
         const structuredThought = typeof structured.thought === 'string' ? structured.thought.trim() : ''
         const structuredEmotion = typeof structured.emotion === 'string' ? structured.emotion.trim() : 'neutral'
-        const structuredFormat: 'epoch1-v1' | 'fallback-v1'
-          = structured.format === 'epoch1-v1'
-            ? 'epoch1-v1'
-            : 'fallback-v1'
+        const structuredFormat = normalizeStructuredFormat(structured.format)
+        const proactive = normalizeProactiveMetadata(structured.proactive)
+        const inferredOrigin = turnId.startsWith('reminder:') || turnId.startsWith('subconscious:')
+          || structuredFormat === 'subconscious-proactive-v1'
+          || structuredFormat === 'subconscious-proactive-llm-v1'
+          || structuredFormat === 'subconscious-reminder-v1'
+          ? 'subconscious-proactive'
+          : 'user-turn'
         const assistantIndex = findReplayMessageIndex(sessionMessages as any[], {
           id: turnId,
           role: 'assistant',
@@ -503,6 +512,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
           existing.id = turnId
           existing.content = assistantText
           existing.createdAt = createdAt
+          existing.origin = inferredOrigin
           existing.slices = [{ type: 'text', text: assistantText }]
           existing.tool_results = Array.isArray(existing.tool_results) ? existing.tool_results : []
           existing.structured = {
@@ -510,6 +520,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             emotion: structuredEmotion,
             reply: assistantText,
             format: structuredFormat,
+            proactive,
           }
           existing.categorization = {
             speech: assistantText,
@@ -531,6 +542,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             role: 'assistant',
             content: assistantText,
             createdAt,
+            origin: inferredOrigin,
             slices: [{ type: 'text', text: assistantText }],
             tool_results: [],
             structured: {
@@ -538,6 +550,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
               emotion: structuredEmotion,
               reply: assistantText,
               format: structuredFormat,
+              proactive,
             },
             categorization: {
               speech: assistantText,
@@ -863,6 +876,7 @@ setAlicizationBridge({
   getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
   setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
+  reportProactiveFeedback: async payload => await alicizationReportProactiveFeedback({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),
   realtimeExecute: async payload => await alicizationRealtimeExecute({ ...resolveAlicizationScope(), ...payload }),

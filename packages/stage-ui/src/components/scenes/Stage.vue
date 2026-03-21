@@ -24,13 +24,14 @@ import {
   supportsVrmBaseEmotion,
 } from '@proj-alicization/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-alicization/stream-kit'
-import { useBroadcastChannel, useMediaQuery, useResizeObserver } from '@vueuse/core'
+import { useBroadcastChannel, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import StageDialoguePanel from './stage-dialogue-panel.vue'
 
@@ -55,6 +56,7 @@ import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
 import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
+import { resolveStageProactiveFeedbackTarget } from '../../utils/stage-dialogue'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
 import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
@@ -73,6 +75,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'desktopInteractionChange', active: boolean): void
 }>()
+const { t } = useI18n()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 
@@ -993,6 +996,9 @@ function handleDialoguePanelFocusChange(focused: boolean) {
   dialoguePanelFocused.value = focused
 }
 
+const proactiveFeedbackClock = useNow({ interval: 1_000 })
+const dismissedProactiveFeedbackTurnIds = ref<string[]>([])
+
 const dialoguePlacement = computed(() => {
   if (stageCharacterFrame.value && stageBounds.value.width > 0)
     return resolveStageBubblePlacement(stageCharacterFrame.value, stageBounds.value.width)
@@ -1004,6 +1010,30 @@ const recentAssistantBubbleMessage = computed(() => {
   return [...messages.value]
     .reverse()
     .find(message => message.role === 'assistant' && !!resolveStageBubbleText(message))
+})
+const proactiveFeedbackTarget = computed(() => resolveStageProactiveFeedbackTarget(
+  recentAssistantBubbleMessage.value,
+  { now: proactiveFeedbackClock.value.getTime() },
+))
+const visibleProactiveFeedbackTarget = computed(() => {
+  const target = proactiveFeedbackTarget.value
+  if (!target)
+    return null
+  if (dismissedProactiveFeedbackTurnIds.value.includes(target.turnId))
+    return null
+  if (!hasAlicizationBridge())
+    return null
+  if (typeof getAlicizationBridge().reportProactiveFeedback !== 'function')
+    return null
+  return target
+})
+const proactiveFeedbackActions = computed(() => {
+  if (!visibleProactiveFeedbackTarget.value)
+    return null
+  return {
+    dismissLabel: t('stage.dialogue.proactive-dismiss'),
+    positiveLabel: t('stage.dialogue.proactive-positive'),
+  }
 })
 const settledBubbleText = computed(() => resolveStageBubbleText(recentAssistantBubbleMessage.value))
 const bubbleLoading = computed(() => sending.value && !streamingBubbleText.value)
@@ -1038,6 +1068,23 @@ const showDialogueOverlay = computed(() => {
     || bubbleStreaming.value
     || dialogueHoverVisibility.visible.value
 })
+
+async function handleProactiveFeedback(kind: 'dismiss' | 'positive') {
+  const target = visibleProactiveFeedbackTarget.value
+  if (!target)
+    return
+
+  dismissedProactiveFeedbackTurnIds.value = [...dismissedProactiveFeedbackTurnIds.value, target.turnId]
+  try {
+    await getAlicizationBridge().reportProactiveFeedback?.({
+      turnId: target.turnId,
+      feedback: kind,
+    })
+  }
+  catch (error) {
+    console.warn('[stage-ui] failed to report proactive feedback:', error)
+  }
+}
 
 function dialogueOverlayElement() {
   return dialoguePanelRef.value?.panelRootElement()
@@ -1126,10 +1173,12 @@ defineExpose({
         :text="bubbleText"
         :placement="dialoguePlacement"
         :quick-reply-enabled="props.quickReplyEnabled"
+        :proactive-feedback-actions="proactiveFeedbackActions"
         :visible="showDialogueOverlay"
         @hover-change="handleDialoguePanelHoverChange"
         @focus-change="handleDialoguePanelFocusChange"
         @interaction-change="dialoguePanelInteractionActive = $event"
+        @proactive-feedback="handleProactiveFeedback"
       />
     </div>
   </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { calibrateSentimentConfidence, normalizeStructuredOutput, parseLastActEmotion, validateStructuredContract } from './alicization-structured-output'
+import { calibrateSentimentConfidence, normalizeStructuredOutput, parseLastActEmotion, repairStructuredContractLocally, validateStructuredContract } from './alicization-structured-output'
 
 describe('alicization structured output', () => {
   it('parses last ACT emotion', () => {
@@ -253,5 +253,30 @@ describe('alicization structured output', () => {
 
     expect(issues.map(issue => issue.code)).not.toContain('reminder-same-turn-time-jump-language')
     expect(issues.map(issue => issue.code)).not.toContain('reminder-same-turn-future-content-leak')
+  })
+
+  it('locally repairs simple json-contract misses for grounded turns', () => {
+    const repaired = repairStructuredContractLocally({
+      structured: normalizeStructuredOutput({
+        fullText: '看起来这里少了一层 null check，diff 会在这里直接炸掉。',
+        thought: '',
+        reply: '看起来这里少了一层 null check，diff 会在这里直接炸掉。',
+      }),
+      validationIssues: [{
+        code: 'json-contract-missing',
+        message: 'missing',
+      }],
+      personalityState: {
+        obedience: 0.42,
+        liveliness: 0.38,
+        sensibility: 0.71,
+      },
+      preferGroundedEvidence: true,
+    })
+
+    expect(repaired?.parsePath).toBe('repair-json')
+    expect(repaired?.format).toBe('epoch1-v1')
+    expect(repaired?.thought).toContain('obedience=0.42')
+    expect(repaired?.thought).toContain('current visual/context evidence')
   })
 })

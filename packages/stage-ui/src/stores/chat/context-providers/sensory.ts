@@ -15,6 +15,14 @@ export function createSensoryContext(snapshot: AlicizationSensoryCacheSnapshot):
   const batteryText = sample.battery
     ? `${roundPercent(sample.battery.percent)}%(charging=${sample.battery.charging ? 'true' : 'false'})`
     : 'unavailable'
+  const foregroundText = [
+    sample.foregroundWindow?.appName ?? '',
+    sample.foregroundWindow?.processName ?? '',
+    sample.foregroundWindow?.title ?? '',
+  ].filter(Boolean).join(' | ') || 'unknown'
+  const degradedText = sample.degraded?.length
+    ? sample.degraded.join('|')
+    : 'none'
 
   const sensoryText = [
     '[System Context: Sensory]',
@@ -22,6 +30,8 @@ export function createSensoryContext(snapshot: AlicizationSensoryCacheSnapshot):
     `battery=${batteryText}`,
     `cpu=${roundPercent(sample.cpu.usagePercent)}%`,
     `memory=${roundPercent(sample.memory.usagePercent)}%`,
+    `foreground=${foregroundText}`,
+    `degraded=${degradedText}`,
   ].join(', ')
 
   return {

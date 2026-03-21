@@ -1154,6 +1154,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       if (fragmentText)
         await appendSubconsciousFragment(cardId, fragmentText, 'dream-fragment')
     },
+    reportProactiveFeedback: async () => {},
     setActiveSession: async (payload) => {
       const cardId = resolveActiveCardId()
       await ensureCardRegistered(cardId)

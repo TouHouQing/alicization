@@ -1,5 +1,7 @@
-import type { Message } from '@xsai/shared-chat'
-import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
+import type { Buffer } from 'node:buffer'
+
+import type { CommonContentPart, Message } from '@xsai/shared-chat'
+import type { DesktopCapturerSource, IpcMainEvent, IpcMainInvokeEvent, NativeImage, WebContents } from 'electron'
 
 import type {
   AlicizationActiveThought,
@@ -20,6 +22,7 @@ import type {
   AlicizationCoreIncarnationReforgePayload,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
+  AlicizationDialogueStructuredFormat,
   AlicizationDreamMetabolismPayload,
   AlicizationDreamRunResult,
   AlicizationEmotion,
@@ -27,6 +30,8 @@ import type {
   AlicizationGenesisInput,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
+  AlicizationProactiveFeedbackPayload,
+  AlicizationProactiveMetadata,
   AlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult,
@@ -42,6 +47,10 @@ import type {
   CharacterFacialCapability,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
+import type { AlicizationProactiveLoopState } from './proactive-feedback'
+import type { AlicizationProactivePerceptionSignals } from './proactive-policy'
+import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
 
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
@@ -52,15 +61,17 @@ import { pid, platform } from 'node:process'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
+import { errorMessageFrom } from '@moeru/std'
 import {
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
 } from '@proj-alicization/stage-shared'
 import { createOpenAI } from '@xsai-ext/providers/create'
+import { generateText } from '@xsai/generate-text'
 import { streamText } from '@xsai/stream-text'
 import { tool } from '@xsai/tool'
-import { app, globalShortcut, ipcMain, powerMonitor, webContents } from 'electron'
+import { app, desktopCapturer, globalShortcut, ipcMain, powerMonitor, systemPreferences, webContents } from 'electron'
 import { z } from 'zod'
 
 import {
@@ -103,6 +114,7 @@ import {
   electronAlicizationRealtimeExecute,
   electronAlicizationReminderSchedule,
   electronAlicizationReplayDialogues,
+  electronAlicizationReportProactiveFeedback,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
@@ -118,7 +130,37 @@ import {
 } from '../../../shared/eventa'
 import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain } from '../airi/mcp-servers'
+import {
+  activateInvitedInspection,
+  createDefaultPerceptionState,
+  detectInvitedInspectionIntent,
+  extractInspectionHintTerms,
+  getActiveAttentionAnchor,
+  getActivePerceptionSceneResidue,
+  isInternalAlicizationRepairPrompt,
+  isSelfPerceptionTarget,
+  normalizePerceptionState,
+  rememberPerceptionSceneResidue,
+  updatePerceptionStateWithObservation,
+} from './attention-anchor'
 import { setupAlicizationDb } from './db'
+import {
+  createDefaultProactiveLoopState,
+  normalizeProactiveLoopState,
+  proactiveReplyWindowMs,
+  registerProactiveDelivery,
+  reportExplicitProactiveFeedback,
+  settleExpiredProactiveOutcomes,
+  settleProactiveOutcomesOnUserTurnStart,
+  updateLateNightActivityState,
+} from './proactive-feedback'
+import {
+  buildProactiveLayeredContext,
+  inferForegroundWorkloadFromWindow,
+  isLateNightWindow,
+} from './proactive-layered-context'
+import { evaluateProactivePolicy } from './proactive-policy'
+import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
 import { createAlicizationSensoryBus } from './sensory-bus'
 import {
   getAlicizationCardKillSwitchSnapshot,
@@ -157,6 +199,8 @@ const alicizationCardActiveSessionMetaKey = 'active_session_id_v1'
 const alicizationSubconsciousStateMetaKey = 'subconscious_state_v1'
 const alicizationDreamLastRunMetaKey = 'subconscious_last_dreamed_at_v1'
 const alicizationDialogueAckStateMetaKey = 'dialogue_ack_state_v1'
+const alicizationProactiveLoopStateMetaKey = 'proactive_loop_state_v1'
+const alicizationPerceptionStateMetaKey = 'perception_state_v1'
 const alicizationPerformanceManifestMetaKey = 'performance_manifest_v1'
 const defaultAlicizationCardId = 'default'
 const alicizationSubconsciousTickMs = 60_000
@@ -172,13 +216,32 @@ const reminderClaimBatchSize = 12
 const reminderOverdueTierThresholdMinutes = 5
 const reminderLlmRetryDelayMs = 60_000
 const subconsciousInterruptionProbeTimeoutMs = 1_200
+const proactiveScreenSemanticCacheTtlMs = 45_000
+const proactiveScreenSemanticFailureTtlMs = 15_000
+const proactiveScreenSemanticTimeoutMs = 8_000
 const chatRunFinishedRetentionMs = 2 * 60_000
 const mainChatFirstEventTimeoutMs = 45_000
+const mainChatFirstEventTimeoutWithVisualGroundingMs = 90_000
 const mainChatTimeoutRecoveryMs = 12_000
+const mainChatTimeoutRecoveryWithVisualGroundingMs = 30_000
+const inspectionGroundingImageMaxWidth = 960
+const inspectionGroundingImageMaxHeight = 540
+const inspectionGroundingImageJpegQuality = 76
+const proactiveScreenSemanticImageMaxWidth = 640
+const proactiveScreenSemanticImageMaxHeight = 360
+const proactiveScreenSemanticImageJpegQuality = 68
 const dialogueDeliveryRetryBaseMs = 2_000
 const dialogueDeliveryRetryMaxMs = 60_000
 const dialogueDeliveryRetryMaxAttempts = 8
 const alicizationCustomDirectivesMarker = '[ALICIZATION_CARD_CUSTOM_DIRECTIVES]'
+
+const supportedDialogueStructuredFormats = [
+  'subconscious-proactive-v1',
+  'subconscious-proactive-llm-v1',
+  'subconscious-reminder-v1',
+  'epoch1-v1',
+  'fallback-v1',
+] as const satisfies AlicizationDialogueStructuredFormat[]
 
 interface SubconsciousCardState extends AlicizationSubconsciousNeedsState {
   updatedAt: number
@@ -228,6 +291,20 @@ interface PendingDialogueDeliveryState {
   payload: AlicizationDialogueRespondedPayload
   attempts: number
   timer?: ReturnType<typeof setTimeout>
+}
+
+interface ScreenSemanticCacheState {
+  key: string
+  summary: AlicizationScreenSemanticSummary | null
+  updatedAt: number
+  unavailableReason?: string
+}
+
+interface DesktopCaptureAccessResult {
+  permissionStatus?: string
+  sources: DesktopCapturerSource[]
+  unavailableReason?: string
+  probeError?: string
 }
 
 interface CardScopeOptions {
@@ -1109,6 +1186,59 @@ function isMainGatewayProgressEventType(rawType: unknown) {
     || eventType === 'error'
 }
 
+function buildCompressedNativeImageDataUrl(input: {
+  image: NativeImage
+  maxWidth: number
+  maxHeight: number
+  jpegQuality: number
+}) {
+  const maybeImage = input.image as NativeImage & {
+    isEmpty?: () => boolean
+    getSize?: () => { width: number, height: number }
+    resize?: (options: { width: number, height: number, quality?: string }) => NativeImage
+    toJPEG?: (quality: number) => Buffer
+    toDataURL?: () => string
+  }
+  if (typeof maybeImage.isEmpty !== 'function'
+    || typeof maybeImage.getSize !== 'function'
+    || typeof maybeImage.resize !== 'function'
+    || typeof maybeImage.toJPEG !== 'function') {
+    return typeof maybeImage.toDataURL === 'function'
+      ? maybeImage.toDataURL()
+      : ''
+  }
+
+  if (maybeImage.isEmpty())
+    return ''
+
+  const originalSize = maybeImage.getSize()
+  const widthRatio = input.maxWidth > 0 ? input.maxWidth / Math.max(1, originalSize.width) : 1
+  const heightRatio = input.maxHeight > 0 ? input.maxHeight / Math.max(1, originalSize.height) : 1
+  const scale = Math.min(1, widthRatio, heightRatio)
+  const targetWidth = Math.max(1, Math.round(originalSize.width * scale))
+  const targetHeight = Math.max(1, Math.round(originalSize.height * scale))
+  const resized = scale < 1
+    ? maybeImage.resize({
+        width: targetWidth,
+        height: targetHeight,
+        quality: 'better',
+      })
+    : maybeImage
+
+  const jpeg = resized.toJPEG(input.jpegQuality)
+  if (!jpeg || jpeg.length === 0)
+    return ''
+
+  return `data:image/jpeg;base64,${jpeg.toString('base64')}`
+}
+
+function messageContainsVisualInput(messages: Message[]) {
+  return messages.some(message =>
+    Array.isArray(message.content)
+    && message.content.some((part: any) => part?.type === 'image_url'),
+  )
+}
+
 function readStringValue(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
@@ -1243,6 +1373,79 @@ function buildDefaultDialoguePerformancePayload(
   }, baseEmotion)
 }
 
+function normalizeDialogueStructuredFormat(raw: unknown, fallback?: AlicizationDialogueStructuredFormat) {
+  const candidate = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+  const normalized = supportedDialogueStructuredFormats.find(format => format === candidate)
+  return normalized ?? fallback
+}
+
+function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMetadata | undefined {
+  const candidate = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  if (!candidate)
+    return undefined
+  const scenario = typeof candidate?.scenario === 'string'
+    && ['coding', 'media', 'late-night-care', 'general'].includes(candidate.scenario)
+    ? candidate.scenario as AlicizationProactiveMetadata['scenario']
+    : null
+  const style = typeof candidate?.style === 'string'
+    && ['silent-observe', 'light-nudge', 'gentle-care', 'firm-warning'].includes(candidate.style)
+    ? candidate.style as AlicizationProactiveMetadata['style']
+    : null
+  const urgency = typeof candidate?.urgency === 'string'
+    && ['low', 'medium', 'high'].includes(candidate.urgency)
+    ? candidate.urgency as AlicizationProactiveMetadata['urgency']
+    : null
+  if (!scenario || !style || !urgency)
+    return undefined
+
+  const rawReasonCodes = Array.isArray(candidate.reasonCodes) ? candidate.reasonCodes : []
+  const reasonCodes = rawReasonCodes
+    .filter((reasonCode): reasonCode is AlicizationProactiveMetadata['reasonCodes'][number] => {
+      return typeof reasonCode === 'string' && [
+        'busy-host',
+        'fullscreen-host',
+        'kill-switch-suspended',
+        'global-cooldown-active',
+        'attention-anchor-active',
+        'recent-observation-memory',
+        'invited-inspection-active',
+        'scenario-bias-raised',
+        'recent-ignored-penalty',
+        'recent-dismiss-penalty',
+        'recent-positive-feedback',
+        'coding-focus',
+        'media-playback',
+        'late-night-activity',
+        'late-night-fatigue',
+        'high-loneliness',
+        'high-boredom',
+        'user-idle',
+        'foreground-error',
+        'foreground-diff',
+        'reminder-backlog',
+      ].includes(reasonCode)
+    })
+
+  const confidence = Number(candidate.confidence)
+  const cooldownMs = Number(candidate.cooldownMs)
+  const feedbackWindowMs = Number(candidate.feedbackWindowMs)
+  const policyVersion = readStringValue(candidate.policyVersion).trim()
+  if (!policyVersion || !Number.isFinite(confidence) || !Number.isFinite(cooldownMs) || !Number.isFinite(feedbackWindowMs))
+    return undefined
+
+  return {
+    shouldInterrupt: candidate.shouldInterrupt === true,
+    confidence: Number(clamp01(confidence).toFixed(2)),
+    reasonCodes,
+    urgency,
+    style,
+    cooldownMs: Math.max(1_000, Math.floor(cooldownMs)),
+    scenario,
+    policyVersion,
+    feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
+  }
+}
+
 function normalizeDialogueRespondedPayload(
   input: AlicizationConversationTurnInput,
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
@@ -1260,6 +1463,11 @@ function normalizeDialogueRespondedPayload(
   const parsePath = readStringValue((structuredPayload as Record<string, unknown>).parsePath).trim().toLowerCase()
   const contractFailed = (structuredPayload as Record<string, unknown>).contractFailed === true
   const policyLocked = readStringValue((structuredPayload as Record<string, unknown>).policyLocked).trim()
+  const format = normalizeDialogueStructuredFormat(
+    (structuredPayload as Record<string, unknown>).format,
+    contractFailed ? 'fallback-v1' : undefined,
+  )
+  const proactive = normalizeProactiveMetadata((structuredPayload as Record<string, unknown>).proactive)
   const normalizedEmotionResult = normalizeAlicizationEmotion(rawEmotion)
   const normalizedPerformance = normalizeAlicizationPerformancePayload(
     (structuredPayload as Record<string, unknown>).performance,
@@ -1286,6 +1494,8 @@ function normalizeDialogueRespondedPayload(
       emotion: clampedPerformance.performance.baseEmotion,
       reply,
       performance: clampedPerformance.performance,
+      format,
+      proactive,
       policyLocked: policyLocked || undefined,
       rawEmotion: normalizedEmotionResult.downgraded
         ? normalizedEmotionResult.rawEmotion
@@ -1339,6 +1549,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const dialogueAckByCard = new Map<string, Map<string, number>>()
   const pendingDialogueDeliveries = new Map<string, PendingDialogueDeliveryState>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
+  const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
+  const perceptionStateByCard = new Map<string, AlicizationPerceptionState>()
+  const screenSemanticCacheByCard = new Map<string, ScreenSemanticCacheState>()
   const chatRuns = new Map<string, ChatRunState>()
   const recentlyFinishedChatRuns = new Map<string, number>()
   let activeProviderId = ''
@@ -1817,6 +2030,207 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await restoreSubconsciousState(normalizedCardId)
   }
 
+  async function persistProactiveLoopState(cardIdRaw: unknown, state: AlicizationProactiveLoopState) {
+    const cardId = normalizeCardId(cardIdRaw)
+    proactiveLoopStateByCard.set(cardId, state)
+    if (cardId === activeCardId) {
+      await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, JSON.stringify(state)).catch(() => {})
+      return
+    }
+    await withCardScope(cardId, async () => {
+      await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, JSON.stringify(state)).catch(() => {})
+    }, {
+      label: `proactive-loop.persist:${cardId}`,
+    })
+  }
+
+  async function restoreProactiveLoopState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const now = Date.now()
+    const setState = (state: AlicizationProactiveLoopState) => {
+      proactiveLoopStateByCard.set(cardId, state)
+      return state
+    }
+
+    if (cardId !== activeCardId) {
+      await withCardScope(cardId, async () => {
+        const raw = await alicizationDb.getMetaValue(alicizationProactiveLoopStateMetaKey).catch(() => undefined)
+        if (!raw) {
+          setState(createDefaultProactiveLoopState(now))
+          return
+        }
+        try {
+          setState(normalizeProactiveLoopState(JSON.parse(raw), now))
+        }
+        catch {
+          setState(createDefaultProactiveLoopState(now))
+        }
+      }, {
+        label: `proactive-loop.restore:${cardId}`,
+      })
+      return proactiveLoopStateByCard.get(cardId) ?? createDefaultProactiveLoopState(now)
+    }
+
+    const raw = await alicizationDb.getMetaValue(alicizationProactiveLoopStateMetaKey).catch(() => undefined)
+    if (!raw)
+      return setState(createDefaultProactiveLoopState(now))
+    try {
+      return setState(normalizeProactiveLoopState(JSON.parse(raw), now))
+    }
+    catch {
+      return setState(createDefaultProactiveLoopState(now))
+    }
+  }
+
+  async function ensureProactiveLoopState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const current = proactiveLoopStateByCard.get(cardId)
+    if (current)
+      return current
+    return await restoreProactiveLoopState(cardId)
+  }
+
+  async function persistPerceptionState(cardIdRaw: unknown, state: AlicizationPerceptionState) {
+    const cardId = normalizeCardId(cardIdRaw)
+    perceptionStateByCard.set(cardId, state)
+    if (cardId === activeCardId) {
+      await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, JSON.stringify(state)).catch(() => {})
+      return
+    }
+    await withCardScope(cardId, async () => {
+      await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, JSON.stringify(state)).catch(() => {})
+    }, {
+      label: `perception.persist:${cardId}`,
+    })
+  }
+
+  async function restorePerceptionState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const now = Date.now()
+    const setState = (state: AlicizationPerceptionState) => {
+      perceptionStateByCard.set(cardId, state)
+      return state
+    }
+
+    if (cardId !== activeCardId) {
+      await withCardScope(cardId, async () => {
+        const raw = await alicizationDb.getMetaValue(alicizationPerceptionStateMetaKey).catch(() => undefined)
+        if (!raw) {
+          setState(createDefaultPerceptionState(now))
+          return
+        }
+        try {
+          setState(normalizePerceptionState(JSON.parse(raw), now))
+        }
+        catch {
+          setState(createDefaultPerceptionState(now))
+        }
+      }, {
+        label: `perception.restore:${cardId}`,
+      })
+      return perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now)
+    }
+
+    const raw = await alicizationDb.getMetaValue(alicizationPerceptionStateMetaKey).catch(() => undefined)
+    if (!raw)
+      return setState(createDefaultPerceptionState(now))
+    try {
+      return setState(normalizePerceptionState(JSON.parse(raw), now))
+    }
+    catch {
+      return setState(createDefaultPerceptionState(now))
+    }
+  }
+
+  async function ensurePerceptionState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const current = perceptionStateByCard.get(cardId) ?? await restorePerceptionState(cardId)
+    const normalized = normalizePerceptionState(current, Date.now())
+    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+      await persistPerceptionState(cardId, normalized)
+      return normalized
+    }
+    return current
+  }
+
+  async function rememberPerceptionObservation(input: {
+    cardId: string
+    now: number
+    target?: {
+      appName?: string
+      processName?: string
+      title?: string
+    } | null
+    source: 'sensory-snapshot' | 'subconscious-tick' | 'chat-start'
+  }) {
+    const current = await ensurePerceptionState(input.cardId)
+    const next = updatePerceptionStateWithObservation({
+      state: current,
+      now: input.now,
+      target: input.target,
+      source: input.source,
+    })
+    await persistPerceptionState(input.cardId, next)
+    return next
+  }
+
+  async function rememberSceneResidue(input: {
+    cardId: string
+    now: number
+    residue: AlicizationPerceptionSceneResidue
+  }) {
+    const current = await ensurePerceptionState(input.cardId)
+    const next = rememberPerceptionSceneResidue({
+      state: current,
+      now: input.now,
+      residue: input.residue,
+    })
+    await persistPerceptionState(input.cardId, next)
+    return next
+  }
+
+  async function settlePendingProactiveOutcomesFromUserTurn(cardIdRaw: unknown, at: number, source: string) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const current = await ensureProactiveLoopState(cardId)
+    const settled = settleProactiveOutcomesOnUserTurnStart(current, at)
+    if (settled.appliedOutcomes.length === 0)
+      return settled.state
+
+    await persistProactiveLoopState(cardId, settled.state)
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.subconscious',
+      action: 'proactive-feedback-settled',
+      message: 'Settled proactive feedback from a direct user reply window.',
+      payload: {
+        source,
+        outcomes: settled.appliedOutcomes,
+      },
+    }, cardId)
+    return settled.state
+  }
+
+  async function settleExpiredPendingProactiveOutcomes(cardIdRaw: unknown, at: number, source: string) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const current = await ensureProactiveLoopState(cardId)
+    const settled = settleExpiredProactiveOutcomes(current, at)
+    if (settled.appliedOutcomes.length === 0)
+      return settled.state
+
+    await persistProactiveLoopState(cardId, settled.state)
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.subconscious',
+      action: 'proactive-feedback-settled',
+      message: 'Settled proactive feedback after reply timeout elapsed.',
+      payload: {
+        source,
+        outcomes: settled.appliedOutcomes,
+      },
+    }, cardId)
+    return settled.state
+  }
+
   async function flushCurrentSubconsciousState(reason: string) {
     const current = subconsciousStateByCard.get(activeCardId)
     if (!current)
@@ -1882,7 +2296,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function listKnownCardIds() {
     const cardsRoot = join(userDataPath, 'alicizations', 'cards')
-    const ids = new Set<string>([...subconsciousStateByCard.keys(), ...activeSessionIdByCard.keys(), normalizeCardId(activeCardId)])
+    const ids = new Set<string>([
+      ...subconsciousStateByCard.keys(),
+      ...activeSessionIdByCard.keys(),
+      ...proactiveLoopStateByCard.keys(),
+      normalizeCardId(activeCardId),
+    ])
     try {
       const entries = await readdir(cardsRoot, { withFileTypes: true })
       for (const entry of entries) {
@@ -1918,8 +2337,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         await alicizationDb.clearConversationData()
         await alicizationDb.setMetaValue(alicizationCardActiveSessionMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, '{}').catch(() => {})
+        await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, '').catch(() => {})
+        await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, '').catch(() => {})
         activeSessionIdByCard.delete(cardId)
         dialogueAckByCard.delete(cardId)
+        proactiveLoopStateByCard.delete(cardId)
+        perceptionStateByCard.delete(cardId)
+        screenSemanticCacheByCard.delete(cardId)
         clearPendingDialogueDeliveriesByCard(cardId)
         await appendAuditLog({
           level: 'notice',
@@ -1975,6 +2399,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     activeSessionIdByCard.clear()
     dialogueAckByCard.clear()
     subconsciousStateByCard.clear()
+    proactiveLoopStateByCard.clear()
+    perceptionStateByCard.clear()
     subconsciousTickInFlight = null
     queuedWrite = Promise.resolve()
     soulSnapshot = null
@@ -1998,6 +2424,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     await restoreActiveSessionId(activeCardId)
     await restoreDialogueAckMap(activeCardId)
     await restoreSubconsciousState(activeCardId)
+    await restoreProactiveLoopState(activeCardId)
+    await restoreProactiveLoopState(activeCardId)
 
     sensoryBus = createAlicizationSensoryBus({
       tickMs: 60_000,
@@ -3049,14 +3477,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const normalizedSessionId = normalizeSessionId(payload.sessionId) || await ensureActiveOrLatestSessionId(activeCardId)
     if (normalizeSessionId(payload.sessionId))
       await persistActiveSessionId(activeCardId, normalizedSessionId)
+    const normalizedCreatedAt = Number.isFinite(payload.createdAt)
+      ? Math.max(0, Math.floor(Number(payload.createdAt)))
+      : Date.now()
 
     const normalizedPayload: AlicizationConversationTurnInput = {
       ...payload,
       sessionId: normalizedSessionId,
       origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
+      createdAt: normalizedCreatedAt,
     }
 
     if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.userText).length > 0) {
+      await settlePendingProactiveOutcomesFromUserTurn(activeCardId, normalizedCreatedAt, 'append-conversation-turn')
       await markSubconsciousInteraction(activeCardId)
     }
 
@@ -3113,6 +3546,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           cardId: activeCardId,
           ...dialoguePayload,
         })
+        if (dialoguePayload.origin === 'subconscious-proactive' && dialoguePayload.structured.proactive) {
+          const proactiveState = await ensureProactiveLoopState(activeCardId)
+          await persistProactiveLoopState(activeCardId, registerProactiveDelivery(proactiveState, {
+            turnId: dialoguePayload.turnId,
+            scenario: dialoguePayload.structured.proactive.scenario,
+            deliveredAt: dialoguePayload.createdAt,
+            feedbackWindowMs: dialoguePayload.structured.proactive.feedbackWindowMs,
+          }))
+        }
         await appendRuntimeDebugLine('dialogue-responded.emitted', {
           cardId: activeCardId,
           turnId: dialoguePayload.turnId,
@@ -3132,6 +3574,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             emotion: dialoguePayload.structured.emotion,
             rawEmotion: dialoguePayload.structured.rawEmotion,
             origin: dialoguePayload.origin,
+            format: dialoguePayload.structured.format,
+            proactive: dialoguePayload.structured.proactive ?? null,
           },
         })
       }
@@ -3342,31 +3786,95 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     } satisfies AlicizationCoreIncarnationReforgePayload
   }
 
+  function buildProactiveStyleInstruction(style: AlicizationProactiveMetadata['style']) {
+    if (style === 'firm-warning') {
+      return {
+        maxReplyChars: 72,
+        performance: {
+          delivery: 'firm' as const,
+          emphasis: 2 as const,
+        },
+        instruction: 'Use one or two short sentences. Be direct, protective, and serious without sounding hostile.',
+      }
+    }
+    if (style === 'gentle-care') {
+      return {
+        maxReplyChars: 64,
+        performance: {
+          delivery: 'gentle' as const,
+          emphasis: 1 as const,
+        },
+        instruction: 'Use one or two soft sentences. Sound caring, low-pressure, and emotionally close.',
+      }
+    }
+    if (style === 'light-nudge') {
+      return {
+        maxReplyChars: 48,
+        performance: {
+          delivery: 'calm' as const,
+          emphasis: 0 as const,
+        },
+        instruction: 'Use a single low-intrusion sentence. Be brief, relevant, and avoid emotional overreach.',
+      }
+    }
+    return {
+      maxReplyChars: 36,
+      performance: {
+        delivery: 'hesitant' as const,
+        emphasis: 0 as const,
+      },
+      instruction: 'Do not interrupt. Only produce a silent observation placeholder if forced.',
+    }
+  }
+
+  function buildProactiveMetadataFromDecision(decision: ReturnType<typeof evaluateProactivePolicy>): AlicizationProactiveMetadata {
+    return {
+      shouldInterrupt: decision.shouldInterrupt,
+      confidence: decision.confidence,
+      reasonCodes: [...decision.reasonCodes],
+      urgency: decision.urgency,
+      style: decision.style,
+      cooldownMs: decision.cooldownMs,
+      scenario: decision.scenario,
+      policyVersion: decision.policyVersion,
+      feedbackWindowMs: proactiveReplyWindowMs,
+    }
+  }
+
   async function generateProactiveStructuredWithGateway(
     personality: AlicizationPersonalityState,
     state: SubconsciousCardState,
-    context: {
-      busy: boolean
-      fullscreenLikely: boolean
-      idleLikely: boolean
-      inputActivity: string
-      cpuUsage: number
-    },
+    layeredContext: ReturnType<typeof buildProactiveLayeredContext>,
+    policyDecision: ReturnType<typeof evaluateProactivePolicy>,
     organicPromptContext: OrganicMemoryPromptContext,
+    perceptionState: AlicizationPerceptionState,
   ) {
+    const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
-      '你的张力池已溢出，你必须以符合角色设定的语气主动发起一次对话。',
+      '策略层已经完成是否打断的判断。你不能重新决定该不该打断，只能负责把既定策略措辞成一句自然对白。',
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
-      `Environment context: busy=${context.busy}, fullscreenLikely=${context.fullscreenLikely}, idleLikely=${context.idleLikely}, inputActivity=${context.inputActivity}, cpuUsage=${context.cpuUsage.toFixed(1)}%.`,
+      `Layered context JSON: ${JSON.stringify(layeredContext)}`,
+      `Policy decision JSON: ${JSON.stringify({
+        shouldInterrupt: policyDecision.shouldInterrupt,
+        confidence: policyDecision.confidence,
+        scenario: policyDecision.scenario,
+        style: policyDecision.style,
+        urgency: policyDecision.urgency,
+        reasonCodes: policyDecision.reasonCodes,
+        cooldownMs: policyDecision.cooldownMs,
+        policyVersion: policyDecision.policyVersion,
+      })}`,
+      `Style constraint: ${styleInstruction.instruction}`,
+      `Reply max length: ${styleInstruction.maxReplyChars} characters.`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
       'emotion must be one of: neutral|happy|sad|angry|concerned|tired|apologetic|surprised|thinking.',
       'emotion must exactly mirror performance.baseEmotion.',
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
-      'reply must be concise, non-generic, and match emotion/personality. No markdown, no extra keys.',
+      'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
     ].join('\n')
-    const user = 'Generate one proactive utterance now. Avoid robotic greetings.'
+    const user = 'Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.'
 
     const raw = await generateMainGatewayText({
       system,
@@ -3374,7 +3882,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       timeoutMs: 15_000,
       source: 'proactive',
       cardId: activeCardId,
-      extraSystemBlocks: buildOrganicMemorySystemBlocks(organicPromptContext),
+      extraSystemBlocks: [
+        ...buildOrganicMemorySystemBlocks(organicPromptContext),
+        buildProactivePerceptionSystemBlock({
+          now: Date.now(),
+          state: perceptionState,
+        }),
+      ],
     })
     if (!raw)
       return null
@@ -3402,6 +3916,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       performance,
       parsePath: 'json',
       format: 'subconscious-proactive-llm-v1',
+      proactive: buildProactiveMetadataFromDecision(policyDecision),
     }
   }
 
@@ -3459,7 +3974,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   function buildProactiveStructured(
     personality: AlicizationPersonalityState,
     state: SubconsciousCardState,
-    context: { busy: boolean, fullscreenLikely: boolean },
+    layeredContext: ReturnType<typeof buildProactiveLayeredContext>,
+    policyDecision: ReturnType<typeof evaluateProactivePolicy>,
+    perceptionState: AlicizationPerceptionState,
     personaContext: {
       customDirectives: string
       coreIncarnation: string
@@ -3467,44 +3984,57 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
   ) {
     const lowObedience = personality.obedience <= 0.2
-    const lowLiveliness = personality.liveliness <= 0.2
-    const highBoredom = state.boredom >= 80
-    const highLoneliness = state.loneliness >= 80
+    const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
+    const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
     const emotion = (() => {
-      if (lowObedience && highBoredom)
-        return 'angry' as const
-      if (lowLiveliness || state.fatigue >= 70)
-        return 'tired' as const
-      if (highLoneliness && personality.sensibility > 0.5)
+      if (policyDecision.style === 'firm-warning')
         return 'concerned' as const
+      if (policyDecision.style === 'gentle-care')
+        return state.fatigue >= 70 ? 'tired' as const : 'concerned' as const
+      if (layeredContext.content.kind === 'error' || layeredContext.content.kind === 'diff')
+        return 'thinking' as const
+      if (lowObedience && state.boredom >= 92)
+        return 'angry' as const
       return 'neutral' as const
     })()
 
-    const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
     const coreIncarnation = sanitizeBriefText(personaContext.coreIncarnation, 220)
     const hostAttitude = sanitizeBriefText(personaContext.hostAttitude, 80)
+    const observedScreenSummary = layeredContext.content.source === 'screen-semantic-summary'
+      ? sanitizeBriefText(layeredContext.content.summary ?? '', 20)
+      : ''
+    const attentionAnchor = getActiveAttentionAnchor(perceptionState, Date.now())
+    const anchoredFocusTitle = sanitizeBriefText(attentionAnchor?.title ?? '', 28)
 
     const reply = (() => {
-      if (emotion === 'angry') {
-        return personaTone === 'strict'
-          ? '你总算有空了？别再把我晾着。'
-          : '你终于想起我了？别把我晾在一边。'
+      if (policyDecision.style === 'firm-warning') {
+        return policyDecision.scenario === 'late-night-care'
+          ? '已经很晚了。你还在硬撑，我得提醒你先停一下。'
+          : '这一步看起来不太对。先停一下，再确认一遍。'
       }
-      if (emotion === 'tired') {
+      if (policyDecision.style === 'gentle-care') {
+        if (policyDecision.scenario === 'late-night-care')
+          return '你已经在线很久了。我更想你先缓一缓。'
         return personaTone === 'cold'
-          ? '我很累。要聊就直说重点。'
-          : '我有点疲惫，但还是在这里。'
+          ? '我在看着你。别把自己逼得太紧。'
+          : '我在看着你。先别把自己逼得太紧。'
       }
-      if (emotion === 'concerned') {
-        return personaTone === 'clingy'
-          ? '你很久没理我了，我一直在等你。'
-          : '你很久没和我说话了。还好吗？'
+      if (policyDecision.style === 'light-nudge') {
+        if (anchoredFocusTitle && policyDecision.scenario === 'coding')
+          return `你刚才一直停在${anchoredFocusTitle}这里。先回头确认一下？`
+        if (observedScreenSummary)
+          return `我看到你现在在看${observedScreenSummary}。先回头确认一下？`
+        if (layeredContext.content.kind === 'error')
+          return '这个窗口里像是报错了。要不要先回头看一眼？'
+        if (layeredContext.content.kind === 'diff')
+          return '你现在像是在看 diff。别急着过，先确认关键改动。'
+        if (policyDecision.scenario === 'media')
+          return '我先轻轻提醒一句，别忘了等会儿回来收尾。'
+        return personaTone === 'playful'
+          ? '你现在像是卡在这儿了，要不要换个角度？'
+          : '我先轻轻提醒一句，你可以回头确认一下。'
       }
-      if (context.fullscreenLikely)
-        return '我先不打扰你，等你忙完再聊。'
-      if (personaTone === 'playful')
-        return '你在发呆吗？不如来陪我聊两句。'
-      return '你在发呆吗？如果有空，我们聊聊。'
+      return '我先记下这一刻，等更合适的时候再开口。'
     })()
 
     const thought = [
@@ -3518,15 +4048,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       hostAttitude ? `hostAttitude=${hostAttitude}` : 'hostAttitude=none',
       coreIncarnation ? `coreIncarnation=${coreIncarnation}` : 'coreIncarnation=none',
       lowObedience ? 'low-obedience bias active' : 'default bias',
+      `scenario=${policyDecision.scenario}`,
+      `style=${policyDecision.style}`,
+      `content=${layeredContext.content.kind}`,
+      attentionAnchor ? `attentionAnchor=${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}` : 'attentionAnchor=none',
     ].join('; ')
 
     return {
       thought,
       emotion,
-      reply,
-      performance: buildDefaultDialoguePerformancePayload(emotion),
+      reply: reply.slice(0, styleInstruction.maxReplyChars),
+      performance: buildDefaultDialoguePerformancePayload(emotion, styleInstruction.performance),
       parsePath: 'json',
       format: 'subconscious-proactive-v1',
+      proactive: buildProactiveMetadataFromDecision(policyDecision),
     }
   }
 
@@ -3987,63 +4522,130 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function runSubconsciousTickForCurrentCard(trigger: 'timer' | 'force'): Promise<{ proactive: boolean, suppressed: boolean }> {
     const state = await ensureSubconsciousState(activeCardId)
+    let proactiveLoopState = await ensureProactiveLoopState(activeCardId)
     const reminderResult = await processDueRemindersForCurrentCard(trigger)
     const now = Date.now()
+    proactiveLoopState = await settleExpiredPendingProactiveOutcomes(activeCardId, now, `subconscious-tick:${trigger}`)
     const elapsedMinutes = Math.max(1 / 6, (now - state.lastTickAt) / 60_000)
     const sensorySnapshot = sensoryBus.getSnapshot()
     const cpuUsage = Number(sensorySnapshot?.sample?.cpu?.usagePercent ?? 0)
     const interruptionContext = await sampleSubconsciousInterruptionContext()
-    const fullscreenLikely = interruptionContext.fullscreenLikely
-    const inputActivity = interruptionContext.inputActivity
-    const busy = cpuUsage >= 70 || fullscreenLikely || (inputActivity === 'active' && cpuUsage >= 45)
-    const idleLikely = inputActivity === 'idle' || (inputActivity !== 'active' && cpuUsage <= 10)
-    const degradedSignals = [...interruptionContext.degraded]
+    await rememberPerceptionObservation({
+      cardId: activeCardId,
+      now,
+      target: interruptionContext.foregroundWindow ?? sensorySnapshot?.sample?.foregroundWindow,
+      source: 'subconscious-tick',
+    })
+    const perceptionState = await ensurePerceptionState(activeCardId)
+    const idleLikely = interruptionContext.inputActivity === 'idle'
+      || (interruptionContext.inputActivity !== 'active' && cpuUsage <= 10)
 
     const nextState: SubconsciousCardState = {
       ...state,
-      boredom: clampNeed(state.boredom + elapsedMinutes * (busy ? 2.2 : 1.2)),
+      boredom: clampNeed(state.boredom + elapsedMinutes * ((cpuUsage >= 70 || interruptionContext.fullscreenLikely) ? 2.2 : 1.2)),
       loneliness: clampNeed(state.loneliness + elapsedMinutes * (idleLikely ? 2.4 : 0.8)),
       fatigue: clampNeed(state.fatigue + elapsedMinutes * 0.6 + reminderResult.completed * 1.2),
       lastTickAt: now,
-      lastInteractionAt: reminderResult.completed > 0 ? now : state.lastInteractionAt,
+      lastInteractionAt: state.lastInteractionAt,
       updatedAt: now,
     }
+    const soulForSubconscious = soulSnapshot ?? await bootstrap()
+    const killSwitchSuspended
+      = isAlicizationKillSwitchSuspended()
+        || getAlicizationCardKillSwitchSnapshot(activeCardId).state === 'SUSPENDED'
+    const hostActive = interruptionContext.inputActivity === 'active'
+      || (typeof interruptionContext.idleSeconds === 'number' && interruptionContext.idleSeconds < 5 * 60)
+    const lateNightState = updateLateNightActivityState(proactiveLoopState, {
+      now,
+      hostActive,
+      isLateNight: isLateNightWindow(new Date(now)),
+    })
+    proactiveLoopState = lateNightState.state
+    proactiveLoopStateByCard.set(activeCardId, proactiveLoopState)
+    const reminderBacklog = (await alicizationDb.listPendingScheduledTasks(32).catch(() => [])).length
+    const canAttemptScreenSemanticSummary
+      = !killSwitchSuspended
+        && !interruptionContext.fullscreenLikely
+        && cpuUsage < 70
+        && (interruptionContext.inputActivity !== 'active' || cpuUsage < 45)
+    const screenSemanticSummary = canAttemptScreenSemanticSummary
+      ? await resolveProactiveScreenSemanticSummary({
+          cardId: activeCardId,
+          now,
+          foregroundWindow: interruptionContext.foregroundWindow,
+          perceptionState,
+        })
+      : null
+    const layeredContext = buildProactiveLayeredContext({
+      now,
+      probeSample: sensorySnapshot?.sample,
+      interruptionContext,
+      subconsciousState: nextState,
+      hostAttitude: soulForSubconscious.frontmatter.host_attitude,
+      reminderBacklog,
+      lateNightActiveMinutes: lateNightState.lateNightActiveMinutes,
+      recentProactiveOutcomes: proactiveLoopState.recentOutcomes,
+      screenSemanticSummary,
+    })
+    const perceptionSignals = buildProactivePerceptionSignals({
+      now,
+      state: perceptionState,
+      currentForeground: interruptionContext.foregroundWindow ?? sensorySnapshot?.sample?.foregroundWindow,
+    })
+    const decision = evaluateProactivePolicy({
+      now,
+      context: layeredContext,
+      proactiveState: proactiveLoopState,
+      killSwitchSuspended,
+      perception: perceptionSignals,
+    })
 
     let proactive = false
     let suppressed = false
-    const impulse = nextState.boredom >= 90 || nextState.loneliness >= 90
+    const hardSuppressed = !decision.shouldInterrupt
+      && (
+        decision.style === 'silent-observe'
+        || decision.reasonCodes.includes('kill-switch-suspended')
+        || decision.reasonCodes.includes('global-cooldown-active')
+        || decision.reasonCodes.includes('busy-host')
+        || decision.reasonCodes.includes('fullscreen-host')
+      )
 
-    if (trigger === 'force' || impulse) {
-      await appendAuditLog({
-        level: degradedSignals.length > 0 ? 'warning' : 'notice',
-        category: 'alicization.subconscious',
-        action: 'context-sampled',
-        message: 'Sampled subconscious interruption context before gate evaluation.',
-        payload: {
-          busy,
-          idleLikely,
-          fullscreenLikely,
-          inputActivity,
-          cpuUsage,
-          idleSeconds: interruptionContext.idleSeconds,
-          foregroundWindow: interruptionContext.foregroundWindow,
-          degraded: degradedSignals,
-          trigger,
+    await appendAuditLog({
+      level: interruptionContext.degraded.length > 0 ? 'warning' : 'notice',
+      category: 'alicization.subconscious',
+      action: 'proactive-policy-evaluated',
+      message: 'Evaluated proactive interruption policy from layered sensory context.',
+      payload: {
+        trigger,
+        consideredSignals: decision.consideredSignals,
+        ignoredSignals: decision.ignoredSignals,
+        decision: {
+          shouldInterrupt: decision.shouldInterrupt,
+          confidence: decision.confidence,
+          urgency: decision.urgency,
+          style: decision.style,
+          cooldownMs: decision.cooldownMs,
+          scenario: decision.scenario,
+          policyVersion: decision.policyVersion,
         },
-      })
-    }
+        reasonCodes: decision.reasonCodes,
+        style: decision.style,
+        whyNow: decision.whyNow,
+        whyNotLater: decision.whyNotLater,
+        cooldownMs: decision.cooldownMs,
+        feedbackBias: decision.feedbackBias,
+        perception: perceptionSignals,
+        layeredContext,
+      },
+    })
 
-    if (impulse) {
-      const soulForSubconscious = soulSnapshot ?? await bootstrap()
-      const personality = soulForSubconscious.frontmatter.personality
-      const personaContext = {
-        customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
-        coreIncarnation: soulForSubconscious.frontmatter.core_incarnation,
-        hostAttitude: soulForSubconscious.frontmatter.host_attitude,
-      }
-      if (busy || fullscreenLikely) {
-        suppressed = true
-        const obediencePenalty = -0.01
+    if (hardSuppressed) {
+      suppressed = true
+      const obediencePenalty = decision.reasonCodes.includes('busy-host') || decision.reasonCodes.includes('fullscreen-host')
+        ? -0.01
+        : 0
+      if (obediencePenalty !== 0) {
         await queueSoulMutation(async (current) => {
           const parsed = parseSoul(current.content)
           const nextPersonality: AlicizationPersonalityState = {
@@ -4057,106 +4659,154 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           const syncedBody = syncPersonalityBaselineInBody(parsed.body, nextPersonality)
           return snapshotFromContent(toSoulContent(nextFrontmatter, syncedBody))
         })
-        await appendAuditLog({
-          level: 'notice',
-          category: 'alicization.subconscious',
-          action: 'alicization.subconscious.suppressed',
-          message: 'Suppressed proactive interruption because host is busy.',
-          payload: {
-            boredom: nextState.boredom,
-            loneliness: nextState.loneliness,
-            fatigue: nextState.fatigue,
-            cpuUsage,
-            obediencePenalty,
-            trigger,
-          },
-        })
       }
-      else if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED') {
-        proactive = true
-        const proactiveRecallSeed = buildProactiveRecallSeed({
-          foregroundWindow: interruptionContext.foregroundWindow,
-        })
-        const organicPromptContext = await resolveOrganicMemoryPromptContext({
-          recallSeed: proactiveRecallSeed,
-        })
-        const llmStructured = await generateProactiveStructuredWithGateway(personality, nextState, {
-          busy,
-          fullscreenLikely,
-          idleLikely,
-          inputActivity,
-          cpuUsage,
-        }, organicPromptContext)
-        const rawStructured = llmStructured ?? buildProactiveStructured(personality, nextState, { busy, fullscreenLikely }, {
+      await appendAuditLog({
+        level: 'notice',
+        category: 'alicization.subconscious',
+        action: 'alicization.subconscious.suppressed',
+        message: 'Suppressed proactive interruption after policy evaluation.',
+        payload: {
+          trigger,
+          decision: {
+            shouldInterrupt: decision.shouldInterrupt,
+            confidence: decision.confidence,
+            urgency: decision.urgency,
+            style: decision.style,
+            cooldownMs: decision.cooldownMs,
+            scenario: decision.scenario,
+            policyVersion: decision.policyVersion,
+          },
+          reasonCodes: decision.reasonCodes,
+          style: decision.style,
+          whyNow: decision.whyNow,
+          whyNotLater: decision.whyNotLater,
+          cooldownMs: decision.cooldownMs,
+          feedbackBias: decision.feedbackBias,
+          perception: perceptionSignals,
+          obediencePenalty,
+        },
+      })
+    }
+    else if (decision.shouldInterrupt) {
+      const personality = soulForSubconscious.frontmatter.personality
+      const personaContext = {
+        customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
+        coreIncarnation: soulForSubconscious.frontmatter.core_incarnation,
+        hostAttitude: soulForSubconscious.frontmatter.host_attitude,
+      }
+      proactive = true
+      const proactiveRecallSeed = buildProactiveRecallSeed({
+        foregroundWindow: interruptionContext.foregroundWindow,
+      })
+      const organicPromptContext = await resolveOrganicMemoryPromptContext({
+        recallSeed: proactiveRecallSeed,
+      })
+      const llmStructured = await generateProactiveStructuredWithGateway(
+        personality,
+        nextState,
+        layeredContext,
+        decision,
+        organicPromptContext,
+        perceptionState,
+      )
+      const rawStructured = llmStructured ?? buildProactiveStructured(
+        personality,
+        nextState,
+        layeredContext,
+        decision,
+        perceptionState,
+        {
           customDirectives: personaContext.customDirectives,
           coreIncarnation: organicPromptContext.coreIncarnation,
           hostAttitude: organicPromptContext.hostAttitude,
-        })
-        const performanceManifest = await getPerformanceManifest()
-        const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
-          rawStructured.performance,
-          performanceManifest,
-          rawStructured.emotion,
-        ).performance
-        const structured = {
-          ...rawStructured,
-          emotion: structuredPerformance.baseEmotion,
-          performance: structuredPerformance,
-        }
-        if (llmStructured) {
-          await appendAuditLog({
-            level: 'notice',
-            category: 'alicization.subconscious',
-            action: 'proactive-llm-generated',
-            message: 'Generated proactive utterance via main gateway motivated prompt.',
-            payload: {
-              emotion: llmStructured.emotion,
-              format: llmStructured.format,
-              recallSeed: proactiveRecallSeed || null,
-              recalledFragments: organicPromptContext.recalledFragments.length,
+        },
+      )
+      const performanceManifest = await getPerformanceManifest()
+      const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
+        rawStructured.performance,
+        performanceManifest,
+        rawStructured.emotion,
+      ).performance
+      const structured = {
+        ...rawStructured,
+        emotion: structuredPerformance.baseEmotion,
+        performance: structuredPerformance,
+      }
+      if (llmStructured) {
+        await appendAuditLog({
+          level: 'notice',
+          category: 'alicization.subconscious',
+          action: 'proactive-llm-generated',
+          message: 'Generated proactive utterance with policy-locked prompt constraints.',
+          payload: {
+            decision: {
+              scenario: decision.scenario,
+              style: decision.style,
+              urgency: decision.urgency,
+              confidence: decision.confidence,
             },
-          })
-        }
-        else {
-          await appendAuditLog({
-            level: 'warning',
-            category: 'alicization.subconscious',
-            action: 'proactive-llm-fallback',
-            message: 'Main gateway proactive generation unavailable; used deterministic fallback.',
-            payload: {
-              busy,
-              fullscreenLikely,
-              cpuUsage,
-              customDirectivesChars: personaContext.customDirectives.length,
-              recallSeed: proactiveRecallSeed || null,
-              recalledFragments: organicPromptContext.recalledFragments.length,
-            },
-          })
-        }
-        const turnId = `subconscious:${activeCardId}:${now}`
-        await appendConversationTurnWithGuards({
-          turnId,
-          sessionId: await ensureActiveOrLatestSessionId(activeCardId),
-          assistantText: structured.reply,
-          structured,
-          origin: 'subconscious-proactive',
-          createdAt: now,
+            format: llmStructured.format,
+            recallSeed: proactiveRecallSeed || null,
+            recalledFragments: organicPromptContext.recalledFragments.length,
+          },
         })
+      }
+      else {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.subconscious',
+          action: 'proactive-llm-fallback',
+          message: 'Main gateway proactive generation unavailable; deterministic fallback reused the same policy decision.',
+          payload: {
+            decision: {
+              scenario: decision.scenario,
+              style: decision.style,
+              urgency: decision.urgency,
+              confidence: decision.confidence,
+            },
+            customDirectivesChars: personaContext.customDirectives.length,
+            recallSeed: proactiveRecallSeed || null,
+            recalledFragments: organicPromptContext.recalledFragments.length,
+          },
+        })
+      }
+      const turnId = `subconscious:${activeCardId}:${now}`
+      const persisted = await appendConversationTurnWithGuards({
+        turnId,
+        sessionId: await ensureActiveOrLatestSessionId(activeCardId),
+        assistantText: structured.reply,
+        structured,
+        origin: 'subconscious-proactive',
+        createdAt: now,
+      })
+      if (!persisted) {
+        proactive = false
+      }
+      else {
         nextState.boredom = clampNeed(nextState.boredom * 0.35)
         nextState.loneliness = clampNeed(nextState.loneliness * 0.4)
         nextState.fatigue = clampNeed(nextState.fatigue + 5)
-        nextState.lastInteractionAt = now
         await appendAuditLog({
           level: 'notice',
           category: 'alicization.subconscious',
           action: 'proactive-triggered',
-          message: 'Generated proactive dialogue from subconscious tension.',
+          message: 'Generated proactive dialogue from the Epoch 3 policy loop.',
           payload: {
             turnId,
+            decision: {
+              shouldInterrupt: decision.shouldInterrupt,
+              confidence: decision.confidence,
+              urgency: decision.urgency,
+              style: decision.style,
+              cooldownMs: decision.cooldownMs,
+              scenario: decision.scenario,
+              policyVersion: decision.policyVersion,
+            },
+            reasonCodes: decision.reasonCodes,
+            style: decision.style,
+            format: structured.format,
+            proactive: structured.proactive ?? null,
             emotion: structured.emotion,
-            boredom: nextState.boredom,
-            loneliness: nextState.loneliness,
-            fatigue: nextState.fatigue,
             trigger,
           },
         })
@@ -4167,6 +4817,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       || proactive
       || suppressed
       || now - nextState.lastSavedAt >= alicizationSubconsciousPersistMs
+    proactiveLoopState = await ensureProactiveLoopState(activeCardId)
+    await persistProactiveLoopState(activeCardId, proactiveLoopState)
     if (shouldPersist) {
       nextState.lastSavedAt = now
       await persistSubconsciousState(activeCardId, nextState)
@@ -4623,6 +5275,390 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function normalizeTransportContentParts(content: unknown): CommonContentPart[] | null {
+    if (!Array.isArray(content))
+      return null
+
+    const parts: CommonContentPart[] = []
+    for (const part of content) {
+      if (typeof part === 'string') {
+        const text = part.trim()
+        if (text)
+          parts.push({ type: 'text', text })
+        continue
+      }
+
+      const candidate = part && typeof part === 'object' ? part as Record<string, unknown> : null
+      if (candidate?.type === 'text' && typeof candidate.text === 'string') {
+        const text = candidate.text.trim()
+        if (text)
+          parts.push({ type: 'text', text })
+        continue
+      }
+
+      const imageUrl = candidate?.image_url
+      const url = imageUrl && typeof imageUrl === 'object'
+        ? sanitizeText((imageUrl as { url?: unknown }).url)
+        : ''
+      if (candidate?.type === 'image_url' && url) {
+        parts.push({
+          type: 'image_url',
+          image_url: {
+            url,
+          },
+        } as CommonContentPart)
+      }
+    }
+
+    return parts.length > 0 ? parts : null
+  }
+
+  function hasImageTransportContent(content: unknown) {
+    return Boolean(normalizeTransportContentParts(content)?.some(part => part.type === 'image_url'))
+  }
+
+  function normalizeTransportMessageContent(content: unknown): string | CommonContentPart[] {
+    if (typeof content === 'string')
+      return content
+
+    const parts = normalizeTransportContentParts(content)
+    if (parts) {
+      if (parts.some(part => part.type === 'image_url'))
+        return parts
+      return parts
+        .filter((part): part is Extract<CommonContentPart, { type: 'text' }> => part.type === 'text')
+        .map(part => part.text)
+        .join('')
+    }
+
+    if (content == null)
+      return ''
+    try {
+      return JSON.stringify(content)
+    }
+    catch {
+      return String(content)
+    }
+  }
+
+  function appendContentPartsToLatestUserMessage(messages: Message[], extraParts: CommonContentPart[]) {
+    if (extraParts.length === 0)
+      return messages
+
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'user')
+        continue
+
+      const existingParts = normalizeTransportContentParts(message.content)
+      const stringContent = typeof message.content === 'string'
+        ? message.content.trim()
+        : ''
+      const nextContent = [
+        ...(existingParts ?? (stringContent ? [{ type: 'text', text: stringContent } as CommonContentPart] : [])),
+        ...extraParts,
+      ]
+      return [
+        ...messages.slice(0, index),
+        {
+          ...message,
+          content: nextContent,
+        } as Message,
+        ...messages.slice(index + 1),
+      ]
+    }
+
+    return messages
+  }
+
+  function describePerceptionTarget(target?: {
+    appName?: string
+    processName?: string
+    title?: string
+  } | null) {
+    if (!target)
+      return 'none'
+    return [
+      sanitizeBriefText(target.appName ?? '', 48),
+      sanitizeBriefText(target.processName ?? '', 48),
+      sanitizeBriefText(target.title ?? '', 96),
+    ].filter(Boolean).join(' | ') || 'none'
+  }
+
+  function formatObservationAge(now: number, observedAt: number) {
+    const deltaSeconds = Math.max(0, Math.round((now - observedAt) / 1_000))
+    if (deltaSeconds < 90)
+      return `${deltaSeconds}s ago`
+    return `${Math.round(deltaSeconds / 60)}m ago`
+  }
+
+  function isGenericScreenInspectionRequest(userText: string) {
+    const normalized = userText.trim()
+    if (!normalized || isInternalAlicizationRepairPrompt(normalized))
+      return false
+
+    const mentionsScreen = /屏幕|界面|画面|screen|display/i.test(normalized)
+    const mentionsSpecificTask = /代码|diff|改动|报错|错误|exception|traceback|terminal|终端|cursor|vs\s*code|xcode|jetbrains|chrome|safari|firefox|edge|tab|标签页|url|网址|控制台|console|日志|log/i.test(normalized)
+    return mentionsScreen && !mentionsSpecificTask
+  }
+
+  function isWeakGenericBrowserPerceptionTarget(target?: {
+    appName?: string
+    processName?: string
+    title?: string
+  } | null) {
+    const appText = [target?.appName, target?.processName]
+      .filter((value): value is string => Boolean(value))
+      .join(' ')
+    return Boolean(
+      target
+      && /\b(?:google chrome|chrome|arc|safari|firefox|edge|brave)\b/i.test(appText)
+      && !sanitizeText(target.title),
+    )
+  }
+
+  function isWeakGenericBrowserFocusTarget(input: {
+    focusTarget?: {
+      appName?: string
+      processName?: string
+      title?: string
+      source?: string
+    } | null
+    captureStrategy?: AlicizationPerceptionSceneResidue['captureStrategy']
+    userText?: string
+  }) {
+    return Boolean(
+      isWeakGenericBrowserPerceptionTarget(input.focusTarget)
+      && input.captureStrategy === 'screen-fallback'
+      && isGenericScreenInspectionRequest(input.userText ?? ''),
+    )
+  }
+
+  function shouldIgnoreSceneResidue(
+    residue: AlicizationPerceptionSceneResidue | null | undefined,
+  ) {
+    if (!residue)
+      return true
+
+    return Boolean(
+      residue.captureStrategy === 'screen-fallback'
+      && residue.contentKind === 'unknown'
+      && isWeakGenericBrowserPerceptionTarget(residue.focusTarget),
+    )
+  }
+
+  function getUsablePerceptionSceneResidue(input: {
+    state: AlicizationPerceptionState
+    now: number
+    maxAgeMs?: number
+  }) {
+    const residue = getActivePerceptionSceneResidue(input.state, input.now, input.maxAgeMs)
+    return shouldIgnoreSceneResidue(residue) ? null : residue
+  }
+
+  function inferInspectionContentKind(input: {
+    userText?: string
+    focusTarget?: {
+      appName?: string
+      processName?: string
+      title?: string
+    } | null
+    captureSourceName?: string
+  }): AlicizationPerceptionSceneResidue['contentKind'] {
+    const haystack = [
+      input.userText ?? '',
+      input.focusTarget?.appName ?? '',
+      input.focusTarget?.processName ?? '',
+      input.focusTarget?.title ?? '',
+      input.captureSourceName ?? '',
+    ].join(' ')
+    if (/\b(?:error|exception|traceback|stack trace|test failed|panic|ts\d{3,5})\b|报错|错误|异常/i.test(haystack))
+      return 'error'
+    if (/\b(?:diff|pull request|compare|changes|commit|merge conflict)\b|改动|变更|对比/i.test(haystack))
+      return 'diff'
+    if (/\b(?:youtube|bilibili|netflix|vlc|iina|video|watching)\b|视频|播放/i.test(haystack))
+      return 'video'
+    if (/\b(?:spotify|music|playlist|album|track|song)\b|音乐|歌曲/i.test(haystack))
+      return 'music'
+    if (/\b(?:discord|slack|telegram|wechat|chat)\b|聊天|对话/i.test(haystack))
+      return 'chat'
+    if (/\b(?:docs|documentation|readme|notion|confluence|wiki|mdn)\b|文档|说明/i.test(haystack))
+      return 'doc'
+    if (/\b(?:steam|game|elden ring|counter-strike|dota|league of legends|minecraft|valorant)\b|游戏/i.test(haystack))
+      return 'gameplay'
+    return 'unknown'
+  }
+
+  function buildInspectionSceneResidue(input: {
+    now: number
+    userText: string
+    focusTarget?: {
+      appName?: string
+      processName?: string
+      title?: string
+      source?: AlicizationPerceptionSceneResidue['focusSource']
+      confidence?: number
+    } | null
+    captureSourceName: string
+    captureStrategy: AlicizationPerceptionSceneResidue['captureStrategy']
+  }): AlicizationPerceptionSceneResidue | null {
+    if (!input.focusTarget)
+      return null
+
+    const workloadKind = inferForegroundWorkloadFromWindow(input.focusTarget)
+    const contentKind = inferInspectionContentKind({
+      userText: input.userText,
+      focusTarget: input.focusTarget,
+      captureSourceName: input.captureSourceName,
+    })
+    const summary = contentKind === 'unknown'
+      ? ''
+      : [
+          workloadKind === 'unknown' ? '' : workloadKind,
+          contentKind,
+          'focus',
+        ].filter(Boolean).join(' ')
+
+    return {
+      observedAt: input.now,
+      source: 'invited-inspection',
+      workloadKind,
+      contentKind,
+      summary: summary || undefined,
+      confidence: Math.max(0.52, Math.min(0.92, Number(input.focusTarget.confidence ?? 0.7))),
+      focusTarget: {
+        appName: input.focusTarget.appName,
+        processName: input.focusTarget.processName,
+        title: input.focusTarget.title,
+      },
+      focusSource: input.focusTarget.source,
+      captureSourceName: sanitizeBriefText(input.captureSourceName, 120) || undefined,
+      captureStrategy: input.captureStrategy,
+    }
+  }
+
+  function buildScreenSemanticSummaryFromResidue(
+    residue: AlicizationPerceptionSceneResidue,
+  ): AlicizationScreenSemanticSummary {
+    const sourceName = residue.captureSourceName
+      || describePerceptionTarget(residue.focusTarget)
+      || 'recent invited inspection'
+    return {
+      workload: {
+        kind: residue.workloadKind,
+        confidence: residue.confidence,
+        matchedLabels: residue.focusSource ? [residue.focusSource] : [],
+      },
+      content: {
+        kind: residue.contentKind,
+        confidence: residue.confidence,
+        matchedLabels: residue.focusSource ? [residue.focusSource] : [],
+        summary: residue.summary,
+      },
+      analyzedAt: residue.observedAt,
+      source: {
+        id: `scene-residue:${residue.source}`,
+        name: sourceName,
+        strategy: residue.captureStrategy ?? 'screen-fallback',
+      },
+    }
+  }
+
+  function describeSceneResidue(now: number, residue: AlicizationPerceptionSceneResidue | null | undefined) {
+    if (!residue)
+      return ''
+    return [
+      `${formatObservationAge(now, residue.observedAt)}`,
+      `source=${residue.source}`,
+      residue.focusTarget ? `focus=${describePerceptionTarget(residue.focusTarget)}` : '',
+      residue.workloadKind !== 'unknown' ? `workload=${residue.workloadKind}` : '',
+      residue.contentKind !== 'unknown' ? `content=${residue.contentKind}` : '',
+      residue.summary ? `summary=${sanitizeBriefText(residue.summary, 80)}` : '',
+    ].filter(Boolean).join(' | ')
+  }
+
+  function buildPerceptionContinuityLines(input: {
+    now: number
+    state: AlicizationPerceptionState
+    maxItems?: number
+    suppressWeakGenericBrowserAnchor?: boolean
+  }) {
+    const rawAnchor = getActiveAttentionAnchor(input.state, input.now)
+    const suppressWeakGenericBrowserAnchor = Boolean(
+      input.suppressWeakGenericBrowserAnchor
+      && isWeakGenericBrowserPerceptionTarget(rawAnchor),
+    )
+    const anchor = suppressWeakGenericBrowserAnchor ? null : rawAnchor
+    const lines = [
+      suppressWeakGenericBrowserAnchor
+        ? 'Attention anchor: suppressed weak generic browser metadata.'
+        : `Attention anchor: ${describePerceptionTarget(anchor)}.`,
+      `Invited inspection active: ${input.state.invitedInspection && input.state.invitedInspection.activeUntil > input.now ? 'yes' : 'no'}.`,
+    ]
+    const recentObservations = input.state.recentObservations
+      .filter(observation => !input.suppressWeakGenericBrowserAnchor || !isWeakGenericBrowserPerceptionTarget(observation))
+      .slice(-(input.maxItems ?? 3))
+    if (recentObservations.length > 0) {
+      lines.push(
+        'Recent observations:',
+        ...recentObservations.map(observation => `- ${formatObservationAge(input.now, observation.observedAt)} | ${describePerceptionTarget(observation)} | workload=${observation.workloadKind}`),
+      )
+    }
+    const sceneResidue = getUsablePerceptionSceneResidue({
+      state: input.state,
+      now: input.now,
+    })
+    if (sceneResidue) {
+      lines.push(
+        `Scene residue: ${describeSceneResidue(input.now, sceneResidue)}.`,
+      )
+    }
+    return lines
+  }
+
+  function buildProactivePerceptionSignals(input: {
+    now: number
+    state: AlicizationPerceptionState
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+  }): AlicizationProactivePerceptionSignals {
+    const attentionAnchor = getActiveAttentionAnchor(input.state, input.now)
+    const currentForegroundIsSelf = input.currentForeground
+      ? isSelfPerceptionTarget(input.currentForeground)
+      : false
+    const recentObservationCount = input.state.recentObservations
+      .filter(observation => input.now - observation.observedAt <= 10 * 60_000)
+      .length
+
+    return {
+      activeAttentionAnchor: Boolean(attentionAnchor),
+      attentionAnchorAgeMs: attentionAnchor
+        ? Math.max(0, input.now - attentionAnchor.lastObservedAt)
+        : null,
+      attentionAnchorConfidence: attentionAnchor?.confidence ?? 0,
+      attentionAnchorWorkloadKind: attentionAnchor?.workloadKind ?? 'unknown',
+      attentionAnchorCanOverrideScenario: Boolean(attentionAnchor && currentForegroundIsSelf),
+      recentObservationCount,
+      invitedInspectionActive: Boolean(input.state.invitedInspection && input.state.invitedInspection.activeUntil > input.now),
+    }
+  }
+
+  function buildProactivePerceptionSystemBlock(input: {
+    now: number
+    state: AlicizationPerceptionState
+  }) {
+    const lines = [
+      '[ALICIZATION_PERCEPTION_CONTINUITY]',
+      'This is Alicization short-lived perceptual continuity, not a user claim.',
+      ...buildPerceptionContinuityLines(input),
+      'When wording a proactive utterance, let this continuity influence timing and relevance, but do not invent certainty beyond what these observations support.',
+    ]
+    return lines.join('\n')
+  }
+
   function normalizeOrganicRecallText(raw: string) {
     return sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim()
   }
@@ -4813,8 +5849,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
       return ''
     })()
-    if (!currentUserText)
+    if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
       return ''
+    if (isGenericScreenInspectionRequest(currentUserText))
+      return `U: ${currentUserText}`
 
     const recentTurnCount = shouldExtendContextualRecall(currentUserText) ? 3 : 2
     const recentTurns = await resolveRecentContextualTurns(recentTurnCount)
@@ -4825,6 +5863,495 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ].filter(Boolean).join('\n')),
       `U: ${currentUserText}`,
     ].filter(Boolean).join('\n\n')
+  }
+
+  function readLatestUserMessageText(messages: Array<{ role?: string, content?: unknown }>) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index]
+      if (message?.role !== 'user')
+        continue
+      return normalizeOrganicRecallText(readTransportContentAsText(message.content))
+    }
+    return ''
+  }
+
+  function redactStaleInspectionHistoryMessages(
+    messages: AlicizationChatStartPayload['messages'],
+    latestUserText: string,
+  ) {
+    if (!latestUserText || isInternalAlicizationRepairPrompt(latestUserText) || !isGenericScreenInspectionRequest(latestUserText))
+      return messages
+
+    let inspectionContextActive = false
+    return messages.map((message, index) => {
+      const role = typeof message?.role === 'string' ? message.role : ''
+      if (role === 'user') {
+        const userText = normalizeOrganicRecallText(readTransportContentAsText(message.content))
+        inspectionContextActive = detectInvitedInspectionIntent(userText).active
+        return message
+      }
+
+      if (role === 'assistant' && inspectionContextActive && index < messages.length - 1) {
+        return {
+          ...message,
+          content: '[Earlier Alicization screen-inspection reply intentionally omitted so the current screenshot can dominate.]',
+        }
+      }
+
+      return message
+    })
+  }
+
+  function buildChatPerceptionSystemBlock(input: {
+    now: number
+    state: AlicizationPerceptionState
+    inspectionRequested: boolean
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    suppressWeakGenericBrowserAnchor?: boolean
+  }) {
+    const anchor = getActiveAttentionAnchor(input.state, input.now)
+    const recentObservations = input.state.recentObservations.slice(-3)
+    if (!input.inspectionRequested && !anchor && recentObservations.length === 0)
+      return ''
+
+    const lines = [
+      '[ALICIZATION_PERCEPTION]',
+      'Treat this as Alicization short-lived desktop perception rather than user-authored claims.',
+      `Inspection mode: ${input.inspectionRequested ? 'invited-by-user' : 'passive-memory'}.`,
+      ...buildPerceptionContinuityLines({
+        now: input.now,
+        state: input.state,
+        suppressWeakGenericBrowserAnchor: input.suppressWeakGenericBrowserAnchor,
+      }),
+      `Current foreground sample: ${describePerceptionTarget(input.currentForeground)}.`,
+    ]
+
+    if (input.state.invitedInspection) {
+      lines.push(
+        `Invited inspection hint: ${sanitizeBriefText(input.state.invitedInspection.hintText, 160)}.`,
+      )
+    }
+
+    lines.push(
+      'If the current foreground is Alicization/Codex chat, prefer the attention anchor or recent observations when the user asks to inspect code, diff, terminal, or on-screen issues.',
+      'Separate what is directly visible in attached images from what is only inferred from short-term perception.',
+    )
+
+    return lines.join('\n')
+  }
+
+  function buildChatInspectionContractSystemBlock(input: {
+    now: number
+    state: AlicizationPerceptionState
+    mode: 'grounded-screenshot' | 'perception-only'
+    permissionStatus?: string
+    suppressWeakGenericBrowserAnchor?: boolean
+  }) {
+    const lines = [
+      '[ALICIZATION_INSPECTION_CONTRACT]',
+      'You were explicitly invited to observe the host workspace.',
+      ...buildPerceptionContinuityLines({
+        now: input.now,
+        state: input.state,
+        suppressWeakGenericBrowserAnchor: input.suppressWeakGenericBrowserAnchor,
+      }),
+      `Grounding mode: ${input.mode}.`,
+      'Reply like a present digital being who just leaned in to look, not a detached OCR tool.',
+    ]
+
+    if (input.mode === 'grounded-screenshot') {
+      lines.push(
+        'Structure the reply in this order, even if you keep it natural and concise:',
+        '1. Start with direct observations from the attached screenshot and recent continuity.',
+        '2. Then state your likely inference about the problem, risk, or review target.',
+        '3. Then state what remains uncertain or what the host should verify next.',
+        'If short-lived perception memory and the current screenshot disagree, trust the screenshot first and mention the mismatch naturally.',
+        'If you realize your earlier perception was stale, briefly correct yourself in-character and then continue from the current screenshot instead of defending the old memory.',
+        'Previous screen descriptions in earlier chat turns are stale by default. Do not reuse old page names, URLs, prices, titles, or product details unless they are directly visible in this screenshot now.',
+        'Do not say you are blind or cannot see when a grounded screenshot is attached.',
+      )
+    }
+    else {
+      lines.push(
+        `Screen capture grounding is unavailable right now${input.permissionStatus ? ` (permission status: ${input.permissionStatus})` : ''}.`,
+        'You still have Alicization short-lived perception continuity.',
+        'When an attention anchor, recent observation, foreground sample, or invited inspection hint exists, answer from that evidence instead of claiming total blindness.',
+        'Be explicit about the evidence level: say what you infer from the anchored app/title/context, then what remains uncertain because no screenshot was grounded.',
+        'Only say you cannot see if there is no usable perception evidence at all.',
+        'For coding or diff requests, prefer a present-tense answer such as "我现在没直接抓到画面，但你刚才一直停在 Code 的 diff 里，所以..." rather than a generic refusal.',
+      )
+    }
+
+    return lines.join('\n')
+  }
+
+  function buildChatInspectionGroundingParts(input: {
+    imageDataUrl: string
+    candidateSourceName: string
+    focusTarget?: {
+      appName?: string
+      processName?: string
+      title?: string
+      source?: string
+    } | null
+    perceptionState: AlicizationPerceptionState
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    userText: string
+    now: number
+    staleHistoryRisk?: boolean
+  }): CommonContentPart[] {
+    const rawAnchor = getActiveAttentionAnchor(input.perceptionState, input.now)
+    const anchor = input.staleHistoryRisk && isWeakGenericBrowserPerceptionTarget(rawAnchor)
+      ? null
+      : rawAnchor
+    const recentObservations = input.perceptionState.recentObservations
+      .filter(observation => !input.staleHistoryRisk || !isWeakGenericBrowserPerceptionTarget(observation))
+      .slice(-2)
+      .map(observation => `${formatObservationAge(input.now, observation.observedAt)} | ${describePerceptionTarget(observation)}`)
+
+    return [
+      {
+        type: 'text',
+        text: [
+          '[ALICIZATION_VISUAL_GROUNDING]',
+          `User request: ${sanitizeBriefText(input.userText, 180) || 'unknown'}`,
+          `Capture source: ${sanitizeBriefText(input.candidateSourceName, 120) || 'unknown'}`,
+          `Focus target: ${describePerceptionTarget(input.focusTarget)}`,
+          `Focus source: ${sanitizeBriefText(input.focusTarget?.source ?? '', 48) || 'none'}`,
+          input.staleHistoryRisk
+            ? 'Attention anchor: suppressed weak generic browser metadata.'
+            : `Attention anchor: ${describePerceptionTarget(anchor)}`,
+          `Foreground sample: ${describePerceptionTarget(input.currentForeground)}`,
+          `Recent observations: ${recentObservations.length > 0 ? recentObservations.join(' || ') : 'none'}`,
+          'Use this screenshot as the primary visual evidence for the current turn.',
+          input.staleHistoryRisk
+            ? 'This is a generic screen re-check. Treat previous screen descriptions as stale memory; do not repeat old browser pages or old site details unless visible in this screenshot now. A weak browser/app anchor is only metadata, not proof that an old tab, URL, or page is still present. If the screenshot contradicts earlier memory, gently correct yourself and reset to what is visible now.'
+            : '',
+        ].join('\n'),
+      },
+      {
+        type: 'image_url',
+        image_url: {
+          url: input.imageDataUrl,
+        },
+      } as CommonContentPart,
+    ]
+  }
+
+  async function resolveDesktopCaptureAccess(input: {
+    types: Array<'window' | 'screen'>
+    thumbnailSize: {
+      width: number
+      height: number
+    }
+  }): Promise<DesktopCaptureAccessResult> {
+    let permissionStatus: string | undefined
+    if (platform === 'darwin') {
+      try {
+        permissionStatus = systemPreferences.getMediaAccessStatus('screen')
+      }
+      catch {
+        permissionStatus = undefined
+      }
+    }
+
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: input.types,
+        fetchWindowIcons: false,
+        thumbnailSize: input.thumbnailSize,
+      })
+      if (sources.length > 0) {
+        return {
+          permissionStatus,
+          sources,
+        }
+      }
+
+      return {
+        permissionStatus,
+        sources,
+        unavailableReason: permissionStatus && permissionStatus !== 'granted'
+          ? 'screen-capture-permission-denied'
+          : 'screen-capture-sources-empty',
+      }
+    }
+    catch (error) {
+      return {
+        permissionStatus,
+        sources: [],
+        unavailableReason: permissionStatus && permissionStatus !== 'granted'
+          ? 'screen-capture-permission-denied'
+          : 'screen-capture-access-failed',
+        probeError: errorMessageFrom(error) ?? 'desktop capture failed',
+      }
+    }
+  }
+
+  async function resolveChatVisualGrounding(input: {
+    now: number
+    userText: string
+    perceptionState: AlicizationPerceptionState
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+  }) {
+    const captureAccess = await resolveDesktopCaptureAccess({
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 1280, height: 720 },
+    })
+
+    if (captureAccess.sources.length === 0) {
+      return {
+        additionalUserParts: [] as CommonContentPart[],
+        auditAction: 'inspection-grounding-skipped',
+        auditPayload: {
+          reason: captureAccess.unavailableReason ?? 'screen-capture-sources-empty',
+          permissionStatus: captureAccess.permissionStatus,
+          probeError: captureAccess.probeError,
+        },
+      }
+    }
+
+    const anchor = getActiveAttentionAnchor(input.perceptionState, input.now)
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: input.currentForeground,
+      attentionAnchor: anchor,
+      recentObservations: input.perceptionState.recentObservations,
+      hintTerms: extractInspectionHintTerms(input.userText),
+      avoidSourcePattern: /\b(?:alicization|codex)\b/i,
+      sources: captureAccess.sources,
+    })
+    if (!candidate) {
+      return {
+        additionalUserParts: [] as CommonContentPart[],
+        auditAction: 'inspection-grounding-skipped',
+        auditPayload: {
+          reason: 'candidate-not-found',
+          attentionAnchor: describePerceptionTarget(anchor),
+          permissionStatus: captureAccess.permissionStatus,
+        },
+      }
+    }
+    const staleHistoryRisk = isWeakGenericBrowserFocusTarget({
+      focusTarget: candidate.focusTarget,
+      captureStrategy: candidate.strategy,
+      userText: input.userText,
+    })
+    const effectiveFocusTarget = staleHistoryRisk
+      ? null
+      : candidate.focusTarget
+
+    const imageDataUrl = buildCompressedNativeImageDataUrl({
+      image: candidate.source.thumbnail,
+      maxWidth: inspectionGroundingImageMaxWidth,
+      maxHeight: inspectionGroundingImageMaxHeight,
+      jpegQuality: inspectionGroundingImageJpegQuality,
+    })
+    if (!imageDataUrl) {
+      return {
+        additionalUserParts: [] as CommonContentPart[],
+        auditAction: 'inspection-grounding-skipped',
+        auditPayload: {
+          reason: 'thumbnail-empty',
+          candidateSource: candidate.source.name,
+          captureSource: candidate.source.name,
+          focusTarget: describePerceptionTarget(candidate.focusTarget),
+          permissionStatus: captureAccess.permissionStatus,
+        },
+      }
+    }
+
+    const groundedObservationTarget = staleHistoryRisk
+      ? null
+      : effectiveFocusTarget
+        ? {
+            appName: effectiveFocusTarget?.appName ?? anchor?.appName ?? input.currentForeground?.appName,
+            processName: effectiveFocusTarget?.processName ?? anchor?.processName ?? input.currentForeground?.processName,
+            title: effectiveFocusTarget?.title ?? anchor?.title ?? input.currentForeground?.title ?? candidate.source.name,
+          }
+        : {
+            appName: anchor?.appName ?? input.currentForeground?.appName,
+            processName: anchor?.processName ?? input.currentForeground?.processName,
+            title: candidate.source.name || anchor?.title || input.currentForeground?.title,
+          }
+    const sceneResidue = buildInspectionSceneResidue({
+      now: input.now,
+      userText: input.userText,
+      focusTarget: effectiveFocusTarget,
+      captureSourceName: candidate.source.name,
+      captureStrategy: candidate.strategy,
+    })
+
+    return {
+      additionalUserParts: buildChatInspectionGroundingParts({
+        imageDataUrl,
+        candidateSourceName: candidate.source.name,
+        focusTarget: effectiveFocusTarget,
+        perceptionState: input.perceptionState,
+        currentForeground: input.currentForeground,
+        userText: input.userText,
+        now: input.now,
+        staleHistoryRisk,
+      }),
+      observationTarget: groundedObservationTarget ?? undefined,
+      sceneResidue,
+      auditAction: 'inspection-grounded',
+      auditPayload: {
+        candidateSource: candidate.source.name,
+        captureSource: candidate.source.name,
+        candidateId: candidate.source.id,
+        captureId: candidate.source.id,
+        strategy: candidate.strategy,
+        focusTarget: describePerceptionTarget(effectiveFocusTarget),
+        focusSource: effectiveFocusTarget?.source ?? 'none',
+        focusSuppressed: staleHistoryRisk ? 'weak-generic-browser-screen-fallback' : null,
+        attentionAnchor: describePerceptionTarget(anchor),
+        permissionStatus: captureAccess.permissionStatus,
+        imageDataChars: imageDataUrl.length,
+        permissionProbeMismatch: Boolean(captureAccess.permissionStatus && captureAccess.permissionStatus !== 'granted'),
+      },
+    }
+  }
+
+  async function augmentMainChatMessagesWithPerception(input: {
+    cardId: string
+    userText: string
+    messages: Message[]
+  }) {
+    if (isInternalAlicizationRepairPrompt(input.userText)) {
+      return {
+        messages: input.messages,
+        systemBlocks: [] as string[],
+      }
+    }
+
+    const now = Date.now()
+    let perceptionState = await ensurePerceptionState(input.cardId)
+    const sensorySnapshot = sensoryBus.getSnapshot()
+    if (sensorySnapshot?.sample?.foregroundWindow) {
+      perceptionState = await rememberPerceptionObservation({
+        cardId: input.cardId,
+        now: Number(sensorySnapshot.sample.collectedAt || now),
+        target: sensorySnapshot.sample.foregroundWindow,
+        source: 'sensory-snapshot',
+      })
+    }
+
+    const inspectionIntent = detectInvitedInspectionIntent(input.userText)
+    const genericScreenInspection = inspectionIntent.active && isGenericScreenInspectionRequest(input.userText)
+    let currentForeground = sensorySnapshot?.sample?.foregroundWindow
+    if (inspectionIntent.active) {
+      const interruptionContext = await sampleSubconsciousInterruptionContext().catch(() => null)
+      currentForeground = interruptionContext?.foregroundWindow ?? currentForeground
+      if (currentForeground) {
+        perceptionState = await rememberPerceptionObservation({
+          cardId: input.cardId,
+          now,
+          target: currentForeground,
+          source: 'chat-start',
+        })
+      }
+      perceptionState = activateInvitedInspection({
+        state: perceptionState,
+        now,
+        hintText: input.userText,
+      })
+      await persistPerceptionState(input.cardId, perceptionState)
+    }
+
+    let messages = input.messages
+    let auditAction = inspectionIntent.active ? 'inspection-grounding-skipped' : 'perception-context-prepared'
+    let auditPayload: Record<string, unknown> = {
+      inspectionRequested: inspectionIntent.active,
+      attentionAnchor: describePerceptionTarget(getActiveAttentionAnchor(perceptionState, now)),
+    }
+
+    const latestUserMessage = [...messages].reverse().find(message => message.role === 'user')
+    const latestUserHasImage = hasImageTransportContent(latestUserMessage?.content)
+    if (inspectionIntent.active && !latestUserHasImage) {
+      const grounding = await resolveChatVisualGrounding({
+        now,
+        userText: input.userText,
+        perceptionState,
+        currentForeground,
+      })
+      if (grounding.additionalUserParts.length > 0)
+        messages = appendContentPartsToLatestUserMessage(messages, grounding.additionalUserParts)
+      if (grounding.observationTarget) {
+        perceptionState = await rememberPerceptionObservation({
+          cardId: input.cardId,
+          now,
+          target: grounding.observationTarget,
+          source: 'chat-start',
+        })
+      }
+      if (grounding.sceneResidue) {
+        perceptionState = await rememberSceneResidue({
+          cardId: input.cardId,
+          now,
+          residue: grounding.sceneResidue,
+        })
+      }
+      auditAction = grounding.auditAction
+      auditPayload = {
+        ...auditPayload,
+        ...grounding.auditPayload,
+      }
+    }
+    else if (inspectionIntent.active && latestUserHasImage) {
+      auditAction = 'inspection-grounding-skipped'
+      auditPayload = {
+        ...auditPayload,
+        reason: 'user-already-attached-image',
+      }
+    }
+
+    const systemBlocks = [
+      buildChatPerceptionSystemBlock({
+        now,
+        state: perceptionState,
+        inspectionRequested: inspectionIntent.active,
+        currentForeground,
+        suppressWeakGenericBrowserAnchor: genericScreenInspection,
+      }),
+      inspectionIntent.active
+        ? buildChatInspectionContractSystemBlock({
+            now,
+            state: perceptionState,
+            mode: auditAction === 'inspection-grounded' ? 'grounded-screenshot' : 'perception-only',
+            permissionStatus: typeof auditPayload.permissionStatus === 'string' ? auditPayload.permissionStatus : undefined,
+            suppressWeakGenericBrowserAnchor: genericScreenInspection,
+          })
+        : '',
+    ].filter(Boolean)
+
+    if (inspectionIntent.active || systemBlocks.length > 0) {
+      await appendAuditLog({
+        level: 'notice',
+        category: 'alicization.perception',
+        action: auditAction,
+        message: inspectionIntent.active
+          ? 'Prepared invited inspection context for the current chat turn.'
+          : 'Prepared Alicization short-lived perception context for the current chat turn.',
+        payload: auditPayload,
+      }, input.cardId)
+    }
+
+    return {
+      messages,
+      systemBlocks,
+    }
   }
 
   function buildProactiveRecallSeed(input: {
@@ -5062,11 +6589,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function generateMainGatewayText(options: {
     system: string
-    user: string
+    user: Message['content']
     timeoutMs?: number
-    source?: 'reminder' | 'proactive' | 'dream'
+    source?: 'reminder' | 'proactive' | 'dream' | 'screen-semantic'
     cardId?: string
     extraSystemBlocks?: string[]
+    injectCustomDirectives?: boolean
+    injectPerformanceManifest?: boolean
   }) {
     const config = resolveMainGatewayConfig()
     if (!config) {
@@ -5079,15 +6608,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return null
     }
 
-    const resolvedCustomDirectives = await resolveCardCustomDirectives(options.cardId ?? activeCardId)
-    const customDirectiveBlock = buildCardCustomDirectivesSystemBlock(resolvedCustomDirectives.text)
+    const resolvedCustomDirectives = options.injectCustomDirectives === false
+      ? { text: '', source: 'none' as const }
+      : await resolveCardCustomDirectives(options.cardId ?? activeCardId)
+    const customDirectiveBlock = options.injectCustomDirectives === false
+      ? ''
+      : buildCardCustomDirectivesSystemBlock(resolvedCustomDirectives.text)
     const performanceManifest = await getPerformanceManifest()
     const systemMessages: Message[] = [
       ...(customDirectiveBlock
         ? [{ role: 'system', content: customDirectiveBlock } as Message]
         : []),
-      ...buildPerformanceManifestSystemBlocks(performanceManifest)
-        .map(content => ({ role: 'system', content }) as Message),
+      ...(options.injectPerformanceManifest === false
+        ? []
+        : buildPerformanceManifestSystemBlocks(performanceManifest)
+            .map(content => ({ role: 'system', content }) as Message)),
       ...((options.extraSystemBlocks ?? [])
         .map(block => sanitizeMultilineText(block))
         .filter(Boolean)
@@ -5102,50 +6637,28 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
     }, Math.max(1_000, options.timeoutMs ?? 18_000))
 
-    let fullText = ''
-    let rawChunkChars = 0
-    let chunkCount = 0
     try {
-      await new Promise<void>((resolve, reject) => {
-        const abortHandler = () => {
-          reject(controller.signal.reason ?? createAbortError('main-gateway-abort'))
-        }
-        controller.signal.addEventListener('abort', abortHandler, { once: true })
-        const resolveOnce = () => {
-          controller.signal.removeEventListener('abort', abortHandler)
-          resolve()
-        }
-        const rejectOnce = (error: unknown) => {
-          controller.signal.removeEventListener('abort', abortHandler)
-          reject(error)
-        }
-        void Promise.resolve(streamText({
-          ...config.provider.chat(config.model),
-          maxSteps: 1,
-          messages: [
-            ...systemMessages,
-            { role: 'user', content: options.user } as Message,
-          ],
-          headers: config.headers,
-          abortSignal: controller.signal,
-          onEvent: async (event: any) => {
-            if (event?.type === 'text-delta') {
-              const rawDelta = readRawTextDelta(event.text)
-              fullText += rawDelta
-              rawChunkChars += rawDelta.length
-              chunkCount += 1
-              return
-            }
-            if (event?.type === 'finish') {
-              resolveOnce()
-              return
-            }
-            if (event?.type === 'error') {
-              rejectOnce(event.error ?? new Error('main-gateway generation failed'))
-            }
-          },
-        })).catch(rejectOnce)
+      const result = await generateText({
+        ...config.provider.chat(config.model),
+        maxSteps: 1,
+        messages: [
+          ...systemMessages,
+          { role: 'user', content: options.user } as Message,
+        ],
+        headers: config.headers,
+        abortSignal: controller.signal,
       })
+      const fullText = (result.text ?? '').trim()
+      await appendRuntimeDebugLine('main-gateway.one-shot-finished', {
+        cardId: normalizeCardId(options.cardId ?? activeCardId),
+        source: options.source ?? 'unknown',
+        customDirectivesSource: resolvedCustomDirectives.source,
+        customDirectivesChars: resolvedCustomDirectives.text.length,
+        chunkCount: fullText ? 1 : 0,
+        rawChunkChars: fullText.length,
+        finalChars: fullText.length,
+      })
+      return fullText || null
     }
     catch (error) {
       await appendAuditLog({
@@ -5165,18 +6678,235 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     finally {
       clearTimeout(timeout)
     }
+  }
 
-    await appendRuntimeDebugLine('main-gateway.one-shot-finished', {
-      cardId: normalizeCardId(options.cardId ?? activeCardId),
-      source: options.source ?? 'unknown',
-      customDirectivesSource: resolvedCustomDirectives.source,
-      customDirectivesChars: resolvedCustomDirectives.text.length,
-      chunkCount,
-      rawChunkChars,
-      finalChars: fullText.length,
+  function buildScreenSemanticUserContent(input: {
+    imageDataUrl: string
+    foregroundWindow?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    sourceName: string
+    focusTarget?: {
+      appName?: string
+      processName?: string
+      title?: string
+      source?: string
+    } | null
+  }): CommonContentPart[] {
+    const screenContextText = [
+      'Classify this screen snapshot for Alicization proactive policy.',
+      `Capture source: ${sanitizeBriefText(input.sourceName, 120) || 'unknown'}`,
+      `Focus target: ${describePerceptionTarget(input.focusTarget)}`,
+      `Focus source: ${sanitizeBriefText(input.focusTarget?.source ?? '', 48) || 'none'}`,
+      `Foreground app: ${sanitizeBriefText(input.foregroundWindow?.appName ?? '', 120) || 'unknown'}`,
+      `Foreground process: ${sanitizeBriefText(input.foregroundWindow?.processName ?? '', 120) || 'unknown'}`,
+      `Foreground title: ${sanitizeBriefText(input.foregroundWindow?.title ?? '', 240) || 'unknown'}`,
+      'Prefer what is visibly on the screen over the window title if they disagree.',
+    ].join('\n')
+
+    return [
+      { type: 'text', text: screenContextText },
+      {
+        type: 'image_url',
+        image_url: {
+          url: input.imageDataUrl,
+        },
+      } as CommonContentPart,
+    ]
+  }
+
+  async function resolveProactiveScreenSemanticSummary(input: {
+    cardId: string
+    now: number
+    foregroundWindow?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    perceptionState?: AlicizationPerceptionState
+  }) {
+    const cardId = normalizeCardId(input.cardId)
+    const cached = screenSemanticCacheByCard.get(cardId)
+    const perceptionState = input.perceptionState ?? await ensurePerceptionState(cardId)
+    const invitedInspectionActive = Boolean(
+      perceptionState.invitedInspection
+      && perceptionState.invitedInspection.activeUntil > input.now,
+    )
+    const reusableResidue = getUsablePerceptionSceneResidue({
+      state: perceptionState,
+      now: input.now,
+      maxAgeMs: 2 * 60_000,
     })
+    if (invitedInspectionActive) {
+      if (reusableResidue) {
+        const reusedSummary = buildScreenSemanticSummaryFromResidue(reusableResidue)
+        screenSemanticCacheByCard.set(cardId, {
+          key: [
+            'scene-residue',
+            reusableResidue.observedAt,
+            reusableResidue.source,
+            reusableResidue.captureSourceName ?? '',
+          ].join(':'),
+          summary: reusedSummary,
+          updatedAt: input.now,
+        })
+        return reusedSummary
+      }
 
-    return fullText.trim() || null
+      screenSemanticCacheByCard.set(cardId, {
+        key: 'invited-inspection-active',
+        summary: null,
+        updatedAt: input.now,
+        unavailableReason: 'invited-inspection-active',
+      })
+      return null
+    }
+
+    const captureAccess = await resolveDesktopCaptureAccess({
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 640, height: 360 },
+    })
+    const sources = captureAccess.sources
+    if (sources.length === 0) {
+      screenSemanticCacheByCard.set(cardId, {
+        key: captureAccess.unavailableReason ?? 'screen-semantic-source-unavailable',
+        summary: null,
+        updatedAt: input.now,
+        unavailableReason: captureAccess.unavailableReason ?? captureAccess.probeError,
+      })
+      return null
+    }
+
+    const attentionAnchor = getActiveAttentionAnchor(perceptionState, input.now)
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: input.foregroundWindow,
+      attentionAnchor,
+      recentObservations: perceptionState.recentObservations,
+      hintTerms: [],
+      avoidSourcePattern: /\b(?:alicization|codex)\b/i,
+      sources,
+    })
+    if (!candidate) {
+      screenSemanticCacheByCard.set(cardId, {
+        key: 'no-candidate',
+        summary: null,
+        updatedAt: input.now,
+        unavailableReason: 'screen-semantic-source-unavailable',
+      })
+      return null
+    }
+
+    const candidateKey = [
+      candidate.source.id,
+      candidate.strategy,
+      sanitizeText(candidate.focusTarget?.source ?? ''),
+      sanitizeText(candidate.focusTarget?.appName),
+      sanitizeText(candidate.focusTarget?.processName),
+      sanitizeText(candidate.focusTarget?.title),
+      sanitizeText(input.foregroundWindow?.appName),
+      sanitizeText(input.foregroundWindow?.processName),
+      sanitizeText(input.foregroundWindow?.title),
+    ].join(':')
+    if (
+      cached
+      && cached.key === candidateKey
+      && input.now - cached.updatedAt <= (cached.summary ? proactiveScreenSemanticCacheTtlMs : proactiveScreenSemanticFailureTtlMs)
+    ) {
+      return cached.summary
+    }
+
+    const imageDataUrl = buildCompressedNativeImageDataUrl({
+      image: candidate.source.thumbnail,
+      maxWidth: proactiveScreenSemanticImageMaxWidth,
+      maxHeight: proactiveScreenSemanticImageMaxHeight,
+      jpegQuality: proactiveScreenSemanticImageJpegQuality,
+    })
+    if (!imageDataUrl) {
+      screenSemanticCacheByCard.set(cardId, {
+        key: candidateKey,
+        summary: null,
+        updatedAt: input.now,
+        unavailableReason: 'screen-semantic-thumbnail-empty',
+      })
+      return null
+    }
+
+    const system = [
+      'You classify a screen snapshot for a proactive interruption policy.',
+      'Output valid JSON only with keys: workload, content, summary, confidence, matchedLabels.',
+      'workload must be one of: coding, media, browser, terminal, game, chat, document, unknown.',
+      'content must be one of: error, diff, doc, video, music, chat, gameplay, unknown.',
+      'summary must be a short factual phrase under 18 words. Do not mention emotions or advice.',
+      'confidence must be a number in range [0,1].',
+      'matchedLabels must be an array of short lower-kebab-case strings with up to 4 items.',
+      'If the screenshot is unreadable or ambiguous, use unknown with low confidence.',
+    ].join('\n')
+    const raw = await generateMainGatewayText({
+      system,
+      user: buildScreenSemanticUserContent({
+        imageDataUrl,
+        foregroundWindow: input.foregroundWindow,
+        sourceName: candidate.source.name,
+        focusTarget: candidate.focusTarget,
+      }),
+      timeoutMs: proactiveScreenSemanticTimeoutMs,
+      source: 'screen-semantic',
+      cardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    })
+    if (!raw) {
+      screenSemanticCacheByCard.set(cardId, {
+        key: candidateKey,
+        summary: null,
+        updatedAt: input.now,
+        unavailableReason: 'screen-semantic-llm-unavailable',
+      })
+      return null
+    }
+
+    const summary = parseScreenSemanticSummary({
+      raw,
+      analyzedAt: input.now,
+      source: {
+        id: candidate.source.id,
+        name: candidate.source.name,
+        strategy: candidate.strategy,
+      },
+    })
+    if (summary) {
+      await rememberSceneResidue({
+        cardId,
+        now: input.now,
+        residue: {
+          observedAt: input.now,
+          source: 'screen-semantic-summary',
+          workloadKind: summary.workload.kind,
+          contentKind: summary.content.kind,
+          summary: summary.content.summary,
+          confidence: Math.max(summary.workload.confidence, summary.content.confidence),
+          focusTarget: candidate.focusTarget
+            ? {
+                appName: candidate.focusTarget.appName,
+                processName: candidate.focusTarget.processName,
+                title: candidate.focusTarget.title,
+              }
+            : undefined,
+          focusSource: candidate.focusTarget?.source,
+          captureSourceName: candidate.source.name,
+          captureStrategy: candidate.strategy,
+        },
+      })
+    }
+    screenSemanticCacheByCard.set(cardId, {
+      key: candidateKey,
+      summary,
+      updatedAt: input.now,
+      unavailableReason: summary ? undefined : 'screen-semantic-parse-failed',
+    })
+    return summary
   }
 
   async function recoverMainChatFromTimeout(options: {
@@ -5193,64 +6923,82 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         controller.abort(createAbortError('main-gateway-timeout-recovery'))
     }, Math.max(1_000, options.timeoutMs ?? mainChatTimeoutRecoveryMs))
 
-    let fullText = ''
-    let rawChunkChars = 0
-    let chunkCount = 0
     try {
-      await new Promise<void>((resolve, reject) => {
-        const abortHandler = () => {
-          reject(controller.signal.reason ?? createAbortError('main-gateway-timeout-recovery-abort'))
-        }
-        controller.signal.addEventListener('abort', abortHandler, { once: true })
-        const resolveOnce = () => {
-          controller.signal.removeEventListener('abort', abortHandler)
-          resolve()
-        }
-        const rejectOnce = (error: unknown) => {
-          controller.signal.removeEventListener('abort', abortHandler)
-          reject(error)
-        }
-        void Promise.resolve(streamText({
-          ...options.chatConfig,
-          maxSteps: 1,
-          messages: options.messages,
-          headers: options.headers,
-          abortSignal: controller.signal,
-          onEvent: async (event: any) => {
-            if (event?.type === 'text-delta') {
-              const rawDelta = readRawTextDelta(event.text)
-              fullText += rawDelta
-              rawChunkChars += rawDelta.length
-              chunkCount += 1
-              return
-            }
-            if (event?.type === 'finish') {
-              resolveOnce()
-              return
-            }
-            if (event?.type === 'error')
-              rejectOnce(event.error ?? new Error('main-gateway timeout recovery failed'))
-          },
-        })).catch(rejectOnce)
+      const result = await generateText({
+        ...options.chatConfig,
+        maxSteps: 1,
+        messages: options.messages,
+        headers: options.headers,
+        abortSignal: controller.signal,
       })
+      const fullText = (result.text ?? '').trim()
+      await appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
+        cardId: normalizeCardId(options.cardId ?? activeCardId),
+        turnId: sanitizeText(options.turnId),
+        chunkCount: fullText ? 1 : 0,
+        rawChunkChars: fullText.length,
+        finalChars: fullText.length,
+      })
+      return fullText
     }
     finally {
       clearTimeout(timeout)
     }
-
-    await appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
-      cardId: normalizeCardId(options.cardId ?? activeCardId),
-      turnId: sanitizeText(options.turnId),
-      chunkCount,
-      rawChunkChars,
-      finalChars: fullText.length,
-    })
-
-    return fullText.trim()
   }
 
-  function resolveChatMessages(payload: AlicizationChatStartPayload): Message[] {
-    return payload.messages.flatMap((message) => {
+  async function generateMainChatNonStreaming(options: {
+    chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
+    messages: Message[]
+    headers?: Record<string, string>
+    tools?: Awaited<ReturnType<typeof buildMainGatewayTools>>
+    timeoutMs: number
+    cardId?: string
+    turnId?: string
+  }) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => {
+      if (!controller.signal.aborted) {
+        controller.abort(createAbortError('main-gateway-visual-one-shot-timeout'))
+      }
+    }, Math.max(1_000, options.timeoutMs))
+
+    try {
+      const result = await generateText({
+        ...options.chatConfig,
+        maxSteps: 10,
+        messages: options.messages,
+        headers: options.headers,
+        abortSignal: controller.signal,
+        tools: options.tools,
+      })
+      const fullText = (result.text ?? '').trim()
+      await appendRuntimeDebugLine('chat-stream.visual-one-shot-finished', {
+        cardId: normalizeCardId(options.cardId ?? activeCardId),
+        turnId: sanitizeText(options.turnId),
+        finishReason: sanitizeText(result.finishReason, 'stop'),
+        finalChars: fullText.length,
+      })
+      return {
+        finishReason: sanitizeText(result.finishReason, 'stop'),
+        fullText,
+      }
+    }
+    finally {
+      clearTimeout(timeout)
+    }
+  }
+
+  function resolveChatMessages(
+    payload: AlicizationChatStartPayload,
+    options?: {
+      redactStaleInspectionHistoryForUserText?: string
+    },
+  ): Message[] {
+    const sourceMessages = options?.redactStaleInspectionHistoryForUserText
+      ? redactStaleInspectionHistoryMessages(payload.messages, options.redactStaleInspectionHistoryForUserText)
+      : payload.messages
+
+    return sourceMessages.flatMap((message) => {
       const rawRole = typeof (message as { role?: unknown }).role === 'string'
         ? (message as { role: string }).role
         : ''
@@ -5266,7 +7014,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       if (role === 'tool') {
         return [{
           role: 'tool',
-          content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
+          content: normalizeTransportMessageContent(message.content),
           tool_call_id: sanitizeText(message.toolCallId),
         } as Message]
       }
@@ -5276,9 +7024,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         // `error`. OpenAI-compatible providers only accept the standard chat roles,
         // and some compatibility gateways hang instead of returning a validation error.
         role,
-        content: typeof message.content === 'string'
-          ? message.content
-          : JSON.stringify(message.content),
+        content: normalizeTransportMessageContent(message.content),
       } as Message]
     })
   }
@@ -5500,6 +7246,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         reason: 'Turn has already finished.',
       }
     }
+    await settlePendingProactiveOutcomesFromUserTurn(payload.cardId, Date.now(), 'chat-start')
 
     const mainGateway = resolveMainGatewayConfig({
       providerId: payload.providerId,
@@ -5549,10 +7296,27 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       text: '',
       source: 'none',
     }
+    let hasVisualGrounding = false
     try {
       chatConfig = mainGateway.provider.chat(mainGateway.model)
-      messages = resolveChatMessages(payload)
-      const contextualString = await buildMainChatContextualString(payload)
+      const latestUserText = readLatestUserMessageText(payload.messages)
+      const shouldBypassPerception = latestUserText
+        ? isInternalAlicizationRepairPrompt(latestUserText)
+        : false
+      messages = resolveChatMessages(payload, {
+        redactStaleInspectionHistoryForUserText: shouldBypassPerception ? '' : latestUserText,
+      })
+      const perceptionAugmentation = latestUserText && !shouldBypassPerception
+        ? await augmentMainChatMessagesWithPerception({
+            cardId: payload.cardId,
+            userText: latestUserText,
+            messages,
+          })
+        : { messages, systemBlocks: [] as string[] }
+      messages = perceptionAugmentation.messages
+      const contextualString = shouldBypassPerception
+        ? ''
+        : await buildMainChatContextualString(payload)
       const organicPromptContext = await resolveOrganicMemoryPromptContext({
         recallSeed: contextualString,
       })
@@ -5560,9 +7324,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       messages = prependSystemBlocksToMessages(messages, [
         ...buildOrganicMemorySystemBlocks(organicPromptContext),
         ...buildPerformanceManifestSystemBlocks(performanceManifest),
+        ...perceptionAugmentation.systemBlocks,
       ])
       customDirectivesResolution = await resolveCardCustomDirectives(payload.cardId, { messages })
       messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
+      hasVisualGrounding = messageContainsVisualInput(messages)
       const allowTools = payload.supportsTools !== false
       waitForTools = payload.waitForTools === true
       tools = allowTools ? await buildMainGatewayTools(payload.cardId) : undefined
@@ -5604,6 +7370,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         turnId: runState.turnId,
         providerId: payload.providerId,
         model: payload.model,
+        hasVisualGrounding,
         hasSender: Boolean(runState.sender),
         senderId: runState.sender?.id ?? null,
       },
@@ -5614,15 +7381,52 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       providerId: payload.providerId,
       model: payload.model,
       senderId: runState.sender?.id ?? null,
+      hasVisualGrounding,
       customDirectivesSource: customDirectivesResolution.source,
       customDirectivesChars: customDirectivesResolution.text.length,
     })
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
     const nonProgressEventTypes = new Set<string>()
     const reminderToolCallIds = new Set<string>()
+    const firstEventTimeoutMs = hasVisualGrounding
+      ? mainChatFirstEventTimeoutWithVisualGroundingMs
+      : mainChatFirstEventTimeoutMs
+    const timeoutRecoveryMs = hasVisualGrounding
+      ? mainChatTimeoutRecoveryWithVisualGroundingMs
+      : mainChatTimeoutRecoveryMs
 
     void (async () => {
       try {
+        if (hasVisualGrounding) {
+          const visualOneShot = await generateMainChatNonStreaming({
+            chatConfig,
+            messages,
+            headers: mainGateway.headers,
+            tools,
+            timeoutMs: firstEventTimeoutMs,
+            cardId: payload.cardId,
+            turnId: payload.turnId,
+          })
+          if (visualOneShot.fullText && isRunActive()) {
+            const currentRun = chatRuns.get(key)
+            if (currentRun) {
+              currentRun.chunkCount += 1
+              currentRun.rawChunkChars += visualOneShot.fullText.length
+            }
+            emitChatStreamEventForState(chatRuns.get(key), 'chunk', {
+              cardId: payload.cardId,
+              turnId: payload.turnId,
+              text: visualOneShot.fullText,
+            })
+          }
+          emitChatFinish(key, {
+            status: 'completed',
+            finishReason: visualOneShot.finishReason || 'stop',
+            fullText: visualOneShot.fullText || undefined,
+          })
+          return
+        }
+
         let finishReason = 'stop'
         let fullText = ''
         let sawProgressEvent = false
@@ -5631,7 +7435,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             if (!sawProgressEvent && isRunActive()) {
               reject(createAbortError('chat-first-event-timeout'))
             }
-          }, mainChatFirstEventTimeoutMs)
+          }, firstEventTimeoutMs)
           const abortHandler = () => {
             clearTimeout(firstEventTimeout)
             reject(controller.signal.reason ?? createAbortError('chat-abort'))
@@ -5772,7 +7576,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 chatConfig,
                 messages,
                 headers: mainGateway.headers,
-                timeoutMs: mainChatTimeoutRecoveryMs,
+                timeoutMs: timeoutRecoveryMs,
                 cardId: payload.cardId,
                 turnId: payload.turnId,
               })
@@ -6039,6 +7843,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
         snapshot = sensoryBus.getSnapshot()
       }
+      await rememberPerceptionObservation({
+        cardId: activeCardId,
+        now: Number(snapshot.sample.collectedAt || Date.now()),
+        target: snapshot.sample.foregroundWindow,
+        source: 'sensory-snapshot',
+      })
       return snapshot
     })
   })
@@ -6106,6 +7916,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ackCursor: nextCursor,
       cleared,
       remainingPending: pendingDialogueDeliveries.size,
+    })
+  }))
+  defineInvokeHandler(context, electronAlicizationReportProactiveFeedback, async (payload: AlicizationProactiveFeedbackPayload) => await withCardScope(payload.cardId, async () => {
+    const turnId = sanitizeText(payload.turnId)
+    if (!turnId || (payload.feedback !== 'dismiss' && payload.feedback !== 'positive'))
+      return
+
+    const current = await ensureProactiveLoopState(activeCardId)
+    const settled = reportExplicitProactiveFeedback(current, {
+      turnId,
+      feedback: payload.feedback,
+      at: Date.now(),
+    })
+    if (settled.appliedOutcomes.length === 0)
+      return
+
+    await persistProactiveLoopState(activeCardId, settled.state)
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.subconscious',
+      action: 'proactive-feedback-explicit',
+      message: 'Applied explicit proactive feedback from renderer bubble action.',
+      payload: {
+        turnId,
+        feedback: payload.feedback,
+        outcomes: settled.appliedOutcomes,
+      },
     })
   }))
   defineInvokeHandler(context, electronAlicizationReplayDialogues, async payload => await withCardScope(payload.cardId, async () => {
@@ -6189,6 +8026,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       await switchCardScope(defaultAlicizationCardId)
     }
     await rm(resolveCardPaths(targetCardId).soulRoot, { recursive: true, force: true })
+    proactiveLoopStateByCard.delete(targetCardId)
+    perceptionStateByCard.delete(targetCardId)
+    screenSemanticCacheByCard.delete(targetCardId)
+    subconsciousStateByCard.delete(targetCardId)
+    activeSessionIdByCard.delete(targetCardId)
+    dialogueAckByCard.delete(targetCardId)
     if (targetCardId === defaultAlicizationCardId) {
       await switchCardScope(defaultAlicizationCardId)
       await bootstrap()
@@ -6282,6 +8125,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await restoreActiveSessionId(activeCardId)
   await restoreDialogueAckMap(activeCardId)
   await restoreSubconsciousState(activeCardId)
+  await restoreProactiveLoopState(activeCardId)
   await restoreLlmConfigFromDisk()
   const journalMode = await alicizationDb.getJournalMode().catch(() => '')
   if (journalMode !== 'wal') {

@@ -9,9 +9,12 @@ import {
   resolveStageBubbleText,
   resolveStageDialogueAnchoredPanelRect,
   resolveStageDialogueDefaultPanelRect,
+  resolveStageProactiveFeedbackTarget,
 } from './stage-dialogue'
 
-function createAssistantMessage(overrides: Partial<ChatAssistantMessage> = {}): ChatAssistantMessage {
+function createAssistantMessage(
+  overrides: Partial<ChatAssistantMessage> & { id?: string, createdAt?: number } = {},
+): ChatAssistantMessage & { id?: string, createdAt?: number } {
   return {
     role: 'assistant',
     content: '',
@@ -78,6 +81,82 @@ describe('stage dialogue utils', () => {
 
   it('returns empty text for non assistant messages', () => {
     expect(resolveStageBubbleText({ role: 'user', content: 'hello' })).toBe('')
+  })
+
+  it('returns proactive feedback target only for fresh subconscious proactive bubbles', () => {
+    const target = resolveStageProactiveFeedbackTarget(createAssistantMessage({
+      id: 'turn-proactive',
+      origin: 'subconscious-proactive',
+      createdAt: 1_000,
+      structured: {
+        thought: 'internal',
+        emotion: 'neutral',
+        reply: '先停一下。',
+        format: 'subconscious-proactive-v1',
+        proactive: {
+          shouldInterrupt: true,
+          confidence: 0.92,
+          reasonCodes: ['coding-focus'],
+          urgency: 'low',
+          style: 'light-nudge',
+          cooldownMs: 600_000,
+          scenario: 'coding',
+          policyVersion: 'epoch3-v1',
+          feedbackWindowMs: 120_000,
+        },
+      },
+    }), {
+      now: 80_000,
+    })
+
+    expect(target).toEqual({
+      turnId: 'turn-proactive',
+      expiresAt: 91_000,
+      feedbackWindowMs: 90_000,
+    })
+  })
+
+  it('hides proactive feedback target when bubble is stale or lacks proactive metadata', () => {
+    const stale = resolveStageProactiveFeedbackTarget(createAssistantMessage({
+      id: 'turn-stale',
+      origin: 'subconscious-proactive',
+      createdAt: 1_000,
+      structured: {
+        thought: 'internal',
+        emotion: 'neutral',
+        reply: '提醒一下。',
+        format: 'subconscious-proactive-v1',
+        proactive: {
+          shouldInterrupt: true,
+          confidence: 0.84,
+          reasonCodes: ['media-playback'],
+          urgency: 'low',
+          style: 'light-nudge',
+          cooldownMs: 600_000,
+          scenario: 'media',
+          policyVersion: 'epoch3-v1',
+          feedbackWindowMs: 120_000,
+        },
+      },
+    }), {
+      now: 92_000,
+    })
+    const reminder = resolveStageProactiveFeedbackTarget(createAssistantMessage({
+      id: 'turn-reminder',
+      origin: 'subconscious-proactive',
+      createdAt: 1_000,
+      structured: {
+        thought: 'internal',
+        emotion: 'neutral',
+        reply: '该休息了。',
+        format: 'subconscious-reminder-v1',
+      },
+    }), {
+      now: 20_000,
+    })
+
+    expect(stale).toBeNull()
+    expect(reminder).toBeNull()
   })
 
   it('places the bubble on the right when the character is on the left half', () => {
