@@ -1,6 +1,7 @@
 import type { ChatAssistantMessage, ChatHistoryItem, StreamingAssistantMessage } from '../types/chat'
 
 export type StageBubblePlacement = 'top-left' | 'top-right'
+
 export interface StageDialoguePanelRect {
   x: number
   y: number
@@ -8,18 +9,36 @@ export interface StageDialoguePanelRect {
   height: number
 }
 
+export interface StageCharacterFrame {
+  left: number
+  right: number
+  top: number
+  bottom: number
+  centerX: number
+  anchorY: number
+}
+
 export interface StageDialoguePanelBoundsInput {
   containerWidth: number
   containerHeight: number
-  characterOffsetX?: number
+  characterFrame?: StageCharacterFrame | null
   placement: StageBubblePlacement
   quickReplyEnabled?: boolean
 }
 
-const stageBubbleMidlineThreshold = 12
+export interface StageDialogueRelativeOffset {
+  x: number
+  y: number
+}
+
+export interface StageDialoguePanelSize {
+  width: number
+  height: number
+}
+
+const stageBubbleLegacyMidlineThreshold = 12
 const stageDialoguePanelPadding = 18
-const stageDialoguePanelGuardGap = 26
-const stageDialoguePanelGuardWidthRatio = 0.32
+const stageDialoguePanelCharacterGap = 26
 const stageDialoguePanelMinWidth = 220
 const stageDialoguePanelMaxWidth = 460
 const stageDialoguePanelMinHeight = 160
@@ -37,48 +56,48 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function resolveDialogueCharacterCenterX(containerWidth: number, characterOffsetX = 0) {
-  const center = containerWidth * (0.5 + characterOffsetX / 100)
-  return clampNumber(center, containerWidth * 0.2, containerWidth * 0.8)
-}
+function resolveFallbackCharacterFrame(input: StageDialoguePanelBoundsInput): StageCharacterFrame {
+  const centerX = input.containerWidth / 2
+  const top = clampNumber(input.containerHeight * 0.24, stageDialoguePanelPadding, input.containerHeight - stageDialoguePanelPadding)
+  const bottom = clampNumber(input.containerHeight * 0.88, top + 120, input.containerHeight - stageDialoguePanelPadding)
+  const width = clampNumber(input.containerWidth * 0.2, 180, Math.max(220, input.containerWidth * 0.34))
+  const left = clampNumber(centerX - width / 2, stageDialoguePanelPadding, input.containerWidth - stageDialoguePanelPadding - width)
+  const right = left + width
+  const height = Math.max(0, bottom - top)
 
-function resolveDialogueGuardWidth(containerWidth: number) {
-  return clampNumber(containerWidth * stageDialoguePanelGuardWidthRatio, 160, 420)
-}
-
-function resolveDialogueLaneRange(input: StageDialoguePanelBoundsInput, width: number) {
-  const safeWidth = Math.max(0, input.containerWidth - stageDialoguePanelPadding * 2)
-  const nextWidth = clampNumber(width, Math.min(stageDialoguePanelMinWidth, safeWidth), Math.min(stageDialoguePanelMaxWidth, safeWidth))
-  const centerX = resolveDialogueCharacterCenterX(input.containerWidth, input.characterOffsetX)
-  const guardHalfWidth = resolveDialogueGuardWidth(input.containerWidth) / 2
-
-  if (input.placement === 'top-left') {
-    const minX = stageDialoguePanelPadding + stageDialoguePanelChromeWidth
-    const maxX = Math.max(minX, centerX - guardHalfWidth - stageDialoguePanelGuardGap - nextWidth)
-    return { minX, maxX, width: nextWidth }
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    centerX,
+    anchorY: top + height * 0.18,
   }
-
-  const minX = Math.min(
-    Math.max(stageDialoguePanelPadding, centerX + guardHalfWidth + stageDialoguePanelGuardGap),
-    Math.max(stageDialoguePanelPadding, input.containerWidth - stageDialoguePanelPadding - stageDialoguePanelChromeWidth - nextWidth),
-  )
-  const maxX = Math.max(minX, input.containerWidth - stageDialoguePanelPadding - stageDialoguePanelChromeWidth - nextWidth)
-  return { minX, maxX, width: nextWidth }
 }
 
-function resolveDialogueFloatingRange(input: StageDialoguePanelBoundsInput, width: number) {
-  const safeWidth = Math.max(0, input.containerWidth - stageDialoguePanelPadding * 2 - stageDialoguePanelChromeWidth)
-  const nextWidth = clampNumber(width, Math.min(stageDialoguePanelMinWidth, safeWidth), Math.min(stageDialoguePanelMaxWidth, safeWidth))
+function normalizeCharacterFrame(input: StageDialoguePanelBoundsInput): StageCharacterFrame {
+  const frame = input.characterFrame
+  if (!frame)
+    return resolveFallbackCharacterFrame(input)
 
-  if (input.placement === 'top-left') {
-    const minX = stageDialoguePanelPadding + stageDialoguePanelChromeWidth
-    const maxX = Math.max(minX, input.containerWidth - stageDialoguePanelPadding - nextWidth)
-    return { minX, maxX, width: nextWidth }
+  const left = clampNumber(frame.left, 0, input.containerWidth)
+  const right = clampNumber(frame.right, left, input.containerWidth)
+  const top = clampNumber(frame.top, 0, input.containerHeight)
+  const bottom = clampNumber(frame.bottom, top, input.containerHeight)
+  const centerX = clampNumber(frame.centerX, left, right)
+  const anchorY = clampNumber(frame.anchorY, top, bottom)
+
+  if (right <= left || bottom <= top)
+    return resolveFallbackCharacterFrame(input)
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    centerX,
+    anchorY,
   }
-
-  const minX = stageDialoguePanelPadding
-  const maxX = Math.max(minX, input.containerWidth - stageDialoguePanelPadding - stageDialoguePanelChromeWidth - nextWidth)
-  return { minX, maxX, width: nextWidth }
 }
 
 function readContentText(content: ChatAssistantMessage['content']) {
@@ -145,6 +164,41 @@ function normalizeBubbleText(text: string) {
   return structuredReply || text.trim()
 }
 
+function resolvePreferredPanelWidth(input: StageDialoguePanelBoundsInput) {
+  const safeWidth = Math.max(0, input.containerWidth - stageDialoguePanelPadding * 2)
+  return clampNumber(
+    input.containerWidth * (input.quickReplyEnabled === false ? 0.28 : 0.34),
+    Math.min(stageDialoguePanelMinWidth, safeWidth),
+    Math.min(stageDialoguePanelMaxWidth, safeWidth),
+  )
+}
+
+function resolvePreferredPanelHeight(input: StageDialoguePanelBoundsInput) {
+  const minHeight = input.quickReplyEnabled === false ? stageDialoguePanelMinHeight : 220
+  return clampNumber(
+    input.containerHeight * (input.quickReplyEnabled === false ? 0.24 : 0.34),
+    minHeight,
+    stageDialoguePanelMaxHeight,
+  )
+}
+
+function resolveDefaultAnchorPoint(
+  input: StageDialoguePanelBoundsInput,
+  width: number,
+  height: number,
+) {
+  const frame = normalizeCharacterFrame(input)
+  const x = input.placement === 'top-left'
+    ? frame.left - stageDialoguePanelCharacterGap - width
+    : frame.right + stageDialoguePanelCharacterGap
+  const y = frame.anchorY - height * 0.4
+
+  return {
+    x,
+    y,
+  }
+}
+
 export function resolveStageBubbleText(message: StageBubbleMessage) {
   if (!message || message.role !== 'assistant')
     return ''
@@ -169,64 +223,85 @@ export function resolveStageBubbleText(message: StageBubbleMessage) {
   return normalizeBubbleText(readContentText(message.content))
 }
 
-export function resolveStageBubblePlacement(positionX: number): StageBubblePlacement {
-  if (!Number.isFinite(positionX))
+export function resolveStageBubblePlacement(
+  positionOrCharacterFrame: number | StageCharacterFrame | null | undefined,
+  containerWidth?: number,
+): StageBubblePlacement {
+  if (typeof positionOrCharacterFrame === 'number') {
+    if (!Number.isFinite(positionOrCharacterFrame))
+      return 'top-right'
+
+    if (positionOrCharacterFrame > stageBubbleLegacyMidlineThreshold)
+      return 'top-left'
+
+    return 'top-right'
+  }
+
+  if (!positionOrCharacterFrame || !containerWidth || !Number.isFinite(containerWidth))
     return 'top-right'
 
-  if (positionX > stageBubbleMidlineThreshold)
-    return 'top-left'
-
-  return 'top-right'
+  return positionOrCharacterFrame.centerX > containerWidth / 2 ? 'top-left' : 'top-right'
 }
 
 export function resolveStageDialogueDefaultPanelRect(input: StageDialoguePanelBoundsInput): StageDialoguePanelRect {
-  const preferredWidth = clampNumber(
-    input.containerWidth * (input.quickReplyEnabled === false ? 0.28 : 0.34),
-    stageDialoguePanelMinWidth,
-    stageDialoguePanelMaxWidth,
-  )
-  const { minX, maxX, width } = resolveDialogueLaneRange(input, preferredWidth)
-  const preferredHeight = clampNumber(
-    input.containerHeight * (input.quickReplyEnabled === false ? 0.24 : 0.34),
-    input.quickReplyEnabled === false ? stageDialoguePanelMinHeight : 220,
-    stageDialoguePanelMaxHeight,
-  )
+  const width = resolvePreferredPanelWidth(input)
   const height = clampNumber(
-    preferredHeight,
+    resolvePreferredPanelHeight(input),
     stageDialoguePanelMinHeight,
     Math.max(stageDialoguePanelMinHeight, input.containerHeight - stageDialoguePanelPadding * 2),
   )
-  const y = clampNumber(
-    input.containerHeight * 0.08,
-    stageDialoguePanelPadding,
-    Math.max(stageDialoguePanelPadding, input.containerHeight - stageDialoguePanelPadding - height),
-  )
-  const x = input.placement === 'top-left' ? maxX : minX
+  const anchorPoint = resolveDefaultAnchorPoint(input, width, height)
 
-  return { x, y, width, height }
+  return clampStageDialoguePanelRect({
+    x: anchorPoint.x,
+    y: anchorPoint.y,
+    width,
+    height,
+  }, input)
+}
+
+export function resolveStageDialogueAnchoredPanelRect(
+  input: StageDialoguePanelBoundsInput,
+  options: {
+    offset?: StageDialogueRelativeOffset
+    size?: Partial<StageDialoguePanelSize>
+  } = {},
+): StageDialoguePanelRect {
+  const defaultRect = resolveStageDialogueDefaultPanelRect(input)
+  const width = options.size?.width ?? defaultRect.width
+  const height = options.size?.height ?? defaultRect.height
+  const anchorPoint = resolveDefaultAnchorPoint(input, width, height)
+
+  return clampStageDialoguePanelRect({
+    x: anchorPoint.x + (options.offset?.x ?? 0),
+    y: anchorPoint.y + (options.offset?.y ?? 0),
+    width,
+    height,
+  }, input)
 }
 
 export function clampStageDialoguePanelRect(
   rect: StageDialoguePanelRect,
   input: StageDialoguePanelBoundsInput,
 ): StageDialoguePanelRect {
+  const maxWidth = Math.max(
+    stageDialoguePanelMinWidth,
+    Math.min(stageDialoguePanelMaxWidth, input.containerWidth - stageDialoguePanelPadding * 2 - stageDialoguePanelChromeWidth),
+  )
   const maxHeight = Math.max(
     stageDialoguePanelMinHeight,
     Math.min(stageDialoguePanelMaxHeight, input.containerHeight - stageDialoguePanelPadding * 2),
   )
+  const width = clampNumber(rect.width, stageDialoguePanelMinWidth, maxWidth)
   const height = clampNumber(rect.height, stageDialoguePanelMinHeight, maxHeight)
-  const { minX, maxX, width } = resolveDialogueFloatingRange(input, rect.width)
+  const minX = stageDialoguePanelPadding
+  const maxX = Math.max(minX, input.containerWidth - stageDialoguePanelPadding - stageDialoguePanelChromeWidth - width)
   const minY = stageDialoguePanelPadding
   const maxY = Math.max(minY, input.containerHeight - stageDialoguePanelPadding - height)
   const x = clampNumber(rect.x, minX, maxX)
   const y = clampNumber(rect.y, minY, maxY)
 
-  return {
-    x,
-    y,
-    width,
-    height,
-  }
+  return { x, y, width, height }
 }
 
 export function clampStageDialogueOrbRect(

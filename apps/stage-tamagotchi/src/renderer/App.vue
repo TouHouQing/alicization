@@ -1219,7 +1219,7 @@ onUnmounted(() => {
     :resolving="hitlResolving"
     @decide="resolveHitlDecision"
   />
-  <ResizeHandler />
+  <ResizeHandler v-if="route.path !== '/'" />
   <RouterView />
 </template>
 

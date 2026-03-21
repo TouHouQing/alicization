@@ -6,12 +6,11 @@ import workletUrl from '@proj-alicization/stage-ui/workers/vad/process.worklet?w
 import { electron } from '@proj-alicization/electron-eventa'
 import {
   useElectronEventaInvoke,
-  useElectronMouseAroundWindowBorder,
   useElectronMouseInElement,
   useElectronMouseInWindow,
   useElectronRelativeMouse,
 } from '@proj-alicization/electron-vueuse'
-import { useThreeSceneIsTransparentAtPoint } from '@proj-alicization/stage-ui-three'
+import { useModelStore, useThreeSceneIsTransparentAtPoint } from '@proj-alicization/stage-ui-three'
 import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-alicization/stage-ui/composables/canvas-alpha'
@@ -24,6 +23,7 @@ import { useHearingSpeechInputPipeline } from '@proj-alicization/stage-ui/stores
 import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
+import { useStageDialogueStore } from '@proj-alicization/stage-ui/stores/stage-dialogue'
 import { refDebounced, useBroadcastChannel, useFocusWithin } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
@@ -36,26 +36,28 @@ import { electronOpenOnboarding } from '../../shared/eventa'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
-import { shouldSampleStageTransparency } from '../utils/stage-three-transparency'
+import { resetDesktopLayoutState, resolveDesktopMouseCaptureState } from './index.desktop'
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
 const statusIslandRef = ref<InstanceType<typeof StatusIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
+const controlsIslandElement = computed(() => controlsIslandRef.value?.$el as HTMLElement | undefined)
+const statusIslandElement = computed(() => statusIslandRef.value?.$el as HTMLElement | undefined)
 const stageCanvas = toRef(() => widgetStageRef.value?.canvasElement())
 const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayElement())
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
 
 const isLoading = ref(true)
 
-const isIgnoringMouseEvents = ref(false)
 const shouldFadeOnCursorWithin = ref(false)
+const stageInteractionActive = ref(false)
 
 const onboardingStore = useOnboardingStore()
 const openOnboarding = useElectronEventaInvoke(electronOpenOnboarding)
 
 const { isOutside: isOutsideWindow } = useElectronMouseInWindow()
-const { isOutside } = useElectronMouseInElement(controlsIslandRef)
-const { isOutside: isOutsideStatusIsland } = useElectronMouseInElement(statusIslandRef)
+const { isOutside } = useElectronMouseInElement(controlsIslandElement)
+const { isOutside: isOutsideStatusIsland } = useElectronMouseInElement(statusIslandElement)
 const { isOutside: isOutsideDialogueOverlay } = useElectronMouseInElement(stageDialogueOverlay)
 const isOutsideFor250Ms = refDebounced(isOutside, 250)
 const isOutsideStatusIslandFor250Ms = refDebounced(isOutsideStatusIsland, 250)
@@ -83,32 +85,26 @@ const displayModelsStore = useDisplayModelsStore()
 const { stageModelRenderer, stageModelSelectedUrl } = storeToRefs(settingsStore)
 const { stagePaused } = storeToRefs(useStageWindowLifecycleStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
-const shouldUseThreeTransparencyHitTest = computed(() => shouldSampleStageTransparency({
-  componentState: componentStateStage.value,
-  fadeOnHoverEnabled: fadeOnHoverEnabled.value,
-  stageModelRenderer: stageModelRenderer.value,
-  stagePaused: stagePaused.value,
-}))
-const isTransparent = computed(() => {
-  if (stagePaused.value || componentStateStage.value !== 'mounted' || !fadeOnHoverEnabled.value)
-    return true
+
+const stageInteractivePixel = computed(() => {
+  if (stagePaused.value || componentStateStage.value !== 'mounted')
+    return false
 
   if (stageModelRenderer.value === 'vrm')
-    return shouldUseThreeTransparencyHitTest.value ? isTransparentByThree.value : true
+    return !isTransparentByThree.value
 
   if (stageModelRenderer.value === 'live2d')
-    return isTransparentByPixels.value
+    return !isTransparentByPixels.value
 
-  return true
+  return false
 })
-
-const { isNearAnyBorder: isAroundWindowBorder } = useElectronMouseAroundWindowBorder({ threshold: 30 })
-const isAroundWindowBorderFor250Ms = refDebounced(isAroundWindowBorder, 250)
 
 const setIgnoreMouseEvents = useElectronEventaInvoke(electron.window.setIgnoreMouseEvents)
 
 const live2dStore = useLive2d()
-const { scale, positionInPercentageString } = storeToRefs(live2dStore)
+const modelStore = useModelStore()
+const stageDialogueStore = useStageDialogueStore()
+const { scale, position } = storeToRefs(live2dStore)
 const { live2dLookAtX, live2dLookAtY } = storeToRefs(useWindowStore())
 const stageLoadRecoveryAttempts = ref(0)
 const stageLoadRecoveryInFlight = ref(false)
@@ -116,54 +112,34 @@ let stageLoadRecoveryTimer: ReturnType<typeof setTimeout> | undefined
 const stageLoadRecoveryDelayMs = 8000
 const maxStageLoadRecoveryAttempts = 2
 
-watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
+function resetDesktopLayout() {
+  resetDesktopLayoutState({
+    live2d: live2dStore,
+    model: modelStore,
+    stageDialogue: stageDialogueStore,
+  })
+}
 
-const { pause, resume } = watch(isTransparent, (transparent) => {
-  shouldFadeOnCursorWithin.value = fadeOnHoverEnabled.value && !transparent
-}, { immediate: true })
+watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
-watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isAroundWindowBorderFor250Ms, isOutsideWindow, isTransparent, hearingDialogOpen, fadeOnHoverEnabled, stagePaused], () => {
-  if (stagePaused.value) {
-    isIgnoringMouseEvents.value = false
-    shouldFadeOnCursorWithin.value = false
-    setIgnoreMouseEvents([false, { forward: true }])
-    pause()
-    return
-  }
-
-  if (hearingDialogOpen.value) {
-    // Hearing dialog/drawer is open; keep window interactive
-    isIgnoringMouseEvents.value = false
-    shouldFadeOnCursorWithin.value = false
-    setIgnoreMouseEvents([false, { forward: true }])
-    pause()
-    return
-  }
-
+watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageInteractivePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   const insideControls = !isOutsideFor250Ms.value || !isOutsideStatusIslandFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
-  const nearBorder = isAroundWindowBorderFor250Ms.value
+  const { shouldCaptureMouse, shouldFadeOnCursorWithin: nextShouldFadeOnCursorWithin } = resolveDesktopMouseCaptureState({
+    fadeOnHoverEnabled: fadeOnHoverEnabled.value,
+    hearingDialogOpen: hearingDialogOpen.value,
+    insideControls,
+    insideDialogueOverlay,
+    isOutsideWindow: isOutsideWindow.value,
+    stageInteractionActive: stageInteractionActive.value,
+    stageInteractivePixel: stageInteractivePixel.value,
+    stagePaused: stagePaused.value,
+  })
 
-  if (insideControls || insideDialogueOverlay || nearBorder) {
-    // Inside interactive controls or near resize border: do NOT ignore events
-    isIgnoringMouseEvents.value = false
-    shouldFadeOnCursorWithin.value = false
-    setIgnoreMouseEvents([false, { forward: true }])
-    pause()
-  }
-  else {
-    const fadeEnabled = fadeOnHoverEnabled.value
-    // Otherwise allow click-through while we fade UI based on transparency (when enabled)
-    isIgnoringMouseEvents.value = fadeEnabled
-    shouldFadeOnCursorWithin.value = fadeEnabled && !isOutsideWindow.value && !isTransparent.value
-    setIgnoreMouseEvents([fadeEnabled, { forward: true }])
-    if (fadeEnabled)
-      resume()
-    else
-      pause()
-  }
+  setIgnoreMouseEvents([!shouldCaptureMouse, { forward: true }])
+  shouldFadeOnCursorWithin.value = nextShouldFadeOnCursorWithin
 })
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
@@ -446,54 +422,40 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
 
 <template>
   <div
-    max-h="[100vh]"
-    max-w="[100vw]"
-    flex="~ col"
-    relative z-2 h-full overflow-hidden rounded-xl
+    relative z-2 h-full w-full overflow-hidden
     transition="opacity duration-500 ease-in-out"
   >
-    <!-- Stage is always in DOM so TresCanvas can measure dimensions -->
     <div
       :class="[
-        'relative h-full w-full items-end gap-2',
-        'transition-opacity duration-250 ease-in-out',
+        shouldFadeOnCursorWithin ? 'op-0' : 'op-100',
+        'absolute inset-0 overflow-hidden transition-opacity duration-250 ease-in-out',
       ]"
     >
-      <div
-        :class="[
-          shouldFadeOnCursorWithin ? 'op-0' : 'op-100',
-          'absolute',
-          'top-0 left-0 w-full h-full',
-          'overflow-hidden',
-          'rounded-2xl',
-          'transition-opacity duration-250 ease-in-out',
-        ]"
-      >
-        <StatusIsland ref="statusIslandRef" />
-        <ResourceStatusIsland />
-        <WidgetStage
-          ref="widgetStageRef"
-          v-model:state="componentStateStage"
-          h-full w-full
-          flex-1
-          :paused="stagePaused"
-          :quick-reply-enabled="true"
-          :focus-at="{ x: live2dLookAtX, y: live2dLookAtY }"
-          :scale="scale"
-          :x-offset="positionInPercentageString.x"
-          :y-offset="positionInPercentageString.y"
-          mb="<md:18"
-        />
-        <ControlsIsland
-          ref="controlsIslandRef"
-        />
-      </div>
+      <StatusIsland ref="statusIslandRef" />
+      <ResourceStatusIsland />
+      <WidgetStage
+        ref="widgetStageRef"
+        v-model:state="componentStateStage"
+        h-full w-full
+        flex-1
+        :paused="stagePaused"
+        :quick-reply-enabled="true"
+        :focus-at="{ x: live2dLookAtX, y: live2dLookAtY }"
+        live2d-position-mode="pixel"
+        :scale="scale"
+        :x-offset="position.x"
+        :y-offset="position.y"
+        @desktop-interaction-change="stageInteractionActive = $event"
+      />
+      <ControlsIsland
+        ref="controlsIslandRef"
+        @reset-desktop-layout="resetDesktopLayout"
+      />
     </div>
-    <!-- Loading overlay sits on top, does not hide the stage -->
-    <div v-show="isLoading" class="absolute left-0 top-0 z-99 h-full w-full flex cursor-grab items-center justify-center overflow-hidden">
+    <div v-show="isLoading" class="pointer-events-none absolute left-0 top-0 z-99 h-full w-full flex items-center justify-center overflow-hidden">
       <div
         :class="[
-          'absolute h-24 w-full overflow-hidden rounded-xl',
+          'absolute h-24 w-full overflow-hidden',
           'flex items-center justify-center',
           'bg-white/80 dark:bg-neutral-950/80',
           'backdrop-blur-md',
@@ -501,7 +463,6 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
       >
         <div
           :class="[
-            'drag-region',
             'absolute left-0 top-0',
             'h-full w-full flex items-center justify-center',
             'text-1.5rem text-primary-600 dark:text-primary-400 font-normal',
@@ -514,47 +475,6 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
       </div>
     </div>
   </div>
-  <Transition
-    enter-active-class="transition-opacity duration-250"
-    enter-from-class="opacity-0"
-    enter-to-class="opacity-100"
-    leave-active-class="transition-opacity duration-250"
-    leave-from-class="opacity-100"
-    leave-to-class="opacity-0"
-  >
-    <div
-      v-if="false"
-      class="absolute left-0 top-0 z-99 h-full w-full flex cursor-grab items-center justify-center overflow-hidden drag-region"
-    >
-      <div
-        class="absolute h-32 w-full flex items-center justify-center overflow-hidden rounded-xl"
-        bg="white/80 dark:neutral-950/80" backdrop-blur="md"
-      >
-        <div class="wall absolute top-0 h-8" />
-        <div class="absolute left-0 top-0 h-full w-full flex animate-flash animate-duration-5s animate-count-infinite select-none items-center justify-center text-1.5rem text-primary-400 font-normal drag-region">
-          DRAG HERE TO MOVE
-        </div>
-        <div class="wall absolute bottom-0 h-8 drag-region" />
-      </div>
-    </div>
-  </Transition>
-  <Transition
-    enter-active-class="transition-opacity duration-250 ease-in-out"
-    enter-from-class="opacity-50"
-    enter-to-class="opacity-100"
-    leave-active-class="transition-opacity duration-250 ease-in-out"
-    leave-from-class="opacity-100"
-    leave-to-class="opacity-50"
-  >
-    <div v-if="isAroundWindowBorderFor250Ms && !isLoading" class="pointer-events-none absolute left-0 top-0 z-999 h-full w-full">
-      <div
-        :class="[
-          'b-primary/50',
-          'h-full w-full animate-flash animate-duration-3s animate-count-infinite b-4 rounded-2xl',
-        ]"
-      />
-    </div>
-  </Transition>
 </template>
 
 <style scoped>

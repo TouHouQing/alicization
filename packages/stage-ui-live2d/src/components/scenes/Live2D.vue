@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { Screen } from '@proj-alicization/ui'
-import { storeToRefs } from 'pinia'
 import { ref, watch } from 'vue'
 
 import Live2DCanvas from './live2d/Canvas.vue'
 import Live2DModel from './live2d/Model.vue'
-
-import { useLive2d } from '../../stores/live2d'
 
 import '../../utils/live2d-zip-loader'
 import '../../utils/live2d-opfs-registration'
@@ -19,6 +16,8 @@ withDefaults(defineProps<{
   mouthOpenSize?: number
   focusAt?: { x: number, y: number }
   disableFocusAt?: boolean
+  xOffset?: number | string
+  yOffset?: number | string
   scale?: number
   themeColorsHue?: number
   themeColorsHueDynamic?: boolean
@@ -31,6 +30,8 @@ withDefaults(defineProps<{
   paused: false,
   focusAt: () => ({ x: 0, y: 0 }),
   mouthOpenSize: 0,
+  xOffset: 0,
+  yOffset: 0,
   scale: 1,
   themeColorsHue: 220.44,
   themeColorsHueDynamic: false,
@@ -50,9 +51,21 @@ const componentStateCanvas = defineModel<'pending' | 'loading' | 'mounted'>('can
 const componentStateModel = defineModel<'pending' | 'loading' | 'mounted'>('modelState', { default: 'pending' })
 
 const live2dCanvasRef = ref<InstanceType<typeof Live2DCanvas>>()
-
-const live2d = useLive2d()
-const { position } = storeToRefs(live2d)
+const live2dModelRef = ref<{
+  characterFrame: () => {
+    left: number
+    right: number
+    top: number
+    bottom: number
+    centerX: number
+    anchorY: number
+  } | null
+  dragAnchorClientPoint: () => {
+    x: number
+    y: number
+  } | null
+  hitTestClientPoint: (clientX: number, clientY: number) => boolean
+}>()
 
 watch([componentStateModel, componentStateCanvas], () => {
   componentState.value = (componentStateModel.value === 'mounted' && componentStateCanvas.value === 'mounted')
@@ -63,6 +76,15 @@ watch([componentStateModel, componentStateCanvas], () => {
 defineExpose({
   canvasElement: () => {
     return live2dCanvasRef.value?.canvasElement()
+  },
+  characterFrame: () => {
+    return live2dModelRef.value?.characterFrame()
+  },
+  dragAnchorClientPoint: () => {
+    return live2dModelRef.value?.dragAnchorClientPoint() ?? null
+  },
+  hitTestClientPoint: (clientX: number, clientY: number) => {
+    return live2dModelRef.value?.hitTestClientPoint(clientX, clientY) ?? false
   },
 })
 </script>
@@ -80,6 +102,7 @@ defineExpose({
       max-h="100dvh"
     >
       <Live2DModel
+        ref="live2dModelRef"
         v-model:state="componentStateModel"
         :model-src="modelSrc"
         :model-id="modelId"
@@ -89,8 +112,8 @@ defineExpose({
         :height="height"
         :paused="paused"
         :focus-at="focusAt"
-        :x-offset="position.x"
-        :y-offset="position.y"
+        :x-offset="xOffset"
+        :y-offset="yOffset"
         :scale="scale"
         :disable-focus-at="disableFocusAt"
         :theme-colors-hue="themeColorsHue"

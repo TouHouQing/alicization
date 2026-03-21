@@ -1,63 +1,82 @@
-import type { StageBubblePlacement, StageDialoguePanelRect } from '../utils'
+import type {
+  StageBubblePlacement,
+  StageDialoguePanelRect,
+  StageDialoguePanelSize,
+  StageDialogueRelativeOffset,
+} from '../utils'
 
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { defineStore } from 'pinia'
 
-const stageDialogueDefaultRect: StageDialoguePanelRect = {
-  x: 0,
-  y: 0,
+const stageDialogueDefaultSize: StageDialoguePanelSize = {
   width: 0,
   height: 0,
 }
 
-const stageDialogueDefaultOrbFrame = {
+const stageDialogueDefaultOffset: StageDialogueRelativeOffset = {
   x: 0,
   y: 0,
 }
 
-type StageDialogueFrames = Record<StageBubblePlacement, StageDialoguePanelRect>
+type StageDialoguePlacementSizes = Record<StageBubblePlacement, StageDialoguePanelSize>
+type StageDialoguePlacementOffsets = Record<StageBubblePlacement, StageDialogueRelativeOffset>
 type StageDialogueCustomized = Record<StageBubblePlacement, boolean>
-type StageDialogueOrbFrame = typeof stageDialogueDefaultOrbFrame
 
 export const useStageDialogueStore = defineStore('stage-dialogue', () => {
-  const frames = useLocalStorageManualReset<StageDialogueFrames>('settings/stage/dialogue/frames', {
-    'top-left': { ...stageDialogueDefaultRect },
-    'top-right': { ...stageDialogueDefaultRect },
+  const sizes = useLocalStorageManualReset<StageDialoguePlacementSizes>('settings/stage/dialogue/sizes', {
+    'top-left': { ...stageDialogueDefaultSize },
+    'top-right': { ...stageDialogueDefaultSize },
+  })
+  const offsets = useLocalStorageManualReset<StageDialoguePlacementOffsets>('settings/stage/dialogue/offsets', {
+    'top-left': { ...stageDialogueDefaultOffset },
+    'top-right': { ...stageDialogueDefaultOffset },
   })
   const customized = useLocalStorageManualReset<StageDialogueCustomized>('settings/stage/dialogue/customized', {
     'top-left': false,
     'top-right': false,
   })
-  const orbFrame = useLocalStorageManualReset<StageDialogueOrbFrame>('settings/stage/dialogue/orb-frame', {
-    ...stageDialogueDefaultOrbFrame,
+  const orbOffset = useLocalStorageManualReset<StageDialogueRelativeOffset>('settings/stage/dialogue/orb-offset', {
+    ...stageDialogueDefaultOffset,
   })
   const orbCustomized = useLocalStorageManualReset('settings/stage/dialogue/orb-customized', false)
   const minimized = useLocalStorageManualReset('settings/stage/dialogue/minimized', false)
 
-  function getFrame(placement: StageBubblePlacement) {
-    return frames.value[placement] ?? stageDialogueDefaultRect
+  function getSize(placement: StageBubblePlacement) {
+    return sizes.value[placement] ?? stageDialogueDefaultSize
   }
 
-  function hasCustomizedFrame(placement: StageBubblePlacement) {
+  function getOffset(placement: StageBubblePlacement) {
+    return offsets.value[placement] ?? stageDialogueDefaultOffset
+  }
+
+  function hasCustomizedOffset(placement: StageBubblePlacement) {
     return Boolean(customized.value[placement])
   }
 
-  function getOrbFrame() {
-    return orbFrame.value
+  function getOrbOffset() {
+    return orbOffset.value
   }
 
-  function hasCustomizedOrbFrame() {
+  function hasCustomizedOrbOffset() {
     return Boolean(orbCustomized.value)
   }
 
-  function setFrame(
+  function setPanelLayout(
     placement: StageBubblePlacement,
-    frame: StageDialoguePanelRect,
+    rect: StageDialoguePanelRect,
+    relativeOffset: StageDialogueRelativeOffset,
     options: { markCustomized?: boolean } = {},
   ) {
-    frames.value = {
-      ...frames.value,
-      [placement]: { ...frame },
+    sizes.value = {
+      ...sizes.value,
+      [placement]: {
+        width: rect.width,
+        height: rect.height,
+      },
+    }
+    offsets.value = {
+      ...offsets.value,
+      [placement]: { ...relativeOffset },
     }
 
     if (options.markCustomized !== false) {
@@ -68,36 +87,20 @@ export const useStageDialogueStore = defineStore('stage-dialogue', () => {
     }
   }
 
-  function setOrbFrame(
-    frame: Pick<StageDialoguePanelRect, 'x' | 'y'>,
-    options: { markCustomized?: boolean } = {},
-  ) {
-    orbFrame.value = {
-      x: frame.x,
-      y: frame.y,
-    }
+  function setOrbLayout(offset: StageDialogueRelativeOffset, options: { markCustomized?: boolean } = {}) {
+    orbOffset.value = { ...offset }
 
     if (options.markCustomized !== false)
       orbCustomized.value = true
   }
 
-  function resetFrame(placement?: StageBubblePlacement) {
-    if (placement) {
-      frames.value = {
-        ...frames.value,
-        [placement]: { ...stageDialogueDefaultRect },
-      }
-      customized.value = {
-        ...customized.value,
-        [placement]: false,
-      }
-      return
-    }
-
-    frames.reset()
+  function resetLayout() {
+    sizes.reset()
+    offsets.reset()
     customized.reset()
-    orbFrame.reset()
+    orbOffset.reset()
     orbCustomized.reset()
+    minimized.reset()
   }
 
   function expand() {
@@ -113,18 +116,20 @@ export const useStageDialogueStore = defineStore('stage-dialogue', () => {
   }
 
   return {
-    frames,
+    sizes,
+    offsets,
     customized,
-    orbFrame,
+    orbOffset,
     orbCustomized,
     minimized,
-    getFrame,
-    hasCustomizedFrame,
-    getOrbFrame,
-    hasCustomizedOrbFrame,
-    setFrame,
-    setOrbFrame,
-    resetFrame,
+    getSize,
+    getOffset,
+    hasCustomizedOffset,
+    getOrbOffset,
+    hasCustomizedOrbOffset,
+    setPanelLayout,
+    setOrbLayout,
+    resetLayout,
     expand,
     minimize,
     toggleMinimized,

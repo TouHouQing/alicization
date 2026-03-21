@@ -26,12 +26,13 @@ import { storeToRefs } from 'pinia'
 import { BlendFunction } from 'postprocessing'
 import {
   ACESFilmicToneMapping,
+  Box3,
   Euler,
   MathUtils,
   PerspectiveCamera,
   Vector3,
 } from 'three'
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { computed, isRef, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 
 // From stage-ui-three package
 import { useRenderTargetRegionAtClientPoint } from '../composables/render-target'
@@ -274,6 +275,15 @@ const { readRenderTargetRegionAtClientPoint, disposeRenderTarget } = useRenderTa
   getCanvas: () => tresCanvasRef.value?.renderer.instance.domElement,
 })
 
+function hasRenderablePixel(data: Uint8Array) {
+  for (let index = 3; index < data.length; index += 4) {
+    if (data[index] > 12)
+      return true
+  }
+
+  return false
+}
+
 /*
   * Pinia store definition
   * - Lilia: We highly recommend you gather all the store data definition here
@@ -411,6 +421,7 @@ function onVRMModelLoadStart() {
 }
 
 function onVRMSceneBootstrap(value: SceneBootstrap) {
+  modelStore.bootstrapCameraDistance = value.cameraDistance
   pendingSceneBootstrap.value = value
 }
 
@@ -634,6 +645,83 @@ watch(directionalLightRotation, (newRotation) => {
   updateDirLightTarget(newRotation)
 }, { deep: true })
 
+function resolveSceneObject() {
+  const sceneValue = modelRef.value?.scene as unknown
+
+  if (isRef(sceneValue))
+    return sceneValue.value
+
+  return sceneValue
+}
+
+function characterFrame() {
+  const canvas = tresCanvasRef.value?.renderer.instance.domElement
+  const sceneObject = resolveSceneObject()
+  if (!canvas || !sceneObject)
+    return null
+
+  const bounds = canvas.getBoundingClientRect()
+  if (!bounds.width || !bounds.height)
+    return null
+
+  const box = new Box3().setFromObject(sceneObject as any)
+  if (box.isEmpty())
+    return null
+
+  const corners = [
+    new Vector3(box.min.x, box.min.y, box.min.z),
+    new Vector3(box.min.x, box.min.y, box.max.z),
+    new Vector3(box.min.x, box.max.y, box.min.z),
+    new Vector3(box.min.x, box.max.y, box.max.z),
+    new Vector3(box.max.x, box.min.y, box.min.z),
+    new Vector3(box.max.x, box.min.y, box.max.z),
+    new Vector3(box.max.x, box.max.y, box.min.z),
+    new Vector3(box.max.x, box.max.y, box.max.z),
+  ]
+
+  const projected = corners
+    .map((corner) => {
+      const point = corner.clone().project(camera.value)
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || point.z < -1 || point.z > 1)
+        return null
+
+      return {
+        x: bounds.left + ((point.x + 1) / 2) * bounds.width,
+        y: bounds.top + (1 - ((point.y + 1) / 2)) * bounds.height,
+      }
+    })
+    .filter((point): point is { x: number, y: number } => Boolean(point))
+
+  if (projected.length === 0)
+    return null
+
+  const left = Math.min(...projected.map(point => point.x))
+  const right = Math.max(...projected.map(point => point.x))
+  const top = Math.min(...projected.map(point => point.y))
+  const bottom = Math.max(...projected.map(point => point.y))
+  const height = Math.max(0, bottom - top)
+
+  if (height <= 0 || right <= left)
+    return null
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    centerX: (left + right) / 2,
+    anchorY: top + height * 0.18,
+  }
+}
+
+function hitTestClientPoint(clientX: number, clientY: number) {
+  const pixelData = readRenderTargetRegionAtClientPoint(clientX, clientY, 5)
+  if (!pixelData)
+    return false
+
+  return hasRenderablePixel(pixelData.data)
+}
+
 defineExpose({
   setExpression: (expression: string, intensity = 1) => {
     modelRef.value?.setExpression(expression, intensity)
@@ -659,6 +747,8 @@ defineExpose({
   canvasElement: () => {
     return tresCanvasRef.value?.renderer.instance.domElement
   },
+  characterFrame,
+  hitTestClientPoint,
   camera: () => camera.value,
   renderer: () => tresCanvasRef.value?.renderer.instance,
   scene: () => modelRef.value?.scene,

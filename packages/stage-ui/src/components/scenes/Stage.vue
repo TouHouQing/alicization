@@ -17,14 +17,14 @@ import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
 import { wlipsyncProfile } from '@proj-alicization/model-driver-lipsync/shared/wlipsync'
 import { createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
 import { Live2DScene, useLive2d } from '@proj-alicization/stage-ui-live2d'
-import { ThreeScene } from '@proj-alicization/stage-ui-three'
+import { ThreeScene, useModelStore } from '@proj-alicization/stage-ui-three'
 import { animations, builtinActionBindings } from '@proj-alicization/stage-ui-three/assets/vrm'
 import {
   listVrmPresetFacialCapabilities,
   supportsVrmBaseEmotion,
 } from '@proj-alicization/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-alicization/stream-kit'
-import { useBroadcastChannel, useMediaQuery } from '@vueuse/core'
+import { useBroadcastChannel, useMediaQuery, useResizeObserver } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
@@ -56,21 +56,28 @@ import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
 import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, useStagePerformanceStore } from '../../stores/stage-performance'
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
+import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
 
 const props = withDefaults(defineProps<{
   paused?: boolean
   focusAt: { x: number, y: number }
   xOffset?: number | string
   yOffset?: number | string
+  live2dPositionMode?: 'percent' | 'pixel'
   scale?: number
   quickReplyEnabled?: boolean
-}>(), { paused: false, scale: 1, quickReplyEnabled: true })
+}>(), { paused: false, live2dPositionMode: 'percent', scale: 1, quickReplyEnabled: true })
+
+const emit = defineEmits<{
+  (e: 'desktopInteractionChange', active: boolean): void
+}>()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 
 const db = ref<DuckDBWasmDrizzleDatabase>()
 // const transformersProvider = createTransformers({ embedWorkerURL })
 
+const stageRootRef = ref<HTMLDivElement | null>(null)
 const vrmViewerRef = ref<InstanceType<typeof ThreeScene>>()
 const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
 
@@ -105,16 +112,83 @@ const presenceCleanups: Array<() => void> = []
 const providersStore = useProvidersStore()
 const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore()
 const live2dStore = useLive2d()
+const modelStore = useModelStore()
 const stagePerformanceStore = useStagePerformanceStore()
 const chatSessionStore = useChatSessionStore()
 const chatStreamStore = useChatStreamStore()
 const dialoguePanelRef = ref<InstanceType<typeof StageDialoguePanel>>()
 const { messages } = storeToRefs(chatSessionStore)
 const { streamingMessage } = storeToRefs(chatStreamStore)
+const { position: live2dPosition, scale: live2dScale } = storeToRefs(live2dStore)
+const {
+  bootstrapCameraDistance,
+  cameraDistance,
+  cameraFOV,
+  modelOffset,
+} = storeToRefs(modelStore)
 const resolvedVrmExternalAnimations = ref<VrmActionBinding[]>([])
 const currentVrmRuntimeCapabilities = ref<VrmRuntimeCapabilitySnapshot | null>(null)
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
+const stageBounds = ref({ width: 0, height: 0 })
+const directDesktopInteractionActive = ref(false)
+const dialoguePanelInteractionActive = ref(false)
+
+useResizeObserver(stageRootRef, (entries) => {
+  const entry = entries[0]
+  if (!entry)
+    return
+
+  stageBounds.value = {
+    width: entry.contentRect.width,
+    height: entry.contentRect.height,
+  }
+})
+
+const desktopInteractions = useStageDesktopInteractions({
+  stageElement: stageRootRef,
+  dialogueElement: () => dialoguePanelRef.value?.panelRootElement(),
+  stageModelRenderer,
+  live2dHandle: () => {
+    const scene = live2dSceneRef.value
+    if (!scene)
+      return undefined
+
+    return {
+      characterFrame: () => scene.characterFrame() ?? null,
+      dragAnchorClientPoint: () => scene.dragAnchorClientPoint?.() ?? null,
+      hitTestClientPoint: (clientX: number, clientY: number) => scene.hitTestClientPoint(clientX, clientY),
+    }
+  },
+  vrmHandle: () => {
+    const scene = vrmViewerRef.value
+    if (!scene)
+      return undefined
+
+    return {
+      characterFrame: () => scene.characterFrame() ?? null,
+      hitTestClientPoint: (clientX: number, clientY: number) => scene.hitTestClientPoint(clientX, clientY),
+    }
+  },
+  live2dPositionMode: computed(() => props.live2dPositionMode),
+  live2dPosition,
+  live2dScale,
+  vrmModelOffset: modelOffset,
+  vrmCameraDistance: cameraDistance,
+  vrmBootstrapCameraDistance: bootstrapCameraDistance,
+  vrmCameraFov: cameraFOV,
+  onInteractionChange(active) {
+    directDesktopInteractionActive.value = active
+  },
+})
+
+watch(
+  () => directDesktopInteractionActive.value || dialoguePanelInteractionActive.value,
+  (active) => {
+    emit('desktopInteractionChange', active)
+  },
+  { flush: 'sync', immediate: true },
+)
 
 // Caption + Presentation broadcast channels
 type CaptionChannelEvent
@@ -893,6 +967,8 @@ function parseStagePositionX(offset: number | string | undefined) {
   return 0
 }
 
+const stageCharacterFrame = computed(() => desktopInteractions.characterFrame.value)
+
 function clearStageCharacterHoverLeaveTimeout() {
   if (!stageCharacterHoverLeaveTimeout)
     return
@@ -932,7 +1008,12 @@ function handleDialoguePanelFocusChange(focused: boolean) {
     clearStageCharacterHoverLeaveTimeout()
 }
 
-const dialoguePlacement = computed(() => resolveStageBubblePlacement(parseStagePositionX(props.xOffset)))
+const dialoguePlacement = computed(() => {
+  if (stageCharacterFrame.value && stageBounds.value.width > 0)
+    return resolveStageBubblePlacement(stageCharacterFrame.value, stageBounds.value.width)
+
+  return resolveStageBubblePlacement(parseStagePositionX(props.xOffset))
+})
 const streamingBubbleText = computed(() => resolveStageBubbleText(streamingMessage.value))
 const recentAssistantBubbleMessage = computed(() => {
   return [...messages.value]
@@ -993,7 +1074,12 @@ defineExpose({
 </script>
 
 <template>
-  <div relative h-full w-full>
+  <div
+    ref="stageRootRef"
+    relative h-full w-full
+    @pointerdown="desktopInteractions.handlePointerDown"
+    @wheel="desktopInteractions.handleWheel"
+  >
     <div h-full w-full>
       <Live2DScene
         v-if="stageModelRenderer === 'live2d' && showStage"
@@ -1043,7 +1129,7 @@ defineExpose({
     >
       <StageDialoguePanel
         ref="dialoguePanelRef"
-        :character-offset-x="parseStagePositionX(props.xOffset)"
+        :character-frame="stageCharacterFrame"
         :loading="bubbleLoading"
         :streaming="bubbleStreaming"
         :text="bubbleText"
@@ -1052,6 +1138,7 @@ defineExpose({
         :visible="showDialogueOverlay"
         @hover-change="handleDialoguePanelHoverChange"
         @focus-change="handleDialoguePanelFocusChange"
+        @interaction-change="dialoguePanelInteractionActive = $event"
       />
     </div>
   </div>

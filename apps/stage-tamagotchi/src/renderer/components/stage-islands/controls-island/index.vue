@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { defineInvoke } from '@moeru/eventa'
-import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
+import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
 import { useTheme } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
@@ -15,25 +14,24 @@ import ControlsIslandProfilePicker from './controls-island-profile-picker.vue'
 import IndicatorMicVolume from './indicator-mic-volume.vue'
 
 import {
-  electron,
   electronAppQuit,
   electronOpenChat,
   electronOpenSettings,
-  electronStartDraggingWindow,
   electronWindowSetAlwaysOnTop,
 } from '../../../../shared/eventa'
 
+const emit = defineEmits<{
+  (e: 'resetDesktopLayout'): void
+}>()
 const { isDark, toggleDark } = useTheme()
 const { t } = useI18n()
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
 const settingsStore = useSettings()
-const context = useElectronEventaContext()
 const { enabled } = storeToRefs(settingsAudioDeviceStore)
 const { alwaysOnTop, controlsIslandIconSize } = storeToRefs(settingsStore)
 const openSettings = useElectronEventaInvoke(electronOpenSettings)
 const openChat = useElectronEventaInvoke(electronOpenChat)
-const isLinux = useElectronEventaInvoke(electron.app.isLinux)
 const closeWindow = useElectronEventaInvoke(electronAppQuit)
 const setAlwaysOnTop = useElectronEventaInvoke(electronWindowSetAlwaysOnTop)
 
@@ -76,14 +74,6 @@ const adjustStyleClasses = computed(() => {
   const padding = isLarge ? 'p-2' : 'p-0.5'
   return { icon, border, padding, button: `${border} ${padding}` }
 })
-
-/**
- * This is a know issue (or expected behavior maybe) to Electron.
- * We don't use this approach on Linux because it's not working.
- *
- * See `apps/stage-tamagotchi/src/main/windows/main/index.ts` for handler definition
- */
-const startDraggingWindow = !isLinux() ? defineInvoke(context.value, electronStartDraggingWindow) : undefined
 
 function refreshWindow() {
   window.location.reload()
@@ -225,8 +215,8 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
         </ControlButtonTooltip>
 
         <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" cursor-move :class="{ 'drag-region': isLinux }" @mousedown="startDraggingWindow?.()">
-            <div i-ph:arrows-out-cardinal :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
+          <ControlButton :button-style="adjustStyleClasses.button" @click="emit('resetDesktopLayout')">
+            <div i-ph:arrows-counter-clockwise :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
           </ControlButton>
           <template #tooltip>
             {{ t('tamagotchi.stage.controls-island.drag-to-move-window') }}

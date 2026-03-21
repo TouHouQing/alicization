@@ -16,7 +16,7 @@ docs:
   'open-chat': 打开聊天
   'refresh': 刷新
   'open-hearing-controls': 打开听力控制
-  'drag-to-move-window': 拖动以移动窗口
+  'drag-to-move-window': 重置桌面布局
   'switch-to-light-mode': 切换到亮色模式
   'switch-to-dark-mode': 切换到暗色模式
   'pin-on-top': 置顶显示

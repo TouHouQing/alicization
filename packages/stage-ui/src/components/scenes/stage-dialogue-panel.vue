@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { StageBubblePlacement, StageDialoguePanelRect } from '../../utils'
+import type { StageBubblePlacement, StageCharacterFrame, StageDialoguePanelRect } from '../../utils'
 
 import { useResizeObserver } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
@@ -13,6 +13,7 @@ import { useStageDialogueStore } from '../../stores/stage-dialogue'
 import {
   clampStageDialogueOrbRect,
   clampStageDialoguePanelRect,
+  resolveStageDialogueAnchoredPanelRect,
   resolveStageDialogueDefaultPanelRect,
   stageDialogueOrbSize,
   stageDialoguePanelChromeWidth,
@@ -24,21 +25,23 @@ const props = withDefaults(defineProps<{
   streaming?: boolean
   placement?: StageBubblePlacement
   quickReplyEnabled?: boolean
-  characterOffsetX?: number
+  characterFrame?: StageCharacterFrame | null
   visible?: boolean
 }>(), {
   loading: false,
   streaming: false,
   placement: 'top-right',
   quickReplyEnabled: true,
-  characterOffsetX: 0,
+  characterFrame: null,
   visible: false,
 })
 
 const emit = defineEmits<{
   (e: 'hoverChange', hovered: boolean): void
   (e: 'focusChange', focused: boolean): void
+  (e: 'interactionChange', active: boolean): void
 }>()
+
 type InteractionSource = 'panel' | 'orb'
 type InteractionMode = 'drag' | 'resize'
 type ResizeHandle = 'north' | 'south' | 'east' | 'west' | 'north-east' | 'north-west' | 'south-east' | 'south-west'
@@ -67,7 +70,7 @@ const liveRect = ref<StageDialoguePanelRect | null>(null)
 const boundsInput = computed(() => ({
   containerWidth: hostSize.value.width,
   containerHeight: hostSize.value.height,
-  characterOffsetX: props.characterOffsetX,
+  characterFrame: props.characterFrame,
   placement: props.placement,
   quickReplyEnabled: props.quickReplyEnabled,
 }))
@@ -84,54 +87,85 @@ function clampOrbRect(rect: StageDialoguePanelRect) {
   return clampStageDialogueOrbRect(rect, boundsInput.value)
 }
 
+function resolveStoredPanelRect() {
+  const storedSize = stageDialogueStore.getSize(props.placement)
+  return resolveStageDialogueAnchoredPanelRect(boundsInput.value, {
+    offset: stageDialogueStore.hasCustomizedOffset(props.placement)
+      ? stageDialogueStore.getOffset(props.placement)
+      : undefined,
+    size: {
+      width: storedSize.width > 0 ? storedSize.width : undefined,
+      height: storedSize.height > 0 ? storedSize.height : undefined,
+    },
+  })
+}
+
+function resolveDefaultOrbRect() {
+  const defaultPanelRect = resolveStageDialogueDefaultPanelRect(boundsInput.value)
+  return clampOrbRect({
+    x: defaultPanelRect.x,
+    y: defaultPanelRect.y,
+    width: stageDialogueOrbSize,
+    height: stageDialogueOrbSize,
+  })
+}
+
 function resolveExpandedRect() {
-  if (liveRect.value && hasUsableBounds() && activeInteraction.value?.source !== 'orb')
+  if (!hasUsableBounds())
+    return { x: 0, y: 0, width: 0, height: 0 }
+
+  if (liveRect.value && activeInteraction.value?.source !== 'orb')
     return clampExpandedRect(liveRect.value)
 
-  if (!hasUsableBounds())
-    return stageDialogueStore.getFrame(props.placement)
-
-  const storedRect = stageDialogueStore.getFrame(props.placement)
-  const hasStoredFrame = stageDialogueStore.hasCustomizedFrame(props.placement) && storedRect.width > 0 && storedRect.height > 0
-  const baseRect = hasStoredFrame
-    ? storedRect
-    : resolveStageDialogueDefaultPanelRect(boundsInput.value)
-
-  return clampExpandedRect(baseRect)
+  return resolveStoredPanelRect()
 }
 
 function resolveOrbRect() {
-  if (liveRect.value && hasUsableBounds() && activeInteraction.value?.source === 'orb')
-    return clampOrbRect(liveRect.value)
-
-  const baseRect = resolveExpandedRect()
-
   if (!hasUsableBounds()) {
-    const storedOrbFrame = stageDialogueStore.getOrbFrame()
     return {
-      x: storedOrbFrame.x,
-      y: storedOrbFrame.y,
+      x: 0,
+      y: 0,
       width: stageDialogueOrbSize,
       height: stageDialogueOrbSize,
     }
   }
 
-  const storedOrbFrame = stageDialogueStore.getOrbFrame()
-  const orbRect = stageDialogueStore.hasCustomizedOrbFrame()
-    ? {
-        ...baseRect,
-        x: storedOrbFrame.x,
-        y: storedOrbFrame.y,
-        width: stageDialogueOrbSize,
-        height: stageDialogueOrbSize,
-      }
-    : {
-        ...baseRect,
-        width: stageDialogueOrbSize,
-        height: stageDialogueOrbSize,
-      }
+  if (liveRect.value && activeInteraction.value?.source === 'orb')
+    return clampOrbRect(liveRect.value)
 
-  return clampOrbRect(orbRect)
+  const defaultOrbRect = resolveDefaultOrbRect()
+  if (!stageDialogueStore.hasCustomizedOrbOffset())
+    return defaultOrbRect
+
+  const storedOffset = stageDialogueStore.getOrbOffset()
+  return clampOrbRect({
+    x: defaultOrbRect.x + storedOffset.x,
+    y: defaultOrbRect.y + storedOffset.y,
+    width: stageDialogueOrbSize,
+    height: stageDialogueOrbSize,
+  })
+}
+
+function resolvePanelOffset(rect: StageDialoguePanelRect) {
+  const anchoredRect = resolveStageDialogueAnchoredPanelRect(boundsInput.value, {
+    size: {
+      width: rect.width,
+      height: rect.height,
+    },
+  })
+
+  return {
+    x: rect.x - anchoredRect.x,
+    y: rect.y - anchoredRect.y,
+  }
+}
+
+function resolveOrbOffset(rect: StageDialoguePanelRect) {
+  const anchoredRect = resolveDefaultOrbRect()
+  return {
+    x: rect.x - anchoredRect.x,
+    y: rect.y - anchoredRect.y,
+  }
 }
 
 function commitExpandedRect(rect: StageDialoguePanelRect, options: { markCustomized?: boolean } = {}) {
@@ -140,7 +174,7 @@ function commitExpandedRect(rect: StageDialoguePanelRect, options: { markCustomi
 
   const nextRect = clampExpandedRect(rect)
   liveRect.value = null
-  stageDialogueStore.setFrame(props.placement, nextRect, options)
+  stageDialogueStore.setPanelLayout(props.placement, nextRect, resolvePanelOffset(nextRect), options)
 }
 
 function commitOrbRect(rect: StageDialoguePanelRect, options: { markCustomized?: boolean } = {}) {
@@ -149,7 +183,7 @@ function commitOrbRect(rect: StageDialoguePanelRect, options: { markCustomized?:
 
   const nextRect = clampOrbRect(rect)
   liveRect.value = null
-  stageDialogueStore.setOrbFrame(nextRect, options)
+  stageDialogueStore.setOrbLayout(resolveOrbOffset(nextRect), options)
 }
 
 function previewExpandedRect(rect: StageDialoguePanelRect) {
@@ -166,27 +200,25 @@ function previewOrbRect(rect: StageDialoguePanelRect) {
   liveRect.value = clampOrbRect(rect)
 }
 
-function syncRect(options: { markCustomized?: boolean } = {}) {
+function syncRect() {
   if (!hasUsableBounds())
     return
 
   liveRect.value = null
 
-  const nextRect = stageDialogueStore.hasCustomizedFrame(props.placement)
-    ? clampExpandedRect(stageDialogueStore.getFrame(props.placement))
-    : resolveStageDialogueDefaultPanelRect(boundsInput.value)
+  const nextPanelRect = resolveStoredPanelRect()
+  stageDialogueStore.setPanelLayout(
+    props.placement,
+    nextPanelRect,
+    resolvePanelOffset(nextPanelRect),
+    { markCustomized: stageDialogueStore.hasCustomizedOffset(props.placement) },
+  )
 
-  stageDialogueStore.setFrame(props.placement, nextRect, { markCustomized: options.markCustomized ?? false })
-
-  const storedOrbFrame = stageDialogueStore.getOrbFrame()
-  const nextOrbRect = clampOrbRect({
-    ...nextRect,
-    x: stageDialogueStore.hasCustomizedOrbFrame() ? storedOrbFrame.x : nextRect.x,
-    y: stageDialogueStore.hasCustomizedOrbFrame() ? storedOrbFrame.y : nextRect.y,
-    width: stageDialogueOrbSize,
-    height: stageDialogueOrbSize,
-  })
-  stageDialogueStore.setOrbFrame(nextOrbRect, { markCustomized: false })
+  const nextOrbRect = resolveOrbRect()
+  stageDialogueStore.setOrbLayout(
+    resolveOrbOffset(nextOrbRect),
+    { markCustomized: stageDialogueStore.hasCustomizedOrbOffset() },
+  )
 }
 
 useResizeObserver(hostRef, (entries) => {
@@ -198,16 +230,12 @@ useResizeObserver(hostRef, (entries) => {
     width: entry.contentRect.width,
     height: entry.contentRect.height,
   }
-  syncRect({ markCustomized: false })
+  syncRect()
 })
 
-watch(() => props.placement, () => {
-  syncRect({ markCustomized: false })
+watch([() => props.placement, () => props.quickReplyEnabled], () => {
+  syncRect()
 }, { immediate: true })
-
-watch(() => props.quickReplyEnabled, () => {
-  syncRect({ markCustomized: false })
-})
 
 watch(() => props.loading, (loading) => {
   if (loading)
@@ -228,6 +256,10 @@ watch(() => props.visible, (visible) => {
   if (visible)
     stageDialogueStore.expand()
 }, { immediate: true })
+
+watch(activeInteraction, (interaction) => {
+  emit('interactionChange', Boolean(interaction))
+}, { flush: 'sync', immediate: true })
 
 const expandedRect = computed(() => resolveExpandedRect())
 const orbRect = computed(() => resolveOrbRect())
@@ -392,6 +424,7 @@ function panelRootElement() {
 
 onUnmounted(() => {
   removeInteractionListeners()
+  emit('interactionChange', false)
 })
 
 defineExpose({

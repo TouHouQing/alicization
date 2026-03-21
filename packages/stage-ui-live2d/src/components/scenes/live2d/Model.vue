@@ -392,6 +392,10 @@ function resetCharacterHover() {
 }
 
 function resolveRendererPointFromPointerEvent(event: PointerEvent) {
+  return resolveRendererPointFromClientPoint(event.clientX, event.clientY)
+}
+
+function resolveRendererPointFromClientPoint(clientX: number, clientY: number) {
   const canvas = pixiApp.value?.view
   const renderer = pixiApp.value?.renderer
   if (!canvas || !renderer)
@@ -402,8 +406,8 @@ function resolveRendererPointFromPointerEvent(event: PointerEvent) {
     return null
 
   return {
-    x: ((event.clientX - bounds.left) / bounds.width) * renderer.width,
-    y: ((event.clientY - bounds.top) / bounds.height) * renderer.height,
+    x: ((clientX - bounds.left) / bounds.width) * renderer.width,
+    y: ((clientY - bounds.top) / bounds.height) * renderer.height,
   }
 }
 
@@ -416,6 +420,66 @@ function isCharacterHoveredAtPoint(x: number, y: number) {
     return true
 
   return model.value.containsPoint({ x, y } as any)
+}
+
+function hitTestClientPoint(clientX: number, clientY: number) {
+  const point = resolveRendererPointFromClientPoint(clientX, clientY)
+  if (!point)
+    return false
+
+  return isCharacterHoveredAtPoint(point.x, point.y)
+}
+
+function dragAnchorClientPoint() {
+  const canvas = pixiApp.value?.view
+  const renderer = pixiApp.value?.renderer
+  if (!canvas || !renderer || !model.value)
+    return null
+
+  const canvasBounds = canvas.getBoundingClientRect()
+  if (!canvasBounds.width || !canvasBounds.height)
+    return null
+
+  const worldTransform = model.value.worldTransform
+  const scaleX = canvasBounds.width / renderer.width
+  const scaleY = canvasBounds.height / renderer.height
+
+  return {
+    x: canvasBounds.left + worldTransform.tx * scaleX,
+    y: canvasBounds.top + worldTransform.ty * scaleY,
+  }
+}
+
+function characterFrame() {
+  const canvas = pixiApp.value?.view
+  const renderer = pixiApp.value?.renderer
+  if (!canvas || !renderer || !model.value)
+    return null
+
+  const canvasBounds = canvas.getBoundingClientRect()
+  if (!canvasBounds.width || !canvasBounds.height)
+    return null
+
+  const bounds = model.value.getBounds()
+  const scaleX = canvasBounds.width / renderer.width
+  const scaleY = canvasBounds.height / renderer.height
+  const left = canvasBounds.left + bounds.x * scaleX
+  const right = canvasBounds.left + (bounds.x + bounds.width) * scaleX
+  const top = canvasBounds.top + bounds.y * scaleY
+  const bottom = canvasBounds.top + (bounds.y + bounds.height) * scaleY
+  const height = Math.max(0, bottom - top)
+
+  if (height <= 0 || right <= left)
+    return null
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    centerX: (left + right) / 2,
+    anchorY: top + height * 0.18,
+  }
 }
 
 function handleCanvasPointerMove(event: PointerEvent) {
@@ -703,6 +767,9 @@ function listMotionGroups() {
 }
 
 defineExpose({
+  characterFrame,
+  dragAnchorClientPoint,
+  hitTestClientPoint,
   setMotion,
   listMotionGroups,
 })

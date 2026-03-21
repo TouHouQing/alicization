@@ -1,5 +1,4 @@
 import type { Rectangle } from 'electron'
-import type { InferOutput } from 'valibot'
 
 import type { I18n } from '../../libs/i18n'
 import type { ServerChannel } from '../../services/airi/channel-server'
@@ -20,10 +19,9 @@ import { is } from '@electron-toolkit/utils'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { initScreenCaptureForWindow } from '@proj-alicization/electron-screen-capture/main'
-import { defu } from 'defu'
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { isLinux, isMacOS } from 'std-env'
-import { array, number, object, optional, string } from 'valibot'
+import { array, object, optional, string } from 'valibot'
 
 import icon from '../../../../resources/icon.png?asset'
 
@@ -37,14 +35,8 @@ const appConfigSchema = object({
   windows: optional(array(object({
     title: optional(string()),
     tag: string(),
-    x: optional(number()),
-    y: optional(number()),
-    width: optional(number()),
-    height: optional(number()),
   }))),
 })
-
-type AppConfig = InferOutput<typeof appConfigSchema>
 
 const mainWindowTitle = 'ALICIZATION'
 
@@ -62,26 +54,30 @@ export async function setupMainWindow(params: {
 }) {
   const {
     setup: setupConfig,
-    get: getConfigRaw,
-    update: updateConfig,
   } = createConfig('app', 'config.json', appConfigSchema, {
     default: { windows: [] },
     autoHeal: true,
   })
-  const getConfig = (): AppConfig => getConfigRaw() ?? { windows: [] }
 
   setupConfig()
 
-  const mainWindowConfig = getConfig().windows?.find(w => w.tag === 'main')
+  function getDesktopBounds() {
+    return screen.getPrimaryDisplay().workArea
+  }
+
+  const desktopBounds = getDesktopBounds()
 
   const window = new BrowserWindow({
     title: mainWindowTitle,
-    width: mainWindowConfig?.width ?? 450.0,
-    height: mainWindowConfig?.height ?? 600.0,
-    x: mainWindowConfig?.x,
-    y: mainWindowConfig?.y,
+    width: desktopBounds.width,
+    height: desktopBounds.height,
+    x: desktopBounds.x,
+    y: desktopBounds.y,
     show: false,
     icon,
+    movable: false,
+    maximizable: false,
+    resizable: false,
     webPreferences: {
       preload: join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs'),
       sandbox: false,
@@ -108,41 +104,30 @@ export async function setupMainWindow(params: {
     }
   }
 
-  function handleNewBounds(newBounds: Rectangle) {
-    const config = getConfig()
-    if (!config.windows || !Array.isArray(config.windows)) {
-      config.windows = []
+  function syncWindowToDesktopBounds(bounds: Rectangle = getDesktopBounds()) {
+    if (window.isDestroyed())
+      return
+
+    const currentBounds = window.getBounds()
+    if (
+      currentBounds.x === bounds.x
+      && currentBounds.y === bounds.y
+      && currentBounds.width === bounds.width
+      && currentBounds.height === bounds.height
+    ) {
+      return
     }
 
-    const existingConfigIndex = config.windows.findIndex(w => w.tag === 'main')
-
-    if (existingConfigIndex === -1) {
-      config.windows.push({
-        title: mainWindowTitle,
-        tag: 'main',
-        x: newBounds.x,
-        y: newBounds.y,
-        width: newBounds.width,
-        height: newBounds.height,
-      })
-    }
-    else {
-      const mainWindowConfig = defu(config.windows[existingConfigIndex], { title: mainWindowTitle, tag: 'main' })
-
-      mainWindowConfig.title = mainWindowTitle
-      mainWindowConfig.x = newBounds.x
-      mainWindowConfig.y = newBounds.y
-      mainWindowConfig.width = newBounds.width
-      mainWindowConfig.height = newBounds.height
-
-      config.windows[existingConfigIndex] = mainWindowConfig
-    }
-
-    updateConfig(config)
+    window.setBounds(bounds, false)
   }
 
-  window.on('resize', () => handleNewBounds(window.getBounds()))
-  window.on('move', () => handleNewBounds(window.getBounds()))
+  const handleDisplayMetricsChanged = () => {
+    syncWindowToDesktopBounds()
+  }
+
+  screen.on('display-added', handleDisplayMetricsChanged)
+  screen.on('display-removed', handleDisplayMetricsChanged)
+  screen.on('display-metrics-changed', handleDisplayMetricsChanged)
 
   // Thanks to [@HeartArmy](https://github.com/HeartArmy) for the tip implementation.
   //
@@ -155,7 +140,10 @@ export async function setupMainWindow(params: {
     window.setWindowButtonVisibility(false)
   }
 
-  window.on('ready-to-show', () => window!.show())
+  window.on('ready-to-show', () => {
+    syncWindowToDesktopBounds()
+    window.show()
+  })
   window.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -204,6 +192,16 @@ export async function setupMainWindow(params: {
 
     window.on('closed', () => {
       cleanUpWindowDraggingInvokeHandler()
+      screen.off('display-added', handleDisplayMetricsChanged)
+      screen.off('display-removed', handleDisplayMetricsChanged)
+      screen.off('display-metrics-changed', handleDisplayMetricsChanged)
+    })
+  }
+  else {
+    window.on('closed', () => {
+      screen.off('display-added', handleDisplayMetricsChanged)
+      screen.off('display-removed', handleDisplayMetricsChanged)
+      screen.off('display-metrics-changed', handleDisplayMetricsChanged)
     })
   }
 

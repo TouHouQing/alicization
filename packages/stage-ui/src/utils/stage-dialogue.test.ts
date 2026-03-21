@@ -7,6 +7,7 @@ import {
   clampStageDialoguePanelRect,
   resolveStageBubblePlacement,
   resolveStageBubbleText,
+  resolveStageDialogueAnchoredPanelRect,
   resolveStageDialogueDefaultPanelRect,
 } from './stage-dialogue'
 
@@ -18,6 +19,24 @@ function createAssistantMessage(overrides: Partial<ChatAssistantMessage> = {}): 
     tool_results: [],
     ...overrides,
   }
+}
+
+const leftCharacterFrame = {
+  left: 180,
+  right: 520,
+  top: 160,
+  bottom: 880,
+  centerX: 350,
+  anchorY: 300,
+}
+
+const rightCharacterFrame = {
+  left: 980,
+  right: 1320,
+  top: 150,
+  bottom: 900,
+  centerX: 1150,
+  anchorY: 290,
 }
 
 describe('stage dialogue utils', () => {
@@ -61,63 +80,93 @@ describe('stage dialogue utils', () => {
     expect(resolveStageBubbleText({ role: 'user', content: 'hello' })).toBe('')
   })
 
-  it('places the bubble on the right when the model is near or left of center', () => {
-    expect(resolveStageBubblePlacement(-24)).toBe('top-right')
-    expect(resolveStageBubblePlacement(0)).toBe('top-right')
-    expect(resolveStageBubblePlacement(8)).toBe('top-right')
+  it('places the bubble on the right when the character is on the left half', () => {
+    expect(resolveStageBubblePlacement(leftCharacterFrame, 1600)).toBe('top-right')
   })
 
-  it('places the bubble on the left when the model is pushed to the right', () => {
-    expect(resolveStageBubblePlacement(18)).toBe('top-left')
+  it('places the bubble on the left when the character is on the right half', () => {
+    expect(resolveStageBubblePlacement(rightCharacterFrame, 1600)).toBe('top-left')
   })
 
-  it('places the default panel on the right lane without crossing the character safe area', () => {
+  it('places the default panel beside the character head on the chosen side', () => {
     const rect = resolveStageDialogueDefaultPanelRect({
-      containerWidth: 1200,
-      containerHeight: 800,
-      characterOffsetX: 0,
+      containerWidth: 1600,
+      containerHeight: 960,
+      characterFrame: leftCharacterFrame,
       placement: 'top-right',
       quickReplyEnabled: true,
     })
 
-    expect(rect.x).toBeGreaterThan(700)
-    expect(rect.width).toBeGreaterThan(300)
+    expect(rect.x).toBeGreaterThan(leftCharacterFrame.right)
+    expect(rect.y).toBeLessThan(leftCharacterFrame.anchorY)
   })
 
-  it('keeps dragged panels inside the stage while allowing free horizontal movement', () => {
+  it('clamps dragged panels only to the full desktop bounds', () => {
     const rect = clampStageDialoguePanelRect({
-      x: 650,
-      y: -30,
-      width: 420,
+      x: 1400,
+      y: -32,
+      width: 460,
       height: 520,
     }, {
-      containerWidth: 1200,
-      containerHeight: 800,
-      characterOffsetX: 12,
+      containerWidth: 1600,
+      containerHeight: 900,
+      characterFrame: rightCharacterFrame,
       placement: 'top-left',
       quickReplyEnabled: true,
     })
 
-    expect(rect.x).toBe(650)
-    expect(rect.y).toBeGreaterThanOrEqual(18)
+    expect(rect.x).toBeLessThanOrEqual(1600 - 18 - rect.width)
+    expect(rect.y).toBe(18)
     expect(rect.height).toBeLessThanOrEqual(420)
   })
 
-  it('lets the minimized orb travel horizontally across the stage bounds', () => {
+  it('keeps the same relative offset when the character moves', () => {
+    const firstRect = resolveStageDialogueAnchoredPanelRect({
+      containerWidth: 1600,
+      containerHeight: 960,
+      characterFrame: leftCharacterFrame,
+      placement: 'top-right',
+      quickReplyEnabled: true,
+    }, {
+      offset: { x: 32, y: -14 },
+      size: { width: 360, height: 280 },
+    })
+
+    const movedRect = resolveStageDialogueAnchoredPanelRect({
+      containerWidth: 1600,
+      containerHeight: 960,
+      characterFrame: {
+        ...leftCharacterFrame,
+        left: leftCharacterFrame.left + 120,
+        right: leftCharacterFrame.right + 120,
+        centerX: leftCharacterFrame.centerX + 120,
+      },
+      placement: 'top-right',
+      quickReplyEnabled: true,
+    }, {
+      offset: { x: 32, y: -14 },
+      size: { width: 360, height: 280 },
+    })
+
+    expect(movedRect.x - firstRect.x).toBe(120)
+    expect(movedRect.y).toBe(firstRect.y)
+  })
+
+  it('lets the minimized orb travel anywhere inside the desktop bounds', () => {
     const rect = clampStageDialogueOrbRect({
-      x: 1600,
+      x: 2000,
       y: 84,
       width: 340,
       height: 280,
     }, {
-      containerWidth: 1200,
-      containerHeight: 800,
-      characterOffsetX: 18,
+      containerWidth: 1600,
+      containerHeight: 900,
+      characterFrame: rightCharacterFrame,
       placement: 'top-left',
       quickReplyEnabled: true,
     })
 
-    expect(rect.x).toBe(1110)
+    expect(rect.x).toBe(1510)
     expect(rect.y).toBe(84)
     expect(rect.width).toBe(72)
     expect(rect.height).toBe(72)

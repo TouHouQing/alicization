@@ -153,6 +153,7 @@ export const useModelStore = defineStore('modelStore', () => {
   // `lookAtTarget` represent the current runtime pose and may be recalculated when
   // a new model bootstrap is applied.
   const cameraPosition = useLocalStorage('settings/stage-ui-three/camera-position', { x: 0, y: 0, z: -1 })
+  const bootstrapCameraDistance = useLocalStorage('settings/stage-ui-three/bootstrapCameraDistance', 0)
   const cameraDistance = useLocalStorage('settings/stage-ui-three/cameraDistance', 0)
   const lookAtTarget = useLocalStorage('settings/stage-ui-three/lookAtTarget', { x: 0, y: 0, z: 0 })
 
@@ -167,6 +168,7 @@ export const useModelStore = defineStore('modelStore', () => {
 
     cameraFOV.value = 40
     cameraPosition.value = { x: 0, y: 0, z: 0 }
+    bootstrapCameraDistance.value = 0
     cameraDistance.value = 0
 
     lookAtTarget.value = { x: 0, y: 0, z: 0 }
@@ -224,6 +226,7 @@ export const useModelStore = defineStore('modelStore', () => {
 
     cameraFOV,
     cameraPosition,
+    bootstrapCameraDistance,
     cameraDistance,
 
     directionalLightPosition,
