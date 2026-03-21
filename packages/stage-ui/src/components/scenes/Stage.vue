@@ -57,6 +57,7 @@ import { isVrmCustomExpressionConfigured, resolveLive2DActionBindingForMotion, u
 import { resolveStageBubblePlacement, resolveStageBubbleText } from '../../utils'
 import { shouldRunLive2dLipSyncLoop } from './runtime'
 import { useStageDesktopInteractions } from './use-stage-desktop-interactions'
+import { useStageDialogueHoverVisibility } from './use-stage-dialogue-hover-visibility'
 
 const props = withDefaults(defineProps<{
   paused?: boolean
@@ -66,7 +67,8 @@ const props = withDefaults(defineProps<{
   live2dPositionMode?: 'percent' | 'pixel'
   scale?: number
   quickReplyEnabled?: boolean
-}>(), { paused: false, live2dPositionMode: 'percent', scale: 1, quickReplyEnabled: true })
+  characterHoveredOverride?: boolean | null
+}>(), { paused: false, live2dPositionMode: 'percent', scale: 1, quickReplyEnabled: true, characterHoveredOverride: null })
 
 const emit = defineEmits<{
   (e: 'desktopInteractionChange', active: boolean): void
@@ -200,7 +202,6 @@ const hoverCapable = useMediaQuery('(hover: hover) and (pointer: fine)')
 const stageCharacterHovered = ref(false)
 const dialoguePanelHovered = ref(false)
 const dialoguePanelFocused = ref(false)
-let stageCharacterHoverLeaveTimeout: number | undefined
 
 type PresentEvent
   = | { type: 'assistant-reset' }
@@ -968,14 +969,12 @@ function parseStagePositionX(offset: number | string | undefined) {
 }
 
 const stageCharacterFrame = computed(() => desktopInteractions.characterFrame.value)
+const effectiveStageCharacterHovered = computed(() => {
+  if (!hoverCapable.value)
+    return false
 
-function clearStageCharacterHoverLeaveTimeout() {
-  if (!stageCharacterHoverLeaveTimeout)
-    return
-
-  clearTimeout(stageCharacterHoverLeaveTimeout)
-  stageCharacterHoverLeaveTimeout = undefined
-}
+  return props.characterHoveredOverride ?? stageCharacterHovered.value
+})
 
 function setStageCharacterHovered(hovered: boolean) {
   if (!hoverCapable.value) {
@@ -983,29 +982,15 @@ function setStageCharacterHovered(hovered: boolean) {
     return
   }
 
-  clearStageCharacterHoverLeaveTimeout()
-
-  if (hovered) {
-    stageCharacterHovered.value = true
-    return
-  }
-
-  stageCharacterHoverLeaveTimeout = window.setTimeout(() => {
-    stageCharacterHovered.value = false
-    stageCharacterHoverLeaveTimeout = undefined
-  }, 160)
+  stageCharacterHovered.value = hovered
 }
 
 function handleDialoguePanelHoverChange(hovered: boolean) {
   dialoguePanelHovered.value = hovered
-  if (hovered)
-    clearStageCharacterHoverLeaveTimeout()
 }
 
 function handleDialoguePanelFocusChange(focused: boolean) {
   dialoguePanelFocused.value = focused
-  if (focused)
-    clearStageCharacterHoverLeaveTimeout()
 }
 
 const dialoguePlacement = computed(() => {
@@ -1033,6 +1018,15 @@ const dialogueHasVisibleContent = computed(() => {
   return props.quickReplyEnabled || bubbleLoading.value || bubbleStreaming.value || !!bubbleText.value
 })
 const usesHoverTriggeredDialogue = computed(() => hoverCapable.value && stageModelRenderer.value === 'live2d')
+const dialogueHoverVisibility = useStageDialogueHoverVisibility({
+  enabled: usesHoverTriggeredDialogue,
+  characterHovered: effectiveStageCharacterHovered,
+  dialogueHovered: dialoguePanelHovered,
+  dialogueFocused: dialoguePanelFocused,
+  dialogueInteracting: dialoguePanelInteractionActive,
+  loading: bubbleLoading,
+  streaming: bubbleStreaming,
+})
 const showDialogueOverlay = computed(() => {
   if (!dialogueHasVisibleContent.value)
     return false
@@ -1042,9 +1036,7 @@ const showDialogueOverlay = computed(() => {
 
   return bubbleLoading.value
     || bubbleStreaming.value
-    || stageCharacterHovered.value
-    || dialoguePanelHovered.value
-    || dialoguePanelFocused.value
+    || dialogueHoverVisibility.visible.value
 })
 
 function dialogueOverlayElement() {
@@ -1059,7 +1051,6 @@ function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, r
 }
 
 onUnmounted(() => {
-  clearStageCharacterHoverLeaveTimeout()
   resetLive2dLipSync()
   chatHookCleanups.forEach(dispose => dispose?.())
   presenceCleanups.forEach(dispose => dispose?.())

@@ -15,7 +15,7 @@ describe('stage desktop page helpers', () => {
         insideDialogueOverlay: false,
         isOutsideWindow: false,
         stageInteractionActive: true,
-        stageInteractivePixel: false,
+        stageCapturePixel: false,
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: true,
@@ -31,7 +31,7 @@ describe('stage desktop page helpers', () => {
         insideDialogueOverlay: false,
         isOutsideWindow: true,
         stageInteractionActive: false,
-        stageInteractivePixel: false,
+        stageCapturePixel: false,
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: false,
@@ -47,7 +47,7 @@ describe('stage desktop page helpers', () => {
         insideDialogueOverlay: false,
         isOutsideWindow: false,
         stageInteractionActive: false,
-        stageInteractivePixel: true,
+        stageCapturePixel: true,
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: true,

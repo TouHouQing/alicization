@@ -64,20 +64,40 @@ const isOutsideStatusIslandFor250Ms = refDebounced(isOutsideStatusIsland, 250)
 const isOutsideDialogueOverlayFor250Ms = refDebounced(isOutsideDialogueOverlay, 250)
 const { focused: isDialogueOverlayFocused } = useFocusWithin(stageDialogueOverlay)
 const { x: relativeMouseX, y: relativeMouseY } = useElectronRelativeMouse()
-// NOTICE: In real-world use cases of Fade on Hover feature, the cursor may move around the edge of the
-// model rapidly, causing flickering effects when checking pixel transparency strictly.
-// Here we use render-target pixel sampling to keep detection aligned with the actual render output.
-const isTransparentByPixels = useCanvasPixelIsTransparentAtPoint(
+const desktopCaptureHitTestOptions = {
+  regionRadius: 0,
+  threshold: 16,
+} as const
+const desktopCharacterHoverHitTestOptions = {
+  regionRadius: 0,
+  threshold: 64,
+} as const
+// NOTICE: Desktop hit testing must stay aligned with the rendered output so blank desktop pixels remain
+// fully click-through. Hover-triggered dialogue uses a stricter alpha threshold than generic capture so
+// faint shadows do not count as "touching the character".
+const isTransparentByPixelsForCapture = useCanvasPixelIsTransparentAtPoint(
   stageCanvas,
   relativeMouseX,
   relativeMouseY,
-  { regionRadius: 25 },
+  desktopCaptureHitTestOptions,
 )
-const isTransparentByThree = useThreeSceneIsTransparentAtPoint(
+const isTransparentByPixelsForCharacterHover = useCanvasPixelIsTransparentAtPoint(
+  stageCanvas,
+  relativeMouseX,
+  relativeMouseY,
+  desktopCharacterHoverHitTestOptions,
+)
+const isTransparentByThreeForCapture = useThreeSceneIsTransparentAtPoint(
   widgetStageRef,
   relativeMouseX,
   relativeMouseY,
-  { regionRadius: 25 },
+  desktopCaptureHitTestOptions,
+)
+const isTransparentByThreeForCharacterHover = useThreeSceneIsTransparentAtPoint(
+  widgetStageRef,
+  relativeMouseX,
+  relativeMouseY,
+  desktopCharacterHoverHitTestOptions,
 )
 
 const settingsStore = useSettings()
@@ -86,15 +106,28 @@ const { stageModelRenderer, stageModelSelectedUrl } = storeToRefs(settingsStore)
 const { stagePaused } = storeToRefs(useStageWindowLifecycleStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
 
-const stageInteractivePixel = computed(() => {
+const stageCapturePixel = computed(() => {
   if (stagePaused.value || componentStateStage.value !== 'mounted')
     return false
 
   if (stageModelRenderer.value === 'vrm')
-    return !isTransparentByThree.value
+    return !isTransparentByThreeForCapture.value
 
   if (stageModelRenderer.value === 'live2d')
-    return !isTransparentByPixels.value
+    return !isTransparentByPixelsForCapture.value
+
+  return false
+})
+
+const stageCharacterHovered = computed(() => {
+  if (stagePaused.value || componentStateStage.value !== 'mounted')
+    return false
+
+  if (stageModelRenderer.value === 'vrm')
+    return !isTransparentByThreeForCharacterHover.value
+
+  if (stageModelRenderer.value === 'live2d')
+    return !isTransparentByPixelsForCharacterHover.value
 
   return false
 })
@@ -124,7 +157,7 @@ watch(componentStateStage, () => isLoading.value = componentStateStage.value !==
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
-watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageInteractivePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   const insideControls = !isOutsideFor250Ms.value || !isOutsideStatusIslandFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
   const { shouldCaptureMouse, shouldFadeOnCursorWithin: nextShouldFadeOnCursorWithin } = resolveDesktopMouseCaptureState({
@@ -134,7 +167,7 @@ watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverla
     insideDialogueOverlay,
     isOutsideWindow: isOutsideWindow.value,
     stageInteractionActive: stageInteractionActive.value,
-    stageInteractivePixel: stageInteractivePixel.value,
+    stageCapturePixel: stageCapturePixel.value,
     stagePaused: stagePaused.value,
   })
 
@@ -445,6 +478,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         :scale="scale"
         :x-offset="position.x"
         :y-offset="position.y"
+        :character-hovered-override="stageCharacterHovered"
         @desktop-interaction-change="stageInteractionActive = $event"
       />
       <ControlsIsland

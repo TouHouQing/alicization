@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Application } from '@pixi/app'
+import type { Cubism4InternalModel } from 'pixi-live2d-display/cubism4'
 
 import type { PixiLive2DInternalModel } from '../../../composables/live2d'
 
@@ -112,9 +113,22 @@ const dropShadowFilter = shallowRef(new DropShadowFilter({
   distance: 20,
   rotation: 45,
 }))
+type Live2DCoreModel = Cubism4InternalModel['coreModel']
+
+function getInternalModel() {
+  return model.value?.internalModel as (PixiLive2DInternalModel & { coreModel: Live2DCoreModel }) | undefined
+}
 
 function getCoreModel() {
-  return model.value!.internalModel.coreModel as any
+  return getInternalModel()?.coreModel
+}
+
+function updateCoreModelParameter(parameterId: string, value: number) {
+  const coreModel = getCoreModel()
+  if (!coreModel)
+    return
+
+  coreModel.setParameterValueById(parameterId, value)
 }
 
 function setScaleAndPosition() {
@@ -235,7 +249,10 @@ async function loadModel() {
 
     // --- Motion
 
-    const internalModel = model.value.internalModel
+    const internalModel = getInternalModel()
+    if (!internalModel)
+      return
+
     const coreModel = internalModel.coreModel
     const motionManager = internalModel.motionManager
     coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenSize.value)
@@ -316,8 +333,8 @@ async function loadModel() {
     motionManagerUpdate.register(useMotionUpdatePluginIdleFocus(), 'post')
     motionManagerUpdate.register(useMotionUpdatePluginAutoEyeBlink(), 'post')
 
-    const hookedUpdate = motionManager.update as (model: PixiLive2DInternalModel['coreModel'], now: number) => boolean
-    motionManager.update = function (model: PixiLive2DInternalModel['coreModel'], now: number) {
+    const hookedUpdate = motionManager.update as (model: Live2DCoreModel, now: number) => boolean
+    motionManager.update = function (model: Live2DCoreModel, now: number) {
       return motionManagerUpdate.hookUpdate(model, now, hookedUpdate)
     }
 
@@ -572,7 +589,7 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
   }
 }, { immediate: true })
 
-watch(mouthOpenSize, value => getCoreModel().setParameterValueById('ParamMouthOpenY', value))
+watch(mouthOpenSize, value => updateCoreModelParameter('ParamMouthOpenY', value))
 watch(currentMotion, value => setMotion(value.group, value.index))
 watch(paused, value => value ? pixiApp.value?.stop() : pixiApp.value?.start())
 watch(() => pixiApp.value?.view, (canvas, previousCanvas) => {
@@ -583,146 +600,28 @@ watch(() => pixiApp.value?.view, (canvas, previousCanvas) => {
 }, { immediate: true })
 
 // Watch and apply model parameters
-watch(() => modelParameters.value.angleX, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamAngleX', value)
-  }
-})
-
-watch(() => modelParameters.value.angleY, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamAngleY', value)
-  }
-})
-
-watch(() => modelParameters.value.angleZ, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamAngleZ', value)
-  }
-})
-
-watch(() => modelParameters.value.leftEyeOpen, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamEyeLOpen', value)
-  }
-})
-
-watch(() => modelParameters.value.rightEyeOpen, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamEyeROpen', value)
-  }
-})
-
-watch(() => modelParameters.value.mouthOpen, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamMouthOpenY', value)
-  }
-})
-
-watch(() => modelParameters.value.mouthForm, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamMouthForm', value)
-  }
-})
-
-watch(() => modelParameters.value.cheek, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamCheek', value)
-  }
-})
-
-watch(() => modelParameters.value.bodyAngleX, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBodyAngleX', value)
-  }
-})
-
-watch(() => modelParameters.value.bodyAngleY, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBodyAngleY', value)
-  }
-})
-
-watch(() => modelParameters.value.bodyAngleZ, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBodyAngleZ', value)
-  }
-})
-
-watch(() => modelParameters.value.breath, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBreath', value)
-  }
-})
+watch(() => modelParameters.value.angleX, value => updateCoreModelParameter('ParamAngleX', value))
+watch(() => modelParameters.value.angleY, value => updateCoreModelParameter('ParamAngleY', value))
+watch(() => modelParameters.value.angleZ, value => updateCoreModelParameter('ParamAngleZ', value))
+watch(() => modelParameters.value.leftEyeOpen, value => updateCoreModelParameter('ParamEyeLOpen', value))
+watch(() => modelParameters.value.rightEyeOpen, value => updateCoreModelParameter('ParamEyeROpen', value))
+watch(() => modelParameters.value.mouthOpen, value => updateCoreModelParameter('ParamMouthOpenY', value))
+watch(() => modelParameters.value.mouthForm, value => updateCoreModelParameter('ParamMouthForm', value))
+watch(() => modelParameters.value.cheek, value => updateCoreModelParameter('ParamCheek', value))
+watch(() => modelParameters.value.bodyAngleX, value => updateCoreModelParameter('ParamBodyAngleX', value))
+watch(() => modelParameters.value.bodyAngleY, value => updateCoreModelParameter('ParamBodyAngleY', value))
+watch(() => modelParameters.value.bodyAngleZ, value => updateCoreModelParameter('ParamBodyAngleZ', value))
+watch(() => modelParameters.value.breath, value => updateCoreModelParameter('ParamBreath', value))
 
 // Watch eyebrow parameters
-watch(() => modelParameters.value.leftEyebrowLR, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowLX', value)
-  }
-})
-
-watch(() => modelParameters.value.rightEyebrowLR, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowRX', value)
-  }
-})
-
-watch(() => modelParameters.value.leftEyebrowY, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowLY', value)
-  }
-})
-
-watch(() => modelParameters.value.rightEyebrowY, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowRY', value)
-  }
-})
-
-watch(() => modelParameters.value.leftEyebrowAngle, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowLAngle', value)
-  }
-})
-
-watch(() => modelParameters.value.rightEyebrowAngle, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowRAngle', value)
-  }
-})
-
-watch(() => modelParameters.value.leftEyebrowForm, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowLForm', value)
-  }
-})
-
-watch(() => modelParameters.value.rightEyebrowForm, (value) => {
-  if (model.value) {
-    const internalModel = model.value.internalModel
-    internalModel.coreModel.setParameterValueById('ParamBrowRForm', value)
-  }
-})
+watch(() => modelParameters.value.leftEyebrowLR, value => updateCoreModelParameter('ParamBrowLX', value))
+watch(() => modelParameters.value.rightEyebrowLR, value => updateCoreModelParameter('ParamBrowRX', value))
+watch(() => modelParameters.value.leftEyebrowY, value => updateCoreModelParameter('ParamBrowLY', value))
+watch(() => modelParameters.value.rightEyebrowY, value => updateCoreModelParameter('ParamBrowRY', value))
+watch(() => modelParameters.value.leftEyebrowAngle, value => updateCoreModelParameter('ParamBrowLAngle', value))
+watch(() => modelParameters.value.rightEyebrowAngle, value => updateCoreModelParameter('ParamBrowRAngle', value))
+watch(() => modelParameters.value.leftEyebrowForm, value => updateCoreModelParameter('ParamBrowLForm', value))
+watch(() => modelParameters.value.rightEyebrowForm, value => updateCoreModelParameter('ParamBrowRForm', value))
 
 // Watch for idle animation setting changes and stop motions if disabled
 watch(live2dIdleAnimationEnabled, (enabled) => {
