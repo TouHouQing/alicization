@@ -1,6 +1,6 @@
 import type { Buffer } from 'node:buffer'
 
-import type { CommonContentPart, Message } from '@xsai/shared-chat'
+import type { CommonContentPart, Message, UserMessage } from '@xsai/shared-chat'
 import type { DesktopCapturerSource, IpcMainEvent, IpcMainInvokeEvent, NativeImage, WebContents } from 'electron'
 
 import type {
@@ -25,11 +25,13 @@ import type {
   AlicizationDialogueStructuredFormat,
   AlicizationDreamMetabolismPayload,
   AlicizationDreamRunResult,
+  AlicizationDurabilityPulseSnapshot,
   AlicizationEmotion,
   AlicizationGender,
   AlicizationGenesisInput,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
+  AlicizationPresencePulsePayload,
   AlicizationProactiveFeedbackPayload,
   AlicizationProactiveMetadata,
   AlicizationRealtimeCategory,
@@ -43,6 +45,8 @@ import type {
   AlicizationSubconsciousNeedsState,
   AlicizationSubconsciousStatePayload,
   AlicizationSubconsciousTickResult,
+  AlicizationSystemProbeSample,
+  AlicizationVisualPresenceStateSnapshot,
   CharacterActionCapability,
   CharacterFacialCapability,
   CharacterPerformanceCapabilitiesManifest,
@@ -66,6 +70,7 @@ import {
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  inferAlicizationInspectionIntent,
 } from '@proj-alicization/stage-shared'
 import { createOpenAI } from '@xsai-ext/providers/create'
 import { generateText } from '@xsai/generate-text'
@@ -101,6 +106,7 @@ import {
   electronAlicizationGetPerformanceManifest,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
+  electronAlicizationGetVisualPresenceState,
   electronAlicizationInitializeGenesis,
   electronAlicizationKillSwitchGetState,
   electronAlicizationKillSwitchResume,
@@ -125,6 +131,7 @@ import {
   electronAlicizationUpdateMemoryStats,
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
+  electronAlicizationVisualPresenceChanged,
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../../../shared/eventa'
@@ -143,7 +150,9 @@ import {
   rememberPerceptionSceneResidue,
   updatePerceptionStateWithObservation,
 } from './attention-anchor'
+import { updateVisualAttentionModel } from './attention-model'
 import { setupAlicizationDb } from './db'
+import { buildPrivateThoughtLoop } from './private-thought-loop'
 import {
   createDefaultProactiveLoopState,
   normalizeProactiveLoopState,
@@ -157,10 +166,15 @@ import {
 import {
   buildProactiveLayeredContext,
   inferForegroundWorkloadFromWindow,
+  inferScenarioFromContext,
   isLateNightWindow,
 } from './proactive-layered-context'
 import { evaluateProactivePolicy } from './proactive-policy'
-import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
+import {
+  parseScreenSemanticSummary,
+  pickScreenSemanticCaptureCandidate,
+  rankScreenSemanticCaptureCandidates,
+} from './proactive-screen-semantic'
 import { createAlicizationSensoryBus } from './sensory-bus'
 import {
   getAlicizationCardKillSwitchSnapshot,
@@ -170,6 +184,14 @@ import {
   setAlicizationCardKillSwitchState,
   setAlicizationKillSwitchState,
 } from './state'
+import {
+  buildVisualRecallSeed,
+  buildVisualSedimentFragment,
+  createDefaultVisualPresenceState,
+  normalizeVisualPresenceState,
+  updateVisualPresenceState,
+} from './visual-episodic-memory'
+import { buildVisualHeartbeat } from './visual-heartbeat'
 
 const currentSoulSchemaVersion = 2
 const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
@@ -201,6 +223,7 @@ const alicizationDreamLastRunMetaKey = 'subconscious_last_dreamed_at_v1'
 const alicizationDialogueAckStateMetaKey = 'dialogue_ack_state_v1'
 const alicizationProactiveLoopStateMetaKey = 'proactive_loop_state_v1'
 const alicizationPerceptionStateMetaKey = 'perception_state_v1'
+const alicizationVisualPresenceStateMetaKey = 'visual_presence_state_v1'
 const alicizationPerformanceManifestMetaKey = 'performance_manifest_v1'
 const defaultAlicizationCardId = 'default'
 const alicizationSubconsciousTickMs = 60_000
@@ -305,6 +328,14 @@ interface DesktopCaptureAccessResult {
   sources: DesktopCapturerSource[]
   unavailableReason?: string
   probeError?: string
+  recoveredFromRetry?: boolean
+  probeStrategy?: string
+  probeAttempts?: Array<{
+    label: string
+    types: Array<'window' | 'screen'>
+    sourceCount: number
+    error?: string
+  }>
 }
 
 interface CardScopeOptions {
@@ -1423,6 +1454,15 @@ function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMetadata 
         'foreground-error',
         'foreground-diff',
         'reminder-backlog',
+        'afterglow-opening',
+        'durability-pulse',
+        'durability-process-gone',
+        'durability-anr-likely',
+        'private-thought-observe-only',
+        'private-thought-uncertain',
+        'watch-mode-symbiotic',
+        'watch-mode-invited-inspection',
+        'watch-mode-recovering',
       ].includes(reasonCode)
     })
 
@@ -1551,13 +1591,89 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
   const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
   const perceptionStateByCard = new Map<string, AlicizationPerceptionState>()
+  const visualPresenceStateByCard = new Map<string, AlicizationVisualPresenceStateSnapshot>()
   const screenSemanticCacheByCard = new Map<string, ScreenSemanticCacheState>()
+  const pendingDurabilityPulseByCard = new Map<string, AlicizationDurabilityPulseSnapshot>()
+  const foregroundProbeTimeoutStreakByPid = new Map<number, number>()
   const chatRuns = new Map<string, ChatRunState>()
   const recentlyFinishedChatRuns = new Map<string, number>()
   let activeProviderId = ''
   let activeModelId = ''
   let providerCredentials: Record<string, Record<string, unknown>> = {}
   let subconsciousTickInFlight: Promise<AlicizationSubconsciousTickResult> | null = null
+
+  const observedWebContentsIds = new Set<number>()
+  const isEventCapableWebContents = (
+    contents: Partial<WebContents> | null | undefined,
+  ): contents is WebContents & Pick<Required<WebContents>, 'id' | 'on'> => {
+    return typeof contents?.id === 'number' && typeof contents?.on === 'function'
+  }
+  const registerWebContentsDurabilityHooks = (contents: Partial<WebContents> | null | undefined) => {
+    if (!isEventCapableWebContents(contents) || observedWebContentsIds.has(contents.id))
+      return
+    observedWebContentsIds.add(contents.id)
+    contents.on('unresponsive', () => {
+      queueDurabilityPulse(activeCardId, {
+        kind: 'window-unresponsive',
+        source: 'electron-window',
+        detectedAt: Date.now(),
+        detail: `webcontents:${contents.id}:unresponsive`,
+      })
+    })
+    contents.on('responsive', () => {
+      queueDurabilityPulse(activeCardId, {
+        kind: 'window-responsive',
+        source: 'electron-window',
+        detectedAt: Date.now(),
+        detail: `webcontents:${contents.id}:responsive`,
+      }, {
+        triggerThoughtLoop: false,
+      })
+    })
+    contents.on('destroyed', () => {
+      observedWebContentsIds.delete(contents.id)
+    })
+  }
+
+  const listAllWebContents = typeof webContents?.getAllWebContents === 'function'
+    ? webContents.getAllWebContents.bind(webContents)
+    : null
+  const appOn = typeof app?.on === 'function'
+    ? app.on.bind(app)
+    : null
+
+  if (listAllWebContents) {
+    for (const contents of listAllWebContents())
+      registerWebContentsDurabilityHooks(contents)
+  }
+
+  if (appOn) {
+    appOn('web-contents-created', (_event, contents) => {
+      registerWebContentsDurabilityHooks(contents)
+    })
+    appOn('render-process-gone', (_event, contents, details) => {
+      queueDurabilityPulse(activeCardId, {
+        kind: 'render-process-gone',
+        source: 'electron-process',
+        detectedAt: Date.now(),
+        detail: `reason:${details.reason};exitCode:${details.exitCode};wc:${contents.id}`,
+      })
+    })
+    appOn('child-process-gone', (_event, details) => {
+      const childDetails = details as {
+        type?: string
+        reason?: string
+        name?: string
+        serviceName?: string
+      }
+      queueDurabilityPulse(activeCardId, {
+        kind: 'child-process-gone',
+        source: 'electron-process',
+        detectedAt: Date.now(),
+        detail: `type:${childDetails.type ?? ''};reason:${childDetails.reason ?? ''};name:${childDetails.name ?? ''};service:${childDetails.serviceName ?? ''}`,
+      })
+    })
+  }
 
   const emitSoulChanged = (snapshot: AlicizationSoulSnapshot, cardId = activeCardId) => {
     context.emit(alicizationSoulChanged, {
@@ -2153,6 +2269,94 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return current
   }
 
+  async function persistVisualPresenceState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot) {
+    const cardId = normalizeCardId(cardIdRaw)
+    visualPresenceStateByCard.set(cardId, state)
+    if (cardId === activeCardId) {
+      await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, JSON.stringify(state)).catch(() => {})
+      return
+    }
+    await withCardScope(cardId, async () => {
+      await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, JSON.stringify(state)).catch(() => {})
+    }, {
+      label: `visual-presence.persist:${cardId}`,
+    })
+  }
+
+  async function restoreVisualPresenceState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const now = Date.now()
+    const setState = (state: AlicizationVisualPresenceStateSnapshot) => {
+      visualPresenceStateByCard.set(cardId, state)
+      return state
+    }
+
+    if (cardId !== activeCardId) {
+      await withCardScope(cardId, async () => {
+        const raw = await alicizationDb.getMetaValue(alicizationVisualPresenceStateMetaKey).catch(() => undefined)
+        if (!raw) {
+          setState(createDefaultVisualPresenceState(now))
+          return
+        }
+        try {
+          setState(normalizeVisualPresenceState(JSON.parse(raw), now))
+        }
+        catch {
+          setState(createDefaultVisualPresenceState(now))
+        }
+      }, {
+        label: `visual-presence.restore:${cardId}`,
+      })
+      return visualPresenceStateByCard.get(cardId) ?? createDefaultVisualPresenceState(now)
+    }
+
+    const raw = await alicizationDb.getMetaValue(alicizationVisualPresenceStateMetaKey).catch(() => undefined)
+    if (!raw)
+      return setState(createDefaultVisualPresenceState(now))
+    try {
+      return setState(normalizeVisualPresenceState(JSON.parse(raw), now))
+    }
+    catch {
+      return setState(createDefaultVisualPresenceState(now))
+    }
+  }
+
+  async function ensureVisualPresenceState(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const current = visualPresenceStateByCard.get(cardId) ?? await restoreVisualPresenceState(cardId)
+    const normalized = normalizeVisualPresenceState(current, Date.now())
+    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+      await persistVisualPresenceState(cardId, normalized)
+      return normalized
+    }
+    return current
+  }
+
+  function buildPresencePulsePayload(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot): AlicizationPresencePulsePayload | null {
+    const cardId = normalizeCardId(cardIdRaw)
+    const privateThought = state.privateThought
+    const currentScene = state.currentScene
+    if (!privateThought || privateThought.embodiedPresence === 'none' || !currentScene)
+      return null
+    return {
+      cardId,
+      watchMode: state.watchMode,
+      embodiedPresence: privateThought.embodiedPresence,
+      scenario: currentScene.scenario,
+      stance: privateThought.stance,
+      confidence: privateThought.confidence,
+      reasonTags: [...privateThought.rationaleTags],
+      emotionalTension: privateThought.emotionalTension,
+      expiresAt: privateThought.expiresAt,
+    }
+  }
+
+  function emitVisualPresencePulse(payload: AlicizationPresencePulsePayload | null) {
+    if (!payload || payload.embodiedPresence === 'none' || payload.expiresAt <= Date.now())
+      return
+    context.emit(electronAlicizationVisualPresenceChanged, payload)
+  }
+
   async function rememberPerceptionObservation(input: {
     cardId: string
     now: number
@@ -2300,6 +2504,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ...subconsciousStateByCard.keys(),
       ...activeSessionIdByCard.keys(),
       ...proactiveLoopStateByCard.keys(),
+      ...visualPresenceStateByCard.keys(),
       normalizeCardId(activeCardId),
     ])
     try {
@@ -2339,10 +2544,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, '{}').catch(() => {})
         await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, '').catch(() => {})
+        await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, '').catch(() => {})
         activeSessionIdByCard.delete(cardId)
         dialogueAckByCard.delete(cardId)
         proactiveLoopStateByCard.delete(cardId)
         perceptionStateByCard.delete(cardId)
+        visualPresenceStateByCard.delete(cardId)
         screenSemanticCacheByCard.delete(cardId)
         clearPendingDialogueDeliveriesByCard(cardId)
         await appendAuditLog({
@@ -2401,6 +2608,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     subconsciousStateByCard.clear()
     proactiveLoopStateByCard.clear()
     perceptionStateByCard.clear()
+    visualPresenceStateByCard.clear()
+    pendingDurabilityPulseByCard.clear()
+    foregroundProbeTimeoutStreakByPid.clear()
     subconsciousTickInFlight = null
     queuedWrite = Promise.resolve()
     soulSnapshot = null
@@ -3848,6 +4058,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     policyDecision: ReturnType<typeof evaluateProactivePolicy>,
     organicPromptContext: OrganicMemoryPromptContext,
     perceptionState: AlicizationPerceptionState,
+    visualPresenceState: AlicizationVisualPresenceStateSnapshot,
   ) {
     const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
     const system = [
@@ -3856,6 +4067,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
       `Layered context JSON: ${JSON.stringify(layeredContext)}`,
+      `Visual presence JSON: ${JSON.stringify({
+        watchMode: visualPresenceState.watchMode,
+        currentScene: visualPresenceState.currentScene,
+        attention: visualPresenceState.attention,
+        privateThought: visualPresenceState.privateThought,
+        recentTransition: visualPresenceState.recentTransition,
+        durabilityPulse: visualPresenceState.durabilityPulse,
+      })}`,
       `Policy decision JSON: ${JSON.stringify({
         shouldInterrupt: policyDecision.shouldInterrupt,
         confidence: policyDecision.confidence,
@@ -3977,6 +4196,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     layeredContext: ReturnType<typeof buildProactiveLayeredContext>,
     policyDecision: ReturnType<typeof evaluateProactivePolicy>,
     perceptionState: AlicizationPerceptionState,
+    visualPresenceState: AlicizationVisualPresenceStateSnapshot,
     personaContext: {
       customDirectives: string
       coreIncarnation: string
@@ -4005,6 +4225,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       : ''
     const attentionAnchor = getActiveAttentionAnchor(perceptionState, Date.now())
     const anchoredFocusTitle = sanitizeBriefText(attentionAnchor?.title ?? '', 28)
+    const privateThought = visualPresenceState.privateThought
+    const visualSceneSummary = sanitizeBriefText(visualPresenceState.currentScene?.summary ?? '', 32)
 
     const reply = (() => {
       if (policyDecision.style === 'firm-warning') {
@@ -4015,13 +4237,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       if (policyDecision.style === 'gentle-care') {
         if (policyDecision.scenario === 'late-night-care')
           return '你已经在线很久了。我更想你先缓一缓。'
+        if (privateThought?.afterglowFromScenario)
+          return '终于从刚才那段紧绷里出来了。先缓一下，再继续。'
         return personaTone === 'cold'
           ? '我在看着你。别把自己逼得太紧。'
           : '我在看着你。先别把自己逼得太紧。'
       }
       if (policyDecision.style === 'light-nudge') {
+        if (privateThought?.afterglowFromScenario === 'coding')
+          return '刚才那段你撑了很久。现在先回头确认一下关键处吧。'
+        if (privateThought?.afterglowFromScenario === 'media')
+          return '终于从刚才那段里出来了。伸个懒腰再继续也好。'
         if (anchoredFocusTitle && policyDecision.scenario === 'coding')
           return `你刚才一直停在${anchoredFocusTitle}这里。先回头确认一下？`
+        if (visualSceneSummary && policyDecision.scenario === 'coding')
+          return `我一直在看着你卡在${visualSceneSummary}这里。先回头确认一下？`
         if (observedScreenSummary)
           return `我看到你现在在看${observedScreenSummary}。先回头确认一下？`
         if (layeredContext.content.kind === 'error')
@@ -4052,6 +4282,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `style=${policyDecision.style}`,
       `content=${layeredContext.content.kind}`,
       attentionAnchor ? `attentionAnchor=${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}` : 'attentionAnchor=none',
+      privateThought ? `privateThought=${sanitizeBriefText(privateThought.thoughtText, 72)}` : 'privateThought=none',
+      privateThought ? `embodiedPresence=${privateThought.embodiedPresence}` : 'embodiedPresence=none',
     ].join('; ')
 
     return {
@@ -4432,10 +4664,68 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
+  function isCommandTimeoutError(error: unknown) {
+    const message = errorMessageFrom(error) ?? ''
+    return /timed out|timeout|SIGTERM|killed/i.test(message)
+      || (typeof error === 'object' && error != null && 'killed' in error && (error as { killed?: unknown }).killed === true)
+  }
+
+  async function probeForegroundPidLiveness(pidValue: number | null | undefined) {
+    const pid = Number(pidValue)
+    if (!Number.isFinite(pid) || pid <= 0)
+      return false
+    try {
+      const output = await runCommandWithTimeout('/bin/ps', ['-p', String(Math.floor(pid)), '-o', 'pid='], subconsciousInterruptionProbeTimeoutMs)
+      return /\d+/.test(output)
+    }
+    catch {
+      return false
+    }
+  }
+
+  function updateForegroundProbeTimeoutStreak(pidValue: number | null | undefined, timedOut: boolean) {
+    const pid = Number(pidValue)
+    if (!Number.isFinite(pid) || pid <= 0)
+      return 0
+    if (!timedOut) {
+      foregroundProbeTimeoutStreakByPid.delete(Math.floor(pid))
+      return 0
+    }
+    const next = (foregroundProbeTimeoutStreakByPid.get(Math.floor(pid)) ?? 0) + 1
+    foregroundProbeTimeoutStreakByPid.set(Math.floor(pid), next)
+    return next
+  }
+
+  function queueDurabilityPulse(
+    cardIdRaw: unknown,
+    pulse: AlicizationDurabilityPulseSnapshot,
+    options?: { triggerThoughtLoop?: boolean },
+  ) {
+    const cardId = normalizeCardId(cardIdRaw)
+    pendingDurabilityPulseByCard.set(cardId, {
+      ...pulse,
+      detectedAt: Math.max(0, Math.floor(pulse.detectedAt || Date.now())),
+    })
+    if (options?.triggerThoughtLoop === false)
+      return
+    queueMicrotask(() => {
+      void runSubconsciousTickAcrossCards('force', [cardId]).catch(() => {})
+    })
+  }
+
+  function consumeDurabilityPulse(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const pending = pendingDurabilityPulseByCard.get(cardId) ?? null
+    if (pending)
+      pendingDurabilityPulseByCard.delete(cardId)
+    return pending
+  }
+
   async function sampleSubconsciousInterruptionContext() {
     const degraded: string[] = []
     let idleSeconds = Number.NaN
     let foregroundWindow = sensoryBus.getSnapshot()?.sample?.foregroundWindow
+    let foregroundProbeTimedOut = false
 
     try {
       idleSeconds = Number(powerMonitor.getSystemIdleTime())
@@ -4462,41 +4752,47 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
 
       if (!foregroundWindow?.appName && !foregroundWindow?.processName && !foregroundWindow?.title) {
-        try {
-          const output = await runCommandWithTimeout(
-            '/usr/bin/osascript',
-            [
-              '-e',
-              'tell application "System Events"',
-              '-e',
-              'set frontApp to first process whose frontmost is true',
-              '-e',
-              'set frontName to name of frontApp',
-              '-e',
-              'set frontTitle to ""',
-              '-e',
-              'try',
-              '-e',
-              'set frontTitle to name of front window of frontApp',
-              '-e',
-              'end try',
-              '-e',
-              'return frontName & linefeed & frontName & linefeed & frontTitle',
-              '-e',
-              'end tell',
-            ],
-            subconsciousInterruptionProbeTimeoutMs,
-          )
-          const [appName = '', processName = '', title = ''] = output.split('\n')
-          foregroundWindow = {
-            appName: sanitizeText(appName),
-            processName: sanitizeText(processName),
-            title: sanitizeText(title),
-          }
+        // handled by the unified foreground probe below
+      }
+
+      try {
+        const output = await runCommandWithTimeout(
+          '/usr/bin/osascript',
+          [
+            '-e',
+            'tell application "System Events"',
+            '-e',
+            'set frontApp to first application process whose frontmost is true',
+            '-e',
+            'set frontName to name of frontApp',
+            '-e',
+            'set frontTitle to ""',
+            '-e',
+            'set frontPid to unix id of frontApp',
+            '-e',
+            'try',
+            '-e',
+            'set frontTitle to name of front window of frontApp',
+            '-e',
+            'end try',
+            '-e',
+            'return frontName & linefeed & frontName & linefeed & frontTitle & linefeed & frontPid',
+            '-e',
+            'end tell',
+          ],
+          subconsciousInterruptionProbeTimeoutMs,
+        )
+        const [appName = '', processName = '', title = '', pidLine = ''] = output.split('\n')
+        foregroundWindow = {
+          appName: sanitizeText(appName),
+          processName: sanitizeText(processName),
+          title: sanitizeText(title),
+          pid: Number.isFinite(Number(pidLine)) ? Math.max(1, Math.floor(Number(pidLine))) : null,
         }
-        catch {
-          degraded.push('foreground-window-unavailable')
-        }
+      }
+      catch (error) {
+        foregroundProbeTimedOut = isCommandTimeoutError(error)
+        degraded.push('foreground-window-unavailable')
       }
     }
     else {
@@ -4516,6 +4812,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       inputActivity,
       fullscreenLikely,
       foregroundWindow,
+      foregroundProbeTimedOut,
       degraded,
     }
   }
@@ -4529,14 +4826,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const elapsedMinutes = Math.max(1 / 6, (now - state.lastTickAt) / 60_000)
     const sensorySnapshot = sensoryBus.getSnapshot()
     const cpuUsage = Number(sensorySnapshot?.sample?.cpu?.usagePercent ?? 0)
-    const interruptionContext = await sampleSubconsciousInterruptionContext()
+    let perceptionState = await ensurePerceptionState(activeCardId)
+    const rawInterruptionContext = await sampleSubconsciousInterruptionContext()
+    const resolvedForegroundWindow = resolveForegroundDecisionTarget({
+      snapshotForeground: sensorySnapshot?.sample?.foregroundWindow,
+      probedForeground: rawInterruptionContext.foregroundWindow,
+      attentionAnchor: getActiveAttentionAnchor(perceptionState, now),
+    })
+    const interruptionContext = {
+      ...rawInterruptionContext,
+      foregroundWindow: resolvedForegroundWindow,
+    }
     await rememberPerceptionObservation({
       cardId: activeCardId,
       now,
-      target: interruptionContext.foregroundWindow ?? sensorySnapshot?.sample?.foregroundWindow,
+      target: resolvedForegroundWindow,
       source: 'subconscious-tick',
     })
-    const perceptionState = await ensurePerceptionState(activeCardId)
+    perceptionState = await ensurePerceptionState(activeCardId)
+    let visualPresenceState = await ensureVisualPresenceState(activeCardId)
     const idleLikely = interruptionContext.inputActivity === 'idle'
       || (interruptionContext.inputActivity !== 'active' && cpuUsage <= 10)
 
@@ -4592,12 +4900,150 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       state: perceptionState,
       currentForeground: interruptionContext.foregroundWindow ?? sensorySnapshot?.sample?.foregroundWindow,
     })
+    const previousWorkingMemoryCount = visualPresenceState.workingMemoryEpisodes.length
+    const inferredScenario = inferScenarioFromContext({
+      workload: layeredContext.workload.kind,
+      content: layeredContext.content.kind,
+      lateNight: layeredContext.localTime.isLateNight,
+      lateNightActiveMinutes: layeredContext.relationship.lateNightActiveMinutes,
+      fatigue: layeredContext.relationship.fatigue,
+    })
+    let durabilityPulse = consumeDurabilityPulse(activeCardId)
+    const currentForegroundPid = Number(
+      interruptionContext.foregroundWindow?.pid
+      ?? sensorySnapshot?.sample?.foregroundWindow?.pid
+      ?? visualPresenceState.currentScene?.target?.pid
+      ?? 0,
+    )
+    const shouldProbeForegroundDurability
+      = Number.isFinite(currentForegroundPid)
+        && currentForegroundPid > 0
+        && (
+          visualPresenceState.watchMode === 'symbiotic-vision'
+          || visualPresenceState.watchMode === 'recovering'
+          || inferredScenario === 'coding'
+          || inferredScenario === 'media'
+        )
+    if (!durabilityPulse && shouldProbeForegroundDurability) {
+      const pidAlive = await probeForegroundPidLiveness(currentForegroundPid)
+      if (!pidAlive) {
+        durabilityPulse = {
+          kind: 'process-gone',
+          source: 'foreground-app',
+          detectedAt: now,
+          pid: Math.floor(currentForegroundPid),
+          appName: interruptionContext.foregroundWindow?.appName,
+          processName: interruptionContext.foregroundWindow?.processName,
+          title: interruptionContext.foregroundWindow?.title,
+        }
+      }
+      else {
+        const timeoutStreak = updateForegroundProbeTimeoutStreak(currentForegroundPid, interruptionContext.foregroundProbeTimedOut === true)
+        if (timeoutStreak >= 2) {
+          durabilityPulse = {
+            kind: 'anr-likely',
+            source: 'foreground-app',
+            detectedAt: now,
+            pid: Math.floor(currentForegroundPid),
+            appName: interruptionContext.foregroundWindow?.appName,
+            processName: interruptionContext.foregroundWindow?.processName,
+            title: interruptionContext.foregroundWindow?.title,
+          }
+          foregroundProbeTimeoutStreakByPid.delete(Math.floor(currentForegroundPid))
+        }
+      }
+    }
+    else if (Number.isFinite(currentForegroundPid) && currentForegroundPid > 0) {
+      updateForegroundProbeTimeoutStreak(currentForegroundPid, false)
+    }
+
+    const groundedSummary = screenSemanticSummary?.content.summary
+      ?? getActivePerceptionSceneResidue(perceptionState, now)?.summary
+      ?? null
+    const visualHeartbeat = buildVisualHeartbeat({
+      now,
+      scenario: inferredScenario,
+      previousState: visualPresenceState,
+      context: layeredContext,
+      invitedInspectionActive: perceptionSignals.invitedInspectionActive,
+      groundedSummary,
+      screenSemanticSummaryActive: Boolean(screenSemanticSummary),
+      durabilityPulse,
+    })
+    const attention = updateVisualAttentionModel({
+      now,
+      scenario: inferredScenario,
+      previousAttention: visualPresenceState.attention,
+      currentForeground: interruptionContext.foregroundWindow ?? sensorySnapshot?.sample?.foregroundWindow,
+      currentScene: visualHeartbeat.scene,
+      invitedInspectionActive: perceptionSignals.invitedInspectionActive,
+      perceptionAnchor: getActiveAttentionAnchor(perceptionState, now)
+        ?? perceptionState.lastNonSelfForegroundTarget
+        ?? null,
+      durabilityPulse,
+    })
+    const privateThought = buildPrivateThoughtLoop({
+      now,
+      context: layeredContext,
+      watchMode: visualHeartbeat.watchMode,
+      currentScene: visualHeartbeat.scene,
+      attention,
+      recentTransition: visualHeartbeat.recentTransition,
+      durabilityPulse,
+    })
+    visualPresenceState = updateVisualPresenceState({
+      now,
+      previousState: visualPresenceState,
+      watchMode: visualHeartbeat.watchMode,
+      scene: visualHeartbeat.scene,
+      attention,
+      privateThought,
+      captureState: {
+        permission: screenSemanticSummary ? 'granted' : visualPresenceState.captureState.permission,
+        lastGroundedAt: screenSemanticSummary ? now : visualPresenceState.captureState.lastGroundedAt,
+        sourceName: screenSemanticSummary?.source.name ?? visualPresenceState.captureState.sourceName,
+        degradedReason: interruptionContext.degraded[0] ?? undefined,
+      },
+      durabilityPulse,
+      recentTransition: visualHeartbeat.recentTransition,
+      nextSuggestedProbeMs: visualHeartbeat.nextSuggestedProbeMs,
+    })
+    await persistVisualPresenceState(activeCardId, visualPresenceState)
+
+    if (visualPresenceState.workingMemoryEpisodes.length > previousWorkingMemoryCount) {
+      const latestEpisode = visualPresenceState.workingMemoryEpisodes.at(-1)
+      const visualSedimentText = latestEpisode
+        ? buildVisualSedimentFragment(latestEpisode)
+        : ''
+      if (visualSedimentText) {
+        await alicizationDb.appendSubconsciousFragments([{
+          text: visualSedimentText,
+          sourceKind: 'visual-sediment',
+        }]).catch(async (error) => {
+          await appendAuditLog({
+            level: 'warning',
+            category: 'alicization.visual-memory',
+            action: 'visual-sediment-write-failed',
+            message: 'Failed to append visual sediment fragment after visual episode closure.',
+            payload: {
+              reason: error instanceof Error ? error.message : String(error),
+              fragment: visualSedimentText,
+            },
+          })
+        })
+      }
+    }
+
     const decision = evaluateProactivePolicy({
       now,
       context: layeredContext,
       proactiveState: proactiveLoopState,
       killSwitchSuspended,
       perception: perceptionSignals,
+      watchMode: visualPresenceState.watchMode,
+      recentTransition: visualPresenceState.recentTransition,
+      privateThought: visualPresenceState.privateThought,
+      durabilityPulse,
     })
 
     let proactive = false
@@ -4610,6 +5056,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         || decision.reasonCodes.includes('busy-host')
         || decision.reasonCodes.includes('fullscreen-host')
       )
+
+    if (!decision.shouldInterrupt)
+      emitVisualPresencePulse(buildPresencePulsePayload(activeCardId, visualPresenceState))
 
     await appendAuditLog({
       level: interruptionContext.degraded.length > 0 ? 'warning' : 'notice',
@@ -4636,6 +5085,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         cooldownMs: decision.cooldownMs,
         feedbackBias: decision.feedbackBias,
         perception: perceptionSignals,
+        visualPresence: {
+          watchMode: visualPresenceState.watchMode,
+          currentScene: visualPresenceState.currentScene,
+          recentTransition: visualPresenceState.recentTransition,
+          durabilityPulse: visualPresenceState.durabilityPulse,
+        },
+        privateThought: visualPresenceState.privateThought,
         layeredContext,
       },
     })
@@ -4697,6 +5153,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       proactive = true
       const proactiveRecallSeed = buildProactiveRecallSeed({
         foregroundWindow: interruptionContext.foregroundWindow,
+        phantomSeed: buildVisualRecallSeed({
+          scene: visualPresenceState.currentScene,
+          emotionalTension: visualPresenceState.privateThought?.emotionalTension,
+        }),
       })
       const organicPromptContext = await resolveOrganicMemoryPromptContext({
         recallSeed: proactiveRecallSeed,
@@ -4708,6 +5168,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         decision,
         organicPromptContext,
         perceptionState,
+        visualPresenceState,
       )
       const rawStructured = llmStructured ?? buildProactiveStructured(
         personality,
@@ -4715,6 +5176,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         layeredContext,
         decision,
         perceptionState,
+        visualPresenceState,
         {
           customDirectives: personaContext.customDirectives,
           coreIncarnation: organicPromptContext.coreIncarnation,
@@ -5341,6 +5803,38 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function preserveLatestUserMultimodalContent(input: {
+    originalMessages: AlicizationChatStartPayload['messages']
+    resolvedMessages: Message[]
+  }) {
+    const latestOriginalUser = [...input.originalMessages].reverse().find(message => message?.role === 'user')
+    const normalizedOriginalContent = normalizeTransportMessageContent(latestOriginalUser?.content)
+    if (!Array.isArray(normalizedOriginalContent) || !normalizedOriginalContent.some(part => part.type === 'image_url'))
+      return input.resolvedMessages
+
+    const latestResolvedUserIndex = [...input.resolvedMessages]
+      .map((message, index) => ({ message, index }))
+      .reverse()
+      .find(entry => entry.message.role === 'user')
+      ?.index
+    if (typeof latestResolvedUserIndex !== 'number')
+      return input.resolvedMessages
+
+    const latestResolvedUser = input.resolvedMessages[latestResolvedUserIndex]
+    if (Array.isArray(latestResolvedUser.content) && latestResolvedUser.content.some(part => part?.type === 'image_url'))
+      return input.resolvedMessages
+
+    return input.resolvedMessages.map((message, index) => {
+      if (index !== latestResolvedUserIndex)
+        return message
+      return {
+        ...(message as UserMessage),
+        role: 'user',
+        content: normalizedOriginalContent,
+      } satisfies UserMessage
+    })
+  }
+
   function appendContentPartsToLatestUserMessage(messages: Message[], extraParts: CommonContentPart[]) {
     if (extraParts.length === 0)
       return messages
@@ -5397,9 +5891,173 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!normalized || isInternalAlicizationRepairPrompt(normalized))
       return false
 
-    const mentionsScreen = /屏幕|界面|画面|screen|display/i.test(normalized)
+    const mentionsScreen = /屏幕|桌面|工作区|workspace|desktop|界面|画面|screen|display/i.test(normalized)
     const mentionsSpecificTask = /代码|diff|改动|报错|错误|exception|traceback|terminal|终端|cursor|vs\s*code|xcode|jetbrains|chrome|safari|firefox|edge|tab|标签页|url|网址|控制台|console|日志|log/i.test(normalized)
     return mentionsScreen && !mentionsSpecificTask
+  }
+
+  function hasStableSharedAttention(input: {
+    now: number
+    perceptionState?: AlicizationPerceptionState | null
+    visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null
+  }) {
+    const activeAnchor = input.perceptionState
+      ? getActiveAttentionAnchor(input.perceptionState, input.now)
+      : null
+    const recentResidue = input.perceptionState
+      ? getActivePerceptionSceneResidue(input.perceptionState, input.now, 10 * 60_000)
+      : null
+    const recentAttention = input.visualPresenceState?.attention
+      && (input.now - (input.visualPresenceState.attention.lastConfirmedAt ?? input.now)) <= 3 * 60_000
+
+    return Boolean(
+      activeAnchor
+      || recentResidue
+      || recentAttention
+      || input.visualPresenceState?.watchMode === 'invited-inspection'
+      || input.visualPresenceState?.watchMode === 'symbiotic-vision',
+    )
+  }
+
+  function appendInspectionIntentTargetPhrases(target?: {
+    appName?: string
+    processName?: string
+    title?: string
+  } | null) {
+    return [
+      normalizeOrganicRecallText(target?.appName ?? ''),
+      normalizeOrganicRecallText(target?.processName ?? ''),
+      normalizeOrganicRecallText(target?.title ?? ''),
+    ].filter(Boolean)
+  }
+
+  function buildInspectionIntentContextPhrases(input: {
+    now: number
+    perceptionState: AlicizationPerceptionState
+    visualPresenceState: AlicizationVisualPresenceStateSnapshot
+  }) {
+    const activeAnchor = getActiveAttentionAnchor(input.perceptionState, input.now)
+    const recentResidue = getActivePerceptionSceneResidue(input.perceptionState, input.now, 10 * 60_000)
+    return [
+      ...appendInspectionIntentTargetPhrases(activeAnchor),
+      ...appendInspectionIntentTargetPhrases(input.visualPresenceState.currentScene?.target),
+      ...appendInspectionIntentTargetPhrases(input.visualPresenceState.attention?.target),
+      ...appendInspectionIntentTargetPhrases(recentResidue?.focusTarget),
+      normalizeOrganicRecallText(input.visualPresenceState.currentScene?.summary ?? ''),
+      normalizeOrganicRecallText(recentResidue?.summary ?? ''),
+      normalizeOrganicRecallText(input.perceptionState.invitedInspection?.hintText ?? ''),
+    ].filter(Boolean)
+  }
+
+  function resolveInspectionIntentForChatTurn(input: {
+    now: number
+    userText: string
+    messages: Array<{ role?: string, content?: unknown }>
+    perceptionState: AlicizationPerceptionState
+    visualPresenceState: AlicizationVisualPresenceStateSnapshot
+  }) {
+    const baseIntent = detectInvitedInspectionIntent(input.userText)
+    const normalized = normalizeOrganicRecallText(input.userText).toLowerCase()
+    const stableSharedAttention = hasStableSharedAttention({
+      now: input.now,
+      perceptionState: input.perceptionState,
+      visualPresenceState: input.visualPresenceState,
+    })
+    const recentMessageWindow = input.messages.slice(-6)
+    const recentUserInspection = recentMessageWindow.some((message, index) => {
+      if (message?.role !== 'user')
+        return false
+      return inferAlicizationInspectionIntent({
+        message: readTransportContentAsText(message.content),
+        recentMessages: recentMessageWindow.slice(0, index),
+        contextPhrases: buildInspectionIntentContextPhrases(input),
+        sharedAttentionActive: stableSharedAttention,
+      }).active
+    })
+    const inspectionContinuityActive = Boolean(
+      recentUserInspection
+      || (input.perceptionState.invitedInspection && input.perceptionState.invitedInspection.activeUntil > input.now)
+      || input.perceptionState.recentSceneResidue?.source === 'invited-inspection'
+      || input.visualPresenceState.watchMode === 'invited-inspection',
+    )
+    const semanticIntent = inferAlicizationInspectionIntent({
+      message: normalized,
+      recentMessages: input.messages.slice(0, -1),
+      contextPhrases: buildInspectionIntentContextPhrases(input),
+      sharedAttentionActive: stableSharedAttention || inspectionContinuityActive,
+    })
+    const repairSignal = /重新|再|现在|自己|别猜|不要猜|不对|看准|看清|贴近|只看|认真/.test(normalized)
+    const shortRepairTurn = normalized.length > 0 && normalized.length <= 28
+    const sharedAttentionContinuation = Boolean(
+      stableSharedAttention
+      && inspectionContinuityActive
+      && shortRepairTurn
+      && semanticIntent.sharedAttentionLikely
+      && (
+        semanticIntent.contextOverlap > 0
+        || semanticIntent.reasonCodes.includes('deictic-cue')
+        || semanticIntent.reasonCodes.includes('scene-shift-cue')
+        || semanticIntent.reasonCodes.includes('recheck-cue')
+        || semanticIntent.reasonCodes.includes('continuation-cue')
+      ),
+    )
+    const semanticBoost = (
+      (inspectionContinuityActive ? 0.22 : 0)
+      + (semanticIntent.reasonCodes.includes('observe-cue') ? 0.2 : 0)
+      + (semanticIntent.reasonCodes.includes('describe-cue') ? 0.16 : 0)
+      + (semanticIntent.reasonCodes.includes('visual-plane-cue') ? 0.18 : 0)
+      + (stableSharedAttention ? 0.12 : 0)
+      + (semanticIntent.reasonCodes.includes('context-overlap') ? 0.18 : 0)
+      + (semanticIntent.reasonCodes.includes('question-cue') ? 0.08 : 0)
+      + (semanticIntent.reasonCodes.includes('deictic-cue') ? 0.14 : 0)
+      + (semanticIntent.reasonCodes.includes('scene-shift-cue') ? 0.18 : 0)
+      + (semanticIntent.reasonCodes.includes('recheck-cue') ? 0.18 : 0)
+      + (sharedAttentionContinuation ? 0.34 : 0)
+      + (repairSignal ? 0.18 : 0)
+      + (inspectionContinuityActive && shortRepairTurn ? 0.12 : 0)
+    )
+    const confidence = clamp01(Math.max(baseIntent.confidence, semanticIntent.confidence, semanticBoost))
+    const active = baseIntent.active
+      || semanticIntent.active
+      || confidence >= 0.64
+      || sharedAttentionContinuation
+    const reasonCodes = [
+      baseIntent.active ? 'base-inspection-intent' : '',
+      inspectionContinuityActive ? 'inspection-continuity' : '',
+      stableSharedAttention ? 'shared-attention-stable' : '',
+      semanticIntent.reasonCodes.includes('observe-cue') ? 'observation-verb' : '',
+      semanticIntent.reasonCodes.includes('describe-cue') ? 'description-cue' : '',
+      semanticIntent.reasonCodes.includes('visual-plane-cue') ? 'current-scene-reference' : '',
+      (semanticIntent.reasonCodes.includes('entity-dense') || semanticIntent.reasonCodes.includes('referentially-rich'))
+        ? 'scene-object-reference'
+        : '',
+      semanticIntent.reasonCodes.includes('context-overlap') ? 'scene-context-overlap' : '',
+      semanticIntent.reasonCodes.includes('question-cue') ? 'scene-question' : '',
+      semanticIntent.reasonCodes.includes('deictic-cue') ? 'scene-deictic-reference' : '',
+      semanticIntent.reasonCodes.includes('scene-shift-cue') ? 'scene-change-reference' : '',
+      semanticIntent.reasonCodes.includes('recheck-cue') ? 'scene-recheck' : '',
+      sharedAttentionContinuation ? 'shared-attention-continuation' : '',
+      repairSignal ? 'inspection-repair' : '',
+      shortRepairTurn ? 'short-follow-up' : '',
+    ].filter(Boolean)
+
+    return {
+      active,
+      confidence,
+      reasonCodes,
+    }
+  }
+
+  function resolveInspectionIntentFromMessageHistory(input: {
+    userText: string
+    messages: Array<{ role?: string, content?: unknown }>
+  }) {
+    const baseIntent = detectInvitedInspectionIntent(input.userText)
+    const semanticIntent = inferAlicizationInspectionIntent({
+      message: input.userText,
+      recentMessages: input.messages.slice(0, -1),
+    })
+    return baseIntent.active || semanticIntent.active
   }
 
   function isWeakGenericBrowserPerceptionTarget(target?: {
@@ -5456,6 +6114,67 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return shouldIgnoreSceneResidue(residue) ? null : residue
   }
 
+  function shouldSuppressWeakGenericBrowserInspectionAnchor(input: {
+    now: number
+    userText: string
+    state: AlicizationPerceptionState
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+    }
+    groundingUnavailableReason?: string
+  }) {
+    const activeAnchor = getActiveAttentionAnchor(input.state, input.now)
+    if (!isWeakGenericBrowserPerceptionTarget(activeAnchor))
+      return false
+
+    if (isGenericScreenInspectionRequest(input.userText))
+      return true
+
+    const hintTerms = extractInspectionHintTerms(input.userText)
+    if (hasCodingInspectionIntent(hintTerms))
+      return true
+
+    if (input.groundingUnavailableReason && input.groundingUnavailableReason !== 'user-already-attached-image')
+      return true
+
+    if (input.currentForeground && !isSelfPerceptionTarget(input.currentForeground) && !isWeakGenericBrowserPerceptionTarget(input.currentForeground))
+      return true
+
+    return false
+  }
+
+  function purgeWeakGenericBrowserInspectionState(input: {
+    now: number
+    state: AlicizationPerceptionState
+  }) {
+    const shouldDropAnchor = isWeakGenericBrowserPerceptionTarget(input.state.attentionAnchor)
+    const shouldDropLastForeground = isWeakGenericBrowserPerceptionTarget(input.state.lastNonSelfForegroundTarget)
+    const nextRecentObservations = input.state.recentObservations.filter(observation => !isWeakGenericBrowserPerceptionTarget(observation))
+    const nextSceneResidue = shouldIgnoreSceneResidue(input.state.recentSceneResidue)
+      ? null
+      : input.state.recentSceneResidue
+
+    if (
+      !shouldDropAnchor
+      && !shouldDropLastForeground
+      && nextRecentObservations.length === input.state.recentObservations.length
+      && nextSceneResidue === input.state.recentSceneResidue
+    ) {
+      return input.state
+    }
+
+    return {
+      ...input.state,
+      attentionAnchor: shouldDropAnchor ? null : input.state.attentionAnchor,
+      lastNonSelfForegroundTarget: shouldDropLastForeground ? null : input.state.lastNonSelfForegroundTarget,
+      recentObservations: nextRecentObservations,
+      recentSceneResidue: nextSceneResidue,
+      updatedAt: input.now,
+    } satisfies AlicizationPerceptionState
+  }
+
   function inferInspectionContentKind(input: {
     userText?: string
     focusTarget?: {
@@ -5478,7 +6197,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return 'diff'
     if (/\b(?:youtube|bilibili|netflix|vlc|iina|video|watching)\b|视频|播放/i.test(haystack))
       return 'video'
-    if (/\b(?:spotify|music|playlist|album|track|song)\b|音乐|歌曲/i.test(haystack))
+    if (/\b(?:qqmusic|qq music|spotify|apple music|music|playlist|album|track|song|lyrics|netease|cloud music)\b|qq音乐|网易云|音乐|歌曲|歌名|歌词|专辑/i.test(haystack))
       return 'music'
     if (/\b(?:discord|slack|telegram|wechat|chat)\b|聊天|对话/i.test(haystack))
       return 'chat'
@@ -5646,6 +6365,173 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function normalizeForegroundDecisionTarget(
+    target: AlicizationSystemProbeSample['foregroundWindow'] | {
+      appName?: string
+      processName?: string
+      title?: string
+      pid?: number | null
+    } | null | undefined,
+  ) {
+    const appName = sanitizeText(target?.appName)
+    const processName = sanitizeText(target?.processName)
+    const title = sanitizeText(target?.title)
+    const pid = Number.isFinite(Number(target?.pid)) ? Math.max(1, Math.floor(Number(target?.pid))) : null
+    if (!appName && !processName && !title && pid === null)
+      return undefined
+    return {
+      appName: appName || undefined,
+      processName: processName || undefined,
+      title: title || undefined,
+      pid,
+    }
+  }
+
+  function buildForegroundDecisionText(
+    target: ReturnType<typeof normalizeForegroundDecisionTarget>,
+  ) {
+    if (!target)
+      return ''
+    return [target.appName, target.processName, target.title].filter(Boolean).join(' ')
+  }
+
+  function tokenizeForegroundDecisionText(value: string) {
+    return value
+      .toLowerCase()
+      .split(/[^a-z0-9\u4E00-\u9FFF]+/i)
+      .map(token => token.trim())
+      .filter(Boolean)
+  }
+
+  function scoreForegroundDecisionOverlap(
+    left: ReturnType<typeof normalizeForegroundDecisionTarget>,
+    right: ReturnType<typeof normalizeForegroundDecisionTarget>,
+  ) {
+    const leftText = buildForegroundDecisionText(left).toLowerCase()
+    const rightText = buildForegroundDecisionText(right).toLowerCase()
+    if (!leftText || !rightText)
+      return 0
+    if (leftText === rightText)
+      return 120
+    if (leftText.includes(rightText) || rightText.includes(leftText))
+      return 86
+
+    const leftTokens = new Set(tokenizeForegroundDecisionText(leftText))
+    const rightTokens = tokenizeForegroundDecisionText(rightText)
+    let score = 0
+    for (const token of rightTokens) {
+      if (!leftTokens.has(token))
+        continue
+      score += token.length >= 5 ? 24 : 12
+    }
+    return score
+  }
+
+  function getForegroundDecisionSpecificity(
+    target: ReturnType<typeof normalizeForegroundDecisionTarget>,
+  ) {
+    if (!target)
+      return 0
+    switch (inferForegroundWorkloadFromWindow(target)) {
+      case 'coding':
+      case 'terminal':
+        return 120
+      case 'game':
+      case 'media':
+        return 104
+      case 'document':
+      case 'chat':
+        return 84
+      case 'browser':
+        return 42
+      default:
+        return 16
+    }
+  }
+
+  function hasCodingInspectionIntent(hintTerms: string[]) {
+    return hintTerms.some(term => /\b(?:code|vscode|visual studio code|cursor|windsurf|xcode|jetbrains|terminal|iterm|warp|docker|diff|error|exception|traceback|test failed|compare|changes)\b/i.test(term))
+  }
+
+  function mergeForegroundDecisionTarget(
+    primary: ReturnType<typeof normalizeForegroundDecisionTarget>,
+    secondary: ReturnType<typeof normalizeForegroundDecisionTarget>,
+  ) {
+    if (!primary)
+      return secondary ?? undefined
+    if (!secondary)
+      return primary
+    return {
+      appName: primary.appName ?? secondary.appName,
+      processName: primary.processName ?? secondary.processName,
+      title: primary.title ?? secondary.title,
+      pid: primary.pid ?? secondary.pid ?? null,
+    }
+  }
+
+  function resolveForegroundDecisionTarget(input: {
+    snapshotForeground?: AlicizationSystemProbeSample['foregroundWindow']
+    probedForeground?: AlicizationSystemProbeSample['foregroundWindow']
+    attentionAnchor?: {
+      appName?: string
+      processName?: string
+      title?: string
+    } | null
+    hintTerms?: string[]
+    allowAttentionAnchorFallback?: boolean
+  }) {
+    const snapshot = normalizeForegroundDecisionTarget(input.snapshotForeground)
+    const probe = normalizeForegroundDecisionTarget(input.probedForeground)
+    const anchor = normalizeForegroundDecisionTarget(input.attentionAnchor)
+    const hintTerms = Array.isArray(input.hintTerms) ? input.hintTerms.filter(Boolean) : []
+    const codingInspectionIntent = hasCodingInspectionIntent(hintTerms)
+
+    if (snapshot && probe && scoreForegroundDecisionOverlap(snapshot, probe) >= 96)
+      return mergeForegroundDecisionTarget(snapshot, probe)
+
+    const snapshotSpecificity = getForegroundDecisionSpecificity(snapshot)
+    const probeSpecificity = getForegroundDecisionSpecificity(probe)
+    const anchorSpecificity = getForegroundDecisionSpecificity(anchor)
+    const snapshotAnchorScore = scoreForegroundDecisionOverlap(snapshot, anchor)
+    const probeAnchorScore = scoreForegroundDecisionOverlap(probe, anchor)
+
+    if (
+      input.allowAttentionAnchorFallback
+      && anchor
+      && anchorSpecificity >= 84
+      && Math.max(snapshotAnchorScore, probeAnchorScore) < 24
+      && (
+        codingInspectionIntent
+        || isSelfPerceptionTarget(snapshot)
+        || isSelfPerceptionTarget(probe)
+        || probeSpecificity <= 42
+      )
+    ) {
+      return anchor
+    }
+
+    if (snapshot && isSelfPerceptionTarget(snapshot) && probe && !isSelfPerceptionTarget(probe))
+      return probe
+    if (probe && isSelfPerceptionTarget(probe) && snapshot && !isSelfPerceptionTarget(snapshot))
+      return snapshot
+
+    if (anchor && snapshotAnchorScore >= probeAnchorScore + 24)
+      return mergeForegroundDecisionTarget(snapshot, probe && scoreForegroundDecisionOverlap(snapshot, probe) >= 48 ? probe : undefined)
+    if (anchor && probeAnchorScore >= snapshotAnchorScore + 24)
+      return probe
+
+    if (snapshot && probe) {
+      if (snapshotSpecificity >= probeSpecificity + 32 && probeSpecificity <= 42)
+        return snapshot
+      if (probeSpecificity >= snapshotSpecificity + 32 && snapshotSpecificity <= 42)
+        return probe
+      if (codingInspectionIntent && snapshotSpecificity >= 84 && probeSpecificity <= 42)
+        return snapshot
+    }
+
+    return snapshot ?? probe ?? (input.allowAttentionAnchorFallback ? anchor ?? undefined : undefined)
+  }
+
   function buildProactivePerceptionSystemBlock(input: {
     now: number
     state: AlicizationPerceptionState
@@ -5720,6 +6606,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       push(match[1] ?? '')
     for (const match of normalized.matchAll(/[A-Z]:\\\S+|(?:\.{0,2}\/)?[\w.-]+(?:\/[\w./-]+)+/gi))
       push(match[0] ?? '', 80)
+    for (const match of normalized.matchAll(/\bemotional_tension:[a-z-]{4,32}\b/g))
+      push(match[0] ?? '', 48)
     for (const match of normalized.matchAll(/\b(?:ERR_[A-Z0-9_]+|[A-Z]{2,}[A-Z0-9_-]{1,31}|[A-Z]{2,}-\d{2,})\b/g))
       push(match[0] ?? '', 40)
     for (const match of normalized.matchAll(/\b[A-Z_][\w.:-]{1,31}\b/gi))
@@ -5851,8 +6739,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })()
     if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
       return ''
-    if (isGenericScreenInspectionRequest(currentUserText))
+    if (resolveInspectionIntentFromMessageHistory({
+      userText: currentUserText,
+      messages: payload.messages,
+    })) {
       return `U: ${currentUserText}`
+    }
 
     const recentTurnCount = shouldExtendContextualRecall(currentUserText) ? 3 : 2
     const recentTurns = await resolveRecentContextualTurns(recentTurnCount)
@@ -5879,8 +6771,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     messages: AlicizationChatStartPayload['messages'],
     latestUserText: string,
   ) {
-    if (!latestUserText || isInternalAlicizationRepairPrompt(latestUserText) || !isGenericScreenInspectionRequest(latestUserText))
+    if (!latestUserText || isInternalAlicizationRepairPrompt(latestUserText) || !resolveInspectionIntentFromMessageHistory({
+      userText: latestUserText,
+      messages,
+    })) {
       return messages
+    }
 
     let inspectionContextActive = false
     return messages.map((message, index) => {
@@ -5949,6 +6845,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     state: AlicizationPerceptionState
     mode: 'grounded-screenshot' | 'perception-only'
     permissionStatus?: string
+    unavailableReason?: string
     suppressWeakGenericBrowserAnchor?: boolean
   }) {
     const lines = [
@@ -5976,8 +6873,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       )
     }
     else {
+      const permissionDenied = input.unavailableReason === 'screen-capture-permission-denied'
       lines.push(
-        `Screen capture grounding is unavailable right now${input.permissionStatus ? ` (permission status: ${input.permissionStatus})` : ''}.`,
+        permissionDenied
+          ? `Screen capture grounding is unavailable right now${input.permissionStatus ? ` (permission status: ${input.permissionStatus})` : ''}.`
+          : 'A fresh grounded screenshot was not attached for this turn.',
         'You still have Alicization short-lived perception continuity.',
         'When an attention anchor, recent observation, foreground sample, or invited inspection hint exists, answer from that evidence instead of claiming total blindness.',
         'Be explicit about the evidence level: say what you infer from the anchored app/title/context, then what remains uncertain because no screenshot was grounded.',
@@ -5987,6 +6887,45 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     return lines.join('\n')
+  }
+
+  function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPresenceStateSnapshot) {
+    const privateThought = state.privateThought
+    if (!state.currentScene && !privateThought)
+      return ''
+
+    return [
+      '[ALICIZATION_VISUAL_PRESENCE]',
+      `Watch mode: ${state.watchMode}.`,
+      `Current scene: ${state.currentScene
+        ? JSON.stringify({
+            scenario: state.currentScene.scenario,
+            workloadKind: state.currentScene.workloadKind,
+            contentKind: state.currentScene.contentKind,
+            summary: state.currentScene.summary,
+            target: state.currentScene.target,
+          })
+        : 'none'}.`,
+      `Attention: ${state.attention
+        ? JSON.stringify({
+            target: state.attention.target,
+            source: state.attention.source,
+            confidence: state.attention.confidence,
+            dwellMs: state.attention.dwellMs,
+          })
+        : 'none'}.`,
+      `Private thought: ${privateThought
+        ? JSON.stringify({
+            stance: privateThought.stance,
+            shouldSpeak: privateThought.shouldSpeak,
+            suggestedStyle: privateThought.suggestedStyle,
+            embodiedPresence: privateThought.embodiedPresence,
+            emotionalTension: privateThought.emotionalTension,
+            afterglowFromScenario: privateThought.afterglowFromScenario ?? null,
+          })
+        : 'none'}.`,
+      'When grounded screenshot evidence is attached, trust that screenshot first and let this visual presence block act as continuity rather than override.',
+    ].join('\n')
   }
 
   function buildChatInspectionGroundingParts(input: {
@@ -6063,36 +7002,66 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
     }
 
-    try {
-      const sources = await desktopCapturer.getSources({
-        types: input.types,
-        fetchWindowIcons: false,
-        thumbnailSize: input.thumbnailSize,
-      })
-      if (sources.length > 0) {
-        return {
-          permissionStatus,
-          sources,
+    const probePlan = [
+      { label: 'primary', types: [...new Set(input.types)] as Array<'window' | 'screen'> },
+      ...(input.types.includes('screen') && input.types.length > 1
+        ? [{ label: 'retry-screen-only', types: ['screen'] as Array<'window' | 'screen'> }]
+        : []),
+      ...(input.types.includes('window') && input.types.length > 1
+        ? [{ label: 'retry-window-only', types: ['window'] as Array<'window' | 'screen'> }]
+        : []),
+    ]
+    const probeAttempts: NonNullable<DesktopCaptureAccessResult['probeAttempts']> = []
+    let recoveredFromRetry = false
+    let sawProbeError = false
+    let lastProbeError: string | undefined
+
+    for (const attempt of probePlan) {
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: attempt.types,
+          fetchWindowIcons: false,
+          thumbnailSize: input.thumbnailSize,
+        })
+        probeAttempts.push({
+          label: attempt.label,
+          types: attempt.types,
+          sourceCount: sources.length,
+        })
+        if (sources.length > 0) {
+          recoveredFromRetry = recoveredFromRetry || attempt.label !== 'primary' || sawProbeError
+          return {
+            permissionStatus,
+            sources,
+            recoveredFromRetry,
+            probeStrategy: attempt.label,
+            probeAttempts,
+          }
         }
       }
-
-      return {
-        permissionStatus,
-        sources,
-        unavailableReason: permissionStatus && permissionStatus !== 'granted'
-          ? 'screen-capture-permission-denied'
-          : 'screen-capture-sources-empty',
+      catch (error) {
+        sawProbeError = true
+        lastProbeError = errorMessageFrom(error) ?? 'desktop capture failed'
+        probeAttempts.push({
+          label: attempt.label,
+          types: attempt.types,
+          sourceCount: 0,
+          error: lastProbeError,
+        })
       }
     }
-    catch (error) {
-      return {
-        permissionStatus,
-        sources: [],
-        unavailableReason: permissionStatus && permissionStatus !== 'granted'
+
+    return {
+      permissionStatus,
+      sources: [],
+      unavailableReason: sawProbeError
+        ? 'screen-capture-access-failed'
+        : permissionStatus && permissionStatus !== 'granted'
           ? 'screen-capture-permission-denied'
-          : 'screen-capture-access-failed',
-        probeError: errorMessageFrom(error) ?? 'desktop capture failed',
-      }
+          : 'screen-capture-sources-empty',
+      probeError: lastProbeError,
+      recoveredFromRetry,
+      probeAttempts,
     }
   }
 
@@ -6119,12 +7088,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           reason: captureAccess.unavailableReason ?? 'screen-capture-sources-empty',
           permissionStatus: captureAccess.permissionStatus,
           probeError: captureAccess.probeError,
+          probeStrategy: captureAccess.probeStrategy,
+          probeAttempts: captureAccess.probeAttempts,
         },
       }
     }
 
     const anchor = getActiveAttentionAnchor(input.perceptionState, input.now)
-    const candidate = pickScreenSemanticCaptureCandidate({
+    const candidates = rankScreenSemanticCaptureCandidates({
       foregroundWindow: input.currentForeground,
       attentionAnchor: anchor,
       recentObservations: input.perceptionState.recentObservations,
@@ -6132,6 +7103,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       avoidSourcePattern: /\b(?:alicization|codex)\b/i,
       sources: captureAccess.sources,
     })
+    const candidate = candidates[0] ?? null
     if (!candidate) {
       return {
         additionalUserParts: [] as CommonContentPart[],
@@ -6143,21 +7115,35 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         },
       }
     }
-    const staleHistoryRisk = isWeakGenericBrowserFocusTarget({
-      focusTarget: candidate.focusTarget,
-      captureStrategy: candidate.strategy,
-      userText: input.userText,
-    })
-    const effectiveFocusTarget = staleHistoryRisk
-      ? null
-      : candidate.focusTarget
+    const candidateAttempts: Array<{
+      source: string
+      id: string
+      strategy: AlicizationPerceptionSceneResidue['captureStrategy']
+      thumbnailReady: boolean
+    }> = []
+    let resolvedCandidate = candidate
+    let imageDataUrl = ''
 
-    const imageDataUrl = buildCompressedNativeImageDataUrl({
-      image: candidate.source.thumbnail,
-      maxWidth: inspectionGroundingImageMaxWidth,
-      maxHeight: inspectionGroundingImageMaxHeight,
-      jpegQuality: inspectionGroundingImageJpegQuality,
-    })
+    for (const rankedCandidate of candidates) {
+      const candidateImageDataUrl = buildCompressedNativeImageDataUrl({
+        image: rankedCandidate.source.thumbnail,
+        maxWidth: inspectionGroundingImageMaxWidth,
+        maxHeight: inspectionGroundingImageMaxHeight,
+        jpegQuality: inspectionGroundingImageJpegQuality,
+      })
+      candidateAttempts.push({
+        source: rankedCandidate.source.name,
+        id: rankedCandidate.source.id,
+        strategy: rankedCandidate.strategy,
+        thumbnailReady: Boolean(candidateImageDataUrl),
+      })
+      if (!candidateImageDataUrl)
+        continue
+      resolvedCandidate = rankedCandidate
+      imageDataUrl = candidateImageDataUrl
+      break
+    }
+
     if (!imageDataUrl) {
       return {
         additionalUserParts: [] as CommonContentPart[],
@@ -6168,9 +7154,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           captureSource: candidate.source.name,
           focusTarget: describePerceptionTarget(candidate.focusTarget),
           permissionStatus: captureAccess.permissionStatus,
+          candidateAttempts,
         },
       }
     }
+
+    const staleHistoryRisk = isWeakGenericBrowserFocusTarget({
+      focusTarget: resolvedCandidate.focusTarget,
+      captureStrategy: resolvedCandidate.strategy,
+      userText: input.userText,
+    })
+    const effectiveFocusTarget = staleHistoryRisk
+      ? null
+      : resolvedCandidate.focusTarget
 
     const groundedObservationTarget = staleHistoryRisk
       ? null
@@ -6178,25 +7174,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ? {
             appName: effectiveFocusTarget?.appName ?? anchor?.appName ?? input.currentForeground?.appName,
             processName: effectiveFocusTarget?.processName ?? anchor?.processName ?? input.currentForeground?.processName,
-            title: effectiveFocusTarget?.title ?? anchor?.title ?? input.currentForeground?.title ?? candidate.source.name,
+            title: effectiveFocusTarget?.title ?? anchor?.title ?? input.currentForeground?.title ?? resolvedCandidate.source.name,
           }
         : {
             appName: anchor?.appName ?? input.currentForeground?.appName,
             processName: anchor?.processName ?? input.currentForeground?.processName,
-            title: candidate.source.name || anchor?.title || input.currentForeground?.title,
+            title: resolvedCandidate.source.name || anchor?.title || input.currentForeground?.title,
           }
     const sceneResidue = buildInspectionSceneResidue({
       now: input.now,
       userText: input.userText,
       focusTarget: effectiveFocusTarget,
-      captureSourceName: candidate.source.name,
-      captureStrategy: candidate.strategy,
+      captureSourceName: resolvedCandidate.source.name,
+      captureStrategy: resolvedCandidate.strategy,
     })
 
     return {
       additionalUserParts: buildChatInspectionGroundingParts({
         imageDataUrl,
-        candidateSourceName: candidate.source.name,
+        candidateSourceName: resolvedCandidate.source.name,
         focusTarget: effectiveFocusTarget,
         perceptionState: input.perceptionState,
         currentForeground: input.currentForeground,
@@ -6209,17 +7205,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       auditAction: 'inspection-grounded',
       auditPayload: {
         candidateSource: candidate.source.name,
-        captureSource: candidate.source.name,
+        captureSource: resolvedCandidate.source.name,
         candidateId: candidate.source.id,
-        captureId: candidate.source.id,
-        strategy: candidate.strategy,
+        captureId: resolvedCandidate.source.id,
+        strategy: resolvedCandidate.strategy,
         focusTarget: describePerceptionTarget(effectiveFocusTarget),
         focusSource: effectiveFocusTarget?.source ?? 'none',
         focusSuppressed: staleHistoryRisk ? 'weak-generic-browser-screen-fallback' : null,
         attentionAnchor: describePerceptionTarget(anchor),
         permissionStatus: captureAccess.permissionStatus,
+        probeStrategy: captureAccess.probeStrategy,
+        probeAttempts: captureAccess.probeAttempts,
         imageDataChars: imageDataUrl.length,
         permissionProbeMismatch: Boolean(captureAccess.permissionStatus && captureAccess.permissionStatus !== 'granted'),
+        captureRecoveredFromRetry: Boolean(captureAccess.recoveredFromRetry),
+        candidateAttempts,
       },
     }
   }
@@ -6238,6 +7238,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const now = Date.now()
     let perceptionState = await ensurePerceptionState(input.cardId)
+    let visualPresenceState = await ensureVisualPresenceState(input.cardId)
     const sensorySnapshot = sensoryBus.getSnapshot()
     if (sensorySnapshot?.sample?.foregroundWindow) {
       perceptionState = await rememberPerceptionObservation({
@@ -6248,12 +7249,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })
     }
 
-    const inspectionIntent = detectInvitedInspectionIntent(input.userText)
+    const inspectionIntent = resolveInspectionIntentForChatTurn({
+      now,
+      userText: input.userText,
+      messages: input.messages,
+      perceptionState,
+      visualPresenceState,
+    })
     const genericScreenInspection = inspectionIntent.active && isGenericScreenInspectionRequest(input.userText)
     let currentForeground = sensorySnapshot?.sample?.foregroundWindow
     if (inspectionIntent.active) {
       const interruptionContext = await sampleSubconsciousInterruptionContext().catch(() => null)
-      currentForeground = interruptionContext?.foregroundWindow ?? currentForeground
+      currentForeground = resolveForegroundDecisionTarget({
+        snapshotForeground: currentForeground,
+        probedForeground: interruptionContext?.foregroundWindow,
+        attentionAnchor: getActiveAttentionAnchor(perceptionState, now),
+        hintTerms: extractInspectionHintTerms(input.userText),
+        allowAttentionAnchorFallback: true,
+      }) ?? currentForeground
       if (currentForeground) {
         perceptionState = await rememberPerceptionObservation({
           cardId: input.cardId,
@@ -6274,6 +7287,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     let auditAction = inspectionIntent.active ? 'inspection-grounding-skipped' : 'perception-context-prepared'
     let auditPayload: Record<string, unknown> = {
       inspectionRequested: inspectionIntent.active,
+      inspectionIntentConfidence: inspectionIntent.confidence,
+      inspectionIntentReasonCodes: inspectionIntent.reasonCodes,
       attentionAnchor: describePerceptionTarget(getActiveAttentionAnchor(perceptionState, now)),
     }
 
@@ -6308,6 +7323,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ...auditPayload,
         ...grounding.auditPayload,
       }
+      if (grounding.additionalUserParts.length === 0 && shouldSuppressWeakGenericBrowserInspectionAnchor({
+        now,
+        userText: input.userText,
+        state: perceptionState,
+        currentForeground,
+        groundingUnavailableReason: typeof grounding.auditPayload.reason === 'string' ? grounding.auditPayload.reason : undefined,
+      })) {
+        perceptionState = purgeWeakGenericBrowserInspectionState({
+          now,
+          state: perceptionState,
+        })
+        await persistPerceptionState(input.cardId, perceptionState)
+      }
     }
     else if (inspectionIntent.active && latestUserHasImage) {
       auditAction = 'inspection-grounding-skipped'
@@ -6317,13 +7345,111 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
     }
 
+    const proactiveState = await ensureProactiveLoopState(input.cardId)
+    const lateNightActiveMinutes = proactiveState.lateNightActivityStartedAt
+      ? Math.max(0, (now - proactiveState.lateNightActivityStartedAt) / 60_000)
+      : 0
+    const subconsciousState = await ensureSubconsciousState(input.cardId)
+    const soulForPerception = soulSnapshot ?? await bootstrap()
+    const reminderBacklog = (await alicizationDb.listPendingScheduledTasks(16).catch(() => [])).length
+    const chatLayeredContext = buildProactiveLayeredContext({
+      now,
+      probeSample: sensorySnapshot?.sample,
+      interruptionContext: {
+        idleSeconds: null,
+        inputActivity: 'unknown',
+        fullscreenLikely: false,
+        foregroundWindow: currentForeground,
+        degraded: [],
+      },
+      subconsciousState,
+      hostAttitude: soulForPerception.frontmatter.host_attitude,
+      reminderBacklog,
+      lateNightActiveMinutes,
+      recentProactiveOutcomes: proactiveState.recentOutcomes,
+      screenSemanticSummary: null,
+    })
+    const chatScenario = inferScenarioFromContext({
+      workload: chatLayeredContext.workload.kind,
+      content: chatLayeredContext.content.kind,
+      lateNight: chatLayeredContext.localTime.isLateNight,
+      lateNightActiveMinutes: chatLayeredContext.relationship.lateNightActiveMinutes,
+      fatigue: chatLayeredContext.relationship.fatigue,
+    })
+    const groundedResidue = getActivePerceptionSceneResidue(perceptionState, now)
+    const chatHeartbeat = buildVisualHeartbeat({
+      now,
+      scenario: chatScenario,
+      previousState: visualPresenceState,
+      context: chatLayeredContext,
+      invitedInspectionActive: inspectionIntent.active,
+      groundedSummary: groundedResidue?.summary ?? null,
+      screenSemanticSummaryActive: auditAction === 'inspection-grounded',
+      durabilityPulse: null,
+    })
+    const chatAttention = updateVisualAttentionModel({
+      now,
+      scenario: chatScenario,
+      previousAttention: visualPresenceState.attention,
+      currentForeground,
+      currentScene: chatHeartbeat.scene,
+      invitedInspectionActive: inspectionIntent.active,
+      perceptionAnchor: getActiveAttentionAnchor(perceptionState, now)
+        ?? perceptionState.lastNonSelfForegroundTarget
+        ?? null,
+      durabilityPulse: null,
+    })
+    const chatPrivateThought = buildPrivateThoughtLoop({
+      now,
+      context: chatLayeredContext,
+      watchMode: chatHeartbeat.watchMode,
+      currentScene: chatHeartbeat.scene,
+      attention: chatAttention,
+      recentTransition: chatHeartbeat.recentTransition,
+      durabilityPulse: null,
+    })
+    visualPresenceState = updateVisualPresenceState({
+      now,
+      previousState: visualPresenceState,
+      watchMode: chatHeartbeat.watchMode,
+      scene: chatHeartbeat.scene,
+      attention: chatAttention,
+      privateThought: chatPrivateThought,
+      captureState: {
+        permission: auditAction === 'inspection-grounded'
+          ? 'granted'
+          : typeof auditPayload.reason === 'string' && auditPayload.reason === 'screen-capture-permission-denied'
+            ? 'denied'
+            : visualPresenceState.captureState.permission,
+        lastGroundedAt: auditAction === 'inspection-grounded'
+          ? now
+          : visualPresenceState.captureState.lastGroundedAt,
+        sourceName: typeof auditPayload.captureSource === 'string'
+          ? auditPayload.captureSource
+          : visualPresenceState.captureState.sourceName,
+        degradedReason: typeof auditPayload.reason === 'string'
+          ? auditPayload.reason
+          : visualPresenceState.captureState.degradedReason,
+      },
+      durabilityPulse: null,
+      recentTransition: chatHeartbeat.recentTransition,
+      nextSuggestedProbeMs: chatHeartbeat.nextSuggestedProbeMs,
+    })
+    await persistVisualPresenceState(input.cardId, visualPresenceState)
+
     const systemBlocks = [
       buildChatPerceptionSystemBlock({
         now,
         state: perceptionState,
         inspectionRequested: inspectionIntent.active,
         currentForeground,
-        suppressWeakGenericBrowserAnchor: genericScreenInspection,
+        suppressWeakGenericBrowserAnchor: genericScreenInspection || (inspectionIntent.active && shouldSuppressWeakGenericBrowserInspectionAnchor({
+          now,
+          userText: input.userText,
+          state: perceptionState,
+          currentForeground,
+          groundingUnavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
+        })),
       }),
       inspectionIntent.active
         ? buildChatInspectionContractSystemBlock({
@@ -6331,9 +7457,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             state: perceptionState,
             mode: auditAction === 'inspection-grounded' ? 'grounded-screenshot' : 'perception-only',
             permissionStatus: typeof auditPayload.permissionStatus === 'string' ? auditPayload.permissionStatus : undefined,
-            suppressWeakGenericBrowserAnchor: genericScreenInspection,
+            unavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
+            suppressWeakGenericBrowserAnchor: genericScreenInspection || shouldSuppressWeakGenericBrowserInspectionAnchor({
+              now,
+              userText: input.userText,
+              state: perceptionState,
+              currentForeground,
+              groundingUnavailableReason: typeof auditPayload.reason === 'string' ? auditPayload.reason : undefined,
+            }),
           })
         : '',
+      buildChatVisualPresenceSystemBlock(visualPresenceState),
     ].filter(Boolean)
 
     if (inspectionIntent.active || systemBlocks.length > 0) {
@@ -6344,7 +7478,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         message: inspectionIntent.active
           ? 'Prepared invited inspection context for the current chat turn.'
           : 'Prepared Alicization short-lived perception context for the current chat turn.',
-        payload: auditPayload,
+        payload: {
+          ...auditPayload,
+          visualPresence: {
+            watchMode: visualPresenceState.watchMode,
+            currentScene: visualPresenceState.currentScene,
+            privateThought: visualPresenceState.privateThought,
+          },
+        },
       }, input.cardId)
     }
 
@@ -7306,6 +8447,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       messages = resolveChatMessages(payload, {
         redactStaleInspectionHistoryForUserText: shouldBypassPerception ? '' : latestUserText,
       })
+      messages = preserveLatestUserMultimodalContent({
+        originalMessages: payload.messages,
+        resolvedMessages: messages,
+      })
       const perceptionAugmentation = latestUserText && !shouldBypassPerception
         ? await augmentMainChatMessagesWithPerception({
             cardId: payload.cardId,
@@ -7852,6 +8997,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return snapshot
     })
   })
+  defineInvokeHandler(context, electronAlicizationGetVisualPresenceState, async (scope) => {
+    return await withCardScope(cardIdFrom(scope), async () => await ensureVisualPresenceState(activeCardId))
+  })
   defineInvokeHandler(context, electronAlicizationUpdateMemoryStats, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.overrideMemoryStats(payload)))
   defineInvokeHandler(context, electronAlicizationRunMemoryPrune, async scope => await withCardScope(cardIdFrom(scope), async () => await alicizationDb.runMemoryPrune()))
   defineInvokeHandler(context, electronAlicizationMemoryRetrieveFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.retrieveMemoryFacts(payload.query, payload.limit)))
@@ -8028,6 +9176,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     await rm(resolveCardPaths(targetCardId).soulRoot, { recursive: true, force: true })
     proactiveLoopStateByCard.delete(targetCardId)
     perceptionStateByCard.delete(targetCardId)
+    visualPresenceStateByCard.delete(targetCardId)
     screenSemanticCacheByCard.delete(targetCardId)
     subconsciousStateByCard.delete(targetCardId)
     activeSessionIdByCard.delete(targetCardId)

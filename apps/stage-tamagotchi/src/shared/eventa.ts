@@ -414,6 +414,7 @@ export type AlicizationSubconsciousFragmentSourceKind
     | 'former-core-incarnation'
     | 'unforged-shattering-event'
     | 'attitude-shift'
+    | 'visual-sediment'
 
 export interface AlicizationActiveThought {
   id: string
@@ -540,6 +541,7 @@ export interface AlicizationSystemProbeSample {
     appName?: string
     processName?: string
     title?: string
+    pid?: number | null
   }
   battery?: {
     percent: number
@@ -613,6 +615,127 @@ export type AlicizationProactiveReasonCode
     | 'foreground-error'
     | 'foreground-diff'
     | 'reminder-backlog'
+    | 'afterglow-opening'
+    | 'durability-pulse'
+    | 'durability-process-gone'
+    | 'durability-anr-likely'
+    | 'private-thought-observe-only'
+    | 'private-thought-uncertain'
+    | 'watch-mode-symbiotic'
+    | 'watch-mode-invited-inspection'
+    | 'watch-mode-recovering'
+
+export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
+export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
+export type AlicizationEmotionalTension
+  = | 'tense-debug'
+    | 'focused-flow'
+    | 'soft-covision'
+    | 'late-night-drain'
+    | 'restless-switching'
+    | 'calm-browse'
+
+export interface AlicizationVisualTarget {
+  appName?: string
+  processName?: string
+  title?: string
+  pid?: number | null
+}
+
+export interface AlicizationVisualSceneSnapshot {
+  workloadKind: 'coding' | 'media' | 'browser' | 'terminal' | 'game' | 'chat' | 'document' | 'unknown'
+  contentKind: 'error' | 'diff' | 'doc' | 'video' | 'music' | 'chat' | 'gameplay' | 'unknown'
+  scenario: AlicizationProactiveScenario
+  summary?: string
+  source: 'foreground-window-heuristic' | 'screen-semantic-summary' | 'invited-grounding' | 'durability-hook'
+  confidence: number
+  target?: AlicizationVisualTarget | null
+  beganAt: number
+  lastSeenAt: number
+}
+
+export interface AlicizationVisualAttentionSnapshot {
+  target: AlicizationVisualTarget | null
+  source: 'invited-inspection' | 'current-grounded-scene' | 'recent-observation' | 'old-anchor' | 'durability-pulse' | 'foreground-window'
+  confidence: number
+  engagedAt: number | null
+  lastConfirmedAt: number | null
+  dwellMs: number
+  invalidationReason?: string | null
+}
+
+export interface AlicizationVisualTransitionSnapshot {
+  fromWatchMode: AlicizationVisualWatchMode
+  toWatchMode: AlicizationVisualWatchMode
+  fromScenario: AlicizationProactiveScenario | 'unknown'
+  durationMs: number
+  reason: string
+  occurredAt: number
+}
+
+export interface AlicizationDurabilityPulseSnapshot {
+  kind: 'none' | 'window-unresponsive' | 'window-responsive' | 'render-process-gone' | 'child-process-gone' | 'process-gone' | 'anr-likely'
+  source: 'electron-window' | 'electron-process' | 'foreground-app' | 'unknown'
+  detectedAt: number
+  pid?: number | null
+  appName?: string
+  processName?: string
+  title?: string
+  detail?: string
+}
+
+export interface AlicizationVisualEpisode {
+  scene: string
+  summary: string
+  attentionTarget?: string
+  beganAt: number
+  endedAt: number
+  confidence: number
+  emotionalTension: AlicizationEmotionalTension
+  sedimentCandidate: boolean
+}
+
+export interface AlicizationPrivateThoughtSnapshot {
+  stance: 'observe' | 'accompany' | 'nudge' | 'care' | 'warn' | 'uncertain'
+  confidence: number
+  rationaleTags: string[]
+  thoughtText: string
+  shouldSpeak: boolean
+  suggestedStyle: AlicizationProactiveStyle
+  embodiedPresence: AlicizationEmbodiedPresenceState
+  expiresAt: number
+  afterglowFromScenario?: 'coding' | 'media' | null
+  emotionalTension: AlicizationEmotionalTension
+}
+
+export interface AlicizationVisualPresenceStateSnapshot {
+  watchMode: AlicizationVisualWatchMode
+  currentScene: AlicizationVisualSceneSnapshot | null
+  attention: AlicizationVisualAttentionSnapshot | null
+  workingMemoryEpisodes: AlicizationVisualEpisode[]
+  privateThought: AlicizationPrivateThoughtSnapshot | null
+  captureState: {
+    permission: 'granted' | 'denied' | 'prompt' | 'unknown'
+    lastGroundedAt: number | null
+    sourceName?: string
+    degradedReason?: string
+  }
+  durabilityPulse: AlicizationDurabilityPulseSnapshot | null
+  recentTransition: AlicizationVisualTransitionSnapshot | null
+  nextSuggestedProbeMs: number
+  updatedAt: number
+}
+
+export interface AlicizationPresencePulsePayload extends AlicizationCardScope {
+  watchMode: AlicizationVisualWatchMode
+  embodiedPresence: AlicizationEmbodiedPresenceState
+  scenario: AlicizationProactiveScenario
+  stance: AlicizationPrivateThoughtSnapshot['stance']
+  confidence: number
+  reasonTags: string[]
+  emotionalTension?: AlicizationEmotionalTension
+  expiresAt: number
+}
 
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean
@@ -1034,6 +1157,7 @@ export const electronAlicizationListConversationTurns = defineInvokeEventa<Alici
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
 export const electronAlicizationReportProactiveFeedback = defineInvokeEventa<void, AlicizationProactiveFeedbackPayload>('eventa:invoke:electron:alicization:conversation:report-proactive-feedback')
 export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')
+export const electronAlicizationGetVisualPresenceState = defineInvokeEventa<AlicizationVisualPresenceStateSnapshot | null, AlicizationCardScope>('eventa:invoke:electron:alicization:visual-presence:get-state')
 export const electronAlicizationClearAllConversations = defineInvokeEventa<void>('eventa:invoke:electron:alicization:conversation:clear-all')
 export const electronAlicizationSetActiveSession = defineInvokeEventa<void, AlicizationSetActiveSessionPayload>('eventa:invoke:electron:alicization:conversation:set-active-session')
 export const electronAlicizationAppendAuditLog = defineInvokeEventa<void, AlicizationCardScope & AlicizationAuditLogInput>('eventa:invoke:electron:alicization:audit:append')
@@ -1056,6 +1180,7 @@ export const alicizationChatAbortInvokeChannel = 'alicization:chat-abort'
 export const alicizationKillSwitchStateChanged = defineEventa<AlicizationCardScope & AlicizationKillSwitchSnapshot>('eventa:event:electron:alicization:kill-switch:state-changed')
 export const alicizationSoulChanged = defineEventa<AlicizationCardScope & AlicizationSoulSnapshot>('eventa:event:electron:alicization:soul:changed')
 export const alicizationDialogueResponded = defineEventa<AlicizationDialogueRespondedPayload>('eventa:event:electron:alicization:dialogue:responded')
+export const electronAlicizationVisualPresenceChanged = defineEventa<AlicizationPresencePulsePayload>('eventa:event:electron:alicization:visual-presence:changed')
 export const alicizationSafetyPermissionRequested = defineEventa<AlicizationSafetyPermissionRequest>('eventa:event:electron:alicization:safety:permission-requested')
 export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChunkEvent>('eventa:event:electron:alicization:chat:stream-chunk')
 export const alicizationChatStreamToolCall = defineEventa<AlicizationChatToolCallEvent>('eventa:event:electron:alicization:chat:stream-tool-call')

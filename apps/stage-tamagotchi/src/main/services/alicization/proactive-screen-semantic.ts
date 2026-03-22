@@ -58,6 +58,7 @@ function normalizeSummary(value: unknown) {
 
 const codingSourcePattern = /\b(?:visual studio code|vscode|cursor|windsurf|xcode|jetbrains|intellij|idea|pycharm|webstorm|goland|datagrip|clion|rubymine|fleet|zed|terminal|iterm|warp|ghostty|alacritty|docker|github desktop|gitkraken|fork)\b/i
 const codingContentPattern = /\b(?:error|exception|traceback|stack trace|diff|pull request|test failed|failing test|build failed|typescript|javascript|eslint|pnpm|npm|bun|cargo|docker)\b/i
+const mediaSourcePattern = /\b(?:qqmusic|qq music|spotify|apple music|music|youtube music|youtube|bilibili|netflix|vlc|iina|podcast|netease|cloud music)\b|qq音乐|网易云/i
 const permissionModalPattern = /\b(?:screen(?:\s*&\s*system audio)?\s+recording|system audio recording|grant access|permission|picker|window picker)\b/i
 const chatSourcePattern = /\b(?:wechat|weixin|discord|telegram|slack|qq|messages|message|whatsapp|teams|zoom)\b/i
 
@@ -113,6 +114,43 @@ function buildTargetText(target: { appName?: string, processName?: string, title
     target?.processName ?? '',
     target?.title ?? '',
   ].filter(Boolean).join(' ')
+}
+
+function scoreTargetOverlap(
+  sourceName: string,
+  target: { appName?: string, processName?: string, title?: string } | null | undefined,
+) {
+  if (!sourceName || !target)
+    return 0
+  return Math.max(
+    overlapScore(sourceName, normalizeText(target.title)),
+    overlapScore(sourceName, normalizeText(target.appName)),
+    overlapScore(sourceName, normalizeText(target.processName)),
+  )
+}
+
+function scoreTargetPairOverlap(
+  left: { appName?: string, processName?: string, title?: string } | null | undefined,
+  right: { appName?: string, processName?: string, title?: string } | null | undefined,
+) {
+  const leftText = normalizeText(buildTargetText(left))
+  const rightText = normalizeText(buildTargetText(right))
+  if (!leftText || !rightText)
+    return 0
+  return overlapScore(leftText, rightText)
+}
+
+function alignsWithLiveFocus(input: {
+  target: { appName?: string, processName?: string, title?: string } | null | undefined
+  focusTarget: { appName?: string, processName?: string, title?: string } | null | undefined
+  foregroundTarget: { appName?: string, processName?: string, title?: string } | null | undefined
+}) {
+  if (!input.focusTarget && !input.foregroundTarget)
+    return true
+  return Math.max(
+    scoreTargetPairOverlap(input.target, input.focusTarget),
+    scoreTargetPairOverlap(input.target, input.foregroundTarget),
+  ) >= 48
 }
 
 function isAvoidedTarget(
@@ -261,7 +299,7 @@ function pickFocusTarget(input: {
   return buildHintTermsFocusTarget(Array.isArray(input.hintTerms) ? input.hintTerms : [])
 }
 
-export function pickScreenSemanticCaptureCandidate(input: {
+export function rankScreenSemanticCaptureCandidates(input: {
   foregroundWindow?: {
     appName?: string
     processName?: string
@@ -280,7 +318,7 @@ export function pickScreenSemanticCaptureCandidate(input: {
   hintTerms?: string[]
   avoidSourcePattern?: RegExp
   sources: DesktopCapturerSource[]
-}): AlicizationScreenSemanticCaptureCandidate | null {
+}): AlicizationScreenSemanticCaptureCandidate[] {
   const focusTarget = pickFocusTarget({
     foregroundWindow: input.foregroundWindow,
     attentionAnchor: input.attentionAnchor,
@@ -288,6 +326,7 @@ export function pickScreenSemanticCaptureCandidate(input: {
     hintTerms: input.hintTerms,
     avoidSourcePattern: input.avoidSourcePattern,
   })
+  const foregroundTarget = normalizeRawTarget(input.foregroundWindow)
   const title = normalizeText(input.foregroundWindow?.title)
   const appName = normalizeText(input.foregroundWindow?.appName)
   const processName = normalizeText(input.foregroundWindow?.processName)
@@ -319,13 +358,9 @@ export function pickScreenSemanticCaptureCandidate(input: {
     focusLockText,
   ].filter(Boolean).join('\n')
   const preferCodingCandidate = matchesPattern(captureIntentText, codingSourcePattern) || matchesPattern(captureIntentText, codingContentPattern)
+  const preferMediaCandidate = matchesPattern(captureIntentText, mediaSourcePattern)
   const externalFocusLocked = Boolean(focusTarget && !isAvoidedTarget(focusTarget, input.avoidSourcePattern))
-
-  let best: {
-    source: DesktopCapturerSource
-    score: number
-    strategy: AlicizationScreenSemanticSummary['source']['strategy']
-  } | null = null
+  const ranked: Array<AlicizationScreenSemanticCaptureCandidate & { score: number }> = []
 
   for (const source of input.sources) {
     const sourceName = normalizeText(source.name)
@@ -344,12 +379,26 @@ export function pickScreenSemanticCaptureCandidate(input: {
       const titleScore = overlapScore(sourceName, title)
       const appScore = overlapScore(sourceName, appName)
       const processScore = overlapScore(sourceName, processName)
+      const liveFocusScore = Math.max(
+        scoreTargetOverlap(sourceName, focusTarget),
+        scoreTargetOverlap(sourceName, foregroundTarget),
+      )
       const anchorScore = Math.max(
         overlapScore(sourceName, attentionAnchor.title),
         overlapScore(sourceName, attentionAnchor.appName),
         overlapScore(sourceName, attentionAnchor.processName),
       )
       const recentScore = recentObservations.reduce((total, observation, index) => {
+        if (
+          externalFocusLocked
+          && !alignsWithLiveFocus({
+            target: observation,
+            focusTarget,
+            foregroundTarget,
+          })
+        ) {
+          return total
+        }
         const weight = Math.max(1, 3 - index)
         return total + weight * Math.max(
           overlapScore(sourceName, observation.title),
@@ -359,21 +408,28 @@ export function pickScreenSemanticCaptureCandidate(input: {
       }, 0)
       const hintScore = hintTerms.reduce((total, term) => total + overlapScore(sourceName, term), 0)
       score = Math.max(titleScore, appScore, processScore)
-      score += Math.round(anchorScore * 0.7)
-      score += Math.round(recentScore * 0.2)
-      score += Math.round(hintScore * 0.55)
+      score += Math.round(liveFocusScore * (externalFocusLocked ? 2.2 : 1.6))
+      score += Math.round(anchorScore * (externalFocusLocked ? 0.35 : 0.7))
+      score += Math.round(recentScore * (externalFocusLocked ? 0.08 : 0.2))
+      score += Math.round(hintScore * (externalFocusLocked ? 0.22 : 0.55))
       strategy = titleScore >= appScore && titleScore >= processScore
         ? 'window-title'
         : appScore >= processScore
           ? 'app-name'
           : 'process-name'
+      if (liveFocusScore >= 90)
+        score += 180
+      else if (liveFocusScore >= 48)
+        score += 120
+      if (externalFocusLocked && liveFocusScore < 24 && anchorScore < 24)
+        score -= focusTarget?.source === 'attention-anchor' || focusTarget?.source === 'foreground-window' ? 220 : 140
       if (score > 0)
         score += 80
     }
     else if (isScreenSource) {
       score = title || appName || processName || attentionAnchor.title || attentionAnchor.appName || attentionAnchor.processName ? 10 : 20
       if (externalFocusLocked)
-        score += 90
+        score += 120
       strategy = 'screen-fallback'
     }
 
@@ -385,6 +441,12 @@ export function pickScreenSemanticCaptureCandidate(input: {
       if (isScreenSource)
         score -= 40
     }
+    else if (preferMediaCandidate) {
+      if (matchesPattern(sourceName, mediaSourcePattern))
+        score += 140
+      if (matchesPattern(sourceName, chatSourcePattern))
+        score -= 120
+    }
 
     if (matchesPattern(sourceName, permissionModalPattern))
       score -= preferCodingCandidate ? 260 : 160
@@ -392,23 +454,42 @@ export function pickScreenSemanticCaptureCandidate(input: {
     if (input.avoidSourcePattern?.test(source.name))
       score -= 160
 
-    if (!best || score > best.score) {
-      best = {
+    if (score > 0) {
+      ranked.push({
         source,
-        score,
         strategy,
-      }
+        focusTarget,
+        score,
+      })
     }
   }
 
-  if (!best || best.score <= 0)
-    return null
+  return ranked
+    .sort((left, right) => right.score - left.score)
+    .map(({ score: _score, ...candidate }) => candidate)
+}
 
-  return {
-    source: best.source,
-    strategy: best.strategy,
-    focusTarget,
+export function pickScreenSemanticCaptureCandidate(input: {
+  foregroundWindow?: {
+    appName?: string
+    processName?: string
+    title?: string
   }
+  attentionAnchor?: {
+    appName?: string
+    processName?: string
+    title?: string
+  } | null
+  recentObservations?: Array<{
+    appName?: string
+    processName?: string
+    title?: string
+  }>
+  hintTerms?: string[]
+  avoidSourcePattern?: RegExp
+  sources: DesktopCapturerSource[]
+}): AlicizationScreenSemanticCaptureCandidate | null {
+  return rankScreenSemanticCaptureCandidates(input)[0] ?? null
 }
 
 export function parseScreenSemanticSummary(input: {

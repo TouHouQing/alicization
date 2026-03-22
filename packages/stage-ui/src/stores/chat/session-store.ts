@@ -11,6 +11,7 @@ import { useLocalFirstRequest } from '../../composables/use-local-first'
 import { chatSessionsRepo } from '../../database/repos/chat-sessions.repo'
 import { useAuthStore } from '../auth'
 import { useAiriCardStore } from '../modules/airi-card'
+import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
 export const useChatSessionStore = defineStore('chat-session', () => {
   const { userId, isAuthenticated } = storeToRefs(useAuthStore())
@@ -103,7 +104,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   function normalizeMessagesWithIds(messages: ChatHistoryItem[]) {
     const sanitizedMessages = sanitizeSessionMessages(messages)
     let changed = false
-    const normalized = sanitizedMessages.map((message) => {
+    const normalizedWithIds = sanitizedMessages.map((message) => {
       if (message.id)
         return message
       changed = true
@@ -112,31 +113,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         id: nanoid(),
       }
     })
+    const normalized = canonicalizeSessionMessages(normalizedWithIds)
     return {
       normalized,
-      changed: changed || sanitizedMessages.length !== messages.length,
+      changed: changed
+        || sanitizedMessages.length !== messages.length
+        || normalized.length !== normalizedWithIds.length
+        || JSON.stringify(normalized) !== JSON.stringify(normalizedWithIds),
     }
-  }
-
-  function mergeStoredAndLocalMessages(storedMessages: ChatHistoryItem[], localMessages: ChatHistoryItem[]) {
-    if (localMessages.length === 0)
-      return storedMessages
-    if (storedMessages.length === 0)
-      return localMessages
-
-    const mergedById = new Map<string, ChatHistoryItem>()
-
-    for (const message of storedMessages) {
-      const key = message.id ?? nanoid()
-      mergedById.set(key, message)
-    }
-
-    for (const message of localMessages) {
-      const key = message.id ?? nanoid()
-      mergedById.set(key, message)
-    }
-
-    return [...mergedById.values()].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))
   }
 
   function buildSyncMessages(messages: ChatHistoryItem[]) {
@@ -250,7 +234,14 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     const meta = sessionMetas.value[sessionId]
     if (!meta)
       return
-    const messages = snapshotMessages(ensureSessionMessageIds(sessionId))
+    const currentMessages = ensureSessionMessageIds(sessionId)
+    const canonicalMessages = canonicalizeSessionMessages(currentMessages)
+    if (JSON.stringify(canonicalMessages) !== JSON.stringify(currentMessages)) {
+      const current = sessionMessages.value[sessionId]
+      if (current)
+        current.splice(0, current.length, ...canonicalMessages)
+    }
+    const messages = snapshotMessages(sessionMessages.value[sessionId] ?? canonicalMessages)
     const now = Date.now()
     const updatedMeta = {
       ...meta,
@@ -310,8 +301,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         const localMessages = sanitizeSessionMessages(sessionMessages.value[sessionId] ?? [])
         const hasLocalMessages = localMessages.length > 0
         const mergedMessages = hasLocalMessages
-          ? mergeStoredAndLocalMessages(normalizedStoredMessages, localMessages)
-          : normalizedStoredMessages
+          ? mergeLoadedSessionMessages(normalizedStoredMessages, localMessages)
+          : canonicalizeSessionMessages(normalizedStoredMessages)
 
         sessionMetas.value[sessionId] = stored.meta
         const current = sessionMessages.value[sessionId]

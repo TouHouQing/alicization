@@ -1157,4 +1157,51 @@ describe('chat orchestrator', () => {
     expect(payload?.structured?.parsePath).toBe('repair-json')
     expect(String(payload?.assistantText ?? '')).toContain('null check')
   })
+
+  it('locally repairs shared-attention follow-ups for current desktop scenes', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      streamInvocation += 1
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '这次换成了另一首，封面和标题都还是 QQ 音乐的播放页。',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    ensureSessionMessages(activeSessionId.value).push(
+      {
+        role: 'user',
+        content: '帮我看看 QQ 音乐现在放的是什么歌',
+      },
+      {
+        role: 'assistant',
+        content: '我在看着。',
+      },
+    )
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('这首歌呢？我又换了一首', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamInvocation).toBe(1)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.structured',
+      action: 'contract-local-repair',
+      payload: expect.objectContaining({
+        inspectionLikeTurn: true,
+      }),
+    }))
+    expect(appendAuditLogMock).not.toBeCalledWith(expect.objectContaining({
+      category: 'alicization.structured',
+      action: 'contract-retry-reasoned',
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(payload?.structured?.parsePath).toBe('repair-json')
+    expect(String(payload?.assistantText ?? '')).toContain('QQ 音乐')
+  })
 })

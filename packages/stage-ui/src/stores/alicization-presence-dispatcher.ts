@@ -2,6 +2,7 @@ import type {
   AlicizationAuditLogInput,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
+  AlicizationPresencePulsePayload,
 } from './alicization-bridge'
 
 import { defineStore } from 'pinia'
@@ -14,6 +15,7 @@ type PresenceAuditLogger = (input: AlicizationAuditLogInput) => Promise<void> | 
 
 export interface AlicizationPresenceLive2DController {
   applyPerformance: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
+  applyPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
 }
 
 export interface AlicizationPresenceTTSController {
@@ -147,6 +149,31 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     }
   }
 
+  async function dispatchPresencePulse(payload: AlicizationPresencePulsePayload) {
+    if (!payload || payload.embodiedPresence === 'none' || payload.expiresAt <= Date.now())
+      return
+
+    if (!live2dController.value?.applyPresencePulse)
+      return
+
+    try {
+      await Promise.resolve(live2dController.value.applyPresencePulse(payload))
+    }
+    catch (error) {
+      await appendWarning(
+        'presence-pulse-dispatch-failed',
+        'Silent Alicization presence pulse failed and was degraded silently.',
+        {
+          watchMode: payload.watchMode,
+          embodiedPresence: payload.embodiedPresence,
+          reason: error instanceof Error
+            ? error.message
+            : String(error),
+        },
+      )
+    }
+  }
+
   function onDialogueResponded(listener: DialogueListener) {
     listeners.add(listener)
     return () => {
@@ -185,6 +212,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
 
   return {
     dispatchDialogueResponded,
+    dispatchPresencePulse,
     onDialogueResponded,
     registerLive2DController,
     registerTTSController,

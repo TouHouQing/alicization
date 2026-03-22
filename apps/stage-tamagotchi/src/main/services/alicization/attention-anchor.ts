@@ -1,5 +1,10 @@
 import type { AlicizationContentKind, AlicizationWorkloadKind } from './proactive-layered-context'
 
+import {
+  extractInspectionSemanticTerms,
+  inferAlicizationInspectionIntent,
+} from '@proj-alicization/stage-shared'
+
 import { inferForegroundWorkloadFromWindow } from './proactive-layered-context'
 
 export interface AlicizationPerceptionTarget {
@@ -505,20 +510,13 @@ export function detectInvitedInspectionIntent(text: string) {
     }
   }
 
-  const lower = normalized.toLowerCase()
-  const requestPattern = /帮我看看?|看(?:下|一下|看)?(?:这个)?|review|inspect|look at|take a look|check (?:this|that)/i
-  const subjectPattern = /屏幕|窗口|界面|截图|代码|diff|改动|报错|错误|error|exception|traceback|stack trace|terminal|终端|日志|log|console|输出|pr|pull request|commit|cursor|vs code|xcode|jetbrains|pycharm|intellij|goland|webstorm|zed|iterm|warp|wezterm|docker|github desktop|gitkraken|fork|sourcetree|tower/i
-  const problemPattern = /(?:这个|这里|这边|当前).*?(?:有啥|有什么|哪里|怎么|问题)|what'?s wrong|what is wrong|problem with|issue with/i
-  const descriptionPattern = /(?:重新|再)?(?:描述|说说|讲讲)(?:一下)?(?:我|当前|现在)?的?(?:屏幕|窗口|界面|画面)(?:上|里)?的?(?:内容|情况|东西)?|(?:告诉我|跟我说)(?:一下)?(?:我|当前|现在)?的?(?:屏幕|窗口|界面|画面)(?:上|里)?(?:有|是)什么|what(?:'s| is) on (?:my )?(?:screen|display|window)|describe (?:my |the )?(?:screen|display|window)|tell me what(?:'s| is) on (?:my )?(?:screen|display|window)/i
-  const active = (requestPattern.test(lower) && subjectPattern.test(lower))
-    || (subjectPattern.test(lower) && problemPattern.test(lower))
-    || descriptionPattern.test(lower)
+  const inferred = inferAlicizationInspectionIntent({
+    message: normalized,
+  })
 
   return {
-    active,
-    confidence: active
-      ? (requestPattern.test(lower) ? 0.92 : descriptionPattern.test(lower) ? 0.9 : 0.76)
-      : 0,
+    active: inferred.active,
+    confidence: inferred.confidence,
   }
 }
 
@@ -536,30 +534,21 @@ export function extractInspectionHintTerms(text: string) {
     }
   }
 
-  const aliasMatchers = [
-    { pattern: /\b(?:vs\s*code|visual studio code)\b|(?<![a-z])code(?![a-z])/i, terms: ['visual studio code', 'vscode', 'code'] },
-    { pattern: /\bcursor\b/i, terms: ['cursor'] },
-    { pattern: /\bwindsurf\b/i, terms: ['windsurf'] },
-    { pattern: /\bzed\b/i, terms: ['zed'] },
-    { pattern: /\bxcode\b/i, terms: ['xcode'] },
-    { pattern: /\b(?:jetbrains|intellij|pycharm|goland|webstorm|phpstorm|clion|rubymine|rider|dataspell|rustrover)\b/i, terms: ['jetbrains', 'intellij', 'pycharm', 'goland', 'webstorm'] },
-    { pattern: /\b(?:terminal|iterm2?|warp|wezterm|alacritty|kitty|hyper|tmux)\b|终端/i, terms: ['terminal', 'iterm', 'warp', 'wezterm'] },
-    { pattern: /\bdocker\b/i, terms: ['docker', 'docker desktop'] },
-    { pattern: /\b(?:github desktop|gitkraken|fork|sourcetree|tower|smartgit)\b/i, terms: ['github desktop', 'gitkraken', 'fork', 'sourcetree', 'tower'] },
-    { pattern: /\bdiff\b|改动|变更|对比/i, terms: ['diff', 'changes', 'compare'] },
-    { pattern: /\b(?:error|exception|traceback|stack trace|test failed)\b|报错|错误|异常/i, terms: ['error', 'exception', 'traceback', 'test failed'] },
-    { pattern: /\b(?:log|console)\b|日志|控制台|输出/i, terms: ['log', 'console', 'terminal'] },
-  ]
+  for (const token of extractInspectionSemanticTerms(normalized))
+    pushTerms(token)
 
-  for (const matcher of aliasMatchers) {
-    if (matcher.pattern.test(normalized))
-      pushTerms(...matcher.terms)
-  }
-
-  for (const token of normalized.split(/[^a-z0-9\u4E00-\u9FFF]+/i)) {
-    if (token.length >= 4)
-      pushTerms(token)
-  }
+  if (/\b(?:vs\s*code|visual studio code)\b|(?<![a-z])code(?![a-z])/i.test(normalized))
+    pushTerms('visual studio code', 'vscode', 'code')
+  if (/\b(?:qqmusic|qq music)\b|qq\s*音乐/i.test(normalized))
+    pushTerms('qqmusic', 'music', 'song', 'track', 'album', 'lyrics')
+  if (/\b(?:spotify|apple music|music\.app|netease|cloud music)\b|网易云/i.test(normalized))
+    pushTerms('music', 'song', 'track', 'album', 'lyrics')
+  if (/\bdiff\b|改动|变更|对比/i.test(normalized))
+    pushTerms('diff', 'changes', 'compare')
+  if (/\b(?:error|exception|traceback|stack trace|test failed)\b|报错|错误|异常/i.test(normalized))
+    pushTerms('error', 'exception', 'traceback', 'test failed')
+  if (/\b(?:log|console)\b|日志|控制台|输出/i.test(normalized))
+    pushTerms('log', 'console', 'terminal')
 
   return [...terms]
 }

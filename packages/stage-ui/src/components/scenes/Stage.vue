@@ -10,6 +10,7 @@ import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { UnElevenLabsOptions } from 'unspeech'
 
 import type { EmotionPayload } from '../../constants/emotions'
+import type { AlicizationDialoguePerformancePayload, AlicizationPresencePulsePayload } from '../../stores/alicization-bridge'
 
 import { drizzle } from '@proj-airi/drizzle-duckdb-wasm'
 import { getImportUrlBundles } from '@proj-airi/drizzle-duckdb-wasm/bundles/import-url-browser'
@@ -501,6 +502,37 @@ function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensit
   return fallbackIntensity
 }
 
+function resolvePresencePulsePerformance(payload: AlicizationPresencePulsePayload): AlicizationDialoguePerformancePayload {
+  const emotion = (() => {
+    if (payload.embodiedPresence === 'concerned')
+      return payload.emotionalTension === 'late-night-drain' ? 'tired' : 'concerned'
+    if (payload.embodiedPresence === 'hesitant')
+      return 'thinking'
+    if (payload.embodiedPresence === 'attentive')
+      return payload.watchMode === 'symbiotic-vision' ? 'thinking' : 'neutral'
+    return 'neutral'
+  })()
+  const delivery = payload.embodiedPresence === 'hesitant'
+    ? 'hesitant'
+    : payload.embodiedPresence === 'concerned'
+      ? 'gentle'
+      : 'calm'
+  const emphasis = payload.embodiedPresence === 'concerned'
+    ? 1
+    : payload.embodiedPresence === 'attentive'
+      ? 1
+      : 0
+
+  return {
+    baseEmotion: emotion,
+    emotion,
+    facialCue: null,
+    actionCue: null,
+    delivery,
+    emphasis,
+  }
+}
+
 function syncVrmCustomExpressionScan(names: string[]) {
   if (stageModelRenderer.value !== 'vrm' || !stageModelSelected.value)
     return
@@ -707,6 +739,29 @@ presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DControlle
     emotionsQueue.enqueue({
       name: emotionName,
       intensity: resolvePresenceIntensity(performance.emphasis, payload.isFallback ? 0.75 : 0.9),
+    })
+  },
+  applyPresencePulse: async (payload) => {
+    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
+      resolvePresencePulsePerformance(payload),
+      currentPerformanceManifest.value,
+      resolvePresencePulsePerformance(payload).baseEmotion,
+    ).performance
+    const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
+    applyEmotionSpeechStyle(emotionName)
+
+    if (stageModelRenderer.value === 'vrm') {
+      await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
+      return
+    }
+
+    emotionsQueue.enqueue({
+      name: emotionName,
+      intensity: payload.embodiedPresence === 'concerned'
+        ? 0.82
+        : payload.embodiedPresence === 'attentive'
+          ? 0.7
+          : 0.58,
     })
   },
 }))

@@ -1,3 +1,4 @@
+import type { AlicizationPrivateThoughtSnapshot } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { describe, expect, it } from 'vitest'
@@ -59,6 +60,22 @@ function createContext(overrides: Partial<AlicizationProactiveLayeredContext> = 
   }
 }
 
+function createPrivateThought(overrides: Record<string, any> = {}): AlicizationPrivateThoughtSnapshot {
+  return {
+    stance: 'nudge' as const,
+    confidence: 0.84,
+    rationaleTags: ['semantic-friction'],
+    thoughtText: 'I can nudge here.',
+    shouldSpeak: true,
+    suggestedStyle: 'light-nudge' as const,
+    embodiedPresence: 'attentive' as const,
+    expiresAt: 120_000,
+    afterglowFromScenario: null,
+    emotionalTension: 'tense-debug' as const,
+    ...overrides,
+  }
+}
+
 describe('evaluateProactivePolicy', () => {
   it('allows coding interruption only with strong relevant cues', () => {
     const decision = evaluateProactivePolicy({
@@ -66,6 +83,8 @@ describe('evaluateProactivePolicy', () => {
       context: createContext(),
       proactiveState: createDefaultProactiveLoopState(1_000),
       killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.shouldInterrupt).toBe(true)
@@ -98,6 +117,13 @@ describe('evaluateProactivePolicy', () => {
       }),
       proactiveState: createDefaultProactiveLoopState(1_000),
       killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+      }),
     })
 
     expect(decision.scenario).toBe('media')
@@ -117,6 +143,8 @@ describe('evaluateProactivePolicy', () => {
       }),
       proactiveState: createDefaultProactiveLoopState(1_000),
       killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.shouldInterrupt).toBe(false)
@@ -134,6 +162,8 @@ describe('evaluateProactivePolicy', () => {
       context: createContext(),
       proactiveState,
       killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.shouldInterrupt).toBe(false)
@@ -172,6 +202,12 @@ describe('evaluateProactivePolicy', () => {
       }),
       proactiveState: createDefaultProactiveLoopState(1_000),
       killSwitchSuspended: false,
+      watchMode: 'mnemonic-passive',
+      privateThought: createPrivateThought({
+        stance: 'care',
+        suggestedStyle: 'gentle-care',
+        emotionalTension: 'late-night-drain',
+      }),
     })
 
     expect(decision.scenario).toBe('late-night-care')
@@ -200,6 +236,8 @@ describe('evaluateProactivePolicy', () => {
       }),
       proactiveState: createDefaultProactiveLoopState(1_000),
       killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.consideredSignals).toContain('content.summary')
@@ -234,12 +272,14 @@ describe('evaluateProactivePolicy', () => {
         recentObservationCount: 3,
         invitedInspectionActive: false,
       },
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.scenario).toBe('coding')
     expect(decision.reasonCodes).toContain('attention-anchor-active')
     expect(decision.reasonCodes).toContain('recent-observation-memory')
-    expect(decision.whyNow).toContain('短时知觉记忆')
+    expect(decision.whyNow).toContain('短时知觉')
   })
 
   it('records invited inspection as an explicit proactive policy signal', () => {
@@ -270,9 +310,81 @@ describe('evaluateProactivePolicy', () => {
         recentObservationCount: 4,
         invitedInspectionActive: true,
       },
+      watchMode: 'invited-inspection',
+      privateThought: createPrivateThought(),
     })
 
     expect(decision.reasonCodes).toContain('invited-inspection-active')
     expect(decision.consideredSignals).toContain('invitedInspection.active')
+  })
+
+  it('opens an afterglow window after long symbiotic coding ends', () => {
+    const decision = evaluateProactivePolicy({
+      now: 22 * 60_000,
+      context: createContext({
+        workload: {
+          kind: 'browser',
+          confidence: 0.64,
+          source: 'foreground-window-heuristic',
+          matchedLabels: ['browser'],
+        },
+        content: {
+          kind: 'unknown',
+          confidence: 0.2,
+          source: 'foreground-window-heuristic',
+          matchedLabels: [],
+        },
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle',
+          foregroundWindow: {
+            appName: 'Arc',
+            processName: 'Arc',
+            title: 'New Tab',
+          },
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'mnemonic-passive',
+      recentTransition: {
+        fromWatchMode: 'symbiotic-vision',
+        toWatchMode: 'mnemonic-passive',
+        fromScenario: 'coding',
+        durationMs: 20 * 60_000,
+        reason: 'passive-continuity',
+        occurredAt: 21 * 60_000,
+      },
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        shouldSpeak: true,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'glance',
+        emotionalTension: 'focused-flow',
+      }),
+    })
+
+    expect(decision.reasonCodes).toContain('afterglow-opening')
+    expect(decision.style).toBe('light-nudge')
+    expect(decision.shouldInterrupt).toBe(true)
+  })
+
+  it('keeps suppression when private thought is uncertain', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'mnemonic-passive',
+      privateThought: createPrivateThought({
+        stance: 'uncertain',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'hesitant',
+      }),
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('private-thought-uncertain')
   })
 })

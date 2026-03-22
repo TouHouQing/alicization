@@ -1,4 +1,5 @@
 export * from './alicization-defaults'
+export * from './alicization-inspection-intent'
 export * from './alicization-prompting'
 export * from './env-vars'
 export * from './environment'

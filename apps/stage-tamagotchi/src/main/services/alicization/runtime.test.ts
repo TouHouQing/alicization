@@ -49,6 +49,7 @@ const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
 const desktopCapturerGetSourcesMock = vi.fn<() => Promise<any[]>>(async () => [])
 const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
+const appBeforeQuitHandlers: Array<() => Promise<void> | void> = []
 let sensoryCpuUsage = 12
 let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
 
@@ -118,6 +119,99 @@ const dbStub = {
   }),
 }
 
+function resetDbStubMocks() {
+  dbStub.close.mockReset()
+  dbStub.close.mockResolvedValue(undefined)
+  dbStub.appendAuditLog.mockReset()
+  dbStub.appendAuditLog.mockResolvedValue(undefined)
+  dbStub.appendConversationTurn.mockReset()
+  dbStub.appendConversationTurn.mockResolvedValue(undefined)
+  dbStub.getMemoryStats.mockReset()
+  dbStub.getMemoryStats.mockResolvedValue({
+    total: 0,
+    active: 0,
+    archived: 0,
+    lastPrunedAt: null,
+  })
+  dbStub.upsertMemoryFacts.mockReset()
+  dbStub.upsertMemoryFacts.mockResolvedValue(undefined)
+  dbStub.retrieveMemoryFacts.mockReset()
+  dbStub.retrieveMemoryFacts.mockResolvedValue([])
+  dbStub.runMemoryPrune.mockReset()
+  dbStub.runMemoryPrune.mockResolvedValue({
+    total: 0,
+    active: 0,
+    archived: 0,
+    lastPrunedAt: null,
+  })
+  dbStub.importLegacyMemory.mockReset()
+  dbStub.importLegacyMemory.mockResolvedValue({
+    migrated: false,
+    importedFacts: 0,
+    importedArchive: 0,
+    marker: 'legacy_memory_migrated_v1',
+  })
+  dbStub.overrideMemoryStats.mockReset()
+  dbStub.overrideMemoryStats.mockResolvedValue({
+    total: 0,
+    active: 0,
+    archived: 0,
+    lastPrunedAt: null,
+  })
+  dbStub.listActiveThoughts.mockReset()
+  dbStub.listActiveThoughts.mockResolvedValue([])
+  dbStub.replaceActiveThoughts.mockReset()
+  dbStub.replaceActiveThoughts.mockResolvedValue([])
+  dbStub.appendSubconsciousFragments.mockReset()
+  dbStub.appendSubconsciousFragments.mockResolvedValue([])
+  dbStub.searchSubconsciousFragments.mockReset()
+  dbStub.searchSubconsciousFragments.mockResolvedValue([])
+  dbStub.listRecentSubconsciousFragments.mockReset()
+  dbStub.listRecentSubconsciousFragments.mockResolvedValue([])
+  dbStub.countSubconsciousFragments.mockReset()
+  dbStub.countSubconsciousFragments.mockResolvedValue(0)
+  dbStub.insertScheduledTask.mockReset()
+  dbStub.insertScheduledTask.mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
+    id: `row:${input.taskId}`,
+    taskId: input.taskId,
+    triggerAt: input.triggerAt,
+    message: input.message,
+    status: 'pending',
+    createdAt: Date.now(),
+    claimedAt: null,
+    completedAt: null,
+    sourceTurnId: input.sourceTurnId ?? null,
+    firedTurnId: null,
+    lastError: null,
+  }))
+  dbStub.claimDueScheduledTasks.mockReset()
+  dbStub.claimDueScheduledTasks.mockResolvedValue([])
+  dbStub.requeueScheduledTask.mockReset()
+  dbStub.requeueScheduledTask.mockResolvedValue(undefined)
+  dbStub.completeScheduledTask.mockReset()
+  dbStub.completeScheduledTask.mockResolvedValue(undefined)
+  dbStub.failScheduledTask.mockReset()
+  dbStub.failScheduledTask.mockResolvedValue(undefined)
+  dbStub.listPendingScheduledTasks.mockReset()
+  dbStub.listPendingScheduledTasks.mockResolvedValue([])
+  dbStub.getJournalMode.mockReset()
+  dbStub.getJournalMode.mockResolvedValue('wal')
+  dbStub.getLatestConversationSessionId.mockReset()
+  dbStub.getLatestConversationSessionId.mockResolvedValue(undefined)
+  dbStub.listConversationTurnsSince.mockReset()
+  dbStub.listConversationTurnsSince.mockResolvedValue([])
+  dbStub.listConversationTurnsBySession.mockReset()
+  dbStub.listConversationTurnsBySession.mockResolvedValue([])
+  dbStub.clearConversationData.mockReset()
+  dbStub.clearConversationData.mockResolvedValue(undefined)
+  dbStub.getMetaValue.mockReset()
+  dbStub.getMetaValue.mockImplementation(async (key: string) => metaStore.get(key))
+  dbStub.setMetaValue.mockReset()
+  dbStub.setMetaValue.mockImplementation(async (key: string, value: string) => {
+    metaStore.set(key, value)
+  })
+}
+
 vi.mock('@moeru/eventa', () => ({
   defineEventa: (name: string) => ({ name }),
   defineInvokeEventa: (name: string) => ({ name }),
@@ -167,7 +261,9 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../../libs/bootkit/lifecycle', () => ({
-  onAppBeforeQuit: vi.fn(),
+  onAppBeforeQuit: vi.fn((handler: () => Promise<void> | void) => {
+    appBeforeQuitHandlers.push(handler)
+  }),
 }))
 
 vi.mock('./db', () => ({
@@ -247,6 +343,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     vi.clearAllMocks()
     contextEmitMock.mockReset()
     metaStore.clear()
+    resetDbStubMocks()
     streamTextMock.mockReset()
     generateTextMock.mockReset()
     directIpcHandlers.clear()
@@ -258,6 +355,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     systemPreferencesGetMediaAccessStatusMock.mockReturnValue('granted')
     listWebContentsMock.mockReset()
     listWebContentsMock.mockReturnValue([])
+    appBeforeQuitHandlers.length = 0
     generateTextMock.mockImplementation(async (options: any) => {
       let text = ''
       let finishReason = 'stop'
@@ -283,6 +381,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const deleteAllData = invokeHandlers.get(electronAlicizationDeleteAllData)
     if (deleteAllData)
       await deleteAllData!()
+
+    while (appBeforeQuitHandlers.length > 0) {
+      const handler = appBeforeQuitHandlers.pop()
+      if (!handler)
+        continue
+      await handler()
+    }
 
     while (sandboxDirs.length > 0) {
       const dir = sandboxDirs.pop()
@@ -1290,10 +1395,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('image_url')
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('user-supplied-image')
+    const multimodalUserMessage = capturedMessages.find((message) => {
+      if (message.role !== 'user' || !Array.isArray(message.content))
+        return false
+      const serialized = JSON.stringify(message.content)
+      return serialized.includes('image_url') && serialized.includes('user-supplied-image')
+    })
+    expect(multimodalUserMessage).toBeTruthy()
   })
 
   it('uses Alicization attention anchor to ground invited inspection after the chat window becomes frontmost', async () => {
@@ -1474,6 +1582,479 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('recovers invited inspection grounding after a mixed capture probe fails and a retry source becomes available', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'recovered retry reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    systemPreferencesGetMediaAccessStatusMock.mockReturnValue('denied')
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Visual Studio Code',
+      processName: 'Code',
+      title: 'review.diff - Project Alice',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock
+      .mockRejectedValueOnce(new Error('capture backend busy'))
+      .mockResolvedValueOnce([
+        {
+          id: 'screen:1:0',
+          name: 'Entire screen',
+          thumbnail: {
+            toDataURL: () => 'data:image/png;base64,recovered-after-retry',
+          },
+        },
+      ])
+
+    const turnId = 'turn-recovered-grounding-after-retry'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 VS Code 里面这个 diff',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('recovered-after-retry')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        probeStrategy: 'retry-screen-only',
+        captureRecoveredFromRetry: true,
+        permissionStatus: 'denied',
+      }),
+    }))
+  })
+
+  it('keeps QQMusic follow-up questions inside the same invited inspection window', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'qqmusic follow-up grounded reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'QQMusic',
+      processName: 'QQMusic',
+      title: 'Melt - QQMusic',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:chrome:0',
+        name: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,stale-leetcode-first-turn',
+        },
+      },
+      {
+        id: 'window:qqmusic:0',
+        name: 'Melt - QQMusic',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-first-turn',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-screen-first-turn',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-qqmusic-initial-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 QQ 音乐现在放的是什么歌',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:chrome:0',
+        name: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,stale-leetcode-follow-up',
+        },
+      },
+      {
+        id: 'window:qqmusic:0',
+        name: 'Melt - QQMusic',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-follow-up',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-screen-follow-up',
+        },
+      },
+    ])
+
+    const followUpTurnId = 'turn-qqmusic-follow-up-inspection'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看 QQ 音乐现在放的是什么歌',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '你看看歌名是什么',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-follow-up')
+    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-leetcode-follow-up')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        inspectionRequested: true,
+        inspectionIntentReasonCodes: expect.arrayContaining(['inspection-continuity', 'scene-object-reference']),
+        captureSource: 'Melt - QQMusic',
+      }),
+    }))
+  })
+
+  it('treats short scene-switch follow-ups as shared-attention inspection continuity', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'qqmusic short follow-up grounded reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'QQMusic',
+      processName: 'QQMusic',
+      title: 'Melt - QQMusic',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:qqmusic:0',
+        name: 'Melt - QQMusic',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-first-turn-short',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-screen-first-turn-short',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-qqmusic-initial-short-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 QQ 音乐现在放的是什么歌',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:qqmusic:0',
+        name: 'Melt - QQMusic',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-short-follow-up',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-screen-short-follow-up',
+        },
+      },
+    ])
+
+    const followUpTurnId = 'turn-qqmusic-short-follow-up-inspection'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看 QQ 音乐现在放的是什么歌',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '这首歌呢？我又换了一首',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-short-follow-up')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        inspectionRequested: true,
+        inspectionIntentReasonCodes: expect.arrayContaining([
+          'inspection-continuity',
+          'shared-attention-continuation',
+          'scene-change-reference',
+        ]),
+        captureSource: 'Melt - QQMusic',
+      }),
+    }))
+  })
+
+  it('falls through to the next viable capture source when the best QQMusic window thumbnail is empty', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'qqmusic thumbnail fallback reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'QQMusic',
+      processName: 'QQMusic',
+      title: 'Melt - QQMusic',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:qqmusic:0',
+        name: 'Melt - QQMusic',
+        thumbnail: {
+          toDataURL: () => '',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,qqmusic-screen-fallback',
+        },
+      },
+      {
+        id: 'window:chrome:0',
+        name: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,stale-leetcode-fallback',
+        },
+      },
+    ])
+
+    const turnId = 'turn-qqmusic-thumbnail-fallback'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 QQ 音乐现在放的是什么歌',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-screen-fallback')
+    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-leetcode-fallback')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounded',
+      payload: expect.objectContaining({
+        candidateSource: 'Melt - QQMusic',
+        captureSource: 'Entire screen',
+        candidateAttempts: expect.arrayContaining([
+          expect.objectContaining({
+            source: 'Melt - QQMusic',
+            thumbnailReady: false,
+          }),
+          expect.objectContaining({
+            source: 'Entire screen',
+            thumbnailReady: true,
+          }),
+        ]),
+      }),
+    }))
+  })
+
   it('suppresses weak generic browser anchors during a whole-screen recheck so old page details do not dominate the new screenshot', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
@@ -1549,7 +2130,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     const serializedMessages = JSON.stringify(capturedMessages)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale memory')
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('[ALICIZATION_VISUAL_GROUNDING]')
     expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
     expect(serializedMessages).not.toContain('东方的小店')
     expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
@@ -1765,6 +2346,87 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       payload: expect.objectContaining({
         reason: 'screen-capture-permission-denied',
         permissionStatus: 'denied',
+      }),
+    }))
+  })
+
+  it('treats desktop recheck phrasing as invited inspection and strips stale visual history from both payload and contextual recall', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'desktop recheck reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    dbStub.getLatestConversationSessionId.mockResolvedValueOnce('session-desktop-recheck')
+    dbStub.listConversationTurnsBySession.mockResolvedValueOnce([
+      {
+        turnId: 'turn-old-screen',
+        sessionId: 'session-desktop-recheck',
+        userText: '重新看看我屏幕',
+        assistantText: '整个屏幕是深色主题的代码编辑器，正中间开着 stage.yaml。',
+        structuredJson: JSON.stringify({ emotion: 'neutral' }),
+        createdAt: Date.now() - 120_000,
+      },
+    ])
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+
+    const turnId = 'turn-desktop-recheck-intent'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '看看屏幕上的题',
+        },
+        {
+          role: 'assistant',
+          content: '还是 stage.yaml 那个深色编辑器界面。',
+        },
+        {
+          role: 'user',
+          content: '你自己看桌面啊',
+        },
+      ],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const serializedMessages = JSON.stringify(capturedMessages)
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+
+    expect(systemText).toContain('[ALICIZATION_INSPECTION_CONTRACT]')
+    expect(serializedMessages).not.toContain('stage.yaml')
+    expect(serializedMessages).not.toContain('还是 stage.yaml 那个深色编辑器界面')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounding-skipped',
+      payload: expect.objectContaining({
+        inspectionRequested: true,
       }),
     }))
   })
@@ -3590,7 +4252,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(proactiveEvent?.structured.proactive).toEqual(expect.objectContaining({
       style: 'light-nudge',
       feedbackWindowMs: 120_000,
-      policyVersion: 'epoch3-v1',
+      policyVersion: 'epoch4.1-v1',
     }))
     expect(['coding', 'media', 'late-night-care', 'general']).toContain(proactiveEvent?.structured.proactive?.scenario)
     expect(['low', 'medium', 'high']).toContain(proactiveEvent?.structured.proactive?.urgency)

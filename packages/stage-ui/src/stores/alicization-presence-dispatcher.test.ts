@@ -172,4 +172,30 @@ describe('alicization presence dispatcher', () => {
       action: 'live2d-dispatch-failed',
     }))
   })
+
+  it('dispatches silent presence pulse without invoking tts', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPresencePulse = vi.fn()
+    const speak = vi.fn()
+
+    store.registerLive2DController({
+      applyPerformance: vi.fn(),
+      applyPresencePulse,
+    })
+    store.registerTTSController({ speak })
+
+    await store.dispatchPresencePulse({
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: 'coding',
+      stance: 'observe',
+      confidence: 0.72,
+      reasonTags: ['semantic-friction'],
+      emotionalTension: 'focused-flow',
+      expiresAt: Date.now() + 1_000,
+    })
+
+    expect(applyPresencePulse).toBeCalledTimes(1)
+    expect(speak).not.toBeCalled()
+  })
 })

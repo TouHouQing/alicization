@@ -8,6 +8,7 @@ import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, Streamin
 import type { AlicizationEmotion, AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
+import { inferAlicizationInspectionIntent } from '@proj-alicization/stage-shared'
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
@@ -131,10 +132,6 @@ const strictRealtimeRefusalSystemPrompt = [
   'Explain this limitation naturally in your current personality, one-shot, without promising delayed follow-up.',
   'Keep response in strict JSON contract: thought, emotion, reply, performance.',
 ].join(' ')
-const invitedInspectionRequestPattern = /帮我看看?|看(?:下|一下|看)?(?:这个)?|review|inspect|look at|take a look|check (?:this|that)/i
-const invitedInspectionSubjectPattern = /屏幕|窗口|界面|截图|代码|diff|改动|报错|错误|error|exception|traceback|stack trace|terminal|终端|日志|log|console|输出|pr|pull request|commit|cursor|vs code|xcode|jetbrains|pycharm|intellij|goland|webstorm|zed|iterm|warp|wezterm|docker|github desktop|gitkraken|fork/i
-const invitedInspectionProblemPattern = /(?:这个|这里|这边|当前).*?(?:有啥|有什么|哪里|怎么|问题)|what'?s wrong|what is wrong|problem with|issue with/i
-
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
   return {
     role: 'assistant',
@@ -210,12 +207,14 @@ function normalizeReminderMessageForFallback(raw: string) {
     .trim()
 }
 
-function detectInvitedInspectionLikeTurn(message: string) {
-  const normalized = message.trim()
-  if (!normalized)
-    return false
-  return (invitedInspectionRequestPattern.test(normalized) && invitedInspectionSubjectPattern.test(normalized))
-    || (invitedInspectionSubjectPattern.test(normalized) && invitedInspectionProblemPattern.test(normalized))
+function detectInvitedInspectionLikeTurn(input: {
+  message: string
+  recentMessages?: Array<{ role?: string, content?: unknown }>
+}) {
+  return inferAlicizationInspectionIntent({
+    message: input.message,
+    recentMessages: input.recentMessages,
+  }).active
 }
 
 function parseReminderIntentPayload(message: string): { minutes: number, message: string } | null {
@@ -1110,7 +1109,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const origin = options.origin ?? 'ui-user'
       const hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
-      const inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn(sendingMessage)
+      const inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn({
+        message: sendingMessage,
+        recentMessages: sessionMessagesForSend.slice(0, -1),
+      })
       const preferLocalContractRepair = hasVisualAttachment || inspectionLikeTurn
       const strictEpoch1Mode = alicizationEpoch1StrictModeEnabled && hasAlicizationBridge()
       const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'

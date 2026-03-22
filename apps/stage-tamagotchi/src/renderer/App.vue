@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
+import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
@@ -63,6 +63,7 @@ import {
   electronAlicizationGetPerformanceManifest,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
+  electronAlicizationGetVisualPresenceState,
   electronAlicizationInitializeGenesis,
   electronAlicizationKillSwitchGetState,
   electronAlicizationKillSwitchResume,
@@ -88,6 +89,7 @@ import {
   electronAlicizationUpdateMemoryStats,
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
+  electronAlicizationVisualPresenceChanged,
   electronGetServerChannelConfig,
   electronMcpCallTool,
   electronMcpListTools,
@@ -173,6 +175,7 @@ const alicizationSetActiveSession = useElectronEventaInvoke(electronAlicizationS
 const alicizationAppendAuditLog = useElectronEventaInvoke(electronAlicizationAppendAuditLog)
 const alicizationRealtimeExecute = useElectronEventaInvoke(electronAlicizationRealtimeExecute)
 const alicizationGetSensorySnapshot = useElectronEventaInvoke(electronAlicizationGetSensorySnapshot)
+const alicizationGetVisualPresenceState = useElectronEventaInvoke(electronAlicizationGetVisualPresenceState)
 const alicizationGetSubconsciousState = useElectronEventaInvoke(electronAlicizationSubconsciousGetState)
 const alicizationForceSubconsciousTick = useElectronEventaInvoke(electronAlicizationSubconsciousForceTick)
 const alicizationForceDreaming = useElectronEventaInvoke(electronAlicizationSubconsciousForceDream)
@@ -796,6 +799,12 @@ function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogue
   void alicizationPresenceDispatcherStore.dispatchDialogueResponded(payload)
 }
 
+function handleAlicizationVisualPresencePayload(payload?: AlicizationPresencePulsePayload) {
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
+    return
+  void alicizationPresenceDispatcherStore.dispatchPresencePulse(payload)
+}
+
 function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDispatchPayload) {
   if (!payload)
     return
@@ -881,6 +890,7 @@ setAlicizationBridge({
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),
   realtimeExecute: async payload => await alicizationRealtimeExecute({ ...resolveAlicizationScope(), ...payload }),
   getSensorySnapshot: async () => await alicizationGetSensorySnapshot(resolveAlicizationScope()),
+  getVisualPresenceState: async () => await alicizationGetVisualPresenceState(resolveAlicizationScope()),
   getSubconsciousState: async () => await alicizationGetSubconsciousState(resolveAlicizationScope()),
   forceSubconsciousTick: async () => await alicizationForceSubconsciousTick(resolveAlicizationScope()),
   forceDreaming: async payload => await alicizationForceDreaming({ ...resolveAlicizationScope(), ...payload }),
@@ -1060,6 +1070,7 @@ context.value.on(alicizationKillSwitchStateChanged, (event) => {
 })
 
 context.value.on(alicizationDialogueResponded, event => handleAlicizationDialogueRespondedPayload(event?.body))
+context.value.on(electronAlicizationVisualPresenceChanged, event => handleAlicizationVisualPresencePayload(event?.body))
 
 context.value.on(alicizationSafetyPermissionRequested, (event) => {
   const payload = event?.body

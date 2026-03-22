@@ -25,6 +25,7 @@ import type {
   AlicizationSoulUpdatePayload,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
+  AlicizationVisualPresenceStateSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-bridge'
 
@@ -1176,6 +1177,9 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     },
     getSensorySnapshot: async () => {
       return await buildSensorySnapshot(runtime)
+    },
+    getVisualPresenceState: async (): Promise<AlicizationVisualPresenceStateSnapshot | null> => {
+      return null
     },
     syncLlmConfig: async (payload) => {
       await storage.setItemRaw(browserLlmConfigKey, payload)

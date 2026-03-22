@@ -137,9 +137,44 @@ describe('attention anchor helpers', () => {
   it('treats direct screen description requests as invited inspection intent', () => {
     const detected = detectInvitedInspectionIntent('忘掉之前的内容，重新描述一下我屏幕的内容')
 
+    expect(detected.active).toBe(true)
+    expect(detected.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('treats desktop recheck phrasing as invited inspection intent', () => {
+    const detected = detectInvitedInspectionIntent('你自己看桌面啊')
+
     expect(detected).toEqual(expect.objectContaining({
       active: true,
-      confidence: 0.9,
+    }))
+  })
+
+  it('detects QQMusic inspection requests and extracts music hints', () => {
+    const detected = detectInvitedInspectionIntent('帮我看看 QQ 音乐现在放的歌名是什么')
+
+    expect(detected).toEqual(expect.objectContaining({
+      active: true,
+    }))
+    expect(extractInspectionHintTerms('帮我看看 QQ 音乐现在放的歌名是什么')).toEqual(expect.arrayContaining([
+      'qqmusic',
+      'music',
+      'song',
+      'lyrics',
+    ]))
+  })
+
+  it('treats English screen description requests as invited inspection intent', () => {
+    const detected = detectInvitedInspectionIntent('Can you look again and tell me what is on my screen now?')
+
+    expect(detected.active).toBe(true)
+    expect(detected.confidence).toBeGreaterThanOrEqual(0.9)
+  })
+
+  it('treats Japanese recheck phrasing as invited inspection intent', () => {
+    const detected = detectInvitedInspectionIntent('もう一度見て、今の画面に何が表示されてる？')
+
+    expect(detected).toEqual(expect.objectContaining({
+      active: true,
     }))
   })
 

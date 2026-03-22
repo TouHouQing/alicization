@@ -37,11 +37,7 @@ export interface AlicizationProactiveLayeredContext {
     idleSeconds: number | null
     inputActivity: 'active' | 'idle' | 'unknown'
     fullscreenLikely: boolean
-    foregroundWindow?: {
-      appName?: string
-      processName?: string
-      title?: string
-    }
+    foregroundWindow?: AlicizationSystemProbeSample['foregroundWindow']
     degradedSignals: string[]
   }
   workload: {
@@ -97,7 +93,7 @@ const workloadMatchers: ForegroundMatcher<AlicizationWorkloadKind>[] = [
     exact: ['terminal', 'iterm', 'iterm2', 'warp', 'wezterm', 'alacritty', 'kitty', 'hyper', 'tmux', 'docker', 'docker desktop'],
     pattern: /\b(?:terminal|iterm2?|warp|wezterm|alacritty|kitty|hyper|tmux|docker(?: desktop)?|lazygit)\b/i,
   },
-  { kind: 'media', labels: ['spotify', 'youtube', 'music'], pattern: /\b(?:spotify|music|youtube music|youtube|bilibili|netflix|vlc|iina|podcast)\b/i },
+  { kind: 'media', labels: ['qqmusic', 'spotify', 'youtube', 'music'], pattern: /\b(?:qqmusic|qq music|spotify|apple music|music|youtube music|youtube|bilibili|netflix|vlc|iina|podcast|netease|cloud music)\b|qq音乐|网易云/i },
   { kind: 'game', labels: ['steam', 'game'], pattern: /\b(?:steam|epic games|riot client|elden ring|counter-strike|dota|league of legends|minecraft|valorant|game)\b/i },
   { kind: 'chat', labels: ['discord', 'slack', 'telegram'], pattern: /\b(?:discord|slack|telegram|wechat|whatsapp|messages|chatgpt|claude)\b/i },
   { kind: 'document', labels: ['notion', 'docs', 'readme'], pattern: /\b(?:notion|obsidian|pages|word|preview|acrobat|pdf|docs|documentation|readme|confluence)\b/i },
@@ -108,7 +104,7 @@ const contentMatchers: ForegroundMatcher<AlicizationContentKind>[] = [
   { kind: 'error', labels: ['error'], pattern: /\b(?:error|exception|traceback|stack trace|panic|test failed|failed|undefined is not|cannot find|ts\d{3,5}|enoent)\b/i },
   { kind: 'diff', labels: ['diff'], pattern: /\b(?:diff|pull request|compare|changes|commit|merge conflict)\b/i },
   { kind: 'video', labels: ['video'], pattern: /\b(?:youtube|bilibili|netflix|vlc|iina|video|watching)\b/i },
-  { kind: 'music', labels: ['music'], pattern: /\b(?:spotify|music|playlist|album|track|song)\b/i },
+  { kind: 'music', labels: ['qqmusic', 'music'], pattern: /\b(?:qqmusic|qq music|spotify|apple music|music|playlist|album|track|song|lyrics)\b|qq音乐|网易云|歌名|歌词|歌曲|专辑/i },
   { kind: 'chat', labels: ['chat'], pattern: /\b(?:discord|slack|telegram|wechat|chat)\b/i },
   { kind: 'doc', labels: ['doc'], pattern: /\b(?:docs|documentation|readme|notion|confluence|wiki|mdn)\b/i },
   { kind: 'gameplay', labels: ['gameplay'], pattern: /\b(?:elden ring|counter-strike|dota|league of legends|minecraft|valorant|game)\b/i },
@@ -126,12 +122,14 @@ function normalizeForegroundWindow(windowLike: AlicizationSystemProbeSample['for
   const appName = typeof windowLike.appName === 'string' ? windowLike.appName.trim() : ''
   const processName = typeof windowLike.processName === 'string' ? windowLike.processName.trim() : ''
   const title = typeof windowLike.title === 'string' ? windowLike.title.trim() : ''
-  if (!appName && !processName && !title)
+  const pid = Number.isFinite(Number(windowLike.pid)) ? Math.max(1, Math.floor(Number(windowLike.pid))) : null
+  if (!appName && !processName && !title && pid === null)
     return undefined
   return {
     appName: appName || undefined,
     processName: processName || undefined,
     title: title || undefined,
+    pid,
   }
 }
 

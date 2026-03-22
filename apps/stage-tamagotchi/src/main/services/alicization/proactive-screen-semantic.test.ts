@@ -128,6 +128,68 @@ describe('proactive screen semantic helpers', () => {
     }))
   })
 
+  it('prefers the current QQMusic focus over stale browser observations', () => {
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: {
+        appName: 'QQMusic',
+        processName: 'QQMusic',
+        title: 'Melt - QQMusic',
+      },
+      attentionAnchor: {
+        appName: 'QQMusic',
+        processName: 'QQMusic',
+        title: 'Melt - QQMusic',
+      },
+      recentObservations: [{
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        title: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
+      }],
+      sources: [
+        { id: 'window:chrome:0', name: '2760. 最长奇偶子数组 - 力扣（LeetCode）' } as any,
+        { id: 'window:qqmusic:0', name: 'Melt - QQMusic' } as any,
+        { id: 'screen:1:0', name: 'Entire screen' } as any,
+      ],
+    })
+
+    expect(candidate?.source.id).toBe('window:qqmusic:0')
+    expect(candidate?.focusTarget).toEqual(expect.objectContaining({
+      appName: 'QQMusic',
+      source: 'attention-anchor',
+    }))
+  })
+
+  it('falls back to the whole screen when current media focus has no viable window match', () => {
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: {
+        appName: 'QQMusic',
+        processName: 'QQMusic',
+        title: 'Melt - QQMusic',
+      },
+      attentionAnchor: {
+        appName: 'QQMusic',
+        processName: 'QQMusic',
+        title: 'Melt - QQMusic',
+      },
+      recentObservations: [{
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        title: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
+      }],
+      sources: [
+        { id: 'window:chrome:0', name: '2760. 最长奇偶子数组 - 力扣（LeetCode）' } as any,
+        { id: 'screen:1:0', name: 'Entire screen' } as any,
+      ],
+    })
+
+    expect(candidate?.source.id).toBe('screen:1:0')
+    expect(candidate?.strategy).toBe('screen-fallback')
+    expect(candidate?.focusTarget).toEqual(expect.objectContaining({
+      appName: 'QQMusic',
+      source: 'attention-anchor',
+    }))
+  })
+
   it('parses valid structured screen semantic output', () => {
     const summary = parseScreenSemanticSummary({
       raw: JSON.stringify({

@@ -257,6 +257,96 @@ describe('chat session store reset stability', () => {
     mocks.clearGetSessionDelay(sessionId)
   })
 
+  it('canonicalizes duplicated assistant turns against the persisted session snapshot', async () => {
+    const sessionId = 'session-with-duplicated-assistant-turn'
+    const now = Date.now()
+    const stableTurnId = 'chat:session-with-duplicated-assistant-turn:turn-1'
+
+    await mocks.chatSessionsRepo.saveIndex({
+      userId: 'local',
+      characters: {
+        default: {
+          activeSessionId: sessionId,
+          sessions: {
+            [sessionId]: {
+              sessionId,
+              userId: 'local',
+              characterId: 'default',
+              title: 'Loaded Session',
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+        },
+      },
+    })
+    await mocks.chatSessionsRepo.saveSession(sessionId, {
+      meta: {
+        sessionId,
+        userId: 'local',
+        characterId: 'default',
+        title: 'Loaded Session',
+        createdAt: now,
+        updatedAt: now,
+      },
+      messages: [
+        {
+          id: `${stableTurnId}:user`,
+          role: 'user',
+          content: '喜欢她中二的样子，可爱捏',
+          createdAt: now,
+        },
+        {
+          id: 'legacy-assistant-random-id',
+          role: 'assistant',
+          content: '同一条回复',
+          createdAt: now + 10,
+          slices: [],
+          tool_results: [],
+          structured: {
+            thought: '',
+            emotion: 'neutral',
+            reply: '同一条回复',
+            format: 'fallback-v1',
+          },
+        },
+        {
+          id: stableTurnId,
+          role: 'assistant',
+          content: '同一条回复',
+          createdAt: now + 250,
+          origin: 'user-turn',
+          slices: [{ type: 'text', text: '同一条回复' }],
+          tool_results: [],
+          structured: {
+            thought: '权威版本',
+            emotion: 'happy',
+            reply: '同一条回复',
+            format: 'epoch1-v1',
+          },
+        },
+      ],
+    })
+    mocks.chatSessionsRepo.saveSession.mockClear()
+
+    const store = useChatSessionStore()
+    await store.initialize()
+
+    const assistantMessages = store.messages.filter(message => message.role === 'assistant')
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0]?.id).toBe(stableTurnId)
+    expect((assistantMessages[0] as any)?.structured?.thought).toBe('权威版本')
+    expect(mocks.chatSessionsRepo.saveSession).toBeCalledWith(sessionId, expect.objectContaining({
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          id: stableTurnId,
+          role: 'assistant',
+          content: '同一条回复',
+        }),
+      ]),
+    }))
+  })
+
   it('keeps desktop chat session bound to local user even if auth user id updates later', async () => {
     const store = useChatSessionStore()
     await store.initialize()
