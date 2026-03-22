@@ -15,20 +15,20 @@ docs:
   'open-settings': Mở cài đặt
   'open-chat': Mở trò chuyện
   'refresh': Làm mới
-  'open-hearing-controls': Kiểm soát thính giác mở
+  'open-hearing-controls': Mở điều khiển nghe
   'drag-to-move-window': Đặt lại bố cục màn hình nền
   'switch-to-light-mode': Chuyển sang chế độ sáng
   'switch-to-dark-mode': Chuyển sang chế độ tối
   'pin-on-top': Ghim lên trên
-  'unpin-from-top': Gỡ ghim khỏi đầu trang
-  'switch-profile': Switch Profile
+  'unpin-from-top': Bỏ ghim khỏi trên cùng
+  'switch-profile': Chuyển hồ sơ
   'close': Đóng
   'expand': Mở rộng
-  'collapse': Sụp đổ
+  'collapse': Thu gọn
 'status-island':
-  connected: WebSocket connected
-  disconnected: WebSocket disconnected
-  'open-settings': Open WebSocket settings
+  connected: WebSocket đã kết nối
+  disconnected: WebSocket đã ngắt kết nối
+  'open-settings': Mở cài đặt WebSocket
 notice:
   'fade-on-hover':
     title: Mờ dần khi rê chuột

@@ -12,23 +12,23 @@ docs:
   'fade-on-hover':
     enable: Скрывать при наведении
     disable: Всегда показывать
-  'open-settings': Open settings
-  'open-chat': Open Chat
-  'refresh': Refresh
-  'open-hearing-controls': Open hearing Controls
+  'open-settings': Открыть настройки
+  'open-chat': Открыть чат
+  'refresh': Обновить
+  'open-hearing-controls': Открыть настройки слуха
   'drag-to-move-window': Сбросить раскладку рабочего стола
-  'switch-to-light-mode': Switch to light mode
-  'switch-to-dark-mode': Switch to dark mode
-  'pin-on-top': Pin on top
-  'unpin-from-top': Unpin from top
-  'switch-profile': Switch Profile
-  'close': Close
-  'expand': Expand
-  'collapse': Collapse
+  'switch-to-light-mode': Переключить на светлую тему
+  'switch-to-dark-mode': Переключить на тёмную тему
+  'pin-on-top': Закрепить поверх всех окон
+  'unpin-from-top': Снять закрепление поверх всех окон
+  'switch-profile': Сменить профиль
+  'close': Закрыть
+  'expand': Развернуть
+  'collapse': Свернуть
 'status-island':
-  connected: WebSocket connected
-  disconnected: WebSocket disconnected
-  'open-settings': Open WebSocket settings
+  connected: WebSocket подключён
+  disconnected: WebSocket отключён
+  'open-settings': Открыть настройки WebSocket
 notice:
   'fade-on-hover':
     title: Исчезать при наведении

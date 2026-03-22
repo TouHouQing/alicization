@@ -115,9 +115,9 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
             </ControlButtonTooltip>
 
             <ControlButtonTooltip disable-hoverable-content>
-              <ControlsIslandProfilePicker>
+              <ControlsIslandProfilePicker @navigated="collapseExpandedMenu">
                 <template #default="{ toggle }">
-                  <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(toggle)">
+                  <ControlButton :button-style="adjustStyleClasses.button" @click="toggle">
                     <div i-solar:emoji-funny-square-broken :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
                   </ControlButton>
                 </template>

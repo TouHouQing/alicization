@@ -30,7 +30,6 @@ import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 
 import ControlsIsland from '../components/stage-islands/controls-island/index.vue'
 import ResourceStatusIsland from '../components/stage-islands/resource-status-island/index.vue'
-import StatusIsland from '../components/stage-islands/status-island/index.vue'
 
 import { electronOpenOnboarding } from '../../shared/eventa'
 import { useControlsIslandStore } from '../stores/controls-island'
@@ -39,10 +38,8 @@ import { useWindowStore } from '../stores/window'
 import { resetDesktopLayoutState, resolveDesktopMouseCaptureState } from './index.desktop'
 
 const controlsIslandRef = ref<InstanceType<typeof ControlsIsland>>()
-const statusIslandRef = ref<InstanceType<typeof StatusIsland>>()
 const widgetStageRef = ref<InstanceType<typeof WidgetStage>>()
 const controlsIslandElement = computed(() => controlsIslandRef.value?.$el as HTMLElement | undefined)
-const statusIslandElement = computed(() => statusIslandRef.value?.$el as HTMLElement | undefined)
 const stageCanvas = toRef(() => widgetStageRef.value?.canvasElement())
 const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayElement())
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
@@ -57,10 +54,8 @@ const openOnboarding = useElectronEventaInvoke(electronOpenOnboarding)
 
 const { isOutside: isOutsideWindow } = useElectronMouseInWindow()
 const { isOutside } = useElectronMouseInElement(controlsIslandElement)
-const { isOutside: isOutsideStatusIsland } = useElectronMouseInElement(statusIslandElement)
 const { isOutside: isOutsideDialogueOverlay } = useElectronMouseInElement(stageDialogueOverlay)
 const isOutsideFor250Ms = refDebounced(isOutside, 250)
-const isOutsideStatusIslandFor250Ms = refDebounced(isOutsideStatusIsland, 250)
 const isOutsideDialogueOverlayFor250Ms = refDebounced(isOutsideDialogueOverlay, 250)
 const { focused: isDialogueOverlayFocused } = useFocusWithin(stageDialogueOverlay)
 const { x: relativeMouseX, y: relativeMouseY } = useElectronRelativeMouse()
@@ -157,8 +152,8 @@ watch(componentStateStage, () => isLoading.value = componentStateStage.value !==
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
-watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
-  const insideControls = !isOutsideFor250Ms.value || !isOutsideStatusIslandFor250Ms.value
+watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+  const insideControls = !isOutsideFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
   const { shouldCaptureMouse, shouldFadeOnCursorWithin: nextShouldFadeOnCursorWithin } = resolveDesktopMouseCaptureState({
     fadeOnHoverEnabled: fadeOnHoverEnabled.value,
@@ -464,7 +459,6 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
         'absolute inset-0 overflow-hidden transition-opacity duration-250 ease-in-out',
       ]"
     >
-      <StatusIsland ref="statusIslandRef" />
       <ResourceStatusIsland />
       <WidgetStage
         ref="widgetStageRef"

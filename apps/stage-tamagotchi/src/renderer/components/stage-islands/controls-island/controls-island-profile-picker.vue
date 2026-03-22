@@ -4,10 +4,14 @@ import { ProfileSwitcherPopover } from '@proj-alicization/stage-ui/components'
 
 import { electronOpenSettings } from '../../../../shared/eventa'
 
+const emit = defineEmits<{
+  (e: 'navigated'): void
+}>()
 const openSettings = useElectronEventaInvoke(electronOpenSettings)
 
 function handleNavigation() {
   openSettings({ route: '/settings/airi-card' })
+  emit('navigated')
 }
 </script>
 

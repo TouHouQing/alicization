@@ -21,14 +21,14 @@ docs:
   'switch-to-dark-mode': 切換至深色模式
   'pin-on-top': 置頂
   'unpin-from-top': 取消置頂
-  'switch-profile': Switch Profile
+  'switch-profile': 切換檔案
   'close': 關閉
   'expand': 展開
   'collapse': 摺疊
 'status-island':
-  connected: WebSocket connected
-  disconnected: WebSocket disconnected
-  'open-settings': Open WebSocket settings
+  connected: WebSocket 已連線
+  disconnected: WebSocket 未連線
+  'open-settings': 開啟 WebSocket 設定
 notice:
   'fade-on-hover':
     title: 懸停淡出
