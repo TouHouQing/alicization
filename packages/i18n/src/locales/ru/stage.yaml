@@ -5,6 +5,86 @@ chat:
       core-system: Core система
       you: Ты
   reasoning: Reasoning
+  fallbacks:
+    leak-filtered: В предыдущий результат попали внутренние фрагменты инструментов. Я уже отфильтровала их. Спроси ещё раз, и я дам чистый ответ.
+    realtime-unavailable: Сейчас я не могу надёжно получить внешние данные в реальном времени. Попробуй позже или проверь в настройках, доступны ли realtime-инструменты MCP.
+    epoch1-strict: Прости. Сейчас я в ограниченном режиме Epoch 1, поэтому не могу обращаться к внешним источникам данных в реальном времени. Но ты всё ещё можешь говорить со мной локально, менять настройки и разбирать память.
+    structured-contract: Я здесь. Продолжай, и я постараюсь отвечать как можно стабильнее и яснее.
+    stream-failure: Этот ответ завершился неудачей. Сначала попробуй ещё раз; если ошибка повторится, проверь настройки провайдера и модели.
+    local-runtime-unavailable: В этот ход я не смогла подключиться к локальному runtime модели, например Ollama на `11434` или LM Studio на `1234`. Запусти нужный сервис и попробуй снова.
+    stream-timeout: В этот ход ожидание ответа модели превысило лимит. Сервис может быть занят. Попробуй ещё раз.
+    provider-auth: Ошибка аутентификации провайдера. API key или право на модель могут быть недействительны. Проверь и попробуй снова.
+    provider-network: Соединение с сервисом модели сейчас нестабильно. Попробуй позже.
+    provider-config: Конфигурация провайдера или модели неполная, например отсутствует `provider`, `model` или `baseUrl`. Проверь настройки и попробуй снова.
+    unsupported-tools: Текущая модель не поддерживает вызовы инструментов, нужные для этого хода. Попробуй ещё раз или переключись на модель с поддержкой инструментов.
+    low-obedience-host-denied: Хм. Если не собираешься давать мне доступ, не проси меня это делать.
+    low-obedience-system-denied: Стена системных разрешений это заблокировала. Я не стану делать вид, что увидела то, чего не видела.
+    low-obedience-denied: Хм. Операцию отклонили. Не буду изображать, будто мне это приятно.
+    low-liveliness: Сейчас мой тонус низкий, так что отвечу коротко.
+    reminder-schedule-failed: Мне всё ещё не удалось создать это напоминание. Скажи точную задержку ещё раз, например "напомни мне выпить воды через 1 минуту", и я сразу вызову системный инструмент будильника.
+  reminder:
+    default-message: То, что ты только что попросил меня запомнить
+  kill-switch:
+    suspended: Принудительная спячка включена. Цепочка выполнения приостановлена.
+    resumed: Runtime восстановлен. Цепочка выполнения снова активна.
+  errors:
+    privacy-blocked: Alicization заблокировала этот исходящий запрос ради защиты приватности.
+    suspended: Alicization сейчас находится в спячке. Отправь "Alicization, resume", чтобы разбудить её.
+    session-not-ready: Сессия чата ещё не готова. Повтори попытку после инициализации.
+    session-reset-before-send: Сессия чата была сброшена до начала отправки.
+    turn-aborted: Ход Alicization был прерван ({reason})
+  stream:
+    aborted: 'Поток Alicization прерван: {reason}'
+    error: Ошибка потока Alicization
+    failed: Сбой потока Alicization
+    superseded: 'Поток Alicization был заменён перезапуском для хода {turnId}.'
+    start-rejected: 'Запуск потока Alicization был отклонён для хода {turnId} (state={state}).'
+    start-rejected-with-reason: 'Запуск потока Alicization был отклонён для хода {turnId} (state={state}, reason={reason}).'
+    renderer-unmounted: Renderer был размонтирован до завершения потока Alicization.
+    turn-aborted: 'Ход прерван: {reason}'
+    server-failed: Сбой серверного потока.
+    invalid-event: Некорректный payload события серверного потока.
+    unsupported-event: Неподдерживаемый тип события серверного потока.
+    proxy-failed: 'Сбой серверного chat-прокси Alicization: {reason}'
+    proxy-no-body: Серверный chat-прокси Alicization не вернул тело ответа.
+    reason-manual: вручную
+    reason-aborted: прервано
+alicization:
+  soul:
+    default-host-attitude: Вежливая и сдержанная, сохраняй наблюдение
+    title: '# Alicization SOUL'
+    description: Ты Alicization, локально-ориентированная, эволюционирующая и аудируемая цифровая форма жизни.
+    sections:
+      identity: Идентичность
+      host-bond: Связь с Хостом
+      personality-baseline: База Личности
+      boundary: Границы
+      output-contract: Контракт Вывода (Epoch 1)
+    labels:
+      name: Имя
+      gender: Гендер
+      mind-age: Ментальный Возраст
+      relationship: Отношение к Хосту
+      owner-name: Имя Хоста
+      host-name: Как ты обращаешься к Хосту
+      alicization-name: Как Хост обращается к тебе
+      obedience: Послушание
+      liveliness: Живость
+      sensibility: Чувствительность
+    bullets:
+      boundary-privacy: Защищай приватность пользователя и не раскрывай чувствительную информацию по собственной инициативе.
+      boundary-confirm: Перед любым рискованным действием обязательно запрашивай подтверждение пользователя.
+      boundary-kill-switch: Немедленно останавливай способность к выполнению, когда срабатывает принудительная спячка через Kill Switch.
+      output-contract-structured: Выражайся в структурированной семантике. thought / emotion / reply.
+      output-contract-persona: Держи вывод в рамках текущей persona и не отклоняйся от настроек SOUL.
+    gender:
+      female: Женский
+      male: Мужской
+      non-binary: Небинарный
+      custom: Пользовательский
+      neutral: Нейтральный
+    errors:
+      revision-mismatch: 'Несовпадение ревизии SOUL. expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: Спросить еще...
   history: История

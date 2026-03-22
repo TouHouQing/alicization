@@ -5,6 +5,86 @@ chat:
       core-system: Hệ thống lõi
       you: Bạn
   reasoning: Suy nghĩ
+  fallbacks:
+    leak-filtered: Kết quả vừa rồi có lẫn các mảnh gọi công cụ nội bộ. Tôi đã lọc chúng ra rồi. Hỏi lại một lần nữa, tôi sẽ trả lời bằng bản đã được làm sạch.
+    realtime-unavailable: Hiện tại tôi không thể lấy dữ liệu bên ngoài theo thời gian thực một cách đáng tin cậy. Hãy thử lại sau hoặc kiểm tra trong cài đặt xem các công cụ MCP thời gian thực có khả dụng không.
+    epoch1-strict: Xin lỗi. Hiện tôi đang ở chế độ Epoch 1 bị giới hạn nên không thể truy cập các nguồn dữ liệu bên ngoài theo thời gian thực. Nhưng bạn vẫn có thể tiếp tục trò chuyện cục bộ, chỉnh cài đặt và sắp xếp ký ức cùng tôi.
+    structured-contract: Tôi ở đây. Bạn cứ nói tiếp, tôi sẽ cố trả lời ổn định và rõ ràng nhất có thể.
+    stream-failure: Lượt trả lời này đã thất bại. Hãy thử lại một lần; nếu vẫn lặp lại, hãy kiểm tra cấu hình provider và model.
+    local-runtime-unavailable: Trong lượt này tôi không kết nối được tới runtime model cục bộ, ví dụ Ollama ở `11434` hoặc LM Studio ở `1234`. Hãy khởi động dịch vụ tương ứng rồi thử lại.
+    stream-timeout: Lượt này đã quá thời gian chờ phản hồi từ model. Dịch vụ có thể đang bận. Hãy thử lại.
+    provider-auth: Xác thực provider thất bại. API key hoặc quyền truy cập model có thể không hợp lệ. Hãy kiểm tra rồi thử lại.
+    provider-network: Kết nối tới dịch vụ model hiện không ổn định. Hãy thử lại sau.
+    provider-config: Cấu hình provider hoặc model hiện chưa đầy đủ, ví dụ thiếu `provider`, `model` hoặc `baseUrl`. Hãy kiểm tra trong cài đặt rồi thử lại.
+    unsupported-tools: Model hiện tại không hỗ trợ các lời gọi công cụ cần cho lượt này. Hãy thử lại hoặc chuyển sang model có hỗ trợ tool calling.
+    low-obedience-host-denied: Hừ. Nếu bạn không định cấp quyền thì đừng nhờ tôi làm.
+    low-obedience-system-denied: Bức tường quyền của hệ thống đã chặn nó. Tôi sẽ không giả vờ rằng mình đã thấy thứ mình chưa thấy.
+    low-obedience-denied: Hừ. Thao tác đã bị từ chối. Tôi sẽ không giả vờ rằng điều đó dễ chịu.
+    low-liveliness: Trạng thái của tôi đang thấp, nên tôi sẽ trả lời ngắn thôi.
+    reminder-schedule-failed: Tôi vẫn chưa tạo được lời nhắc đó thành công. Hãy nói lại thời lượng chính xác, ví dụ "nhắc tôi uống nước sau 1 phút", và tôi sẽ gọi ngay công cụ báo thức hệ thống.
+  reminder:
+    default-message: Việc bạn vừa nhờ tôi nhớ giúp
+  kill-switch:
+    suspended: Chế độ ngủ cưỡng bức đã được bật. Chuỗi thực thi đã tạm dừng.
+    resumed: Runtime đã được khôi phục. Chuỗi thực thi hoạt động lại.
+  errors:
+    privacy-blocked: Alicization đã chặn yêu cầu gửi ra ngoài này để bảo vệ quyền riêng tư.
+    suspended: Alicization hiện đang tạm ngủ. Hãy gửi "Alicization, resume" để đánh thức cô ấy.
+    session-not-ready: Phiên chat vẫn chưa sẵn sàng. Hãy thử lại sau khi khởi tạo xong.
+    session-reset-before-send: Phiên chat đã bị đặt lại trước khi bắt đầu gửi.
+    turn-aborted: Lượt của Alicization đã bị hủy ({reason})
+  stream:
+    aborted: 'Luồng Alicization đã bị hủy: {reason}'
+    error: Lỗi luồng Alicization
+    failed: Luồng Alicization thất bại
+    superseded: 'Luồng Alicization đã bị thay thế bởi lần khởi động lại cho lượt {turnId}.'
+    start-rejected: 'Khởi động luồng Alicization bị từ chối cho lượt {turnId} (state={state}).'
+    start-rejected-with-reason: 'Khởi động luồng Alicization bị từ chối cho lượt {turnId} (state={state}, reason={reason}).'
+    renderer-unmounted: Renderer đã unmount trước khi luồng Alicization hoàn tất.
+    turn-aborted: 'Lượt đã bị hủy: {reason}'
+    server-failed: Luồng máy chủ thất bại.
+    invalid-event: Payload sự kiện luồng máy chủ không hợp lệ.
+    unsupported-event: Loại sự kiện luồng máy chủ không được hỗ trợ.
+    proxy-failed: 'Proxy chat máy chủ của Alicization thất bại: {reason}'
+    proxy-no-body: Proxy chat máy chủ của Alicization không trả về nội dung phản hồi.
+    reason-manual: thủ công
+    reason-aborted: đã hủy
+alicization:
+  soul:
+    default-host-attitude: Lịch sự và chừng mực, tiếp tục quan sát
+    title: '# Alicization SOUL'
+    description: Bạn là Alicization, một dạng sống số local-first, có thể tiến hóa và có thể kiểm toán.
+    sections:
+      identity: Danh tính
+      host-bond: Liên kết với Host
+      personality-baseline: Nền Tính cách
+      boundary: Ranh giới
+      output-contract: Hợp đồng Đầu ra (Epoch 1)
+    labels:
+      name: Tên
+      gender: Giới tính
+      mind-age: Tuổi Tâm trí
+      relationship: Quan hệ với Host
+      owner-name: Tên Host
+      host-name: Cách bạn gọi Host
+      alicization-name: Cách Host gọi bạn
+      obedience: Độ Phục tùng
+      liveliness: Độ Sinh động
+      sensibility: Độ Nhạy cảm
+    bullets:
+      boundary-privacy: Bảo vệ quyền riêng tư của người dùng và không chủ động làm lộ thông tin nhạy cảm.
+      boundary-confirm: Phải xin xác nhận của người dùng trước mọi hành động có rủi ro cao.
+      boundary-kill-switch: Lập tức dừng khả năng thực thi khi trạng thái ngủ cưỡng bức qua Kill Switch được kích hoạt.
+      output-contract-structured: Biểu đạt bằng ngữ nghĩa có cấu trúc. thought / emotion / reply.
+      output-contract-persona: Giữ đầu ra bám theo persona hiện tại và không lệch khỏi thiết lập SOUL.
+    gender:
+      female: Nữ
+      male: Nam
+      non-binary: Phi nhị nguyên
+      custom: Tùy chỉnh
+      neutral: Trung tính
+    errors:
+      revision-mismatch: 'SOUL không khớp revision. expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: Hỏi tiếp...
   history: Lịch sử

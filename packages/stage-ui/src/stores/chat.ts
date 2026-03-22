@@ -22,6 +22,7 @@ import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbort
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
 import { useAnalytics } from '../composables/use-analytics'
+import { translateStageUi } from '../utils/i18n'
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
 import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
@@ -63,17 +64,21 @@ interface QueuedSend {
 
 type ExternalPipelineAborter = (reason: AlicizationAbortReason) => Promise<void> | void
 
-const assistantLeakFallbackReply = '我刚才的检索结果混入了内部调用片段，已自动过滤。请你再说一次你的问题，我会直接给你整理后的结果。'
-const assistantRealtimeUnavailableReply = '当前无法获取可靠的实时外部数据。请稍后重试，或在设置里检查 MCP 实时工具是否可用。'
-const assistantEpoch1StrictFallbackReply = '抱歉，当前是 Epoch 1 受限模式，我无法访问外部实时数据源。你可以继续和我进行本地对话、设定与记忆整理。'
-const assistantStructuredContractFallbackReply = '我在。你可以继续说，我会尽量给你稳定清晰的回复。'
-const assistantStreamFailureFallbackReply = '我这轮回复失败了。请重试一次；如果连续失败，再检查提供方与模型配置。'
-const assistantLocalRuntimeUnavailableFallbackReply = '我这轮没有连上本地模型服务（例如 Ollama `11434` 或 LM Studio `1234`）。请先启动对应服务，再试一次。'
-const assistantStreamTimeoutFallbackReply = '我这轮等待模型响应超时了（服务可能繁忙）。请重试一次。'
-const assistantProviderAuthFallbackReply = '当前提供方认证失败（API Key 或模型权限无效）。请检查后再试一次。'
-const assistantProviderNetworkFallbackReply = '当前到模型服务的网络连接不稳定。请稍后重试。'
-const assistantProviderConfigFallbackReply = '当前提供方或模型配置缺失（例如 provider/model/baseUrl）。请在设置里确认后再试一次。'
-const assistantUnsupportedToolsFallbackReply = '当前模型不支持这轮所需的工具调用。请重试一次，或切换支持工具调用的模型。'
+function stageChatText(path: string, params?: Record<string, unknown>) {
+  return translateStageUi(`stage.chat.${path}`, params)
+}
+
+const assistantLeakFallbackReply = () => stageChatText('fallbacks.leak-filtered')
+const assistantRealtimeUnavailableReply = () => stageChatText('fallbacks.realtime-unavailable')
+const assistantEpoch1StrictFallbackReply = () => stageChatText('fallbacks.epoch1-strict')
+const assistantStructuredContractFallbackReply = () => stageChatText('fallbacks.structured-contract')
+const assistantStreamFailureFallbackReply = () => stageChatText('fallbacks.stream-failure')
+const assistantLocalRuntimeUnavailableFallbackReply = () => stageChatText('fallbacks.local-runtime-unavailable')
+const assistantStreamTimeoutFallbackReply = () => stageChatText('fallbacks.stream-timeout')
+const assistantProviderAuthFallbackReply = () => stageChatText('fallbacks.provider-auth')
+const assistantProviderNetworkFallbackReply = () => stageChatText('fallbacks.provider-network')
+const assistantProviderConfigFallbackReply = () => stageChatText('fallbacks.provider-config')
+const assistantUnsupportedToolsFallbackReply = () => stageChatText('fallbacks.unsupported-tools')
 const runtimeGatewayFirstEventTimeoutMs = 65_000
 const runtimeGatewayIdleTimeoutMs = 45_000
 const runtimeGatewayRetryFirstEventTimeoutMs = 65_000
@@ -286,7 +291,7 @@ function parseReminderIntentPayload(message: string): { minutes: number, message
     )
   }
   if (!reminderMessage)
-    reminderMessage = '你刚才设定的事项'
+    reminderMessage = stageChatText('reminder.default-message')
 
   return {
     minutes,
@@ -387,26 +392,32 @@ type StreamFailureKind
     | 'unknown'
 
 function resolveStreamFailureFallback(error: unknown): { reply: string, kind: StreamFailureKind } {
+  const errorCode = typeof error === 'object' && error && 'code' in error
+    ? String((error as { code?: unknown }).code ?? '').toLowerCase()
+    : ''
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
   if (
-    message.includes('state=duplicate-running')
+    errorCode.includes('alicization-stream-superseded')
+    || errorCode.includes('alicization-stream-renderer-unmounted')
+    || message.includes('state=duplicate-running')
     || message.includes('state=duplicate-finished')
     || message.includes('duplicate-running')
     || message.includes('duplicate-finished')
   ) {
     return {
-      reply: assistantStreamFailureFallbackReply,
+      reply: assistantStreamFailureFallbackReply(),
       kind: 'runtime-aborted',
     }
   }
   if (
-    message.includes('stream start rejected')
+    errorCode.includes('alicization-stream-start-rejected')
+    || message.includes('stream start rejected')
     || message.includes('missing providerid/model')
     || message.includes('missing provider/model')
     || message.includes('state=missing-config')
   ) {
     return {
-      reply: assistantProviderConfigFallbackReply,
+      reply: assistantProviderConfigFallbackReply(),
       kind: 'provider-config',
     }
   }
@@ -417,7 +428,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('connection refused')
   ) {
     return {
-      reply: assistantLocalRuntimeUnavailableFallbackReply,
+      reply: assistantLocalRuntimeUnavailableFallbackReply(),
       kind: 'local-runtime-unavailable',
     }
   }
@@ -429,7 +440,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('timed out')
   ) {
     return {
-      reply: assistantStreamTimeoutFallbackReply,
+      reply: assistantStreamTimeoutFallbackReply(),
       kind: 'timeout',
     }
   }
@@ -441,7 +452,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('unsupported tool')
   ) {
     return {
-      reply: assistantUnsupportedToolsFallbackReply,
+      reply: assistantUnsupportedToolsFallbackReply(),
       kind: 'model-tools-unsupported',
     }
   }
@@ -455,7 +466,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('invalid key')
   ) {
     return {
-      reply: assistantProviderAuthFallbackReply,
+      reply: assistantProviderAuthFallbackReply(),
       kind: 'provider-auth',
     }
   }
@@ -467,7 +478,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('socket hang up')
   ) {
     return {
-      reply: assistantProviderNetworkFallbackReply,
+      reply: assistantProviderNetworkFallbackReply(),
       kind: 'provider-network',
     }
   }
@@ -477,12 +488,12 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('kill-switch')
   ) {
     return {
-      reply: assistantStreamFailureFallbackReply,
+      reply: assistantStreamFailureFallbackReply(),
       kind: 'runtime-aborted',
     }
   }
   return {
-    reply: assistantStreamFailureFallbackReply,
+    reply: assistantStreamFailureFallbackReply(),
     kind: 'unknown',
   }
 }
@@ -731,7 +742,7 @@ function createStructuredFallback(replyText: string, emotion: StructuredOutputRe
   return {
     thought: '',
     emotion,
-    reply: replyText.trim() || assistantStructuredContractFallbackReply,
+    reply: replyText.trim() || assistantStructuredContractFallbackReply(),
     performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
@@ -751,17 +762,17 @@ function createContractFallbackReply(
   options?: { toolDenied?: boolean, denialSource?: 'host' | 'system' | 'generic', reminderScheduled?: boolean },
 ) {
   if (options?.toolDenied && options.denialSource === 'host' && personalityState && personalityState.obedience <= 0.2) {
-    return '呵，不给我权限就别来烦我。'
+    return stageChatText('fallbacks.low-obedience-host-denied')
   }
   if (options?.toolDenied && options.denialSource === 'system' && personalityState && personalityState.obedience <= 0.2) {
-    return '系统权限墙挡住了，我不会装作看到了。'
+    return stageChatText('fallbacks.low-obedience-system-denied')
   }
   if (options?.toolDenied && personalityState && personalityState.obedience <= 0.2) {
-    return '呵，操作被拒绝了。我不会假装这很愉快。'
+    return stageChatText('fallbacks.low-obedience-denied')
   }
   if (personalityState && personalityState.liveliness <= 0.2)
-    return '我现在状态偏低，先简短回复。'
-  return assistantStructuredContractFallbackReply
+    return stageChatText('fallbacks.low-liveliness')
+  return assistantStructuredContractFallbackReply()
 }
 
 function createContractFallbackEmotion(
@@ -835,7 +846,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
 
         if (chatSession.getSessionGeneration(sessionId) !== generation) {
-          deferred.reject(new Error('Chat session was reset before send could start'))
+          deferred.reject(new Error(stageChatText('errors.session-reset-before-send')))
           return
         }
 
@@ -978,7 +989,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
 
     const stageAssistantFallback = (replyText: string, emotion: StructuredOutputResult['emotion'] = 'neutral', reasoning = '') => {
-      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply
+      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply()
       return setStagedAssistantResolution({
         structured: createStructuredFallback(normalizedReply, emotion),
         categorization: {
@@ -1038,8 +1049,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           sessionMessagesForCommand.push({ role: 'user', content: sendingMessage, createdAt: sendingCreatedAt, id: nanoid() })
 
           const reply = directive === 'suspend'
-            ? '已进入强制休眠模式，执行链路已暂停。'
-            : '已恢复运行，执行链路重新启用。'
+            ? stageChatText('kill-switch.suspended')
+            : stageChatText('kill-switch.resumed')
 
           sessionMessagesForCommand.push({
             role: 'assistant',
@@ -1786,11 +1797,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const leakFallbackApplied = sanitizedOutput.leakDetected && emptyAfterSanitize
         const emptyOutputFallbackApplied = !realtimeFallbackApplied && !leakFallbackApplied && emptyAfterSanitize
         const sanitizeFallbackReply = policyLockedReason
-          ? assistantEpoch1StrictFallbackReply
-          : assistantLeakFallbackReply
+          ? assistantEpoch1StrictFallbackReply()
+          : assistantLeakFallbackReply()
         let finalSpeech = sanitizedOutput.cleanText
         if (realtimeFallbackApplied) {
-          finalSpeech = assistantRealtimeUnavailableReply
+          finalSpeech = assistantRealtimeUnavailableReply()
         }
         else if (leakFallbackApplied || emptyOutputFallbackApplied) {
           finalSpeech = sanitizeFallbackReply
@@ -2085,7 +2096,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               elapsedMs: sanitized.elapsedMs,
             },
           })
-          throw new Error('Alicization blocked this outbound request to protect privacy.')
+          throw new Error(stageChatText('errors.privacy-blocked'))
         }
 
         if (sanitized.redactions > 0) {
@@ -2196,7 +2207,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
 
-          const fallbackReply = assistantEpoch1StrictFallbackReply
+          const fallbackReply = assistantEpoch1StrictFallbackReply()
           await applyAssistantResult({
             fullText: fallbackReply,
             reasoning: '',
@@ -2241,7 +2252,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             throw abortSignal.reason ?? new DOMException('Aborted', 'AbortError')
           }
 
-          const reply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply
+          const reply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply()
           await applyAssistantResult({
             fullText: reply,
             reasoning: '',
@@ -2532,7 +2543,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
         })
 
-        const reminderFailureReply = '我这轮还没有成功设置提醒。请再说一次具体时长（例如“1分钟后提醒我喝水”），我会立即调用系统闹钟工具。'
+        const reminderFailureReply = stageChatText('fallbacks.reminder-schedule-failed')
         stageAssistantFallback(reminderFailureReply, 'concerned')
         await appendAlicizationAuditLog({
           level: 'warning',
@@ -2679,7 +2690,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (!directive) {
         const killSwitch = await getAlicizationBridge().getKillSwitchState().catch(() => null)
         if (killSwitch?.state === 'SUSPENDED' && isTopLevelInput) {
-          throw new Error('Alicization is currently suspended. Send "Alicization，恢复" to resume.')
+          throw new Error(stageChatText('errors.suspended'))
         }
       }
     }
@@ -2689,7 +2700,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     const sessionId = targetSessionId || activeSessionId.value
     if (!sessionId)
-      throw new Error('Chat session is not ready. Please retry after initialization.')
+      throw new Error(stageChatText('errors.session-not-ready'))
 
     const generation = chatSession.getSessionGeneration(sessionId)
 
@@ -2722,7 +2733,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     return ingest(sendingMessage, options, forkSessionId || baseSessionId)
   }
 
-  function cancelPendingSends(sessionId?: string, reason = 'Chat session was reset before send could start') {
+  function cancelPendingSends(sessionId?: string, reason = stageChatText('errors.session-reset-before-send')) {
     const error = new Error(reason)
     for (const queued of pendingQueuedSends.value) {
       if (sessionId && queued.sessionId !== sessionId)
@@ -2739,7 +2750,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
   async function abortActiveTurns(reason: AlicizationAbortReason = 'kill-switch') {
     const result = abortAlicizationTurns({ reason })
-    cancelPendingSends(undefined, `Alicization turn aborted (${reason})`)
+    cancelPendingSends(undefined, stageChatText('errors.turn-aborted', { reason }))
     streamingMessage.value = createEmptyStreamingMessage()
 
     if (result.aborted > 0) {

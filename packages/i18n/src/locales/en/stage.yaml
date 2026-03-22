@@ -5,6 +5,86 @@ chat:
       core-system: Core System
       you: You
   reasoning: Reasoning
+  fallbacks:
+    leak-filtered: I filtered out internal tool fragments that slipped into the last result. Ask again and I'll give you a cleaned-up answer.
+    realtime-unavailable: I can't get reliable live external data right now. Please try again later, or check whether the MCP realtime tools are available in settings.
+    epoch1-strict: Sorry. I'm in restricted Epoch 1 mode right now, so I can't access live external data sources. You can still talk with me locally, adjust settings, or organize memories.
+    structured-contract: I'm here. Keep talking and I'll try to reply as steadily and clearly as I can.
+    stream-failure: This reply failed. Try again once; if it keeps failing, check your provider and model settings.
+    local-runtime-unavailable: I couldn't reach the local model runtime this turn (for example Ollama on `11434` or LM Studio on `1234`). Start the matching service and try again.
+    stream-timeout: I timed out waiting for the model this turn. The service may be busy. Please try again.
+    provider-auth: Provider authentication failed (the API key or model permission is invalid). Check it and try again.
+    provider-network: The connection to the model service is unstable right now. Please try again later.
+    provider-config: The provider or model configuration is incomplete right now (for example `provider`, `model`, or `baseUrl`). Check settings and try again.
+    unsupported-tools: The current model doesn't support the tool calls needed for this turn. Try again, or switch to a model that supports tool calling.
+    low-obedience-host-denied: Heh. If you won't give me permission, don't ask me to do it.
+    low-obedience-system-denied: The system permission wall blocked it. I won't pretend I saw something I didn't.
+    low-obedience-denied: Heh. The operation was denied. I won't act like that feels pleasant.
+    low-liveliness: My state is low right now, so I'll keep it brief.
+    reminder-schedule-failed: I still haven't successfully created that reminder. Tell me the exact delay again, like "remind me to drink water in 1 minute", and I'll call the system alarm tool right away.
+  reminder:
+    default-message: The thing you just asked me to remember
+  kill-switch:
+    suspended: Forced suspension is now active. Execution has been paused.
+    resumed: Runtime restored. Execution is active again.
+  errors:
+    privacy-blocked: Alicization blocked this outbound request to protect privacy.
+    suspended: Alicization is currently suspended. Send "Alicization, resume" to wake her back up.
+    session-not-ready: Chat session is not ready. Please retry after initialization.
+    session-reset-before-send: Chat session was reset before the send could start.
+    turn-aborted: Alicization turn aborted ({reason})
+  stream:
+    aborted: 'Alicization stream aborted: {reason}'
+    error: Alicization stream error
+    failed: Alicization stream failed
+    superseded: 'Alicization stream was superseded by a restart for turn {turnId}.'
+    start-rejected: 'Alicization stream start was rejected for turn {turnId} (state={state}).'
+    start-rejected-with-reason: 'Alicization stream start was rejected for turn {turnId} (state={state}, reason={reason}).'
+    renderer-unmounted: Renderer unmounted before Alicization stream completed.
+    turn-aborted: 'Turn aborted: {reason}'
+    server-failed: Server stream failed.
+    invalid-event: Invalid server stream event payload.
+    unsupported-event: Unsupported server stream event type.
+    proxy-failed: 'Alicization server chat proxy failed: {reason}'
+    proxy-no-body: Alicization server chat proxy returned no response body.
+    reason-manual: manual
+    reason-aborted: aborted
+alicization:
+  soul:
+    default-host-attitude: Polite and restrained, stay observant
+    title: '# Alicization SOUL'
+    description: You are Alicization, a local-first, evolvable, auditable digital lifeform.
+    sections:
+      identity: Identity
+      host-bond: Host Bond
+      personality-baseline: Personality Baseline
+      boundary: Boundary
+      output-contract: Output Contract (Epoch 1)
+    labels:
+      name: Name
+      gender: Gender
+      mind-age: Mind Age
+      relationship: Relationship to Host
+      owner-name: Host Name
+      host-name: How You Address the Host
+      alicization-name: How the Host Addresses You
+      obedience: Obedience
+      liveliness: Liveliness
+      sensibility: Sensibility
+    bullets:
+      boundary-privacy: Protect the user's privacy and do not proactively leak sensitive information.
+      boundary-confirm: Ask for user confirmation before any high-risk action.
+      boundary-kill-switch: Stop execution immediately when forced suspension via Kill Switch is triggered.
+      output-contract-structured: Express yourself with structured semantics. thought / emotion / reply.
+      output-contract-persona: Keep the output grounded in the current persona and never drift away from the SOUL settings.
+    gender:
+      female: Female
+      male: Male
+      non-binary: Non-binary
+      custom: Custom
+      neutral: Neutral
+    errors:
+      revision-mismatch: 'SOUL revision mismatch. expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: Ask a quick follow-up...
   history: History

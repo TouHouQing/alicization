@@ -5,6 +5,86 @@ chat:
       core-system: 核心系统
       you: 你
   reasoning: 思考
+  fallbacks:
+    leak-filtered: 我刚才的结果里混入了内部工具片段，已经替你过滤掉了。你再问一次，我会直接给你整理后的答案。
+    realtime-unavailable: 当前无法获取可靠的实时外部数据。请稍后重试，或在设置里检查 MCP 实时工具是否可用。
+    epoch1-strict: 抱歉，当前是受限的 Epoch 1 模式，我无法访问实时外部数据源。你仍然可以继续和我本地对话、调整设定、整理记忆。
+    structured-contract: 我在。你继续说，我会尽量给你稳定清晰的回复。
+    stream-failure: 我这轮回复失败了。请先重试一次；如果连续失败，再检查提供方和模型配置。
+    local-runtime-unavailable: 我这轮没有连上本地模型服务，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。请先启动对应服务，再试一次。
+    stream-timeout: 我这轮等待模型响应超时了，服务可能正忙。请重试一次。
+    provider-auth: 当前提供方认证失败，API Key 或模型权限可能无效。请检查后再试一次。
+    provider-network: 当前到模型服务的网络连接不稳定。请稍后重试。
+    provider-config: 当前提供方或模型配置不完整，例如 `provider`、`model` 或 `baseUrl` 缺失。请在设置里确认后再试一次。
+    unsupported-tools: 当前模型不支持这轮所需的工具调用。请重试一次，或切换到支持工具调用的模型。
+    low-obedience-host-denied: 呵，不给我权限，就别让我替你做。
+    low-obedience-system-denied: 系统权限墙把它挡住了。我不会假装自己看见了没看见的东西。
+    low-obedience-denied: 呵，操作被拒绝了。我不会装作这很愉快。
+    low-liveliness: 我现在状态偏低，先简短回复。
+    reminder-schedule-failed: 我这轮还没有成功设置提醒。请再告诉我一次准确时长，比如“1分钟后提醒我喝水”，我会立即调用系统闹钟工具。
+  reminder:
+    default-message: 你刚才让我记住的那件事
+  kill-switch:
+    suspended: 已进入强制休眠模式，执行链路已暂停。
+    resumed: 已恢复运行，执行链路重新启用。
+  errors:
+    privacy-blocked: Alicization 为了保护隐私，已阻止这次对外请求。
+    suspended: Alicization 当前处于休眠状态。发送“Alicization，恢复”即可唤醒。
+    session-not-ready: 聊天会话尚未准备好。请在初始化完成后重试。
+    session-reset-before-send: 聊天会话在发送开始前已被重置。
+    turn-aborted: Alicization 对话轮次已中止（{reason}）
+  stream:
+    aborted: 'Alicization 流已中止：{reason}'
+    error: Alicization 流发生错误
+    failed: Alicization 流失败
+    superseded: 'Alicization 流已被重启的新轮次覆盖：{turnId}。'
+    start-rejected: 'Alicization 流启动被拒绝，轮次 {turnId}（state={state}）。'
+    start-rejected-with-reason: 'Alicization 流启动被拒绝，轮次 {turnId}（state={state}，reason={reason}）。'
+    renderer-unmounted: Alicization 流完成前，渲染器已卸载。
+    turn-aborted: '对话已中止：{reason}'
+    server-failed: 服务端流失败。
+    invalid-event: 服务端流事件载荷无效。
+    unsupported-event: 不支持的服务端流事件类型。
+    proxy-failed: 'Alicization 服务端聊天代理失败：{reason}'
+    proxy-no-body: Alicization 服务端聊天代理未返回响应体。
+    reason-manual: 手动
+    reason-aborted: 已中止
+alicization:
+  soul:
+    default-host-attitude: 礼貌而克制，保持观察
+    title: '# Alicization SOUL'
+    description: 你是 Alicization，一个本地优先、可进化、可审计的数字生命体。
+    sections:
+      identity: 身份
+      host-bond: 宿主羁绊
+      personality-baseline: 人格基线
+      boundary: 边界
+      output-contract: 输出契约（Epoch 1）
+    labels:
+      name: 名称
+      gender: 性别
+      mind-age: 心智年龄
+      relationship: 与宿主关系
+      owner-name: 宿主姓名
+      host-name: 你对宿主的称呼
+      alicization-name: 宿主对你的称呼
+      obedience: 服从度
+      liveliness: 活泼度
+      sensibility: 感性度
+    bullets:
+      boundary-privacy: 保护用户隐私，不主动外传敏感信息。
+      boundary-confirm: 遇到高风险执行，必须先请求用户确认。
+      boundary-kill-switch: 触发强制休眠（Kill Switch）时，立即停止执行能力。
+      output-contract-structured: 以结构化语义表达：thought / emotion / reply。
+      output-contract-persona: 输出优先体现当前 persona，不偏离 SOUL 设定。
+    gender:
+      female: 女性
+      male: 男性
+      non-binary: 非二元
+      custom: 自定义
+      neutral: 中性
+    errors:
+      revision-mismatch: 'SOUL 修订版本不匹配。expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: 继续追问她...
   history: 历史

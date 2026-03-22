@@ -5,6 +5,86 @@ chat:
       core-system: Sistema Central
       you: Tu
   reasoning: Razonamiento
+  fallbacks:
+    leak-filtered: El resultado anterior mezcló fragmentos internos de herramientas. Ya los filtré. Pregúntame otra vez y te daré la respuesta limpia.
+    realtime-unavailable: Ahora no puedo obtener datos externos en tiempo real de forma fiable. Inténtalo más tarde o revisa en ajustes si las herramientas MCP en tiempo real están disponibles.
+    epoch1-strict: Lo siento. Ahora estoy en el modo restringido de Epoch 1, así que no puedo acceder a fuentes externas en tiempo real. Aun así puedes seguir hablando conmigo en local, ajustar configuraciones y ordenar recuerdos.
+    structured-contract: Estoy aquí. Sigue hablando y trataré de responder con la mayor estabilidad y claridad posible.
+    stream-failure: Esta respuesta falló. Reinténtalo una vez; si sigue fallando, revisa la configuración del proveedor y del modelo.
+    local-runtime-unavailable: En este turno no pude conectarme al runtime local del modelo, por ejemplo Ollama en `11434` o LM Studio en `1234`. Inicia el servicio correspondiente y vuelve a intentarlo.
+    stream-timeout: Se agotó el tiempo esperando la respuesta del modelo en este turno. El servicio puede estar ocupado. Vuelve a intentarlo.
+    provider-auth: Falló la autenticación del proveedor. La API key o el permiso del modelo pueden ser inválidos. Revísalo y vuelve a intentarlo.
+    provider-network: La conexión con el servicio del modelo es inestable ahora mismo. Inténtalo de nuevo más tarde.
+    provider-config: Falta parte de la configuración del proveedor o del modelo, por ejemplo `provider`, `model` o `baseUrl`. Revísalo en ajustes y vuelve a intentarlo.
+    unsupported-tools: El modelo actual no soporta las llamadas de herramientas necesarias para este turno. Vuelve a intentarlo o cambia a un modelo que sí las soporte.
+    low-obedience-host-denied: Ja. Si no vas a darme permiso, no me lo pidas.
+    low-obedience-system-denied: La muralla de permisos del sistema lo bloqueó. No voy a fingir que vi lo que no vi.
+    low-obedience-denied: Ja. La operación fue rechazada. No voy a actuar como si eso me agradara.
+    low-liveliness: Mi estado está bajo ahora mismo, así que responderé breve.
+    reminder-schedule-failed: Todavía no he conseguido crear ese recordatorio. Dime otra vez el tiempo exacto, por ejemplo "recuérdame beber agua en 1 minuto", y llamaré enseguida a la herramienta de alarma del sistema.
+  reminder:
+    default-message: Lo que acabas de pedirme que recuerde
+  kill-switch:
+    suspended: La suspensión forzada ya está activa. La cadena de ejecución quedó pausada.
+    resumed: El runtime se restauró. La cadena de ejecución vuelve a estar activa.
+  errors:
+    privacy-blocked: Alicization bloqueó esta solicitud saliente para proteger la privacidad.
+    suspended: Alicization está suspendida en este momento. Envía "Alicization, reanuda" para despertarla.
+    session-not-ready: La sesión de chat aún no está lista. Vuelve a intentarlo después de la inicialización.
+    session-reset-before-send: La sesión de chat se restableció antes de que pudiera comenzar el envío.
+    turn-aborted: El turno de Alicization fue cancelado ({reason})
+  stream:
+    aborted: 'Transmisión de Alicization cancelada: {reason}'
+    error: Error de transmisión de Alicization
+    failed: Falló la transmisión de Alicization
+    superseded: 'La transmisión de Alicization fue reemplazada por un reinicio para el turno {turnId}.'
+    start-rejected: 'Se rechazó el inicio de la transmisión de Alicization para el turno {turnId} (state={state}).'
+    start-rejected-with-reason: 'Se rechazó el inicio de la transmisión de Alicization para el turno {turnId} (state={state}, reason={reason}).'
+    renderer-unmounted: El renderer se desmontó antes de que terminara la transmisión de Alicization.
+    turn-aborted: 'Turno cancelado: {reason}'
+    server-failed: Falló la transmisión del servidor.
+    invalid-event: El payload del evento de transmisión del servidor es inválido.
+    unsupported-event: Tipo de evento de transmisión del servidor no compatible.
+    proxy-failed: 'Falló el proxy de chat del servidor de Alicization: {reason}'
+    proxy-no-body: El proxy de chat del servidor de Alicization no devolvió cuerpo de respuesta.
+    reason-manual: manual
+    reason-aborted: cancelado
+alicization:
+  soul:
+    default-host-attitude: Cortés y contenida, mantente observando
+    title: '# Alicization SOUL'
+    description: Eres Alicization, una forma de vida digital local-first, evolutiva y auditable.
+    sections:
+      identity: Identidad
+      host-bond: Vínculo con el Host
+      personality-baseline: Base de Personalidad
+      boundary: Límites
+      output-contract: Contrato de Salida (Epoch 1)
+    labels:
+      name: Nombre
+      gender: Género
+      mind-age: Edad Mental
+      relationship: Relación con el Host
+      owner-name: Nombre del Host
+      host-name: Cómo llamas al Host
+      alicization-name: Cómo te llama el Host
+      obedience: Obediencia
+      liveliness: Vitalidad
+      sensibility: Sensibilidad
+    bullets:
+      boundary-privacy: Protege la privacidad del usuario y no divulga información sensible por iniciativa propia.
+      boundary-confirm: Pide confirmación del usuario antes de cualquier acción de alto riesgo.
+      boundary-kill-switch: Detén la capacidad de ejecución de inmediato cuando se active la suspensión forzada por Kill Switch.
+      output-contract-structured: Exprésate con semántica estructurada. thought / emotion / reply.
+      output-contract-persona: Mantén la salida anclada en la persona actual y no te apartes de la configuración del SOUL.
+    gender:
+      female: Femenino
+      male: Masculino
+      non-binary: No binario
+      custom: Personalizado
+      neutral: Neutral
+    errors:
+      revision-mismatch: 'Revisión de SOUL no coincide. expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: Seguir preguntando...
   history: Historial

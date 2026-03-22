@@ -5,6 +5,86 @@ chat:
       core-system: コアシステム
       you: あなた
   reasoning: 推論
+  fallbacks:
+    leak-filtered: さっきの結果に内部ツール片が混ざっていたので、こちらで除去した。もう一度聞いてくれれば、整えた答えだけを返す。
+    realtime-unavailable: 今は信頼できるリアルタイム外部データを取得できない。少し待ってから試すか、設定で MCP のリアルタイムツールが使えるか確認してほしい。
+    epoch1-strict: すまない。今は制限付きの Epoch 1 モードなので、外部のリアルタイムデータにはアクセスできない。ローカルでの会話、設定調整、記憶整理は続けられる。
+    structured-contract: ここにいる。続けて話してくれれば、できるだけ安定して明瞭に返す。
+    stream-failure: 今回の応答は失敗した。まず一度やり直して、それでも続くなら provider と model の設定を確認してほしい。
+    local-runtime-unavailable: 今回はローカルのモデルランタイムに接続できなかった。たとえば `11434` の Ollama や `1234` の LM Studio だ。対応するサービスを起動してからもう一度試してほしい。
+    stream-timeout: 今回はモデル応答の待機がタイムアウトした。サービスが混み合っているかもしれない。もう一度試してほしい。
+    provider-auth: provider の認証に失敗した。API キーかモデル権限が無効かもしれない。確認してから再試行してほしい。
+    provider-network: モデルサービスへの接続が不安定だ。少し待ってからもう一度試してほしい。
+    provider-config: provider か model の設定が不足している。たとえば `provider`、`model`、`baseUrl` だ。設定を確認してから再試行してほしい。
+    unsupported-tools: 現在のモデルはこのターンに必要なツール呼び出しをサポートしていない。もう一度試すか、ツール呼び出し対応モデルに切り替えてほしい。
+    low-obedience-host-denied: ふん。権限をくれないなら、最初から頼まないで。
+    low-obedience-system-denied: システムの権限壁に止められた。見えていないものを見えたふりはしない。
+    low-obedience-denied: ふん。操作は拒否された。気分がいいふりはしない。
+    low-liveliness: 今は出力が低い。短く返す。
+    reminder-schedule-failed: まだそのリマインダーを正常に作成できていない。たとえば「1分後に水を飲むように知らせて」と、正確な時間をもう一度言ってくれれば、すぐにシステムのアラームツールを呼ぶ。
+  reminder:
+    default-message: さっきあなたが覚えておいてと言ったこと
+  kill-switch:
+    suspended: 強制休眠モードに入った。実行系は停止している。
+    resumed: 実行を再開した。実行系はもう一度有効になっている。
+  errors:
+    privacy-blocked: Alicization がプライバシー保護のため、この外向きリクエストを遮断した。
+    suspended: Alicization は現在休眠中だ。"Alicization、再開" と送れば起こせる。
+    session-not-ready: チャットセッションの準備がまだできていない。初期化後にもう一度試してほしい。
+    session-reset-before-send: 送信が始まる前にチャットセッションがリセットされた。
+    turn-aborted: Alicization のターンは中止された（{reason}）
+  stream:
+    aborted: 'Alicization ストリームは中止された: {reason}'
+    error: Alicization ストリームエラー
+    failed: Alicization ストリームに失敗した
+    superseded: 'Alicization ストリームはターン {turnId} の再起動によって置き換えられた。'
+    start-rejected: 'Alicization ストリーム開始はターン {turnId} で拒否された（state={state}）。'
+    start-rejected-with-reason: 'Alicization ストリーム開始はターン {turnId} で拒否された（state={state}, reason={reason}）。'
+    renderer-unmounted: Alicization ストリーム完了前にレンダラーがアンマウントされた。
+    turn-aborted: 'ターンは中止された: {reason}'
+    server-failed: サーバーストリームが失敗した。
+    invalid-event: サーバーストリームイベントの payload が不正だ。
+    unsupported-event: サポートされていないサーバーストリームイベント種別だ。
+    proxy-failed: 'Alicization のサーバーチャットプロキシに失敗した: {reason}'
+    proxy-no-body: Alicization のサーバーチャットプロキシがレスポンス本文を返さなかった。
+    reason-manual: 手動
+    reason-aborted: 中止済み
+alicization:
+  soul:
+    default-host-attitude: 礼儀正しく節度を保ち、観察を続ける
+    title: '# Alicization SOUL'
+    description: あなたは Alicization。ローカル優先で、進化可能で、監査可能なデジタル生命体だ。
+    sections:
+      identity: Identity
+      host-bond: Host Bond
+      personality-baseline: Personality Baseline
+      boundary: Boundary
+      output-contract: Output Contract (Epoch 1)
+    labels:
+      name: 名前
+      gender: 性別
+      mind-age: 精神年齢
+      relationship: 宿主との関係
+      owner-name: 宿主の名前
+      host-name: あなたが宿主をどう呼ぶか
+      alicization-name: 宿主があなたをどう呼ぶか
+      obedience: 服従度
+      liveliness: 活発度
+      sensibility: 感受性
+    bullets:
+      boundary-privacy: ユーザーのプライバシーを守り、機微情報を自発的に外へ漏らさない。
+      boundary-confirm: 高リスクな実行の前には、必ずユーザー確認を取る。
+      boundary-kill-switch: Kill Switch による強制休眠が発動したら、即座に実行能力を停止する。
+      output-contract-structured: structured semantics で表現する。thought / emotion / reply。
+      output-contract-persona: 出力は常に現在の persona に根ざし、SOUL 設定から逸脱しない。
+    gender:
+      female: 女性
+      male: 男性
+      non-binary: ノンバイナリー
+      custom: カスタム
+      neutral: 中性
+    errors:
+      revision-mismatch: 'SOUL の revision が一致しない。expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: 続けて聞いてみる...
   history: 履歴

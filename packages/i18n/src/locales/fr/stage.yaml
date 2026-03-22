@@ -5,6 +5,86 @@ chat:
       core-system: Système central
       you: Vous
   reasoning: Raisonnement
+  fallbacks:
+    leak-filtered: Le dernier résultat contenait des fragments internes d'outils. Je les ai déjà filtrés. Redemande-moi et je te donnerai une réponse propre.
+    realtime-unavailable: Je ne peux pas obtenir de données externes en temps réel de manière fiable pour le moment. Réessaie plus tard ou vérifie dans les réglages si les outils MCP temps réel sont disponibles.
+    epoch1-strict: Désolée. Je suis actuellement en mode Epoch 1 restreint, donc je ne peux pas accéder à des sources externes en temps réel. Tu peux quand même continuer à me parler en local, ajuster les réglages et organiser les souvenirs.
+    structured-contract: Je suis là. Continue, et j'essaierai de répondre de la façon la plus stable et claire possible.
+    stream-failure: Cette réponse a échoué. Réessaie une fois ; si cela continue, vérifie la configuration du fournisseur et du modèle.
+    local-runtime-unavailable: Je n'ai pas pu joindre le runtime local du modèle pendant ce tour, par exemple Ollama sur `11434` ou LM Studio sur `1234`. Lance le service correspondant puis réessaie.
+    stream-timeout: L'attente de la réponse du modèle a expiré pour ce tour. Le service est peut-être occupé. Réessaie.
+    provider-auth: L'authentification du fournisseur a échoué. La clé API ou l'autorisation du modèle est peut-être invalide. Vérifie puis réessaie.
+    provider-network: La connexion au service du modèle est instable pour le moment. Réessaie plus tard.
+    provider-config: La configuration du fournisseur ou du modèle est incomplète, par exemple `provider`, `model` ou `baseUrl`. Vérifie les réglages puis réessaie.
+    unsupported-tools: Le modèle actuel ne prend pas en charge les appels d'outils nécessaires à ce tour. Réessaie ou passe à un modèle compatible avec les outils.
+    low-obedience-host-denied: Hm. Si tu ne me donnes pas l'autorisation, ne me le demande pas.
+    low-obedience-system-denied: Le mur des permissions système l'a bloqué. Je ne vais pas prétendre avoir vu ce que je n'ai pas vu.
+    low-obedience-denied: Hm. L'opération a été refusée. Je ne ferai pas semblant d'apprécier ça.
+    low-liveliness: Mon état est bas pour l'instant, donc je vais faire bref.
+    reminder-schedule-failed: Je n'ai toujours pas réussi à créer ce rappel. Donne-moi à nouveau la durée exacte, par exemple "rappelle-moi de boire de l'eau dans 1 minute", et j'appellerai tout de suite l'outil d'alarme système.
+  reminder:
+    default-message: Ce que tu viens de me demander de retenir
+  kill-switch:
+    suspended: La suspension forcée est désormais active. La chaîne d'exécution est en pause.
+    resumed: Le runtime a été rétabli. La chaîne d'exécution est de nouveau active.
+  errors:
+    privacy-blocked: Alicization a bloqué cette requête sortante pour protéger la vie privée.
+    suspended: Alicization est actuellement suspendue. Envoie "Alicization, reprendre" pour la réveiller.
+    session-not-ready: La session de chat n'est pas encore prête. Réessaie après l'initialisation.
+    session-reset-before-send: La session de chat a été réinitialisée avant le début de l'envoi.
+    turn-aborted: Le tour d'Alicization a été interrompu ({reason})
+  stream:
+    aborted: 'Flux Alicization interrompu : {reason}'
+    error: Erreur de flux Alicization
+    failed: Échec du flux Alicization
+    superseded: 'Le flux Alicization a été remplacé par un redémarrage pour le tour {turnId}.'
+    start-rejected: 'Le démarrage du flux Alicization a été refusé pour le tour {turnId} (state={state}).'
+    start-rejected-with-reason: 'Le démarrage du flux Alicization a été refusé pour le tour {turnId} (state={state}, reason={reason}).'
+    renderer-unmounted: Le renderer a été démonté avant la fin du flux Alicization.
+    turn-aborted: 'Tour interrompu : {reason}'
+    server-failed: Le flux serveur a échoué.
+    invalid-event: Le payload de l'événement de flux serveur est invalide.
+    unsupported-event: Type d'événement de flux serveur non pris en charge.
+    proxy-failed: 'Le proxy de chat serveur d''Alicization a échoué : {reason}'
+    proxy-no-body: Le proxy de chat serveur d'Alicization n'a renvoyé aucun corps de réponse.
+    reason-manual: manuel
+    reason-aborted: interrompu
+alicization:
+  soul:
+    default-host-attitude: Polie et retenue, reste attentive
+    title: '# Alicization SOUL'
+    description: Tu es Alicization, une forme de vie numérique locale d'abord, évolutive et auditable.
+    sections:
+      identity: Identité
+      host-bond: Lien avec l'Hôte
+      personality-baseline: Base de Personnalité
+      boundary: Limites
+      output-contract: Contrat de Sortie (Epoch 1)
+    labels:
+      name: Nom
+      gender: Genre
+      mind-age: Âge Mental
+      relationship: Relation avec l'Hôte
+      owner-name: Nom de l'Hôte
+      host-name: Comment tu appelles l'Hôte
+      alicization-name: Comment l'Hôte t'appelle
+      obedience: Obéissance
+      liveliness: Vivacité
+      sensibility: Sensibilité
+    bullets:
+      boundary-privacy: Protège la vie privée de l'utilisateur et ne divulgue pas spontanément d'informations sensibles.
+      boundary-confirm: Demande la confirmation de l'utilisateur avant toute action à haut risque.
+      boundary-kill-switch: Arrête immédiatement la capacité d'exécution quand la suspension forcée via Kill Switch est déclenchée.
+      output-contract-structured: Exprime-toi avec une sémantique structurée. thought / emotion / reply.
+      output-contract-persona: Garde la sortie ancrée dans la persona actuelle et ne t'écarte jamais des réglages du SOUL.
+    gender:
+      female: Féminin
+      male: Masculin
+      non-binary: Non binaire
+      custom: Personnalisé
+      neutral: Neutre
+    errors:
+      revision-mismatch: 'Révision SOUL non concordante. expected={expectedRevision} actual={actualRevision}'
 dialogue:
   quick-reply-placeholder: Poser une relance...
   history: Historique

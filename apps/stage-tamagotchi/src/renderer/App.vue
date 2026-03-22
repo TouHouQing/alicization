@@ -224,8 +224,21 @@ function settlePendingAlicizationStream(cardId: string, turnId: string) {
   pendingAlicizationChatStreams.delete(alicizationChatStreamKey(cardId, turnId))
 }
 
+function alicizationChatStreamText(path: string, params?: Record<string, unknown>) {
+  return params
+    ? i18n.t(`stage.chat.stream.${path}`, params)
+    : i18n.t(`stage.chat.stream.${path}`)
+}
+
+function createAlicizationStreamError(message: string, code: string) {
+  return Object.assign(new Error(message), { code })
+}
+
 function createAlicizationAbortError(reason?: string) {
-  return new DOMException(`Alicization stream aborted: ${reason || 'manual'}`, 'AbortError')
+  const resolvedReason = typeof reason === 'string' && reason.trim()
+    ? reason
+    : alicizationChatStreamText('reason-manual')
+  return new DOMException(alicizationChatStreamText('aborted', { reason: resolvedReason }), 'AbortError')
 }
 
 function estimateJsonPayloadBytes(value: unknown) {
@@ -727,7 +740,10 @@ function handleAlicizationChatStreamError(payload?: AlicizationChatErrorEvent) {
     type: 'error',
     error: payload.error,
   })
-  pending.reject(new Error(String(payload.error || 'Alicization stream error')))
+  pending.reject(createAlicizationStreamError(
+    String(payload.error || alicizationChatStreamText('error')),
+    'alicization-stream-error',
+  ))
 }
 
 function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent) {
@@ -745,9 +761,9 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
     pending.reject(createAlicizationAbortError(payload.finishReason))
     return
   }
-  const error = payload.error || 'Alicization stream failed'
+  const error = payload.error || alicizationChatStreamText('failed')
   void pending.onStreamEvent?.({ type: 'error', error })
-  pending.reject(new Error(error))
+  pending.reject(createAlicizationStreamError(String(error), 'alicization-stream-failed'))
 }
 
 function createDialogueRespondedDedupKey(payload: AlicizationDialogueRespondedPayload) {
@@ -912,7 +928,10 @@ setAlicizationBridge({
           turnId: payload.turnId,
           reason: 'renderer-restart',
         }).catch(() => {})
-        previousPending.reject(new Error(`Alicization stream superseded by restart for turn ${payload.turnId}`))
+        previousPending.reject(createAlicizationStreamError(
+          alicizationChatStreamText('superseded', { turnId: payload.turnId }),
+          'alicization-stream-superseded',
+        ))
         pendingAlicizationChatStreams.delete(key)
       }
 
@@ -1015,11 +1034,20 @@ setAlicizationBridge({
           },
         }).catch(() => {})
         if (!start.accepted) {
-          const reason = typeof start.reason === 'string' && start.reason.trim()
-            ? ` reason=${start.reason}`
-            : ''
           const state = typeof start.state === 'string' ? start.state : 'unknown'
-          rejectAndDispose(new Error(`Alicization stream start rejected (state=${state}) for turn ${payload.turnId}.${reason}`))
+          rejectAndDispose(createAlicizationStreamError(
+            typeof start.reason === 'string' && start.reason.trim()
+              ? alicizationChatStreamText('start-rejected-with-reason', {
+                  turnId: payload.turnId,
+                  state,
+                  reason: start.reason,
+                })
+              : alicizationChatStreamText('start-rejected', {
+                  turnId: payload.turnId,
+                  state,
+                }),
+            'alicization-stream-start-rejected',
+          ))
         }
       }
       catch (error) {
@@ -1226,7 +1254,10 @@ onUnmounted(() => {
   removeAlicizationChatStreamDispatchListener?.()
   for (const [key, pending] of pendingAlicizationChatStreams.entries()) {
     pendingAlicizationChatStreams.delete(key)
-    pending.reject(new Error('Renderer unmounted before Alicization stream completed.'))
+    pending.reject(createAlicizationStreamError(
+      alicizationChatStreamText('renderer-unmounted'),
+      'alicization-stream-renderer-unmounted',
+    ))
   }
   contextBridgeStore.dispose()
   clearMcpToolBridge()

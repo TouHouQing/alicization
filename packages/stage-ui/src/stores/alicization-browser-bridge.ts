@@ -39,6 +39,7 @@ import { nanoid } from 'nanoid'
 
 import { storage } from '../database/storage'
 import { SERVER_URL } from '../libs/auth'
+import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
 import { useCharacterNotebookStore } from './character'
 import { useAiriCardStore } from './modules/airi-card'
@@ -46,7 +47,6 @@ import { useAiriCardStore } from './modules/airi-card'
 const currentSoulSchemaVersion = 2
 const defaultAlicizationCardId = 'default'
 const bridgeStorageVersion = 1
-const defaultSoulBodyTitle = '# Alicization SOUL'
 const reminderMinMinutes = 1
 const reminderMaxMinutes = 10_080
 const reminderMaxMessageChars = 500
@@ -90,7 +90,7 @@ const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
   custom_directives: defaultAlicizationCustomDirectives,
-  host_attitude: '礼貌而克制，保持观察',
+  host_attitude: translateStageUi('stage.alicization.soul.default-host-attitude'),
   core_incarnation: '',
   profile: { ...defaultAlicizationProfile },
   personality: { ...defaultAlicizationPersonality },
@@ -125,8 +125,17 @@ function sanitizeMultilineText(raw: unknown, fallback = '') {
   return raw.replace(/\r\n/g, '\n').trim()
 }
 
-function createAbortError(reason = 'aborted') {
-  return new DOMException(`Turn aborted: ${reason}`, 'AbortError')
+function stageChatText(path: string, params?: Record<string, unknown>) {
+  return translateStageUi(`stage.chat.${path}`, params)
+}
+
+function stageSoulText(path: string, params?: Record<string, unknown>) {
+  return translateStageUi(`stage.alicization.soul.${path}`, params)
+}
+
+function createAbortError(reason = '') {
+  const resolvedReason = reason.trim() || stageChatText('stream.reason-aborted')
+  return new DOMException(stageChatText('stream.turn-aborted', { reason: resolvedReason }), 'AbortError')
 }
 
 function normalizeServerStreamError(error: unknown) {
@@ -137,12 +146,12 @@ function normalizeServerStreamError(error: unknown) {
     ? errorMessageFrom((error as { message?: unknown }).message)
     : errorMessageFrom(error)
 
-  return new Error(message ?? 'Server stream failed.')
+  return new Error(message ?? stageChatText('stream.server-failed'))
 }
 
 function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEvent {
   if (!raw || typeof raw !== 'object')
-    throw new Error('Invalid server stream event payload.')
+    throw new Error(stageChatText('stream.invalid-event'))
 
   const event = raw as BrowserStreamServerEvent
   switch (event.type) {
@@ -172,7 +181,7 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
     case 'error':
       throw normalizeServerStreamError(event.error)
     default:
-      throw new Error('Unsupported server stream event type.')
+      throw new Error(stageChatText('stream.unsupported-event'))
   }
 }
 
@@ -181,7 +190,7 @@ function normalizeCustomDirectives(raw: unknown) {
 }
 
 function normalizeHostAttitude(raw: unknown) {
-  return sanitizeText(raw, defaultFrontmatter.host_attitude).slice(0, 50)
+  return sanitizeText(raw, stageSoulText('default-host-attitude')).slice(0, 50)
 }
 
 function normalizeCoreIncarnation(raw: unknown) {
@@ -202,57 +211,62 @@ function normalizeGender(raw: unknown): AlicizationSoulFrontmatter['profile']['g
 
 function formatGender(profile: AlicizationSoulFrontmatter['profile']) {
   if (profile.gender === 'female')
-    return '女性'
+    return stageSoulText('gender.female')
   if (profile.gender === 'male')
-    return '男性'
+    return stageSoulText('gender.male')
   if (profile.gender === 'non-binary')
-    return '非二元'
+    return stageSoulText('gender.non-binary')
   if (profile.gender === 'custom')
-    return profile.genderCustom.trim() || '自定义'
-  return '中性'
+    return profile.genderCustom.trim() || stageSoulText('gender.custom')
+  return stageSoulText('gender.neutral')
 }
 
 function buildSoulBody(frontmatter: AlicizationSoulFrontmatter) {
   return [
-    defaultSoulBodyTitle,
+    stageSoulText('title'),
     '',
-    '你是 Alicization，一个本地优先、可进化、可审计的数字生命体。',
+    stageSoulText('description'),
     '',
-    '## Identity',
+    `## ${stageSoulText('sections.identity')}`,
     '',
-    `- 名称：${frontmatter.profile.alicizationName}`,
-    `- 性别：${formatGender(frontmatter.profile)}`,
-    `- 心智年龄：${frontmatter.profile.mindAge}`,
-    `- 与宿主关系：${frontmatter.profile.relationship}`,
+    `- ${stageSoulText('labels.name')}: ${frontmatter.profile.alicizationName}`,
+    `- ${stageSoulText('labels.gender')}: ${formatGender(frontmatter.profile)}`,
+    `- ${stageSoulText('labels.mind-age')}: ${frontmatter.profile.mindAge}`,
+    `- ${stageSoulText('labels.relationship')}: ${frontmatter.profile.relationship}`,
     '',
-    '## Host Bond',
+    `## ${stageSoulText('sections.host-bond')}`,
     '',
-    `- 宿主姓名：${frontmatter.profile.ownerName}`,
-    `- 你对宿主的称呼：${frontmatter.profile.hostName}`,
-    `- 宿主对你的称呼：${frontmatter.profile.alicizationName}`,
+    `- ${stageSoulText('labels.owner-name')}: ${frontmatter.profile.ownerName}`,
+    `- ${stageSoulText('labels.host-name')}: ${frontmatter.profile.hostName}`,
+    `- ${stageSoulText('labels.alicization-name')}: ${frontmatter.profile.alicizationName}`,
     '',
-    '## Personality Baseline',
+    `## ${stageSoulText('sections.personality-baseline')}`,
     '',
-    `- 服从度：${frontmatter.personality.obedience.toFixed(2)}`,
-    `- 活泼度：${frontmatter.personality.liveliness.toFixed(2)}`,
-    `- 感性度：${frontmatter.personality.sensibility.toFixed(2)}`,
+    `- ${stageSoulText('labels.obedience')}: ${frontmatter.personality.obedience.toFixed(2)}`,
+    `- ${stageSoulText('labels.liveliness')}: ${frontmatter.personality.liveliness.toFixed(2)}`,
+    `- ${stageSoulText('labels.sensibility')}: ${frontmatter.personality.sensibility.toFixed(2)}`,
     '',
-    '## Boundary',
+    `## ${stageSoulText('sections.boundary')}`,
     '',
-    '- 保护用户隐私，不主动外传敏感信息。',
-    '- 遇到高风险执行必须先请求用户确认。',
-    '- 强制休眠（Kill Switch）触发时立即停止执行能力。',
+    `- ${stageSoulText('bullets.boundary-privacy')}`,
+    `- ${stageSoulText('bullets.boundary-confirm')}`,
+    `- ${stageSoulText('bullets.boundary-kill-switch')}`,
     '',
-    '## Output Contract (Epoch 1)',
+    `## ${stageSoulText('sections.output-contract')}`,
     '',
-    '- 以结构化语义表达：thought / emotion / reply。',
-    '- 输出优先体现当前 persona，不偏离 SOUL 设定。',
+    `- ${stageSoulText('bullets.output-contract-structured')}`,
+    `- ${stageSoulText('bullets.output-contract-persona')}`,
   ].join('\n')
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function syncPersonalityBaselineInBody(body: string, personality: AlicizationPersonalityState) {
   const lines = body.split('\n')
-  const sectionIndex = lines.findIndex(line => line.trim() === '## Personality Baseline')
+  const sectionTitles = new Set(getStageUiMessageVariants('stage.alicization.soul.sections.personality-baseline').map(title => `## ${title}`))
+  const sectionIndex = lines.findIndex(line => sectionTitles.has(line.trim()))
   if (sectionIndex < 0)
     return body
 
@@ -260,9 +274,12 @@ function syncPersonalityBaselineInBody(body: string, personality: AlicizationPer
   const sectionEnd = nextSectionIndex >= 0 ? nextSectionIndex : lines.length
   const sectionLines = lines.slice(sectionIndex, sectionEnd)
 
-  const upsertMetric = (label: string, value: number) => {
-    const line = `- ${label}：${value.toFixed(2)}`
-    const metricIndex = sectionLines.findIndex(current => current.trimStart().startsWith(`- ${label}：`))
+  const upsertMetric = (labelPath: string, value: number) => {
+    const preferredLabel = stageSoulText(labelPath)
+    const candidateLabels = getStageUiMessageVariants(`stage.alicization.soul.${labelPath}`)
+    const metricPattern = new RegExp(`^-\\s*(?:${candidateLabels.map(escapeRegExp).join('|')})\\s*[:：]`)
+    const line = `- ${preferredLabel}: ${value.toFixed(2)}`
+    const metricIndex = sectionLines.findIndex(current => metricPattern.test(current.trimStart()))
     if (metricIndex >= 0) {
       sectionLines[metricIndex] = line
       return
@@ -271,9 +288,9 @@ function syncPersonalityBaselineInBody(body: string, personality: AlicizationPer
     sectionLines.push(line)
   }
 
-  upsertMetric('服从度', personality.obedience)
-  upsertMetric('活泼度', personality.liveliness)
-  upsertMetric('感性度', personality.sensibility)
+  upsertMetric('labels.obedience', personality.obedience)
+  upsertMetric('labels.liveliness', personality.liveliness)
+  upsertMetric('labels.sensibility', personality.sensibility)
 
   return [
     ...lines.slice(0, sectionIndex),
@@ -307,7 +324,7 @@ function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFrontmatter
 
   return {
     custom_directives: customDirectives ?? '',
-    host_attitude: hostAttitude ?? defaultFrontmatter.host_attitude,
+    host_attitude: hostAttitude ?? stageSoulText('default-host-attitude'),
     core_incarnation: coreIncarnation ?? defaultFrontmatter.core_incarnation,
     initialized: initializedRaw === 'true',
     profile: {
@@ -881,7 +898,10 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       const current = await readSoulRecord(cardId)
       if (typeof payload.expectedRevision === 'number' && payload.expectedRevision !== current.revision) {
-        throw new Error(`SOUL revision mismatch. expected=${payload.expectedRevision} actual=${current.revision}`)
+        throw new Error(stageSoulText('errors.revision-mismatch', {
+          expectedRevision: payload.expectedRevision,
+          actualRevision: current.revision,
+        }))
       }
 
       const parsed = parseSoul(payload.content)
@@ -897,7 +917,10 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       const current = await readSoulRecord(cardId)
       if (typeof payload.expectedRevision === 'number' && payload.expectedRevision !== current.revision) {
-        throw new Error(`SOUL revision mismatch. expected=${payload.expectedRevision} actual=${current.revision}`)
+        throw new Error(stageSoulText('errors.revision-mismatch', {
+          expectedRevision: payload.expectedRevision,
+          actualRevision: current.revision,
+        }))
       }
 
       const parsed = parseSoul(current.content)
@@ -1284,11 +1307,11 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
                 reason = data.message.trim()
             }
             catch {}
-            throw new Error(`Alicization server chat proxy failed: ${reason}`)
+            throw new Error(stageChatText('stream.proxy-failed', { reason }))
           }
 
           if (!response.body) {
-            throw new Error('Alicization server chat proxy returned no response body.')
+            throw new Error(stageChatText('stream.proxy-no-body'))
           }
 
           const reader = response.body.getReader()
