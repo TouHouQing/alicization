@@ -175,4 +175,60 @@ describe('visual episodic memory', () => {
 
     expect(previousState.workingMemoryEpisodes).toHaveLength(8)
   })
+
+  it('persists world ontology and initiative arbitration snapshots', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live', 'remembered'],
+        live: {
+          kind: 'live',
+          summary: 'A live coding scene is grounded.',
+          confidence: 0.84,
+          stability: 0.82,
+          focusThreadId: 'thread::live',
+          evidence: ['source:grounded-scene'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 10_000,
+      },
+      initiativeArbitration: {
+        selectedProposalId: 'counterfactual:repair',
+        dominantConflict: 'live-truth vs surface',
+        proposals: [{
+          id: 'counterfactual:repair',
+          source: 'counterfactual',
+          truthFrame: 'live',
+          action: 'recheck',
+          style: 'silent-observe',
+          embodiedPresence: 'hesitant',
+          truthCost: 0.02,
+          interruptionCost: 0.04,
+          relationshipCost: 0.03,
+          continuityGain: 0.08,
+          confidence: 0.72,
+          score: 0.7,
+          shouldSpeak: false,
+          shouldSurface: true,
+          why: 'Repair the current read before speaking.',
+        }],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.worldOntology?.dominantFrame).toBe('live')
+    expect(state.initiativeArbitration?.selectedProposalId).toBe('counterfactual:repair')
+    expect(state.initiativeArbitration?.proposals[0]?.action).toBe('recheck')
+  })
 })

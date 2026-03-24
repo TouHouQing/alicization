@@ -7,6 +7,7 @@ describe('alicization dialogue normalization', () => {
     expect(normalizeStructuredFormat('subconscious-proactive-v1')).toBe('subconscious-proactive-v1')
     expect(normalizeStructuredFormat('subconscious-proactive-llm-v1')).toBe('subconscious-proactive-llm-v1')
     expect(normalizeStructuredFormat('subconscious-reminder-v1')).toBe('subconscious-reminder-v1')
+    expect(normalizeStructuredFormat('mind-turn-v1')).toBe('mind-turn-v1')
     expect(normalizeStructuredFormat('epoch1-v1')).toBe('epoch1-v1')
     expect(normalizeStructuredFormat('unknown')).toBe('fallback-v1')
   })

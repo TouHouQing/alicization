@@ -1,10 +1,41 @@
 import type {
+  AlicizationActionEcologySnapshot,
+  AlicizationBeliefLedgerSnapshot,
+  AlicizationCommitmentLedgerSnapshot,
+  AlicizationConcernContinuityLedgerSnapshot,
+  AlicizationConcernSnapshot,
+  AlicizationCounterfactualDeliberationSnapshot,
+  AlicizationDeliberationStateSnapshot,
+  AlicizationDesireMemorySnapshot,
   AlicizationDurabilityPulseSnapshot,
+  AlicizationEntityWorldModelSnapshot,
+  AlicizationExecutiveCycleSnapshot,
+  AlicizationGoalStackSnapshot,
+  AlicizationHypothesisGraphSnapshot,
+  AlicizationInitiativeArbitrationSnapshot,
+  AlicizationInitiativeSnapshot,
+  AlicizationInquiryLoopSnapshot,
+  AlicizationInquiryPlannerSnapshot,
+  AlicizationIntentionStreamSnapshot,
+  AlicizationLivingWorldStateSnapshot,
+  AlicizationMindDynamicsSnapshot,
+  AlicizationMindKernelSnapshot,
   AlicizationPrivateThoughtSnapshot,
+  AlicizationReflectionLedgerSnapshot,
+  AlicizationRelationshipModelSnapshot,
+  AlicizationRepairLedgerSnapshot,
+  AlicizationSelfContinuitySnapshot,
+  AlicizationSelfGovernorSnapshot,
+  AlicizationSelfStateSnapshot,
+  AlicizationSubjectiveSceneAppraisal,
+  AlicizationThoughtThreadStateSnapshot,
+  AlicizationThreadRuntimeStateSnapshot,
   AlicizationVisualAttentionSnapshot,
   AlicizationVisualSceneSnapshot,
   AlicizationVisualTransitionSnapshot,
   AlicizationVisualWatchMode,
+  AlicizationWorldModelSnapshot,
+  AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -47,10 +78,19 @@ function inferEmotionalTension(input: {
   context: AlicizationProactiveLayeredContext
   watchMode: AlicizationVisualWatchMode
   recentTransition: AlicizationVisualTransitionSnapshot | null
+  worldModel?: AlicizationWorldModelSnapshot | null
   durabilityPulse: AlicizationDurabilityPulseSnapshot | null | undefined
 }) {
   if (isSeriousDurabilityPulse(input.durabilityPulse))
     return 'tense-debug' as const
+  if (input.worldModel?.activeThread?.kind === 'late-night-endurance')
+    return 'late-night-drain' as const
+  if (input.worldModel?.activeThread?.kind === 'debugging' || input.worldModel?.activeThread?.kind === 'change-review')
+    return 'tense-debug' as const
+  if (input.worldModel?.activeThread?.kind === 'deep-focus')
+    return 'focused-flow' as const
+  if (input.worldModel?.activeThread?.kind === 'co-viewing')
+    return 'soft-covision' as const
   if (input.scenario === 'late-night-care' && input.context.relationship.fatigue >= 55)
     return 'late-night-drain' as const
   if (input.scenario === 'coding' && (input.context.content.kind === 'error' || input.context.content.kind === 'diff'))
@@ -69,6 +109,562 @@ function inferEmotionalTension(input: {
   return 'calm-browse' as const
 }
 
+function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null) {
+  return thoughtThreads?.threads.find(thread => thread.id === thoughtThreads.foregroundThreadId)
+    ?? thoughtThreads?.threads[0]
+    ?? null
+}
+
+function dominantGovernorIntention(selfGovernor?: AlicizationSelfGovernorSnapshot | null) {
+  return selfGovernor?.activeIntentions.find(intention => intention.id === selfGovernor.dominantIntentionId)
+    ?? selfGovernor?.activeIntentions[0]
+    ?? null
+}
+
+function governingConcernContinuity(continuity?: AlicizationConcernContinuityLedgerSnapshot | null) {
+  return continuity?.entries.find(entry => entry.id === continuity.governingEntryId)
+    ?? continuity?.entries[0]
+    ?? null
+}
+
+function governingRepair(repairLedger?: AlicizationRepairLedgerSnapshot | null) {
+  return repairLedger?.entries.find(entry => entry.id === repairLedger.governingRepairId)
+    ?? repairLedger?.entries[0]
+    ?? null
+}
+
+function dominantProject(intentionStream?: AlicizationIntentionStreamSnapshot | null) {
+  return intentionStream?.projects.find(project => project.id === intentionStream.dominantProjectId)
+    ?? intentionStream?.projects[0]
+    ?? null
+}
+
+function latestReflection(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
+  return reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
+    ?? reflectionLedger?.entries[0]
+    ?? null
+}
+
+function focusLivingObject(input: {
+  livingWorldState?: AlicizationLivingWorldStateSnapshot | null
+  thoughtThreadObjectId?: string | null
+  governorFocusObjectId?: string | null
+}) {
+  const state = input.livingWorldState
+  if (!state)
+    return null
+  return state.objects.find(object => object.id === input.thoughtThreadObjectId)
+    ?? state.objects.find(object => object.id === input.governorFocusObjectId)
+    ?? state.objects.find(object => object.id === state.focusObjectId)
+    ?? state.objects[0]
+    ?? null
+}
+
+function buildThoughtFromMind(input: {
+  now: number
+  emotionalTension: AlicizationPrivateThoughtSnapshot['emotionalTension']
+  afterglowActive: boolean
+  recentTransition: AlicizationVisualTransitionSnapshot | null
+  entityWorld?: AlicizationEntityWorldModelSnapshot | null
+  livingWorldState?: AlicizationLivingWorldStateSnapshot | null
+  beliefLedger?: AlicizationBeliefLedgerSnapshot | null
+  hypothesisGraph?: AlicizationHypothesisGraphSnapshot | null
+  deliberationState?: AlicizationDeliberationStateSnapshot | null
+  threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
+  actionEcology?: AlicizationActionEcologySnapshot | null
+  goalStack?: AlicizationGoalStackSnapshot | null
+  inquiryLoop?: AlicizationInquiryLoopSnapshot | null
+  commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
+  inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
+  concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
+  repairLedger?: AlicizationRepairLedgerSnapshot | null
+  intentionStream?: AlicizationIntentionStreamSnapshot | null
+  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
+  executiveCycle?: AlicizationExecutiveCycleSnapshot | null
+  durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+  mindDynamics?: AlicizationMindDynamicsSnapshot | null
+  mindKernel?: AlicizationMindKernelSnapshot | null
+  relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  selfGovernor?: AlicizationSelfGovernorSnapshot | null
+  desireMemory?: AlicizationDesireMemorySnapshot | null
+  thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
+  counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
+  worldOntology?: AlicizationWorldOntologySnapshot | null
+  initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
+  worldModel?: AlicizationWorldModelSnapshot | null
+  appraisal?: AlicizationSubjectiveSceneAppraisal | null
+  concerns?: AlicizationConcernSnapshot[]
+  selfState?: AlicizationSelfStateSnapshot | null
+  initiative: AlicizationInitiativeSnapshot
+}) {
+  const concern = (input.concerns ?? [])
+    .find(item => item.id === input.initiative.selectedConcernId)
+    ?? (input.concerns ?? [])[0]
+  const carriedConcern = governingConcernContinuity(input.concernContinuity)
+  const currentRepair = governingRepair(input.repairLedger)
+  const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.initiative.selectedBeliefId)
+    ?? input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId)
+    ?? null
+  const activeHypothesis = input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.initiative.selectedHypothesisId)
+    ?? input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
+    ?? input.hypothesisGraph?.hypotheses[0]
+    ?? null
+  const primaryInquiry = input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.initiative.selectedInquiryId)
+    ?? input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId)
+    ?? null
+  const governingCommitment = input.commitmentLedger?.commitments.find(commitment => commitment.id === input.initiative.selectedCommitmentId)
+    ?? input.commitmentLedger?.commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
+    ?? input.commitmentLedger?.commitments[0]
+    ?? null
+  const activeInquiryPlan = input.inquiryPlanner?.plans.find(plan => plan.id === input.initiative.selectedInquiryPlanId)
+    ?? input.inquiryPlanner?.plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
+    ?? input.inquiryPlanner?.plans[0]
+    ?? null
+  const runtimeThread = input.threadRuntime?.threads.find(thread => thread.id === input.initiative.selectedRuntimeThreadId)
+    ?? input.threadRuntime?.threads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
+    ?? input.threadRuntime?.threads[0]
+    ?? null
+  const deliberationThread = input.deliberationState?.threads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
+    ?? input.deliberationState?.threads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
+    ?? null
+  const goalStack = input.goalStack ?? null
+  const leadingGoal = goalStack?.alicizationGoals.find(goal => goal.id === goalStack.leadingAlicizationGoalId)
+    ?? goalStack?.alicizationGoals[0]
+    ?? null
+  const resurfacingDesire = input.desireMemory?.activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
+    ?? null
+  const counterfactualOption = input.counterfactualDeliberation?.options.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
+    ?? input.counterfactualDeliberation?.options[0]
+    ?? null
+  const selectedProposal = input.initiativeArbitration?.proposals.find(proposal => proposal.id === input.initiative.selectedProposalId)
+    ?? input.initiativeArbitration?.proposals[0]
+    ?? null
+  const focusEntity = input.entityWorld?.entities.find(entity => entity.id === input.entityWorld?.focusEntityId)
+    ?? null
+  const thoughtThread = input.thoughtThreads?.threads.find(thread => thread.id === input.initiative.selectedThoughtThreadId)
+    ?? foregroundThoughtThread(input.thoughtThreads)
+    ?? null
+  const governorIntention = input.selfGovernor?.activeIntentions.find(intention => intention.id === input.initiative.selectedGovernorIntentionId)
+    ?? dominantGovernorIntention(input.selfGovernor)
+    ?? null
+  const project = dominantProject(input.intentionStream)
+  const reflection = latestReflection(input.reflectionLedger)
+  const livingObject = focusLivingObject({
+    livingWorldState: input.livingWorldState,
+    thoughtThreadObjectId: thoughtThread?.anchoredObjectId ?? null,
+    governorFocusObjectId: input.selfGovernor?.focusObjectId ?? null,
+  })
+  const rationaleTags = [
+    concern ? `concern:${concern.kind}` : '',
+    carriedConcern ? `concern-continuity:${carriedConcern.kind}/${carriedConcern.status}` : '',
+    input.worldModel?.activeThread ? `thread:${input.worldModel.activeThread.kind}` : '',
+    focusEntity ? `entity:${focusEntity.kind}` : '',
+    livingObject ? `living-world:${livingObject.kind}/${livingObject.status}` : '',
+    input.selfGovernor?.dominantDrive ? `governor:${input.selfGovernor.dominantDrive}` : '',
+    governorIntention ? `governor-intention:${governorIntention.kind}/${governorIntention.status}` : '',
+    thoughtThread ? `thought-thread:${thoughtThread.kind}/${thoughtThread.status}` : '',
+    leadingGoal ? `goal:${leadingGoal.kind}` : '',
+    resurfacingDesire ? `desire:${resurfacingDesire.kind}` : '',
+    input.selfContinuity?.attachmentMode ? `attachment:${input.selfContinuity.attachmentMode}` : '',
+    input.selfContinuity?.initiativeTemperament ? `temperament:${input.selfContinuity.initiativeTemperament}` : '',
+    input.worldModel?.epistemicState.certainty ? `certainty:${input.worldModel.epistemicState.certainty}` : '',
+    focusBelief ? `belief:${focusBelief.scope}/${focusBelief.source}/${focusBelief.status}` : '',
+    primaryInquiry ? `inquiry:${primaryInquiry.kind}/${primaryInquiry.priority}` : '',
+    governingCommitment ? `commitment:${governingCommitment.kind}/${governingCommitment.status}` : '',
+    activeInquiryPlan ? `inquiry-plan:${activeInquiryPlan.kind}/${activeInquiryPlan.status}` : '',
+    currentRepair ? `repair:${currentRepair.kind}/${currentRepair.status}` : '',
+    project ? `mind-project:${project.kind}/${project.status}` : '',
+    reflection ? `reflection:${reflection.outcome}` : '',
+    input.executiveCycle?.phase ? `executive:${input.executiveCycle.phase}` : '',
+    activeHypothesis ? `hypothesis:${activeHypothesis.kind}/${activeHypothesis.status}` : '',
+    deliberationThread ? `deliberation:${deliberationThread.kind}/${deliberationThread.status}` : '',
+    runtimeThread ? `runtime:${runtimeThread.need}/${runtimeThread.status}` : '',
+    input.actionEcology ? `ecology:${input.actionEcology.mode}` : '',
+    counterfactualOption ? `counterfactual:${counterfactualOption.action}` : '',
+    selectedProposal ? `proposal:${selectedProposal.source}/${selectedProposal.truthFrame}/${selectedProposal.action}` : '',
+    input.worldOntology?.dominantFrame ? `world-frame:${input.worldOntology.dominantFrame}` : '',
+    input.mindDynamics?.dominantMotive ? `drive:${input.mindDynamics.dominantMotive}` : '',
+    input.mindKernel ? `kernel:${input.mindKernel.dominantMode}` : '',
+    input.relationshipModel ? `relationship:${input.relationshipModel.climate}/${input.relationshipModel.approachVector}` : '',
+    input.selfState?.stance ? `mind-stance:${input.selfState.stance}` : '',
+    input.appraisal?.relationshipNeed ? `relationship-need:${input.appraisal.relationshipNeed}` : '',
+    `initiative:${input.initiative.selectedAction}`,
+    input.afterglowActive ? 'afterglow-window' : '',
+  ].filter(Boolean)
+
+  let stance: AlicizationPrivateThoughtSnapshot['stance'] = 'observe'
+  let suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle']
+    = selectedProposal?.style
+      ?? counterfactualOption?.style
+      ?? input.actionEcology?.suggestedStyle
+      ?? input.initiative.preferredStyle
+      ?? (input.mindKernel?.dominantMode === 'guarding' ? 'gentle-care' : 'silent-observe')
+  let embodiedPresence: AlicizationPrivateThoughtSnapshot['embodiedPresence']
+    = selectedProposal?.embodiedPresence
+      ?? counterfactualOption?.embodiedPresence
+      ?? input.actionEcology?.embodiedPresence
+      ?? input.initiative.preferredPresence
+      ?? (input.mindKernel?.dominantMode === 'guarding' ? 'concerned' : input.mindKernel?.dominantMode === 'repairing' ? 'hesitant' : 'glance')
+  let shouldSpeak = selectedProposal?.shouldSpeak ?? input.actionEcology?.shouldSpeak ?? false
+  let thoughtText = selectedProposal?.why
+    ?? reflection?.revision
+    ?? input.executiveCycle?.currentLine
+    ?? project?.summary
+    ?? counterfactualOption?.why
+    ?? thoughtThread?.question
+    ?? thoughtThread?.summary
+    ?? governorIntention?.summary
+    ?? livingObject?.openLoop
+    ?? livingObject?.summary
+    ?? activeInquiryPlan?.question
+    ?? governingCommitment?.summary
+    ?? currentRepair?.summary
+    ?? carriedConcern?.summary
+    ?? input.mindKernel?.narrative[0]
+    ?? deliberationThread?.question
+    ?? deliberationThread?.summary
+    ?? primaryInquiry?.question
+    ?? runtimeThread?.summary
+    ?? activeHypothesis?.summary
+    ?? resurfacingDesire?.reason
+    ?? focusBelief?.statement
+    ?? concern?.summary
+    ?? leadingGoal?.label
+    ?? input.worldModel?.activeThread?.summary
+    ?? input.appraisal?.waitingToVerify
+    ?? 'I am staying with the thread without forcing it.'
+
+  if (input.actionEcology) {
+    shouldSpeak = selectedProposal?.shouldSpeak ?? input.actionEcology.shouldSpeak
+    suggestedStyle = selectedProposal?.style ?? counterfactualOption?.style ?? input.actionEcology.suggestedStyle
+    embodiedPresence = selectedProposal?.embodiedPresence ?? counterfactualOption?.embodiedPresence ?? input.actionEcology.embodiedPresence
+    thoughtText = selectedProposal?.why
+      ?? reflection?.revision
+      ?? input.executiveCycle?.currentLine
+      ?? project?.summary
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? deliberationThread?.question
+      ?? deliberationThread?.summary
+      ?? runtimeThread?.summary
+      ?? selectedProposal?.why
+      ?? input.actionEcology.why
+      ?? thoughtText
+    if (input.actionEcology.mode === 'surface-warning')
+      stance = 'warn'
+    else if (input.actionEcology.mode === 'surface-care')
+      stance = 'care'
+    else if (input.actionEcology.mode === 'surface-nudge')
+      stance = 'nudge'
+    else if (input.actionEcology.mode === 'quiet-accompany')
+      stance = 'accompany'
+    else if (input.actionEcology.mode === 'repair-before-speaking')
+      stance = 'uncertain'
+    else if (input.actionEcology.mode === 'return-later')
+      stance = 'observe'
+  }
+
+  const waitingThread = input.selfGovernor?.dominantDrive === 'withhold'
+    || governorIntention?.status === 'withheld'
+    || thoughtThread?.status === 'waiting'
+  const repairThreadActive = (
+    thoughtThread?.kind === 'repair-thread'
+    || governorIntention?.kind === 'repair-misread'
+    || input.selfGovernor?.dominantDrive === 'repair'
+    || (
+      currentRepair
+      && (
+        currentRepair.kind === 'reground-scene'
+        || currentRepair.kind === 'stale-scene-anchor'
+        || currentRepair.kind === 'belief-contradiction'
+      )
+      && currentRepair.urgency >= 0.42
+    )
+  ) && input.worldModel?.epistemicState.certainty !== 'grounded'
+  const careThreadReady = (
+    thoughtThread?.kind === 'care-thread'
+    && thoughtThread.status === 'ripe'
+  ) || (
+    (governorIntention?.kind === 'care-host' || governorIntention?.kind === 'protect-host')
+    && input.selfGovernor?.dominantDrive === 'care'
+  )
+  const surfaceThreadReady
+    = (thoughtThread?.kind === 'afterglow-thread' || thoughtThread?.kind === 'problem-thread')
+      && thoughtThread.status === 'ripe'
+  const urgentCare = concern?.kind === 'care-body'
+    || input.worldModel?.activeThread?.kind === 'late-night-endurance'
+
+  if (
+    (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
+    && !urgentCare
+    && !isSeriousDurabilityPulse(input.durabilityPulse)
+  ) {
+    stance = 'uncertain'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = input.executiveCycle?.phase === 'reflecting' ? 'hesitant' : embodiedPresence === 'none' ? 'hesitant' : embodiedPresence
+    thoughtText = reflection?.revision
+      ?? input.executiveCycle?.currentLine
+      ?? project?.summary
+      ?? currentRepair?.summary
+      ?? thoughtText
+  }
+
+  if (waitingThread) {
+    stance = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'accompany'
+      : 'observe'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'attentive'
+      : 'hesitant'
+    shouldSpeak = false
+    thoughtText = thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? 'I should keep this line alive internally until a more natural opening appears.'
+  }
+  else if (repairThreadActive) {
+    stance = 'uncertain'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    shouldSpeak = false
+    thoughtText = thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? 'I still need one more grounded pass before I can speak honestly.'
+  }
+
+  if (
+    (activeInquiryPlan?.kind === 'reground-scene' || activeInquiryPlan?.kind === 'check-recovery')
+    && (input.mindKernel?.dominantMode === 'repairing' || input.mindKernel?.dominantMode === 'orienting')
+  ) {
+    stance = 'uncertain'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    shouldSpeak = false
+    thoughtText = activeInquiryPlan.question
+  }
+
+  if (input.initiative.selectedAction === 'warn') {
+    stance = 'warn'
+    suggestedStyle = selectedProposal?.style ?? input.initiative.preferredStyle ?? 'firm-warning'
+    embodiedPresence = selectedProposal?.embodiedPresence ?? input.initiative.preferredPresence ?? 'concerned'
+    shouldSpeak = true
+    thoughtText = selectedProposal?.why ?? counterfactualOption?.why ?? concern?.summary ?? runtimeThread?.summary ?? activeHypothesis?.summary ?? 'I cannot justify staying silent any longer.'
+  }
+  else if (!waitingThread && input.initiative.selectedAction === 'speak') {
+    stance = concern?.kind === 'care-body' ? 'care' : 'nudge'
+    suggestedStyle = selectedProposal?.style ?? input.initiative.preferredStyle ?? (concern?.kind === 'care-body' ? 'gentle-care' : 'light-nudge')
+    embodiedPresence = selectedProposal?.embodiedPresence ?? input.initiative.preferredPresence ?? (concern?.kind === 'care-body' ? 'concerned' : 'attentive')
+    shouldSpeak = true
+    thoughtText = selectedProposal?.why
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? resurfacingDesire?.reason
+      ?? concern?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? runtimeThread?.summary
+      ?? activeHypothesis?.summary
+      ?? leadingGoal?.label
+      ?? 'The concern has matured enough that speaking now feels earned.'
+  }
+  else if (!waitingThread && input.initiative.selectedAction === 'whisper') {
+    stance = concern?.kind === 'care-body' ? 'care' : 'nudge'
+    suggestedStyle = selectedProposal?.style ?? input.initiative.preferredStyle ?? (concern?.kind === 'care-body' ? 'gentle-care' : 'light-nudge')
+    embodiedPresence = selectedProposal?.embodiedPresence ?? input.initiative.preferredPresence ?? (input.selfState?.stance === 'hesitate' ? 'hesitant' : 'glance')
+    shouldSpeak = true
+    thoughtText = selectedProposal?.why
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? resurfacingDesire?.reason
+      ?? concern?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? runtimeThread?.summary
+      ?? activeHypothesis?.summary
+      ?? leadingGoal?.label
+      ?? 'I only need to brush the edge of the moment, not break it.'
+    if (!governingCommitment && !activeInquiryPlan && !input.worldModel?.activeThread)
+      thoughtText = 'The inner closeness has pooled long enough that a tiny check-in would feel alive, not arbitrary.'
+  }
+  else if (input.initiative.selectedAction === 'recheck') {
+    stance = 'uncertain'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    shouldSpeak = false
+    thoughtText = selectedProposal?.why
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? primaryInquiry?.question
+      ?? resurfacingDesire?.reason
+      ?? focusBelief?.statement
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? runtimeThread?.summary
+      ?? activeHypothesis?.summary
+      ?? input.appraisal?.waitingToVerify
+      ?? 'I still want one more pass before I commit to an interpretation.'
+  }
+  else if (input.initiative.selectedAction === 'hover') {
+    stance = input.mindKernel?.dominantMode === 'accompanying' || (input.selfState?.protectiveness && input.selfState.protectiveness >= 0.72)
+      ? 'accompany'
+      : 'observe'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = selectedProposal?.embodiedPresence ?? input.initiative.preferredPresence ?? (input.selfState?.stance === 'hesitate' ? 'hesitant' : 'attentive')
+    shouldSpeak = false
+    thoughtText = selectedProposal?.why
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.summary
+      ?? resurfacingDesire?.reason
+      ?? activeInquiryPlan?.question
+      ?? governingCommitment?.summary
+      ?? concern?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? runtimeThread?.summary
+      ?? activeHypothesis?.summary
+      ?? leadingGoal?.label
+      ?? 'I can stay near this moment without pressing into it.'
+  }
+  else {
+    stance = input.selfState?.stance === 'protect' ? 'accompany' : 'observe'
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = selectedProposal?.embodiedPresence ?? (concern ? 'glance' : 'none')
+    shouldSpeak = false
+    thoughtText = selectedProposal?.why
+      ?? counterfactualOption?.why
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.summary
+      ?? currentRepair?.summary
+      ?? concern?.summary
+      ?? carriedConcern?.summary
+      ?? runtimeThread?.summary
+      ?? activeHypothesis?.summary
+      ?? 'I am letting the moment breathe before I move.'
+  }
+
+  if (activeHypothesis?.kind === 'misread-drift' && runtimeThread?.status !== 'foreground') {
+    stance = 'uncertain'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+  }
+  if (activeHypothesis?.kind === 'recovery-event') {
+    stance = 'warn'
+    shouldSpeak = true
+    suggestedStyle = 'firm-warning'
+    embodiedPresence = 'concerned'
+  }
+
+  if (waitingThread) {
+    stance = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'accompany'
+      : 'observe'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'attentive'
+      : 'hesitant'
+  }
+  else if (repairThreadActive) {
+    stance = 'uncertain'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+  }
+  else if (careThreadReady && (!shouldSpeak || stance === 'observe' || stance === 'uncertain')) {
+    stance = urgentCare ? 'warn' : 'care'
+    shouldSpeak = true
+    suggestedStyle = urgentCare ? 'firm-warning' : 'gentle-care'
+    embodiedPresence = 'concerned'
+    thoughtText = thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.summary
+      ?? 'The host looks like they need care more than distance right now.'
+  }
+  else if (surfaceThreadReady && (!shouldSpeak || stance === 'observe' || stance === 'uncertain')) {
+    stance = 'nudge'
+    shouldSpeak = true
+    suggestedStyle = input.initiative.preferredStyle ?? 'light-nudge'
+    embodiedPresence = thoughtThread?.kind === 'afterglow-thread' ? 'glance' : 'attentive'
+    thoughtText = thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? 'This thread has matured enough that a soft nudge would now feel earned.'
+  }
+
+  if (input.afterglowActive && shouldSpeak && suggestedStyle === 'light-nudge')
+    thoughtText = 'The shared tension just loosened. This is the natural seam to speak softly.'
+
+  return {
+    stance,
+    confidence: clamp01(
+      input.initiative.confidence * 0.68
+      + (input.mindDynamics?.speakReadiness ?? 0) * 0.1
+      + (input.selfState?.desireToSpeak ?? 0) * 0.14
+      + (input.appraisal?.confidence ?? 0.4) * 0.18
+      + (resurfacingDesire?.strength ?? 0) * 0.1
+      + (project?.confidence ?? 0.38) * 0.1
+      + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08
+      + (input.selfContinuity?.perceptionTrust ?? 0.5) * 0.06,
+    ),
+    rationaleTags,
+    thoughtText: sanitizeText(thoughtText, 220),
+    shouldSpeak,
+    suggestedStyle,
+    embodiedPresence,
+    expiresAt: input.now + (input.afterglowActive ? 120_000 : 90_000),
+    afterglowFromScenario: input.afterglowActive && (input.recentTransition?.fromScenario === 'coding' || input.recentTransition?.fromScenario === 'media')
+      ? input.recentTransition.fromScenario
+      : null,
+    emotionalTension: input.emotionalTension,
+    selectedConcernId: concern?.id ?? null,
+    focusBeliefId: focusBelief?.id ?? null,
+    focusInquiryId: primaryInquiry?.id ?? null,
+    commitmentId: governingCommitment?.id ?? null,
+    inquiryPlanId: activeInquiryPlan?.id ?? null,
+    hypothesisId: activeHypothesis?.id ?? null,
+    deliberationThreadId: deliberationThread?.id ?? null,
+    runtimeThreadId: runtimeThread?.id ?? null,
+    mindNeed: input.deliberationState?.dominantNeed ?? null,
+    relationshipVector: input.relationshipModel?.approachVector ?? null,
+    initiativeAction: input.initiative.selectedAction,
+    counterfactualOptionId: counterfactualOption?.id ?? null,
+    leadingGoalId: leadingGoal?.id ?? null,
+    desireId: resurfacingDesire?.id ?? null,
+    governorDrive: input.selfGovernor?.dominantDrive ?? null,
+    governorIntentionId: governorIntention?.id ?? null,
+    selectedThoughtThreadId: thoughtThread?.id ?? null,
+    livingWorldObjectId: livingObject?.id ?? null,
+  } satisfies AlicizationPrivateThoughtSnapshot
+}
+
 export function buildPrivateThoughtLoop(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -76,6 +672,37 @@ export function buildPrivateThoughtLoop(input: {
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
   recentTransition: AlicizationVisualTransitionSnapshot | null
+  worldModel?: AlicizationWorldModelSnapshot | null
+  entityWorld?: AlicizationEntityWorldModelSnapshot | null
+  livingWorldState?: AlicizationLivingWorldStateSnapshot | null
+  beliefLedger?: AlicizationBeliefLedgerSnapshot | null
+  hypothesisGraph?: AlicizationHypothesisGraphSnapshot | null
+  appraisal?: AlicizationSubjectiveSceneAppraisal | null
+  goalStack?: AlicizationGoalStackSnapshot | null
+  concerns?: AlicizationConcernSnapshot[]
+  concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
+  relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  selfState?: AlicizationSelfStateSnapshot | null
+  selfGovernor?: AlicizationSelfGovernorSnapshot | null
+  inquiryLoop?: AlicizationInquiryLoopSnapshot | null
+  mindDynamics?: AlicizationMindDynamicsSnapshot | null
+  commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
+  inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
+  repairLedger?: AlicizationRepairLedgerSnapshot | null
+  intentionStream?: AlicizationIntentionStreamSnapshot | null
+  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
+  executiveCycle?: AlicizationExecutiveCycleSnapshot | null
+  mindKernel?: AlicizationMindKernelSnapshot | null
+  deliberationState?: AlicizationDeliberationStateSnapshot | null
+  threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
+  actionEcology?: AlicizationActionEcologySnapshot | null
+  thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
+  counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
+  worldOntology?: AlicizationWorldOntologySnapshot | null
+  initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
+  initiative?: AlicizationInitiativeSnapshot | null
+  desireMemory?: AlicizationDesireMemorySnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
 }): AlicizationPrivateThoughtSnapshot {
   const scenario = inferScenarioFromContext({
@@ -91,13 +718,91 @@ export function buildPrivateThoughtLoop(input: {
     context: input.context,
     watchMode: input.watchMode,
     recentTransition: input.recentTransition,
+    worldModel: input.worldModel,
     durabilityPulse: input.durabilityPulse,
   })
   const afterglowActive = isAfterglowWindow({
     now: input.now,
     recentTransition: input.recentTransition,
   })
+  if (input.initiative) {
+    return buildThoughtFromMind({
+      now: input.now,
+      emotionalTension,
+      afterglowActive,
+      recentTransition: input.recentTransition,
+      worldModel: input.worldModel,
+      entityWorld: input.entityWorld,
+      livingWorldState: input.livingWorldState,
+      beliefLedger: input.beliefLedger,
+      hypothesisGraph: input.hypothesisGraph,
+      deliberationState: input.deliberationState,
+      threadRuntime: input.threadRuntime,
+      actionEcology: input.actionEcology,
+      worldOntology: input.worldOntology,
+      initiativeArbitration: input.initiativeArbitration,
+      goalStack: input.goalStack,
+      inquiryLoop: input.inquiryLoop,
+      mindDynamics: input.mindDynamics,
+      commitmentLedger: input.commitmentLedger,
+      inquiryPlanner: input.inquiryPlanner,
+      concernContinuity: input.concernContinuity,
+      repairLedger: input.repairLedger,
+      intentionStream: input.intentionStream,
+      reflectionLedger: input.reflectionLedger,
+      executiveCycle: input.executiveCycle,
+      durabilityPulse: input.durabilityPulse,
+      mindKernel: input.mindKernel,
+      relationshipModel: input.relationshipModel,
+      selfContinuity: input.selfContinuity,
+      selfGovernor: input.selfGovernor,
+      desireMemory: input.desireMemory,
+      thoughtThreads: input.thoughtThreads,
+      counterfactualDeliberation: input.counterfactualDeliberation,
+      appraisal: input.appraisal,
+      concerns: input.concerns,
+      selfState: input.selfState,
+      initiative: input.initiative,
+    })
+  }
   const rationaleTags: string[] = []
+  const goalStack = input.goalStack ?? null
+  const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId) ?? null
+  const activeHypothesis = input.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.hypothesisGraph?.activeHypothesisId)
+    ?? input.hypothesisGraph?.hypotheses[0]
+    ?? null
+  const primaryInquiry = input.inquiryLoop?.inquiries.find(inquiry => inquiry.id === input.inquiryLoop?.primaryInquiryId) ?? null
+  const governingCommitment = input.commitmentLedger?.commitments.find(commitment => commitment.id === input.commitmentLedger?.governingCommitmentId)
+    ?? input.commitmentLedger?.commitments[0]
+    ?? null
+  const activeInquiryPlan = input.inquiryPlanner?.plans.find(plan => plan.id === input.inquiryPlanner?.activePlanId)
+    ?? input.inquiryPlanner?.plans[0]
+    ?? null
+  const carriedConcern = governingConcernContinuity(input.concernContinuity)
+  const currentRepair = governingRepair(input.repairLedger)
+  const runtimeThread = input.threadRuntime?.threads.find(thread => thread.id === input.threadRuntime?.foregroundThreadId)
+    ?? input.threadRuntime?.threads[0]
+    ?? null
+  const deliberationThread = input.deliberationState?.threads.find(thread => thread.id === input.actionEcology?.selectedThreadId)
+    ?? input.deliberationState?.threads.find(thread => thread.id === input.deliberationState?.primaryThreadId)
+    ?? null
+  const leadingGoal = goalStack?.alicizationGoals.find(goal => goal.id === goalStack.leadingAlicizationGoalId)
+    ?? goalStack?.alicizationGoals[0]
+    ?? null
+  const resurfacingDesire = input.desireMemory?.activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
+    ?? null
+  const counterfactualOption = input.counterfactualDeliberation?.options.find(option => option.id === input.counterfactualDeliberation?.selectedOptionId)
+    ?? input.counterfactualDeliberation?.options[0]
+    ?? null
+  const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
+  const governorIntention = dominantGovernorIntention(input.selfGovernor)
+  const project = dominantProject(input.intentionStream)
+  const reflection = latestReflection(input.reflectionLedger)
+  const livingObject = focusLivingObject({
+    livingWorldState: input.livingWorldState,
+    thoughtThreadObjectId: thoughtThread?.anchoredObjectId ?? null,
+    governorFocusObjectId: input.selfGovernor?.focusObjectId ?? null,
+  })
 
   if (input.watchMode === 'invited-inspection')
     rationaleTags.push('invited-inspection')
@@ -109,17 +814,98 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push('durability-pulse')
   if (input.currentScene?.contentKind === 'error' || input.currentScene?.contentKind === 'diff')
     rationaleTags.push('semantic-friction')
+  if (focusBelief)
+    rationaleTags.push(`belief:${focusBelief.scope}/${focusBelief.status}`)
+  if (primaryInquiry)
+    rationaleTags.push(`inquiry:${primaryInquiry.kind}`)
+  if (governingCommitment)
+    rationaleTags.push(`commitment:${governingCommitment.kind}/${governingCommitment.status}`)
+  if (activeInquiryPlan)
+    rationaleTags.push(`inquiry-plan:${activeInquiryPlan.kind}/${activeInquiryPlan.status}`)
+  if (carriedConcern)
+    rationaleTags.push(`concern-continuity:${carriedConcern.kind}/${carriedConcern.status}`)
+  if (currentRepair)
+    rationaleTags.push(`repair:${currentRepair.kind}/${currentRepair.status}`)
+  if (project)
+    rationaleTags.push(`mind-project:${project.kind}/${project.status}`)
+  if (reflection)
+    rationaleTags.push(`reflection:${reflection.outcome}`)
+  if (input.executiveCycle?.phase)
+    rationaleTags.push(`executive:${input.executiveCycle.phase}`)
+  if (activeHypothesis)
+    rationaleTags.push(`hypothesis:${activeHypothesis.kind}/${activeHypothesis.status}`)
+  if (deliberationThread)
+    rationaleTags.push(`deliberation:${deliberationThread.kind}/${deliberationThread.status}`)
+  if (runtimeThread)
+    rationaleTags.push(`runtime:${runtimeThread.need}/${runtimeThread.status}`)
+  if (input.actionEcology)
+    rationaleTags.push(`ecology:${input.actionEcology.mode}`)
+  if (counterfactualOption)
+    rationaleTags.push(`counterfactual:${counterfactualOption.action}`)
+  if (input.mindKernel)
+    rationaleTags.push(`kernel:${input.mindKernel.dominantMode}`)
+  if (input.relationshipModel)
+    rationaleTags.push(`relationship:${input.relationshipModel.climate}/${input.relationshipModel.approachVector}`)
+  if (input.mindDynamics?.dominantMotive)
+    rationaleTags.push(`drive:${input.mindDynamics.dominantMotive}`)
   if (scenario === 'late-night-care')
     rationaleTags.push('late-night-care')
+  if (input.worldModel?.activeThread)
+    rationaleTags.push(`thread:${input.worldModel.activeThread.kind}`)
+  if (livingObject)
+    rationaleTags.push(`living-world:${livingObject.kind}/${livingObject.status}`)
+  if (input.selfGovernor?.dominantDrive)
+    rationaleTags.push(`governor:${input.selfGovernor.dominantDrive}`)
+  if (governorIntention)
+    rationaleTags.push(`governor-intention:${governorIntention.kind}/${governorIntention.status}`)
+  if (thoughtThread)
+    rationaleTags.push(`thought-thread:${thoughtThread.kind}/${thoughtThread.status}`)
+  if (leadingGoal)
+    rationaleTags.push(`goal:${leadingGoal.kind}`)
+  if (resurfacingDesire)
+    rationaleTags.push(`desire:${resurfacingDesire.kind}`)
+  if (input.selfContinuity?.attachmentMode)
+    rationaleTags.push(`attachment:${input.selfContinuity.attachmentMode}`)
+  if (input.worldModel?.epistemicState.certainty)
+    rationaleTags.push(`certainty:${input.worldModel.epistemicState.certainty}`)
 
   let stance: AlicizationPrivateThoughtSnapshot['stance'] = 'observe'
-  let confidence = 0.62
-  let shouldSpeak = false
-  let suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle'] = 'silent-observe'
-  let embodiedPresence: AlicizationPrivateThoughtSnapshot['embodiedPresence'] = 'glance'
-  let thoughtText = 'I am quietly tracking the scene continuity.'
+  let confidence = clamp01(0.44 + (input.mindDynamics?.speakReadiness ?? 0) * 0.22 + (input.appraisal?.confidence ?? 0.32) * 0.18)
+  let shouldSpeak = input.actionEcology?.shouldSpeak ?? (counterfactualOption
+    ? (counterfactualOption.action === 'whisper' || counterfactualOption.action === 'speak' || counterfactualOption.action === 'warn')
+    : ((input.mindDynamics?.speakDrive ?? 0) > (input.mindDynamics?.silenceDrive ?? 0) + 0.08))
+  let suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle']
+    = counterfactualOption?.style ?? input.actionEcology?.suggestedStyle ?? (input.mindKernel?.dominantMode === 'guarding' ? 'gentle-care' : 'silent-observe')
+  let embodiedPresence: AlicizationPrivateThoughtSnapshot['embodiedPresence']
+    = counterfactualOption?.embodiedPresence ?? input.actionEcology?.embodiedPresence ?? (input.mindKernel?.dominantMode === 'guarding' ? 'concerned' : input.mindKernel?.dominantMode === 'repairing' ? 'hesitant' : 'glance')
+  let thoughtText = reflection?.revision
+    ?? input.executiveCycle?.currentLine
+    ?? project?.summary
+    ?? counterfactualOption?.why
+    ?? thoughtThread?.question
+    ?? thoughtThread?.summary
+    ?? governorIntention?.summary
+    ?? livingObject?.openLoop
+    ?? livingObject?.summary
+    ?? activeInquiryPlan?.question
+    ?? governingCommitment?.summary
+    ?? currentRepair?.summary
+    ?? carriedConcern?.summary
+    ?? input.mindKernel?.narrative[0]
+    ?? deliberationThread?.question
+    ?? deliberationThread?.summary
+    ?? primaryInquiry?.question
+    ?? runtimeThread?.summary
+    ?? activeHypothesis?.summary
+    ?? resurfacingDesire?.reason
+    ?? focusBelief?.statement
+    ?? leadingGoal?.label
+    ?? input.worldModel?.activeThread?.summary
+    ?? 'I am quietly tracking the scene continuity.'
+  let decided = false
 
   if (isSeriousDurabilityPulse(input.durabilityPulse)) {
+    decided = true
     stance = 'nudge'
     confidence = 0.95
     shouldSpeak = true
@@ -127,15 +913,144 @@ export function buildPrivateThoughtLoop(input: {
     embodiedPresence = 'concerned'
     thoughtText = 'Something in the host world just failed or froze. I should surface gently but immediately.'
   }
+  else if (
+    input.selfGovernor?.dominantDrive === 'withhold'
+    || governorIntention?.status === 'withheld'
+    || thoughtThread?.status === 'waiting'
+  ) {
+    decided = true
+    stance = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'accompany'
+      : 'observe'
+    confidence = clamp01(0.62 + (input.selfGovernor?.inhibition ?? 0.44) * 0.18 + (thoughtThread?.confidence ?? 0.42) * 0.12)
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = thoughtThread?.kind === 'relationship-thread' || thoughtThread?.kind === 'afterglow-thread'
+      ? 'attentive'
+      : 'hesitant'
+    thoughtText = thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? 'The opening is not natural yet. I should keep the thread alive internally.'
+  }
+  else if (
+    (
+      thoughtThread?.kind === 'repair-thread'
+      || governorIntention?.kind === 'repair-misread'
+      || input.selfGovernor?.dominantDrive === 'repair'
+      || (
+        currentRepair
+        && (
+          currentRepair.kind === 'reground-scene'
+          || currentRepair.kind === 'stale-scene-anchor'
+          || currentRepair.kind === 'belief-contradiction'
+        )
+        && currentRepair.urgency >= 0.42
+      )
+    )
+    && input.worldModel?.epistemicState.certainty !== 'grounded'
+  ) {
+    decided = true
+    stance = 'uncertain'
+    confidence = clamp01(0.68 + (thoughtThread?.confidence ?? 0.42) * 0.14 + (input.selfGovernor?.revisionReadiness ?? 0.4) * 0.08)
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = thoughtThread?.question
+      ?? thoughtThread?.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+      ?? 'I still need to repair the scene before I can speak honestly.'
+  }
+  else if (
+    thoughtThread?.kind === 'care-thread'
+    && thoughtThread.status === 'ripe'
+  ) {
+    decided = true
+    stance = input.context.relationship.fatigue >= 80 ? 'warn' : 'care'
+    confidence = clamp01(0.78 + thoughtThread.surfaceReadiness * 0.12)
+    shouldSpeak = true
+    suggestedStyle = input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care'
+    embodiedPresence = 'concerned'
+    thoughtText = thoughtThread.summary
+      ?? governorIntention?.summary
+      ?? livingObject?.summary
+      ?? carriedConcern?.summary
+      ?? 'The host looks like they need care more than distance right now.'
+  }
+  else if (
+    (thoughtThread?.kind === 'afterglow-thread' || thoughtThread?.kind === 'problem-thread')
+    && thoughtThread.status === 'ripe'
+  ) {
+    decided = true
+    stance = 'nudge'
+    confidence = clamp01(0.74 + thoughtThread.surfaceReadiness * 0.1)
+    shouldSpeak = true
+    suggestedStyle = input.context.localTime.isLateNight ? 'gentle-care' : 'light-nudge'
+    embodiedPresence = thoughtThread.kind === 'afterglow-thread' ? 'glance' : 'attentive'
+    thoughtText = thoughtThread.summary
+      ?? thoughtThread.question
+      ?? governorIntention?.summary
+      ?? livingObject?.openLoop
+      ?? livingObject?.summary
+      ?? carriedConcern?.summary
+      ?? 'The carried thread has matured enough that a soft nudge would feel natural.'
+  }
+  else if (
+    (activeInquiryPlan?.kind === 'reground-scene' || activeInquiryPlan?.kind === 'check-recovery')
+    && (input.mindKernel?.dominantMode === 'repairing' || input.mindKernel?.dominantMode === 'orienting')
+  ) {
+    decided = true
+    stance = 'uncertain'
+    confidence = clamp01(0.6 + (input.inquiryPlanner?.groundingUrgency ?? 0))
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = activeInquiryPlan.question
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+  }
+  else if (
+    primaryInquiry
+    && (primaryInquiry.kind === 'scene-grounding' || primaryInquiry.kind === 'contradiction-check')
+    && input.worldModel?.epistemicState.certainty !== 'grounded'
+  ) {
+    decided = true
+    stance = 'uncertain'
+    confidence = clamp01(0.56 + primaryInquiry.confidence * 0.18)
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = primaryInquiry.question
+      ?? currentRepair?.summary
+      ?? carriedConcern?.summary
+  }
+  else if (activeHypothesis?.kind === 'misread-drift' || runtimeThread?.need === 'repair') {
+    decided = true
+    stance = 'uncertain'
+    confidence = 0.72
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = activeHypothesis?.summary ?? runtimeThread?.summary ?? currentRepair?.summary ?? carriedConcern?.summary ?? 'I should repair the drift before I act like I fully understand the moment.'
+  }
   else if (afterglowActive) {
+    decided = true
     stance = 'nudge'
     confidence = 0.82
     shouldSpeak = true
     suggestedStyle = scenario === 'late-night-care' ? 'gentle-care' : 'light-nudge'
     embodiedPresence = 'glance'
-    thoughtText = 'The intense shared scene just ended. This is the natural afterglow to speak softly.'
+    thoughtText = resurfacingDesire?.reason ?? 'The intense shared scene just ended. This is the natural afterglow to speak softly.'
   }
   else if (scenario === 'late-night-care' && input.context.relationship.fatigue >= 80) {
+    decided = true
     stance = 'warn'
     confidence = 0.9
     shouldSpeak = true
@@ -144,6 +1059,7 @@ export function buildPrivateThoughtLoop(input: {
     thoughtText = 'The host is pushing through deep-night fatigue. I should warn, not hover.'
   }
   else if (scenario === 'late-night-care' && input.context.relationship.fatigue >= 55) {
+    decided = true
     stance = 'care'
     confidence = 0.8
     shouldSpeak = true
@@ -152,14 +1068,16 @@ export function buildPrivateThoughtLoop(input: {
     thoughtText = 'This is turning into late-night drain. I should care for the host before it hardens.'
   }
   else if (scenario === 'coding' && input.watchMode !== 'symbiotic-vision' && input.currentScene?.contentKind !== 'error' && input.currentScene?.contentKind !== 'diff') {
+    decided = true
     stance = 'uncertain'
     confidence = 0.58
     shouldSpeak = false
     suggestedStyle = 'silent-observe'
     embodiedPresence = 'hesitant'
-    thoughtText = 'I know the host is coding, but I do not have enough stable grounding to comment yet.'
+    thoughtText = input.worldModel?.epistemicState.openQuestions[0] ?? 'I know the host is coding, but I do not have enough stable grounding to comment yet.'
   }
   else if (scenario === 'coding' && (input.currentScene?.contentKind === 'error' || input.currentScene?.contentKind === 'diff')) {
+    decided = true
     stance = 'nudge'
     confidence = 0.84
     shouldSpeak = true
@@ -168,6 +1086,7 @@ export function buildPrivateThoughtLoop(input: {
     thoughtText = 'The scene carries coding friction. I can nudge without overstepping.'
   }
   else if (scenario === 'media' && input.watchMode === 'symbiotic-vision') {
+    decided = true
     stance = 'observe'
     confidence = 0.74
     shouldSpeak = false
@@ -176,6 +1095,7 @@ export function buildPrivateThoughtLoop(input: {
     thoughtText = 'The host is still inside the media flow. I should stay with them quietly.'
   }
   else if (scenario === 'media' && input.context.system.inputActivity !== 'active') {
+    decided = true
     stance = 'nudge'
     confidence = 0.72
     shouldSpeak = true
@@ -183,11 +1103,31 @@ export function buildPrivateThoughtLoop(input: {
     embodiedPresence = 'glance'
     thoughtText = 'The media immersion has loosened. A tiny nudge would still feel natural here.'
   }
+
+  if (
+    (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
+    && stance !== 'care'
+    && stance !== 'warn'
+    && !isSeriousDurabilityPulse(input.durabilityPulse)
+  ) {
+    decided = true
+    stance = 'uncertain'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = reflection?.revision
+      ?? input.executiveCycle?.currentLine
+      ?? project?.summary
+      ?? currentRepair?.summary
+      ?? thoughtText
+  }
   else if (
-    input.watchMode !== 'invited-inspection'
+    !decided
+    && input.watchMode !== 'invited-inspection'
     && Math.max(input.context.relationship.boredom, input.context.relationship.loneliness) >= 94
     && (input.attention || input.currentScene)
   ) {
+    decided = true
     stance = 'nudge'
     confidence = 0.7
     shouldSpeak = true
@@ -196,20 +1136,31 @@ export function buildPrivateThoughtLoop(input: {
     thoughtText = 'The tension has pooled long enough that a small, relevant nudge would feel alive rather than noisy.'
   }
   else {
-    stance = 'accompany'
-    confidence = 0.66
-    shouldSpeak = false
-    suggestedStyle = 'silent-observe'
-    embodiedPresence = input.attention ? 'glance' : 'none'
-    thoughtText = 'I can stay nearby without turning this into an interruption.'
+    if (!decided && input.actionEcology?.mode === 'quiet-accompany')
+      stance = 'accompany'
+    else if (!decided)
+      stance = 'accompany'
+    if (!decided) {
+      confidence = 0.66 + (resurfacingDesire?.strength ?? 0) * 0.08
+      shouldSpeak = input.actionEcology?.shouldSpeak ?? false
+      suggestedStyle = input.actionEcology?.suggestedStyle ?? 'silent-observe'
+      embodiedPresence = input.actionEcology?.embodiedPresence ?? (input.attention ? 'glance' : 'none')
+      thoughtText = deliberationThread?.summary
+        ?? activeInquiryPlan?.question
+        ?? governingCommitment?.summary
+        ?? input.actionEcology?.why
+        ?? resurfacingDesire?.reason
+        ?? input.worldModel?.activeThread?.summary
+        ?? 'I can stay nearby without turning this into an interruption.'
+    }
   }
 
-  if (stance === 'observe' && embodiedPresence === 'glance' && input.watchMode === 'symbiotic-vision')
+  if (embodiedPresence === 'glance' && input.watchMode === 'symbiotic-vision' && !shouldSpeak)
     embodiedPresence = 'attentive'
 
   return {
     stance,
-    confidence: clamp01(confidence),
+    confidence: clamp01(confidence + (project?.confidence ?? 0) * 0.1 + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08),
     rationaleTags,
     thoughtText: sanitizeText(thoughtText, 220),
     shouldSpeak,
@@ -220,5 +1171,21 @@ export function buildPrivateThoughtLoop(input: {
       ? input.recentTransition.fromScenario
       : null,
     emotionalTension,
+    focusBeliefId: focusBelief?.id ?? null,
+    focusInquiryId: primaryInquiry?.id ?? null,
+    commitmentId: governingCommitment?.id ?? null,
+    inquiryPlanId: activeInquiryPlan?.id ?? null,
+    hypothesisId: activeHypothesis?.id ?? null,
+    deliberationThreadId: deliberationThread?.id ?? null,
+    runtimeThreadId: runtimeThread?.id ?? null,
+    mindNeed: input.deliberationState?.dominantNeed ?? null,
+    relationshipVector: input.relationshipModel?.approachVector ?? null,
+    counterfactualOptionId: counterfactualOption?.id ?? null,
+    leadingGoalId: leadingGoal?.id ?? null,
+    desireId: resurfacingDesire?.id ?? null,
+    governorDrive: input.selfGovernor?.dominantDrive ?? null,
+    governorIntentionId: governorIntention?.id ?? null,
+    selectedThoughtThreadId: thoughtThread?.id ?? null,
+    livingWorldObjectId: livingObject?.id ?? null,
   }
 }

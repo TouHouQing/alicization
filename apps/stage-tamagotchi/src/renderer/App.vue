@@ -1033,6 +1033,12 @@ setAlicizationBridge({
             reason: start.reason,
           },
         }).catch(() => {})
+        if (start.accepted) {
+          await options.onStreamEvent?.({
+            type: 'meta',
+            governance: start.governance ?? null,
+          })
+        }
         if (!start.accepted) {
           const state = typeof start.state === 'string' ? start.state : 'unknown'
           rejectAndDispose(createAlicizationStreamError(

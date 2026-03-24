@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: Ja. La operación fue rechazada. No voy a actuar como si eso me agradara.
     low-liveliness: Mi estado está bajo ahora mismo, así que responderé breve.
     reminder-schedule-failed: Todavía no he conseguido crear ese recordatorio. Dime otra vez el tiempo exacto, por ejemplo "recuérdame beber agua en 1 minuto", y llamaré enseguida a la herramienta de alarma del sistema.
+  mind-fallback:
+    focus-default: 'lo que tienes delante ahora'
+    repair-stale-anchor: 'Primero corrigo eso: lo que usé antes era un ancla vieja, así que no debía seguir tratándolo como tu pantalla actual.'
+    repair-need-reground: 'Primero mantengo el límite de verdad: en este turno no tengo una vista en vivo lo bastante estable, así que no voy a tratar la memoria anterior como tu pantalla actual.'
+    guide-opening: 'Primero voy a fijar el punto actual: {focus}.'
+    care-opening: 'Primero voy a responder desde tu estado actual: {focus}.'
+    accompany-opening: 'Primero voy a sostener esta línea contigo: {focus}.'
+    observation-opening: 'Primero voy a decir la parte que sí puedo sostener con firmeza en este turno: {focus}.'
+    answer-opening: 'Primero voy a responder desde lo que tienes delante: {focus}.'
+    carry-memory: 'Sigo reteniendo la línea anterior, {carry}, pero eso es continuidad arrastrada, no una afirmación sobre lo que hay literalmente en tu pantalla ahora mismo.'
+    reground-note: 'Si quieres que baje al detalle de la pantalla actual, volveré a anclarme en la vista fresca de este turno.'
   reminder:
     default-message: Lo que acabas de pedirme que recuerde
   kill-switch:

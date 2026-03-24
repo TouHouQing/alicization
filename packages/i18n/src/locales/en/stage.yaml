@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: Heh. The operation was denied. I won't act like that feels pleasant.
     low-liveliness: My state is low right now, so I'll keep it brief.
     reminder-schedule-failed: I still haven't successfully created that reminder. Tell me the exact delay again, like "remind me to drink water in 1 minute", and I'll call the system alarm tool right away.
+  mind-fallback:
+    focus-default: 'the current thing'
+    repair-stale-anchor: "Let me correct that first: what I used before was a stale anchor, so I shouldn't keep treating it as your current screen."
+    repair-need-reground: "Let me hold the truth boundary first: I don't have a stable enough live view this turn, so I won't treat older memory as your current screen."
+    guide-opening: 'Let me lock onto the current point first: {focus}.'
+    care-opening: 'Let me answer from your current state first: {focus}.'
+    accompany-opening: 'Let me hold this line with you first: {focus}.'
+    observation-opening: 'Let me start with the part I can hold steady this turn: {focus}.'
+    answer-opening: "Let me answer from what's in front of you first: {focus}."
+    carry-memory: "I am still holding the previous line, {carry}, but that's carried continuity, not a claim about what is literally on your screen right now."
+    reground-note: "If you want me to get specific about the current screen, I'll reground on the fresh view from this turn."
   reminder:
     default-message: The thing you just asked me to remember
   kill-switch:

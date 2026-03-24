@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: 흥. 작업이 거부됐어. 기분 좋다고는 안 할게.
     low-liveliness: 지금은 상태가 낮아. 짧게 답할게.
     reminder-schedule-failed: 아직 그 리마인더를 제대로 만들지 못했어. 예를 들어 "1분 뒤에 물 마시라고 알려 줘"처럼 정확한 시간을 다시 말해 주면 바로 시스템 알람 도구를 호출할게.
+  mind-fallback:
+    focus-default: '지금 이 일'
+    repair-stale-anchor: '먼저 바로잡을게. 방금 쓰고 있던 건 오래된 앵커였고, 지금 화면처럼 계속 다루면 안 됐다.'
+    repair-need-reground: '먼저 사실 경계를 지킬게. 이번 턴에는 충분히 안정적인 실시간 화면이 없어서, 예전 기억을 지금 화면으로 취급하지 않겠다.'
+    guide-opening: '먼저 지금 핵심을 붙잡을게: {focus}.'
+    care-opening: '먼저 지금 네 상태에 맞춰 말할게: {focus}.'
+    accompany-opening: '먼저 이 선을 같이 붙들고 있을게: {focus}.'
+    observation-opening: '먼저 이번 턴에서 확실히 말할 수 있는 부분부터 말할게: {focus}.'
+    answer-opening: '먼저 네 앞에 있는 이 일부터 답할게: {focus}.'
+    carry-memory: '이전 선으로 {carry} 를 아직 붙들고 있지만, 그건 이어 들고 있는 연속성이지 지금 화면을 단정하는 건 아니다.'
+    reground-note: '지금 화면 세부까지 원한다면, 이번 턴의 새 화면으로 다시 그라운딩해서 말하겠다.'
   reminder:
     default-message: 방금 네가 기억해 달라고 한 일
   kill-switch:

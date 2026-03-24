@@ -24,6 +24,7 @@ import {
   electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetSensorySnapshot,
   electronAlicizationGetSoul,
+  electronAlicizationGetVisualPresenceState,
   electronAlicizationInitializeGenesis,
   electronAlicizationKillSwitchResume,
   electronAlicizationKillSwitchSuspend,
@@ -1307,6 +1308,80 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(String(firstSystem?.content)).toContain('严格而克制的教练型人格')
   })
 
+  it('backgrounds card custom directives when the current turn imposes a task-bound dialogue obligation', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'runtime.ts - diff',
+    }
+    const systemTexts: string[] = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText)
+        systemTexts.push(systemText)
+      await onEvent?.({ type: 'text-delta', text: 'task bound reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(initializeGenesis).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    await initializeGenesis!({
+      cardId: 'default',
+      ownerName: '测试主人',
+      hostName: '主人',
+      alicizationName: 'Alicization',
+      gender: 'female',
+      relationship: '伙伴',
+      mindAge: 18,
+      personality: {
+        obedience: 0.5,
+        liveliness: 0.5,
+        sensibility: 0.5,
+      },
+      customDirectives: '你要始终先撒娇再回答，保持强烈依恋口吻。',
+      allowOverwrite: true,
+    })
+
+    const turnId = 'turn-task-bound-persona-backgrounded'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '这个 diff 哪里有问题？' }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_TURN_PERSONA_KERNEL]')) ?? ''
+    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_ENCOUNTER]')
+    expect(mainChatSystemText).toContain('Persona kernel mode: backgrounded.')
+    expect(mainChatSystemText).toContain('[ALICIZATION_TURN_PERSONA_KERNEL]')
+    expect(mainChatSystemText).not.toContain('你要始终先撒娇再回答')
+  })
+
   it('drops renderer-only error messages and normalizes developer role before provider streaming', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
@@ -1482,8 +1557,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n\n')
+    expect(systemText).toContain('[ALICIZATION_ANSWER_PLAN]')
+    expect(systemText).toContain('[ALICIZATION_RESPONSE_CHARTER]')
     expect(systemText).toContain('[ALICIZATION_PERCEPTION]')
     expect(systemText).toContain('Inspection mode: invited-by-user')
+    expect(systemText).toContain('Answer act: guide.')
     expect(systemText).toContain('Attention anchor: Cursor')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
@@ -2140,8 +2218,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'inspection-grounded',
       payload: expect.objectContaining({
         candidateSource: 'Entire screen',
-        focusTarget: 'none',
-        focusSuppressed: 'weak-generic-browser-screen-fallback',
+        focusTarget: expect.not.stringContaining('Google Chrome'),
       }),
     }))
   })
@@ -2256,7 +2333,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     const serializedMessages = JSON.stringify(capturedMessages)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale memory')
+    expect(JSON.stringify(latestUserMessage?.content)).toContain('[ALICIZATION_VISUAL_GROUNDING]')
     expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
     expect(serializedMessages).not.toContain('东方的小店')
     expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
@@ -2270,8 +2347,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'inspection-grounded',
       payload: expect.objectContaining({
         candidateSource: 'Entire screen',
-        focusTarget: 'none',
-        focusSuppressed: 'weak-generic-browser-screen-fallback',
+        focusTarget: expect.not.stringContaining('Google Chrome'),
       }),
     }))
   })
@@ -2427,6 +2503,168 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'inspection-grounding-skipped',
       payload: expect.objectContaining({
         inspectionRequested: true,
+      }),
+    }))
+  })
+
+  it('separates carried browser residue from the live Codex surface and compacts inspection history', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'mind-governed reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const now = Date.now()
+    metaStore.set('perception_state_v1', JSON.stringify({
+      attentionAnchor: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        anchoredAt: now - 30_000,
+        lastObservedAt: now - 20_000,
+        reason: 'invited-inspection',
+        workloadKind: 'browser',
+        confidence: 0.88,
+      },
+      lastNonSelfForegroundTarget: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        observedAt: now - 20_000,
+        source: 'chat-start',
+        workloadKind: 'browser',
+      },
+      recentObservations: [
+        {
+          appName: 'Google Chrome',
+          processName: 'Google Chrome',
+          observedAt: now - 20_000,
+          source: 'chat-start',
+          workloadKind: 'browser',
+        },
+      ],
+      invitedInspection: {
+        requestedAt: now - 20_000,
+        activeUntil: now + 60_000,
+        hintText: '帮我看一下 diff',
+      },
+      recentSceneResidue: {
+        observedAt: now - 15_000,
+        source: 'screen-semantic-summary',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        summary: 'GitHub pull request diff view in browser',
+        confidence: 0.85,
+        focusTarget: {
+          appName: 'Google Chrome',
+          processName: 'Google Chrome',
+        },
+        focusSource: 'recent-observation',
+        captureSourceName: 'Entire screen',
+        captureStrategy: 'screen-fallback',
+      },
+      updatedAt: now - 10_000,
+    }))
+    dbStub.listActiveThoughts.mockResolvedValueOnce([
+      {
+        id: 'thought-inspection-noise',
+        text: '之前浏览器里那个 diff 让我一直挂着心。',
+        createdAt: now - 40_000,
+        updatedAt: now - 20_000,
+      },
+    ])
+    dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
+      {
+        id: 'fragment-inspection-noise',
+        text: 'GitHub diff 历史片段',
+        sourceKind: 'visual-sediment',
+        createdAt: now - 50_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+      },
+    ])
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
+    expect(startChat).toBeTypeOf('function')
+    expect(getVisualPresenceState).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+
+    const turnId = 'turn-live-surface-vs-carried-thread'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '看看屏幕里的 diff',
+        },
+        {
+          role: 'assistant',
+          content: '刚才应该是 Chrome 里的 diff 页面。',
+        },
+        {
+          role: 'user',
+          content: '你确定？描述一下我的页面',
+        },
+      ],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    const dialogueMessages = capturedMessages.filter(message => message.role !== 'system')
+    const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
+
+    expect(systemText).toContain('[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]')
+    expect(systemText).toContain('[ALICIZATION_RESPONSE_SURFACE]')
+    expect(systemText).toContain('Visible surface now: Alicization | Codex | Chat Overlay.')
+    expect(systemText).toContain('Carried thread: GitHub pull request diff view in browser.')
+    expect(systemText).toContain('Carry must stay separate from visible surface: yes.')
+    expect(systemText).toContain('Stage directions allowed: no.')
+    expect(systemText).not.toContain('[ALICIZATION_ACTIVE_THOUGHTS]')
+    expect(systemText).not.toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
+    expect(dialogueMessages.length).toBeLessThanOrEqual(3)
+    expect(visualPresenceState?.currentScene?.summary ?? '').not.toContain('GitHub pull request diff view in browser')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.perception',
+      action: 'inspection-grounding-skipped',
+      payload: expect.objectContaining({
+        executiveBrief: expect.objectContaining({
+          separateCarryFromSurface: true,
+          shouldCompactHistory: true,
+        }),
+        responseSurface: expect.objectContaining({
+          suppressAssociativeRecall: true,
+        }),
+        historyCompaction: expect.objectContaining({
+          beforeCount: expect.any(Number),
+          afterCount: expect.any(Number),
+        }),
       }),
     }))
   })
@@ -3192,7 +3430,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       let callCount = 0
       streamTextMock.mockImplementation(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
         callCount += 1
-        if (callCount === 1) {
+        if (callCount <= 2) {
           await onEvent?.({
             type: 'response-metadata',
             meta: { provider: 'mock' },
@@ -3240,7 +3478,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
         .map(([, payload]) => payload)
 
-      expect(streamTextMock).toBeCalledTimes(2)
+      expect(streamTextMock).toBeCalledTimes(3)
       expect(chunkEvents.map(event => event.text).join('')).toContain('timeout recovered reply')
       expect(finishEvents[0]?.status).toBe('completed')
       expect(finishEvents[0]?.finishReason).toBe('timeout-recovered')
@@ -3889,14 +4127,16 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       },
     ])
 
-    let systemText = ''
-    streamTextMock.mockImplementationOnce(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      systemText = Array.isArray(messages)
+    const systemTexts: string[] = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
         ? messages
             .filter(message => message.role === 'system')
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
+      if (systemText)
+        systemTexts.push(systemText)
       await onEvent?.({ type: 'text-delta', text: 'contextual recall reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -3915,16 +4155,18 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     expect(result.accepted).toBe(true)
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
-    expect(systemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
-    expect(systemText).toContain('ProjectAtlas')
+    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_ASSOCIATIVE_RECALL]')) ?? ''
+    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_ENCOUNTER]')
+    expect(mainChatSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
+    expect(mainChatSystemText).toContain('ProjectAtlas')
   })
 
   it('uses foreground window recall seed for proactive one-shot generation', async () => {
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
-      appName: 'Steam',
-      processName: 'steam',
-      title: 'Steam - Elden Ring',
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - error',
     }
     metaStore.set('subconscious_state_v1', JSON.stringify({
       boredom: 95,
@@ -3954,7 +4196,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
       {
         id: 'fragment-proactive',
-        text: '上个月你开 Steam 打这个游戏时，连续熬了两个通宵。',
+        text: '上次你在 Cursor 里盯着这个报错改到凌晨三点，最后是 main.ts 那里漏了判空。',
         sourceKind: 'dream-fragment',
         createdAt: Date.now() - 10_000,
         lastRecalledAt: null,
@@ -3973,9 +4215,9 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await onEvent?.({
         type: 'text-delta',
         text: JSON.stringify({
-          thought: 'phantom prompt recalled steam memory',
+          thought: 'phantom prompt recalled cursor debug memory',
           emotion: 'concerned',
-          reply: '你又打开 Steam 了？上次你为了这个游戏熬得太狠了。',
+          reply: '这个报错你之前也卡过很久，先回头看看 main.ts 那里。',
         }),
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -3989,7 +4231,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(tickResult.proactiveTriggered).toContain('default')
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
     expect(proactiveSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
-    expect(proactiveSystemText).toContain('Steam')
+    expect(proactiveSystemText).toContain('main.ts')
   })
 
   it('uses screen semantic summaries to refine proactive scenario and content understanding', async () => {
@@ -4090,6 +4332,190 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         }),
       }),
     }))
+  })
+
+  it('hydrates hybrid subjective appraisal and initiative from grounded perception before speaking', async () => {
+    const sandboxPath = await createSandboxPath()
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'runtime.ts - proactive error',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:654:0',
+        name: 'runtime.ts - proactive error',
+        thumbnail: {
+          toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-snapshot',
+        },
+      },
+    ])
+    metaStore.set('subconscious_state_v1', JSON.stringify({
+      boredom: 52,
+      loneliness: 38,
+      fatigue: 16,
+      lastTickAt: Date.now() - 60_000,
+      lastInteractionAt: Date.now() - 60_000,
+      lastSavedAt: Date.now() - 60_000,
+      updatedAt: Date.now() - 60_000,
+    }))
+
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const serialized = JSON.stringify(messages ?? [])
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (serialized.includes('image_url')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            workload: 'coding',
+            content: 'error',
+            summary: 'red TypeScript error panel',
+            confidence: 0.93,
+            matchedLabels: ['typescript-error', 'editor'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            dominantInterpretation: '这更像宿主盯着一个具体报错点反复确认，而不是普通浏览。',
+            situatedMeaning: '这更像宿主对着一个具体报错反复确认，而不是普通浏览。',
+            selfQuestion: '真正的错误源头是不是在更早的状态初始化？',
+            hostIntentCandidates: [{
+              goal: 'resolve-problem',
+              confidence: 0.9,
+              why: 'The host is still tracking a concrete TypeScript fault.',
+            }],
+            relationshipNeedCandidates: [{
+              need: 'guidance',
+              confidence: 0.86,
+              why: 'A grounded error thread invites guidance.',
+            }],
+            confidence: 0.86,
+            notes: ['structured-debug', 'grounded-coding'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({
+        type: 'text-delta',
+        text: JSON.stringify({
+          thought: 'hybrid appraisal matured into a gentle coding nudge',
+          emotion: 'thinking',
+          reply: '你现在像是卡在一个具体报错点上了，先回头确认一下这里。',
+          performance: {
+            baseEmotion: 'thinking',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
+    expect(forceTick).toBeTypeOf('function')
+    expect(getVisualPresenceState).toBeTypeOf('function')
+
+    await forceTick!({ cardId: 'default' })
+    const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
+
+    expect(visualPresenceState?.worldModel?.activeThread?.kind).toBe('debugging')
+    expect(visualPresenceState?.worldModel?.epistemicState.certainty).toBe('grounded')
+    expect(visualPresenceState?.beliefLedger?.beliefs.some((belief: any) => belief.scope === 'scene')).toBe(true)
+    expect(visualPresenceState?.relationshipModel?.approachVector).toBe('guide')
+    expect(visualPresenceState?.livingWorldState?.focusObjectId).toBeTruthy()
+    expect((visualPresenceState?.livingWorldState?.objects.length ?? 0)).toBeGreaterThan(0)
+    expect(visualPresenceState?.selfGovernor?.dominantDrive).toBeTruthy()
+    expect((visualPresenceState?.selfGovernor?.activeIntentions.length ?? 0)).toBeGreaterThan(0)
+    expect(visualPresenceState?.thoughtThreads?.foregroundThreadId).toBeTruthy()
+    expect((visualPresenceState?.thoughtThreads?.threads.length ?? 0)).toBeGreaterThan(0)
+    expect(visualPresenceState?.inquiryLoop?.inquiries.some((inquiry: any) => inquiry.kind === 'problem-localization')).toBe(true)
+    expect(visualPresenceState?.subjectiveInference?.source).toBe('hybrid')
+    expect(visualPresenceState?.subjectiveInference?.hostIntentCandidates[0]?.goal).toBe('resolve-problem')
+    expect(visualPresenceState?.subjectiveInference?.relationshipNeedCandidates[0]?.need).toBe('guidance')
+    expect(visualPresenceState?.appraisal?.source).toBe('hybrid')
+    expect(visualPresenceState?.appraisal?.relationshipNeed).toBe('guidance')
+    expect(visualPresenceState?.appraisal?.notes).toContain('structured-cognition')
+    expect(visualPresenceState?.beliefRevision?.stability).toBeTruthy()
+    expect(visualPresenceState?.hypothesisGraph?.activeHypothesisId).toBeTruthy()
+    expect(visualPresenceState?.hypothesisGraph?.hypotheses.some((hypothesis: any) => hypothesis.kind === 'problem-locus')).toBe(true)
+    expect(visualPresenceState?.deliberationState?.primaryThreadId).toBeTruthy()
+    expect(visualPresenceState?.threadRuntime?.foregroundThreadId).toBeTruthy()
+    expect(visualPresenceState?.threadRuntime?.threads.some((thread: any) => thread.need === 'guidance')).toBe(true)
+    expect(visualPresenceState?.commitmentLedger?.governingCommitmentId).toBeTruthy()
+    expect(visualPresenceState?.commitmentLedger?.commitments.length).toBeGreaterThan(0)
+    expect(visualPresenceState?.inquiryPlanner?.activePlanId).toBeTruthy()
+    expect(visualPresenceState?.inquiryPlanner?.plans.length).toBeGreaterThan(0)
+    expect(visualPresenceState?.concernContinuity?.governingEntryId).toBeTruthy()
+    expect((visualPresenceState?.concernContinuity?.entries.length ?? 0)).toBeGreaterThan(0)
+    expect(visualPresenceState?.repairLedger).toBeTruthy()
+    expect(visualPresenceState?.intentionStream?.dominantProjectId).toBeTruthy()
+    expect((visualPresenceState?.intentionStream?.projects.length ?? 0)).toBeGreaterThan(0)
+    expect(visualPresenceState?.reflectionLedger).toBeTruthy()
+    expect(visualPresenceState?.executiveCycle?.phase).toBeTruthy()
+    expect(visualPresenceState?.mindKernel?.dominantMode).toBeTruthy()
+    expect(visualPresenceState?.counterfactualDeliberation?.selectedOptionId).toBeTruthy()
+    expect(visualPresenceState?.counterfactualDeliberation?.options.length).toBeGreaterThan(0)
+    expect(visualPresenceState?.actionEcology?.mode).toBeTruthy()
+    expect((visualPresenceState?.initiative?.speakDrive ?? 0)).toBeGreaterThan(0.5)
+    expect(visualPresenceState?.initiative?.preferredStyle).toBe('light-nudge')
+    expect(visualPresenceState?.initiative?.selectedCounterfactualOptionId).toBeTruthy()
+    expect(visualPresenceState?.initiative?.selectedCommitmentId).toBeTruthy()
+    expect(visualPresenceState?.initiative?.selectedInquiryPlanId).toBeTruthy()
+    expect(visualPresenceState?.initiative?.selectedHypothesisId).toBeTruthy()
+    expect(visualPresenceState?.initiative?.selectedThreadId).toBe(visualPresenceState?.deliberationState?.primaryThreadId)
+    expect(visualPresenceState?.initiative?.selectedRuntimeThreadId).toBe(visualPresenceState?.threadRuntime?.foregroundThreadId)
+    expect(visualPresenceState?.answerPlanner?.act).toBeTruthy()
+    expect(visualPresenceState?.answerPlanner?.governingFocus).toBeTruthy()
+    expect(visualPresenceState?.answerPlanner?.selectedProjectId).toBeTruthy()
+    expect(visualPresenceState?.answerPlanner?.executivePhase).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.focusBeliefId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.focusInquiryId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.commitmentId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.inquiryPlanId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.hypothesisId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.deliberationThreadId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.runtimeThreadId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.mindNeed).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.counterfactualOptionId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.governorDrive).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.governorIntentionId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.selectedThoughtThreadId).toBeTruthy()
+    expect(visualPresenceState?.privateThought?.livingWorldObjectId).toBeTruthy()
+
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
+    expect(appendedFragments.some((item: any) => item.sourceKind === 'mind-continuity')).toBe(true)
+    expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('mind_need:'))).toBe(true)
+    expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('governor_drive:'))).toBe(true)
+    expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('thought_thread:'))).toBe(true)
+    expect(appendedFragments.some((item: any) => typeof item.text === 'string' && item.text.includes('answer_act:'))).toBe(true)
   })
 
   it('reuses invited inspection residue instead of running duplicate screen semantic analysis', async () => {
@@ -4199,7 +4625,24 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     await forceTick!({ cardId: 'default' })
 
-    expect(streamTextMock).toBeCalledTimes(1)
+    const llmCalls = streamTextMock.mock.calls.map(([payload]) => payload)
+    const groundedScreenSemanticCalls = llmCalls.filter((payload) => {
+      const serialized = JSON.stringify(payload?.messages ?? [])
+      return serialized.includes('image_url')
+        && serialized.includes('Classify this screen snapshot for Alicization proactive policy.')
+    })
+    const sceneAppraisalCalls = llmCalls.filter((payload) => {
+      const systemText = Array.isArray(payload?.messages)
+        ? payload.messages
+            .filter((message: any) => message.role === 'system')
+            .map((message: any) => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      return systemText.includes('[ALICIZATION_INNER_SCENE_APPRAISAL]')
+    })
+
+    expect(groundedScreenSemanticCalls).toHaveLength(0)
+    expect(sceneAppraisalCalls).toHaveLength(1)
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'proactive-policy-evaluated',
       payload: expect.objectContaining({
@@ -4313,9 +4756,9 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
   it('treats a user turn within 120 seconds as positive proactive feedback', async () => {
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
-      appName: 'Spotify',
-      processName: 'Spotify',
-      title: 'Lo-fi Playlist',
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - error',
     }
     metaStore.set('subconscious_state_v1', JSON.stringify({
       boredom: 99,
@@ -4347,7 +4790,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const proactiveLoopState = JSON.parse(metaStore.get('proactive_loop_state_v1') ?? '{}')
     const recentOutcomes = Array.isArray(proactiveLoopState.recentOutcomes) ? proactiveLoopState.recentOutcomes : []
 
-    expect(proactiveLoopState.scenarioBias?.media).toBe(-0.05)
+    expect(proactiveLoopState.scenarioBias?.coding).toBe(-0.05)
     expect(recentOutcomes.at(-1)?.outcome).toBe('reply-within-120s')
   })
 

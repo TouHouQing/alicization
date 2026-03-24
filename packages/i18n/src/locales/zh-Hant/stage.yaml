@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: 呵，操作被拒絕了。我不會裝作這很愉快。
     low-liveliness: 我現在狀態偏低，先簡短回覆。
     reminder-schedule-failed: 我這輪還沒有成功設定提醒。請再告訴我一次準確時長，例如「1分鐘後提醒我喝水」，我會立即呼叫系統鬧鐘工具。
+  mind-fallback:
+    focus-default: '當前這件事'
+    repair-stale-anchor: '我先更正一下：剛才那是舊錨點，不該繼續當成你現在的畫面。'
+    repair-need-reground: '我先守住真實邊界：這一輪沒有足夠穩定的即時畫面依據，我不會把舊記憶當成目前螢幕。'
+    guide-opening: '先抓住目前這個點：{focus}。'
+    care-opening: '我先照著你現在的狀態說：{focus}。'
+    accompany-opening: '我先陪你把這條線穩住：{focus}。'
+    observation-opening: '我先說這一輪我能穩住的部分：{focus}。'
+    answer-opening: '先按你眼前這件事說：{focus}。'
+    carry-memory: '我還記著上一條線是 {carry}，但那是我還在續持的執行緒，不是我斷定你現在螢幕上的內容。'
+    reground-note: '如果你要我細到目前螢幕的內容，我會按這次的新畫面重新落地。'
   reminder:
     default-message: 你剛才要我記住的那件事
   kill-switch:

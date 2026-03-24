@@ -161,4 +161,112 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.embodiedPresence).toBe('concerned')
     expect(thought.shouldSpeak).toBe(true)
   })
+
+  it('keeps a waiting thought thread internal instead of surfacing it', () => {
+    const thought = buildPrivateThoughtLoop({
+      now: 10_000,
+      context: createContext(),
+      watchMode: 'symbiotic-vision',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'error',
+        scenario: 'coding',
+        summary: 'TypeScript error panel',
+        source: 'screen-semantic-summary',
+        confidence: 0.9,
+        beganAt: 0,
+        lastSeenAt: 10_000,
+      },
+      attention: null,
+      recentTransition: null,
+      durabilityPulse: null,
+      livingWorldState: {
+        focusObjectId: 'artifact::editor',
+        activeObjectIds: ['artifact::editor'],
+        objects: [{
+          id: 'artifact::editor',
+          kind: 'artifact',
+          status: 'active',
+          label: 'runtime.ts',
+          summary: 'The host is still carrying a specific editor problem.',
+          confidence: 0.84,
+          salience: 0.82,
+          continuity: 0.76,
+          lastChange: 'screen-semantic-summary',
+          openLoop: 'which line is actually broken',
+          entityIds: [],
+          threadIds: [],
+          evidence: [],
+          firstSeenAt: 0,
+          lastUpdatedAt: 10_000,
+        }],
+        openLoops: ['which line is actually broken'],
+        stability: 'shifting',
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      selfGovernor: {
+        dominantDrive: 'withhold',
+        dominantIntentionId: 'governor::wait',
+        focusObjectId: 'artifact::editor',
+        activeIntentions: [{
+          id: 'governor::wait',
+          kind: 'wait-opening',
+          status: 'withheld',
+          drive: 'withhold',
+          title: 'wait-opening',
+          summary: 'Keep the thread alive internally until a natural opening appears.',
+          urgency: 0.64,
+          confidence: 0.72,
+          patience: 0.86,
+          targetObjectId: 'artifact::editor',
+          targetThreadId: null,
+          targetGoalId: null,
+          targetCommitmentId: null,
+          formedAt: 0,
+          lastUpdatedAt: 10_000,
+          expiresAt: 120_000,
+        }],
+        inhibition: 0.74,
+        persistence: 0.58,
+        socialRiskTolerance: 0.3,
+        revisionReadiness: 0.42,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      thoughtThreads: {
+        foregroundThreadId: 'thread::wait',
+        threads: [{
+          id: 'thread::wait',
+          kind: 'problem-thread',
+          status: 'waiting',
+          title: 'runtime.ts',
+          summary: 'The knot is real, but it should stay internal for one more beat.',
+          question: 'Is this already a natural opening?',
+          anchoredObjectId: 'artifact::editor',
+          anchoredIntentionId: 'governor::wait',
+          anchoredBeliefId: null,
+          anchoredInquiryId: null,
+          anchoredCommitmentId: null,
+          salience: 0.72,
+          confidence: 0.78,
+          surfaceReadiness: 0.42,
+          reopenWhen: ['host-open'],
+          openedAt: 0,
+          lastUpdatedAt: 10_000,
+          expiresAt: 120_000,
+        }],
+        unresolvedCount: 1,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(thought.shouldSpeak).toBe(false)
+    expect(['observe', 'accompany']).toContain(thought.stance)
+    expect(thought.suggestedStyle).toBe('silent-observe')
+    expect(thought.governorDrive).toBe('withhold')
+    expect(thought.selectedThoughtThreadId).toBe('thread::wait')
+    expect(thought.livingWorldObjectId).toBe('artifact::editor')
+  })
 })

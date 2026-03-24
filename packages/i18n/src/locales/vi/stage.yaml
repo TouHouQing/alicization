@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: Hừ. Thao tác đã bị từ chối. Tôi sẽ không giả vờ rằng điều đó dễ chịu.
     low-liveliness: Trạng thái của tôi đang thấp, nên tôi sẽ trả lời ngắn thôi.
     reminder-schedule-failed: Tôi vẫn chưa tạo được lời nhắc đó thành công. Hãy nói lại thời lượng chính xác, ví dụ "nhắc tôi uống nước sau 1 phút", và tôi sẽ gọi ngay công cụ báo thức hệ thống.
+  mind-fallback:
+    focus-default: 'việc đang ở trước mắt'
+    repair-stale-anchor: 'Để tôi sửa điều đó trước: thứ tôi dùng lúc nãy là một mỏ neo cũ, nên tôi không nên tiếp tục coi nó là màn hình hiện tại của bạn.'
+    repair-need-reground: 'Để tôi giữ ranh giới sự thật trước: ở lượt này tôi chưa có một khung nhìn trực tiếp đủ ổn định, nên tôi sẽ không coi ký ức cũ là màn hình hiện tại của bạn.'
+    guide-opening: 'Để tôi khóa đúng điểm hiện tại trước: {focus}.'
+    care-opening: 'Để tôi trả lời từ trạng thái hiện tại của bạn trước: {focus}.'
+    accompany-opening: 'Để tôi giữ đường này cùng bạn trước: {focus}.'
+    observation-opening: 'Để tôi bắt đầu từ phần mà lượt này tôi có thể giữ chắc được: {focus}.'
+    answer-opening: 'Để tôi trả lời từ điều đang ở trước mắt bạn trước: {focus}.'
+    carry-memory: 'Tôi vẫn còn giữ đường trước đó, {carry}, nhưng đó là mạch liên tục đang được mang theo, không phải khẳng định về thứ đang thật sự có trên màn hình của bạn lúc này.'
+    reground-note: 'Nếu bạn muốn tôi đi vào chi tiết của màn hình hiện tại, tôi sẽ bám lại vào khung nhìn mới của lượt này rồi trả lời.'
   reminder:
     default-message: Việc bạn vừa nhờ tôi nhớ giúp
   kill-switch:

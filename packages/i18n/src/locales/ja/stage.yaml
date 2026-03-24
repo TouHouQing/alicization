@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: ふん。操作は拒否された。気分がいいふりはしない。
     low-liveliness: 今は出力が低い。短く返す。
     reminder-schedule-failed: まだそのリマインダーを正常に作成できていない。たとえば「1分後に水を飲むように知らせて」と、正確な時間をもう一度言ってくれれば、すぐにシステムのアラームツールを呼ぶ。
+  mind-fallback:
+    focus-default: '今のこと'
+    repair-stale-anchor: '先に訂正する。さっき使っていたのは古いアンカーで、今の画面として扱い続けるべきではなかった。'
+    repair-need-reground: '先に真実の境界を守る。今回は十分に安定したライブ画面がないので、古い記憶を今の画面として扱わない。'
+    guide-opening: 'まず今の焦点を押さえる: {focus}。'
+    care-opening: 'まず今のあなたの状態に沿って言う: {focus}。'
+    accompany-opening: 'まずこの線を一緒に支える: {focus}。'
+    observation-opening: 'まず今回しっかり言える部分から始める: {focus}。'
+    answer-opening: 'まず今あなたの前にあることから答える: {focus}。'
+    carry-memory: 'ひとつ前の線として {carry} をまだ保持している。ただ、それは持ち越している連続性であって、今の画面を断定しているわけではない。'
+    reground-note: '今の画面の細部まで欲しいなら、このターンの新しい画面で見直してから返す。'
   reminder:
     default-message: さっきあなたが覚えておいてと言ったこと
   kill-switch:

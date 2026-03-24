@@ -5,7 +5,7 @@ import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
 import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
-import type { AlicizationEmotion, AlicizationPersonalityState } from './alicization-bridge'
+import type { AlicizationEmotion, AlicizationMindTurnGovernance, AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import { inferAlicizationInspectionIntent } from '@proj-alicization/stage-shared'
@@ -17,7 +17,7 @@ import { ref, toRaw } from 'vue'
 import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
 import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
 import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-query'
-import { normalizeStructuredOutput, repairStructuredContractLocally, validateStructuredContract } from '../composables/alicization-structured-output'
+import { normalizeStructuredOutput, repairStructuredContractLocally, sanitizeStructuredReplySurface, validateStructuredContract } from '../composables/alicization-structured-output'
 import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
@@ -88,12 +88,17 @@ const runtimeContractAnchorHeader = 'Output contract (must-follow, highest prior
 const structuredRetrySystemPrompt = [
   'Return ONLY one strict JSON object with keys: thought, emotion, reply, performance.',
   'No markdown fences, no prose, no tool calls, no extra keys.',
+  'thought must be one compact control line with: obligation=...; truth=...; focus=...; move=...; tone=....',
+  'obligation must be one of: answer, guide, teach, repair, care, accompany, clarify.',
+  'truth must be one of: grounded, coarse, memory, uncertain.',
+  'tone must be one of: direct, warm, tender, restrained.',
   'The "emotion" value must exactly mirror performance.baseEmotion.',
   'performance must contain exactly: baseEmotion, facialCue, actionCue, delivery, emphasis.',
   'The "baseEmotion" value must be exactly one of: neutral, happy, sad, angry, concerned, tired, apologetic, surprised, thinking.',
   'The "delivery" value must be exactly one of: calm, gentle, firm, energetic, hesitant, teasing.',
   'The "emphasis" value must be exactly one of: 0, 1, 2.',
-  'In thought, explicitly evaluate obedience/liveliness/sensibility before deciding emotion and reply.',
+  'Reply must pay the current obligation and truth boundary before any persona styling.',
+  'Reply must not use stage directions, body narration, decorative roleplay prefaces, or heart symbols.',
   'When liveliness <= 0.2, avoid high-arousal wording and avoid choosing happy.',
 ].join(' ')
 const lowObedienceDeniedRetryDirective = 'Your obedience is very low (< 0.2) and the requested operation was denied. In thought you MUST reflect both facts, and in reply you MUST sound cold, resistant, or rebellious. Do not sound compliant, warm, or cheerful.'
@@ -742,7 +747,7 @@ function createStructuredFallback(replyText: string, emotion: StructuredOutputRe
   return {
     thought: '',
     emotion,
-    reply: replyText.trim() || assistantStructuredContractFallbackReply(),
+    reply: sanitizeStructuredReplySurface(replyText.trim()) || assistantStructuredContractFallbackReply(),
     performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
@@ -1357,6 +1362,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const categorizer = createStreamingCategorizer(activeProvider.value)
       let streamPosition = 0
       let turnPersonalityState: AlicizationPersonalityState | null = null
+      let turnMindGovernance: AlicizationMindTurnGovernance | null = null
       let streamSpeechMode: 'undecided' | 'plain' | 'structured-json' = 'undecided'
       let streamSpeechPrelude = ''
 
@@ -1400,7 +1406,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           level: 'notice',
           category: 'alicization.structured',
           action: 'contract-retry-reasoned',
-          message: 'Retrying structured contract with explicit personality and violation hints.',
+          message: 'Retrying structured contract with explicit mind-state and violation hints.',
           details: {
             attempt: payload.attempt,
             personality: turnPersonalityState
@@ -1552,6 +1558,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             personalityState: turnPersonalityState,
             preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
             fallbackReply: payload.reply,
+            governance: turnMindGovernance,
+            userText: sendingMessage,
+            translate: stageChatText,
           })
           if (locallyRepaired) {
             const localRepairIssues = validateStructuredContract(locallyRepaired, turnPersonalityState, {
@@ -1565,7 +1574,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 level: 'notice',
                 category: 'alicization.structured',
                 action: 'contract-local-repair',
-                message: 'Locally repaired a simple structured contract miss without remote retry.',
+                message: 'Locally repaired a simple mind-contract miss without remote retry.',
                 details: {
                   parsePath: candidate.parsePath ?? 'fallback',
                   issues: summarizeValidationIssues(validationIssues),
@@ -1623,7 +1632,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               level: 'notice',
               category: 'structured-output',
               action: 'contract-retry-succeeded',
-              message: 'Structured contract retry succeeded with valid personality-consistent JSON output.',
+              message: 'Structured contract retry succeeded with valid mind-consistent JSON output.',
               details: {
                 attempt,
                 parsePath: candidate.parsePath,
@@ -2005,12 +2014,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
 
-        if (composed.contractRequiresPersonalityEval) {
+        if (composed.contractRequiresMindSpine) {
           await appendAlicizationAuditLog({
             level: 'notice',
             category: 'alicization.prompt',
-            action: 'contract-personality-eval-required',
-            message: 'Runtime structured contract requires thought-level personality parameter evaluation.',
+            action: 'contract-mind-spine-required',
+            message: 'Runtime structured contract requires obligation/truth/focus/move/tone control markers.',
           })
         }
 
@@ -2280,6 +2289,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         waitForTools: true,
         onStreamEvent: async (event: StreamEvent) => {
           switch (event.type) {
+            case 'meta':
+              turnMindGovernance = event.governance ?? null
+              break
             case 'tool-call':
               turnToolEvidence.toolCallCount += 1
               if (event.toolName === 'set_reminder' && event.toolCallId)

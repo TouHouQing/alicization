@@ -1,6 +1,8 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, Message, Tool } from '@xsai/shared-chat'
 
+import type { AlicizationMindTurnGovernance } from './alicization-bridge'
+
 import { listModels } from '@xsai/model'
 import { XSAIError } from '@xsai/shared'
 import { streamText } from '@xsai/stream-text'
@@ -11,6 +13,7 @@ import { debug, mcp } from '../tools'
 
 export type StreamEvent
   = | { type: 'text-delta', text: string }
+    | { type: 'meta', governance: AlicizationMindTurnGovernance | null }
     | ({ type: 'finish' } & any)
     | ({ type: 'tool-call' } & CompletionToolCall)
     | { type: 'tool-result', toolCallId: string, result?: unknown }

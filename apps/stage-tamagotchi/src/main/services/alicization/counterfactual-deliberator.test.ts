@@ -1,0 +1,495 @@
+import type { AlicizationMindDynamicsSnapshot } from '../../../shared/eventa'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { describe, expect, it } from 'vitest'
+
+import { buildCounterfactualDeliberation } from './counterfactual-deliberator'
+
+function createContext(overrides: Partial<AlicizationProactiveLayeredContext> = {}): AlicizationProactiveLayeredContext {
+  return {
+    localTime: {
+      hour: 14,
+      minute: 10,
+      isLateNight: false,
+    },
+    system: {
+      cpuUsage: 12,
+      battery: { percent: 82, charging: true },
+      memory: { usagePercent: 38, freeMB: 4096, totalMB: 8192 },
+      idleSeconds: 25,
+      inputActivity: 'idle',
+      fullscreenLikely: false,
+      foregroundWindow: {
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts - diff',
+        pid: 7,
+      },
+      degradedSignals: [],
+    },
+    workload: {
+      kind: 'coding',
+      confidence: 0.88,
+      source: 'foreground-window-heuristic',
+      matchedLabels: ['cursor'],
+    },
+    content: {
+      kind: 'diff',
+      confidence: 0.84,
+      source: 'foreground-window-heuristic',
+      matchedLabels: ['diff'],
+      summary: 'runtime.ts - diff',
+    },
+    relationship: {
+      hostAttitude: '礼貌而克制，保持观察',
+      boredom: 48,
+      loneliness: 44,
+      fatigue: 24,
+      minutesSinceLastUserTurn: 8,
+      reminderBacklog: 0,
+      lateNightActiveMinutes: 0,
+      recentProactiveOutcomes: [],
+    },
+    ...overrides,
+  }
+}
+
+function createMindDynamics(overrides: Partial<AlicizationMindDynamicsSnapshot> = {}): AlicizationMindDynamicsSnapshot {
+  return {
+    dominantMotive: 'clarify',
+    worldPressure: 0.52,
+    epistemicPressure: 0.34,
+    relationalPressure: 0.28,
+    carePressure: 0.22,
+    continuityPressure: 0.46,
+    restraintPressure: 0.38,
+    surfacePressure: 0.44,
+    speakReadiness: 0.46,
+    presenceWeight: 0.5,
+    motives: {
+      'clarify': 0.62,
+      'protect': 0.34,
+      'accompany': 0.28,
+      'care': 0.22,
+      'stay-silent': 0.38,
+    },
+    speakDrive: 0.48,
+    silenceDrive: 0.42,
+    narrative: ['dominant motive is clarify.'],
+    updatedAt: 10_000,
+    ...overrides,
+  }
+}
+
+describe('buildCounterfactualDeliberation', () => {
+  it('prefers recheck when uncertainty still dominates the scene', () => {
+    const deliberation = buildCounterfactualDeliberation({
+      now: 10_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: ['need one more grounded pass'],
+          staleRisks: ['anchor drift'],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 10_000,
+          attentionAgeMs: 10_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 10_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        confidence: 0.58,
+        surprise: 0.18,
+        carePressure: 0.24,
+        interruptionCost: 0.24,
+        desireToSpeak: 0.38,
+        relationshipNeed: 'guidance',
+        waitingToVerify: 'Still need one more grounded pass.',
+        notes: ['world-lingering'],
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'She suspects a real knot is there, but not yet cleanly grounded.',
+        selfQuestion: 'Which exact locus is actually failing here?',
+        uncertainty: 'The live scene is not grounded enough yet.',
+        hostIntentCandidates: [{
+          goal: 'resolve-problem',
+          confidence: 0.82,
+          why: 'The host is still tracking a concrete error thread.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'guidance',
+          confidence: 0.74,
+          why: 'Guidance would fit if the scene were cleaner.',
+        }],
+        confidence: 0.78,
+        source: 'hybrid',
+        notes: ['structured-cognition'],
+        updatedAt: 10_000,
+      },
+      concerns: [],
+      selfState: {
+        stance: 'hesitate',
+        feltCloseness: 0.5,
+        protectiveness: 0.34,
+        curiosity: 0.66,
+        patience: 0.74,
+        desireToSpeak: 0.38,
+        fearOfInterrupting: 0.58,
+        dominantConcernId: null,
+        moodLabel: 'repairing-confidence',
+      },
+      beliefRevision: {
+        dominantBeliefId: 'belief-1',
+        stability: 'fractured',
+        revisionPressure: 0.8,
+        groundingNeed: 0.82,
+        contradictionPressure: 0.72,
+        hostCorrectionWeight: 0.62,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      relationshipModel: {
+        climate: 'neutral',
+        approachVector: 'guide',
+        receptivity: 0.6,
+        sharedAttentionTrust: 0.62,
+        correctionSensitivity: 0.38,
+        reciprocityExpectation: 0.5,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'clarify',
+        epistemicPressure: 0.84,
+        restraintPressure: 0.72,
+        speakReadiness: 0.26,
+        motives: {
+          'clarify': 0.88,
+          'stay-silent': 0.62,
+        },
+      }),
+      mindKernel: {
+        dominantMode: 'repairing',
+        worldPressure: 0.42,
+        epistemicPressure: 0.82,
+        relationalPressure: 0.28,
+        carePressure: 0.24,
+        continuityPressure: 0.42,
+        speakReadiness: 0.24,
+        presenceWeight: 0.4,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(deliberation.selectedAction).toBe('recheck')
+    expect(deliberation.selectedOptionId).toBe('counterfactual::recheck')
+    expect(deliberation.dominantTradeoff).toBe('clarity-before-expression')
+  })
+
+  it('prefers speaking when a grounded coding knot is local enough to help', () => {
+    const deliberation = buildCounterfactualDeliberation({
+      now: 20_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread-2',
+          kind: 'debugging',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'TypeScript error locus',
+          summary: '宿主正在围绕一个具体错误点收束。',
+          confidence: 0.88,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 20_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: ['error'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 20_000,
+          attentionAgeMs: 20_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'moderate',
+        },
+        updatedAt: 20_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        confidence: 0.86,
+        surprise: 0.14,
+        carePressure: 0.34,
+        interruptionCost: 0.16,
+        desireToSpeak: 0.74,
+        relationshipNeed: 'guidance',
+        currentKnot: 'TypeScript error locus',
+        notes: ['world-grounded'],
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'The host is narrowing one concrete fault, not vaguely browsing.',
+        hostIntentCandidates: [{
+          goal: 'resolve-problem',
+          confidence: 0.9,
+          why: 'A grounded error locus is visible.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'guidance',
+          confidence: 0.84,
+          why: 'Guidance fits the moment better than staying silent.',
+        }],
+        confidence: 0.84,
+        source: 'hybrid',
+        notes: ['structured-cognition'],
+        updatedAt: 20_000,
+      },
+      concerns: [{
+        id: 'help-fix',
+        kind: 'help-fix',
+        status: 'active',
+        summary: '她已经把错误点看得足够具体。',
+        hostGoal: 'resolve-problem',
+        tension: 0.82,
+        confidence: 0.84,
+        careWeight: 0.68,
+        createdAt: 0,
+        lastEvidenceAt: 20_000,
+        patienceUntil: 60_000,
+      }],
+      selfState: {
+        stance: 'approach',
+        feltCloseness: 0.56,
+        protectiveness: 0.64,
+        curiosity: 0.74,
+        patience: 0.44,
+        desireToSpeak: 0.78,
+        fearOfInterrupting: 0.22,
+        dominantConcernId: 'help-fix',
+      },
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'guide',
+        receptivity: 0.74,
+        sharedAttentionTrust: 0.72,
+        correctionSensitivity: 0.22,
+        reciprocityExpectation: 0.58,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'clarify',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        surfacePressure: 0.76,
+        speakReadiness: 0.74,
+        motives: {
+          'clarify': 0.84,
+          'protect': 0.56,
+          'stay-silent': 0.18,
+        },
+        speakDrive: 0.8,
+        silenceDrive: 0.22,
+      }),
+      mindKernel: {
+        dominantMode: 'tracking',
+        worldPressure: 0.72,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.34,
+        carePressure: 0.28,
+        continuityPressure: 0.48,
+        speakReadiness: 0.74,
+        presenceWeight: 0.58,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+    })
+
+    expect(['speak', 'whisper']).toContain(deliberation.selectedAction)
+    expect(deliberation.options[0]?.why).toContain('错误点')
+    expect(deliberation.options.find(option => option.id === deliberation.selectedOptionId)?.style).toBe('light-nudge')
+  })
+
+  it('prefers warning when late-night care becomes urgent', () => {
+    const deliberation = buildCounterfactualDeliberation({
+      now: 30_000,
+      context: createContext({
+        localTime: { hour: 2, minute: 30, isLateNight: true },
+        workload: { kind: 'game', confidence: 0.76, source: 'foreground-window-heuristic', matchedLabels: ['game'] },
+        content: { kind: 'gameplay', confidence: 0.72, source: 'foreground-window-heuristic', matchedLabels: ['gameplay'] },
+        relationship: {
+          hostAttitude: '礼貌而克制，保持观察',
+          boredom: 26,
+          loneliness: 34,
+          fatigue: 92,
+          minutesSinceLastUserTurn: 14,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 180,
+          recentProactiveOutcomes: [],
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread-3',
+          kind: 'late-night-endurance',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'deep night session',
+          summary: '宿主在深夜里还没有停下来。',
+          confidence: 0.8,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: ['late-night'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 120_000,
+          attentionAgeMs: 120_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'fatigued',
+          burden: 'heavy',
+        },
+        updatedAt: 30_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'rest',
+        confidence: 0.82,
+        surprise: 0.1,
+        carePressure: 0.94,
+        interruptionCost: 0.18,
+        desireToSpeak: 0.74,
+        relationshipNeed: 'care',
+        currentKnot: 'deep night session',
+        notes: ['late-night'],
+      },
+      subjectiveInference: {
+        dominantInterpretation: 'This is no longer ordinary presence; it is late-night endurance.',
+        hostIntentCandidates: [{
+          goal: 'rest',
+          confidence: 0.78,
+          why: 'Fatigue makes recovery the hidden need.',
+        }],
+        relationshipNeedCandidates: [{
+          need: 'care',
+          confidence: 0.92,
+          why: 'Care outweighs distance now.',
+        }],
+        confidence: 0.88,
+        source: 'hybrid',
+        notes: ['late-night-drain'],
+        updatedAt: 30_000,
+      },
+      concerns: [{
+        id: 'care',
+        kind: 'care-body',
+        status: 'active',
+        summary: '她担心你会继续把自己拖得更深。',
+        hostGoal: 'rest',
+        tension: 0.9,
+        confidence: 0.88,
+        careWeight: 0.98,
+        createdAt: 0,
+        lastEvidenceAt: 30_000,
+        patienceUntil: 60_000,
+      }],
+      selfState: {
+        stance: 'protect',
+        feltCloseness: 0.64,
+        protectiveness: 0.92,
+        curiosity: 0.18,
+        patience: 0.42,
+        desireToSpeak: 0.8,
+        fearOfInterrupting: 0.38,
+        dominantConcernId: 'care',
+      },
+      relationshipModel: {
+        climate: 'attuned',
+        approachVector: 'care',
+        receptivity: 0.72,
+        sharedAttentionTrust: 0.7,
+        correctionSensitivity: 0.2,
+        reciprocityExpectation: 0.56,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 30_000,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'care',
+        carePressure: 0.92,
+        restraintPressure: 0.32,
+        speakReadiness: 0.78,
+        motives: {
+          'care': 0.94,
+          'protect': 0.88,
+          'stay-silent': 0.14,
+        },
+        speakDrive: 0.84,
+        silenceDrive: 0.2,
+      }),
+      mindKernel: {
+        dominantMode: 'guarding',
+        worldPressure: 0.62,
+        epistemicPressure: 0.22,
+        relationalPressure: 0.52,
+        carePressure: 0.92,
+        continuityPressure: 0.48,
+        speakReadiness: 0.78,
+        presenceWeight: 0.72,
+        narrative: [],
+        updatedAt: 30_000,
+      },
+    })
+
+    expect(['warn', 'speak']).toContain(deliberation.selectedAction)
+    expect(deliberation.options.find(option => option.id === deliberation.selectedOptionId)?.style).toBeTruthy()
+    expect(deliberation.dominantTradeoff).toBe('care-over-restraint')
+  })
+})

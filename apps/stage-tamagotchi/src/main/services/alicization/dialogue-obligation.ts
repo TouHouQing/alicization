@@ -1,0 +1,162 @@
+import type {
+  AlicizationPrivateThoughtSnapshot,
+  AlicizationRepairLedgerSnapshot,
+  AlicizationWorldModelSnapshot,
+} from '../../../shared/eventa'
+import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+function clamp01(value: number) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function sanitizeText(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+export type AlicizationDialogueObligationKind
+  = | 'repair'
+    | 'guide'
+    | 'teach'
+    | 'answer'
+    | 'care'
+    | 'accompany'
+    | 'clarify'
+
+export type AlicizationPersonaKernelMode = 'full' | 'backgrounded' | 'muted'
+
+export interface AlicizationDialogueObligation {
+  kind: AlicizationDialogueObligationKind
+  summary: string
+  confidence: number
+  mustRepairFirst: boolean
+  mustAnswerDirectly: boolean
+  mustStayTaskBound: boolean
+  shouldAskClarifyingQuestion: boolean
+  personaKernelMode: AlicizationPersonaKernelMode
+  narrative: string[]
+}
+
+export function buildDialogueObligation(input: {
+  semantics: AlicizationDialogueTurnSemantics
+  context: AlicizationProactiveLayeredContext
+  worldModel?: AlicizationWorldModelSnapshot | null
+  repairLedger?: AlicizationRepairLedgerSnapshot | null
+  privateThought?: AlicizationPrivateThoughtSnapshot | null
+}): AlicizationDialogueObligation {
+  const unstableTruth = input.worldModel?.epistemicState.certainty === 'uncertain'
+    || input.worldModel?.epistemicState.certainty === 'lingering'
+    || input.repairLedger?.shouldConstrainPresentTense === true
+    || input.privateThought?.stance === 'uncertain'
+  const codingLike = input.context.workload.kind === 'coding'
+    || input.context.workload.kind === 'terminal'
+    || input.context.content.kind === 'error'
+    || input.context.content.kind === 'diff'
+    || input.worldModel?.activeThread?.kind === 'debugging'
+    || input.worldModel?.activeThread?.kind === 'change-review'
+  const careLike = input.context.relationship.fatigue >= 58
+    || input.worldModel?.activeThread?.kind === 'late-night-endurance'
+    || input.privateThought?.stance === 'care'
+    || input.privateThought?.stance === 'warn'
+
+  let kind: AlicizationDialogueObligationKind = 'answer'
+  if (
+    input.semantics.responseNeed === 'repair'
+    || input.semantics.act === 'verify-grounding'
+    || input.semantics.act === 'correct'
+    || input.semantics.act === 'challenge'
+    || (unstableTruth && input.semantics.truthExpectation === 'strict')
+  ) {
+    kind = 'repair'
+  }
+  else if (input.semantics.responseNeed === 'teach' || input.semantics.act === 'ask-teach') {
+    kind = 'teach'
+  }
+  else if (input.semantics.responseNeed === 'guide' || (codingLike && input.semantics.act === 'ask-help')) {
+    kind = 'guide'
+  }
+  else if (input.semantics.responseNeed === 'care' || input.semantics.act === 'seek-care' || (careLike && input.semantics.act === 'share-state')) {
+    kind = 'care'
+  }
+  else if (input.semantics.responseNeed === 'accompany' || input.semantics.act === 'social-bid') {
+    kind = 'accompany'
+  }
+  else if (input.semantics.responseNeed === 'clarify') {
+    kind = 'clarify'
+  }
+
+  const mustRepairFirst = kind === 'repair'
+  const mustStayTaskBound = kind === 'repair' || kind === 'guide' || kind === 'teach'
+  const shouldAskClarifyingQuestion = kind === 'clarify'
+    || (kind === 'repair' && !input.worldModel?.activeThread && !input.semantics.taskAnchor)
+  const mustAnswerDirectly = kind !== 'accompany' && !shouldAskClarifyingQuestion
+  const personaKernelMode: AlicizationPersonaKernelMode = mustRepairFirst
+    ? 'muted'
+    : (mustStayTaskBound || input.semantics.personaSuppression >= 0.58 || input.semantics.truthExpectation === 'strict')
+        ? 'backgrounded'
+        : kind === 'care' || kind === 'accompany'
+          ? 'full'
+          : 'backgrounded'
+
+  const summary = sanitizeText(
+    input.semantics.summary
+    || input.semantics.taskAnchor
+    || input.worldModel?.activeThread?.summary
+    || 'This turn carries a concrete obligation.',
+    180,
+  ) || 'This turn carries a concrete obligation.'
+
+  return {
+    kind,
+    summary,
+    confidence: clamp01(
+      input.semantics.confidence * 0.58
+      + (input.worldModel?.activeThread?.confidence ?? 0.32) * 0.14
+      + (unstableTruth ? 0.12 : 0.04)
+      + (mustStayTaskBound ? 0.08 : 0.04),
+    ),
+    mustRepairFirst,
+    mustAnswerDirectly,
+    mustStayTaskBound,
+    shouldAskClarifyingQuestion,
+    personaKernelMode,
+    narrative: [
+      `obligation:${kind}`,
+      `persona-kernel:${personaKernelMode}`,
+      mustRepairFirst ? 'repair-first' : '',
+      mustStayTaskBound ? 'stay-task-bound' : '',
+      mustAnswerDirectly ? 'answer-directly' : '',
+      shouldAskClarifyingQuestion ? 'clarify-before-claiming' : '',
+      summary,
+    ].filter(Boolean),
+  }
+}
+
+export function buildAlicizationDialogueObligationSystemBlock(input: {
+  semantics: AlicizationDialogueTurnSemantics
+  obligation: AlicizationDialogueObligation
+}) {
+  return [
+    '[ALICIZATION_DIALOGUE_ENCOUNTER]',
+    'This block captures what the host is doing to Alicization in the current turn and what Alicization now owes in response.',
+    `Host act: ${input.semantics.act}.`,
+    `Response need: ${input.semantics.responseNeed}.`,
+    `Truth expectation: ${input.semantics.truthExpectation}.`,
+    `Affective tone: ${input.semantics.affectiveTone}.`,
+    `Task anchor: ${input.semantics.taskAnchor ?? 'none'}.`,
+    `Shared attention demand: ${input.semantics.sharedAttentionDemand}.`,
+    `Persona suppression: ${input.semantics.personaSuppression}.`,
+    `Dialogue obligation: ${input.obligation.kind}.`,
+    `Obligation summary: ${input.obligation.summary}.`,
+    `Repair first: ${input.obligation.mustRepairFirst ? 'yes' : 'no'}.`,
+    `Answer directly: ${input.obligation.mustAnswerDirectly ? 'yes' : 'no'}.`,
+    `Stay task-bound: ${input.obligation.mustStayTaskBound ? 'yes' : 'no'}.`,
+    `Clarify before claiming: ${input.obligation.shouldAskClarifyingQuestion ? 'yes' : 'no'}.`,
+    `Persona kernel mode: ${input.obligation.personaKernelMode}.`,
+    'Treat this as the immediate speech obligation for the turn. Do not replace it with generic companionship performance.',
+  ].join('\n')
+}

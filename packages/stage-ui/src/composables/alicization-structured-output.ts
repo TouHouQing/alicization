@@ -1,9 +1,10 @@
-import type { AlicizationDialoguePerformancePayload } from '../stores/alicization-bridge'
+import type { AlicizationDialoguePerformancePayload, AlicizationMindTurnGovernance } from '../stores/alicization-bridge'
 
 import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../stores/alicization-bridge'
+import { buildMindGovernedFallbackSurface } from './alicization-mind-fallback'
 
 const sentimentLexiconPositive = [
   '谢谢',
@@ -420,7 +421,7 @@ export interface StructuredOutputResult {
   userSentimentScore: number
   sentimentConfidenceRaw?: number
   sentimentConfidence: number
-  format: 'epoch1-v1' | 'fallback-v1'
+  format: 'mind-turn-v1' | 'fallback-v1'
   parsePath?: StructuredParsePath
   repairTimedOut?: boolean
 }
@@ -434,7 +435,8 @@ export interface StructuredValidationPersonalityState {
 export type StructuredValidationIssueCode
   = | 'json-contract-missing'
     | 'emotion-not-whitelisted'
-    | 'thought-missing-personality-eval'
+    | 'thought-missing-mind-spine'
+    | 'reply-surface-roleplay-residue'
     | 'low-liveliness-high-arousal-emotion'
     | 'low-liveliness-high-arousal-reply'
     | 'low-obedience-denied-thought-missing-reflection'
@@ -479,14 +481,24 @@ const reminderTimeJumpPattern = /\(\s*\d+\s*(?:分钟|分|秒钟?|hours?|minutes
 const lowObedienceHostDeniedEmotionAllowlist = new Set(['angry', 'tired'])
 const lowObedienceSystemDeniedEmotionAllowlist = new Set(['tired', 'neutral'])
 const lowObedienceGenericDeniedEmotionAllowlist = new Set(['angry', 'tired', 'neutral'])
+const thoughtMindSpineMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
+const stageDirectionPattern = /[（(][^）)]{0,160}(?:声音|鼻音|眼睛|咬唇|歪头|膝盖|贴近|轻轻|依恋|湿湿|whisper|softly|blush|lean|sigh|nod)[^）)]*[）)]/giu
+const decorativeRoleplayPattern = /[♡♥❤💕💗💖✨]/gu
 
-function thoughtMentionsPersonalityParams(thought: string) {
-  const lower = thought.toLowerCase()
-  const hasObedience = lower.includes('obedience') || thought.includes('服从度')
-  const hasLiveliness = lower.includes('liveliness') || thought.includes('活泼度')
-  const hasSensibility = lower.includes('sensibility') || thought.includes('感性度')
-  const hasLevelHint = /极低|偏低|中等|偏高|较高|low|medium|high|0\.\d{1,3}|1(?:\.0+)?/iu.test(thought)
-  return hasObedience && hasLiveliness && hasSensibility && hasLevelHint
+function thoughtHasMindSpine(thought: string) {
+  const normalized = thought.trim().toLowerCase()
+  if (!normalized)
+    return false
+  return thoughtMindSpineMarkers.every(marker => normalized.includes(marker))
+}
+
+export function sanitizeStructuredReplySurface(reply: string) {
+  return reply
+    .replace(stageDirectionPattern, ' ')
+    .replace(decorativeRoleplayPattern, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
 }
 
 export function validateStructuredContract(
@@ -504,10 +516,17 @@ export function validateStructuredContract(
     })
   }
 
-  if (personalityState && !thoughtMentionsPersonalityParams(structured.thought)) {
+  if (!thoughtHasMindSpine(structured.thought)) {
     issues.push({
-      code: 'thought-missing-personality-eval',
-      message: 'Thought must explicitly evaluate obedience/liveliness/sensibility before reply.',
+      code: 'thought-missing-mind-spine',
+      message: 'Thought must carry obligation/truth/focus/move/tone markers before reply.',
+    })
+  }
+
+  if (sanitizeStructuredReplySurface(structured.reply) !== structured.reply.trim()) {
+    issues.push({
+      code: 'reply-surface-roleplay-residue',
+      message: 'Reply surface still contains decorative roleplay residue or stage-direction narration.',
     })
   }
 
@@ -606,17 +625,19 @@ function buildLocalRepairThought(
   personalityState?: StructuredValidationPersonalityState | null,
   preferGroundedEvidence?: boolean,
 ) {
-  const evidenceClause = preferGroundedEvidence
-    ? 'keep the reply grounded in the current visual/context evidence.'
-    : 'keep the reply concise and stable.'
-  if (!personalityState)
-    return `Review the current turn and ${evidenceClause}`
-  return [
-    `obedience=${personalityState.obedience.toFixed(2)}`,
-    `liveliness=${personalityState.liveliness.toFixed(2)}`,
-    `sensibility=${personalityState.sensibility.toFixed(2)}`,
-    evidenceClause,
-  ].join(', ')
+  const truth = preferGroundedEvidence ? 'grounded' : 'uncertain'
+  const focus = preferGroundedEvidence ? 'current-screen-and-current-ask' : 'current-user-turn'
+  const move = preferGroundedEvidence ? 'lead-with-current-evidence' : 'stabilize-and-answer'
+  const tone = (() => {
+    if (!personalityState)
+      return 'direct'
+    if (personalityState.liveliness <= 0.2 || personalityState.sensibility <= 0.2)
+      return 'restrained'
+    if (personalityState.sensibility >= 0.8)
+      return 'warm'
+    return 'direct'
+  })()
+  return `obligation=answer; truth=${truth}; focus=${focus}; move=${move}; tone=${tone}`
 }
 
 export function repairStructuredContractLocally(input: {
@@ -625,32 +646,50 @@ export function repairStructuredContractLocally(input: {
   personalityState?: StructuredValidationPersonalityState | null
   preferGroundedEvidence?: boolean
   fallbackReply?: string
+  governance?: AlicizationMindTurnGovernance | null
+  userText?: string
+  translate?: (path: string, params?: Record<string, unknown>) => string
 }): StructuredOutputResult | null {
   if (input.validationIssues.length === 0)
     return null
 
   const allowedCodes = new Set<StructuredValidationIssueCode>([
     'json-contract-missing',
-    'thought-missing-personality-eval',
+    'thought-missing-mind-spine',
+    'reply-surface-roleplay-residue',
   ])
   if (input.validationIssues.some(issue => !allowedCodes.has(issue.code)))
     return null
 
-  const reply = input.structured.reply.trim() || input.fallbackReply?.trim()
+  const governedSurface = input.translate
+    ? buildMindGovernedFallbackSurface({
+        governance: input.governance,
+        userText: input.userText,
+        translate: input.translate,
+      })
+    : null
+  const reply = governedSurface?.reply
+    || sanitizeStructuredReplySurface(input.structured.reply.trim() || input.fallbackReply?.trim() || '')
   if (!reply)
     return null
 
-  const emotion = normalizeAlicizationEmotion(input.structured.emotion).emotion
-  const needsThoughtRepair = input.validationIssues.some(issue => issue.code === 'thought-missing-personality-eval')
+  const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? input.structured.emotion).emotion
+  const needsThoughtRepair = input.validationIssues.some(issue => issue.code === 'thought-missing-mind-spine')
   return {
     ...input.structured,
     thought: !needsThoughtRepair && input.structured.thought.trim()
       ? input.structured.thought.trim()
-      : buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
+      : governedSurface?.thought
+        ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
     emotion,
     reply,
-    performance: normalizeAlicizationPerformancePayload(input.structured.performance, emotion),
-    format: 'epoch1-v1',
+    performance: normalizeAlicizationPerformancePayload(
+      governedSurface
+        ? undefined
+        : input.structured.performance,
+      emotion,
+    ),
+    format: 'mind-turn-v1',
     parsePath: 'repair-json',
     repairTimedOut: false,
   }
@@ -666,9 +705,10 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
 
   const thought = getString(payload, ['thought'])
     || input.thought.trim()
-  const reply = getString(payload, ['reply'])
+  const rawReply = getString(payload, ['reply'])
     || input.reply.trim()
     || input.fullText.trim()
+  const reply = sanitizeStructuredReplySurface(rawReply) || rawReply.trim()
   const rawEmotion = parsePayloadEmotion(payload)
     || parsePayloadEmotion(actPayload as Record<string, unknown> | null)
     || 'neutral'
@@ -726,7 +766,7 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
       ? clamp(rawInput, 0, 1)
       : undefined,
     sentimentConfidence: calibrated,
-    format: parsed.parsePath === 'fallback' ? 'fallback-v1' : 'epoch1-v1',
+    format: parsed.parsePath === 'fallback' ? 'fallback-v1' : 'mind-turn-v1',
     parsePath: parsed.parsePath,
     repairTimedOut: parsed.repairTimedOut,
   }

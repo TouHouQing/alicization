@@ -26,7 +26,7 @@ describe('alicization structured output', () => {
     expect(result.reply).toBe('json reply')
     expect(result.emotion).toBe('happy')
     expect(result.performance.baseEmotion).toBe('happy')
-    expect(result.format).toBe('epoch1-v1')
+    expect(result.format).toBe('mind-turn-v1')
   })
 
   it('uses linear repair path for noisy wrapped json', () => {
@@ -275,8 +275,91 @@ describe('alicization structured output', () => {
     })
 
     expect(repaired?.parsePath).toBe('repair-json')
-    expect(repaired?.format).toBe('epoch1-v1')
-    expect(repaired?.thought).toContain('obedience=0.42')
-    expect(repaired?.thought).toContain('current visual/context evidence')
+    expect(repaired?.format).toBe('mind-turn-v1')
+    expect(repaired?.thought).toContain('obligation=answer')
+    expect(repaired?.thought).toContain('truth=grounded')
+    expect(repaired?.thought).toContain('focus=current-screen-and-current-ask')
+  })
+
+  it('flags and locally strips decorative roleplay residue from reply surface', () => {
+    const issues = validateStructuredContract({
+      thought: 'obligation=answer; truth=grounded; focus=current-turn; move=answer-plainly; tone=direct',
+      emotion: 'neutral',
+      reply: '（轻轻咬唇）这里少了一层 null check……♡',
+    })
+
+    expect(issues.map(issue => issue.code)).toContain('reply-surface-roleplay-residue')
+
+    const repaired = repairStructuredContractLocally({
+      structured: normalizeStructuredOutput({
+        fullText: '{"thought":"obligation=answer; truth=grounded; focus=current-turn; move=answer-plainly; tone=direct","emotion":"neutral","reply":"（轻轻咬唇）这里少了一层 null check……♡"}',
+        thought: '',
+        reply: '',
+      }),
+      validationIssues: issues,
+      preferGroundedEvidence: true,
+    })
+
+    expect(repaired?.reply).toBe('这里少了一层 null check……')
+  })
+
+  it('uses governance snapshot to replace stale-anchor fallback surface', () => {
+    const repaired = repairStructuredContractLocally({
+      structured: normalizeStructuredOutput({
+        fullText: '……欸～主人～我刚刚看的还是上一个浏览器页面……',
+        thought: '',
+        reply: '……欸～主人～我刚刚看的还是上一个浏览器页面……',
+      }),
+      validationIssues: [{
+        code: 'json-contract-missing',
+        message: 'missing',
+      }],
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'live-observed',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'correct-stale-anchor',
+        evidenceMode: 'coarse-held',
+        repairState: 'stale-anchor',
+        liveSurface: 'VS Code | diff',
+        focusAnchor: 'VS Code | diff',
+        answerIntent: '先按当前 diff 重新判断。',
+        openingMove: '先纠正旧锚点。',
+        carriedThread: 'previous browser tab',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'hesitant',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '重新看看我现在的屏幕',
+      translate: (path, params) => {
+        const map: Record<string, string> = {
+          'mind-fallback.focus-default': '当前这件事',
+          'mind-fallback.repair-stale-anchor': '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
+          'mind-fallback.repair-need-reground': '我先守住真实边界。',
+          'mind-fallback.guide-opening': `先抓当前这个点：${String(params?.focus ?? '')}。`,
+          'mind-fallback.care-opening': `我先按你现在的状态说：${String(params?.focus ?? '')}。`,
+          'mind-fallback.accompany-opening': `我先陪你把这条线稳住：${String(params?.focus ?? '')}。`,
+          'mind-fallback.observation-opening': `我先说这轮我能稳住的部分：${String(params?.focus ?? '')}。`,
+          'mind-fallback.answer-opening': `先按你眼前这件事说：${String(params?.focus ?? '')}。`,
+          'mind-fallback.carry-memory': `我还记着上一条线是 ${String(params?.carry ?? '')}。`,
+          'mind-fallback.reground-note': '如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
+        }
+        return map[path] ?? path
+      },
+    })
+
+    expect(repaired?.reply).toContain('旧锚点')
+    expect(repaired?.reply).toContain('上一条线')
+    expect(repaired?.thought).toContain('obligation=repair')
+    expect(repaired?.format).toBe('mind-turn-v1')
   })
 })

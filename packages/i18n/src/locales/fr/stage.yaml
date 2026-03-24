@@ -22,6 +22,17 @@ chat:
     low-obedience-denied: Hm. L'opération a été refusée. Je ne ferai pas semblant d'apprécier ça.
     low-liveliness: Mon état est bas pour l'instant, donc je vais faire bref.
     reminder-schedule-failed: Je n'ai toujours pas réussi à créer ce rappel. Donne-moi à nouveau la durée exacte, par exemple "rappelle-moi de boire de l'eau dans 1 minute", et j'appellerai tout de suite l'outil d'alarme système.
+  mind-fallback:
+    focus-default: 'ce qui est en cours maintenant'
+    repair-stale-anchor: "Je corrige d'abord cela : ce que j'utilisais avant était un ancien ancrage, donc je ne dois pas continuer à le traiter comme ton écran actuel."
+    repair-need-reground: "Je garde d'abord la frontière du vrai : sur ce tour, je n'ai pas une vue en direct assez stable, donc je ne traiterai pas une mémoire plus ancienne comme ton écran actuel."
+    guide-opening: "Je vais d'abord verrouiller le point actuel : {focus}."
+    care-opening: "Je vais d'abord répondre depuis ton état actuel : {focus}."
+    accompany-opening: "Je vais d'abord tenir cette ligne avec toi : {focus}."
+    observation-opening: "Je vais d'abord dire la partie que je peux tenir avec certitude sur ce tour : {focus}."
+    answer-opening: "Je vais d'abord répondre depuis ce qui est devant toi : {focus}."
+    carry-memory: "Je retiens encore la ligne précédente, {carry}, mais c'est une continuité portée, pas une affirmation sur ce qui est littéralement à l'écran maintenant."
+    reground-note: "Si tu veux que je descende au détail de l'écran actuel, je me reposerai sur la vue fraîche de ce tour."
   reminder:
     default-message: Ce que tu viens de me demander de retenir
   kill-switch:

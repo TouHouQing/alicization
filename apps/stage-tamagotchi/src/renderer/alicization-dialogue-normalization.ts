@@ -4,6 +4,7 @@ const supportedStructuredFormats = [
   'subconscious-proactive-v1',
   'subconscious-proactive-llm-v1',
   'subconscious-reminder-v1',
+  'mind-turn-v1',
   'epoch1-v1',
   'fallback-v1',
 ] as const satisfies AlicizationDialogueStructuredFormat[]

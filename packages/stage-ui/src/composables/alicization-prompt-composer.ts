@@ -27,13 +27,13 @@ export interface AlicizationPersonalityDirectiveResult {
 export interface ComposeAlicizationPromptMessagesResult {
   messages: Message[]
   personalityDirectiveResult: AlicizationPersonalityDirectiveResult | null
-  contractRequiresPersonalityEval: boolean
+  contractRequiresMindSpine: boolean
 }
 
 const personalityLowThreshold = 0.2
 const personalityDirectiveHeader = '=== 当前状态极度干预 ==='
 const personalityStateHeader = '=== 当前人格参数（强约束解释层）==='
-const contractPersonalityEvalLine = 'In thought, you MUST evaluate current personality parameters'
+const contractMindSpineLine = 'In thought, you MUST include all five machine-readable markers'
 
 function readContextText(content: string | Array<string | { text?: unknown }>) {
   if (typeof content === 'string')
@@ -340,6 +340,6 @@ export function composeAlicizationPromptMessages(input: {
   return {
     messages: finalMessages,
     personalityDirectiveResult,
-    contractRequiresPersonalityEval: alicizationFixedStructuredContractAnchor.includes(contractPersonalityEvalLine),
+    contractRequiresMindSpine: alicizationFixedStructuredContractAnchor.includes(contractMindSpineLine),
   }
 }

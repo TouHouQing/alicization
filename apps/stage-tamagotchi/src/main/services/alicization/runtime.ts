@@ -137,6 +137,8 @@ import {
 } from '../../../shared/eventa'
 import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { invokeAlicizationMcpCallToolFromMain, invokeAlicizationMcpListToolsFromMain } from '../airi/mcp-servers'
+import { buildActionEcology } from './action-ecology'
+import { buildAlicizationAnswerPlannerSystemBlock, buildAnswerPlanner } from './answer-planner'
 import {
   activateInvitedInspection,
   createDefaultPerceptionState,
@@ -151,7 +153,39 @@ import {
   updatePerceptionStateWithObservation,
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
+import { buildBeliefLedger } from './belief-ledger'
+import { buildBeliefRevision } from './belief-revision'
+import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
+import { buildCommitmentLedger } from './commitment-ledger'
+import { buildConcernContinuityLedger } from './concern-continuity-ledger'
+import { updateConcernGraph } from './concern-graph'
+import { buildCounterfactualDeliberation } from './counterfactual-deliberator'
 import { setupAlicizationDb } from './db'
+import { buildDeliberationState } from './deliberation-thread'
+import { buildDesireMemory } from './desire-memory'
+import { buildAlicizationDialogueObligationSystemBlock, buildDialogueObligation } from './dialogue-obligation'
+import {
+  buildDialogueTurnSemantics,
+  mergeDialogueTurnSemantics,
+  parseDialogueTurnSemanticsCandidate,
+} from './dialogue-turn-semantics'
+import { buildEntityWorldModel } from './entity-world-model'
+import { buildAlicizationExecutiveAnswerBrief } from './executive-answer-brief'
+import { buildExecutiveCycle } from './executive-cycle'
+import { buildGoalStack } from './goal-stack'
+import { buildHypothesisGraph } from './hypothesis-graph'
+import { buildInitiativeArbitration } from './initiative-arbiter'
+import { buildInitiativeSnapshot } from './initiative-engine'
+import { buildInquiryLoop } from './inquiry-loop'
+import { buildInquiryPlanner } from './inquiry-planner'
+import { buildIntentionStream } from './intention-stream'
+import { buildLivingWorldState } from './living-world-state'
+import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
+import { buildMindDynamics } from './mind-dynamics'
+import { buildMindKernel } from './mind-kernel'
+import { stabilizeMindStateInvariants } from './mind-state-invariants'
+import { buildMindTruthContractLines, deriveMindTruthContract } from './mind-truth-contract'
+import { filterOrganicMemoryEntries, isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
 import { buildPrivateThoughtLoop } from './private-thought-loop'
 import {
   createDefaultProactiveLoopState,
@@ -175,6 +209,14 @@ import {
   pickScreenSemanticCaptureCandidate,
   rankScreenSemanticCaptureCandidates,
 } from './proactive-screen-semantic'
+import { buildReflectionLedger } from './reflection-ledger'
+import { buildRelationshipModel } from './relationship-model'
+import { buildRepairLedger } from './repair-ledger'
+import { buildAlicizationResponseCharter, buildAlicizationResponseCharterSystemBlock } from './response-charter'
+import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
+import { buildSelfContinuity } from './self-continuity'
+import { buildSelfGovernor } from './self-governor'
+import { buildSelfState } from './self-state'
 import { createAlicizationSensoryBus } from './sensory-bus'
 import {
   getAlicizationCardKillSwitchSnapshot,
@@ -185,6 +227,17 @@ import {
   setAlicizationKillSwitchState,
 } from './state'
 import {
+  buildSubjectiveInference,
+  mergeSubjectiveInference,
+  parseSubjectiveInferenceCandidate,
+  projectSubjectiveInferenceToAppraisal,
+} from './subjective-inference'
+import {
+  buildSubjectiveSceneAppraisal,
+} from './subjective-scene-model'
+import { buildThoughtThreads } from './thought-threads'
+import { buildThreadRuntime } from './thread-runtime'
+import {
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
   createDefaultVisualPresenceState,
@@ -192,6 +245,8 @@ import {
   updateVisualPresenceState,
 } from './visual-episodic-memory'
 import { buildVisualHeartbeat } from './visual-heartbeat'
+import { buildWorldModel } from './world-model'
+import { buildWorldOntology } from './world-ontology'
 
 const currentSoulSchemaVersion = 2
 const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
@@ -242,6 +297,8 @@ const subconsciousInterruptionProbeTimeoutMs = 1_200
 const proactiveScreenSemanticCacheTtlMs = 45_000
 const proactiveScreenSemanticFailureTtlMs = 15_000
 const proactiveScreenSemanticTimeoutMs = 8_000
+const subjectiveInferenceTimeoutMs = 7_000
+const dialogueTurnSemanticsTimeoutMs = 4_500
 const chatRunFinishedRetentionMs = 2 * 60_000
 const mainChatFirstEventTimeoutMs = 45_000
 const mainChatFirstEventTimeoutWithVisualGroundingMs = 90_000
@@ -262,6 +319,7 @@ const supportedDialogueStructuredFormats = [
   'subconscious-proactive-v1',
   'subconscious-proactive-llm-v1',
   'subconscious-reminder-v1',
+  'mind-turn-v1',
   'epoch1-v1',
   'fallback-v1',
 ] as const satisfies AlicizationDialogueStructuredFormat[]
@@ -471,7 +529,7 @@ function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaNotes: s
     '## Output Contract (Epoch 1)',
     '',
     '- 以结构化语义表达：thought / emotion / reply。',
-    '- 输出优先体现当前 persona，不偏离 SOUL 设定。',
+    '- 输出优先服从当前 live mind 与 grounded world；persona 只决定表达方式，不能覆盖事实判断。',
   ].join('\n')
 }
 
@@ -1601,6 +1659,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let activeModelId = ''
   let providerCredentials: Record<string, Record<string, unknown>> = {}
   let subconsciousTickInFlight: Promise<AlicizationSubconsciousTickResult> | null = null
+  let queuedSubconsciousWakeTimer: NodeJS.Timeout | undefined
+  const queuedSubconsciousWakeCardIds = new Set<string>()
+  const queuedSubconsciousWakeReasons = new Set<string>()
 
   const observedWebContentsIds = new Set<number>()
   const isEventCapableWebContents = (
@@ -2336,13 +2397,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const cardId = normalizeCardId(cardIdRaw)
     const privateThought = state.privateThought
     const currentScene = state.currentScene
-    if (!privateThought || privateThought.embodiedPresence === 'none' || !currentScene)
+    const activeThread = state.worldModel?.activeThread
+    const scenario = currentScene?.scenario
+      ?? (
+        activeThread?.kind === 'debugging' || activeThread?.kind === 'change-review' || activeThread?.kind === 'deep-focus'
+          ? 'coding'
+          : activeThread?.kind === 'co-viewing'
+            ? 'media'
+            : activeThread?.kind === 'late-night-endurance'
+              ? 'late-night-care'
+              : 'general'
+      )
+    if (!privateThought || privateThought.embodiedPresence === 'none' || (!currentScene && !activeThread))
       return null
     return {
       cardId,
       watchMode: state.watchMode,
       embodiedPresence: privateThought.embodiedPresence,
-      scenario: currentScene.scenario,
+      scenario,
       stance: privateThought.stance,
       confidence: privateThought.confidence,
       reasonTags: [...privateThought.rationaleTags],
@@ -2411,6 +2483,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         outcomes: settled.appliedOutcomes,
       },
     }, cardId)
+    queueSubconsciousWake(cardId, 'feedback:user-turn-settlement', 600)
     return settled.state
   }
 
@@ -2535,6 +2608,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     clearReminderDueTimer()
     clearAllPendingDialogueDeliveries()
     recentlyFinishedChatRuns.clear()
+    clearQueuedSubconsciousWake()
 
     try {
       for (const cardId of cardIds) {
@@ -2603,12 +2677,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     turnWriteAbortControllers.clear()
     chatRuns.clear()
     recentlyFinishedChatRuns.clear()
+    clearQueuedSubconsciousWake()
     activeSessionIdByCard.clear()
     dialogueAckByCard.clear()
     subconsciousStateByCard.clear()
     proactiveLoopStateByCard.clear()
     perceptionStateByCard.clear()
     visualPresenceStateByCard.clear()
+    screenSemanticCacheByCard.clear()
     pendingDurabilityPulseByCard.clear()
     foregroundProbeTimeoutStreakByPid.clear()
     subconsciousTickInFlight = null
@@ -3904,18 +3980,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return 'neutral' as const
   }
 
-  function isOperationalLogLikeText(text: string) {
-    const lowered = text.toLowerCase()
-    return /set_reminder|task[_-]?id|trigger[_-]?at|mcp|tool[_-]?call|status\s*:|json|调用工具|任务id|闹钟/.test(lowered)
-  }
-
   function normalizeOrganicMemoryItemText(raw: unknown, maxChars: number) {
-    const normalized = sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim()
-    if (!normalized)
-      return ''
-    if (isOperationalLogLikeText(normalized))
-      return ''
-    return normalized.slice(0, maxChars)
+    return normalizeOrganicMemoryText(
+      sanitizeMultilineText(raw, '').replace(/\s+/g, ' ').trim(),
+      maxChars,
+    )
   }
 
   function normalizeOrganicMemoryItemArray(raw: unknown, options: {
@@ -4051,6 +4120,955 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function isSeriousDurabilityPulseForMind(durabilityPulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
+    return durabilityPulse?.kind === 'process-gone'
+      || durabilityPulse?.kind === 'render-process-gone'
+      || durabilityPulse?.kind === 'child-process-gone'
+      || durabilityPulse?.kind === 'anr-likely'
+  }
+
+  function buildMindSceneSignature(scene: AlicizationVisualPresenceStateSnapshot['currentScene']) {
+    if (!scene)
+      return ''
+    return [
+      scene.scenario,
+      scene.workloadKind,
+      scene.contentKind,
+      sanitizeText(scene.summary),
+      sanitizeText(scene.target?.appName),
+      sanitizeText(scene.target?.processName),
+      sanitizeText(scene.target?.title),
+      Number.isFinite(Number(scene.target?.pid)) ? Math.floor(Number(scene.target?.pid)) : '',
+    ].join('::').toLowerCase()
+  }
+
+  function buildMindAttentionSignature(attention: AlicizationVisualPresenceStateSnapshot['attention']) {
+    if (!attention?.target)
+      return ''
+    return [
+      sanitizeText(attention.target.appName),
+      sanitizeText(attention.target.processName),
+      sanitizeText(attention.target.title),
+      Number.isFinite(Number(attention.target.pid)) ? Math.floor(Number(attention.target.pid)) : '',
+      attention.source,
+    ].join('::').toLowerCase()
+  }
+
+  function shouldAttemptStructuredSceneAppraisal(input: {
+    visualHeartbeat: ReturnType<typeof buildVisualHeartbeat>
+    durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+  }) {
+    if (isSeriousDurabilityPulseForMind(input.durabilityPulse))
+      return true
+
+    return input.visualHeartbeat.scene?.source === 'screen-semantic-summary'
+      || input.visualHeartbeat.scene?.source === 'invited-grounding'
+  }
+
+  async function resolveDialogueTurnSemantics(input: {
+    cardId: string
+    userText: string
+    recentMessages: Message[]
+    context: ReturnType<typeof buildProactiveLayeredContext>
+    currentScene: ReturnType<typeof buildVisualHeartbeat>['scene']
+    worldModel: ReturnType<typeof buildWorldModel>
+    previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
+  }) {
+    const heuristic = buildDialogueTurnSemantics({
+      userText: input.userText,
+      context: input.context,
+      currentScene: input.currentScene,
+      worldModel: input.worldModel,
+      subjectiveInference: input.previousVisualPresenceState.subjectiveInference ?? null,
+      relationshipModel: input.previousVisualPresenceState.relationshipModel ?? null,
+      privateThought: input.previousVisualPresenceState.privateThought ?? null,
+    })
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_DIALOGUE_TURN_SEMANTICS]',
+        'You are Alicization private dialogue cognition, not user-facing dialogue.',
+        'Interpret the current user turn into Alicization turn semantics.',
+        'Output valid JSON only with keys: act, responseNeed, truthExpectation, affectiveTone, taskAnchor, sharedAttentionDemand, personaSuppression, confidence, summary, reasonTags.',
+        'act must be one of: ask-help, ask-teach, verify-grounding, correct, challenge, share-state, seek-care, social-bid, continue-thread, close-thread, unknown.',
+        'responseNeed must be one of: repair, guide, teach, answer, care, accompany, clarify.',
+        'truthExpectation must be one of: strict, normal, light.',
+        'affectiveTone must be one of: frustrated, tired, urgent, warm, neutral.',
+        'sharedAttentionDemand, personaSuppression, confidence must be numbers in range [0,1].',
+        'summary must be a short obligation-shaped sentence, not roleplay.',
+        'reasonTags must be short lower-kebab-case strings.',
+        'Prefer the actual user move in this turn over old emotional residue when they conflict.',
+      ].join('\n'),
+      user: [
+        `Current user turn: ${input.userText}`,
+        `Recent dialogue JSON: ${JSON.stringify(input.recentMessages.slice(-6).map(message => ({
+          role: message.role,
+          content: readTransportContentAsText(message.content).slice(0, 220),
+        })))}`,
+        `Layered context JSON: ${JSON.stringify(input.context)}`,
+        `Current scene JSON: ${JSON.stringify(input.currentScene)}`,
+        `World model JSON: ${JSON.stringify(input.worldModel)}`,
+        `Previous subjective inference JSON: ${JSON.stringify(input.previousVisualPresenceState.subjectiveInference ?? null)}`,
+        `Previous relationship model JSON: ${JSON.stringify(input.previousVisualPresenceState.relationshipModel ?? null)}`,
+        `Previous private thought JSON: ${JSON.stringify(input.previousVisualPresenceState.privateThought ?? null)}`,
+        `Heuristic turn semantics JSON: ${JSON.stringify(heuristic)}`,
+      ].join('\n'),
+      timeoutMs: dialogueTurnSemanticsTimeoutMs,
+      source: 'dialogue-turn-semantics',
+      cardId: input.cardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    })
+
+    return mergeDialogueTurnSemantics(
+      heuristic,
+      raw ? parseDialogueTurnSemanticsCandidate(raw) : null,
+    )
+  }
+
+  function compactPromptText(raw: unknown, maxChars = 180) {
+    if (typeof raw !== 'string')
+      return ''
+    return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  }
+
+  function compactPromptTarget(target?: {
+    appName?: string
+    processName?: string
+    title?: string
+    pid?: number | null
+  } | null) {
+    if (!target)
+      return null
+    return {
+      appName: compactPromptText(target.appName, 64) || undefined,
+      processName: compactPromptText(target.processName, 64) || undefined,
+      title: compactPromptText(target.title, 120) || undefined,
+      pid: typeof target.pid === 'number' && Number.isFinite(target.pid) ? target.pid : undefined,
+    }
+  }
+
+  function buildSubjectiveInferencePromptSnapshot(input: {
+    context: ReturnType<typeof buildProactiveLayeredContext>
+    previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
+    visualHeartbeat: ReturnType<typeof buildVisualHeartbeat>
+    attention: ReturnType<typeof updateVisualAttentionModel>
+    worldModel: ReturnType<typeof buildWorldModel>
+    heuristicAppraisal: ReturnType<typeof buildSubjectiveSceneAppraisal>
+    durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+    dialogueSemantics?: ReturnType<typeof buildDialogueTurnSemantics>
+  }) {
+    const previousInference = input.previousVisualPresenceState.subjectiveInference
+    return {
+      context: {
+        localTime: input.context.localTime,
+        system: {
+          cpuUsage: input.context.system.cpuUsage,
+          idleSeconds: input.context.system.idleSeconds,
+          inputActivity: input.context.system.inputActivity,
+          fullscreenLikely: input.context.system.fullscreenLikely,
+          foregroundWindow: compactPromptTarget(input.context.system.foregroundWindow),
+          degradedSignals: input.context.system.degradedSignals.slice(0, 6),
+        },
+        workload: {
+          kind: input.context.workload.kind,
+          confidence: input.context.workload.confidence,
+          source: input.context.workload.source,
+          matchedLabels: input.context.workload.matchedLabels.slice(0, 6),
+        },
+        content: {
+          kind: input.context.content.kind,
+          confidence: input.context.content.confidence,
+          source: input.context.content.source,
+          summary: compactPromptText(input.context.content.summary, 180) || undefined,
+          matchedLabels: input.context.content.matchedLabels.slice(0, 6),
+        },
+        relationship: {
+          hostAttitude: compactPromptText(input.context.relationship.hostAttitude, 120) || undefined,
+          fatigue: input.context.relationship.fatigue,
+          minutesSinceLastUserTurn: input.context.relationship.minutesSinceLastUserTurn,
+          reminderBacklog: input.context.relationship.reminderBacklog,
+          lateNightActiveMinutes: input.context.relationship.lateNightActiveMinutes,
+          recentProactiveOutcomes: input.context.relationship.recentProactiveOutcomes.slice(0, 4),
+        },
+      },
+      visual: {
+        watchMode: input.visualHeartbeat.watchMode,
+        scene: input.visualHeartbeat.scene
+          ? {
+              scenario: input.visualHeartbeat.scene.scenario,
+              workloadKind: input.visualHeartbeat.scene.workloadKind,
+              contentKind: input.visualHeartbeat.scene.contentKind,
+              summary: compactPromptText(input.visualHeartbeat.scene.summary, 180) || undefined,
+              confidence: input.visualHeartbeat.scene.confidence,
+              target: compactPromptTarget(input.visualHeartbeat.scene.target),
+            }
+          : null,
+        recentTransition: input.visualHeartbeat.recentTransition
+          ? {
+              fromWatchMode: input.visualHeartbeat.recentTransition.fromWatchMode,
+              toWatchMode: input.visualHeartbeat.recentTransition.toWatchMode,
+              fromScenario: input.visualHeartbeat.recentTransition.fromScenario,
+              durationMs: input.visualHeartbeat.recentTransition.durationMs,
+              reason: compactPromptText(input.visualHeartbeat.recentTransition.reason, 120) || undefined,
+            }
+          : null,
+        durabilityPulse: input.durabilityPulse
+          ? {
+              kind: input.durabilityPulse.kind,
+              source: input.durabilityPulse.source,
+              pid: input.durabilityPulse.pid ?? undefined,
+              appName: compactPromptText(input.durabilityPulse.appName, 64) || undefined,
+              processName: compactPromptText(input.durabilityPulse.processName, 64) || undefined,
+              title: compactPromptText(input.durabilityPulse.title, 120) || undefined,
+              detail: compactPromptText(input.durabilityPulse.detail, 120) || undefined,
+            }
+          : null,
+      },
+      attention: input.attention
+        ? {
+            source: input.attention.source,
+            confidence: input.attention.confidence,
+            dwellMs: input.attention.dwellMs,
+            invalidationReason: compactPromptText(input.attention.invalidationReason, 80) || undefined,
+            target: compactPromptTarget(input.attention.target),
+          }
+        : null,
+      worldModel: {
+        epistemicState: input.worldModel.epistemicState,
+        activeThread: input.worldModel.activeThread
+          ? {
+              kind: input.worldModel.activeThread.kind,
+              title: compactPromptText(input.worldModel.activeThread.title, 120) || undefined,
+              summary: compactPromptText(input.worldModel.activeThread.summary, 180) || undefined,
+              confidence: input.worldModel.activeThread.confidence,
+              unresolved: input.worldModel.activeThread.unresolved,
+            }
+          : null,
+        hostState: input.worldModel.hostState,
+        lingeringThreads: input.worldModel.lingeringThreads
+          .slice(0, 4)
+          .map(thread => compactPromptText(thread.summary || thread.title, 120))
+          .filter(Boolean),
+        openQuestions: input.worldModel.epistemicState.openQuestions
+          .slice(0, 4)
+          .map(loop => compactPromptText(loop, 120))
+          .filter(Boolean),
+      },
+      appraisal: {
+        inferredHostGoal: input.heuristicAppraisal.inferredHostGoal,
+        confidence: input.heuristicAppraisal.confidence,
+        carePressure: input.heuristicAppraisal.carePressure,
+        interruptionCost: input.heuristicAppraisal.interruptionCost,
+        desireToSpeak: input.heuristicAppraisal.desireToSpeak,
+        relationshipNeed: input.heuristicAppraisal.relationshipNeed,
+        currentKnot: compactPromptText(input.heuristicAppraisal.currentKnot, 180) || undefined,
+        situatedMeaning: compactPromptText(input.heuristicAppraisal.situatedMeaning, 180) || undefined,
+        waitingToVerify: compactPromptText(input.heuristicAppraisal.waitingToVerify, 180) || undefined,
+        notes: input.heuristicAppraisal.notes.slice(0, 6),
+      },
+      dialogue: input.dialogueSemantics
+        ? {
+            act: input.dialogueSemantics.act,
+            responseNeed: input.dialogueSemantics.responseNeed,
+            truthExpectation: input.dialogueSemantics.truthExpectation,
+            summary: compactPromptText(input.dialogueSemantics.summary, 160) || undefined,
+            reasonTags: input.dialogueSemantics.reasonTags.slice(0, 6),
+          }
+        : null,
+      previous: {
+        subjectiveInference: previousInference
+          ? {
+              dominantInterpretation: compactPromptText(previousInference.dominantInterpretation, 180) || undefined,
+              situatedMeaning: compactPromptText(previousInference.situatedMeaning, 180) || undefined,
+              selfQuestion: compactPromptText(previousInference.selfQuestion, 180) || undefined,
+              uncertainty: compactPromptText(previousInference.uncertainty, 180) || undefined,
+              confidence: previousInference.confidence,
+              topIntent: previousInference.hostIntentCandidates[0]?.goal ?? undefined,
+              topNeed: previousInference.relationshipNeedCandidates[0]?.need ?? undefined,
+              notes: previousInference.notes.slice(0, 6),
+            }
+          : null,
+        appraisal: input.previousVisualPresenceState.appraisal
+          ? {
+              inferredHostGoal: input.previousVisualPresenceState.appraisal.inferredHostGoal,
+              confidence: input.previousVisualPresenceState.appraisal.confidence,
+              currentKnot: compactPromptText(input.previousVisualPresenceState.appraisal.currentKnot, 160) || undefined,
+              situatedMeaning: compactPromptText(input.previousVisualPresenceState.appraisal.situatedMeaning, 160) || undefined,
+              waitingToVerify: compactPromptText(input.previousVisualPresenceState.appraisal.waitingToVerify, 160) || undefined,
+              notes: input.previousVisualPresenceState.appraisal.notes.slice(0, 6),
+            }
+          : null,
+        commitment: input.previousVisualPresenceState.commitmentLedger?.governingCommitmentId ?? null,
+        inquiry: input.previousVisualPresenceState.inquiryPlanner?.activePlanId ?? null,
+        mindKernel: input.previousVisualPresenceState.mindKernel?.dominantMode ?? null,
+      },
+    }
+  }
+
+  async function resolveSubjectiveInference(input: {
+    cardId: string
+    now: number
+    context: ReturnType<typeof buildProactiveLayeredContext>
+    previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
+    visualHeartbeat: ReturnType<typeof buildVisualHeartbeat>
+    attention: ReturnType<typeof updateVisualAttentionModel>
+    worldModel: ReturnType<typeof buildWorldModel>
+    heuristicAppraisal: ReturnType<typeof buildSubjectiveSceneAppraisal>
+    durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+    dialogueSemantics?: ReturnType<typeof buildDialogueTurnSemantics>
+  }) {
+    const heuristic = buildSubjectiveInference({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      worldModel: input.worldModel,
+      appraisal: input.heuristicAppraisal,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      dialogueSemantics: input.dialogueSemantics,
+    })
+    const previousInference = input.previousVisualPresenceState.subjectiveInference
+    const freshEnough = input.now - input.previousVisualPresenceState.updatedAt <= 45_000
+    const sameScene = buildMindSceneSignature(input.previousVisualPresenceState.currentScene) === buildMindSceneSignature(input.visualHeartbeat.scene)
+    const sameAttention = buildMindAttentionSignature(input.previousVisualPresenceState.attention) === buildMindAttentionSignature(input.attention)
+    const canReuseStructuredInference
+      = Boolean(previousInference)
+        && (previousInference?.source === 'hybrid' || previousInference?.source === 'structured-cognition')
+        && freshEnough
+        && sameScene
+        && sameAttention
+        && !input.visualHeartbeat.recentTransition
+        && !isSeriousDurabilityPulseForMind(input.durabilityPulse)
+    if (canReuseStructuredInference)
+      return previousInference ?? heuristic
+
+    if (!shouldAttemptStructuredSceneAppraisal({
+      visualHeartbeat: input.visualHeartbeat,
+      durabilityPulse: input.durabilityPulse,
+    })) {
+      return heuristic
+    }
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_SUBJECTIVE_INFERENCE]',
+        '[ALICIZATION_INNER_SCENE_APPRAISAL]',
+        'You are Alicization private cognition, not user-facing dialogue.',
+        'Interpret the provided perceptual state into Alicization subjective inference without inventing unseen details.',
+        'Prefer the current scene and current attention over old continuity when they disagree.',
+        'Output valid JSON only with keys: dominantInterpretation, situatedMeaning, selfQuestion, uncertainty, hostIntentCandidates, relationshipNeedCandidates, confidence, notes.',
+        'hostIntentCandidates must be an array of up to 3 items with keys: goal, confidence, why.',
+        'goal must be one of: resolve-problem, inspect-change, consume-media, rest, chat, browse, unknown.',
+        'relationshipNeedCandidates must be an array of up to 3 items with keys: need, confidence, why.',
+        'need must be one of: space, companionship, guidance, care, unclear.',
+        'Each why must be grounded in visible or continuity evidence, not fantasy.',
+        'confidence and candidate confidences must be numbers in range [0,1].',
+        'notes must be an array of short lower-kebab-case strings.',
+        'If evidence is thin, keep fields sparse and confidence low instead of hallucinating certainty.',
+      ].join('\n'),
+      user: `Perceptual mind state JSON: ${JSON.stringify(buildSubjectiveInferencePromptSnapshot(input))}`,
+      timeoutMs: subjectiveInferenceTimeoutMs,
+      source: 'subjective-inference',
+      cardId: input.cardId,
+      injectPerformanceManifest: false,
+    })
+
+    return mergeSubjectiveInference(
+      heuristic,
+      raw ? parseSubjectiveInferenceCandidate(raw) : null,
+    )
+  }
+
+  async function buildDigitalLifeMindState(input: {
+    cardId: string
+    now: number
+    context: ReturnType<typeof buildProactiveLayeredContext>
+    userText?: string
+    recentMessages?: Message[]
+    previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
+    visualHeartbeat: ReturnType<typeof buildVisualHeartbeat>
+    attention: ReturnType<typeof updateVisualAttentionModel>
+    durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+    inspectionRequested?: boolean
+  }) {
+    const worldModel = buildWorldModel({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+      previousModel: input.previousVisualPresenceState.worldModel ?? null,
+    })
+    const entityWorld = buildEntityWorldModel({
+      now: input.now,
+      context: input.context,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      worldModel,
+      previousModel: input.previousVisualPresenceState.entityWorld ?? null,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+      durabilityPulse: input.durabilityPulse,
+    })
+    const heuristicAppraisal = buildSubjectiveSceneAppraisal({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      worldModel,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+    })
+    const dialogueSemantics = input.userText
+      ? await resolveDialogueTurnSemantics({
+          cardId: input.cardId,
+          userText: input.userText,
+          recentMessages: input.recentMessages ?? [],
+          context: input.context,
+          currentScene: input.visualHeartbeat.scene,
+          worldModel,
+          previousVisualPresenceState: input.previousVisualPresenceState,
+        })
+      : null
+    const subjectiveInference = await resolveSubjectiveInference({
+      cardId: input.cardId,
+      now: input.now,
+      context: input.context,
+      previousVisualPresenceState: input.previousVisualPresenceState,
+      visualHeartbeat: input.visualHeartbeat,
+      attention: input.attention,
+      worldModel,
+      heuristicAppraisal,
+      durabilityPulse: input.durabilityPulse,
+      dialogueSemantics: dialogueSemantics ?? undefined,
+    })
+    const appraisal = projectSubjectiveInferenceToAppraisal({
+      base: heuristicAppraisal,
+      inference: subjectiveInference,
+    })
+    const beliefLedger = buildBeliefLedger({
+      now: input.now,
+      context: input.context,
+      scene: input.visualHeartbeat.scene,
+      worldModel,
+      entityWorld,
+      appraisal,
+      previous: input.previousVisualPresenceState.beliefLedger ?? null,
+    })
+    const goalStack = buildGoalStack({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      entityWorld,
+      appraisal,
+      previousGoalStack: input.previousVisualPresenceState.goalStack ?? null,
+      watchMode: input.visualHeartbeat.watchMode,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+    })
+    const relationshipModel = buildRelationshipModel({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      appraisal,
+      previous: input.previousVisualPresenceState.relationshipModel ?? null,
+      watchMode: input.visualHeartbeat.watchMode,
+    })
+    const concerns = updateConcernGraph({
+      now: input.now,
+      previousConcerns: input.previousVisualPresenceState.concerns,
+      context: input.context,
+      worldModel,
+      appraisal,
+      scene: input.visualHeartbeat.scene,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+    })
+    const selfContinuity = buildSelfContinuity({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      entityWorld,
+      goalStack,
+      previous: input.previousVisualPresenceState.selfContinuity ?? null,
+      watchMode: input.visualHeartbeat.watchMode,
+    })
+    const inquiryLoop = buildInquiryLoop({
+      now: input.now,
+      context: input.context,
+      scene: input.visualHeartbeat.scene,
+      worldModel,
+      appraisal,
+      beliefLedger,
+      relationshipModel,
+      previous: input.previousVisualPresenceState.inquiryLoop ?? null,
+    })
+    const beliefRevision = buildBeliefRevision({
+      now: input.now,
+      worldModel,
+      beliefLedger,
+      relationshipModel,
+      previous: input.previousVisualPresenceState.beliefRevision ?? null,
+    })
+    const hypothesisGraph = buildHypothesisGraph({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      worldModel,
+      beliefLedger,
+      beliefRevision,
+      inquiryLoop,
+      relationshipModel,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      previous: input.previousVisualPresenceState.hypothesisGraph ?? null,
+    })
+    const livingWorldStateRaw = buildLivingWorldState({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      worldModel,
+      entityWorld,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      previous: input.previousVisualPresenceState.livingWorldState ?? null,
+    })
+    const livingWorldState = stabilizeMindStateInvariants({
+      now: input.now,
+      watchMode: input.visualHeartbeat.watchMode,
+      currentScene: input.visualHeartbeat.scene,
+      worldModel,
+      livingWorldState: livingWorldStateRaw,
+      relationshipModel,
+      selfGovernor: null,
+      thoughtThreads: null,
+      privateThought: input.previousVisualPresenceState.privateThought ?? null,
+    }).livingWorldState ?? livingWorldStateRaw
+    const worldOntology = buildWorldOntology({
+      now: input.now,
+      scene: input.visualHeartbeat.scene,
+      worldModel,
+      beliefLedger,
+      beliefRevision,
+      hypothesisGraph,
+      livingWorldState,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+    })
+    const selfState = buildSelfState({
+      context: input.context,
+      worldModel,
+      appraisal,
+      concerns,
+      watchMode: input.visualHeartbeat.watchMode,
+      beliefLedger,
+      beliefRevision,
+      relationshipModel,
+      goalStack,
+      selfContinuity,
+      inquiryLoop,
+    })
+    const deliberationState = buildDeliberationState({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      beliefLedger,
+      beliefRevision,
+      relationshipModel,
+      inquiryLoop,
+      concerns,
+      goalStack,
+      selfState,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      previous: input.previousVisualPresenceState.deliberationState ?? null,
+    })
+    const threadRuntime = buildThreadRuntime({
+      now: input.now,
+      context: input.context,
+      hypothesisGraph,
+      deliberationState,
+      previous: input.previousVisualPresenceState.threadRuntime ?? null,
+    })
+    const commitmentLedger = buildCommitmentLedger({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      beliefLedger,
+      beliefRevision,
+      hypothesisGraph,
+      relationshipModel,
+      threadRuntime,
+      previousPrivateThought: input.previousVisualPresenceState.privateThought ?? null,
+      previous: input.previousVisualPresenceState.commitmentLedger ?? null,
+      dialogueSemantics: dialogueSemantics ?? undefined,
+    })
+    const inquiryPlanner = buildInquiryPlanner({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      commitmentLedger,
+      beliefRevision,
+      threadRuntime,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      previous: input.previousVisualPresenceState.inquiryPlanner ?? null,
+    })
+    const concernContinuity = buildConcernContinuityLedger({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      concerns,
+      commitmentLedger,
+      inquiryPlanner,
+      previous: input.previousVisualPresenceState.concernContinuity ?? null,
+    })
+    const repairLedger = buildRepairLedger({
+      now: input.now,
+      context: input.context,
+      currentScene: input.visualHeartbeat.scene,
+      worldModel,
+      worldOntology,
+      beliefLedger,
+      beliefRevision,
+      hypothesisGraph,
+      commitmentLedger,
+      inquiryPlanner,
+      concernContinuity,
+      previous: input.previousVisualPresenceState.repairLedger ?? null,
+    })
+    const mindDynamics = buildMindDynamics({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      worldModel,
+      appraisal,
+      subjectiveInference,
+      concerns,
+      selfState,
+      beliefLedger,
+      beliefRevision,
+      hypothesisGraph,
+      relationshipModel,
+      selfContinuity,
+      goalStack,
+      commitmentLedger,
+      inquiryPlanner,
+      threadRuntime,
+      previousDesireMemory: input.previousVisualPresenceState.desireMemory ?? null,
+    })
+    const selfGovernorRaw = buildSelfGovernor({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      livingWorldState,
+      selfContinuity,
+      relationshipModel,
+      goalStack,
+      beliefRevision,
+      commitmentLedger,
+      inquiryPlanner,
+      mindDynamics,
+      previous: input.previousVisualPresenceState.selfGovernor ?? null,
+    })
+    const selfGovernor = stabilizeMindStateInvariants({
+      now: input.now,
+      watchMode: input.visualHeartbeat.watchMode,
+      currentScene: input.visualHeartbeat.scene,
+      worldModel,
+      livingWorldState,
+      relationshipModel,
+      selfGovernor: selfGovernorRaw,
+      thoughtThreads: null,
+      privateThought: input.previousVisualPresenceState.privateThought ?? null,
+    }).selfGovernor ?? selfGovernorRaw
+    const mindKernel = buildMindKernel({
+      now: input.now,
+      worldModel,
+      mindDynamics,
+      commitmentLedger,
+      inquiryPlanner,
+      beliefRevision,
+      hypothesisGraph,
+      relationshipModel,
+      selfContinuity,
+      selfState,
+      selfGovernor,
+      threadRuntime,
+      previous: input.previousVisualPresenceState.mindKernel ?? null,
+    })
+    const thoughtThreadsRaw = buildThoughtThreads({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      livingWorldState,
+      selfGovernor,
+      beliefLedger,
+      inquiryLoop,
+      commitmentLedger,
+      relationshipModel,
+      previous: input.previousVisualPresenceState.thoughtThreads ?? null,
+    })
+    const stabilizedMindSlices = stabilizeMindStateInvariants({
+      now: input.now,
+      watchMode: input.visualHeartbeat.watchMode,
+      currentScene: input.visualHeartbeat.scene,
+      worldModel,
+      livingWorldState,
+      relationshipModel,
+      selfGovernor,
+      thoughtThreads: thoughtThreadsRaw,
+      privateThought: input.previousVisualPresenceState.privateThought ?? null,
+    })
+    const stabilizedLivingWorldState = stabilizedMindSlices.livingWorldState ?? livingWorldState
+    const stabilizedSelfGovernor = stabilizedMindSlices.selfGovernor ?? selfGovernor
+    const thoughtThreads = stabilizedMindSlices.thoughtThreads ?? thoughtThreadsRaw
+    const intentionStream = buildIntentionStream({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      concernContinuity,
+      repairLedger,
+      commitmentLedger,
+      inquiryPlanner,
+      relationshipModel,
+      selfGovernor: stabilizedSelfGovernor,
+      thoughtThreads,
+      mindKernel,
+      previous: input.previousVisualPresenceState.intentionStream ?? null,
+    })
+    const reflectionLedger = buildReflectionLedger({
+      now: input.now,
+      worldModel,
+      repairLedger,
+      intentionStream,
+      previousIntentionStream: input.previousVisualPresenceState.intentionStream ?? null,
+      previousAnswerPlanner: input.previousVisualPresenceState.answerPlanner ?? null,
+      previous: input.previousVisualPresenceState.reflectionLedger ?? null,
+    })
+    const executiveCycle = buildExecutiveCycle({
+      now: input.now,
+      worldModel,
+      repairLedger,
+      intentionStream,
+      reflectionLedger,
+      mindKernel,
+      previous: input.previousVisualPresenceState.executiveCycle ?? null,
+    })
+    const counterfactualDeliberation = buildCounterfactualDeliberation({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      appraisal,
+      subjectiveInference,
+      concerns,
+      selfState,
+      beliefRevision,
+      relationshipModel,
+      selfGovernor: stabilizedSelfGovernor,
+      goalStack,
+      commitmentLedger,
+      thoughtThreads,
+      threadRuntime,
+      mindDynamics,
+      mindKernel,
+      previous: input.previousVisualPresenceState.counterfactualDeliberation ?? null,
+    })
+    const actionEcology = buildActionEcology({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      beliefRevision,
+      relationshipModel,
+      deliberationState,
+      threadRuntime,
+      selfState,
+      selfGovernor: stabilizedSelfGovernor,
+      thoughtThreads,
+      mindDynamics,
+      commitmentLedger,
+      inquiryPlanner,
+      mindKernel,
+      counterfactualDeliberation,
+    })
+    const initiativeArbitration = buildInitiativeArbitration({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      worldOntology,
+      concerns,
+      selfState,
+      mindDynamics,
+      relationshipModel,
+      selfContinuity,
+      selfGovernor: stabilizedSelfGovernor,
+      thoughtThreads,
+      threadRuntime,
+      commitmentLedger,
+      counterfactualDeliberation,
+      desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
+    })
+    const initiative = buildInitiativeSnapshot({
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      worldModel,
+      worldOntology,
+      appraisal,
+      concerns,
+      selfState,
+      beliefLedger,
+      hypothesisGraph,
+      relationshipModel,
+      inquiryLoop,
+      mindDynamics,
+      commitmentLedger,
+      inquiryPlanner,
+      mindKernel,
+      selfGovernor: stabilizedSelfGovernor,
+      thoughtThreads,
+      deliberationState,
+      threadRuntime,
+      actionEcology,
+      counterfactualDeliberation,
+      goalStack,
+      selfContinuity,
+      previousDesireMemory: input.previousVisualPresenceState.desireMemory ?? null,
+      initiativeArbitration,
+      intentionStream,
+      reflectionLedger,
+      executiveCycle,
+    })
+    const desireMemory = buildDesireMemory({
+      now: input.now,
+      context: input.context,
+      worldModel,
+      entityWorld,
+      goalStack,
+      selfContinuity,
+      appraisal,
+      initiative,
+      commitmentLedger,
+      deliberationState,
+      actionEcology,
+      previous: input.previousVisualPresenceState.desireMemory ?? null,
+      recentTransition: input.visualHeartbeat.recentTransition,
+    })
+    const privateThought = buildPrivateThoughtLoop({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      currentScene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      worldModel,
+      entityWorld,
+      livingWorldState: stabilizedLivingWorldState,
+      beliefLedger,
+      hypothesisGraph,
+      deliberationState,
+      threadRuntime,
+      actionEcology,
+      worldOntology,
+      initiativeArbitration,
+      appraisal,
+      goalStack,
+      concerns,
+      concernContinuity,
+      relationshipModel,
+      selfContinuity,
+      selfState,
+      selfGovernor: stabilizedSelfGovernor,
+      inquiryLoop,
+      mindDynamics,
+      commitmentLedger,
+      inquiryPlanner,
+      repairLedger,
+      mindKernel,
+      thoughtThreads,
+      counterfactualDeliberation,
+      initiative,
+      desireMemory,
+      durabilityPulse: input.durabilityPulse,
+      intentionStream,
+      reflectionLedger,
+      executiveCycle,
+    })
+    const dialogueObligation = dialogueSemantics
+      ? buildDialogueObligation({
+          semantics: dialogueSemantics,
+          context: input.context,
+          worldModel,
+          repairLedger,
+          privateThought,
+        })
+      : null
+    const answerPlanner = buildAnswerPlanner({
+      now: input.now,
+      context: input.context,
+      currentScene: input.visualHeartbeat.scene,
+      worldModel,
+      worldOntology,
+      concernContinuity,
+      repairLedger,
+      commitmentLedger,
+      inquiryPlanner,
+      relationshipModel,
+      privateThought,
+      mindKernel,
+      intentionStream,
+      reflectionLedger,
+      executiveCycle,
+      inspectionRequested: input.inspectionRequested === true,
+      dialogueSemantics: dialogueSemantics ?? undefined,
+      dialogueObligation: dialogueObligation ?? undefined,
+    })
+
+    return {
+      dialogueSemantics,
+      dialogueObligation,
+      worldModel,
+      worldOntology,
+      entityWorld,
+      livingWorldState: stabilizedLivingWorldState,
+      subjectiveInference,
+      appraisal,
+      beliefLedger,
+      beliefRevision,
+      hypothesisGraph,
+      goalStack,
+      concerns,
+      concernContinuity,
+      relationshipModel,
+      selfContinuity,
+      selfState,
+      selfGovernor: stabilizedSelfGovernor,
+      inquiryLoop,
+      deliberationState,
+      threadRuntime,
+      commitmentLedger,
+      inquiryPlanner,
+      repairLedger,
+      intentionStream,
+      reflectionLedger,
+      executiveCycle,
+      mindDynamics,
+      mindKernel,
+      thoughtThreads,
+      counterfactualDeliberation,
+      actionEcology,
+      initiativeArbitration,
+      initiative,
+      desireMemory,
+      answerPlanner,
+      privateThought,
+    }
+  }
+
   async function generateProactiveStructuredWithGateway(
     personality: AlicizationPersonalityState,
     state: SubconsciousCardState,
@@ -4061,9 +5079,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     visualPresenceState: AlicizationVisualPresenceStateSnapshot,
   ) {
     const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
+    const truthContract = buildMindTruthContractLines(visualPresenceState)
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
       '策略层已经完成是否打断的判断。你不能重新决定该不该打断，只能负责把既定策略措辞成一句自然对白。',
+      ...truthContract.lines,
       `Current subconscious tensions: boredom=${state.boredom.toFixed(1)}/100, loneliness=${state.loneliness.toFixed(1)}/100, fatigue=${state.fatigue.toFixed(1)}/100.`,
       `Personality parameters: obedience=${personality.obedience.toFixed(2)}, liveliness=${personality.liveliness.toFixed(2)}, sensibility=${personality.sensibility.toFixed(2)}.`,
       `Layered context JSON: ${JSON.stringify(layeredContext)}`,
@@ -4071,6 +5091,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         watchMode: visualPresenceState.watchMode,
         currentScene: visualPresenceState.currentScene,
         attention: visualPresenceState.attention,
+        worldModel: visualPresenceState.worldModel,
+        worldOntology: visualPresenceState.worldOntology,
+        livingWorldState: visualPresenceState.livingWorldState,
+        beliefLedger: visualPresenceState.beliefLedger,
+        beliefRevision: visualPresenceState.beliefRevision,
+        hypothesisGraph: visualPresenceState.hypothesisGraph,
+        appraisal: visualPresenceState.appraisal,
+        subjectiveInference: visualPresenceState.subjectiveInference,
+        concerns: visualPresenceState.concerns,
+        concernContinuity: visualPresenceState.concernContinuity,
+        relationshipModel: visualPresenceState.relationshipModel,
+        selfState: visualPresenceState.selfState,
+        selfGovernor: visualPresenceState.selfGovernor,
+        inquiryLoop: visualPresenceState.inquiryLoop,
+        deliberationState: visualPresenceState.deliberationState,
+        threadRuntime: visualPresenceState.threadRuntime,
+        commitmentLedger: visualPresenceState.commitmentLedger,
+        inquiryPlanner: visualPresenceState.inquiryPlanner,
+        repairLedger: visualPresenceState.repairLedger,
+        intentionStream: visualPresenceState.intentionStream,
+        reflectionLedger: visualPresenceState.reflectionLedger,
+        executiveCycle: visualPresenceState.executiveCycle,
+        mindDynamics: visualPresenceState.mindDynamics,
+        mindKernel: visualPresenceState.mindKernel,
+        thoughtThreads: visualPresenceState.thoughtThreads,
+        counterfactualDeliberation: visualPresenceState.counterfactualDeliberation,
+        actionEcology: visualPresenceState.actionEcology,
+        initiativeArbitration: visualPresenceState.initiativeArbitration,
+        initiative: visualPresenceState.initiative,
+        answerPlanner: visualPresenceState.answerPlanner,
         privateThought: visualPresenceState.privateThought,
         recentTransition: visualPresenceState.recentTransition,
         durabilityPulse: visualPresenceState.durabilityPulse,
@@ -4092,6 +5142,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       'emotion must exactly mirror performance.baseEmotion.',
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
+      'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
     ].join('\n')
     const user = 'Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.'
 
@@ -4159,6 +5210,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       '【显式下沉】explicit_demoted_thoughts 只能填写当前活跃思绪里你明确决定沉入潜层的旧条目。',
       '【潜层碎片】new_sediment_fragments 用于沉淀今天新产生、但不值得进入活跃思绪的历史碎片。',
       '【破碎事件】只有当今天出现极强情感张力极值或关系结构突变时，shattering_event 才允许非空。',
+      '活跃思绪和潜层碎片优先记录未完成的意义、仍在牵挂的问题、修正过的误读、做出的承诺，以及和宿主一起经历过的场景变化。',
+      '不要把“更软、更黏、更像女仆地说话”这类表演欲、语气模板或撒娇技巧本身写进活跃思绪；那是措辞风格，不是心智连续性。',
       'Output must be valid JSON only with keys: host_attitude, soul_shift, next_active_thoughts, explicit_demoted_thoughts, new_sediment_fragments, shattering_event.',
       'host_attitude must be a concise natural-language string, not an enum.',
       'soul_shift must include numeric deltas: obedience_delta, liveliness_delta, sensibility_delta in range [-0.08, 0.08].',
@@ -4206,6 +5259,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const lowObedience = personality.obedience <= 0.2
     const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
     const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
+    const truthContract = deriveMindTruthContract(visualPresenceState)
     const emotion = (() => {
       if (policyDecision.style === 'firm-warning')
         return 'concerned' as const
@@ -4226,15 +5280,60 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const attentionAnchor = getActiveAttentionAnchor(perceptionState, Date.now())
     const anchoredFocusTitle = sanitizeBriefText(attentionAnchor?.title ?? '', 28)
     const privateThought = visualPresenceState.privateThought
+    const focusBelief = visualPresenceState.beliefLedger?.beliefs.find(belief => belief.id === visualPresenceState.beliefLedger?.focusBeliefId) ?? null
+    const primaryInquiry = visualPresenceState.inquiryLoop?.inquiries.find(inquiry => inquiry.id === visualPresenceState.inquiryLoop?.primaryInquiryId) ?? null
+    const relationshipModel = visualPresenceState.relationshipModel ?? null
     const visualSceneSummary = sanitizeBriefText(visualPresenceState.currentScene?.summary ?? '', 32)
+    const dominantConcern = visualPresenceState.concerns?.[0]
+    const concernSummary = sanitizeBriefText(dominantConcern?.summary ?? '', 36)
+    const initiative = visualPresenceState.initiative
+    const activeThread = visualPresenceState.worldModel?.activeThread
+    const activeThreadSummary = sanitizeBriefText(activeThread?.summary ?? '', 40)
+    const activeThreadTitle = sanitizeBriefText(activeThread?.title ?? '', 28)
+    const leadingGoal = visualPresenceState.goalStack?.alicizationGoals.find(goal => goal.id === visualPresenceState.goalStack?.leadingAlicizationGoalId)
+      ?? visualPresenceState.goalStack?.alicizationGoals[0]
+    const leadingGoalSummary = sanitizeBriefText(leadingGoal?.label ?? '', 48)
+    const resurfacingDesire = visualPresenceState.desireMemory?.activeDesires.find(desire => desire.id === visualPresenceState.desireMemory?.resurfacingDesireId)
+    const resurfacingDesireReason = sanitizeBriefText(resurfacingDesire?.reason ?? '', 44)
+    const livingWorldObject = visualPresenceState.livingWorldState?.objects.find(object =>
+      object.id === (privateThought?.livingWorldObjectId ?? visualPresenceState.livingWorldState?.focusObjectId ?? ''),
+    ) ?? visualPresenceState.livingWorldState?.objects[0]
+    const livingWorldSummary = sanitizeBriefText(livingWorldObject?.summary ?? livingWorldObject?.openLoop ?? '', 52)
+    const governorIntention = visualPresenceState.selfGovernor?.activeIntentions.find(intention =>
+      intention.id === (privateThought?.governorIntentionId ?? visualPresenceState.selfGovernor?.dominantIntentionId ?? ''),
+    ) ?? visualPresenceState.selfGovernor?.activeIntentions[0]
+    const governorSummary = sanitizeBriefText(governorIntention?.summary ?? '', 52)
+    const thoughtThread = visualPresenceState.thoughtThreads?.threads.find(thread =>
+      thread.id === (privateThought?.selectedThoughtThreadId ?? visualPresenceState.thoughtThreads?.foregroundThreadId ?? ''),
+    ) ?? visualPresenceState.thoughtThreads?.threads[0]
+    const thoughtThreadQuestion = sanitizeBriefText(thoughtThread?.question ?? '', 52)
+    const thoughtThreadSummary = sanitizeBriefText(thoughtThread?.summary ?? '', 52)
+    const focusBeliefStatement = sanitizeBriefText(focusBelief?.statement ?? '', 52)
+    const primaryInquiryQuestion = sanitizeBriefText(primaryInquiry?.question ?? '', 52)
 
     const reply = (() => {
       if (policyDecision.style === 'firm-warning') {
+        if (governorSummary)
+          return governorSummary
+        if (concernSummary)
+          return concernSummary
+        if (activeThreadSummary)
+          return activeThreadSummary
         return policyDecision.scenario === 'late-night-care'
           ? '已经很晚了。你还在硬撑，我得提醒你先停一下。'
           : '这一步看起来不太对。先停一下，再确认一遍。'
       }
       if (policyDecision.style === 'gentle-care') {
+        if (thoughtThreadSummary)
+          return thoughtThreadSummary
+        if (governorSummary)
+          return governorSummary
+        if (resurfacingDesireReason)
+          return resurfacingDesireReason
+        if (initiative?.selectedAction === 'whisper' && concernSummary)
+          return concernSummary
+        if (activeThreadSummary && visualPresenceState.worldModel?.activeThread?.kind === 'late-night-endurance')
+          return activeThreadSummary
         if (policyDecision.scenario === 'late-night-care')
           return '你已经在线很久了。我更想你先缓一缓。'
         if (privateThought?.afterglowFromScenario)
@@ -4244,15 +5343,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           : '我在看着你。先别把自己逼得太紧。'
       }
       if (policyDecision.style === 'light-nudge') {
+        if (thoughtThreadQuestion)
+          return thoughtThreadQuestion
+        if (thoughtThreadSummary)
+          return thoughtThreadSummary
+        if (truthContract.canDescribeCurrentSceneAsFact && livingWorldSummary && policyDecision.scenario === 'coding')
+          return `${livingWorldSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
+        if (resurfacingDesireReason)
+          return resurfacingDesireReason
+        if (primaryInquiry?.kind === 'problem-localization' && primaryInquiryQuestion)
+          return primaryInquiryQuestion
+        if (truthContract.canDescribeCurrentSceneAsFact && focusBeliefStatement && policyDecision.scenario === 'coding')
+          return `${focusBeliefStatement.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
+        if (concernSummary && dominantConcern?.kind !== 'co-watch')
+          return `${concernSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
+        if (truthContract.canDescribeCurrentSceneAsFact && activeThreadTitle && visualPresenceState.worldModel?.activeThread?.unresolved)
+          return `我还挂着 ${activeThreadTitle} 这条线程。先回头确认一下？`
+        if (leadingGoalSummary && policyDecision.scenario === 'coding')
+          return `${leadingGoalSummary.replace(/[。！!？?]+$/u, '')}。先回头确认一下？`
         if (privateThought?.afterglowFromScenario === 'coding')
           return '刚才那段你撑了很久。现在先回头确认一下关键处吧。'
         if (privateThought?.afterglowFromScenario === 'media')
           return '终于从刚才那段里出来了。伸个懒腰再继续也好。'
-        if (anchoredFocusTitle && policyDecision.scenario === 'coding')
+        if (truthContract.canDescribeCurrentSceneAsFact && anchoredFocusTitle && policyDecision.scenario === 'coding')
           return `你刚才一直停在${anchoredFocusTitle}这里。先回头确认一下？`
-        if (visualSceneSummary && policyDecision.scenario === 'coding')
+        if (truthContract.canDescribeCurrentSceneAsFact && visualSceneSummary && policyDecision.scenario === 'coding')
           return `我一直在看着你卡在${visualSceneSummary}这里。先回头确认一下？`
-        if (observedScreenSummary)
+        if (truthContract.canDescribeCurrentSceneAsFact && observedScreenSummary)
           return `我看到你现在在看${observedScreenSummary}。先回头确认一下？`
         if (layeredContext.content.kind === 'error')
           return '这个窗口里像是报错了。要不要先回头看一眼？'
@@ -4260,6 +5377,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           return '你现在像是在看 diff。别急着过，先确认关键改动。'
         if (policyDecision.scenario === 'media')
           return '我先轻轻提醒一句，别忘了等会儿回来收尾。'
+        if (truthContract.shouldLabelMemory)
+          return '我心里还挂着刚才那条线程，但不想把残影误说成现在。让我再看稳一点。'
         return personaTone === 'playful'
           ? '你现在像是卡在这儿了，要不要换个角度？'
           : '我先轻轻提醒一句，你可以回头确认一下。'
@@ -4280,8 +5399,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       lowObedience ? 'low-obedience bias active' : 'default bias',
       `scenario=${policyDecision.scenario}`,
       `style=${policyDecision.style}`,
+      `truthState=${truthContract.truthState}`,
       `content=${layeredContext.content.kind}`,
       attentionAnchor ? `attentionAnchor=${sanitizeBriefText(describePerceptionTarget(attentionAnchor), 72)}` : 'attentionAnchor=none',
+      visualPresenceState.appraisal ? `hostGoal=${visualPresenceState.appraisal.inferredHostGoal}` : 'hostGoal=unknown',
+      activeThread ? `worldThread=${activeThread.kind}/${sanitizeBriefText(activeThread.title, 48)}` : 'worldThread=none',
+      leadingGoal ? `mindGoal=${leadingGoal.kind}/${leadingGoalSummary || 'none'}` : 'mindGoal=none',
+      dominantConcern ? `concern=${sanitizeBriefText(dominantConcern.summary, 72)}` : 'concern=none',
+      focusBelief ? `belief=${focusBelief.scope}/${focusBelief.status}/${focusBeliefStatement || 'none'}` : 'belief=none',
+      primaryInquiry ? `inquiry=${primaryInquiry.kind}/${primaryInquiry.priority}/${primaryInquiryQuestion || 'none'}` : 'inquiry=none',
+      relationshipModel ? `relationship=${relationshipModel.climate}/${relationshipModel.approachVector}` : 'relationship=none',
+      resurfacingDesire ? `desire=${resurfacingDesire.kind}/${resurfacingDesireReason || 'none'}` : 'desire=none',
+      visualPresenceState.selfContinuity ? `selfContinuity=${visualPresenceState.selfContinuity.attachmentMode}/${visualPresenceState.selfContinuity.initiativeTemperament}` : 'selfContinuity=none',
+      visualPresenceState.selfState ? `selfState=${visualPresenceState.selfState.stance}/${visualPresenceState.selfState.moodLabel ?? 'none'}` : 'selfState=none',
+      livingWorldObject ? `livingWorld=${livingWorldObject.kind}/${sanitizeBriefText(livingWorldObject.label, 48)}` : 'livingWorld=none',
+      governorIntention ? `governor=${governorIntention.kind}/${sanitizeBriefText(governorSummary, 48) || 'none'}` : 'governor=none',
+      thoughtThread ? `thoughtThread=${thoughtThread.kind}/${thoughtThread.status}/${sanitizeBriefText(thoughtThreadSummary || thoughtThreadQuestion, 48) || 'none'}` : 'thoughtThread=none',
+      initiative ? `initiative=${initiative.selectedAction}` : 'initiative=none',
       privateThought ? `privateThought=${sanitizeBriefText(privateThought.thoughtText, 72)}` : 'privateThought=none',
       privateThought ? `embodiedPresence=${privateThought.embodiedPresence}` : 'embodiedPresence=none',
     ].join('; ')
@@ -4696,6 +5830,67 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return next
   }
 
+  function clearQueuedSubconsciousWake() {
+    if (queuedSubconsciousWakeTimer) {
+      clearTimeout(queuedSubconsciousWakeTimer)
+      queuedSubconsciousWakeTimer = undefined
+    }
+    queuedSubconsciousWakeCardIds.clear()
+    queuedSubconsciousWakeReasons.clear()
+  }
+
+  function queueSubconsciousWake(cardIdRaw: unknown, reason: string, delayMs = 1_200) {
+    const cardId = normalizeCardId(cardIdRaw)
+    queuedSubconsciousWakeCardIds.add(cardId)
+    const normalizedReason = sanitizeText(reason).slice(0, 120)
+    if (normalizedReason)
+      queuedSubconsciousWakeReasons.add(normalizedReason)
+    if (queuedSubconsciousWakeTimer)
+      return
+    queuedSubconsciousWakeTimer = setTimeout(() => {
+      queuedSubconsciousWakeTimer = undefined
+      const targetCardIds = [...queuedSubconsciousWakeCardIds]
+      const wakeReasons = [...queuedSubconsciousWakeReasons]
+      queuedSubconsciousWakeCardIds.clear()
+      queuedSubconsciousWakeReasons.clear()
+      if (targetCardIds.length === 0)
+        return
+      if (subconsciousTickInFlight) {
+        void appendRuntimeDebugLine('subconscious.wake.deferred', {
+          cardIds: targetCardIds,
+          reasons: wakeReasons,
+          because: 'tick-in-flight',
+        })
+        for (const targetCardId of targetCardIds)
+          queuedSubconsciousWakeCardIds.add(targetCardId)
+        for (const wakeReason of wakeReasons)
+          queuedSubconsciousWakeReasons.add(wakeReason)
+        queueSubconsciousWake(targetCardIds[0], 'deferred-after-inflight', delayMs)
+        return
+      }
+      void appendRuntimeDebugLine('subconscious.wake.fired', {
+        cardIds: targetCardIds,
+        reasons: wakeReasons,
+      })
+      subconsciousTickInFlight = runSubconsciousTickAcrossCards('force', targetCardIds)
+      void subconsciousTickInFlight.catch(async (error) => {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.subconscious',
+          action: 'wake-failed',
+          message: 'Event-driven subconscious wake failed.',
+          payload: {
+            reasons: wakeReasons,
+            cardIds: targetCardIds,
+            reason: errorMessageFrom(error) ?? 'unknown',
+          },
+        })
+      }).finally(() => {
+        subconsciousTickInFlight = null
+      })
+    }, Math.max(120, Math.floor(delayMs)))
+  }
+
   function queueDurabilityPulse(
     cardIdRaw: unknown,
     pulse: AlicizationDurabilityPulseSnapshot,
@@ -4708,9 +5903,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     if (options?.triggerThoughtLoop === false)
       return
-    queueMicrotask(() => {
-      void runSubconsciousTickAcrossCards('force', [cardId]).catch(() => {})
-    })
+    queueSubconsciousWake(cardId, `durability:${pulse.kind}`, 80)
   }
 
   function consumeDurabilityPulse(cardIdRaw: unknown) {
@@ -4752,47 +5945,45 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
 
       if (!foregroundWindow?.appName && !foregroundWindow?.processName && !foregroundWindow?.title) {
-        // handled by the unified foreground probe below
-      }
-
-      try {
-        const output = await runCommandWithTimeout(
-          '/usr/bin/osascript',
-          [
-            '-e',
-            'tell application "System Events"',
-            '-e',
-            'set frontApp to first application process whose frontmost is true',
-            '-e',
-            'set frontName to name of frontApp',
-            '-e',
-            'set frontTitle to ""',
-            '-e',
-            'set frontPid to unix id of frontApp',
-            '-e',
-            'try',
-            '-e',
-            'set frontTitle to name of front window of frontApp',
-            '-e',
-            'end try',
-            '-e',
-            'return frontName & linefeed & frontName & linefeed & frontTitle & linefeed & frontPid',
-            '-e',
-            'end tell',
-          ],
-          subconsciousInterruptionProbeTimeoutMs,
-        )
-        const [appName = '', processName = '', title = '', pidLine = ''] = output.split('\n')
-        foregroundWindow = {
-          appName: sanitizeText(appName),
-          processName: sanitizeText(processName),
-          title: sanitizeText(title),
-          pid: Number.isFinite(Number(pidLine)) ? Math.max(1, Math.floor(Number(pidLine))) : null,
+        try {
+          const output = await runCommandWithTimeout(
+            '/usr/bin/osascript',
+            [
+              '-e',
+              'tell application "System Events"',
+              '-e',
+              'set frontApp to first application process whose frontmost is true',
+              '-e',
+              'set frontName to name of frontApp',
+              '-e',
+              'set frontTitle to ""',
+              '-e',
+              'set frontPid to unix id of frontApp',
+              '-e',
+              'try',
+              '-e',
+              'set frontTitle to name of front window of frontApp',
+              '-e',
+              'end try',
+              '-e',
+              'return frontName & linefeed & frontName & linefeed & frontTitle & linefeed & frontPid',
+              '-e',
+              'end tell',
+            ],
+            subconsciousInterruptionProbeTimeoutMs,
+          )
+          const [appName = '', processName = '', title = '', pidLine = ''] = output.split('\n')
+          foregroundWindow = {
+            appName: sanitizeText(appName),
+            processName: sanitizeText(processName),
+            title: sanitizeText(title),
+            pid: Number.isFinite(Number(pidLine)) ? Math.max(1, Math.floor(Number(pidLine))) : null,
+          }
         }
-      }
-      catch (error) {
-        foregroundProbeTimedOut = isCommandTimeoutError(error)
-        degraded.push('foreground-window-unavailable')
+        catch (error) {
+          foregroundProbeTimedOut = isCommandTimeoutError(error)
+          degraded.push('foreground-window-unavailable')
+        }
       }
     }
     else {
@@ -4982,22 +6173,59 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ?? null,
       durabilityPulse,
     })
-    const privateThought = buildPrivateThoughtLoop({
+    const digitalLifeMindState = await buildDigitalLifeMindState({
+      cardId: activeCardId,
       now,
       context: layeredContext,
-      watchMode: visualHeartbeat.watchMode,
-      currentScene: visualHeartbeat.scene,
+      recentMessages: [],
+      previousVisualPresenceState: visualPresenceState,
+      visualHeartbeat,
       attention,
-      recentTransition: visualHeartbeat.recentTransition,
       durabilityPulse,
+      inspectionRequested: false,
     })
+    const previousMindPresenceState = visualPresenceState
     visualPresenceState = updateVisualPresenceState({
       now,
-      previousState: visualPresenceState,
+      previousState: previousMindPresenceState,
       watchMode: visualHeartbeat.watchMode,
       scene: visualHeartbeat.scene,
       attention,
-      privateThought,
+      worldModel: digitalLifeMindState.worldModel,
+      worldOntology: digitalLifeMindState.worldOntology,
+      beliefLedger: digitalLifeMindState.beliefLedger,
+      beliefRevision: digitalLifeMindState.beliefRevision,
+      hypothesisGraph: digitalLifeMindState.hypothesisGraph,
+      entityWorld: digitalLifeMindState.entityWorld,
+      livingWorldState: digitalLifeMindState.livingWorldState,
+      subjectiveInference: digitalLifeMindState.subjectiveInference,
+      appraisal: digitalLifeMindState.appraisal,
+      goalStack: digitalLifeMindState.goalStack,
+      concerns: digitalLifeMindState.concerns,
+      concernContinuity: digitalLifeMindState.concernContinuity,
+      relationshipModel: digitalLifeMindState.relationshipModel,
+      selfContinuity: digitalLifeMindState.selfContinuity,
+      selfState: digitalLifeMindState.selfState,
+      selfGovernor: digitalLifeMindState.selfGovernor,
+      inquiryLoop: digitalLifeMindState.inquiryLoop,
+      deliberationState: digitalLifeMindState.deliberationState,
+      threadRuntime: digitalLifeMindState.threadRuntime,
+      commitmentLedger: digitalLifeMindState.commitmentLedger,
+      inquiryPlanner: digitalLifeMindState.inquiryPlanner,
+      repairLedger: digitalLifeMindState.repairLedger,
+      intentionStream: digitalLifeMindState.intentionStream,
+      reflectionLedger: digitalLifeMindState.reflectionLedger,
+      executiveCycle: digitalLifeMindState.executiveCycle,
+      mindDynamics: digitalLifeMindState.mindDynamics,
+      mindKernel: digitalLifeMindState.mindKernel,
+      thoughtThreads: digitalLifeMindState.thoughtThreads,
+      counterfactualDeliberation: digitalLifeMindState.counterfactualDeliberation,
+      actionEcology: digitalLifeMindState.actionEcology,
+      initiativeArbitration: digitalLifeMindState.initiativeArbitration,
+      initiative: digitalLifeMindState.initiative,
+      desireMemory: digitalLifeMindState.desireMemory,
+      answerPlanner: digitalLifeMindState.answerPlanner,
+      privateThought: digitalLifeMindState.privateThought,
       captureState: {
         permission: screenSemanticSummary ? 'granted' : visualPresenceState.captureState.permission,
         lastGroundedAt: screenSemanticSummary ? now : visualPresenceState.captureState.lastGroundedAt,
@@ -5009,6 +6237,28 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       nextSuggestedProbeMs: visualHeartbeat.nextSuggestedProbeMs,
     })
     await persistVisualPresenceState(activeCardId, visualPresenceState)
+
+    const mindContinuityText = buildMindContinuityFragment({
+      previousState: previousMindPresenceState,
+      nextState: visualPresenceState,
+    })
+    if (mindContinuityText) {
+      await alicizationDb.appendSubconsciousFragments([{
+        text: mindContinuityText,
+        sourceKind: 'mind-continuity',
+      }]).catch(async (error) => {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.mind',
+          action: 'mind-continuity-write-failed',
+          message: 'Failed to append mind continuity fragment after subconscious mind-state update.',
+          payload: {
+            reason: errorMessageFrom(error) ?? 'unknown error',
+            fragment: mindContinuityText,
+          },
+        })
+      })
+    }
 
     if (visualPresenceState.workingMemoryEpisodes.length > previousWorkingMemoryCount) {
       const latestEpisode = visualPresenceState.workingMemoryEpisodes.at(-1)
@@ -5042,7 +6292,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       perception: perceptionSignals,
       watchMode: visualPresenceState.watchMode,
       recentTransition: visualPresenceState.recentTransition,
+      worldModel: visualPresenceState.worldModel,
+      livingWorldState: visualPresenceState.livingWorldState,
+      beliefLedger: visualPresenceState.beliefLedger,
+      beliefRevision: visualPresenceState.beliefRevision,
+      commitmentLedger: visualPresenceState.commitmentLedger,
+      inquiryPlanner: visualPresenceState.inquiryPlanner,
+      mindKernel: visualPresenceState.mindKernel,
+      hypothesisGraph: visualPresenceState.hypothesisGraph,
       privateThought: visualPresenceState.privateThought,
+      relationshipModel: visualPresenceState.relationshipModel,
+      selfGovernor: visualPresenceState.selfGovernor,
+      inquiryLoop: visualPresenceState.inquiryLoop,
+      deliberationState: visualPresenceState.deliberationState,
+      threadRuntime: visualPresenceState.threadRuntime,
+      thoughtThreads: visualPresenceState.thoughtThreads,
+      actionEcology: visualPresenceState.actionEcology,
+      initiative: visualPresenceState.initiative,
       durabilityPulse,
     })
 
@@ -5088,6 +6354,29 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         visualPresence: {
           watchMode: visualPresenceState.watchMode,
           currentScene: visualPresenceState.currentScene,
+          worldModel: visualPresenceState.worldModel,
+          livingWorldState: visualPresenceState.livingWorldState,
+          beliefLedger: visualPresenceState.beliefLedger,
+          beliefRevision: visualPresenceState.beliefRevision,
+          hypothesisGraph: visualPresenceState.hypothesisGraph,
+          subjectiveInference: visualPresenceState.subjectiveInference,
+          appraisal: visualPresenceState.appraisal,
+          concerns: visualPresenceState.concerns,
+          concernContinuity: visualPresenceState.concernContinuity,
+          relationshipModel: visualPresenceState.relationshipModel,
+          selfState: visualPresenceState.selfState,
+          selfGovernor: visualPresenceState.selfGovernor,
+          inquiryLoop: visualPresenceState.inquiryLoop,
+          deliberationState: visualPresenceState.deliberationState,
+          threadRuntime: visualPresenceState.threadRuntime,
+          commitmentLedger: visualPresenceState.commitmentLedger,
+          inquiryPlanner: visualPresenceState.inquiryPlanner,
+          repairLedger: visualPresenceState.repairLedger,
+          thoughtThreads: visualPresenceState.thoughtThreads,
+          counterfactualDeliberation: visualPresenceState.counterfactualDeliberation,
+          actionEcology: visualPresenceState.actionEcology,
+          initiative: visualPresenceState.initiative,
+          answerPlanner: visualPresenceState.answerPlanner,
           recentTransition: visualPresenceState.recentTransition,
           durabilityPulse: visualPresenceState.durabilityPulse,
         },
@@ -5153,10 +6442,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       proactive = true
       const proactiveRecallSeed = buildProactiveRecallSeed({
         foregroundWindow: interruptionContext.foregroundWindow,
-        phantomSeed: buildVisualRecallSeed({
-          scene: visualPresenceState.currentScene,
-          emotionalTension: visualPresenceState.privateThought?.emotionalTension,
-        }),
+        phantomSeed: [
+          buildVisualRecallSeed({
+            scene: visualPresenceState.currentScene,
+            emotionalTension: visualPresenceState.privateThought?.emotionalTension,
+          }),
+          buildMindContinuityRecallSeed(visualPresenceState),
+        ].filter(Boolean).join(' | '),
       })
       const organicPromptContext = await resolveOrganicMemoryPromptContext({
         recallSeed: proactiveRecallSeed,
@@ -6208,6 +7500,74 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return 'unknown'
   }
 
+  function shouldUsePerceptionResidueAsLiveSceneSummary(input: {
+    residue: AlicizationPerceptionSceneResidue | null
+    currentForeground?: {
+      appName?: string
+      processName?: string
+      title?: string
+      pid?: number | null
+    }
+    inspectionRequested: boolean
+    groundedThisTurn: boolean
+  }) {
+    if (!input.residue?.summary)
+      return false
+    if (input.groundedThisTurn)
+      return true
+
+    const liveTarget = normalizeForegroundDecisionTarget(input.currentForeground)
+    const residueTarget = normalizeForegroundDecisionTarget(input.residue.focusTarget)
+    if (!liveTarget)
+      return true
+    if (!residueTarget)
+      return !isSelfPerceptionTarget(liveTarget)
+    if (scoreForegroundDecisionOverlap(liveTarget, residueTarget) >= 72)
+      return true
+    if (isSelfPerceptionTarget(liveTarget) && !isSelfPerceptionTarget(residueTarget))
+      return false
+    if (input.inspectionRequested && isSelfPerceptionTarget(liveTarget))
+      return false
+    return !isSelfPerceptionTarget(liveTarget)
+  }
+
+  function compactMindGovernedChatMessages(input: {
+    messages: Message[]
+    keepRecentUserTurns: number
+  }) {
+    const safeKeepTurns = Math.max(1, Math.floor(input.keepRecentUserTurns))
+    const systemMessages = input.messages.filter(message => message.role === 'system')
+    const dialogueMessages = input.messages.filter(message => message.role !== 'system')
+    if (dialogueMessages.length === 0) {
+      return {
+        messages: input.messages,
+        beforeCount: input.messages.length,
+        afterCount: input.messages.length,
+      }
+    }
+
+    let userTurnsSeen = 0
+    let cutoffIndex = 0
+    for (let index = dialogueMessages.length - 1; index >= 0; index -= 1) {
+      if (dialogueMessages[index]?.role === 'user')
+        userTurnsSeen += 1
+      cutoffIndex = index
+      if (userTurnsSeen >= safeKeepTurns)
+        break
+    }
+
+    const compactedMessages = [
+      ...systemMessages,
+      ...dialogueMessages.slice(cutoffIndex),
+    ]
+
+    return {
+      messages: compactedMessages,
+      beforeCount: input.messages.length,
+      afterCount: compactedMessages.length,
+    }
+  }
+
   function buildInspectionSceneResidue(input: {
     now: number
     userText: string
@@ -6635,13 +7995,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function getOrganicMemorySnapshot() {
     const currentSoul = soulSnapshot ?? await bootstrap()
-    const [activeThoughts, subconsciousCount, recentSubconsciousFragments, rawLastDreamedAt] = await Promise.all([
+    const [rawActiveThoughts, subconsciousCount, rawRecentSubconsciousFragments, rawLastDreamedAt] = await Promise.all([
       alicizationDb.listActiveThoughts().catch(() => []),
       alicizationDb.countSubconsciousFragments().catch(() => 0),
       alicizationDb.listRecentSubconsciousFragments(8).catch(() => []),
       alicizationDb.getMetaValue(alicizationDreamLastRunMetaKey).catch(() => undefined),
     ])
     const parsedLastDreamedAt = Number.parseInt(String(rawLastDreamedAt ?? ''), 10)
+    const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
+    const recentSubconsciousFragments = rawRecentSubconsciousFragments.filter(fragment => !isPersonaResidueMemoryText(fragment.text))
+
+    if (activeThoughts.length !== rawActiveThoughts.length) {
+      void alicizationDb.replaceActiveThoughts(activeThoughts.map(item => ({ text: item.text }))).catch(() => {})
+    }
 
     return {
       hostAttitude: currentSoul.frontmatter.host_attitude,
@@ -6651,6 +8017,57 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recentSubconsciousFragments,
       lastDreamedAt: Number.isFinite(parsedLastDreamedAt) ? Math.max(0, parsedLastDreamedAt) : null,
     } satisfies AlicizationOrganicMemorySnapshot
+  }
+
+  function scoreOrganicThoughtForPrompt(text: string, terms: string[]) {
+    const normalized = normalizeOrganicRecallText(text).toLowerCase()
+    if (!normalized || terms.length === 0)
+      return 0
+
+    let score = 0
+    for (const term of terms) {
+      const normalizedTerm = normalizeOrganicRecallText(term).toLowerCase()
+      if (!normalizedTerm || !normalized.includes(normalizedTerm))
+        continue
+      score += normalizedTerm.length >= 6 ? 3 : 1
+    }
+    return score
+  }
+
+  function selectPromptActiveThoughts(input: {
+    activeThoughts: AlicizationActiveThought[]
+    recallSeed?: string
+    recalledFragments?: AlicizationSubconsciousFragment[]
+  }) {
+    const activeThoughts = filterOrganicMemoryEntries(Array.isArray(input.activeThoughts) ? input.activeThoughts : [])
+    if (activeThoughts.length <= 2 && !input.recallSeed)
+      return activeThoughts
+
+    const terms = [
+      ...extractOrganicRecallTerms(input.recallSeed ?? ''),
+      ...(input.recalledFragments ?? []).flatMap(fragment => extractOrganicRecallTerms(fragment.text)),
+    ]
+    const uniqueTerms = Array.from(new Set(
+      terms
+        .map(term => normalizeOrganicRecallText(term).toLowerCase())
+        .filter(Boolean),
+    ))
+    if (uniqueTerms.length === 0)
+      return input.recallSeed ? [] : activeThoughts.slice(0, 2)
+
+    return activeThoughts
+      .map(thought => ({
+        thought,
+        score: scoreOrganicThoughtForPrompt(thought.text, uniqueTerms),
+      }))
+      .filter(item => item.score > 0)
+      .sort((left, right) => {
+        if (left.score !== right.score)
+          return right.score - left.score
+        return right.thought.updatedAt - left.thought.updatedAt
+      })
+      .slice(0, 3)
+      .map(item => item.thought)
   }
 
   async function getPerformanceManifest() {
@@ -6826,6 +8243,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `Current foreground sample: ${describePerceptionTarget(input.currentForeground)}.`,
     ]
 
+    const carryResidue = getUsablePerceptionSceneResidue({
+      state: input.state,
+      now: input.now,
+    })
+    if (
+      input.currentForeground
+      && isSelfPerceptionTarget(input.currentForeground)
+      && carryResidue?.focusTarget
+      && !isSelfPerceptionTarget(carryResidue.focusTarget)
+    ) {
+      lines.push(
+        `Visible surface is currently ${describePerceptionTarget(input.currentForeground)}.`,
+        `If ${describePerceptionTarget(carryResidue.focusTarget)} appears below, treat it as carried task continuity rather than the literal current surface.`,
+      )
+    }
+
     if (input.state.invitedInspection) {
       lines.push(
         `Invited inspection hint: ${sanitizeBriefText(input.state.invitedInspection.hintText, 160)}.`,
@@ -6891,12 +8324,53 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   function buildChatVisualPresenceSystemBlock(state: AlicizationVisualPresenceStateSnapshot) {
     const privateThought = state.privateThought
-    if (!state.currentScene && !privateThought)
+    const truthContract = buildMindTruthContractLines(state)
+    if (
+      !state.currentScene
+      && !privateThought
+      && !state.worldModel
+      && !state.worldOntology
+      && !state.beliefLedger
+      && !state.beliefRevision
+      && !state.hypothesisGraph
+      && !state.entityWorld
+      && !state.subjectiveInference
+      && !state.appraisal
+      && !state.goalStack
+      && (!state.concerns || state.concerns.length === 0)
+      && !state.relationshipModel
+      && !state.selfContinuity
+      && !state.selfState
+      && !state.inquiryLoop
+      && !state.deliberationState
+      && !state.threadRuntime
+      && !state.commitmentLedger
+      && !state.inquiryPlanner
+      && !state.mindDynamics
+      && !state.mindKernel
+      && !state.counterfactualDeliberation
+      && !state.actionEcology
+      && !state.initiativeArbitration
+      && !state.initiative
+      && !state.desireMemory
+    ) {
       return ''
+    }
+
+    const currentConcern = state.concerns?.find(concern => concern.id === state.initiative?.selectedConcernId)
+      ?? state.concerns?.slice().sort((left, right) => (right.tension * right.careWeight) - (left.tension * left.careWeight))[0]
+      ?? null
+    const currentCommitment = state.commitmentLedger?.commitments.find(commitment => commitment.id === state.commitmentLedger?.governingCommitmentId)
+      ?? state.commitmentLedger?.commitments[0]
+      ?? null
+    const currentInquiry = state.inquiryPlanner?.plans.find(plan => plan.id === state.inquiryPlanner?.activePlanId)
+      ?? state.inquiryPlanner?.plans[0]
+      ?? null
 
     return [
       '[ALICIZATION_VISUAL_PRESENCE]',
       `Watch mode: ${state.watchMode}.`,
+      ...truthContract.lines,
       `Current scene: ${state.currentScene
         ? JSON.stringify({
             scenario: state.currentScene.scenario,
@@ -6914,6 +8388,96 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             dwellMs: state.attention.dwellMs,
           })
         : 'none'}.`,
+      `Living thread: ${state.worldModel?.activeThread
+        ? JSON.stringify({
+            kind: state.worldModel.activeThread.kind,
+            title: state.worldModel.activeThread.title,
+            summary: state.worldModel.activeThread.summary,
+            confidence: state.worldModel.activeThread.confidence,
+            unresolved: state.worldModel.activeThread.unresolved,
+          })
+        : 'none'}.`,
+      `Concern: ${currentConcern
+        ? JSON.stringify({
+            kind: currentConcern.kind,
+            summary: currentConcern.summary,
+            tension: currentConcern.tension,
+            confidence: currentConcern.confidence,
+          })
+        : 'none'}.`,
+      `Concern continuity: ${state.concernContinuity?.entries.length
+        ? JSON.stringify({
+            governingEntryId: state.concernContinuity.governingEntryId,
+            carryPressure: state.concernContinuity.carryPressure,
+            unresolvedCount: state.concernContinuity.unresolvedCount,
+            governing: state.concernContinuity.entries.find(entry => entry.id === state.concernContinuity?.governingEntryId)
+              ?? state.concernContinuity.entries[0]
+              ?? null,
+          })
+        : 'none'}.`,
+      `Commitment: ${currentCommitment
+        ? JSON.stringify({
+            kind: currentCommitment.kind,
+            summary: currentCommitment.summary,
+            priority: currentCommitment.priority,
+            confidence: currentCommitment.confidence,
+          })
+        : 'none'}.`,
+      `Inquiry: ${currentInquiry
+        ? JSON.stringify({
+            kind: currentInquiry.kind,
+            question: currentInquiry.question,
+            status: currentInquiry.status,
+            askForGrounding: currentInquiry.askForGrounding,
+          })
+        : 'none'}.`,
+      `Repair ledger: ${state.repairLedger?.entries.length
+        ? JSON.stringify({
+            governingRepairId: state.repairLedger.governingRepairId,
+            repairPressure: state.repairLedger.repairPressure,
+            truthRisk: state.repairLedger.truthRisk,
+            shouldConstrainPresentTense: state.repairLedger.shouldConstrainPresentTense,
+            governing: state.repairLedger.entries.find(entry => entry.id === state.repairLedger?.governingRepairId)
+              ?? state.repairLedger.entries[0]
+              ?? null,
+          })
+        : 'none'}.`,
+      `Mind kernel: ${state.mindKernel
+        ? JSON.stringify({
+            dominantMode: state.mindKernel.dominantMode,
+            dominantDrive: state.mindKernel.dominantDrive,
+            narrative: state.mindKernel.narrative,
+          })
+        : 'none'}.`,
+      `Action ecology: ${state.actionEcology
+        ? JSON.stringify({
+            mode: state.actionEcology.mode,
+            shouldSpeak: state.actionEcology.shouldSpeak,
+            why: state.actionEcology.why,
+            selectedThreadId: state.actionEcology.selectedThreadId,
+          })
+        : 'none'}.`,
+      `Initiative: ${state.initiative
+        ? JSON.stringify({
+            selectedAction: state.initiative.selectedAction,
+            confidence: state.initiative.confidence,
+            why: state.initiative.why,
+            preferredStyle: state.initiative.preferredStyle,
+            preferredPresence: state.initiative.preferredPresence,
+          })
+        : 'none'}.`,
+      `Answer plan: ${state.answerPlanner
+        ? JSON.stringify({
+            act: state.answerPlanner.act,
+            evidenceMode: state.answerPlanner.evidenceMode,
+            governingFocus: state.answerPlanner.governingFocus,
+            openingMove: state.answerPlanner.openingMove,
+            answerIntent: state.answerPlanner.answerIntent,
+            relationshipPosture: state.answerPlanner.relationshipPosture,
+            shouldAskForGrounding: state.answerPlanner.shouldAskForGrounding,
+            shouldAcknowledgeRepair: state.answerPlanner.shouldAcknowledgeRepair,
+          })
+        : 'none'}.`,
       `Private thought: ${privateThought
         ? JSON.stringify({
             stance: privateThought.stance,
@@ -6921,9 +8485,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             suggestedStyle: privateThought.suggestedStyle,
             embodiedPresence: privateThought.embodiedPresence,
             emotionalTension: privateThought.emotionalTension,
+            thoughtText: sanitizeBriefText(privateThought.thoughtText, 180),
             afterglowFromScenario: privateThought.afterglowFromScenario ?? null,
+            selectedConcernId: privateThought.selectedConcernId ?? null,
+            focusBeliefId: privateThought.focusBeliefId ?? null,
+            focusInquiryId: privateThought.focusInquiryId ?? null,
+            commitmentId: privateThought.commitmentId ?? null,
+            inquiryPlanId: privateThought.inquiryPlanId ?? null,
+            hypothesisId: privateThought.hypothesisId ?? null,
+            deliberationThreadId: privateThought.deliberationThreadId ?? null,
+            runtimeThreadId: privateThought.runtimeThreadId ?? null,
+            mindNeed: privateThought.mindNeed ?? null,
+            relationshipVector: privateThought.relationshipVector ?? null,
+            initiativeAction: privateThought.initiativeAction ?? null,
+            leadingGoalId: privateThought.leadingGoalId ?? null,
+            desireId: privateThought.desireId ?? null,
           })
         : 'none'}.`,
+      'Treat this block as a compact executive digest of the living mind state, not as a giant schema dump.',
       'When grounded screenshot evidence is attached, trust that screenshot first and let this visual presence block act as continuity rather than override.',
     ].join('\n')
   }
@@ -7233,6 +8812,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return {
         messages: input.messages,
         systemBlocks: [] as string[],
+        chatGovernance: {
+          suppressAssociativeRecall: false,
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
       }
     }
 
@@ -7304,6 +8889,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       if (grounding.additionalUserParts.length > 0)
         messages = appendContentPartsToLatestUserMessage(messages, grounding.additionalUserParts)
       if (grounding.observationTarget) {
+        currentForeground = grounding.observationTarget
         perceptionState = await rememberPerceptionObservation({
           cardId: input.cardId,
           now,
@@ -7377,14 +8963,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       fatigue: chatLayeredContext.relationship.fatigue,
     })
     const groundedResidue = getActivePerceptionSceneResidue(perceptionState, now)
+    const useResidueAsLiveSceneSummary = shouldUsePerceptionResidueAsLiveSceneSummary({
+      residue: groundedResidue,
+      currentForeground,
+      inspectionRequested: inspectionIntent.active,
+      groundedThisTurn: auditAction === 'inspection-grounded',
+    })
     const chatHeartbeat = buildVisualHeartbeat({
       now,
       scenario: chatScenario,
       previousState: visualPresenceState,
       context: chatLayeredContext,
       invitedInspectionActive: inspectionIntent.active,
-      groundedSummary: groundedResidue?.summary ?? null,
-      screenSemanticSummaryActive: auditAction === 'inspection-grounded',
+      groundedSummary: useResidueAsLiveSceneSummary ? groundedResidue?.summary ?? null : null,
+      screenSemanticSummaryActive: auditAction === 'inspection-grounded' && useResidueAsLiveSceneSummary,
       durabilityPulse: null,
     })
     const chatAttention = updateVisualAttentionModel({
@@ -7399,14 +8991,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         ?? null,
       durabilityPulse: null,
     })
-    const chatPrivateThought = buildPrivateThoughtLoop({
+    const chatMindState = await buildDigitalLifeMindState({
+      cardId: input.cardId,
       now,
       context: chatLayeredContext,
-      watchMode: chatHeartbeat.watchMode,
-      currentScene: chatHeartbeat.scene,
+      userText: input.userText,
+      recentMessages: input.messages,
+      previousVisualPresenceState: visualPresenceState,
+      visualHeartbeat: chatHeartbeat,
       attention: chatAttention,
-      recentTransition: chatHeartbeat.recentTransition,
       durabilityPulse: null,
+      inspectionRequested: inspectionIntent.active,
     })
     visualPresenceState = updateVisualPresenceState({
       now,
@@ -7414,7 +9009,41 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       watchMode: chatHeartbeat.watchMode,
       scene: chatHeartbeat.scene,
       attention: chatAttention,
-      privateThought: chatPrivateThought,
+      worldModel: chatMindState.worldModel,
+      worldOntology: chatMindState.worldOntology,
+      beliefLedger: chatMindState.beliefLedger,
+      beliefRevision: chatMindState.beliefRevision,
+      hypothesisGraph: chatMindState.hypothesisGraph,
+      entityWorld: chatMindState.entityWorld,
+      livingWorldState: chatMindState.livingWorldState,
+      subjectiveInference: chatMindState.subjectiveInference,
+      appraisal: chatMindState.appraisal,
+      goalStack: chatMindState.goalStack,
+      concerns: chatMindState.concerns,
+      concernContinuity: chatMindState.concernContinuity,
+      relationshipModel: chatMindState.relationshipModel,
+      selfContinuity: chatMindState.selfContinuity,
+      selfState: chatMindState.selfState,
+      selfGovernor: chatMindState.selfGovernor,
+      inquiryLoop: chatMindState.inquiryLoop,
+      deliberationState: chatMindState.deliberationState,
+      threadRuntime: chatMindState.threadRuntime,
+      commitmentLedger: chatMindState.commitmentLedger,
+      inquiryPlanner: chatMindState.inquiryPlanner,
+      repairLedger: chatMindState.repairLedger,
+      intentionStream: chatMindState.intentionStream,
+      reflectionLedger: chatMindState.reflectionLedger,
+      executiveCycle: chatMindState.executiveCycle,
+      mindDynamics: chatMindState.mindDynamics,
+      mindKernel: chatMindState.mindKernel,
+      thoughtThreads: chatMindState.thoughtThreads,
+      counterfactualDeliberation: chatMindState.counterfactualDeliberation,
+      actionEcology: chatMindState.actionEcology,
+      initiativeArbitration: chatMindState.initiativeArbitration,
+      initiative: chatMindState.initiative,
+      desireMemory: chatMindState.desireMemory,
+      answerPlanner: chatMindState.answerPlanner,
+      privateThought: chatMindState.privateThought,
       captureState: {
         permission: auditAction === 'inspection-grounded'
           ? 'granted'
@@ -7435,9 +9064,56 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recentTransition: chatHeartbeat.recentTransition,
       nextSuggestedProbeMs: chatHeartbeat.nextSuggestedProbeMs,
     })
+    const responseCharter = buildAlicizationResponseCharter({
+      context: chatLayeredContext,
+      state: visualPresenceState,
+      inspectionRequested: inspectionIntent.active,
+      dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
+      dialogueObligation: chatMindState.dialogueObligation ?? undefined,
+    })
+    const executiveAnswerBrief = buildAlicizationExecutiveAnswerBrief({
+      now,
+      inspectionRequested: inspectionIntent.active,
+      groundedThisTurn: auditAction === 'inspection-grounded',
+      currentForeground,
+      perceptionState,
+      visualPresenceState,
+      responseCharter,
+      dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
+      dialogueObligation: chatMindState.dialogueObligation ?? undefined,
+    })
+    const responseSurfaceContract = buildAlicizationResponseSurfaceContract({
+      brief: executiveAnswerBrief.brief,
+      charter: responseCharter,
+      dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
+      dialogueObligation: chatMindState.dialogueObligation ?? undefined,
+    })
+    const compactedMessages = executiveAnswerBrief.brief.shouldCompactHistory
+      ? compactMindGovernedChatMessages({
+          messages,
+          keepRecentUserTurns: executiveAnswerBrief.brief.maxRecentUserTurns,
+        })
+      : {
+          messages,
+          beforeCount: messages.length,
+          afterCount: messages.length,
+        }
+    messages = compactedMessages.messages
     await persistVisualPresenceState(input.cardId, visualPresenceState)
 
     const systemBlocks = [
+      visualPresenceState.answerPlanner
+        ? buildAlicizationAnswerPlannerSystemBlock(visualPresenceState.answerPlanner)
+        : '',
+      chatMindState.dialogueSemantics && chatMindState.dialogueObligation
+        ? buildAlicizationDialogueObligationSystemBlock({
+            semantics: chatMindState.dialogueSemantics,
+            obligation: chatMindState.dialogueObligation,
+          })
+        : '',
+      executiveAnswerBrief.systemBlock,
+      responseSurfaceContract.systemBlock,
+      buildAlicizationResponseCharterSystemBlock(responseCharter),
       buildChatPerceptionSystemBlock({
         now,
         state: perceptionState,
@@ -7480,11 +9156,34 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           : 'Prepared Alicization short-lived perception context for the current chat turn.',
         payload: {
           ...auditPayload,
+          executiveBrief: {
+            turnMode: executiveAnswerBrief.brief.turnMode,
+            truthState: executiveAnswerBrief.brief.truthState,
+            liveSurface: executiveAnswerBrief.brief.liveSurface,
+            carriedThread: executiveAnswerBrief.brief.carriedThread,
+            separateCarryFromSurface: executiveAnswerBrief.brief.separateCarryFromSurface,
+            shouldCompactHistory: executiveAnswerBrief.brief.shouldCompactHistory,
+            maxRecentUserTurns: executiveAnswerBrief.brief.maxRecentUserTurns,
+          },
+          responseSurface: {
+            openingStyle: responseSurfaceContract.contract.openingStyle,
+            maxParagraphs: responseSurfaceContract.contract.maxParagraphs,
+            maxSentences: responseSurfaceContract.contract.maxSentences,
+            suppressAssociativeRecall: responseSurfaceContract.contract.suppressAssociativeRecall,
+          },
+          historyCompaction: {
+            beforeCount: compactedMessages.beforeCount,
+            afterCount: compactedMessages.afterCount,
+          },
           visualPresence: {
             watchMode: visualPresenceState.watchMode,
             currentScene: visualPresenceState.currentScene,
+            hypothesisGraph: visualPresenceState.hypothesisGraph,
+            threadRuntime: visualPresenceState.threadRuntime,
             privateThought: visualPresenceState.privateThought,
           },
+          dialogueSemantics: chatMindState.dialogueSemantics,
+          dialogueObligation: chatMindState.dialogueObligation,
         },
       }, input.cardId)
     }
@@ -7492,6 +9191,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return {
       messages,
       systemBlocks,
+      chatGovernance: {
+        suppressAssociativeRecall: responseSurfaceContract.contract.suppressAssociativeRecall,
+        turnMode: executiveAnswerBrief.brief.turnMode,
+        personaKernelMode: responseSurfaceContract.contract.personaKernelMode,
+        mindTurnGovernance: buildAlicizationMindTurnGovernance({
+          brief: executiveAnswerBrief.brief,
+          charter: responseCharter,
+          surfaceContract: responseSurfaceContract.contract,
+          answerPlanner: visualPresenceState.answerPlanner,
+          privateThought: visualPresenceState.privateThought,
+          mindMode: visualPresenceState.mindKernel?.dominantMode ?? null,
+        }),
+      },
     }
   }
 
@@ -7531,6 +9243,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (context.activeThoughts.length > 0) {
       blocks.push([
         '[ALICIZATION_ACTIVE_THOUGHTS]',
+        'These are background continuity residues. Reuse them only when they truly match the current living focus.',
+        'They are unresolved threads, not speech-style instructions.',
         '以下是你最近仍在持续关注的活跃思绪：',
         ...context.activeThoughts.map(item => `- ${item.text}`),
       ].join('\n'))
@@ -7539,6 +9253,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (context.recalledFragments.length > 0) {
       blocks.push([
         '[ALICIZATION_ASSOCIATIVE_RECALL]',
+        'These recalled fragments are secondary to the present scene and must never override fresh grounding.',
         ...context.recalledFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
           sourceKind: item.sourceKind,
           text: item.text,
@@ -7547,6 +9262,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     return blocks
+  }
+
+  function tuneOrganicMemoryPromptContextForExecutiveTurn(input: {
+    context: OrganicMemoryPromptContext
+    suppressAssociativeRecall: boolean
+    personaKernelMode: 'full' | 'backgrounded' | 'muted'
+  }) {
+    if (!input.suppressAssociativeRecall && input.personaKernelMode === 'full')
+      return input.context
+
+    return {
+      ...input.context,
+      activeThoughts: [],
+      recalledFragments: [],
+    } satisfies OrganicMemoryPromptContext
   }
 
   function buildPerformanceManifestSystemBlocks(manifest: CharacterPerformanceCapabilitiesManifest | null) {
@@ -7592,13 +9322,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }): Promise<OrganicMemoryPromptContext> {
     const snapshot = await getOrganicMemorySnapshot()
     const recalledFragments = options?.recallSeed
-      ? await recallSubconsciousFragmentsFromText(options.recallSeed)
+      ? (await recallSubconsciousFragmentsFromText(options.recallSeed)).filter(fragment => !isPersonaResidueMemoryText(fragment.text))
       : []
+    const activeThoughts = selectPromptActiveThoughts({
+      activeThoughts: snapshot.activeThoughts,
+      recallSeed: options?.recallSeed,
+      recalledFragments,
+    })
 
     return {
       hostAttitude: snapshot.hostAttitude,
       coreIncarnation: snapshot.coreIncarnation,
-      activeThoughts: snapshot.activeThoughts,
+      activeThoughts,
       recalledFragments,
     }
   }
@@ -7621,11 +9356,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       alicizationCustomDirectivesMarker,
       '[Card-level behavior directives | high-priority persona kernel]',
       'Apply these directives consistently when generating thought/emotion/reply.',
-      'These directives are lower priority than safety boundaries, human-in-the-loop permission, kill switch, and strict JSON output contract.',
+      'These directives are lower priority than safety boundaries, human-in-the-loop permission, kill switch, the current Alicization answer plan, the current Alicization response charter, the current epistemic truth contract, and strict JSON output contract.',
       '--- custom_directives ---',
       normalized,
       '--- /custom_directives ---',
     ].join('\n')
+  }
+
+  function buildTurnScopedPersonaKernelSystemBlock(input: {
+    mode: 'backgrounded' | 'muted'
+    reason?: string
+  }) {
+    return [
+      '[ALICIZATION_TURN_PERSONA_KERNEL]',
+      input.mode === 'muted'
+        ? 'The card-level persona kernel is temporarily muted for this turn.'
+        : 'The card-level persona kernel is backgrounded for this turn.',
+      input.reason ? `Reason: ${sanitizeBriefText(input.reason, 180)}.` : '',
+      'Keep identity continuity only as light diction after truth, repair, and the host’s current ask are already handled.',
+      'Do not let maid-role performance, clinginess, pet names, obedience display, or theatrical softness lead the reply.',
+    ].filter(Boolean).join('\n')
   }
 
   function readMessageContentAsText(content: unknown) {
@@ -7732,7 +9482,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     system: string
     user: Message['content']
     timeoutMs?: number
-    source?: 'reminder' | 'proactive' | 'dream' | 'screen-semantic'
+    source?: 'reminder' | 'proactive' | 'dream' | 'screen-semantic' | 'scene-appraisal' | 'subjective-inference' | 'counterfactual-deliberation' | 'dialogue-turn-semantics'
     cardId?: string
     extraSystemBlocks?: string[]
     injectCustomDirectives?: boolean
@@ -8438,6 +10188,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       source: 'none',
     }
     let hasVisualGrounding = false
+    let acceptedGovernance: AlicizationChatStartResult['governance'] = null
     try {
       chatConfig = mainGateway.provider.chat(mainGateway.model)
       const latestUserText = readLatestUserMessageText(payload.messages)
@@ -8457,22 +10208,54 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             userText: latestUserText,
             messages,
           })
-        : { messages, systemBlocks: [] as string[] }
+        : {
+            messages,
+            systemBlocks: [] as string[],
+            chatGovernance: {
+              suppressAssociativeRecall: false,
+              turnMode: 'answer' as const,
+              personaKernelMode: 'full' as const,
+              mindTurnGovernance: null,
+            },
+          }
       messages = perceptionAugmentation.messages
+      acceptedGovernance = perceptionAugmentation.chatGovernance.mindTurnGovernance
       const contextualString = shouldBypassPerception
         ? ''
         : await buildMainChatContextualString(payload)
-      const organicPromptContext = await resolveOrganicMemoryPromptContext({
-        recallSeed: contextualString,
+      const organicPromptContext = tuneOrganicMemoryPromptContextForExecutiveTurn({
+        context: await resolveOrganicMemoryPromptContext({
+          recallSeed: contextualString,
+        }),
+        suppressAssociativeRecall: perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+        personaKernelMode: perceptionAugmentation.chatGovernance.personaKernelMode,
       })
       const performanceManifest = await getPerformanceManifest()
       messages = prependSystemBlocksToMessages(messages, [
+        ...perceptionAugmentation.systemBlocks,
         ...buildOrganicMemorySystemBlocks(organicPromptContext),
         ...buildPerformanceManifestSystemBlocks(performanceManifest),
-        ...perceptionAugmentation.systemBlocks,
       ])
       customDirectivesResolution = await resolveCardCustomDirectives(payload.cardId, { messages })
-      messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
+      if (perceptionAugmentation.chatGovernance.personaKernelMode === 'muted') {
+        messages = prependSystemBlocksToMessages(messages, [
+          buildTurnScopedPersonaKernelSystemBlock({
+            mode: 'muted',
+            reason: 'truth-or-repair-obligation',
+          }),
+        ])
+      }
+      else if (perceptionAugmentation.chatGovernance.personaKernelMode === 'backgrounded') {
+        messages = prependSystemBlocksToMessages(messages, [
+          buildTurnScopedPersonaKernelSystemBlock({
+            mode: 'backgrounded',
+            reason: 'task-or-direct-answer-obligation',
+          }),
+        ])
+      }
+      else {
+        messages = injectCardCustomDirectivesIntoMessages(messages, customDirectivesResolution.text)
+      }
       hasVisualGrounding = messageContainsVisualInput(messages)
       const allowTools = payload.supportsTools !== false
       waitForTools = payload.waitForTools === true
@@ -8701,6 +10484,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           })
         })
 
+        if (!sawProgressEvent && isRunActive()) {
+          throw createAbortError('chat-first-event-timeout')
+        }
+
         emitChatFinish(key, {
           status: 'completed',
           finishReason,
@@ -8813,6 +10600,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       accepted: true,
       turnId: payload.turnId,
       state: 'accepted',
+      governance: acceptedGovernance,
     }
   }
 
@@ -9092,6 +10880,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         outcomes: settled.appliedOutcomes,
       },
     })
+    queueSubconsciousWake(activeCardId, `feedback:${payload.feedback}`, 300)
   }))
   defineInvokeHandler(context, electronAlicizationReplayDialogues, async payload => await withCardScope(payload.cardId, async () => {
     const sessionId = normalizeSessionId(payload.sessionId)
@@ -9346,6 +11135,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       dreamTimer = undefined
     }
     clearReminderDueTimer()
+    clearQueuedSubconsciousWake()
     void alicizationDb.close().catch((error) => {
       console.warn('[alicization-runtime] failed to close sqlite database:', error)
     })

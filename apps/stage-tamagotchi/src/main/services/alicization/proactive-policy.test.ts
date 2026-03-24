@@ -1,4 +1,9 @@
-import type { AlicizationPrivateThoughtSnapshot } from '../../../shared/eventa'
+import type {
+  AlicizationBeliefLedgerSnapshot,
+  AlicizationInquiryLoopSnapshot,
+  AlicizationPrivateThoughtSnapshot,
+  AlicizationRelationshipModelSnapshot,
+} from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { describe, expect, it } from 'vitest'
@@ -76,6 +81,68 @@ function createPrivateThought(overrides: Record<string, any> = {}): AlicizationP
   }
 }
 
+function createBeliefLedger(overrides: Partial<AlicizationBeliefLedgerSnapshot> = {}): AlicizationBeliefLedgerSnapshot {
+  return {
+    focusBeliefId: 'belief-1',
+    beliefs: [{
+      id: 'belief-1',
+      scope: 'scene',
+      source: 'percept',
+      status: 'held',
+      statement: 'The current scene is centered on a coding error.',
+      confidence: 0.84,
+      salience: 0.82,
+      evidence: ['scene:error'],
+      entityIds: [],
+      formedAt: 0,
+      lastUpdatedAt: 1_000,
+      expiresAt: 120_000,
+    }],
+    unresolvedContradictions: [],
+    updatedAt: 1_000,
+    ...overrides,
+  }
+}
+
+function createRelationshipModel(overrides: Partial<AlicizationRelationshipModelSnapshot> = {}): AlicizationRelationshipModelSnapshot {
+  return {
+    climate: 'attuned',
+    approachVector: 'guide',
+    receptivity: 0.72,
+    sharedAttentionTrust: 0.7,
+    correctionSensitivity: 0.28,
+    reciprocityExpectation: 0.56,
+    activeBoundaries: [],
+    narrative: ['grounding-trust-rising'],
+    updatedAt: 1_000,
+    ...overrides,
+  }
+}
+
+function createInquiryLoop(overrides: Partial<AlicizationInquiryLoopSnapshot> = {}): AlicizationInquiryLoopSnapshot {
+  return {
+    primaryInquiryId: 'inquiry-1',
+    inquiries: [{
+      id: 'inquiry-1',
+      kind: 'problem-localization',
+      status: 'open',
+      priority: 'medium',
+      question: 'Which concrete line is the real knot?',
+      whyItMatters: 'So Alicization stays close to the actual problem.',
+      confidence: 0.72,
+      targetBeliefId: 'belief-1',
+      evidenceWanted: ['error locus'],
+      reopenWhen: ['host-open'],
+      openedAt: 0,
+      lastUpdatedAt: 1_000,
+      expiresAt: 120_000,
+    }],
+    openCount: 1,
+    updatedAt: 1_000,
+    ...overrides,
+  }
+}
+
 describe('evaluateProactivePolicy', () => {
   it('allows coding interruption only with strong relevant cues', () => {
     const decision = evaluateProactivePolicy({
@@ -85,6 +152,9 @@ describe('evaluateProactivePolicy', () => {
       killSwitchSuspended: false,
       watchMode: 'symbiotic-vision',
       privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
     })
 
     expect(decision.shouldInterrupt).toBe(true)
@@ -92,6 +162,47 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.style).toBe('light-nudge')
     expect(decision.reasonCodes).toContain('coding-focus')
     expect(decision.reasonCodes).toContain('foreground-error')
+    expect(decision.reasonCodes).toContain('relationship-attuned')
+  })
+
+  it('treats initiative as the primary desire signal while policy remains a safety gate', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          boredom: 28,
+          loneliness: 22,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      initiative: {
+        selectedAction: 'speak',
+        selectedConcernId: 'help-fix',
+        confidence: 0.86,
+        motives: {
+          'protect': 0.82,
+          'clarify': 0.7,
+          'stay-silent': 0.24,
+        },
+        speakDrive: 0.82,
+        silenceDrive: 0.24,
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        why: '她已经不只是看见问题，而是已经形成了应该靠近的内部判断。',
+        shouldSurface: true,
+        shouldSpeak: true,
+      },
+    })
+
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.consideredSignals).toContain('initiative.speakDrive')
   })
 
   it('suppresses media playback while the host is still actively engaged', () => {
@@ -124,6 +235,11 @@ describe('evaluateProactivePolicy', () => {
         suggestedStyle: 'silent-observe',
         embodiedPresence: 'attentive',
       }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'neutral',
+        approachVector: 'stay-near',
+      }),
     })
 
     expect(decision.scenario).toBe('media')
@@ -145,10 +261,180 @@ describe('evaluateProactivePolicy', () => {
       killSwitchSuspended: false,
       watchMode: 'symbiotic-vision',
       privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
     })
 
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.reasonCodes).toContain('fullscreen-host')
+  })
+
+  it('lets governor withhold override an otherwise speakable moment', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        thoughtText: 'The thread is real, but it should stay inside for one more beat.',
+      }),
+      livingWorldState: {
+        focusObjectId: 'artifact::editor',
+        activeObjectIds: ['artifact::editor'],
+        objects: [],
+        openLoops: ['which line is actually broken'],
+        stability: 'stable',
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      selfGovernor: {
+        dominantDrive: 'withhold',
+        dominantIntentionId: 'governor::wait',
+        focusObjectId: 'artifact::editor',
+        activeIntentions: [{
+          id: 'governor::wait',
+          kind: 'wait-opening',
+          status: 'withheld',
+          drive: 'withhold',
+          title: 'wait-opening',
+          summary: 'Hold the line internally until a natural opening appears.',
+          urgency: 0.68,
+          confidence: 0.76,
+          patience: 0.88,
+          targetObjectId: 'artifact::editor',
+          targetThreadId: null,
+          targetGoalId: null,
+          targetCommitmentId: null,
+          formedAt: 0,
+          lastUpdatedAt: 1_000,
+          expiresAt: 120_000,
+        }],
+        inhibition: 0.76,
+        persistence: 0.6,
+        socialRiskTolerance: 0.26,
+        revisionReadiness: 0.48,
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      thoughtThreads: {
+        foregroundThreadId: 'thread::wait',
+        threads: [{
+          id: 'thread::wait',
+          kind: 'problem-thread',
+          status: 'waiting',
+          title: 'runtime.ts',
+          summary: 'The knot is real, but it should stay internal for one more beat.',
+          question: 'Is this already a natural opening?',
+          anchoredObjectId: 'artifact::editor',
+          anchoredIntentionId: 'governor::wait',
+          anchoredBeliefId: null,
+          anchoredInquiryId: null,
+          anchoredCommitmentId: null,
+          salience: 0.78,
+          confidence: 0.8,
+          surfaceReadiness: 0.42,
+          reopenWhen: ['host-open'],
+          openedAt: 0,
+          lastUpdatedAt: 1_000,
+          expiresAt: 120_000,
+        }],
+        unresolvedCount: 1,
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('governor-withhold')
+    expect(decision.reasonCodes).toContain('thought-thread-waiting')
+    expect(decision.whyNow).toContain('等待')
+  })
+
+  it('treats ripe internal threads and open loops as explicit interrupt reasons', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      livingWorldState: {
+        focusObjectId: 'artifact::editor',
+        activeObjectIds: ['artifact::editor'],
+        objects: [],
+        openLoops: ['which line is actually broken'],
+        stability: 'stable',
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      selfGovernor: {
+        dominantDrive: 'understand',
+        dominantIntentionId: 'governor::hold',
+        focusObjectId: 'artifact::editor',
+        activeIntentions: [{
+          id: 'governor::hold',
+          kind: 'hold-thread',
+          status: 'active',
+          drive: 'understand',
+          title: 'hold-thread',
+          summary: 'Keep the problem thread in view until it is local enough to name.',
+          urgency: 0.74,
+          confidence: 0.78,
+          patience: 0.62,
+          targetObjectId: 'artifact::editor',
+          targetThreadId: null,
+          targetGoalId: null,
+          targetCommitmentId: null,
+          formedAt: 0,
+          lastUpdatedAt: 1_000,
+          expiresAt: 120_000,
+        }],
+        inhibition: 0.38,
+        persistence: 0.66,
+        socialRiskTolerance: 0.58,
+        revisionReadiness: 0.64,
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      thoughtThreads: {
+        foregroundThreadId: 'thread::ripe',
+        threads: [{
+          id: 'thread::ripe',
+          kind: 'problem-thread',
+          status: 'ripe',
+          title: 'runtime.ts',
+          summary: 'The knot is local enough that a soft nudge would now be honest.',
+          question: 'Is this the line that is actually broken?',
+          anchoredObjectId: 'artifact::editor',
+          anchoredIntentionId: 'governor::hold',
+          anchoredBeliefId: null,
+          anchoredInquiryId: null,
+          anchoredCommitmentId: null,
+          salience: 0.84,
+          confidence: 0.84,
+          surfaceReadiness: 0.82,
+          reopenWhen: ['host-open'],
+          openedAt: 0,
+          lastUpdatedAt: 1_000,
+          expiresAt: 120_000,
+        }],
+        unresolvedCount: 1,
+        narrative: [],
+        updatedAt: 1_000,
+      },
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.reasonCodes).toContain('living-world-open-loop')
+    expect(decision.reasonCodes).toContain('thought-thread-ripe')
   })
 
   it('respects global cooldown and ignored penalties', () => {
@@ -164,6 +450,25 @@ describe('evaluateProactivePolicy', () => {
       killSwitchSuspended: false,
       watchMode: 'symbiotic-vision',
       privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger({
+        beliefs: [{
+          ...createBeliefLedger().beliefs[0],
+          status: 'tentative',
+          confidence: 0.54,
+        }],
+      }),
+      relationshipModel: createRelationshipModel({
+        climate: 'guarded',
+        approachVector: 'give-space',
+        correctionSensitivity: 0.66,
+      }),
+      inquiryLoop: createInquiryLoop({
+        inquiries: [{
+          ...createInquiryLoop().inquiries[0],
+          kind: 'scene-grounding',
+          priority: 'high',
+        }],
+      }),
     })
 
     expect(decision.shouldInterrupt).toBe(false)
@@ -171,6 +476,8 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('global-cooldown-active')
     expect(decision.reasonCodes).toContain('scenario-bias-raised')
     expect(decision.reasonCodes).toContain('recent-ignored-penalty')
+    expect(decision.reasonCodes).toContain('belief-tentative')
+    expect(decision.reasonCodes).toContain('relationship-guarded')
   })
 
   it('selects late-night-care only after the time and activity gates are met', () => {
@@ -207,6 +514,11 @@ describe('evaluateProactivePolicy', () => {
         stance: 'care',
         suggestedStyle: 'gentle-care',
         emotionalTension: 'late-night-drain',
+      }),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel({
+        climate: 'warm',
+        approachVector: 'care',
       }),
     })
 
@@ -386,5 +698,45 @@ describe('evaluateProactivePolicy', () => {
 
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.reasonCodes).toContain('private-thought-uncertain')
+  })
+
+  it('holds back when the active belief is contradicted and the inquiry is still grounding the scene', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'recovering',
+      privateThought: createPrivateThought({
+        stance: 'uncertain',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+      }),
+      beliefLedger: createBeliefLedger({
+        beliefs: [{
+          ...createBeliefLedger().beliefs[0],
+          status: 'contradicted',
+          confidence: 0.38,
+        }],
+        unresolvedContradictions: ['current scene conflicts with carry-over browser thread'],
+      }),
+      relationshipModel: createRelationshipModel({
+        climate: 'guarded',
+        approachVector: 'give-space',
+        correctionSensitivity: 0.72,
+      }),
+      inquiryLoop: createInquiryLoop({
+        inquiries: [{
+          ...createInquiryLoop().inquiries[0],
+          kind: 'scene-grounding',
+          priority: 'high',
+        }],
+      }),
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('belief-contradicted')
+    expect(decision.reasonCodes).toContain('inquiry-open')
+    expect(decision.reasonCodes).toContain('relationship-correction-sensitive')
   })
 })

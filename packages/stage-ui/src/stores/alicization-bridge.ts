@@ -134,6 +134,7 @@ export type AlicizationSubconsciousFragmentSourceKind
     | 'former-core-incarnation'
     | 'unforged-shattering-event'
     | 'attitude-shift'
+    | 'mind-continuity'
     | 'visual-sediment'
 
 export interface AlicizationActiveThought {
@@ -315,6 +316,18 @@ export type AlicizationProactiveReasonCode
     | 'durability-anr-likely'
     | 'private-thought-observe-only'
     | 'private-thought-uncertain'
+    | 'belief-tentative'
+    | 'belief-contradicted'
+    | 'inquiry-open'
+    | 'relationship-guarded'
+    | 'relationship-attuned'
+    | 'relationship-correction-sensitive'
+    | 'living-world-open-loop'
+    | 'governor-withhold'
+    | 'governor-repair'
+    | 'governor-care'
+    | 'thought-thread-ripe'
+    | 'thought-thread-waiting'
     | 'watch-mode-symbiotic'
     | 'watch-mode-invited-inspection'
     | 'watch-mode-recovering'
@@ -328,6 +341,95 @@ export type AlicizationEmotionalTension
     | 'late-night-drain'
     | 'restless-switching'
     | 'calm-browse'
+export type AlicizationHostGoalHypothesis
+  = | 'resolve-problem'
+    | 'inspect-change'
+    | 'consume-media'
+    | 'rest'
+    | 'chat'
+    | 'browse'
+    | 'unknown'
+export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
+export type AlicizationConcernKind
+  = | 'help-fix'
+    | 'protect-focus'
+    | 'co-watch'
+    | 'care-body'
+    | 'unfinished-thread'
+    | 'curiosity'
+export type AlicizationConcernStatus = 'forming' | 'active' | 'lingering' | 'resolved' | 'released'
+export type AlicizationMindStance = 'approach' | 'hold' | 'hesitate' | 'protect' | 'coexist'
+export type AlicizationMindActionTendency = 'wait' | 'recheck' | 'hover' | 'whisper' | 'speak' | 'warn'
+export type AlicizationMindMotive = 'accompany' | 'protect' | 'clarify' | 'care' | 'curiosity' | 'stay-silent'
+export type AlicizationWorldFrameKind = 'live' | 'remembered' | 'imagined'
+export type AlicizationWorldCertainty = 'grounded' | 'observed' | 'lingering' | 'uncertain'
+export type AlicizationWorldFreshness = 'live' | 'recent' | 'stale'
+export type AlicizationWorldContinuityLabel = 'new-focus' | 'staying-with-thread' | 'scene-shift' | 'afterglow' | 'recovery' | 'reacquired'
+export type AlicizationWorldHostAvailability = 'immersed' | 'focused' | 'open' | 'fatigued' | 'drifting'
+export type AlicizationWorldBurden = 'light' | 'moderate' | 'heavy'
+export type AlicizationWorldThreadKind
+  = | 'debugging'
+    | 'change-review'
+    | 'deep-focus'
+    | 'co-viewing'
+    | 'late-night-endurance'
+    | 'chatting'
+    | 'browsing'
+    | 'recovery'
+    | 'unknown'
+export type AlicizationWorldThreadStatus = 'forming' | 'active' | 'lingering'
+export type AlicizationWorldThreadSource = 'grounded-scene' | 'observed-scene' | 'continuity' | 'durability-pulse' | 'working-memory'
+export type AlicizationWorldEntityKind = 'app' | 'process' | 'window' | 'task' | 'artifact' | 'media' | 'conversation'
+export type AlicizationWorldEntityStatus = 'active' | 'lingering' | 'stale'
+export type AlicizationWorldRelationKind = 'hosts' | 'contains' | 'focuses' | 'works-on' | 'about' | 'continues'
+export type AlicizationLivingWorldObjectKind = 'thread' | 'artifact' | 'ambient' | 'incident' | 'session'
+export type AlicizationLivingWorldObjectStatus = 'forming' | 'active' | 'cooling' | 'released'
+export type AlicizationLivingWorldStability = 'stable' | 'shifting' | 'fractured'
+export type AlicizationGoalOwner = 'host' | 'alicization'
+export type AlicizationGoalKind
+  = | 'resolve-problem'
+    | 'inspect-change'
+    | 'consume-media'
+    | 'rest'
+    | 'chat'
+    | 'browse'
+    | 'stay-near'
+    | 'guard-focus'
+    | 'clarify-scene'
+    | 'help-resolve'
+    | 'care-body'
+    | 'recover-thread'
+export type AlicizationGoalStatus = 'forming' | 'active' | 'blocked' | 'lingering' | 'released'
+export type AlicizationAttachmentMode = 'guarded' | 'nearby' | 'attuned'
+export type AlicizationInitiativeTemperament = 'reserved' | 'balanced' | 'eager'
+export type AlicizationDesireKind = 'speak' | 'recheck' | 'stay-near' | 'warn' | 'care'
+export type AlicizationDesireStatus = 'forming' | 'active' | 'withheld' | 'surfaced' | 'released'
+export type AlicizationBeliefScope = 'scene' | 'host' | 'relationship' | 'self'
+export type AlicizationBeliefSource = 'percept' | 'inference' | 'memory' | 'contradiction'
+export type AlicizationBeliefStatus = 'tentative' | 'held' | 'contradicted' | 'released'
+export type AlicizationBeliefRevisionStability = 'stable' | 'fluid' | 'fractured'
+export type AlicizationRelationshipClimate = 'guarded' | 'neutral' | 'warm' | 'attuned'
+export type AlicizationRelationshipApproachVector = 'give-space' | 'stay-near' | 'guide' | 'care'
+export type AlicizationInquiryKind = 'scene-grounding' | 'problem-localization' | 'timing-calibration' | 'relationship-calibration' | 'contradiction-check'
+export type AlicizationInquiryStatus = 'open' | 'tracking' | 'blocked' | 'settled' | 'dormant'
+export type AlicizationInquiryPriority = 'low' | 'medium' | 'high' | 'critical'
+export type AlicizationMindNeed = 'ground-truth' | 'guidance' | 'companionship' | 'care' | 'repair' | 'restraint'
+export type AlicizationDeliberationKind = 'ground-scene' | 'localize-problem' | 'protect-host' | 'stay-near' | 'repair-misread' | 'return-later'
+export type AlicizationDeliberationStatus = 'forming' | 'holding' | 'ripe' | 'cooling' | 'released'
+export type AlicizationActionEcologyMode = 'silent-presence' | 'quiet-accompany' | 'repair-before-speaking' | 'return-later' | 'surface-nudge' | 'surface-care' | 'surface-warning'
+export type AlicizationHypothesisKind = 'live-scene' | 'problem-locus' | 'care-need' | 'shared-afterglow' | 'misread-drift' | 'recovery-event'
+export type AlicizationHypothesisStatus = 'candidate' | 'active' | 'held' | 'contradicted' | 'fading'
+export type AlicizationThreadRuntimeStatus = 'foreground' | 'tracking' | 'background' | 'suspended' | 'resolved'
+export type AlicizationCommitmentKind = 'recheck-scene' | 'hold-problem' | 'care-host' | 'stay-near' | 'repair-misread' | 'follow-through'
+export type AlicizationCommitmentStatus = 'forming' | 'active' | 'cooling' | 'fulfilled' | 'released'
+export type AlicizationInquiryPlanKind = 'reground-scene' | 'localize-problem' | 'check-recovery' | 'verify-care' | 'wait-opening' | 'follow-thread'
+export type AlicizationInquiryPlanStatus = 'queued' | 'tracking' | 'waiting-opening' | 'satisfied' | 'abandoned'
+export type AlicizationMindKernelMode = 'orienting' | 'tracking' | 'repairing' | 'accompanying' | 'guarding' | 'resting'
+export type AlicizationSelfGovernorDrive = 'understand' | 'repair' | 'protect' | 'accompany' | 'care' | 'withhold'
+export type AlicizationSelfGovernorIntentionKind = 'understand-scene' | 'hold-thread' | 'repair-misread' | 'protect-host' | 'care-host' | 'stay-near' | 'wait-opening'
+export type AlicizationSelfGovernorIntentionStatus = 'forming' | 'active' | 'withheld' | 'fulfilled' | 'released'
+export type AlicizationThoughtThreadKind = 'scene-hold' | 'problem-thread' | 'relationship-thread' | 'care-thread' | 'afterglow-thread' | 'repair-thread'
+export type AlicizationThoughtThreadStatus = 'forming' | 'active' | 'waiting' | 'ripe' | 'cooling' | 'released'
 
 export interface AlicizationVisualTarget {
   appName?: string
@@ -389,6 +491,795 @@ export interface AlicizationVisualEpisode {
   sedimentCandidate: boolean
 }
 
+export interface AlicizationWorldThreadSnapshot {
+  id: string
+  kind: AlicizationWorldThreadKind
+  status: AlicizationWorldThreadStatus
+  source: AlicizationWorldThreadSource
+  title: string
+  summary: string
+  confidence: number
+  significance: number
+  unresolved: boolean
+  beganAt: number
+  lastUpdatedAt: number
+  target?: AlicizationVisualTarget | null
+}
+
+export interface AlicizationWorldEpistemicStateSnapshot {
+  certainty: AlicizationWorldCertainty
+  freshness: AlicizationWorldFreshness
+  seenNow: string[]
+  inferredNow: string[]
+  openQuestions: string[]
+  staleRisks: string[]
+}
+
+export interface AlicizationWorldContinuitySnapshot {
+  label: AlicizationWorldContinuityLabel
+  sceneAgeMs: number
+  attentionAgeMs: number
+  sameSceneAsBefore: boolean
+  sameAttentionAsBefore: boolean
+  afterglowOpen: boolean
+}
+
+export interface AlicizationWorldHostStateSnapshot {
+  availability: AlicizationWorldHostAvailability
+  burden: AlicizationWorldBurden
+}
+
+export interface AlicizationWorldModelSnapshot {
+  activeThread: AlicizationWorldThreadSnapshot | null
+  lingeringThreads: AlicizationWorldThreadSnapshot[]
+  focusTarget: AlicizationVisualTarget | null
+  epistemicState: AlicizationWorldEpistemicStateSnapshot
+  continuity: AlicizationWorldContinuitySnapshot
+  hostState: AlicizationWorldHostStateSnapshot
+  updatedAt: number
+}
+
+export interface AlicizationBeliefSnapshot {
+  id: string
+  scope: AlicizationBeliefScope
+  source: AlicizationBeliefSource
+  status: AlicizationBeliefStatus
+  statement: string
+  confidence: number
+  salience: number
+  evidence: string[]
+  entityIds: string[]
+  contradictsBeliefIds?: string[]
+  formedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationBeliefLedgerSnapshot {
+  focusBeliefId: string | null
+  beliefs: AlicizationBeliefSnapshot[]
+  unresolvedContradictions: string[]
+  updatedAt: number
+}
+
+export interface AlicizationBeliefRevisionSnapshot {
+  dominantBeliefId: string | null
+  stability: AlicizationBeliefRevisionStability
+  revisionPressure: number
+  groundingNeed: number
+  contradictionPressure: number
+  hostCorrectionWeight: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationHypothesisSnapshot {
+  id: string
+  kind: AlicizationHypothesisKind
+  status: AlicizationHypothesisStatus
+  summary: string
+  confidence: number
+  salience: number
+  evidence: string[]
+  counterEvidence: string[]
+  relatedBeliefId?: string | null
+  relatedInquiryId?: string | null
+  attentionTarget?: AlicizationVisualTarget | null
+  formedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationHypothesisGraphSnapshot {
+  activeHypothesisId: string | null
+  focusHypothesisIds: string[]
+  driftPressure: number
+  hypotheses: AlicizationHypothesisSnapshot[]
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationWorldEntitySnapshot {
+  id: string
+  kind: AlicizationWorldEntityKind
+  status: AlicizationWorldEntityStatus
+  label: string
+  summary?: string
+  confidence: number
+  salience: number
+  source: 'scene' | 'attention' | 'world-thread' | 'durability' | 'working-memory'
+  evidence: string[]
+  firstSeenAt: number
+  lastSeenAt: number
+  target?: AlicizationVisualTarget | null
+}
+
+export interface AlicizationWorldRelationSnapshot {
+  fromId: string
+  toId: string
+  kind: AlicizationWorldRelationKind
+  confidence: number
+}
+
+export interface AlicizationEntityWorldModelSnapshot {
+  focusEntityId: string | null
+  activeEntityIds: string[]
+  entities: AlicizationWorldEntitySnapshot[]
+  relations: AlicizationWorldRelationSnapshot[]
+  openLoops: string[]
+  updatedAt: number
+}
+
+export interface AlicizationLivingWorldObjectSnapshot {
+  id: string
+  kind: AlicizationLivingWorldObjectKind
+  status: AlicizationLivingWorldObjectStatus
+  label: string
+  summary: string
+  confidence: number
+  salience: number
+  continuity: number
+  lastChange: string
+  openLoop?: string
+  entityIds: string[]
+  threadIds: string[]
+  evidence: string[]
+  firstSeenAt: number
+  lastUpdatedAt: number
+}
+
+export interface AlicizationLivingWorldStateSnapshot {
+  focusObjectId: string | null
+  activeObjectIds: string[]
+  objects: AlicizationLivingWorldObjectSnapshot[]
+  openLoops: string[]
+  stability: AlicizationLivingWorldStability
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationGoalSnapshot {
+  id: string
+  owner: AlicizationGoalOwner
+  kind: AlicizationGoalKind
+  status: AlicizationGoalStatus
+  label: string
+  confidence: number
+  urgency: number
+  desireWeight: number
+  blockers: string[]
+  entityIds: string[]
+  createdAt: number
+  lastUpdatedAt: number
+}
+
+export interface AlicizationGoalStackSnapshot {
+  leadingHostGoalId: string | null
+  leadingAlicizationGoalId: string | null
+  hostGoals: AlicizationGoalSnapshot[]
+  alicizationGoals: AlicizationGoalSnapshot[]
+  unresolvedSummary?: string
+  updatedAt: number
+}
+
+export interface AlicizationSelfContinuitySnapshot {
+  attachmentMode: AlicizationAttachmentMode
+  initiativeTemperament: AlicizationInitiativeTemperament
+  perceptionTrust: number
+  relationshipTrust: number
+  guardingTendency: number
+  misreadBurden: number
+  carryOverDesire: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationRelationshipModelSnapshot {
+  climate: AlicizationRelationshipClimate
+  approachVector: AlicizationRelationshipApproachVector
+  receptivity: number
+  sharedAttentionTrust: number
+  correctionSensitivity: number
+  reciprocityExpectation: number
+  activeBoundaries: string[]
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationDesireMemoryEntry {
+  id: string
+  kind: AlicizationDesireKind
+  status: AlicizationDesireStatus
+  reason: string
+  strength: number
+  goalId?: string | null
+  entityId?: string | null
+  reopenWhen: string[]
+  createdAt: number
+  lastFeltAt: number
+  lastSurfacedAt?: number | null
+  expiresAt: number
+}
+
+export interface AlicizationDesireMemorySnapshot {
+  activeDesires: AlicizationDesireMemoryEntry[]
+  resurfacingDesireId?: string | null
+  withheldCount: number
+  updatedAt: number
+}
+
+export interface AlicizationInquirySnapshot {
+  id: string
+  kind: AlicizationInquiryKind
+  status: AlicizationInquiryStatus
+  priority: AlicizationInquiryPriority
+  question: string
+  whyItMatters: string
+  confidence: number
+  targetBeliefId?: string | null
+  evidenceWanted: string[]
+  reopenWhen: string[]
+  openedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationInquiryLoopSnapshot {
+  primaryInquiryId: string | null
+  inquiries: AlicizationInquirySnapshot[]
+  openCount: number
+  updatedAt: number
+}
+
+export interface AlicizationDeliberationThreadSnapshot {
+  id: string
+  kind: AlicizationDeliberationKind
+  status: AlicizationDeliberationStatus
+  summary: string
+  question?: string
+  desiredOutcome: string
+  focusBeliefId?: string | null
+  focusInquiryId?: string | null
+  concernId?: string | null
+  surfacePressure: number
+  silencePressure: number
+  embodiedPresence: AlicizationEmbodiedPresenceState
+  startedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationDeliberationStateSnapshot {
+  primaryThreadId: string | null
+  dominantNeed: AlicizationMindNeed
+  readiness: number
+  threads: AlicizationDeliberationThreadSnapshot[]
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationActionEcologySnapshot {
+  mode: AlicizationActionEcologyMode
+  selectedThreadId: string | null
+  readiness: number
+  surfacePressure: number
+  silencePressure: number
+  suggestedStyle: AlicizationProactiveStyle
+  embodiedPresence: AlicizationEmbodiedPresenceState
+  shouldSurface: boolean
+  shouldSpeak: boolean
+  why: string
+  updatedAt: number
+}
+
+export interface AlicizationThreadRuntimeSnapshot {
+  id: string
+  sourceThreadId?: string | null
+  sourceHypothesisId?: string | null
+  need: AlicizationMindNeed
+  status: AlicizationThreadRuntimeStatus
+  summary: string
+  salience: number
+  continuity: number
+  whyHeld: string
+  returnWhen: string[]
+  suggestedPresence: AlicizationEmbodiedPresenceState
+  lastActivatedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationThreadRuntimeStateSnapshot {
+  foregroundThreadId: string | null
+  threads: AlicizationThreadRuntimeSnapshot[]
+  driftPressure: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationCommitmentSnapshot {
+  id: string
+  kind: AlicizationCommitmentKind
+  status: AlicizationCommitmentStatus
+  title: string
+  summary: string
+  source: 'hypothesis' | 'runtime-thread' | 'private-thought' | 'continuity'
+  priority: number
+  confidence: number
+  targetHypothesisId?: string | null
+  targetRuntimeThreadId?: string | null
+  targetBeliefId?: string | null
+  createdAt: number
+  lastRenewedAt: number
+  patienceUntil: number
+  expiresAt: number
+}
+
+export interface AlicizationCommitmentLedgerSnapshot {
+  governingCommitmentId: string | null
+  commitments: AlicizationCommitmentSnapshot[]
+  carryPressure: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationInquiryPlanSnapshot {
+  id: string
+  kind: AlicizationInquiryPlanKind
+  status: AlicizationInquiryPlanStatus
+  priority: AlicizationInquiryPriority
+  question: string
+  targetHypothesisId?: string | null
+  targetCommitmentId?: string | null
+  targetRuntimeThreadId?: string | null
+  askForGrounding: boolean
+  suggestedProbeMs: number
+  evidenceWanted: string[]
+  createdAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationInquiryPlannerSnapshot {
+  activePlanId: string | null
+  plans: AlicizationInquiryPlanSnapshot[]
+  epistemicPressure: number
+  groundingUrgency: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationConcernContinuityStatus = 'active' | 'carried' | 'cooling' | 'released'
+
+export interface AlicizationConcernContinuityEntry {
+  id: string
+  sourceConcernId?: string | null
+  kind: AlicizationConcernKind
+  status: AlicizationConcernContinuityStatus
+  summary: string
+  anchor: string
+  targetThreadId?: string | null
+  targetCommitmentId?: string | null
+  targetInquiryPlanId?: string | null
+  continuityWeight: number
+  freshnessBias: number
+  repairAffinity: number
+  confidence: number
+  createdAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationConcernContinuityLedgerSnapshot {
+  governingEntryId: string | null
+  entries: AlicizationConcernContinuityEntry[]
+  carryPressure: number
+  unresolvedCount: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationRepairLedgerKind
+  = | 'reground-scene'
+    | 'stale-scene-anchor'
+    | 'belief-contradiction'
+    | 'present-tense-boundary'
+
+export type AlicizationRepairLedgerStatus = 'open' | 'tracking' | 'cooling' | 'resolved'
+
+export interface AlicizationRepairLedgerEntry {
+  id: string
+  kind: AlicizationRepairLedgerKind
+  status: AlicizationRepairLedgerStatus
+  summary: string
+  rationale: string
+  targetConcernEntryId?: string | null
+  targetCommitmentId?: string | null
+  targetInquiryPlanId?: string | null
+  targetBeliefId?: string | null
+  urgency: number
+  confidence: number
+  createdAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationRepairLedgerSnapshot {
+  governingRepairId: string | null
+  entries: AlicizationRepairLedgerEntry[]
+  repairPressure: number
+  truthRisk: number
+  shouldConstrainPresentTense: boolean
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationMindProjectKind
+  = | 'repair-truth'
+    | 'hold-knot'
+    | 'care-host'
+    | 'stay-near'
+    | 'reacquire-scene'
+    | 'witness-afterglow'
+
+export type AlicizationMindProjectStatus = 'forming' | 'active' | 'withheld' | 'stabilizing' | 'released'
+
+export interface AlicizationMindProjectSnapshot {
+  id: string
+  kind: AlicizationMindProjectKind
+  status: AlicizationMindProjectStatus
+  title: string
+  summary: string
+  tension: number
+  confidence: number
+  continuityWeight: number
+  speakAffinity: number
+  sourceTags: string[]
+  targetThreadId?: string | null
+  targetConcernEntryId?: string | null
+  targetRepairId?: string | null
+  targetCommitmentId?: string | null
+  targetInquiryPlanId?: string | null
+  targetThoughtThreadId?: string | null
+  targetGovernorIntentionId?: string | null
+  formedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationIntentionStreamSnapshot {
+  dominantProjectId: string | null
+  projects: AlicizationMindProjectSnapshot[]
+  carryPressure: number
+  surfaceBias: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationReflectionOutcome = 'helped' | 'stalled' | 'missed' | 'corrected' | 'released' | 'unknown'
+
+export interface AlicizationReflectionEntrySnapshot {
+  id: string
+  targetProjectId?: string | null
+  targetAnswerAct?: AlicizationAnswerAct | null
+  targetRepairId?: string | null
+  targetThreadId?: string | null
+  summary: string
+  expectation: string
+  observedOutcome: string
+  outcome: AlicizationReflectionOutcome
+  revision: string
+  confidenceShift: number
+  createdAt: number
+}
+
+export interface AlicizationReflectionLedgerSnapshot {
+  latestEntryId: string | null
+  entries: AlicizationReflectionEntrySnapshot[]
+  revisionPressure: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationExecutivePhase
+  = | 'perceiving'
+    | 'inferring'
+    | 'deliberating'
+    | 'committing'
+    | 'acting'
+    | 'reflecting'
+
+export interface AlicizationExecutiveCycleSnapshot {
+  cycleId: string
+  phase: AlicizationExecutivePhase
+  dominantProjectId: string | null
+  activeReflectionId?: string | null
+  governingThreadId?: string | null
+  governingRepairId?: string | null
+  shouldAct: boolean
+  shouldReflect: boolean
+  actionReadiness: number
+  currentLine: string
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationAnswerAct
+  = | 'answer'
+    | 'guide'
+    | 'ask-reground'
+    | 'correct-stale-anchor'
+    | 'care'
+    | 'defer'
+
+export type AlicizationAnswerEvidenceMode
+  = | 'live-grounded'
+    | 'live-observed'
+    | 'coarse-held'
+    | 'continuity-carry'
+    | 'repair-first'
+
+export interface AlicizationAnswerPlannerSnapshot {
+  act: AlicizationAnswerAct
+  evidenceMode: AlicizationAnswerEvidenceMode
+  confidence: number
+  governingFocus: string
+  openingMove: string
+  answerIntent: string
+  relationshipPosture: 'restrained' | 'warm' | 'tender'
+  shouldAskForGrounding: boolean
+  shouldAcknowledgeRepair: boolean
+  selectedConcernEntryId?: string | null
+  selectedRepairId?: string | null
+  selectedCommitmentId?: string | null
+  selectedInquiryPlanId?: string | null
+  selectedRuntimeThreadId?: string | null
+  selectedProjectId?: string | null
+  selectedReflectionId?: string | null
+  executivePhase?: AlicizationExecutivePhase | null
+  selectedTruthFrame?: AlicizationWorldFrameKind | null
+  mustDo: string[]
+  mustNotDo: string[]
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationMindDynamicsSnapshot {
+  dominantMotive: AlicizationMindMotive | null
+  worldPressure: number
+  epistemicPressure: number
+  relationalPressure: number
+  carePressure: number
+  continuityPressure: number
+  restraintPressure: number
+  surfacePressure: number
+  speakReadiness: number
+  presenceWeight: number
+  motives: Partial<Record<AlicizationMindMotive, number>>
+  speakDrive: number
+  silenceDrive: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationMindKernelSnapshot {
+  dominantMode: AlicizationMindKernelMode
+  governingHypothesisId?: string | null
+  governingRuntimeThreadId?: string | null
+  governingCommitmentId?: string | null
+  governingInquiryPlanId?: string | null
+  governingIntentionId?: string | null
+  dominantDrive?: AlicizationSelfGovernorDrive | null
+  worldPressure: number
+  epistemicPressure: number
+  relationalPressure: number
+  carePressure: number
+  continuityPressure: number
+  speakReadiness: number
+  presenceWeight: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationSelfGovernorIntentionSnapshot {
+  id: string
+  kind: AlicizationSelfGovernorIntentionKind
+  status: AlicizationSelfGovernorIntentionStatus
+  drive: AlicizationSelfGovernorDrive
+  title: string
+  summary: string
+  urgency: number
+  confidence: number
+  patience: number
+  targetObjectId?: string | null
+  targetThreadId?: string | null
+  targetGoalId?: string | null
+  targetCommitmentId?: string | null
+  formedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationSelfGovernorSnapshot {
+  dominantDrive: AlicizationSelfGovernorDrive | null
+  dominantIntentionId: string | null
+  focusObjectId?: string | null
+  activeIntentions: AlicizationSelfGovernorIntentionSnapshot[]
+  inhibition: number
+  persistence: number
+  socialRiskTolerance: number
+  revisionReadiness: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationThoughtThreadSnapshot {
+  id: string
+  kind: AlicizationThoughtThreadKind
+  status: AlicizationThoughtThreadStatus
+  title: string
+  summary: string
+  question?: string
+  anchoredObjectId?: string | null
+  anchoredIntentionId?: string | null
+  anchoredBeliefId?: string | null
+  anchoredInquiryId?: string | null
+  anchoredCommitmentId?: string | null
+  salience: number
+  confidence: number
+  surfaceReadiness: number
+  reopenWhen: string[]
+  openedAt: number
+  lastUpdatedAt: number
+  expiresAt: number
+}
+
+export interface AlicizationThoughtThreadStateSnapshot {
+  foregroundThreadId: string | null
+  threads: AlicizationThoughtThreadSnapshot[]
+  unresolvedCount: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationHostIntentCandidateSnapshot {
+  goal: AlicizationHostGoalHypothesis
+  confidence: number
+  why: string
+}
+
+export interface AlicizationRelationshipNeedCandidateSnapshot {
+  need: AlicizationRelationshipNeed
+  confidence: number
+  why: string
+}
+
+export interface AlicizationSubjectiveInferenceSnapshot {
+  dominantInterpretation: string
+  situatedMeaning?: string
+  selfQuestion?: string
+  uncertainty?: string
+  hostIntentCandidates: AlicizationHostIntentCandidateSnapshot[]
+  relationshipNeedCandidates: AlicizationRelationshipNeedCandidateSnapshot[]
+  confidence: number
+  source?: 'heuristic' | 'structured-cognition' | 'hybrid'
+  notes: string[]
+  updatedAt: number
+}
+
+export interface AlicizationSubjectiveSceneAppraisal {
+  inferredHostGoal: AlicizationHostGoalHypothesis
+  currentKnot?: string
+  whatChanged?: string
+  waitingToVerify?: string
+  situatedMeaning?: string
+  relationshipNeed?: AlicizationRelationshipNeed
+  source?: 'heuristic' | 'structured-cognition' | 'hybrid'
+  confidence: number
+  surprise: number
+  carePressure: number
+  interruptionCost: number
+  desireToSpeak: number
+  notes: string[]
+}
+
+export interface AlicizationConcernSnapshot {
+  id: string
+  kind: AlicizationConcernKind
+  status: AlicizationConcernStatus
+  summary: string
+  target?: AlicizationVisualTarget | null
+  hostGoal: AlicizationHostGoalHypothesis
+  tension: number
+  confidence: number
+  careWeight: number
+  createdAt: number
+  lastEvidenceAt: number
+  patienceUntil: number
+  predictedClosure?: string
+}
+
+export interface AlicizationSelfStateSnapshot {
+  stance: AlicizationMindStance
+  feltCloseness: number
+  protectiveness: number
+  curiosity: number
+  patience: number
+  desireToSpeak: number
+  fearOfInterrupting: number
+  dominantConcernId?: string | null
+  moodLabel?: string
+}
+
+export interface AlicizationInitiativeSnapshot {
+  selectedAction: AlicizationMindActionTendency
+  selectedCounterfactualOptionId?: string | null
+  selectedConcernId?: string | null
+  selectedBeliefId?: string | null
+  selectedInquiryId?: string | null
+  selectedCommitmentId?: string | null
+  selectedInquiryPlanId?: string | null
+  selectedHypothesisId?: string | null
+  selectedThreadId?: string | null
+  selectedRuntimeThreadId?: string | null
+  selectedThoughtThreadId?: string | null
+  selectedGovernorIntentionId?: string | null
+  actionEcologyMode?: AlicizationActionEcologyMode | null
+  confidence: number
+  motives: Partial<Record<AlicizationMindMotive, number>>
+  speakDrive?: number
+  silenceDrive?: number
+  preferredStyle?: AlicizationProactiveStyle
+  preferredPresence?: AlicizationEmbodiedPresenceState
+  why: string
+  shouldSurface: boolean
+  shouldSpeak: boolean
+}
+
+export interface AlicizationCounterfactualOptionSnapshot {
+  id: string
+  action: AlicizationMindActionTendency
+  style: AlicizationProactiveStyle
+  embodiedPresence: AlicizationEmbodiedPresenceState
+  relationshipCost: number
+  interruptionCost: number
+  informationGain: number
+  timingFitness: number
+  identityFit: number
+  score: number
+  why: string
+}
+
+export interface AlicizationCounterfactualDeliberationSnapshot {
+  selectedOptionId: string | null
+  selectedAction: AlicizationMindActionTendency
+  confidence: number
+  dominantTradeoff: string
+  options: AlicizationCounterfactualOptionSnapshot[]
+  narrative: string[]
+  updatedAt: number
+}
+
 export interface AlicizationPrivateThoughtSnapshot {
   stance: 'observe' | 'accompany' | 'nudge' | 'care' | 'warn' | 'uncertain'
   confidence: number
@@ -400,6 +1291,24 @@ export interface AlicizationPrivateThoughtSnapshot {
   expiresAt: number
   afterglowFromScenario?: 'coding' | 'media' | null
   emotionalTension: AlicizationEmotionalTension
+  selectedConcernId?: string | null
+  focusBeliefId?: string | null
+  focusInquiryId?: string | null
+  commitmentId?: string | null
+  inquiryPlanId?: string | null
+  hypothesisId?: string | null
+  deliberationThreadId?: string | null
+  runtimeThreadId?: string | null
+  mindNeed?: AlicizationMindNeed | null
+  relationshipVector?: AlicizationRelationshipApproachVector | null
+  initiativeAction?: AlicizationMindActionTendency
+  counterfactualOptionId?: string | null
+  leadingGoalId?: string | null
+  desireId?: string | null
+  governorDrive?: AlicizationSelfGovernorDrive | null
+  governorIntentionId?: string | null
+  selectedThoughtThreadId?: string | null
+  livingWorldObjectId?: string | null
 }
 
 export interface AlicizationVisualPresenceStateSnapshot {
@@ -407,6 +1316,38 @@ export interface AlicizationVisualPresenceStateSnapshot {
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
   workingMemoryEpisodes: AlicizationVisualEpisode[]
+  worldModel?: AlicizationWorldModelSnapshot | null
+  beliefLedger?: AlicizationBeliefLedgerSnapshot | null
+  beliefRevision?: AlicizationBeliefRevisionSnapshot | null
+  hypothesisGraph?: AlicizationHypothesisGraphSnapshot | null
+  entityWorld?: AlicizationEntityWorldModelSnapshot | null
+  livingWorldState?: AlicizationLivingWorldStateSnapshot | null
+  subjectiveInference?: AlicizationSubjectiveInferenceSnapshot | null
+  appraisal?: AlicizationSubjectiveSceneAppraisal | null
+  goalStack?: AlicizationGoalStackSnapshot | null
+  concerns?: AlicizationConcernSnapshot[]
+  concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
+  relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  selfState?: AlicizationSelfStateSnapshot | null
+  selfGovernor?: AlicizationSelfGovernorSnapshot | null
+  inquiryLoop?: AlicizationInquiryLoopSnapshot | null
+  deliberationState?: AlicizationDeliberationStateSnapshot | null
+  threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
+  commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
+  inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
+  repairLedger?: AlicizationRepairLedgerSnapshot | null
+  intentionStream?: AlicizationIntentionStreamSnapshot | null
+  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
+  executiveCycle?: AlicizationExecutiveCycleSnapshot | null
+  mindDynamics?: AlicizationMindDynamicsSnapshot | null
+  mindKernel?: AlicizationMindKernelSnapshot | null
+  thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
+  counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
+  actionEcology?: AlicizationActionEcologySnapshot | null
+  initiative?: AlicizationInitiativeSnapshot | null
+  desireMemory?: AlicizationDesireMemorySnapshot | null
+  answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
     permission: 'granted' | 'denied' | 'prompt' | 'unknown'
@@ -450,6 +1391,7 @@ export type AlicizationDialogueStructuredFormat
   = | 'subconscious-proactive-v1'
     | 'subconscious-proactive-llm-v1'
     | 'subconscious-reminder-v1'
+    | 'mind-turn-v1'
     | 'epoch1-v1'
     | 'fallback-v1'
 
@@ -711,11 +1653,38 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   waitForTools?: boolean
 }
 
+export interface AlicizationMindTurnGovernance {
+  turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
+  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  personaKernelMode: 'full' | 'backgrounded' | 'muted'
+  openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
+  relationshipPosture: 'restrained' | 'warm' | 'tender'
+  answerAct?: 'answer' | 'guide' | 'ask-reground' | 'correct-stale-anchor' | 'care' | 'defer' | null
+  evidenceMode?: 'live-grounded' | 'live-observed' | 'coarse-held' | 'continuity-carry' | 'repair-first' | null
+  repairState: 'none' | 'stale-anchor' | 'need-reground'
+  liveSurface?: string | null
+  focusAnchor?: string | null
+  answerIntent?: string | null
+  openingMove?: string | null
+  carriedThread?: string | null
+  suppressAssociativeRecall: boolean
+  labelCarryAsMemory: boolean
+  shouldAskForGrounding: boolean
+  shouldAcknowledgeRepair: boolean
+  maxSentences: number
+  mindMode?: string | null
+  embodiedPresence?: AlicizationEmbodiedPresenceState
+  emotionalTension?: AlicizationEmotionalTension
+  mustDo: string[]
+  mustNotDo: string[]
+}
+
 export interface AlicizationChatStartResult {
   accepted: boolean
   turnId: string
   state?: 'accepted' | 'duplicate-running' | 'duplicate-finished' | 'missing-config' | 'start-failed'
   reason?: string
+  governance?: AlicizationMindTurnGovernance | null
 }
 
 export interface AlicizationChatAbortPayload extends AlicizationCardScope {
@@ -739,6 +1708,7 @@ export interface AlicizationReminderScheduleResult {
 
 export type AlicizationBridgeChatStreamEvent
   = | { type: 'text-delta', text: string }
+    | { type: 'meta', governance: AlicizationMindTurnGovernance | null }
     | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
     | { type: 'tool-result', toolCallId: string, result?: unknown }
     | { type: 'finish' }

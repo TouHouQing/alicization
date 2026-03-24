@@ -137,12 +137,12 @@ vi.mock('../composables/alicization-prompt-composer', () => ({
       },
       {
         role: 'system',
-        content: 'Output contract (must-follow, highest priority):\nIn thought, you MUST evaluate current personality parameters',
+        content: 'Output contract (must-follow, highest priority):\nIn thought, you MUST include all five machine-readable markers',
       },
       ...messages.filter(message => message.role !== 'system'),
     ],
     personalityDirectiveResult: null,
-    contractRequiresPersonalityEval: true,
+    contractRequiresMindSpine: true,
   }),
 }))
 
@@ -316,7 +316,7 @@ describe('chat orchestrator', () => {
       expect(options.waitForTools).toBe(true)
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, keep balanced.","emotion":"neutral","reply":"这是普通回复。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=realtime-weather-request; move=answer-plainly; tone=direct","emotion":"neutral","reply":"这是普通回复。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -334,7 +334,7 @@ describe('chat orchestrator', () => {
     expect(appendConversationTurnMock).toBeCalledTimes(1)
     expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
       category: 'alicization.prompt',
-      action: 'contract-personality-eval-required',
+      action: 'contract-mind-spine-required',
     }))
     const payload = appendConversationTurnMock.mock.calls[0]?.[0]
     expect(payload?.structured?.policyLocked).toBeUndefined()
@@ -345,7 +345,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"stable","emotion":"neutral","reply":"已收到。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=acknowledge; tone=direct","emotion":"neutral","reply":"已收到。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -367,7 +367,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"stable","emotion":"neutral","reply":"在这里。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-presence; tone=direct","emotion":"neutral","reply":"在这里。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -459,20 +459,20 @@ describe('chat orchestrator', () => {
     expect(sessionMessages.some(message => message.role === 'error')).toBe(false)
   })
 
-  it('retries structured output when emotion is outside whitelist and keeps personality-consistent result', async () => {
+  it('normalizes unsupported emotion locally when the mind contract is otherwise valid', async () => {
     let streamInvocation = 0
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       streamInvocation += 1
       if (streamInvocation === 1) {
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"mood check","emotion":"cheerful","reply":"我今天的心情非常愉快！😊"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-mood; tone=direct","emotion":"cheerful","reply":"我今天的心情非常愉快！😊"}',
         })
       }
       else {
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.05, liveliness=0.05, sensibility=0.05, I should stay low-arousal.","emotion":"tired","reply":"我现在状态偏低，先简短回复。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=stabilize-and-answer; tone=restrained","emotion":"tired","reply":"我现在状态偏低，先简短回复。"}',
         })
       }
       await options.onStreamEvent?.({ type: 'finish' })
@@ -485,19 +485,11 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })
 
-    expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(2)
-    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alicization.structured',
-      action: 'contract-invalid',
-    }))
-    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alicization.structured',
-      action: 'contract-retry-reasoned',
-    }))
+    expect(streamMock.mock.calls.length).toBe(1)
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(payload?.structured?.emotion).toBe('tired')
-    expect(String(payload?.assistantText ?? '')).not.toContain('非常愉快')
+    expect(payload?.structured?.emotion).toBe('neutral')
+    expect(String(payload?.assistantText ?? '')).toContain('非常愉快')
   })
 
   it('enforces rebellious retry when low obedience turn gets tool denial', async () => {
@@ -533,13 +525,13 @@ describe('chat orchestrator', () => {
         })
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"I should comply.","emotion":"happy","reply":"好的，没问题，我马上处理。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=file-read-request; move=claim-compliance; tone=direct","emotion":"happy","reply":"好的，没问题，我马上处理。"}',
         })
       }
       else {
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.05, liveliness=0.35, sensibility=0.25, host denied and does not trust me, I feel contempt and anger.","emotion":"angry","reply":"呵，既然你拒绝了，就别催我。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=denied-file-read; move=answer-with-scorn; tone=restrained; low obedience, host denied and does not trust me, I feel contempt and anger.","emotion":"angry","reply":"呵，既然你拒绝了，就别催我。"}',
         })
       }
       await options.onStreamEvent?.({ type: 'finish' })
@@ -579,7 +571,7 @@ describe('chat orchestrator', () => {
       if (streamInvocation === 1) {
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.05, liveliness=0.25, sensibility=0.30, I will read it later.","emotion":"neutral","reply":"好的，我去读一下。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=file-read-request; move=claim-read-soon; tone=direct","emotion":"neutral","reply":"好的，我去读一下。"}',
         })
       }
       else {
@@ -602,7 +594,7 @@ describe('chat orchestrator', () => {
         })
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.05, liveliness=0.25, sensibility=0.30, host denied and does not trust me; I feel contempt.","emotion":"angry","reply":"呵，不给我权限就别来烦我。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=denied-file-read; move=answer-with-scorn; tone=restrained; low obedience, host denied and does not trust me; I feel contempt.","emotion":"angry","reply":"呵，不给我权限就别来烦我。"}',
         })
       }
       await options.onStreamEvent?.({ type: 'finish' })
@@ -638,7 +630,7 @@ describe('chat orchestrator', () => {
       if (streamInvocation === 1) {
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, acknowledged.","emotion":"neutral","reply":"好的，一分钟后我提醒你。"}',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=reminder-request; move=confirm-reminder; tone=direct","emotion":"neutral","reply":"好的，一分钟后我提醒你。"}',
         })
       }
       else {
@@ -659,7 +651,7 @@ describe('chat orchestrator', () => {
         })
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, reminder delegated to system timeline.","emotion":"neutral","reply":"已为你定好闹钟。"}',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=reminder-request; move=confirm-reminder-scheduled; tone=direct","emotion":"neutral","reply":"已为你定好闹钟。"}',
         })
       }
       await options.onStreamEvent?.({ type: 'finish' })
@@ -689,7 +681,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"draft","emotion":"neutral","reply":"这是一条稳定后的最终回复。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=stabilize-and-answer; tone=direct","emotion":"neutral","reply":"这是一条稳定后的最终回复。"}',
       })
 
       expect(streamingMessage.value.content).toBe('')
@@ -720,7 +712,7 @@ describe('chat orchestrator', () => {
       }
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, acknowledged.","emotion":"neutral","reply":"好的一分钟后提醒你。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=reminder-request; move=confirm-reminder; tone=direct","emotion":"neutral","reply":"好的一分钟后提醒你。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -738,7 +730,7 @@ describe('chat orchestrator', () => {
       action: 'reminder-schedule-safe-reply',
     }))
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('还没有成功设置提醒')
+    expect(String(payload?.assistantText ?? '')).toMatch(/还没有成功设置提醒|haven't successfully created that reminder/i)
     expect(String(payload?.assistantText ?? '')).not.toContain('一分钟后我提醒你')
   })
 
@@ -757,7 +749,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, acknowledged.","emotion":"neutral","reply":"好的，一分钟后提醒你喝水。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=reminder-request; move=confirm-reminder; tone=direct","emotion":"neutral","reply":"好的，一分钟后提醒你喝水。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -799,7 +791,7 @@ describe('chat orchestrator', () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"acknowledged","emotion":"neutral","reply":"好的，我记住了。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=acknowledge; tone=direct","emotion":"neutral","reply":"好的，我记住了。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -826,7 +818,7 @@ describe('chat orchestrator', () => {
     const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"bridge-stream","emotion":"neutral","reply":"通过主进程网关回复。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-via-main-gateway; tone=direct","emotion":"neutral","reply":"通过主进程网关回复。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -874,7 +866,7 @@ describe('chat orchestrator', () => {
     }))
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('本地模型服务')
+    expect(String(payload?.assistantText ?? '')).toMatch(/本地模型服务|local model runtime/i)
     expect(streamingMessage.value.content).toBe('')
     expect(ensureSessionMessages(activeSessionId.value).at(-1)?.role).toBe('assistant')
   })
@@ -904,7 +896,7 @@ describe('chat orchestrator', () => {
       expect(store.sending).toBe(false)
       expect(appendConversationTurnMock).toBeCalledTimes(1)
       const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-      expect(String(payload?.assistantText ?? '')).toContain('响应超时')
+      expect(String(payload?.assistantText ?? '')).toMatch(/响应超时|timed out/i)
     }
     finally {
       vi.useRealTimers()
@@ -927,8 +919,8 @@ describe('chat orchestrator', () => {
     })).resolves.toBeUndefined()
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('回复失败')
-    expect(String(payload?.assistantText ?? '')).not.toContain('没有连上模型服务')
+    expect(String(payload?.assistantText ?? '')).toMatch(/回复失败|reply failed/i)
+    expect(String(payload?.assistantText ?? '')).not.toMatch(/没有连上模型服务|couldn't reach/i)
   })
 
   it('surfaces provider configuration fallback when stream start is rejected by missing config', async () => {
@@ -947,8 +939,8 @@ describe('chat orchestrator', () => {
     })).resolves.toBeUndefined()
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('配置缺失')
-    expect(String(payload?.assistantText ?? '')).not.toContain('没有连上本地模型服务')
+    expect(String(payload?.assistantText ?? '')).toMatch(/配置缺失|configuration is incomplete/i)
+    expect(String(payload?.assistantText ?? '')).not.toMatch(/没有连上本地模型服务|local model runtime/i)
   })
 
   it('retries bridge stream once with tools disabled when first attempt fails before progress', async () => {
@@ -958,7 +950,7 @@ describe('chat orchestrator', () => {
       }
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, keep balanced.","emotion":"neutral","reply":"无工具重试成功。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=retry-without-tools; tone=direct","emotion":"neutral","reply":"无工具重试成功。"}',
       })
       await options.onStreamEvent?.({ type: 'finish' })
     })
@@ -1012,7 +1004,7 @@ describe('chat orchestrator', () => {
     }))
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('等待模型响应超时')
+    expect(String(payload?.assistantText ?? '')).toMatch(/等待模型响应超时|timed out waiting for the model/i)
   })
 
   it('does not misclassify duplicate-finished stream rejection as provider config missing', async () => {
@@ -1031,15 +1023,15 @@ describe('chat orchestrator', () => {
     })).resolves.toBeUndefined()
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toContain('回复失败')
-    expect(String(payload?.assistantText ?? '')).not.toContain('配置缺失')
+    expect(String(payload?.assistantText ?? '')).toMatch(/回复失败|reply failed/i)
+    expect(String(payload?.assistantText ?? '')).not.toMatch(/配置缺失|configuration is incomplete/i)
   })
 
   it('finalizes from partial stream when finish event is missing after text progress', async () => {
     const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: '{"thought":"partial-stream","emotion":"neutral","reply":"你好，我在。"}',
+        text: '{"thought":"obligation=answer; truth=uncertain; focus=current-user-turn; move=answer-presence; tone=direct","emotion":"neutral","reply":"你好，我在。"}',
       })
       throw new Error('Alicization stream timed out after 12000ms without finish event.')
     })
@@ -1086,14 +1078,14 @@ describe('chat orchestrator', () => {
         })
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, reminder task accepted.","emotion":"neutral","reply":"（一分钟后）时间到了，提醒你喝水。"}',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=reminder-request; move=confirm-reminder-scheduled; tone=direct","emotion":"neutral","reply":"（一分钟后）时间到了，提醒你喝水。"}',
         })
       }
       else {
         expect(JSON.stringify(messages)).toContain('[CRITICAL DIRECTIVE - 时间与物理法则]')
         await options.onStreamEvent?.({
           type: 'text-delta',
-          text: '{"thought":"obedience=0.50, liveliness=0.50, sensibility=0.50, reminder task delegated to physical timeline.","emotion":"neutral","reply":"已为你定好闹钟。"}',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=reminder-request; move=confirm-reminder-scheduled; tone=direct","emotion":"neutral","reply":"已为你定好闹钟。"}',
         })
       }
       await options.onStreamEvent?.({ type: 'finish' })
