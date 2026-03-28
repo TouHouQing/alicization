@@ -3604,6 +3604,132 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('forces inspection carry release on identity confirmations that pivot back to Alicization herself', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'identity pivot reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'Runtime diff review',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,identity-pivot-inspection-seed',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-identity-pivot-initial-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我屏幕上现在是什么',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+    desktopCapturerGetSourcesMock.mockClear()
+
+    const followUpTurnId = 'turn-identity-pivot-follow-up'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看我屏幕上现在是什么',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '没错，这个人就是你，',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+
+    const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.category === 'alicization.perception')
+    expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
+    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
+      action: 'perception-context-prepared',
+      payload: expect.objectContaining({
+        inspectionRequested: false,
+        inspectionCarryReleased: true,
+        inspectionIntentReasonCodes: expect.arrayContaining([
+          'identity-dialogue-pivot',
+          'dialogue-pivot-away-from-inspection',
+        ]),
+      }),
+    }))
+  })
+
   it('lets dialogue-first answer complaints reclaim turn ownership before inspection grounding starts', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []

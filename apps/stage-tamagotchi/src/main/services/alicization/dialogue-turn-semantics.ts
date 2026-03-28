@@ -118,6 +118,8 @@ const selfInquiryCuePattern
   = /\b(?:do you (?:like|love) me|you (?:like|love) me|do you think you are|are you|what are you like)\b|你(?:觉得|認為|认为)(?:你|自己)?(?:可爱|开心|高兴|难过|生气|温柔|聪明|笨|可怕|有趣|无聊)(?:吗|嘛)?|你(?:喜不喜欢|喜歡不喜歡|喜欢|愛不愛|爱不爱|爱|愛)我(?:吗|嘛)?|你(?:喜不喜欢|喜欢|愛不愛|爱不爱|爱|愛)(?:自己|你自己)(?:吗|嘛)?|你(?:可爱|开心|高兴|难过|生气|温柔|聪明|有趣|无聊)(?:吗|嘛)|你觉得(?:自己)?怎么样|你是(?:什么样|怎樣|谁)|あなた(?:は|って)(?:可愛い|好き|どんな)|너(?:는|가)(?:귀엽|좋아|어때)|ты(?:\s+\w+){0,3}\?/iu
 const selfToneAdjustmentCuePattern
   = /\b(?:be happier|be more cheerful|sound normal|speak normally|talk like a human|be more natural|be gentler)\b|你能不能(?:表现得|说话)?(?:开心|高兴|正常|自然|温柔|轻松)(?:一点)?|你能不能说人话|你说话(?:正常|自然|温柔|轻松)一点|你别那么(?:僵硬|机械|冷)|说话像个人/iu
+const selfIdentityAffirmationCuePattern
+  = /(?:这个人|那个人|这人|那人|说的就?是|没错|对啊?).{0,8}(?:就是你|是你)|(?:就是|正是)(?:你|妳)[啊呀呢嘛]?|\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/iu
 
 function questionWeight(text: string) {
   const normalized = normalizeDialogueText(text)
@@ -168,6 +170,10 @@ function looksLikeSelfInquiry(text: string) {
 
 function looksLikeSelfToneAdjustment(text: string) {
   return selfToneAdjustmentCuePattern.test(normalizeDialogueText(text))
+}
+
+function looksLikeSelfIdentityAffirmation(text: string) {
+  return selfIdentityAffirmationCuePattern.test(normalizeDialogueText(text))
 }
 
 function terseTurn(text: string) {
@@ -301,6 +307,7 @@ export function buildDialogueTurnSemantics(input: {
   const answerRepairCue = looksLikeAnswerRepairCue(userText)
   const selfInquiry = looksLikeSelfInquiry(userText)
   const selfToneAdjustment = looksLikeSelfToneAdjustment(userText)
+  const selfIdentityAffirmation = looksLikeSelfIdentityAffirmation(userText)
   const currentActivityQuestion = looksLikeCurrentActivityQuestion(userText)
     && Boolean(input.currentScene || input.worldModel?.activeThread)
   const codingLike = input.context.workload.kind === 'coding'
@@ -448,7 +455,7 @@ export function buildDialogueTurnSemantics(input: {
     && !sceneBoundQuestion
     && !helpSeeking
     && !currentActivityQuestion
-    && (greetingBid || selfInquiry || selfToneAdjustment)
+    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation)
   ) {
     if (greetingBid && !selfInquiry && !selfToneAdjustment) {
       act = 'social-bid'
@@ -458,6 +465,15 @@ export function buildDialogueTurnSemantics(input: {
       subjectPreference = 'relationship'
       personaSuppression = clamp01(personaSuppression - 0.08)
       reasonTags.push('greeting-bid')
+    }
+    else if (selfIdentityAffirmation && !selfInquiry && !selfToneAdjustment) {
+      act = 'social-bid'
+      responseNeed = 'answer'
+      truthExpectation = 'normal'
+      affectiveTone = 'warm'
+      subjectPreference = 'alicization-self'
+      personaSuppression = clamp01(personaSuppression + 0.02)
+      reasonTags.push('self-identity-affirmation')
     }
     else {
       act = selfToneAdjustment ? 'challenge' : 'ask-help'
@@ -641,6 +657,7 @@ export function buildDialogueTurnSemantics(input: {
       helpSeeking ? 'explicit-help-cue' : '',
       companionshipBid ? 'companionship-cue' : '',
       careRequest ? 'care-cue' : '',
+      selfIdentityAffirmation ? 'self-identity-cue' : '',
     ]),
   }
 }

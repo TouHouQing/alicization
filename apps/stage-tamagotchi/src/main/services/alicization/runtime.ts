@@ -8829,6 +8829,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       contextPhrases: buildInspectionIntentContextPhrases(input),
       sharedAttentionActive: stableSharedAttention || inspectionContinuityActive,
     })
+    const identityDialoguePivotSignal = Boolean(
+      normalized
+      && (
+        /(?:这个人|那个人|这人|那人|说的就?是|没错|对啊?).{0,8}(?:就是你|是你)/u.test(normalized)
+        || /(?:就是|正是)(?:你|妳)[啊呀呢嘛]?/u.test(normalized)
+        || /\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/i.test(normalized)
+      ),
+    )
     const semanticPremarkEligible = semanticIntent.reasonCodes.some(code => [
       'explicit-visual-ask',
       'observe-cue',
@@ -8837,7 +8845,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       'recheck-cue',
       'scene-shift-cue',
     ].includes(code))
-    const premarkInspectionOwnedTurn = baseIntent.active || (semanticIntent.active && semanticPremarkEligible)
+    const forceDialogueIdentityPivot = Boolean(
+      inspectionContinuityActive
+      && identityDialoguePivotSignal
+      && !baseIntent.active
+      && !semanticPremarkEligible,
+    )
+    const premarkInspectionOwnedTurn = !forceDialogueIdentityPivot
+      && (baseIntent.active || (semanticIntent.active && semanticPremarkEligible))
     const ingressContext = buildDialogueIngressContext({
       now: input.now,
       currentForeground: input.currentForeground,
@@ -8868,6 +8883,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       inspectionContinuityActive,
       sharedAttentionActive: stableSharedAttention,
     })
+    if (forceDialogueIdentityPivot) {
+      return {
+        active: false,
+        confidence: Math.max(semanticIntent.confidence, ingressGovernor.confidence, 0.52),
+        reasonCodes: [
+          'identity-dialogue-pivot',
+          'dialogue-pivot-away-from-inspection',
+          ...ingressGovernor.reasonTags,
+        ].filter(Boolean),
+        releaseCarry: true,
+        ingress: ingressGovernor,
+      }
+    }
     if (!ingressGovernor.inspectionEligible) {
       return {
         active: false,
@@ -8901,10 +8929,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       || semanticIntent.contextOverlap >= 0.45,
     )
     const dialoguePivotFromInspection = Boolean(
-      inspectionContinuityActive
-      && !baseIntent.active
-      && !anchoredSceneContinuation
-      && !repairSignal,
+      forceDialogueIdentityPivot
+      || (
+        inspectionContinuityActive
+        && !baseIntent.active
+        && !anchoredSceneContinuation
+        && !repairSignal
+      ),
     )
     const sharedAttentionContinuation = Boolean(
       stableSharedAttention
@@ -8972,6 +9003,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       sharedAttentionContinuation ? 'shared-attention-continuation' : '',
       repairSignal ? 'inspection-repair' : '',
       shortRepairTurn ? 'short-follow-up' : '',
+      forceDialogueIdentityPivot ? 'identity-dialogue-pivot' : '',
       dialoguePivotFromInspection ? 'dialogue-pivot-away-from-inspection' : '',
       detachedTurnFromScene ? 'scene-detached-question' : '',
     ].filter(Boolean)

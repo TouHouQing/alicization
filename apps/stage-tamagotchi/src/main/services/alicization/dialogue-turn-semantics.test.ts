@@ -466,6 +466,73 @@ describe('dialogue-turn-semantics', () => {
     expect(semantics.reasonTags).not.toContain('coding-question')
   })
 
+  it('treats non-question identity confirmations as dialogue-first self turns instead of terse coding carry', () => {
+    const semantics = buildDialogueTurnSemantics({
+      userText: '没错，这个人就是你，',
+      context: codingContext,
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'runtime.ts diff',
+        source: 'foreground-window-heuristic',
+        confidence: 0.84,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 30_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'change-review',
+          status: 'active',
+          source: 'continuity',
+          title: 'runtime.ts diff',
+          summary: 'The host is checking the runtime diff.',
+          confidence: 0.72,
+          significance: 0.83,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: ['stale anchor'],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 30_000,
+          attentionAgeMs: 30_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 30_000,
+      },
+    })
+
+    expect(semantics.act).toBe('social-bid')
+    expect(semantics.responseNeed).toBe('answer')
+    expect(semantics.subjectPreference).toBe('alicization-self')
+    expect(semantics.reasonTags).toEqual(expect.arrayContaining([
+      'self-identity-affirmation',
+      'self-identity-cue',
+      'dialogue-first-turn',
+    ]))
+    expect(semantics.reasonTags).not.toContain('terse-coding-followup')
+  })
+
   it('treats answer-style complaints as dialogue-first even while coding carry is still active', () => {
     const semantics = buildDialogueTurnSemantics({
       userText: '能不能说人话',
