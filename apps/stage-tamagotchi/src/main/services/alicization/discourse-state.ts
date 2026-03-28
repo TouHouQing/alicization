@@ -1,5 +1,6 @@
 import type {
   AlicizationDialogueAnswerSubject,
+  AlicizationDialogueScreenReferenceMode,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindSpeechObligation,
   AlicizationReflectionLedgerSnapshot,
@@ -9,6 +10,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
@@ -150,7 +152,7 @@ function resolveScreenReferenceMode(input: {
   subject: AlicizationDialogueAnswerSubject
   inspectionRequested?: boolean
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
-}) {
+}): AlicizationDialogueScreenReferenceMode {
   if (input.inspectionRequested) {
     if (input.subject === 'visible-scene')
       return 'required' as const
@@ -174,6 +176,7 @@ export function buildDiscourseState(input: {
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  ownership?: AlicizationDialogueTurnOwnership | null
   inspectionRequested?: boolean
   worldModel?: AlicizationWorldModelSnapshot | null
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
@@ -184,14 +187,14 @@ export function buildDiscourseState(input: {
   if (!input.dialogueSemantics && !input.dialogueObligation && !input.dialogueFocus)
     return null
 
-  const subject = resolveSubject({
+  const subject = input.ownership?.subject ?? resolveSubject({
     dialogueSemantics: input.dialogueSemantics,
     dialogueFocus: input.dialogueFocus,
     dialogueObligation: input.dialogueObligation,
     inspectionRequested: input.inspectionRequested,
     worldModel: input.worldModel ?? null,
   })
-  const screenReferenceMode = resolveScreenReferenceMode({
+  const screenReferenceMode = input.ownership?.screenReferenceMode ?? resolveScreenReferenceMode({
     subject,
     inspectionRequested: input.inspectionRequested,
     dialogueFocus: input.dialogueFocus,
@@ -205,7 +208,7 @@ export function buildDiscourseState(input: {
     owedAction,
     relationshipModel: input.relationshipModel ?? null,
   })
-  const continuityMode = resolveContinuityMode(subject)
+  const continuityMode = input.ownership?.continuityMode ?? resolveContinuityMode(subject)
   const unresolvedCarry = subject === 'task-knot' || subject === 'visible-scene'
     ? null
     : sanitizeText(
@@ -268,6 +271,7 @@ export function buildDiscourseState(input: {
       `owed:${owedAction}`,
       `relation:${relationMove}`,
       `continuity:${continuityMode}`,
+      input.ownership ? 'ownership-ssot' : '',
       input.dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
       unresolvedCarry ? `carry:${sanitizeDialogueSurfaceText(unresolvedCarry, 72) || sanitizeText(unresolvedCarry, 72)}` : '',
       ruptureRepair ? `repair:${sanitizeDialogueSurfaceText(ruptureRepair, 72) || sanitizeText(ruptureRepair, 72)}` : '',

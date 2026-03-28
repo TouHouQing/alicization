@@ -250,4 +250,63 @@ describe('buildDiscourseState', () => {
       relationMove: 'self-disclose',
     }))
   })
+
+  it('derives discourse directly from ownership ssot when provided', () => {
+    const state = buildDiscourseState({
+      now: 15_000,
+      userText: '你怎么跟个人机一样',
+      dialogueSemantics: {
+        act: 'challenge',
+        responseNeed: 'repair',
+        truthExpectation: 'normal',
+        affectiveTone: 'frustrated',
+        subjectPreference: 'visible-scene',
+        taskAnchor: 'stale screen',
+        sharedAttentionDemand: 0.42,
+        personaSuppression: 0.5,
+        confidence: 0.74,
+        summary: 'legacy semantic output still suggests scene repair',
+        source: 'hybrid',
+        reasonTags: ['scene-bound-turn'],
+      },
+      dialogueObligation: {
+        kind: 'repair',
+        summary: 'legacy obligation still asks scene repair',
+        confidence: 0.72,
+        mustRepairFirst: true,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'muted',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'visible-scene',
+        screenReferenceMode: 'required',
+        shouldBypassScreenRepair: false,
+        weakLiveScene: false,
+        focusSummary: 'legacy focus says repair scene',
+        confidence: 0.68,
+        reasonTags: [],
+      },
+      ownership: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        continuityMode: 'dialogue-first',
+        inspectionRequested: false,
+        inspectionState: 'dialogue-first',
+        releaseInspectionCarry: true,
+        confidence: 0.86,
+        reasonTags: ['subject:alicization-self'],
+      },
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      currentTurnSubject: 'alicization-self',
+      screenReferenceMode: 'avoid',
+      owedAction: 'answer-self',
+      continuityMode: 'dialogue-first',
+    }))
+    expect(state?.narrative).toContain('ownership-ssot')
+  })
 })

@@ -607,4 +607,78 @@ describe('buildAnswerPlanner', () => {
     expect(planner.shouldAskForGrounding).toBe(false)
     expect(planner.mustNotDo).toContain('Do not open with grounding disclaimers, live-screen caveats, or desktop narration when the host is not asking about the screen.')
   })
+
+  it('uses ownership ssot to keep planner dialogue-first when stale focus disagrees', () => {
+    const planner = buildAnswerPlanner({
+      now: 58_000,
+      context: baseContext,
+      currentScene: {
+        workloadKind: 'unknown',
+        contentKind: 'unknown',
+        scenario: 'general',
+        summary: 'Entire screen',
+        source: 'foreground-window-heuristic',
+        confidence: 0.7,
+        target: {
+          appName: 'Finder',
+          processName: 'Finder',
+          title: 'Entire screen',
+          pid: 7,
+        },
+        beganAt: 56_000,
+        lastSeenAt: 58_000,
+      },
+      dialogueSemantics: {
+        act: 'challenge',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'frustrated',
+        subjectPreference: 'alicization-self',
+        taskAnchor: 'stale screen carry',
+        sharedAttentionDemand: 0.24,
+        personaSuppression: 0.52,
+        confidence: 0.8,
+        summary: 'The host is challenging Alicization and expects a plain direct answer.',
+        source: 'hybrid',
+        reasonTags: ['dialogue-first-turn', 'scene-detached-turn'],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        summary: 'Answer the complaint directly.',
+        confidence: 0.78,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'visible-scene',
+        screenReferenceMode: 'required',
+        shouldBypassScreenRepair: false,
+        weakLiveScene: false,
+        focusSummary: 'stale scene focus should not win',
+        confidence: 0.55,
+        reasonTags: [],
+      },
+      ownership: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        continuityMode: 'dialogue-first',
+        inspectionRequested: false,
+        inspectionState: 'dialogue-first',
+        releaseInspectionCarry: true,
+        confidence: 0.88,
+        reasonTags: ['subject:alicization-self', 'screen:avoid'],
+      },
+      inspectionRequested: false,
+    })
+
+    expect(planner.act).toBe('answer')
+    expect(planner.evidenceMode).toBe('dialogue-grounded')
+    expect(planner.shouldAskForGrounding).toBe(false)
+    expect(planner.narrative).toContain('focus_subject:alicization-self')
+    expect(planner.narrative).toContain('screen_reference:avoid')
+  })
 })

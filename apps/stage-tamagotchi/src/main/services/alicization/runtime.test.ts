@@ -3596,9 +3596,18 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'perception-context-prepared',
       payload: expect.objectContaining({
         inspectionRequested: false,
+        inspectionState: 'dialogue-first',
         inspectionCarryReleased: true,
+        owner_before: expect.any(String),
+        owner_after: expect.any(String),
+        screen_mode_before: expect.any(String),
+        screen_mode_after: expect.any(String),
+        inspection_state_before: expect.any(String),
+        inspection_state_after: expect.any(String),
+        release_cause: expect.any(String),
         inspectionIntentReasonCodes: expect.arrayContaining([
           'dialogue-pivot-away-from-inspection',
+          'grounding-gate:inspection-released',
         ]),
       }),
     }))
@@ -3721,10 +3730,19 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'perception-context-prepared',
       payload: expect.objectContaining({
         inspectionRequested: false,
+        inspectionState: 'dialogue-first',
         inspectionCarryReleased: true,
+        owner_before: expect.any(String),
+        owner_after: expect.any(String),
+        screen_mode_before: expect.any(String),
+        screen_mode_after: expect.any(String),
+        inspection_state_before: expect.any(String),
+        inspection_state_after: expect.any(String),
+        release_cause: 'identity-dialogue-pivot',
         inspectionIntentReasonCodes: expect.arrayContaining([
           'identity-dialogue-pivot',
           'dialogue-pivot-away-from-inspection',
+          'grounding-gate:inspection-released',
         ]),
       }),
     }))
@@ -3848,7 +3866,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'perception-context-prepared',
       payload: expect.objectContaining({
         inspectionRequested: false,
+        inspectionState: 'dialogue-first',
         inspectionCarryReleased: true,
+        inspectionIntentReasonCodes: expect.arrayContaining([
+          'grounding-gate:inspection-released',
+        ]),
         dialogueFocus: expect.objectContaining({
           subject: 'alicization-self',
           screenReferenceMode: 'avoid',

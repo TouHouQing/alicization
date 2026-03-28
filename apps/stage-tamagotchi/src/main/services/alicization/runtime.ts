@@ -55,7 +55,9 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
+import type { AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-ownership'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
+import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationProactivePerceptionSignals } from './proactive-policy'
@@ -194,6 +196,7 @@ import { buildDialogueFocusGovernance, buildDialogueFocusGovernanceSystemBlock }
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
 import { buildDialogueMindFrameSystemBlock } from './dialogue-mind-frame'
 import { buildAlicizationDialogueObligationSystemBlock, buildDialogueObligation } from './dialogue-obligation'
+import { buildDialogueTurnOwnership } from './dialogue-turn-ownership'
 import {
   buildDialogueTurnSemantics,
   mergeDialogueTurnSemantics,
@@ -211,6 +214,8 @@ import { buildInitiativeArbitration } from './initiative-arbiter'
 import { buildInitiativeSnapshot } from './initiative-engine'
 import { buildInquiryLoop } from './inquiry-loop'
 import { buildInquiryPlanner } from './inquiry-planner'
+import { resolveInspectionGroundingGate } from './inspection-grounding-gate'
+import { resolveInspectionTurnState } from './inspection-turn-state-machine'
 import { buildIntentionStream } from './intention-stream'
 import { buildLivingWorldState } from './living-world-state'
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
@@ -5641,6 +5646,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     perceptionState?: AlicizationPerceptionState | null
     durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
     inspectionRequested?: boolean
+    inspectionState?: AlicizationInspectionTurnState
+    turnOwnershipHint?: AlicizationDialogueTurnOwnershipHint | null
     groundedThisTurn?: boolean
     cognitionMode?: 'interactive' | 'background'
   }) {
@@ -6183,10 +6190,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           privateThought,
         })
       : null
+    const dialogueTurnOwnership = dialogueSemantics
+      ? buildDialogueTurnOwnership({
+          semantics: dialogueSemantics,
+          obligation: dialogueObligation,
+          worldModel,
+          inspectionRequested: input.inspectionRequested === true,
+          inspectionState: input.inspectionState ?? (input.inspectionRequested ? 'inspection-live' : 'dialogue-first'),
+          releaseInspectionCarry: input.inspectionState === 'dialogue-first',
+          ingressHint: input.turnOwnershipHint ?? null,
+        })
+      : null
     const dialogueFocus = dialogueSemantics
       ? buildDialogueFocusGovernance({
           semantics: dialogueSemantics,
           obligation: dialogueObligation,
+          ownership: dialogueTurnOwnership,
           currentScene: input.visualHeartbeat.scene,
           worldModel,
         })
@@ -6198,7 +6217,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           dialogueSemantics,
           dialogueObligation,
           dialogueFocus,
-          inspectionRequested: input.inspectionRequested === true,
+          ownership: dialogueTurnOwnership,
+          inspectionRequested: dialogueTurnOwnership?.inspectionRequested ?? (input.inspectionRequested === true),
           worldModel,
           relationshipModel,
           repairLedger,
@@ -6313,7 +6333,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       intentionStream,
       reflectionLedger,
       executiveCycle,
-      inspectionRequested: input.inspectionRequested === true,
+      inspectionRequested: dialogueTurnOwnership?.inspectionRequested ?? (input.inspectionRequested === true),
+      ownership: dialogueTurnOwnership ?? null,
       dialogueSemantics: dialogueSemantics ?? undefined,
       dialogueObligation: dialogueObligation ?? undefined,
       dialogueFocus: dialogueFocus ?? undefined,
@@ -8883,30 +8904,179 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       inspectionContinuityActive,
       sharedAttentionActive: stableSharedAttention,
     })
-    if (forceDialogueIdentityPivot) {
+    const explicitInspectionIntent = baseIntent.active || semanticIntent.active
+    const ownershipHint = {
+      subject: ingressGovernor.turnOwner,
+      screenReferenceMode: ingressGovernor.screenReferenceMode,
+      confidence: ingressGovernor.confidence,
+      reasonTags: ingressGovernor.reasonTags,
+    }
+    const ingressDialogueFirstSignal = Boolean(
+      ingressSemantics.subjectPreference === 'alicization-self'
+      || ingressSemantics.subjectPreference === 'relationship'
+      || ingressSemantics.subjectPreference === 'host-state'
+      || ingressSemantics.reasonTags.includes('dialogue-first-turn')
+      || ingressSemantics.reasonTags.includes('scene-detached-turn'),
+    )
+    const ingressSceneBoundSignal = Boolean(
+      ingressSemantics.subjectPreference === 'task-knot'
+      || ingressSemantics.subjectPreference === 'visible-scene'
+      || ingressSemantics.reasonTags.includes('scene-bound-turn')
+      || ingressSemantics.reasonTags.includes('inspection-owned-turn'),
+    )
+    const resolveInspectionReleaseCause = (input: {
+      stateDecision: ReturnType<typeof resolveInspectionTurnState>
+      gateDecision: ReturnType<typeof resolveInspectionGroundingGate>
+      reasonCodes: string[]
+    }) => {
+      if (!input.gateDecision.releaseCarry)
+        return null
+
+      const reasons = new Set([
+        ...input.reasonCodes,
+        ...input.stateDecision.reasonTags,
+        ...input.gateDecision.reasonTags,
+      ])
+      if (reasons.has('identity-dialogue-pivot'))
+        return 'identity-dialogue-pivot'
+      if (
+        reasons.has('dialogue-pivot-away-from-inspection')
+        || reasons.has('dialogue-pivot-away')
+        || reasons.has('grounding-gate:dialogue-first-ingress')
+      ) {
+        return 'dialogue-pivot-away-from-inspection'
+      }
+      if (reasons.has('grounding-gate:ingress-ineligible'))
+        return 'ingress-ineligible'
+      if (reasons.has('grounding-gate:already-dialogue-first'))
+        return 'already-dialogue-first'
+      if (reasons.has('release-inspection-carry'))
+        return 'release-inspection-carry'
+      return 'inspection-carry-released'
+    }
+    const buildInspectionOwnershipTransition = (input: {
+      stateDecision: ReturnType<typeof resolveInspectionTurnState>
+      gateDecision: ReturnType<typeof resolveInspectionGroundingGate>
+      reasonCodes: string[]
+    }) => {
+      const ownershipBefore = buildDialogueTurnOwnership({
+        semantics: ingressSemantics,
+        worldModel: ingressContext.worldModel,
+        inspectionRequested: input.stateDecision.inspectionRequested,
+        inspectionState: input.stateDecision.state,
+        releaseInspectionCarry: input.stateDecision.releaseCarry,
+        ingressHint: ownershipHint,
+      })
+      const ownershipAfter = buildDialogueTurnOwnership({
+        semantics: ingressSemantics,
+        worldModel: ingressContext.worldModel,
+        inspectionRequested: input.gateDecision.inspectionRequested,
+        inspectionState: input.gateDecision.inspectionState,
+        releaseInspectionCarry: input.gateDecision.releaseCarry,
+        ingressHint: ownershipHint,
+      })
       return {
-        active: false,
-        confidence: Math.max(semanticIntent.confidence, ingressGovernor.confidence, 0.52),
-        reasonCodes: [
-          'identity-dialogue-pivot',
-          'dialogue-pivot-away-from-inspection',
-          ...ingressGovernor.reasonTags,
-        ].filter(Boolean),
-        releaseCarry: true,
+        ownerBefore: ownershipBefore.subject,
+        ownerAfter: ownershipAfter.subject,
+        screenModeBefore: ownershipBefore.screenReferenceMode,
+        screenModeAfter: ownershipAfter.screenReferenceMode,
+        inspectionStateBefore: ownershipBefore.inspectionState,
+        inspectionStateAfter: ownershipAfter.inspectionState,
+        releaseCause: resolveInspectionReleaseCause({
+          stateDecision: input.stateDecision,
+          gateDecision: input.gateDecision,
+          reasonCodes: input.reasonCodes,
+        }),
+      }
+    }
+    if (forceDialogueIdentityPivot) {
+      const stateDecision = resolveInspectionTurnState({
+        candidateInspectionActive: false,
+        explicitInspectionIntent,
+        continuityActive: inspectionContinuityActive,
+        anchoredSceneContinuation: false,
+        sharedAttentionContinuation: false,
+        repairSignal: false,
+        dialoguePivot: true,
+        identityPivot: true,
+        ingressInspectionEligible: ingressGovernor.inspectionEligible,
+      })
+      const gateDecision = resolveInspectionGroundingGate({
+        inspectionRequested: stateDecision.inspectionRequested,
+        inspectionState: stateDecision.state,
+        releaseCarry: stateDecision.releaseCarry,
+        explicitInspectionIntent,
+        ingressInspectionEligible: ingressGovernor.inspectionEligible,
+        ingressOwner: ingressGovernor.turnOwner,
+        ingressDialogueFirstSignal,
+        ingressSceneBoundSignal,
+      })
+      const reasonCodes = [
+        'identity-dialogue-pivot',
+        'dialogue-pivot-away-from-inspection',
+        ...stateDecision.reasonTags,
+        ...gateDecision.reasonTags,
+        ...ingressGovernor.reasonTags,
+      ].filter(Boolean)
+      return {
+        active: gateDecision.inspectionRequested,
+        confidence: Math.max(semanticIntent.confidence, ingressGovernor.confidence, stateDecision.confidence, gateDecision.confidence, 0.52),
+        reasonCodes,
+        releaseCarry: gateDecision.releaseCarry,
+        inspectionState: gateDecision.inspectionState,
+        groundingGate: gateDecision,
+        turnOwnershipHint: ownershipHint,
         ingress: ingressGovernor,
+        ownershipTransition: buildInspectionOwnershipTransition({
+          stateDecision,
+          gateDecision,
+          reasonCodes,
+        }),
       }
     }
     if (!ingressGovernor.inspectionEligible) {
+      const stateDecision = resolveInspectionTurnState({
+        candidateInspectionActive: false,
+        explicitInspectionIntent,
+        continuityActive: inspectionContinuityActive,
+        anchoredSceneContinuation: false,
+        sharedAttentionContinuation: false,
+        repairSignal: false,
+        dialoguePivot: ingressGovernor.releaseInspectionCarry,
+        identityPivot: false,
+        ingressInspectionEligible: ingressGovernor.inspectionEligible,
+      })
+      const gateDecision = resolveInspectionGroundingGate({
+        inspectionRequested: stateDecision.inspectionRequested,
+        inspectionState: stateDecision.state,
+        releaseCarry: stateDecision.releaseCarry,
+        explicitInspectionIntent,
+        ingressInspectionEligible: ingressGovernor.inspectionEligible,
+        ingressOwner: ingressGovernor.turnOwner,
+        ingressDialogueFirstSignal,
+        ingressSceneBoundSignal,
+      })
+      const reasonCodes = [
+        'dialogue-ingress-governor',
+        ...stateDecision.reasonTags,
+        ...gateDecision.reasonTags,
+        ...ingressGovernor.reasonTags,
+        ingressGovernor.releaseInspectionCarry ? 'dialogue-pivot-away-from-inspection' : '',
+      ].filter(Boolean)
       return {
-        active: false,
-        confidence: Math.max(semanticIntent.confidence, ingressGovernor.confidence),
-        reasonCodes: [
-          'dialogue-ingress-governor',
-          ...ingressGovernor.reasonTags,
-          ingressGovernor.releaseInspectionCarry ? 'dialogue-pivot-away-from-inspection' : '',
-        ].filter(Boolean),
-        releaseCarry: ingressGovernor.releaseInspectionCarry,
+        active: gateDecision.inspectionRequested,
+        confidence: Math.max(semanticIntent.confidence, ingressGovernor.confidence, stateDecision.confidence, gateDecision.confidence),
+        reasonCodes,
+        releaseCarry: gateDecision.releaseCarry,
+        inspectionState: gateDecision.inspectionState,
+        groundingGate: gateDecision,
+        turnOwnershipHint: ownershipHint,
         ingress: ingressGovernor,
+        ownershipTransition: buildInspectionOwnershipTransition({
+          stateDecision,
+          gateDecision,
+          reasonCodes,
+        }),
       }
     }
     const focusAlignment = measureDialogueFocusAlignment({
@@ -8978,12 +9148,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       + (inspectionContinuityActive && shortRepairTurn ? 0.12 : 0)
     )
     const confidence = clamp01(Math.max(baseIntent.confidence, semanticIntent.confidence, semanticBoost))
-    const active = !detachedTurnFromScene && (
+    const activeHeuristic = !detachedTurnFromScene && (
       baseIntent.active
       || semanticIntent.active
       || confidence >= 0.64
       || sharedAttentionContinuation
     )
+    const stateDecision = resolveInspectionTurnState({
+      candidateInspectionActive: activeHeuristic,
+      explicitInspectionIntent,
+      continuityActive: inspectionContinuityActive,
+      anchoredSceneContinuation,
+      sharedAttentionContinuation,
+      repairSignal,
+      dialoguePivot: dialoguePivotFromInspection,
+      identityPivot: forceDialogueIdentityPivot,
+      ingressInspectionEligible: ingressGovernor.inspectionEligible,
+    })
+    const gateDecision = resolveInspectionGroundingGate({
+      inspectionRequested: stateDecision.inspectionRequested,
+      inspectionState: stateDecision.state,
+      releaseCarry: stateDecision.releaseCarry,
+      explicitInspectionIntent,
+      ingressInspectionEligible: ingressGovernor.inspectionEligible,
+      ingressOwner: ingressGovernor.turnOwner,
+      ingressDialogueFirstSignal,
+      ingressSceneBoundSignal,
+    })
     const reasonCodes = [
       baseIntent.active ? 'base-inspection-intent' : '',
       inspectionContinuityActive ? 'inspection-continuity' : '',
@@ -9006,14 +9197,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       forceDialogueIdentityPivot ? 'identity-dialogue-pivot' : '',
       dialoguePivotFromInspection ? 'dialogue-pivot-away-from-inspection' : '',
       detachedTurnFromScene ? 'scene-detached-question' : '',
+      ...stateDecision.reasonTags,
+      ...gateDecision.reasonTags,
     ].filter(Boolean)
+    const ownershipTransition = buildInspectionOwnershipTransition({
+      stateDecision,
+      gateDecision,
+      reasonCodes,
+    })
 
     return {
-      active,
-      confidence,
+      active: gateDecision.inspectionRequested,
+      confidence: Math.max(confidence, stateDecision.confidence, gateDecision.confidence),
       reasonCodes,
-      releaseCarry: dialoguePivotFromInspection,
+      releaseCarry: gateDecision.releaseCarry,
+      inspectionState: gateDecision.inspectionState,
+      groundingGate: gateDecision,
+      turnOwnershipHint: ownershipHint,
       ingress: ingressGovernor,
+      ownershipTransition,
     }
   }
 
@@ -10821,9 +11023,34 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     let auditAction = inspectionIntent.active ? 'inspection-grounding-skipped' : 'perception-context-prepared'
     let auditPayload: Record<string, unknown> = {
       inspectionRequested: inspectionIntent.active,
+      inspectionState: inspectionIntent.inspectionState,
       inspectionIntentConfidence: inspectionIntent.confidence,
       inspectionIntentReasonCodes: inspectionIntent.reasonCodes,
       inspectionCarryReleased: inspectionIntent.releaseCarry,
+      owner_before: inspectionIntent.ownershipTransition?.ownerBefore ?? null,
+      owner_after: inspectionIntent.ownershipTransition?.ownerAfter ?? null,
+      screen_mode_before: inspectionIntent.ownershipTransition?.screenModeBefore ?? null,
+      screen_mode_after: inspectionIntent.ownershipTransition?.screenModeAfter ?? null,
+      inspection_state_before: inspectionIntent.ownershipTransition?.inspectionStateBefore ?? null,
+      inspection_state_after: inspectionIntent.ownershipTransition?.inspectionStateAfter ?? null,
+      release_cause: inspectionIntent.ownershipTransition?.releaseCause ?? null,
+      inspectionGroundingGate: inspectionIntent.groundingGate
+        ? {
+            inspectionRequested: inspectionIntent.groundingGate.inspectionRequested,
+            inspectionState: inspectionIntent.groundingGate.inspectionState,
+            releaseCarry: inspectionIntent.groundingGate.releaseCarry,
+            confidence: inspectionIntent.groundingGate.confidence,
+            reasonTags: inspectionIntent.groundingGate.reasonTags,
+          }
+        : null,
+      turnOwnershipHint: inspectionIntent.turnOwnershipHint
+        ? {
+            subject: inspectionIntent.turnOwnershipHint.subject,
+            screenReferenceMode: inspectionIntent.turnOwnershipHint.screenReferenceMode,
+            confidence: inspectionIntent.turnOwnershipHint.confidence,
+            reasonTags: inspectionIntent.turnOwnershipHint.reasonTags,
+          }
+        : null,
       turnIngress: inspectionIntent.ingress
         ? {
             owner: inspectionIntent.ingress.turnOwner,
@@ -10976,6 +11203,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       perceptionState,
       durabilityPulse: null,
       inspectionRequested: inspectionIntent.active,
+      inspectionState: inspectionIntent.inspectionState,
+      turnOwnershipHint: inspectionIntent.turnOwnershipHint,
       groundedThisTurn,
       cognitionMode: 'interactive',
     })

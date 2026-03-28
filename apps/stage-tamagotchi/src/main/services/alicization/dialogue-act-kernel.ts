@@ -179,9 +179,25 @@ function resolveTurnMode(input: {
   speechAct: AlicizationAnswerAct
   subject: AlicizationDialogueAnswerSubject
   truthMode: AlicizationDialogueActKernelSnapshot['truthMode']
+  enforceDialogueFirstBoundary?: boolean
 }): AlicizationDialogueActKernelSnapshot['turnMode'] {
-  if (input.answerCompiler?.turnMode)
+  if (input.answerCompiler?.turnMode) {
+    if (!input.enforceDialogueFirstBoundary)
+      return input.answerCompiler.turnMode
+
+    if (
+      input.answerCompiler.turnMode === 'screen-repair'
+      || input.answerCompiler.turnMode === 'grounded-inspection'
+      || input.answerCompiler.turnMode === 'guide-current-knot'
+    ) {
+      if (input.speechAct === 'care')
+        return 'care'
+      if (input.speechAct === 'defer' || input.subject === 'relationship')
+        return 'accompany'
+      return 'answer'
+    }
     return input.answerCompiler.turnMode
+  }
   if (input.speechAct === 'ask-reground' || input.speechAct === 'correct-stale-anchor')
     return 'screen-repair'
   if (input.speechAct === 'guide')
@@ -390,6 +406,14 @@ export function buildDialogueActKernel(input: {
     discourseState: input.discourseState ?? null,
     privateThought: input.privateThought ?? null,
   })
+  const dialogueFirstBoundary = isDialogueFirstSubject(subject) || screenReferenceMode === 'avoid'
+  const dialogueFirstRepairClamp = dialogueFirstBoundary
+    && (speechAct === 'ask-reground' || speechAct === 'correct-stale-anchor')
+  if (dialogueFirstRepairClamp) {
+    speechAct = input.discourseState?.owedAction === 'care-host'
+      ? 'care'
+      : 'answer'
+  }
   if (
     truthMode === 'live-grounded'
     && screenReferenceMode !== 'avoid'
@@ -403,6 +427,7 @@ export function buildDialogueActKernel(input: {
     speechAct,
     subject,
     truthMode,
+    enforceDialogueFirstBoundary: dialogueFirstBoundary,
   })
   const hostGoal = resolveHostGoal({
     appraisal: input.appraisal ?? null,
@@ -616,6 +641,7 @@ export function buildDialogueActKernel(input: {
       `turn-mode:${turnMode}`,
       `truth-mode:${truthMode}`,
       `screen-reference:${screenReferenceMode}`,
+      dialogueFirstRepairClamp ? 'kernel-invariant:dialogue-first-repair-clamped' : null,
       ...anchorCoherence.reasonTags,
       input.privateThought ? `presence:${input.privateThought.embodiedPresence}` : null,
       activeProject ? `project:${activeProject}` : null,

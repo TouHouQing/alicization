@@ -6,6 +6,8 @@ import type {
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
   AlicizationConversationStateSnapshot,
+  AlicizationDialogueAnswerSubject,
+  AlicizationDialogueScreenReferenceMode,
   AlicizationDialogueWorldThreadSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationExecutiveCycleSnapshot,
@@ -24,6 +26,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -51,19 +54,52 @@ function pickUserFacingAnchor(...values: unknown[]) {
   return ''
 }
 
-function resolveFreshGroundingRepairSubject(input: {
+interface AlicizationAnswerPlannerTurnProfile {
+  subject: AlicizationDialogueAnswerSubject
+  screenReferenceMode: AlicizationDialogueScreenReferenceMode
+  shouldBypassScreenRepair: boolean
+}
+
+function resolveAnswerPlannerTurnProfile(input: {
+  ownership?: AlicizationDialogueTurnOwnership | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
-}) {
-  return input.dialogueFocus?.subject
+}): AlicizationAnswerPlannerTurnProfile {
+  const subject = input.ownership?.subject
+    ?? input.discourseState?.currentTurnSubject
+    ?? input.dialogueFocus?.subject
     ?? input.dialogueSemantics?.subjectPreference
-    ?? null
+    ?? 'general'
+
+  const screenReferenceMode = input.ownership?.screenReferenceMode
+    ?? input.discourseState?.screenReferenceMode
+    ?? input.dialogueFocus?.screenReferenceMode
+    ?? (subject === 'visible-scene'
+      ? 'required'
+      : subject === 'task-knot'
+        ? 'helpful'
+        : subject === 'relationship' || subject === 'alicization-self' || subject === 'host-state'
+          ? 'avoid'
+          : 'incidental')
+
+  return {
+    subject,
+    screenReferenceMode,
+    shouldBypassScreenRepair: input.dialogueFocus?.shouldBypassScreenRepair === true
+      || (screenReferenceMode === 'avoid' && subject !== 'visible-scene'),
+  } satisfies AlicizationAnswerPlannerTurnProfile
+}
+
+function resolveFreshGroundingRepairSubject(input: {
+  turnProfile: AlicizationAnswerPlannerTurnProfile
+}) {
+  return input.turnProfile.subject
 }
 
 function repairIsSatisfiedByFreshGrounding(input: {
   groundedThisTurn?: boolean
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
-  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
 }) {
   if (input.groundedThisTurn !== true)
     return false
@@ -72,14 +108,12 @@ function repairIsSatisfiedByFreshGrounding(input: {
   if (subject !== 'visible-scene' && subject !== 'task-knot')
     return false
 
-  const screenReferenceMode = input.dialogueFocus?.screenReferenceMode
-    ?? (subject === 'visible-scene' ? 'required' : 'helpful')
+  const screenReferenceMode = input.turnProfile.screenReferenceMode
   return screenReferenceMode !== 'avoid'
 }
 
 function groundedRepairFollowupAct(input: {
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
-  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
 }) {
   return resolveFreshGroundingRepairSubject(input) === 'task-knot'
     ? 'guide' as const
@@ -128,13 +162,12 @@ function evidenceMode(input: {
   worldOntology?: AlicizationWorldOntologySnapshot | null
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
   groundedThisTurn?: boolean
 }) {
   if (
-    input.dialogueFocus
-    && input.dialogueFocus.shouldBypassScreenRepair
-    && input.dialogueFocus.subject !== 'visible-scene'
+    input.turnProfile.shouldBypassScreenRepair
+    && input.turnProfile.subject !== 'visible-scene'
   ) {
     return 'dialogue-grounded' as const
   }
@@ -159,10 +192,10 @@ function evidenceMode(input: {
     return 'continuity-carry' as const
   if ((input.concernContinuity?.unresolvedCount ?? 0) > 0)
     return 'coarse-held' as const
-  const sceneFocusedTurn = input.dialogueFocus?.subject === 'task-knot'
-    || input.dialogueFocus?.subject === 'visible-scene'
-  const screenReferenceRequired = input.dialogueFocus?.screenReferenceMode === 'required'
-    || input.dialogueFocus?.screenReferenceMode === 'helpful'
+  const sceneFocusedTurn = input.turnProfile.subject === 'task-knot'
+    || input.turnProfile.subject === 'visible-scene'
+  const screenReferenceRequired = input.turnProfile.screenReferenceMode === 'required'
+    || input.turnProfile.screenReferenceMode === 'helpful'
   const sceneContextAvailable = Boolean(
     input.currentScene?.summary
     || input.currentScene?.target
@@ -187,7 +220,7 @@ function answerAct(input: {
   inspectionRequested: boolean
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
   groundedThisTurn?: boolean
 }) {
   const concern = governingConcern(input.concernContinuity)
@@ -199,12 +232,10 @@ function answerAct(input: {
   if (input.dialogueObligation?.kind === 'repair') {
     if (repairIsSatisfiedByFreshGrounding({
       groundedThisTurn: input.groundedThisTurn === true,
-      dialogueFocus: input.dialogueFocus ?? null,
-      dialogueSemantics: input.dialogueSemantics ?? null,
+      turnProfile: input.turnProfile,
     })) {
       return groundedRepairFollowupAct({
-        dialogueFocus: input.dialogueFocus ?? null,
-        dialogueSemantics: input.dialogueSemantics ?? null,
+        turnProfile: input.turnProfile,
       })
     }
 
@@ -221,12 +252,12 @@ function answerAct(input: {
   if (input.dialogueObligation?.kind === 'clarify')
     return 'ask-reground' as const
 
-  if (input.dialogueFocus?.shouldBypassScreenRepair && input.dialogueFocus.subject !== 'visible-scene') {
-    if (input.dialogueFocus.subject === 'task-knot')
+  if (input.turnProfile.shouldBypassScreenRepair && input.turnProfile.subject !== 'visible-scene') {
+    if (input.turnProfile.subject === 'task-knot')
       return 'guide' as const
-    if (input.dialogueFocus.subject === 'host-state')
+    if (input.turnProfile.subject === 'host-state')
       return 'care' as const
-    if (input.dialogueFocus.subject === 'relationship')
+    if (input.turnProfile.subject === 'relationship')
       return input.executiveCycle?.shouldAct ? 'answer' as const : 'defer' as const
     return 'answer' as const
   }
@@ -404,7 +435,7 @@ function answerIntent(input: {
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
@@ -415,12 +446,10 @@ function answerIntent(input: {
   if (input.dialogueWorldThread?.currentQuestion)
     return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'Pay off the current unresolved dialogue seam.'
   if (
-    input.dialogueFocus
-    && input.dialogueFocus.screenReferenceMode === 'avoid'
+    input.turnProfile.screenReferenceMode === 'avoid'
   ) {
     return sanitizeText(
       input.dialogueObligation?.summary
-      || input.dialogueFocus.focusSummary
       || input.dialogueSemantics?.summary
       || 'Answer the host directly from living continuity instead of screen residue.',
       160,
@@ -455,13 +484,13 @@ function buildMustDo(input: {
   shouldAskForGrounding: boolean
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
 }) {
   const rows = [
     'Let the executive answer plan outrank persona flourish and older recalled residue.',
     'Answer the host’s current move, not the nearest remembered topic.',
   ]
-  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+  if (input.turnProfile.screenReferenceMode === 'avoid') {
     rows.push(
       'Treat the screen as background unless the host explicitly turns this reply back toward it.',
       'Let self, relationship, or host-state continuity carry the opening answer when that is the real subject.',
@@ -513,14 +542,14 @@ function buildMustNotDo(input: {
   evidenceMode: AlicizationAnswerEvidenceMode
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
-  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  turnProfile: AlicizationAnswerPlannerTurnProfile
 }) {
   const rows = [
     'Do not let affectionate or theatrical language outrun the truth boundary.',
     'Do not reuse stale page names, old screenshots, or old window titles as if they are current facts.',
     'Do not answer a nearby remembered concern if the host is asking for something else right now.',
   ]
-  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+  if (input.turnProfile.screenReferenceMode === 'avoid') {
     rows.push(
       'Do not open with grounding disclaimers, live-screen caveats, or desktop narration when the host is not asking about the screen.',
     )
@@ -557,6 +586,7 @@ export function buildAnswerPlanner(input: {
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   executiveCycle?: AlicizationExecutiveCycleSnapshot | null
   inspectionRequested: boolean
+  ownership?: AlicizationDialogueTurnOwnership | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
@@ -574,6 +604,12 @@ export function buildAnswerPlanner(input: {
   const selectedInquiry = activeInquiryPlan(input.inquiryPlanner)
   const selectedProject = dominantProject(input.intentionStream)
   const selectedReflection = latestReflection(input.reflectionLedger)
+  const turnProfile = resolveAnswerPlannerTurnProfile({
+    ownership: input.ownership ?? null,
+    discourseState: input.discourseState ?? null,
+    dialogueFocus: input.dialogueFocus ?? null,
+    dialogueSemantics: input.dialogueSemantics ?? null,
+  })
 
   if (input.answerCompiler) {
     const focus = sanitizeText(
@@ -645,7 +681,7 @@ export function buildAnswerPlanner(input: {
     worldOntology: input.worldOntology,
     concernContinuity: input.concernContinuity,
     repairLedger: input.repairLedger,
-    dialogueFocus: input.dialogueFocus,
+    turnProfile,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const act = answerAct({
@@ -662,7 +698,7 @@ export function buildAnswerPlanner(input: {
     inspectionRequested: input.inspectionRequested,
     dialogueSemantics: input.dialogueSemantics,
     dialogueObligation: input.dialogueObligation,
-    dialogueFocus: input.dialogueFocus,
+    turnProfile,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const posture = relationshipPosture({
@@ -728,7 +764,7 @@ export function buildAnswerPlanner(input: {
       repairLedger: input.repairLedger,
       dialogueObligation: input.dialogueObligation,
       dialogueSemantics: input.dialogueSemantics,
-      dialogueFocus: input.dialogueFocus,
+      turnProfile,
       dialogueWorldThread: input.dialogueWorldThread,
       replyDeliberation: input.replyDeliberation,
     }),
@@ -750,21 +786,21 @@ export function buildAnswerPlanner(input: {
       shouldAskForGrounding,
       dialogueSemantics: input.dialogueSemantics,
       dialogueObligation: input.dialogueObligation,
-      dialogueFocus: input.dialogueFocus,
+      turnProfile,
     }),
     mustNotDo: buildMustNotDo({
       act,
       evidenceMode: mode,
       dialogueSemantics: input.dialogueSemantics,
       dialogueObligation: input.dialogueObligation,
-      dialogueFocus: input.dialogueFocus,
+      turnProfile,
     }),
     narrative: [
       `answer_act:${act}`,
       `evidence_mode:${mode}`,
       `relationship_posture:${posture}`,
-      input.dialogueFocus?.subject ? `focus_subject:${input.dialogueFocus.subject}` : '',
-      input.dialogueFocus?.screenReferenceMode ? `screen_reference:${input.dialogueFocus.screenReferenceMode}` : '',
+      `focus_subject:${turnProfile.subject}`,
+      `screen_reference:${turnProfile.screenReferenceMode}`,
       input.dialogueSemantics?.act ? `dialogue_act:${input.dialogueSemantics.act}` : '',
       input.dialogueObligation?.kind ? `dialogue_obligation:${input.dialogueObligation.kind}` : '',
       input.executiveCycle?.phase ? `executive_phase:${input.executiveCycle.phase}` : '',

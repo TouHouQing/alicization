@@ -254,4 +254,49 @@ describe('dialogue-focus-governor', () => {
     expect(focus.screenReferenceMode).toBe('avoid')
     expect(focus.shouldBypassScreenRepair).toBe(true)
   })
+
+  it('uses ownership ssot when provided, even if semantics would suggest scene repair', () => {
+    const focus = buildDialogueFocusGovernance({
+      semantics: {
+        act: 'verify-grounding',
+        responseNeed: 'repair',
+        truthExpectation: 'strict',
+        affectiveTone: 'urgent',
+        taskAnchor: 'runtime.ts diff',
+        sharedAttentionDemand: 0.9,
+        personaSuppression: 0.88,
+        confidence: 0.86,
+        summary: 'A stale classifier still marks this as scene repair.',
+        source: 'hybrid',
+        reasonTags: ['scene-bound-turn', 'inspection-owned-turn'],
+      },
+      obligation: {
+        kind: 'repair',
+        summary: 'Repair the scene first.',
+        confidence: 0.8,
+        mustRepairFirst: true,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'muted',
+        narrative: [],
+      },
+      ownership: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        continuityMode: 'dialogue-first',
+        inspectionRequested: false,
+        inspectionState: 'dialogue-first',
+        releaseInspectionCarry: true,
+        confidence: 0.84,
+        reasonTags: ['subject:alicization-self'],
+      },
+      currentScene: codingScene,
+      worldModel: null,
+    })
+
+    expect(focus.subject).toBe('alicization-self')
+    expect(focus.screenReferenceMode).toBe('avoid')
+    expect(focus.reasonTags).toContain('ownership-ssot')
+  })
 })

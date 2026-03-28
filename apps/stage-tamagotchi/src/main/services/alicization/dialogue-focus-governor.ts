@@ -1,18 +1,16 @@
 import type {
   AlicizationDialogueAnswerSubject,
+  AlicizationDialogueScreenReferenceMode,
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 
 import { isDialogueFirstSubject } from './dialogue-surface-text'
 
-export type AlicizationDialogueScreenReferenceMode
-  = | 'required'
-    | 'helpful'
-    | 'incidental'
-    | 'avoid'
+export type { AlicizationDialogueScreenReferenceMode }
 
 export interface AlicizationDialogueFocusGovernance {
   subject: AlicizationDialogueAnswerSubject
@@ -92,6 +90,7 @@ function uniqueLabels(values: Array<string | null | undefined>) {
 export function buildDialogueFocusGovernance(input: {
   semantics: AlicizationDialogueTurnSemantics
   obligation?: AlicizationDialogueObligation | null
+  ownership?: AlicizationDialogueTurnOwnership | null
   currentScene: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
 }) {
@@ -108,8 +107,11 @@ export function buildDialogueFocusGovernance(input: {
   })
   const preferredSubject = input.semantics.subjectPreference ?? null
 
-  let subject: AlicizationDialogueAnswerSubject = 'general'
-  if (inspectionOwnedTurn) {
+  let subject: AlicizationDialogueAnswerSubject = input.ownership?.subject ?? 'general'
+  if (input.ownership) {
+    subject = input.ownership.subject
+  }
+  else if (inspectionOwnedTurn) {
     subject = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
   }
   else if ((input.semantics.act === 'challenge' || complaintTurn) && preferredSubject !== 'visible-scene' && preferredSubject !== 'task-knot') {
@@ -151,8 +153,11 @@ export function buildDialogueFocusGovernance(input: {
     subject = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
   }
 
-  let screenReferenceMode: AlicizationDialogueScreenReferenceMode = 'incidental'
-  if (subject === 'visible-scene') {
+  let screenReferenceMode: AlicizationDialogueScreenReferenceMode = input.ownership?.screenReferenceMode ?? 'incidental'
+  if (input.ownership) {
+    screenReferenceMode = input.ownership.screenReferenceMode
+  }
+  else if (subject === 'visible-scene') {
     screenReferenceMode = 'required'
   }
   else if (subject === 'task-knot') {
@@ -210,6 +215,7 @@ export function buildDialogueFocusGovernance(input: {
     reasonTags: uniqueLabels([
       `subject:${subject}`,
       `screen:${screenReferenceMode}`,
+      input.ownership ? 'ownership-ssot' : '',
       sceneBoundTurn ? 'scene-bound' : '',
       detachedTurn ? 'scene-detached' : '',
       inspectionOwnedTurn ? 'inspection-owned-turn' : '',
