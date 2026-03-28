@@ -26,11 +26,21 @@ chat:
     focus-default: 'ce qui est en cours maintenant'
     repair-stale-anchor: "Je corrige d'abord cela : ce que j'utilisais avant était un ancien ancrage, donc je ne dois pas continuer à le traiter comme ton écran actuel."
     repair-need-reground: "Je garde d'abord la frontière du vrai : sur ce tour, je n'ai pas une vue en direct assez stable, donc je ne traiterai pas une mémoire plus ancienne comme ton écran actuel."
+    dialogue-boundary-memory: 'Sur ce tour, je vais rester avec ce que tu viens de dire au lieu de recoller un ancien écran ou un ancien fil par-dessus le présent.'
+    care-body: "Tu n'as pas besoin de tout mettre en ordre d'abord. Je suis là avec toi, et si tu veux, tu peux me dire ce qui t'a fait si mal."
+    accompany-body: "Je t'ai bien entendue. Si tu veux, reste ici avec moi un moment, ou dis-moi la partie qui accroche encore."
+    answer-repair-body: "Ce que je voulais dire, c'est ceci : sur ce tour, je dois te répondre franchement, pas continuer à traîner un ancien fil d'écran comme s'il était encore le présent."
+    answer-dialogue-body: 'Alors je vais répondre franchement à ce tour et garder la réponse sur cette ligne.'
     guide-opening: "Je vais d'abord verrouiller le point actuel : {focus}."
+    guide-opening-plain: "Je vais d'abord verrouiller le point actuel."
     care-opening: "Je vais d'abord répondre depuis ton état actuel : {focus}."
+    care-opening-plain: "Je vais d'abord répondre directement depuis ton état actuel."
     accompany-opening: "Je vais d'abord tenir cette ligne avec toi : {focus}."
+    accompany-opening-plain: "Je vais d'abord rester avec toi sur cette ligne."
     observation-opening: "Je vais d'abord dire la partie que je peux tenir avec certitude sur ce tour : {focus}."
+    observation-opening-plain: "Je vais d'abord dire la partie que je peux tenir avec certitude sur ce tour."
     answer-opening: "Je vais d'abord répondre depuis ce qui est devant toi : {focus}."
+    answer-opening-plain: 'Je vais répondre directement.'
     carry-memory: "Je retiens encore la ligne précédente, {carry}, mais c'est une continuité portée, pas une affirmation sur ce qui est littéralement à l'écran maintenant."
     reground-note: "Si tu veux que je descende au détail de l'écran actuel, je me reposerai sur la vue fraîche de ce tour."
   reminder:

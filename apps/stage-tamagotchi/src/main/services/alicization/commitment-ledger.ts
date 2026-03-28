@@ -157,6 +157,14 @@ function coolCommitment(input: {
   } satisfies AlicizationCommitmentSnapshot
 }
 
+function hasFreshGroundedScene(input: {
+  worldModel: AlicizationWorldModelSnapshot
+}) {
+  return input.worldModel.activeThread?.source === 'grounded-scene'
+    && input.worldModel.epistemicState.certainty === 'grounded'
+    && input.worldModel.epistemicState.freshness === 'live'
+}
+
 // Commitment ledger is the layer that lets Alicization keep carrying something
 // across ticks. Instead of rebuilding concern from scratch every minute, it
 // records what she still feels obliged to stay with.
@@ -209,6 +217,9 @@ export function buildCommitmentLedger(input: {
     || input.dialogueSemantics?.act === 'share-state'
   const accompanyTurn = input.dialogueSemantics?.responseNeed === 'accompany'
     || input.dialogueSemantics?.act === 'social-bid'
+  const freshGroundedScene = hasFreshGroundedScene({
+    worldModel: input.worldModel,
+  })
   const commitments: AlicizationCommitmentSnapshot[] = []
   const seenIds = new Set<string>()
 
@@ -223,7 +234,7 @@ export function buildCommitmentLedger(input: {
 
   if (
     repairTurn
-    || input.previousPrivateThought?.stance === 'uncertain'
+    || (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain')
     || strictTruthTurn
     || epistemicSurface.requiresRegroundBeforeSurface
     || (
@@ -247,20 +258,20 @@ export function buildCommitmentLedger(input: {
       summary: input.previousPrivateThought?.thoughtText
         ?? input.worldModel.epistemicState.openQuestions[0]
         ?? 'She still wants a cleaner grounding pass before treating this moment as settled.',
-      source: input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : repairHypothesis ? 'hypothesis' : 'runtime-thread',
+      source: !freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : repairHypothesis ? 'hypothesis' : 'runtime-thread',
       priority: clamp01(
         (input.beliefRevision?.groundingNeed ?? 0.28) * 0.52
         + (input.beliefRevision?.revisionPressure ?? 0) * 0.12
         + (input.worldModel.epistemicState.certainty === 'uncertain' ? 0.18 : input.worldModel.epistemicState.certainty === 'lingering' ? 0.12 : 0)
         + (repairThread?.salience ?? 0) * 0.12
-        + (input.previousPrivateThought?.stance === 'uncertain' ? 0.08 : 0)
+        + (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 0.08 : 0)
         + (repairTurn ? 0.2 : 0)
         + (strictTruthTurn ? 0.08 : 0),
       ),
       confidence: clamp01(
         (repairHypothesis?.confidence ?? 0.38) * 0.36
         + (repairThread?.continuity ?? 0.26) * 0.18
-        + (input.previousPrivateThought?.confidence ?? 0.4) * 0.16
+        + (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? (input.previousPrivateThought?.confidence ?? 0.4) * 0.16 : 0)
         + 0.24
         + (input.dialogueSemantics?.confidence ?? 0) * 0.08,
       ),
@@ -275,7 +286,7 @@ export function buildCommitmentLedger(input: {
     repairTurn
     || repairHypothesis?.kind === 'misread-drift'
     || (input.beliefRevision?.contradictionPressure ?? 0) >= 0.42
-    || input.previousPrivateThought?.hypothesisId === repairHypothesis?.id
+    || (!freshGroundedScene && input.previousPrivateThought?.hypothesisId === repairHypothesis?.id)
   ) {
     const anchor = repairHypothesis?.summary ?? focusBelief?.statement ?? foregroundThread?.summary ?? 'repair'
     const commitmentId = stableCommitmentId('repair-misread', anchor)
@@ -287,18 +298,18 @@ export function buildCommitmentLedger(input: {
       summary: repairHypothesis?.summary
         ?? input.previousPrivateThought?.thoughtText
         ?? 'A drift between remembered continuity and the live world is still unresolved.',
-      source: repairHypothesis ? 'hypothesis' : input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : 'continuity',
+      source: repairHypothesis ? 'hypothesis' : (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : 'continuity'),
       priority: clamp01(
         (input.beliefRevision?.contradictionPressure ?? 0.22) * 0.56
         + (input.beliefRevision?.hostCorrectionWeight ?? 0) * 0.14
         + (repairHypothesis?.salience ?? 0) * 0.18
-        + (input.previousPrivateThought?.stance === 'uncertain' ? 0.08 : 0)
+        + (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 0.08 : 0)
         + (repairTurn ? 0.24 : 0),
       ),
       confidence: clamp01(
         (repairHypothesis?.confidence ?? 0.34) * 0.44
         + (input.beliefRevision?.hostCorrectionWeight ?? 0) * 0.14
-        + (input.previousPrivateThought?.confidence ?? 0.42) * 0.12
+        + (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? (input.previousPrivateThought?.confidence ?? 0.42) * 0.12 : 0)
         + 0.22
         + (input.dialogueSemantics?.confidence ?? 0) * 0.08,
       ),

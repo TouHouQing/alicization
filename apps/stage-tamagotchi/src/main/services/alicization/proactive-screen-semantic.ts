@@ -1,5 +1,7 @@
 import type { DesktopCapturerSource } from 'electron'
 
+import { isWeakAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceTarget } from '@proj-alicization/stage-shared'
+
 export type AlicizationScreenSemanticWorkloadKind = 'coding' | 'media' | 'browser' | 'terminal' | 'game' | 'chat' | 'document' | 'unknown'
 export type AlicizationScreenSemanticContentKind = 'error' | 'diff' | 'doc' | 'video' | 'music' | 'chat' | 'gameplay' | 'unknown'
 export type AlicizationScreenSemanticFocusSource = 'attention-anchor' | 'recent-observation' | 'foreground-window' | 'hint-terms' | 'capture-source'
@@ -168,6 +170,16 @@ function isPermissionGrantTarget(
   return permissionModalPattern.test(buildTargetText(target))
 }
 
+function isWeakFocusTarget(
+  target: { appName?: string, processName?: string, title?: string } | null | undefined,
+) {
+  return isWeakAlicizationScreenSurfaceTarget({
+    appName: target?.appName ?? undefined,
+    processName: target?.processName ?? undefined,
+    title: target?.title ?? undefined,
+  })
+}
+
 function normalizeRawTarget(target: {
   appName?: string
   processName?: string
@@ -265,7 +277,12 @@ function pickFocusTarget(input: {
   avoidSourcePattern?: RegExp
 }) {
   const attentionAnchor = normalizeRawTarget(input.attentionAnchor)
-  if (attentionAnchor && !isAvoidedTarget(attentionAnchor, input.avoidSourcePattern) && !isPermissionGrantTarget(attentionAnchor)) {
+  if (
+    attentionAnchor
+    && !isWeakFocusTarget(attentionAnchor)
+    && !isAvoidedTarget(attentionAnchor, input.avoidSourcePattern)
+    && !isPermissionGrantTarget(attentionAnchor)
+  ) {
     return buildFocusTarget({
       target: attentionAnchor,
       source: 'attention-anchor',
@@ -277,7 +294,7 @@ function pickFocusTarget(input: {
     ? [...input.recentObservations]
         .reverse()
         .map(normalizeRawTarget)
-        .find(target => Boolean(target) && !isAvoidedTarget(target, input.avoidSourcePattern) && !isPermissionGrantTarget(target))
+        .find(target => Boolean(target) && !isWeakFocusTarget(target) && !isAvoidedTarget(target, input.avoidSourcePattern) && !isPermissionGrantTarget(target))
     : null
   if (recentObservation) {
     return buildFocusTarget({
@@ -288,7 +305,12 @@ function pickFocusTarget(input: {
   }
 
   const foregroundWindow = normalizeRawTarget(input.foregroundWindow)
-  if (foregroundWindow && !isAvoidedTarget(foregroundWindow, input.avoidSourcePattern) && !isPermissionGrantTarget(foregroundWindow)) {
+  if (
+    foregroundWindow
+    && !isWeakFocusTarget(foregroundWindow)
+    && !isAvoidedTarget(foregroundWindow, input.avoidSourcePattern)
+    && !isPermissionGrantTarget(foregroundWindow)
+  ) {
     return buildFocusTarget({
       target: foregroundWindow,
       source: 'foreground-window',
@@ -345,6 +367,7 @@ export function rankScreenSemanticCaptureCandidates(input: {
   const hintTerms = Array.isArray(input.hintTerms)
     ? [...new Set(input.hintTerms.map(normalizeText).filter(Boolean))]
     : []
+  const windowSourceCount = input.sources.reduce((count, source) => count + (normalizeText(source.id).startsWith('window:') ? 1 : 0), 0)
   const focusLockText = normalizeText(buildTargetText(focusTarget))
   const captureIntentText = [
     title,
@@ -359,7 +382,8 @@ export function rankScreenSemanticCaptureCandidates(input: {
   ].filter(Boolean).join('\n')
   const preferCodingCandidate = matchesPattern(captureIntentText, codingSourcePattern) || matchesPattern(captureIntentText, codingContentPattern)
   const preferMediaCandidate = matchesPattern(captureIntentText, mediaSourcePattern)
-  const externalFocusLocked = Boolean(focusTarget && !isAvoidedTarget(focusTarget, input.avoidSourcePattern))
+  const weakFocusTarget = isWeakFocusTarget(focusTarget)
+  const externalFocusLocked = Boolean(focusTarget && !weakFocusTarget && !isAvoidedTarget(focusTarget, input.avoidSourcePattern))
   const ranked: Array<AlicizationScreenSemanticCaptureCandidate & { score: number }> = []
 
   for (const source of input.sources) {
@@ -379,6 +403,7 @@ export function rankScreenSemanticCaptureCandidates(input: {
       const titleScore = overlapScore(sourceName, title)
       const appScore = overlapScore(sourceName, appName)
       const processScore = overlapScore(sourceName, processName)
+      const maxFieldScore = Math.max(titleScore, appScore, processScore)
       const liveFocusScore = Math.max(
         scoreTargetOverlap(sourceName, focusTarget),
         scoreTargetOverlap(sourceName, foregroundTarget),
@@ -407,7 +432,7 @@ export function rankScreenSemanticCaptureCandidates(input: {
         )
       }, 0)
       const hintScore = hintTerms.reduce((total, term) => total + overlapScore(sourceName, term), 0)
-      score = Math.max(titleScore, appScore, processScore)
+      score = maxFieldScore
       score += Math.round(liveFocusScore * (externalFocusLocked ? 2.2 : 1.6))
       score += Math.round(anchorScore * (externalFocusLocked ? 0.35 : 0.7))
       score += Math.round(recentScore * (externalFocusLocked ? 0.08 : 0.2))
@@ -423,13 +448,28 @@ export function rankScreenSemanticCaptureCandidates(input: {
         score += 120
       if (externalFocusLocked && liveFocusScore < 24 && anchorScore < 24)
         score -= focusTarget?.source === 'attention-anchor' || focusTarget?.source === 'foreground-window' ? 220 : 140
-      if (score > 0)
+      const hasAlignmentEvidence = maxFieldScore >= 24
+        || liveFocusScore >= 24
+        || anchorScore >= 24
+        || hintScore >= 24
+        || recentScore >= 24
+      if (hasAlignmentEvidence)
         score += 80
+      else
+        score += 12
+      if (isWeakAlicizationScreenSurfaceCue(source.name))
+        score -= 42
     }
     else if (isScreenSource) {
       score = title || appName || processName || attentionAnchor.title || attentionAnchor.appName || attentionAnchor.processName ? 10 : 20
       if (externalFocusLocked)
         score += 120
+      if (weakFocusTarget)
+        score -= 120
+      if (windowSourceCount > 0)
+        score -= 30
+      if (isWeakAlicizationScreenSurfaceCue(source.name))
+        score -= 24
       strategy = 'screen-fallback'
     }
 
@@ -454,7 +494,7 @@ export function rankScreenSemanticCaptureCandidates(input: {
     if (input.avoidSourcePattern?.test(source.name))
       score -= 160
 
-    if (score > 0) {
+    if (score > -160) {
       ranked.push({
         source,
         strategy,
@@ -464,9 +504,27 @@ export function rankScreenSemanticCaptureCandidates(input: {
     }
   }
 
-  return ranked
+  const sorted = ranked
     .sort((left, right) => right.score - left.score)
-    .map(({ score: _score, ...candidate }) => candidate)
+  const top = sorted[0]
+  if (
+    top
+    && normalizeText(top.source.id).startsWith('screen:')
+    && isWeakAlicizationScreenSurfaceCue(top.source.name)
+  ) {
+    const fallbackWindow = sorted.find(candidate =>
+      normalizeText(candidate.source.id).startsWith('window:')
+      && !matchesPattern(normalizeText(candidate.source.name), permissionModalPattern),
+    )
+    if (fallbackWindow && fallbackWindow.score >= top.score - 72) {
+      return [
+        fallbackWindow,
+        ...sorted.filter(candidate => candidate !== fallbackWindow),
+      ].map(({ score: _score, ...candidate }) => candidate)
+    }
+  }
+
+  return sorted.map(({ score: _score, ...candidate }) => candidate)
 }
 
 export function pickScreenSemanticCaptureCandidate(input: {

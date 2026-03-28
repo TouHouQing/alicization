@@ -26,11 +26,21 @@ chat:
     focus-default: 'the current thing'
     repair-stale-anchor: "Let me correct that first: what I used before was a stale anchor, so I shouldn't keep treating it as your current screen."
     repair-need-reground: "Let me hold the truth boundary first: I don't have a stable enough live view this turn, so I won't treat older memory as your current screen."
+    dialogue-boundary-memory: "This turn I'll stay with what you just said instead of forcing an old screen or thread back over it."
+    care-body: "You do not have to sort it out first. I'm here with you, and if you want, you can tell me what hit you this way."
+    accompany-body: "I heard this clearly. If you want, stay here with me a little, or tell me the part that's catching on you."
+    answer-repair-body: 'I said that badly. Let me answer you directly.'
+    answer-dialogue-body: "Alright. I'll answer you directly and stay with this turn."
     guide-opening: 'Let me lock onto the current point first: {focus}.'
+    guide-opening-plain: 'Let me lock onto the current point first.'
     care-opening: 'Let me answer from your current state first: {focus}.'
+    care-opening-plain: 'Let me answer your current state directly first.'
     accompany-opening: 'Let me hold this line with you first: {focus}.'
-    observation-opening: 'Let me start with the part I can hold steady this turn: {focus}.'
+    accompany-opening-plain: 'Let me stay with this line directly first.'
+    observation-opening: 'I can see this now: {focus}.'
+    observation-opening-plain: 'I can see it clearly now.'
     answer-opening: "Let me answer from what's in front of you first: {focus}."
+    answer-opening-plain: 'Let me answer directly.'
     carry-memory: "I am still holding the previous line, {carry}, but that's carried continuity, not a claim about what is literally on your screen right now."
     reground-note: "If you want me to get specific about the current screen, I'll reground on the fresh view from this turn."
   reminder:

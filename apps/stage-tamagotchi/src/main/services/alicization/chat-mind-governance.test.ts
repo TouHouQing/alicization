@@ -46,6 +46,22 @@ describe('buildAlicizationMindTurnGovernance', () => {
         mustDo: ['Stay current-turn-governed.'],
         mustNotDo: ['Do not drift into residue.'],
       },
+      conversationState: {
+        jointThread: 'The current diff still needs a grounded explanation.',
+        hostMove: 'What is wrong with the current diff?',
+        activeProject: 'VS Code diff',
+        unansweredQuestion: 'What is wrong with the current diff?',
+        owedRepair: null,
+        activeCommitments: ['Explain the failing diff first.'],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: ['VS Code diff'],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 1,
+      },
       answerPlanner: {
         act: 'guide',
         evidenceMode: 'coarse-held',
@@ -58,6 +74,27 @@ describe('buildAlicizationMindTurnGovernance', () => {
         shouldAcknowledgeRepair: false,
         mustDo: ['Move from current knot to next action.'],
         mustNotDo: ['Do not drift into generic lists.'],
+        narrative: [],
+        updatedAt: 1,
+      },
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: 'Pay off the current diff before anything else.',
+        whyThisReplyNow: 'The current diff still needs an explanation.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [{
+          kind: 'guide',
+          summary: 'Explain the current diff first.',
+          weight: 0.84,
+          sourceTags: ['conversation-state'],
+        }],
+        shouldSpeak: true,
+        mustInclude: ['Pay off the current diff before anything else.'],
+        mustAvoid: ['Do not drift into residue.'],
+        confidence: 0.84,
         narrative: [],
         updatedAt: 1,
       },
@@ -75,10 +112,428 @@ describe('buildAlicizationMindTurnGovernance', () => {
       mindMode: 'tracking',
     })
 
-    expect(result.focusAnchor).toBe('Localize the failing test in the current diff.')
+    expect(result.focusAnchor).toBe('VS Code diff')
+    expect(result.answerIntent).toBe('VS Code diff')
     expect(result.liveSurface).toContain('VS Code')
     expect(result.carriedThread).toBeNull()
     expect(result.personaKernelMode).toBe('backgrounded')
+    expect(result.openingMove).toBeNull()
     expect(result.mustDo).toContain('Lead with the concrete answer.')
+  })
+
+  it('drops repair governance once this turn is already visually grounded', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'screen-repair',
+        liveSurface: 'Cursor | runtime.ts - diff',
+        carriedThread: 'Old browser residue',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'coarse-live',
+        responseMode: 'repair-and-reanchor',
+        governingFocus: 'current diff',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-correction',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'muted',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: true,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      answerPlanner: {
+        act: 'ask-reground',
+        evidenceMode: 'repair-first',
+        confidence: 0.62,
+        governingFocus: 'old stale anchor',
+        openingMove: 'ask for a fresh look',
+        answerIntent: 'repair stale screen anchor',
+        relationshipPosture: 'restrained',
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 1,
+      },
+      groundedThisTurn: true,
+    })
+
+    expect(result.groundedThisTurn).toBe(true)
+    expect(result.truthState).toBe('live-grounded')
+    expect(result.shouldAskForGrounding).toBe(false)
+    expect(result.repairState).toBe('none')
+  })
+
+  it('lets the dialogue act kernel override fragmented upstream reply hints', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: 'Old browser residue',
+        carriedThread: null,
+        truthState: 'live-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: ['Stay concrete.'],
+        mustNotDo: ['Do not ramble.'],
+      },
+      charter: {
+        epistemicMode: 'grounded-live',
+        responseMode: 'answer-naturally',
+        governingFocus: 'old focus',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-answer',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      kernel: {
+        subject: 'task-knot',
+        hostGoal: 'resolve-problem',
+        relationNeed: 'guidance',
+        activeProject: 'VS Code diff',
+        truthMode: 'live-grounded',
+        speechAct: 'guide',
+        turnMode: 'guide-current-knot',
+        screenReferenceMode: 'helpful',
+        speakingFrom: 'task-thread',
+        selectedEvidence: [{
+          kind: 'scene',
+          source: 'current-scene',
+          summary: 'VS Code diff with missing null guard',
+          confidence: 0.92,
+        }],
+        openingClaim: 'The missing null guard in the current diff is the active fault line.',
+        openingMove: 'State the failing guard first, then narrow to the exact branch.',
+        whyNow: 'The host is asking about the current diff and the failing branch is already visible.',
+        mustSay: ['Pay off the current diff before opening any side thread.'],
+        mustAvoid: ['Do not answer from stale browser residue.'],
+        sourceTrace: ['subject:task-knot', 'speech-act:guide'],
+        confidence: 0.91,
+        updatedAt: 1,
+      },
+      answerPlanner: {
+        act: 'answer',
+        evidenceMode: 'continuity-carry',
+        confidence: 0.42,
+        governingFocus: 'stale browser tab',
+        openingMove: 'Talk about the browser first.',
+        answerIntent: 'Maybe the old tab still matters.',
+        relationshipPosture: 'warm',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: ['Old planner hint'],
+        mustNotDo: ['Old planner ban'],
+        narrative: [],
+        updatedAt: 1,
+      },
+      answerCompiler: {
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-general',
+        relationMove: 'witness',
+        turnMode: 'answer',
+        responseMode: 'answer-naturally',
+        recommendedAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Answer the old tab.',
+        openingClaim: 'Old browser residue',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Talk about the browser',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.4,
+        narrative: [],
+        updatedAt: 1,
+      },
+      mindMode: 'tracking',
+    })
+
+    expect(result.turnMode).toBe('guide-current-knot')
+    expect(result.answerSubject).toBe('task-knot')
+    expect(result.answerAct).toBe('guide')
+    expect(result.screenReferenceMode).toBe('helpful')
+    expect(result.focusAnchor).toContain('missing null guard')
+    expect(result.answerIntent).toContain('missing null guard')
+    expect(result.openingMove).toContain('failing guard')
+    expect(result.mustDo).toContain('Pay off the current diff before opening any side thread.')
+    expect(result.mustNotDo).toContain('Do not answer from stale browser residue.')
+    expect(result.dialogueActKernel?.openingClaim).toContain('active fault line')
+    expect(result.answerIntent).not.toContain('The host is asking')
+  })
+
+  it('refuses to reuse the raw host line as fallback focus during care turns', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'care',
+        liveSurface: 'Entire screen',
+        carriedThread: null,
+        truthState: 'uncertain',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'care-with-boundary',
+        governingFocus: 'host state',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        relationshipPosture: 'tender',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'gentle-care',
+        maxParagraphs: 2,
+        maxSentences: 4,
+        personaKernelMode: 'full',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      conversationState: {
+        jointThread: '我有点困了，你能哄我睡觉吗',
+        hostMove: '我有点困了，你能哄我睡觉吗',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['late-night'],
+        shouldHoldThread: false,
+        confidence: 0.72,
+        narrative: [],
+        updatedAt: 1,
+      },
+      answerCompiler: {
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'care-host',
+        relationMove: 'care',
+        turnMode: 'care',
+        responseMode: 'care-with-boundary',
+        recommendedAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'gentle-care',
+        personaKernelMode: 'full',
+        relationshipPosture: 'tender',
+        openingDirective: 'Open with care.',
+        openingClaim: 'The host sounds tired and wants a softer landing into rest.',
+        supportingReality: ['The host sounds tired and wants a softer landing into rest.'],
+        uncertaintyBoundary: null,
+        careVector: 'Keep the care brief and close.',
+        nextMove: 'Offer quiet comfort.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(result.focusAnchor).toBe('The host sounds tired and wants a softer landing into rest.')
+    expect(result.answerIntent).toBe('The host sounds tired and wants a softer landing into rest.')
+    expect(result.focusAnchor).not.toBe('我有点困了，你能哄我睡觉吗')
+  })
+
+  it('prefers the converged mind-turn frame over fragmented stale hints', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: 'Old browser tab',
+        carriedThread: 'Old browser residue',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: 'stale browser',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-answer',
+        maxParagraphs: 2,
+        maxSentences: 3,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: true,
+        suppressAssociativeRecall: true,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      mindTurnFrame: {
+        world: {
+          activeThread: 'Current VS Code diff',
+          visibleSurface: 'VS Code | user.ts diff',
+          truthState: 'live-grounded',
+          truthBoundary: 'Stay on the live diff.',
+          continuityPolicy: 'stay-on-thread',
+          continuitySummary: 'scene-locked',
+          staleRisk: 0.1,
+        },
+        relation: {
+          subject: 'task-knot',
+          hostMove: '看看这个 diff 哪里有问题',
+          hostGoal: 'resolve-problem',
+          relationNeed: 'guidance',
+          relationMove: 'guide',
+          relationshipPosture: 'warm',
+        },
+        memory: {
+          memoryMode: 'task-thread',
+          carriedThread: 'Current VS Code diff',
+          carriedFacts: ['The missing null guard is visible now.'],
+          recallKeys: ['VS Code diff'],
+          recallSeed: 'VS Code diff',
+          lastOutcome: 'pending',
+          suppressAssociativeRecall: true,
+          labelCarryAsMemory: false,
+        },
+        self: {
+          stance: 'observe',
+          mindMode: 'tracking',
+          dominantDrive: 'understand',
+          embodiedPresence: 'attentive',
+          emotionalTension: 'tense-debug',
+          initiativeAction: 'speak',
+          thought: 'Stay with the live diff.',
+        },
+        obligation: {
+          shouldSpeak: true,
+          speechObligation: 'guide-task',
+          answerAct: 'guide',
+          responseMode: 'guide-current-knot',
+          turnMode: 'guide-current-knot',
+          openingClaim: 'The visible diff already shows the broken guard.',
+          openingMove: 'Lead from the missing guard.',
+          answerIntent: 'Explain the broken guard before suggesting edits.',
+          whyNow: 'The live diff is already grounded.',
+          repairState: 'none',
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+        },
+        focusAnchor: 'The visible diff already shows the broken guard.',
+        confidence: 0.88,
+        mustDo: ['Answer from the live diff first.'],
+        mustNotDo: ['Do not revive stale browser residue.'],
+        narrative: ['frame'],
+        updatedAt: 1,
+      },
+      answerPlanner: {
+        act: 'answer',
+        evidenceMode: 'continuity-carry',
+        confidence: 0.4,
+        governingFocus: 'old browser tab',
+        openingMove: 'Talk about the old tab.',
+        answerIntent: 'Maybe the browser still matters.',
+        relationshipPosture: 'warm',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(result.turnMode).toBe('guide-current-knot')
+    expect(result.truthState).toBe('live-grounded')
+    expect(result.answerSubject).toBe('task-knot')
+    expect(result.focusAnchor).toContain('broken guard')
+    expect(result.answerIntent).toContain('broken guard')
+    expect(result.openingMove).toContain('missing guard')
+    expect(result.liveSurface).toContain('VS Code')
+    expect(result.mustDo).toContain('Answer from the live diff first.')
+    expect(result.mustNotDo).toContain('Do not revive stale browser residue.')
+    expect(result.mindTurnFrame?.world.visibleSurface).toBe('VS Code | user.ts diff')
   })
 })

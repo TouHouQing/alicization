@@ -45,6 +45,28 @@ describe('proactive screen semantic helpers', () => {
     }))
   })
 
+  it('prefers a concrete window over weak Screen N shell fallback even with stale weak anchors', () => {
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: {
+        appName: 'idea',
+        processName: 'idea',
+        title: 'Screen 1',
+      },
+      attentionAnchor: {
+        appName: 'idea',
+        processName: 'idea',
+        title: 'Screen 1',
+      },
+      sources: [
+        { id: 'window:idea:0', name: 'runtime.ts - Project Alice - IntelliJ IDEA' } as any,
+        { id: 'screen:1:0', name: 'Screen 1' } as any,
+      ],
+    })
+
+    expect(candidate?.source.id).toBe('window:idea:0')
+    expect(candidate?.strategy).toBe('app-name')
+  })
+
   it('prefers the anchored coding window even when the current foreground is Alicization itself', () => {
     const candidate = pickScreenSemanticCaptureCandidate({
       foregroundWindow: {
@@ -188,6 +210,28 @@ describe('proactive screen semantic helpers', () => {
       appName: 'QQMusic',
       source: 'attention-anchor',
     }))
+  })
+
+  it('does not let weak browser-no-title anchors lock candidate selection', () => {
+    const candidate = pickScreenSemanticCaptureCandidate({
+      foregroundWindow: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        title: '',
+      },
+      attentionAnchor: {
+        appName: 'Google Chrome',
+        processName: 'Google Chrome',
+        title: '',
+      },
+      hintTerms: ['vscode', 'diff'],
+      sources: [
+        { id: 'window:code:0', name: 'review.diff - Visual Studio Code' } as any,
+        { id: 'screen:1:0', name: 'Screen 1' } as any,
+      ],
+    })
+
+    expect(candidate?.source.id).toBe('window:code:0')
   })
 
   it('parses valid structured screen semantic output', () => {

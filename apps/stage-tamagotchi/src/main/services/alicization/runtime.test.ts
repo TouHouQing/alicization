@@ -1,3 +1,5 @@
+import type { AlicizationConversationTurnInput } from '../../../shared/eventa'
+
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -11,8 +13,10 @@ import {
   alicizationChatStreamChunk,
   alicizationChatStreamDispatchChannel,
   alicizationChatStreamFinish,
+  alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
   alicizationChatStreamToolResult,
+
   alicizationDialogueResponded,
   electronAlicizationAppendConversationTurn,
   electronAlicizationBootstrap,
@@ -232,6 +236,7 @@ vi.mock('@moeru/eventa/adapters/electron/main', () => ({
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/tmp/airi-runtime-should-not-be-used'),
+    getLocale: vi.fn(() => 'zh-Hans'),
   },
   globalShortcut: {
     register: vi.fn(() => true),
@@ -322,6 +327,67 @@ vi.mock('@xsai/stream-text', () => ({
 
 vi.mock('@xsai/generate-text', () => ({
   generateText: (...args: any[]) => generateTextMock(...args),
+}))
+
+vi.mock('@proj-alicization/i18n/locales', () => ({
+  default: {
+    'en': {
+      stage: {
+        chat: {
+          'mind-fallback': {
+            'focus-default': 'the current thing',
+            'repair-stale-anchor': 'Let me correct that first.',
+            'repair-need-reground': 'Let me hold the truth boundary first.',
+            'dialogue-boundary-memory': 'This turn I will stay with what you just said.',
+            'care-body': 'You do not have to sort it out first.',
+            'accompany-body': 'I heard this clearly.',
+            'answer-repair-body': 'I said that badly. Let me answer you directly.',
+            'answer-dialogue-body': 'Alright. I will answer you directly.',
+            'guide-opening': 'Let me lock onto the current point first: {focus}.',
+            'guide-opening-plain': 'Let me lock onto the current point first.',
+            'care-opening': 'Let me answer from your current state first: {focus}.',
+            'care-opening-plain': 'Let me answer your current state directly first.',
+            'accompany-opening': 'Let me hold this line with you first: {focus}.',
+            'accompany-opening-plain': 'Let me stay with this line directly first.',
+            'observation-opening': 'I can see this now: {focus}.',
+            'observation-opening-plain': 'I can see it clearly now.',
+            'answer-opening': 'Let me answer from what is in front of you first: {focus}.',
+            'answer-opening-plain': 'Let me answer directly.',
+            'carry-memory': 'I am still holding the previous line, {carry}.',
+            'reground-note': 'If you want me to get specific about the current screen, I will reground on the fresh view from this turn.',
+          },
+        },
+      },
+    },
+    'zh-Hans': {
+      stage: {
+        chat: {
+          'mind-fallback': {
+            'focus-default': '当前这件事',
+            'repair-stale-anchor': '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
+            'repair-need-reground': '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。',
+            'dialogue-boundary-memory': '这轮我先留在你刚才这句话里，不把旧画面或旧线程硬套回现在。',
+            'care-body': '你不用先把话整理好，我先陪你把这一下接住；如果你愿意，就把让你难受的那件事慢慢告诉我。',
+            'accompany-body': '我听见你这句了。你想让我安静陪着你一会儿，还是把卡住你的那一点慢慢说给我？',
+            'answer-repair-body': '刚才那句我说偏了。我收回来，直接回答你。',
+            'answer-dialogue-body': '好，我直接回答你，不再往旧线那边绕。',
+            'guide-opening': '先抓当前这个点：{focus}。',
+            'guide-opening-plain': '先抓住当前这个点。',
+            'care-opening': '我先按你现在的状态说：{focus}。',
+            'care-opening-plain': '我先直接接住你这句。',
+            'accompany-opening': '我先陪你把这条线稳住：{focus}。',
+            'accompany-opening-plain': '我先直接接你这句。',
+            'observation-opening': '我现在看到的是：{focus}。',
+            'observation-opening-plain': '我现在能看清这一幕。',
+            'answer-opening': '先按你眼前这件事说：{focus}。',
+            'answer-opening-plain': '我直接说。',
+            'carry-memory': '我还记着上一条线是 {carry}，但那是我还在续持的线程，不是我断定你现在屏幕上的内容。',
+            'reground-note': '如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
+          },
+        },
+      },
+    },
+  },
 }))
 
 const { setupAlicizationRuntime } = await import('./runtime')
@@ -780,6 +846,43 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('registers persisted assistant turns into the dialogue world thread state', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(getVisualPresenceState).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-world-thread-register',
+      sessionId: 'session-test',
+      assistantText: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
+      structured: {
+        thought: 'stay with the diff seam',
+        emotion: 'neutral',
+        reply: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      createdAt: Date.now(),
+    })
+
+    const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
+    expect(visualPresenceState.dialogueWorldThread).toEqual(expect.objectContaining({
+      activeThread: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
+      lastAssistantMove: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
+    }))
+    expect(
+      visualPresenceState.mindTurnFrame?.memory.carriedThread
+      ?? visualPresenceState.dialogueWorldThread?.activeThread,
+    ).toContain('先盯住当前 diff')
+  })
+
   it('dispatches dialogue-responded through direct renderer channel', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -850,6 +953,980 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(events).toHaveLength(1)
     expect(events[0]?.structured.emotion).toBe('neutral')
     expect(events[0]?.structured.rawEmotion).toBe('super-excited')
+  })
+
+  it('rewrites legacy epoch1 user turns into mind-turn-v1 when governance is present', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-mind-governed',
+      sessionId: 'session-test',
+      userText: '重新看看我现在的 diff',
+      assistantText: '……欸～主人～我刚刚看的还是上一个浏览器页面……',
+      structured: {
+        thought: '……欸～主人～我刚刚看的还是上一个浏览器页面……',
+        emotion: 'neutral',
+        reply: '……欸～主人～我刚刚看的还是上一个浏览器页面……',
+        parsePath: 'json',
+        format: 'epoch1-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'live-observed',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'correct-stale-anchor',
+        evidenceMode: 'repair-first',
+        repairState: 'stale-anchor',
+        liveSurface: 'VS Code | diff',
+        focusAnchor: 'VS Code | diff',
+        answerIntent: '先按当前 diff 重新判断。',
+        openingMove: '先纠正旧锚点。',
+        carriedThread: 'previous browser tab',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'hesitant',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    expect((persisted?.structured as Record<string, unknown> | undefined)?.format).toBe('mind-turn-v1')
+    expect((persisted?.structured as Record<string, unknown> | undefined)?.governance).toEqual(expect.objectContaining({
+      turnMode: 'screen-repair',
+    }))
+    expect(String((persisted?.structured as Record<string, unknown> | undefined)?.thought ?? '')).toContain('obligation=repair')
+
+    const events = getDialogueRespondedEvents()
+    expect(events[0]?.structured.format).toBe('mind-turn-v1')
+    expect(events[0]?.structured.governance).toEqual(expect.objectContaining({
+      turnMode: 'screen-repair',
+    }))
+  })
+
+  it('realigns conflicting thought and emotion metadata to the governed repair state before persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-governed-repair-alignment',
+      sessionId: 'session-test',
+      userText: '你看看我的屏幕，这些课哪个更像网课？',
+      assistantText: '主人，您今天已经看了好久的代码和屏幕了……我好心疼。',
+      structured: {
+        thought: 'obligation=accompany; truth=grounded; focus=课程判断+疲惫提醒; move=先温柔体贴再精准分析; tone=tender',
+        emotion: 'concerned',
+        reply: '主人，您今天已经看了好久的代码和屏幕了……我好心疼。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'remembered',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'ask-reground',
+        evidenceMode: 'repair-first',
+        repairState: 'stale-anchor',
+        liveSurface: 'Google Chrome | Google Chrome',
+        focusAnchor: 'screen-courses-online-class-comparison',
+        answerIntent: 'screen-courses-online-class-comparison',
+        openingMove: 'Correct the current seam before any comfort or elaboration.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 4,
+        mindMode: 'repairing',
+        embodiedPresence: 'hesitant',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    expect(String((persisted?.structured as Record<string, unknown> | undefined)?.thought ?? '')).toContain('obligation=repair')
+    expect(String((persisted?.structured as Record<string, unknown> | undefined)?.thought ?? '')).toContain('tone=restrained')
+    expect((persisted?.structured as Record<string, unknown> | undefined)?.emotion).toBe('apologetic')
+
+    const events = getDialogueRespondedEvents()
+    expect(events[0]?.structured.governance).toEqual(expect.objectContaining({
+      turnMode: 'screen-repair',
+    }))
+    expect(events[0]?.structured.emotion).toBe('apologetic')
+  })
+
+  it('replaces thin dialogue-first governed shells before persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-dialogue-first-thin-shell',
+      sessionId: 'session-test',
+      userText: '我有点伤心，你可以安慰一下我吗',
+      assistantText: '我直接说。',
+      structured: {
+        thought: 'obligation=answer; truth=memory; focus=current-user-turn; move=answer-the-hosts-question-about-alicization-directly; tone=warm',
+        emotion: 'neutral',
+        reply: '我直接说。',
+        parsePath: 'repair-json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        answerAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '我有点伤心，你可以安慰一下我吗',
+        answerIntent: '先接住宿主现在的难过，再慢慢陪她说下去。',
+        openingMove: '先直接接住宿主此刻的情绪。',
+        carriedThread: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'concerned',
+        emotionalTension: 'late-night-drain',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).not.toBe('我直接说。')
+    expect(String(persistedStructured?.reply ?? '')).toContain('你不用先把话整理好')
+    expect(String(persistedStructured?.thought ?? '')).toContain('obligation=care')
+    expect(persistedStructured?.emotion).toBe('concerned')
+
+    const events = getDialogueRespondedEvents()
+    expect(events[0]?.structured.reply).toContain('你不用先把话整理好')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit).toBeTruthy()
+  })
+
+  it('preserves ordinary dialogue-first replies instead of collapsing them into governed fallback prose', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-dialogue-first-preserve-visible-reply',
+      sessionId: 'session-test',
+      userText: '你能做啥',
+      assistantText: '我能陪你聊，也能帮你一起看当前这件事。',
+      structured: {
+        thought: '',
+        emotion: 'neutral',
+        reply: '我能陪你聊，也能帮你一起看当前这件事。',
+        parsePath: 'fallback',
+        format: 'fallback-v1',
+        contractFailed: true,
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: 'current-user-turn',
+        answerIntent: 'Answer the host question directly.',
+        openingMove: 'Answer the host question directly.',
+        carriedThread: 'old browser tab',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).toBe('我能陪你聊，也能帮你一起看当前这件事。')
+    expect(String(persistedStructured?.reply ?? '')).not.toContain('刚才那句我说偏了')
+    expect(String(persistedStructured?.reply ?? '')).not.toContain('不把旧画面或旧线程硬套回现在')
+    expect(String(persistedStructured?.thought ?? '')).toContain('obligation=answer')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+  })
+
+  it('suppresses soft strict-governance visible takeover on non-repair guide turns', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-soft-strict-governance-suppressed',
+      sessionId: 'session-test',
+      userText: '猜猜我在干嘛',
+      assistantText: '我猜你现在在 IntelliJ 里看这次 Java 改动。',
+      structured: {
+        thought: 'obligation=guide; truth=uncertain; focus=intellij-java-change; move=stay-with-the-current-change; tone=direct',
+        emotion: 'thinking',
+        reply: '我猜你现在在 IntelliJ 里看这次 Java 改动。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'uncertain',
+        groundedThisTurn: false,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'guide',
+        evidenceMode: 'repair-first',
+        repairState: 'none',
+        liveSurface: 'IntelliJ IDEA with Java project and git push output',
+        focusAnchor: 'IntelliJ IDEA with Java project and git push output',
+        answerIntent: 'IntelliJ IDEA with Java project and git push output',
+        openingMove: 'Start with the concrete issue in front of you.',
+        carriedThread: 'current screen',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).toBe('我猜你现在在 IntelliJ 里看这次 Java 改动。')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    const takeoverReasons = Array.isArray(takeoverAudit?.payload?.reasons)
+      ? takeoverAudit?.payload?.reasons
+      : []
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+    expect(takeoverAudit?.payload?.overrideClass).toBe('none')
+    expect(takeoverAudit?.payload?.fallbackPatternId).toBe('none')
+    expect(takeoverReasons).not.toContain('strict-governance-surface')
+    expect(takeoverReasons).not.toContain('soft-strict-governance-suppressed')
+  })
+
+  it('preserves grounded screen replies instead of overwriting them with reground fallback prose', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-grounded-screen-reply-preserved',
+      sessionId: 'session-test',
+      userText: '你能看到我屏幕吗？仔细看看',
+      assistantText: '我现在能看到，这一轮里是 Cursor 的 diff 视图，不是之前那个浏览器页面。',
+      structured: {
+        thought: 'obligation=repair; truth=grounded; focus=cursor-diff; move=correct-then-answer; tone=direct',
+        emotion: 'thinking',
+        reply: '我现在能看到，这一轮里是 Cursor 的 diff 视图，不是之前那个浏览器页面。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'remembered',
+        groundedThisTurn: true,
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        answerAct: 'correct-stale-anchor',
+        evidenceMode: 'repair-first',
+        repairState: 'stale-anchor',
+        liveSurface: 'Cursor | runtime.ts - diff',
+        focusAnchor: 'runtime.ts - diff',
+        answerIntent: 'Repair the old screen anchor and answer from the live diff.',
+        openingMove: 'Correct the old anchor first.',
+        carriedThread: 'old browser residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 4,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).toBe('我现在能看到，这一轮里是 Cursor 的 diff 视图，不是之前那个浏览器页面。')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+  })
+
+  it('preserves coherent non-grounded screen repair replies instead of forcing fallback takeover', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-ungrounded-screen-repair-coherent-reply-preserved',
+      sessionId: 'session-test',
+      userText: '你看看这个 diff 哪里错了',
+      assistantText: '我现在看到是 Cursor 的 runtime.ts diff，空值分支缺了 guard，先补这个分支再跑一次测试。',
+      structured: {
+        thought: 'obligation=repair; truth=coarse; focus=cursor-runtime-diff; move=correct-then-answer; tone=direct',
+        emotion: 'thinking',
+        reply: '我现在看到是 Cursor 的 runtime.ts diff，空值分支缺了 guard，先补这个分支再跑一次测试。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'live-observed',
+        groundedThisTurn: false,
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        answerAct: 'correct-stale-anchor',
+        evidenceMode: 'repair-first',
+        repairState: 'stale-anchor',
+        liveSurface: 'Cursor | runtime.ts - diff',
+        focusAnchor: 'Cursor runtime.ts diff with missing null guard',
+        answerIntent: 'Cursor runtime.ts diff with missing null guard',
+        openingMove: 'Correct the stale anchor and answer from the live diff.',
+        carriedThread: 'old browser residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 4,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).toBe('我现在看到是 Cursor 的 runtime.ts diff，空值分支缺了 guard，先补这个分支再跑一次测试。')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+    expect(takeoverAudit?.payload?.reasons).toEqual(expect.arrayContaining([
+      'strict-governance-surface',
+      'soft-strict-governance-suppressed',
+      'strict-repair-scene-reply-preserved',
+    ]))
+  })
+
+  it('rewrites grounded guide fallback away from stale carry narration once live screen grounding is available', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-grounded-guide-fallback-prefers-live-surface',
+      sessionId: 'session-test',
+      userText: '你看看这个架构，你有什么想法吗',
+      assistantText: 'Which belief is stale memory, and which one still reflects the current world?',
+      structured: {
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Which belief is stale memory, and which one still reflects the current world?',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'live-grounded',
+        groundedThisTurn: true,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        answerAct: 'guide',
+        evidenceMode: 'live-grounded',
+        repairState: 'none',
+        liveSurface: 'GitHub Markdown doc for AI assistant module dev spec',
+        focusAnchor: 'GitHub Markdown doc for AI assistant module dev spec',
+        answerIntent: 'GitHub markdown doc for AI assistant module dev spec',
+        openingMove: 'Stay with the live architecture document.',
+        carriedThread: 'old browser tab',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).toContain('我现在看到的是')
+    expect(persistedReply).toContain('GitHub Markdown doc for AI assistant module dev spec')
+    expect(persistedReply).not.toContain('Which belief is stale memory')
+    expect(persistedReply).not.toContain('old browser tab')
+    expect(persistedReply).not.toContain('重新落地')
+    expect(persistedReply.match(/GitHub Markdown doc for AI assistant module dev spec/gi)?.length).toBe(1)
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+  })
+
+  it('rewrites weak grounded screen shell replies before persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-weak-grounded-screen-cue-rewrite',
+      sessionId: 'session-test',
+      userText: '你再看看我现在在干嘛',
+      assistantText: '我现在看到的是：Screen 1。',
+      structured: {
+        thought: 'obligation=guide; truth=grounded; focus=screen-1; move=stay-on-current-scene; tone=direct',
+        emotion: 'thinking',
+        reply: '我现在看到的是：Screen 1。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'live-grounded',
+        groundedThisTurn: true,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'guide',
+        evidenceMode: 'live-grounded',
+        repairState: 'none',
+        liveSurface: 'Code | Code | Screen 1 | IDE with Spring AI Java chat and anime character',
+        focusAnchor: 'Screen 1',
+        answerIntent: 'Screen 1',
+        openingMove: 'Stay with the live scene.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        dialogueActKernel: {
+          subject: 'task-knot',
+          hostGoal: 'resolve-problem',
+          relationNeed: 'guidance',
+          activeProject: 'Screen 1',
+          truthMode: 'live-grounded',
+          speechAct: 'guide',
+          turnMode: 'guide-current-knot',
+          screenReferenceMode: 'helpful',
+          speakingFrom: 'live-scene',
+          selectedEvidence: [{
+            kind: 'scene',
+            source: 'current-scene',
+            summary: 'Screen 1',
+            confidence: 0.74,
+          }],
+          openingClaim: 'Screen 1',
+          openingMove: 'Stay with the live scene.',
+          whyNow: 'Screen 1',
+          mustSay: ['Screen 1'],
+          mustAvoid: [],
+          sourceTrace: ['subject:task-knot'],
+          confidence: 0.78,
+          updatedAt: Date.now(),
+        },
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).toContain('我现在看到的是')
+    expect(persistedReply).toContain('IDE with Spring AI Java chat and anime character')
+    expect(persistedReply).not.toContain('Screen 1')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.reasons).toContain('reply-used-weak-grounded-scene-cue')
+  })
+
+  it('rewrites weak uncertain screen shell replies before persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-weak-uncertain-screen-cue-rewrite',
+      sessionId: 'session-test',
+      userText: '猜猜我在干嘛',
+      assistantText: '先抓当前这个点：idea · Screen 1。',
+      structured: {
+        thought: 'obligation=guide; truth=uncertain; focus=idea-screen-1; move=stay-on-current-scene; tone=direct',
+        emotion: 'thinking',
+        reply: '先抓当前这个点：idea · Screen 1。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'uncertain',
+        groundedThisTurn: false,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'guide',
+        evidenceMode: 'repair-first',
+        repairState: 'none',
+        liveSurface: 'idea · Screen 1',
+        focusAnchor: 'idea · Screen 1',
+        answerIntent: 'idea · Screen 1',
+        openingMove: 'Start with the concrete issue in front of you.',
+        carriedThread: 'Codex',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).not.toContain('Screen 1')
+    expect(persistedReply).not.toContain('current screen')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.reasons).toContain('reply-used-weak-grounded-scene-cue')
+  })
+
+  it('localizes repair fallback to the current user language instead of leaking english governance prose', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-localized-screen-repair-fallback',
+      sessionId: 'session-test',
+      userText: '那你猜我在干嘛',
+      assistantText: 'Let me hold the truth boundary first: I do not have a stable enough live view this turn.',
+      structured: {
+        thought: '',
+        emotion: 'thinking',
+        reply: 'Let me hold the truth boundary first: I do not have a stable enough live view this turn.',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'uncertain',
+        groundedThisTurn: false,
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'ask-reground',
+        evidenceMode: 'repair-first',
+        repairState: 'need-reground',
+        liveSurface: 'Code | Code | Screen 1 | IDE with Spring AI Java chat and anime character',
+        focusAnchor: 'IDE with Spring AI Java chat and anime character',
+        answerIntent: 'IDE with Spring AI Java chat and anime character',
+        openingMove: 'Start with the concrete issue in front of you.',
+        carriedThread: 'IDE with Spring AI Java chat and anime character',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 4,
+        mindMode: 'repairing',
+        embodiedPresence: 'hesitant',
+        emotionalTension: 'restless-switching',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).toContain('IDE with Spring AI Java chat and anime character')
+    expect(persistedReply).toContain('重新落地')
+    expect(persistedReply).not.toContain('Let me hold the truth boundary')
+  })
+
+  it('forces governed fallback when reply script mismatches the user turn language', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-reply-script-mismatch-repair',
+      sessionId: 'session-test',
+      userText: '你现在看到了什么',
+      assistantText: 'Let me answer directly. I can still see your previous browser tab.',
+      structured: {
+        thought: 'obligation=answer; truth=memory; focus=current-user-turn; move=answer-directly; tone=warm',
+        emotion: 'neutral',
+        reply: 'Let me answer directly. I can still see your previous browser tab.',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'remembered',
+        groundedThisTurn: false,
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你现在看到了什么',
+        answerIntent: '先直接回答宿主这句。',
+        openingMove: '先直接回答宿主。',
+        carriedThread: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).not.toContain('Let me answer directly')
+    expect(/[\u4E00-\u9FFF]/u.test(persistedReply)).toBe(true)
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.reasons).toContain('reply-script-mismatch-with-user-turn')
+  })
+
+  it('suppresses split-brain grounded screen replies that mix the live scene with stale carried anchors', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-grounded-split-brain-anchor-repair',
+      sessionId: 'session-test',
+      userText: '你看看正在忙什么',
+      assistantText: '先抓当前这个点：GitHub repository page for lingshu-ai-assistant。 macOS crash report for Alicization app',
+      structured: {
+        thought: 'obligation=guide; truth=grounded; focus=GitHub repository page for lingshu-ai-assistant; move=stay-on-current-page; tone=direct',
+        emotion: 'thinking',
+        reply: '先抓当前这个点：GitHub repository page for lingshu-ai-assistant。 macOS crash report for Alicization app',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'live-grounded',
+        groundedThisTurn: true,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        answerAct: 'guide',
+        evidenceMode: 'live-grounded',
+        repairState: 'none',
+        liveSurface: 'GitHub repository page for lingshu-ai-assistant',
+        focusAnchor: 'GitHub repository page for lingshu-ai-assistant',
+        answerIntent: 'macOS crash report for Alicization app',
+        openingMove: 'Stay with the current repository page.',
+        carriedThread: 'macOS crash report for Alicization app',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        dialogueActKernel: {
+          subject: 'visible-scene',
+          hostGoal: 'inspect-change',
+          relationNeed: 'guidance',
+          activeProject: 'GitHub repository page for lingshu-ai-assistant',
+          truthMode: 'live-grounded',
+          speechAct: 'guide',
+          turnMode: 'guide-current-knot',
+          screenReferenceMode: 'required',
+          speakingFrom: 'task-thread',
+          selectedEvidence: [{
+            kind: 'scene',
+            source: 'current-scene',
+            summary: 'GitHub repository page for lingshu-ai-assistant',
+            confidence: 0.92,
+          }],
+          openingClaim: 'GitHub repository page for lingshu-ai-assistant',
+          openingMove: 'Stay with the current repository page.',
+          whyNow: 'The current repository page is what is visibly in front of the host.',
+          mustSay: [],
+          mustAvoid: ['Do not answer from stale crash residue.'],
+          sourceTrace: ['subject:visible-scene'],
+          confidence: 0.9,
+          updatedAt: 1,
+        },
+        mindTurnFrame: {
+          world: {
+            activeThread: 'GitHub repository page for lingshu-ai-assistant',
+            visibleSurface: 'GitHub repository page for lingshu-ai-assistant',
+            truthState: 'live-grounded',
+            truthBoundary: 'Stay on the current repository page.',
+            continuityPolicy: 'scene-before-memory',
+            continuitySummary: 'scene-locked',
+            staleRisk: 0.08,
+          },
+          relation: {
+            subject: 'visible-scene',
+            hostMove: '你看看正在忙什么',
+            hostGoal: 'inspect-change',
+            relationNeed: 'guidance',
+            relationMove: 'guide',
+            relationshipPosture: 'warm',
+          },
+          memory: {
+            memoryMode: 'scene-anchored',
+            carriedThread: 'macOS crash report for Alicization app',
+            carriedFacts: [],
+            recallKeys: [],
+            recallSeed: 'GitHub repository page for lingshu-ai-assistant',
+            lastOutcome: 'pending',
+            suppressAssociativeRecall: true,
+            labelCarryAsMemory: true,
+          },
+          self: {
+            stance: 'observe',
+            mindMode: 'tracking',
+            dominantDrive: 'understand',
+            embodiedPresence: 'attentive',
+            emotionalTension: 'focused-flow',
+            initiativeAction: 'speak',
+            thought: 'Stay with the current repository page.',
+          },
+          obligation: {
+            shouldSpeak: true,
+            speechObligation: 'answer-general',
+            answerAct: 'guide',
+            responseMode: 'guide-current-knot',
+            turnMode: 'guide-current-knot',
+            openingClaim: 'GitHub repository page for lingshu-ai-assistant',
+            openingMove: 'Stay with the current repository page.',
+            answerIntent: 'macOS crash report for Alicization app',
+            whyNow: 'The current repository page is visible now.',
+            repairState: 'none',
+            shouldAskForGrounding: false,
+            shouldAcknowledgeRepair: false,
+          },
+          focusAnchor: 'GitHub repository page for lingshu-ai-assistant',
+          confidence: 0.88,
+          mustDo: [],
+          mustNotDo: ['Do not answer from stale crash residue.'],
+          narrative: [],
+          updatedAt: 1,
+        },
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedGovernance = persistedStructured?.governance as Record<string, unknown> | undefined
+
+    expect(String(persistedStructured?.reply ?? '')).toContain('GitHub repository page for lingshu-ai-assistant')
+    expect(String(persistedStructured?.reply ?? '')).not.toContain('macOS crash report for Alicization app')
+    expect(String(persistedGovernance?.focusAnchor ?? '')).toBe('GitHub repository page for lingshu-ai-assistant')
+    expect(String(persistedGovernance?.answerIntent ?? '')).toBe('GitHub repository page for lingshu-ai-assistant')
+    expect(persistedGovernance?.carriedThread ?? null).toBeNull()
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.reasons).toEqual(expect.arrayContaining([
+      'governance-anchor-coherence-repaired',
+      'reply-split-brain-scene-thread',
+    ]))
   })
 
   it('does not emit alicization.dialogue.responded when persistence fails', async () => {
@@ -1143,6 +2220,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       messages: [{ role: 'user', content: 'hello' }],
     })
     expect(startResult.accepted).toBe(true)
+    expect(startResult.governance?.dialogueActKernel?.openingClaim).toBeTruthy()
+    expect(startResult.governance?.dialogueActKernel?.openingMove).toBeTruthy()
+    expect(startResult.governance?.dialogueActKernel?.selectedEvidence.length ?? 0).toBeGreaterThan(0)
+    expect(startResult.governance?.mindTurnFrame?.obligation.openingClaim).toBeTruthy()
+    expect(startResult.governance?.mindTurnFrame?.relation.subject).toBeTruthy()
 
     await vi.waitFor(() => {
       const finishEvents = contextEmitMock.mock.calls
@@ -1375,9 +2457,10 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_TURN_PERSONA_KERNEL]')) ?? ''
-    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_ENCOUNTER]')
-    expect(mainChatSystemText).toContain('Persona kernel mode: backgrounded.')
+    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_DIALOGUE_MIND]')) ?? ''
+    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
+    expect(mainChatSystemText).toContain('Persona is backgrounded for this turn.')
+    expect(mainChatSystemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(mainChatSystemText).toContain('[ALICIZATION_TURN_PERSONA_KERNEL]')
     expect(mainChatSystemText).not.toContain('你要始终先撒娇再回答')
   })
@@ -1557,12 +2640,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n\n')
-    expect(systemText).toContain('[ALICIZATION_ANSWER_PLAN]')
-    expect(systemText).toContain('[ALICIZATION_RESPONSE_CHARTER]')
+    expect(systemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
     expect(systemText).toContain('[ALICIZATION_PERCEPTION]')
     expect(systemText).toContain('Inspection mode: invited-by-user')
-    expect(systemText).toContain('Answer act: guide.')
+    expect(systemText).toContain('The reply should stay with the concrete task knot in front of the host.')
+    expect(systemText).toContain('Open with the answer, not with a preface about answering.')
     expect(systemText).toContain('Attention anchor: Cursor')
+    expect(systemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -1571,6 +2655,217 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         captureSource: 'main.ts - diff',
         focusTarget: expect.stringContaining('Cursor'),
       }),
+    }))
+  })
+
+  it('hydrates grounded screen semantic summaries into the chat mind pipeline before the final answer', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            workload: 'coding',
+            content: 'diff',
+            summary: 'cursor diff with removed guard',
+            confidence: 0.94,
+            matchedLabels: ['cursor', 'diff'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'grounded inspection reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - diff',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:self:0',
+        name: 'Alicization Chat Overlay',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,self-chat-overlay',
+        },
+      },
+      {
+        id: 'window:cursor:0',
+        name: 'main.ts - diff',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,semantic-cursor-diff',
+        },
+      },
+    ])
+
+    const turnId = 'turn-chat-screen-semantic-hydration'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看 Cursor 里面这个 diff 有什么问题',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('cursor diff with removed guard')
+
+    const perceptionAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.perception' && entry.action === 'inspection-grounded')
+    expect(perceptionAudit).toEqual(expect.objectContaining({
+      payload: expect.objectContaining({
+        screenSemanticSummary: expect.objectContaining({
+          workload: expect.objectContaining({
+            kind: 'coding',
+          }),
+          content: expect.objectContaining({
+            kind: 'diff',
+            summary: 'cursor diff with removed guard',
+          }),
+        }),
+        visualPresence: expect.objectContaining({
+          currentScene: expect.objectContaining({
+            source: 'screen-semantic-summary',
+            workloadKind: 'coding',
+            contentKind: 'diff',
+            summary: 'cursor diff with removed guard',
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('drops weak unknown screen semantic summaries instead of persisting shell labels', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+
+      if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            workload: 'unknown',
+            content: 'unknown',
+            summary: 'Screen 1',
+            confidence: 0.74,
+            matchedLabels: ['screen'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: 'weak-summary-guarded-reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Code',
+      processName: 'Code',
+      title: 'Screen 1',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:code:0',
+        name: 'Code | Screen 1',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,weak-shell-summary',
+        },
+      },
+    ])
+
+    const turnId = 'turn-chat-screen-semantic-weak-summary-guard'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '你再看看我现在这个界面',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const perceptionAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.perception' && entry.action === 'inspection-grounded')
+    expect(perceptionAudit?.payload).toEqual(expect.objectContaining({
+      screenSemanticSummary: null,
+      screenSemanticUnavailableReason: 'screen-semantic-weak-summary',
     }))
   })
 
@@ -1886,7 +3181,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       action: 'inspection-grounded',
       payload: expect.objectContaining({
         inspectionRequested: true,
-        inspectionIntentReasonCodes: expect.arrayContaining(['inspection-continuity', 'scene-object-reference']),
+        inspectionIntentReasonCodes: expect.arrayContaining(['inspection-continuity', 'shared-attention-continuation', 'short-follow-up']),
         captureSource: 'Melt - QQMusic',
       }),
     }))
@@ -2028,6 +3323,670 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
           'scene-change-reference',
         ]),
         captureSource: 'Melt - QQMusic',
+      }),
+    }))
+  })
+
+  it('does not let invited inspection continuity hijack detached self critiques', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'detached self question reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'main.ts - diff',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:cursor:0',
+        name: 'main.ts - diff',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,anchored-cursor-diff-initial',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,anchored-cursor-screen-initial',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-detached-question-initial-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我在 Cursor 里面这个 diff 有什么问题',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'window:cursor:0',
+        name: 'main.ts - diff',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,anchored-cursor-diff-follow-up',
+        },
+      },
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,anchored-cursor-screen-follow-up',
+        },
+      },
+    ])
+
+    const followUpTurnId = 'turn-detached-question-follow-up'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看我在 Cursor 里面这个 diff 有什么问题',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '你能不能表现得开心一点',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(typeof latestUserMessage?.content).toBe('string')
+    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('anchored-cursor-diff-follow-up')
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
+    expect(systemText).not.toContain('Pay off the active knot and move it one step forward.')
+    expect(systemText).toContain('The focus to pay off now is:')
+
+    const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.category === 'alicization.perception')
+    expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
+    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
+      action: 'perception-context-prepared',
+      payload: expect.objectContaining({
+        inspectionRequested: false,
+      }),
+    }))
+  })
+
+  it('releases invited inspection carry when the host pivots into a relational turn', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'relational reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'Java interview questions and answers',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,stale-java-browser-first',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-relational-pivot-initial-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我屏幕上现在是什么',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+    desktopCapturerGetSourcesMock.mockClear()
+
+    const followUpTurnId = 'turn-relational-pivot-follow-up'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看我屏幕上现在是什么',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '你真可爱',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
+
+    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
+    expect(typeof latestUserMessage?.content).toBe('string')
+    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-java-browser-first')
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+
+    const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.category === 'alicization.perception')
+    expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
+    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
+      action: 'perception-context-prepared',
+      payload: expect.objectContaining({
+        inspectionRequested: false,
+        inspectionCarryReleased: true,
+        inspectionIntentReasonCodes: expect.arrayContaining([
+          'dialogue-pivot-away-from-inspection',
+        ]),
+      }),
+    }))
+  })
+
+  it('lets dialogue-first answer complaints reclaim turn ownership before inspection grounding starts', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'plain answer reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'Java interview questions and answers',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,inspection-carry-first',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-answer-complaint-initial-inspection'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我屏幕上现在是什么',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+    desktopCapturerGetSourcesMock.mockClear()
+
+    const followUpTurnId = 'turn-answer-complaint-follow-up'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看我屏幕上现在是什么',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '能不能说人话',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
+
+    const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.category === 'alicization.perception')
+    expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
+    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
+      action: 'perception-context-prepared',
+      payload: expect.objectContaining({
+        inspectionRequested: false,
+        inspectionCarryReleased: true,
+        dialogueFocus: expect.objectContaining({
+          subject: 'alicization-self',
+          screenReferenceMode: 'avoid',
+          shouldBypassScreenRepair: true,
+        }),
+        dialogueObligation: expect.objectContaining({
+          kind: 'answer',
+          mustAnswerDirectly: true,
+        }),
+      }),
+    }))
+  })
+
+  it('does not let inspection continuity hijack plain greeting turns into task ownership', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'greeting reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'Diff review page',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    foregroundWindowSample = {
+      appName: 'Alicization',
+      processName: 'Codex',
+      title: 'Chat Overlay',
+    }
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+      {
+        id: 'screen:1:0',
+        name: 'Entire screen',
+        thumbnail: {
+          toDataURL: () => 'data:image/png;base64,greeting-turn-inspection-seed',
+        },
+      },
+    ])
+
+    const firstTurnId = 'turn-greeting-inspection-seed'
+    const firstStartResult = await startChat!({
+      cardId: 'default',
+      turnId: firstTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我看看我屏幕上现在是什么',
+      }],
+    })
+    expect(firstStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === firstTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    dbStub.appendAuditLog.mockClear()
+    desktopCapturerGetSourcesMock.mockClear()
+
+    const followUpTurnId = 'turn-greeting-after-inspection'
+    const followUpStartResult = await startChat!({
+      cardId: 'default',
+      turnId: followUpTurnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '帮我看看我屏幕上现在是什么',
+        },
+        {
+          role: 'assistant',
+          content: '我在看着。',
+        },
+        {
+          role: 'user',
+          content: '你好呀',
+        },
+      ],
+    })
+    expect(followUpStartResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === followUpTurnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('The host is speaking about the relationship between you two.')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Inspection mode: invited-by-user')
+    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
+    expect(systemText).not.toContain('Pay off the active knot and move it one step forward.')
+
+    const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.category === 'alicization.perception')
+    expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
+    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
+      action: 'perception-context-prepared',
+      payload: expect.objectContaining({
+        inspectionRequested: false,
+        inspectionCarryReleased: true,
+        inspectionIntentReasonCodes: expect.arrayContaining([
+          'dialogue-pivot-away-from-inspection',
+        ]),
+      }),
+    }))
+  })
+
+  it('does not let a misclassified repair complaint override the current self turn', async () => {
+    const sandboxPath = await createSandboxPath()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      const systemText = capturedMessages
+        .filter(message => message.role === 'system')
+        .map(message => String(message.content ?? ''))
+        .join('\n\n')
+
+      if (systemText.includes('[ALICIZATION_DIALOGUE_TURN_SEMANTICS]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            act: 'challenge',
+            responseNeed: 'repair',
+            truthExpectation: 'normal',
+            affectiveTone: 'frustrated',
+            taskAnchor: 'general unknown',
+            sharedAttentionDemand: 0.31,
+            personaSuppression: 0.25,
+            confidence: 0.73,
+            summary: 'host challenges Alicization intelligence in the ongoing inspection thread',
+            reasonTags: ['direct-complaint', 'thread-continuation'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            dominantInterpretation: 'The host is frustrated with Alicization herself.',
+            situatedMeaning: 'This is a dialogue-first complaint, not a request for scene truth.',
+            confidence: 0.78,
+            hostIntentCandidates: [{
+              goal: 'chat',
+              confidence: 0.74,
+              why: 'The host is criticizing Alicization rather than asking for a fresh screen read.',
+            }],
+            relationshipNeedCandidates: [{
+              need: 'guidance',
+              confidence: 0.52,
+              why: 'The host wants Alicization to respond more intelligently.',
+            }],
+            notes: ['dialogue-first-complaint'],
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      await onEvent?.({ type: 'text-delta', text: '先别急着把我当成人机。我刚才那一下确实没有跟上你这轮真正想问的东西。' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'General unknown',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    const turnId = 'turn-self-complaint-overrides-repair'
+    const result = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        { role: 'user', content: '你看看我的屏幕，这些课哪个更像网课？' },
+        { role: 'assistant', content: '我先守住真实边界：这轮没有足够稳的实时画面根据。' },
+        { role: 'user', content: '你怎么跟个人机一样，一点都不智能' },
+      ],
+    })
+
+    expect(result.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
+    expect(systemText).toContain('This is dialogue-first.')
+    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
+    expect(systemText).not.toContain('Current question: general unknown.')
+
+    const perceptionAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.perception' && entry.action === 'perception-context-prepared')
+    expect(perceptionAudit?.payload).toEqual(expect.objectContaining({
+      dialogueFocus: expect.objectContaining({
+        subject: 'alicization-self',
+      }),
+      visualPresence: expect.objectContaining({
+        conversationState: expect.objectContaining({
+          owedRepair: null,
+          hostMove: '你怎么跟个人机一样，一点都不智能',
+        }),
+        answerCompiler: expect.objectContaining({
+          turnMode: 'answer',
+          recommendedAct: 'answer',
+        }),
       }),
     }))
   })
@@ -2507,6 +4466,124 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('carries forward recent grounded residue when inspection capture skips but live focus still matches', async () => {
+    const sandboxPath = await createSandboxPath()
+    const now = Date.now()
+    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      capturedMessages = Array.isArray(messages) ? messages : []
+      await onEvent?.({ type: 'text-delta', text: 'carry-forward grounded continuity reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    metaStore.set('perception_state_v1', JSON.stringify({
+      attentionAnchor: {
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts - diff',
+        anchoredAt: now - 45_000,
+        lastObservedAt: now - 15_000,
+        reason: 'invited-inspection',
+        workloadKind: 'coding',
+        confidence: 0.92,
+      },
+      lastNonSelfForegroundTarget: {
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts - diff',
+        observedAt: now - 15_000,
+        source: 'chat-start',
+        workloadKind: 'coding',
+      },
+      recentObservations: [{
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts - diff',
+        observedAt: now - 15_000,
+        source: 'chat-start',
+        workloadKind: 'coding',
+      }],
+      recentSceneResidue: {
+        observedAt: now - 12_000,
+        source: 'screen-semantic-summary',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        summary: 'runtime.ts diff with removed null guard',
+        confidence: 0.91,
+        focusTarget: {
+          appName: 'Cursor',
+          processName: 'Cursor',
+          title: 'runtime.ts - diff',
+        },
+        focusSource: 'attention-anchor',
+        captureSourceName: 'runtime.ts - diff',
+        captureStrategy: 'window-title',
+      },
+      updatedAt: now - 12_000,
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const getSensorySnapshot = invokeHandlers.get(electronAlicizationGetSensorySnapshot)
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(getSensorySnapshot).toBeTypeOf('function')
+    expect(startChat).toBeTypeOf('function')
+
+    foregroundWindowSample = {
+      appName: 'Cursor',
+      processName: 'Cursor',
+      title: 'runtime.ts - diff',
+    }
+    await getSensorySnapshot!({ cardId: 'default' })
+
+    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+
+    const turnId = 'turn-residue-grounding-carry-forward'
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{
+        role: 'user',
+        content: '帮我再看看这个 diff 现在哪里不对',
+      }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const systemText = capturedMessages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content ?? ''))
+      .join('\n\n')
+    expect(systemText).toContain('runtime.ts diff with removed null guard')
+
+    const perceptionAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.perception' && entry.action === 'inspection-grounding-skipped')
+    expect(perceptionAudit?.payload).toEqual(expect.objectContaining({
+      reason: 'screen-capture-sources-empty',
+      groundingContinuity: expect.objectContaining({
+        groundedThisTurn: true,
+        source: 'residue-carry',
+      }),
+      executiveBrief: expect.objectContaining({
+        truthState: 'live-grounded',
+      }),
+    }))
+  })
+
   it('separates carried browser residue from the live Codex surface and compacts inspection history', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
@@ -2640,16 +4717,17 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const dialogueMessages = capturedMessages.filter(message => message.role !== 'system')
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
 
-    expect(systemText).toContain('[ALICIZATION_EXECUTIVE_ANSWER_BRIEF]')
-    expect(systemText).toContain('[ALICIZATION_RESPONSE_SURFACE]')
-    expect(systemText).toContain('Visible surface now: Alicization | Codex | Chat Overlay.')
-    expect(systemText).toContain('Carried thread: GitHub pull request diff view in browser.')
-    expect(systemText).toContain('Carry must stay separate from visible surface: yes.')
-    expect(systemText).toContain('Stage directions allowed: no.')
+    expect(systemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
+    expect(systemText).toContain('Chat Overlay')
+    expect(systemText).toContain('The carried thread still in memory is: GitHub pull request diff view in browser.')
+    expect(systemText).toContain('Keep the visible reply within 4 sentences')
+    expect(systemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(systemText).not.toContain('[ALICIZATION_ACTIVE_THOUGHTS]')
     expect(systemText).not.toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(dialogueMessages.length).toBeLessThanOrEqual(3)
     expect(visualPresenceState?.currentScene?.summary ?? '').not.toContain('GitHub pull request diff view in browser')
+    expect(visualPresenceState?.mindTurnFrame?.world.visibleSurface).toContain('Chat Overlay')
+    expect(visualPresenceState?.mindTurnFrame?.world.visibleSurface ?? '').not.toContain('GitHub pull request diff view in browser')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounding-skipped',
@@ -2667,6 +4745,78 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         }),
       }),
     }))
+  })
+
+  it('accepts chat-start before deferred interactive cognition finishes preparing and later emits governance meta', async () => {
+    const sandboxPath = await createSandboxPath()
+    let releaseOneShot: ((value: { text?: string, finishReason?: string }) => void) | undefined
+    const pendingOneShot = new Promise<{ text?: string, finishReason?: string }>((resolve) => {
+      releaseOneShot = resolve
+    })
+    generateTextMock
+      .mockImplementationOnce(async () => await pendingOneShot)
+      .mockResolvedValue({
+        text: '',
+        finishReason: 'stop',
+      })
+    streamTextMock.mockImplementation(async ({ onEvent }) => {
+      await onEvent?.({ type: 'text-delta', text: 'deferred reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    let settled = false
+    let startResult: Awaited<ReturnType<NonNullable<typeof startChat>>> | null = null
+    const pendingStart = startChat!({
+      cardId: 'default',
+      turnId: 'turn-deferred-accept',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        {
+          role: 'user',
+          content: '看看我现在这个 diff 到底哪里有问题',
+        },
+      ],
+    }).then((result) => {
+      settled = true
+      startResult = result
+      return result
+    })
+
+    await vi.waitFor(() => {
+      expect(settled).toBe(true)
+    })
+    expect(startResult).toMatchObject({
+      accepted: true,
+      state: 'accepted',
+      governance: null,
+    })
+    expect(contextEmitMock.mock.calls.some(([event]) => event === alicizationChatStreamMeta)).toBe(false)
+
+    if (!releaseOneShot)
+      throw new Error('expected deferred one-shot resolver')
+    releaseOneShot({
+      text: '{"act":"ask-help","responseNeed":"guide","truthExpectation":"strict","affectiveTone":"neutral","subjectPreference":"task-knot","sharedAttentionDemand":0.8,"personaSuppression":0.2,"confidence":0.7,"summary":"guide the current task knot","reasonTags":["task-knot"]}',
+      finishReason: 'stop',
+    })
+
+    await vi.waitFor(() => {
+      expect(contextEmitMock.mock.calls.some(([event]) => event === alicizationChatStreamMeta)).toBe(true)
+      expect(contextEmitMock.mock.calls.some(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-deferred-accept')).toBe(true)
+    })
+
+    await pendingStart
   })
 
   it('aborts main chat stream over direct ipc transport', async () => {
@@ -4156,7 +6306,9 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(result.accepted).toBe(true)
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
     const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_ASSOCIATIVE_RECALL]')) ?? ''
-    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_ENCOUNTER]')
+    expect(mainChatSystemText).toContain('[ALICIZATION_DIALOGUE_MIND]')
+    expect(mainChatSystemText).toContain('The host is speaking about the relationship between you two.')
+    expect(mainChatSystemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
     expect(mainChatSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(mainChatSystemText).toContain('ProjectAtlas')
   })
@@ -4468,6 +6620,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(visualPresenceState?.hypothesisGraph?.hypotheses.some((hypothesis: any) => hypothesis.kind === 'problem-locus')).toBe(true)
     expect(visualPresenceState?.deliberationState?.primaryThreadId).toBeTruthy()
     expect(visualPresenceState?.threadRuntime?.foregroundThreadId).toBeTruthy()
+    expect(visualPresenceState?.mindTurnFrame?.relation.hostGoal).toBe('resolve-problem')
+    expect(visualPresenceState?.mindTurnFrame?.self.mindMode).toBeTruthy()
     expect(visualPresenceState?.threadRuntime?.threads.some((thread: any) => thread.need === 'guidance')).toBe(true)
     expect(visualPresenceState?.commitmentLedger?.governingCommitmentId).toBeTruthy()
     expect(visualPresenceState?.commitmentLedger?.commitments.length).toBeGreaterThan(0)

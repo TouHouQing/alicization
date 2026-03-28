@@ -270,6 +270,61 @@ function beliefsConflict(left: AlicizationBeliefSnapshot, right: AlicizationBeli
   return leftStatement !== rightStatement
 }
 
+function hasFreshGroundedScene(input: {
+  scene: AlicizationVisualSceneSnapshot | null
+  worldModel: AlicizationWorldModelSnapshot
+}) {
+  return Boolean(
+    input.scene
+    && (input.scene.source === 'screen-semantic-summary' || input.scene.source === 'invited-grounding' || input.scene.source === 'durability-hook')
+    && input.worldModel.epistemicState.certainty === 'grounded'
+    && input.worldModel.epistemicState.freshness !== 'stale',
+  )
+}
+
+function shouldQuietlySupersedeOlderSceneBelief(input: {
+  scene: AlicizationVisualSceneSnapshot | null
+  worldModel: AlicizationWorldModelSnapshot
+  belief: AlicizationBeliefSnapshot
+  now: number
+}) {
+  if (!hasFreshGroundedScene({
+    scene: input.scene,
+    worldModel: input.worldModel,
+  })) {
+    return false
+  }
+
+  if (
+    input.worldModel.continuity.label === 'scene-shift'
+    || input.worldModel.continuity.label === 'reacquired'
+    || input.worldModel.continuity.label === 'new-focus'
+  ) {
+    return true
+  }
+
+  if (input.belief.source === 'memory' || input.belief.source === 'contradiction')
+    return true
+
+  return input.now - input.belief.lastUpdatedAt >= 60_000
+}
+
+function coolSupersededSceneBelief(input: {
+  now: number
+  belief: AlicizationBeliefSnapshot
+}) {
+  return {
+    ...input.belief,
+    source: input.belief.source === 'contradiction' ? 'memory' : input.belief.source,
+    status: 'tentative',
+    salience: clamp01(input.belief.salience * 0.76),
+    confidence: clamp01(input.belief.confidence * 0.84),
+    contradictsBeliefIds: [],
+    lastUpdatedAt: input.now,
+    expiresAt: input.now + beliefTtlMs,
+  } satisfies AlicizationBeliefSnapshot
+}
+
 function normalizeCarriedBelief(input: {
   now: number
   belief: AlicizationBeliefSnapshot
@@ -346,6 +401,17 @@ export function buildBeliefLedger(input: {
       return belief
     if (!beliefsConflict(belief, currentSceneBelief))
       return belief
+    if (shouldQuietlySupersedeOlderSceneBelief({
+      scene: input.scene,
+      worldModel: input.worldModel,
+      belief,
+      now: input.now,
+    })) {
+      return coolSupersededSceneBelief({
+        now: input.now,
+        belief,
+      })
+    }
 
     contradictions.push(
       sanitizeText(

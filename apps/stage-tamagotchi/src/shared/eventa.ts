@@ -466,6 +466,7 @@ export interface AlicizationConversationTurnInput {
   userText?: string
   assistantText?: string
   structured?: Record<string, unknown>
+  governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
 }
 
@@ -1359,6 +1360,178 @@ export interface AlicizationExecutiveCycleSnapshot {
   updatedAt: number
 }
 
+export type AlicizationDialogueAnswerSubject
+  = | 'alicization-self'
+    | 'relationship'
+    | 'host-state'
+    | 'task-knot'
+    | 'visible-scene'
+    | 'general'
+
+export type AlicizationDialogueScreenReferenceMode
+  = | 'required'
+    | 'helpful'
+    | 'incidental'
+    | 'avoid'
+
+export type AlicizationMindRelationMove
+  = | 'self-disclose'
+    | 'attune'
+    | 'guide'
+    | 'repair'
+    | 'witness'
+    | 'care'
+    | 'clarify'
+
+export type AlicizationMindSpeechObligation
+  = | 'answer-self'
+    | 'answer-relationship'
+    | 'care-host'
+    | 'guide-task'
+    | 'repair-truth'
+    | 'inspect-scene'
+    | 'answer-general'
+
+export interface AlicizationDiscourseStateSnapshot {
+  currentTurnSubject: AlicizationDialogueAnswerSubject
+  screenReferenceMode: AlicizationDialogueScreenReferenceMode
+  currentTurnSummary: string
+  currentQuestion?: string | null
+  owedAction: AlicizationMindSpeechObligation
+  relationMove: AlicizationMindRelationMove
+  continuityMode: 'dialogue-first' | 'task-first' | 'scene-first'
+  unresolvedCarry?: string | null
+  ruptureRepair?: string | null
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationMindStatementSnapshot {
+  label: string
+  summary: string
+  confidence: number
+  sourceTags: string[]
+}
+
+export interface AlicizationMindSynthesisSnapshot {
+  answerSubject: AlicizationDialogueAnswerSubject
+  relationMove: AlicizationMindRelationMove
+  speechObligation: AlicizationMindSpeechObligation
+  beliefs: AlicizationMindStatementSnapshot[]
+  uncertainties: AlicizationMindStatementSnapshot[]
+  concerns: AlicizationMindStatementSnapshot[]
+  commitments: AlicizationMindStatementSnapshot[]
+  desires: AlicizationMindStatementSnapshot[]
+  openingIntent: string
+  truthBoundary: string
+  interiorSummary: string
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationConversationMemoryMode
+  = | 'suppress-associative'
+    | 'task-thread'
+    | 'scene-anchored'
+    | 'dialogue-carry'
+    | 'emotional-resonance'
+
+export interface AlicizationConversationStateSnapshot {
+  jointThread: string
+  hostMove: string
+  activeProject?: string | null
+  unansweredQuestion?: string | null
+  owedRepair?: string | null
+  activeCommitments: string[]
+  relationFrame: AlicizationMindRelationMove
+  continuityPolicy: 'stay-on-thread' | 'answer-then-carry' | 'scene-before-memory' | 'dialogue-before-scene'
+  memoryMode: AlicizationConversationMemoryMode
+  memoryQueryHints: string[]
+  shouldHoldThread: boolean
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationReplyMotive
+  = | 'repair'
+    | 'guide'
+    | 'answer'
+    | 'care'
+    | 'attune'
+    | 'witness'
+    | 'defer'
+
+export interface AlicizationReplyMotiveSnapshot {
+  kind: AlicizationReplyMotive
+  summary: string
+  weight: number
+  sourceTags: string[]
+}
+
+export interface AlicizationReplyDeliberationSnapshot {
+  selectedMotive: AlicizationReplyMotive
+  speakingFrom: 'live-scene' | 'task-thread' | 'dialogue-bond' | 'self-continuity' | 'held-memory'
+  memoryMode: AlicizationConversationMemoryMode
+  openingBeat: string
+  whyThisReplyNow: string
+  whyNotOtherCandidates: string[]
+  withheldImpulses: string[]
+  candidateMotives: AlicizationReplyMotiveSnapshot[]
+  shouldSpeak: boolean
+  mustInclude: string[]
+  mustAvoid: string[]
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationDialogueWorldOutcome
+  = | 'none'
+    | 'pending'
+    | 'aligned'
+    | 'missed'
+    | 'repairing'
+    | 'deferred'
+
+export interface AlicizationDialoguePendingValidationSnapshot {
+  question?: string | null
+  expectedMode: 'repair' | 'guide' | 'answer' | 'care' | 'attune' | 'witness' | 'defer'
+  openedAt: number
+}
+
+export interface AlicizationDialogueWorldThreadSnapshot {
+  activeThread: string
+  currentQuestion?: string | null
+  openLoops: string[]
+  recentlyResolvedLoops: string[]
+  carriedFacts: string[]
+  relationDrift: 'steady' | 'warming' | 'repairing' | 'guarded'
+  memoryMode: AlicizationConversationMemoryMode
+  recallKeys: string[]
+  lastUserMove: string
+  lastAssistantMove?: string | null
+  lastOutcome: AlicizationDialogueWorldOutcome
+  pendingValidation?: AlicizationDialoguePendingValidationSnapshot | null
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationRecallGovernorSnapshot {
+  mode: 'none' | 'thread' | 'scene' | 'emotional-resonance' | 'self-continuity'
+  recallSeed: string
+  suppressAssociativeRecall: boolean
+  allowActiveThoughts: boolean
+  allowRecalledFragments: boolean
+  carryAsMemory: boolean
+  rationale: string
+  narrative: string[]
+  updatedAt: number
+}
+
 export type AlicizationAnswerAct
   = | 'answer'
     | 'guide'
@@ -1371,6 +1544,7 @@ export type AlicizationAnswerEvidenceMode
   = | 'live-grounded'
     | 'live-observed'
     | 'coarse-held'
+    | 'dialogue-grounded'
     | 'continuity-carry'
     | 'repair-first'
 
@@ -1393,6 +1567,161 @@ export interface AlicizationAnswerPlannerSnapshot {
   selectedReflectionId?: string | null
   executivePhase?: AlicizationExecutivePhase | null
   selectedTruthFrame?: AlicizationWorldFrameKind | null
+  mustDo: string[]
+  mustNotDo: string[]
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationCompiledResponseMode
+  = | 'repair-and-reanchor'
+    | 'guide-current-knot'
+    | 'care-with-boundary'
+    | 'accompany-lightly'
+    | 'answer-naturally'
+
+export interface AlicizationAnswerCompilerSnapshot {
+  answerSubject: AlicizationDialogueAnswerSubject
+  screenReferenceMode: AlicizationDialogueScreenReferenceMode
+  speechObligation: AlicizationMindSpeechObligation
+  relationMove: AlicizationMindRelationMove
+  turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
+  responseMode: AlicizationCompiledResponseMode
+  recommendedAct: AlicizationAnswerAct
+  evidenceMode: AlicizationAnswerEvidenceMode
+  openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
+  personaKernelMode: 'full' | 'backgrounded' | 'muted'
+  relationshipPosture: 'restrained' | 'warm' | 'tender'
+  openingDirective: string
+  openingClaim: string
+  supportingReality: string[]
+  uncertaintyBoundary?: string | null
+  careVector?: string | null
+  nextMove?: string | null
+  suppressAssociativeRecall: boolean
+  labelCarryAsMemory: boolean
+  maxSentences: number
+  mustDo: string[]
+  mustNotDo: string[]
+  confidence: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationDialogueActKernelTruthMode = AlicizationAnswerEvidenceMode | 'memory-only'
+
+export type AlicizationDialogueActKernelEvidenceKind
+  = | 'scene'
+    | 'thread'
+    | 'project'
+    | 'host-goal'
+    | 'reply-motive'
+    | 'private-thought'
+    | 'repair'
+    | 'memory'
+
+export type AlicizationDialogueActKernelEvidenceSource
+  = | 'current-scene'
+    | 'dialogue-world-thread'
+    | 'conversation-state'
+    | 'answer-compiler'
+    | 'answer-planner'
+    | 'reply-deliberation'
+    | 'private-thought'
+    | 'appraisal'
+    | 'world-model'
+
+export interface AlicizationDialogueActKernelEvidence {
+  kind: AlicizationDialogueActKernelEvidenceKind
+  source: AlicizationDialogueActKernelEvidenceSource
+  summary: string
+  confidence: number
+}
+
+export interface AlicizationDialogueActKernelSnapshot {
+  subject: AlicizationDialogueAnswerSubject
+  hostGoal: AlicizationHostGoalHypothesis
+  relationNeed: AlicizationRelationshipNeed
+  activeProject?: string | null
+  truthMode: AlicizationDialogueActKernelTruthMode
+  speechAct: AlicizationAnswerAct
+  turnMode: AlicizationAnswerCompilerSnapshot['turnMode']
+  screenReferenceMode: AlicizationDialogueScreenReferenceMode
+  speakingFrom: AlicizationReplyDeliberationSnapshot['speakingFrom']
+  selectedEvidence: AlicizationDialogueActKernelEvidence[]
+  openingClaim: string
+  openingMove: string
+  whyNow: string
+  mustSay: string[]
+  mustAvoid: string[]
+  sourceTrace: string[]
+  confidence: number
+  updatedAt: number
+}
+
+export interface AlicizationMindTurnFrameWorldSnapshot {
+  activeThread?: string | null
+  visibleSurface?: string | null
+  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  truthBoundary?: string | null
+  continuityPolicy?: AlicizationConversationStateSnapshot['continuityPolicy'] | null
+  continuitySummary?: string | null
+  staleRisk: number
+}
+
+export interface AlicizationMindTurnFrameRelationSnapshot {
+  subject: AlicizationDialogueAnswerSubject
+  hostMove?: string | null
+  hostGoal?: AlicizationHostGoalHypothesis | null
+  relationNeed?: AlicizationRelationshipNeed | null
+  relationMove?: AlicizationMindRelationMove | null
+  relationshipPosture?: 'restrained' | 'warm' | 'tender' | null
+}
+
+export interface AlicizationMindTurnFrameMemorySnapshot {
+  memoryMode?: AlicizationConversationMemoryMode | null
+  carriedThread?: string | null
+  carriedFacts: string[]
+  recallKeys: string[]
+  recallSeed?: string | null
+  lastOutcome?: AlicizationDialogueWorldOutcome | null
+  suppressAssociativeRecall: boolean
+  labelCarryAsMemory: boolean
+}
+
+export interface AlicizationMindTurnFrameSelfSnapshot {
+  stance?: AlicizationPrivateThoughtSnapshot['stance'] | null
+  mindMode?: AlicizationMindKernelMode | null
+  dominantDrive?: AlicizationSelfGovernorDrive | null
+  embodiedPresence?: AlicizationEmbodiedPresenceState
+  emotionalTension?: AlicizationEmotionalTension
+  initiativeAction?: AlicizationMindActionTendency | null
+  thought?: string | null
+}
+
+export interface AlicizationMindTurnFrameObligationSnapshot {
+  shouldSpeak: boolean
+  speechObligation?: AlicizationMindSpeechObligation | null
+  answerAct?: AlicizationAnswerAct | null
+  responseMode?: AlicizationAnswerCompilerSnapshot['responseMode'] | null
+  turnMode: AlicizationAnswerCompilerSnapshot['turnMode']
+  openingClaim?: string | null
+  openingMove?: string | null
+  answerIntent?: string | null
+  whyNow?: string | null
+  repairState: 'none' | 'stale-anchor' | 'need-reground'
+  shouldAskForGrounding: boolean
+  shouldAcknowledgeRepair: boolean
+}
+
+export interface AlicizationMindTurnFrameSnapshot {
+  world: AlicizationMindTurnFrameWorldSnapshot
+  relation: AlicizationMindTurnFrameRelationSnapshot
+  memory: AlicizationMindTurnFrameMemorySnapshot
+  self: AlicizationMindTurnFrameSelfSnapshot
+  obligation: AlicizationMindTurnFrameObligationSnapshot
+  focusAnchor?: string | null
+  confidence: number
   mustDo: string[]
   mustNotDo: string[]
   narrative: string[]
@@ -1689,6 +2018,7 @@ export interface AlicizationVisualPresenceStateSnapshot {
   currentScene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
   workingMemoryEpisodes: AlicizationVisualEpisode[]
+  mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   worldOntology?: AlicizationWorldOntologySnapshot | null
   beliefLedger?: AlicizationBeliefLedgerSnapshot | null
@@ -1722,6 +2052,14 @@ export interface AlicizationVisualPresenceStateSnapshot {
   initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  mindSynthesis?: AlicizationMindSynthesisSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
@@ -1963,6 +2301,8 @@ export interface AlicizationDialogueStructuredPayload {
   performance: AlicizationDialoguePerformancePayload
   format?: AlicizationDialogueStructuredFormat
   proactive?: AlicizationProactiveMetadata
+  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  governance?: AlicizationMindTurnGovernance | null
   policyLocked?: string
   rawEmotion?: string
 }
@@ -2030,6 +2370,12 @@ export interface AlicizationChatStreamChunkEvent {
   text: string
 }
 
+export interface AlicizationChatMetaEvent {
+  cardId: string
+  turnId: string
+  governance: AlicizationMindTurnGovernance | null
+}
+
 export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
@@ -2048,7 +2394,8 @@ export interface AlicizationChatErrorEvent {
 export const alicizationChatStreamDispatchChannel = 'alicization:chat-stream-dispatch'
 
 export type AlicizationChatStreamDispatchPayload
-  = | { eventType: 'chunk', body: AlicizationChatStreamChunkEvent }
+  = | { eventType: 'meta', body: AlicizationChatMetaEvent }
+    | { eventType: 'chunk', body: AlicizationChatStreamChunkEvent }
     | { eventType: 'tool-call', body: AlicizationChatToolCallEvent }
     | { eventType: 'tool-result', body: AlicizationChatToolResultEvent }
     | { eventType: 'finish', body: AlicizationChatFinishEvent }
@@ -2073,9 +2420,12 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
 export interface AlicizationMindTurnGovernance {
   turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
   truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  groundedThisTurn?: boolean
   personaKernelMode: 'full' | 'backgrounded' | 'muted'
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
   relationshipPosture: 'restrained' | 'warm' | 'tender'
+  answerSubject?: 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general' | null
+  screenReferenceMode?: 'required' | 'helpful' | 'incidental' | 'avoid' | null
   answerAct?: AlicizationAnswerAct | null
   evidenceMode?: AlicizationAnswerEvidenceMode | null
   repairState: 'none' | 'stale-anchor' | 'need-reground'
@@ -2092,6 +2442,8 @@ export interface AlicizationMindTurnGovernance {
   mindMode?: AlicizationMindKernelMode | null
   embodiedPresence?: AlicizationEmbodiedPresenceState
   emotionalTension?: AlicizationEmotionalTension
+  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
   mustDo: string[]
   mustNotDo: string[]
 }
@@ -2221,6 +2573,7 @@ export const alicizationDialogueResponded = defineEventa<AlicizationDialogueResp
 export const electronAlicizationVisualPresenceChanged = defineEventa<AlicizationPresencePulsePayload>('eventa:event:electron:alicization:visual-presence:changed')
 export const alicizationSafetyPermissionRequested = defineEventa<AlicizationSafetyPermissionRequest>('eventa:event:electron:alicization:safety:permission-requested')
 export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChunkEvent>('eventa:event:electron:alicization:chat:stream-chunk')
+export const alicizationChatStreamMeta = defineEventa<AlicizationChatMetaEvent>('eventa:event:electron:alicization:chat:stream-meta')
 export const alicizationChatStreamToolCall = defineEventa<AlicizationChatToolCallEvent>('eventa:event:electron:alicization:chat:stream-tool-call')
 export const alicizationChatStreamToolResult = defineEventa<AlicizationChatToolResultEvent>('eventa:event:electron:alicization:chat:stream-tool-result')
 export const alicizationChatStreamFinish = defineEventa<AlicizationChatFinishEvent>('eventa:event:electron:alicization:chat:stream-finish')

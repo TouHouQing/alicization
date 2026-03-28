@@ -132,14 +132,12 @@ function pushInspectionSequenceTokens(target: Set<string>, rawToken: string) {
     return
 
   if (cjkSequencePattern.test(token)) {
+    // NOTICE: `Intl.Segmenter` already gives us word-like CJK segments in the
+    // desktop runtime. Expanding each segment into individual characters and
+    // adjacent bigrams made unrelated dialogue-first turns falsely overlap with
+    // older inspection carry, which is exactly how complaints like
+    // "能不能说人话" were being misread as screen follow-ups in live logs.
     pushInspectionToken(target, token)
-    const chars = [...token]
-    for (const char of chars) {
-      pushInspectionToken(target, char)
-    }
-    for (let index = 0; index < chars.length - 1; index += 1) {
-      pushInspectionToken(target, `${chars[index]}${chars[index + 1]}`)
-    }
     return
   }
 
@@ -233,18 +231,46 @@ export function inferAlicizationInspectionIntent(input: {
     input.sharedAttentionActive
     || inferSharedAttentionFromMessages(input.recentMessages ?? []),
   )
+  const semanticAnchorCue = Boolean(
+    observeCue
+    || describeCue
+    || visualPlaneCue
+    || recheckCue
+    || sceneShiftCue
+    || deicticCue
+    || continuationCue,
+  )
   const referentialDensity = messageTerms.filter(term => term.length >= 2 || cjkSequencePattern.test(term)).length
   const entityDense = referentialDensity >= 2
   const referentiallyRich = referentialDensity >= 3
   const explicitVisualAsk = visualPlaneCue && (observeCue || describeCue || questionCue || recheckCue)
+  const contextOverlapEligible = semanticAnchorCue || explicitVisualAsk
+  const effectiveContextOverlap = contextOverlapEligible ? contextOverlap : 0
+  const anchoredContinuationCue = Boolean(
+    recheckCue
+    || sceneShiftCue
+    || (deicticCue && (visualPlaneCue || questionCue || effectiveContextOverlap >= 0.34))
+    || (continuationCue && (visualPlaneCue || effectiveContextOverlap >= 0.42)),
+  )
+  const observedSharedAttentionContinuation = Boolean(
+    sharedAttentionLikely
+    && shortTurn
+    && observeCue
+    && questionCue
+    && (
+      continuationCue
+      || entityDense
+      || referentiallyRich
+      || contextOverlap >= 0.24
+    ),
+  )
   const contextualContinuation = sharedAttentionLikely
     && shortTurn
     && (
-      deicticCue
-      || sceneShiftCue
-      || recheckCue
-      || continuationCue
-      || contextOverlap > 0
+      explicitVisualAsk
+      || anchoredContinuationCue
+      || observedSharedAttentionContinuation
+      || (effectiveContextOverlap >= 0.42 && (entityDense || referentiallyRich || visualPlaneCue))
     )
 
   let score = 0
@@ -258,19 +284,20 @@ export function inferAlicizationInspectionIntent(input: {
   score += continuationCue ? 0.08 : 0
   score += entityDense ? 0.12 : 0
   score += referentiallyRich ? 0.12 : 0
-  score += Math.min(0.28, contextOverlap * 0.4)
+  score += Math.min(0.24, effectiveContextOverlap * 0.32)
   score += sharedAttentionLikely ? 0.16 : 0
-  score += contextualContinuation ? 0.28 : 0
+  score += contextualContinuation ? 0.24 : 0
   score += explicitVisualAsk ? 0.22 : 0
   score += observeCue && questionCue && entityDense ? 0.18 : 0
-  score += sharedAttentionLikely && contextOverlap > 0.24 ? 0.14 : 0
+  score += observedSharedAttentionContinuation ? 0.14 : 0
+  score += sharedAttentionLikely && effectiveContextOverlap >= 0.32 ? 0.12 : 0
   if (explicitVisualAsk)
     score = Math.max(score, 0.9)
 
   const confidence = clamp01(score)
   const active = explicitVisualAsk
     || contextualContinuation
-    || confidence >= 0.72
+    || (confidence >= 0.76 && semanticAnchorCue)
 
   return {
     active,
@@ -284,15 +311,17 @@ export function inferAlicizationInspectionIntent(input: {
       deicticCue ? 'deictic-cue' : '',
       questionCue ? 'question-cue' : '',
       continuationCue ? 'continuation-cue' : '',
+      anchoredContinuationCue ? 'anchored-continuation-cue' : '',
       entityDense ? 'entity-dense' : '',
       referentiallyRich ? 'referentially-rich' : '',
-      contextOverlap > 0 ? 'context-overlap' : '',
+      effectiveContextOverlap > 0 ? 'context-overlap' : '',
       sharedAttentionLikely ? 'shared-attention-likely' : '',
+      observedSharedAttentionContinuation ? 'observed-shared-attention-continuation' : '',
       contextualContinuation ? 'contextual-continuation' : '',
       explicitVisualAsk ? 'explicit-visual-ask' : '',
     ].filter(Boolean),
     overlapTerms,
-    contextOverlap: clamp01(contextOverlap),
+    contextOverlap: clamp01(effectiveContextOverlap),
     sharedAttentionLikely,
   } satisfies AlicizationInspectionIntentResult
 }

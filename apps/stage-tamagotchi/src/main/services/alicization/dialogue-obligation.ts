@@ -6,6 +6,8 @@ import type {
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { isDialogueFirstSubject, isSceneThreadSubject } from './dialogue-surface-text'
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -48,6 +50,17 @@ export function buildDialogueObligation(input: {
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
 }): AlicizationDialogueObligation {
+  const sceneBoundTurn = input.semantics.reasonTags.includes('scene-bound-turn')
+  const dialogueFirstSubject = isDialogueFirstSubject(input.semantics.subjectPreference)
+  const sceneThreadSubject = isSceneThreadSubject(input.semantics.subjectPreference)
+  const nonSceneChallenge = input.semantics.act === 'challenge' && !sceneBoundTurn && !sceneThreadSubject
+  const currentActivityQuestionTurn = input.semantics.reasonTags.includes('current-activity-question')
+  const shouldPreferSceneAnswerOverRepair = currentActivityQuestionTurn
+    && (
+      input.semantics.responseNeed === 'answer'
+      || input.semantics.responseNeed === 'guide'
+      || input.semantics.responseNeed === 'clarify'
+    )
   const unstableTruth = input.worldModel?.epistemicState.certainty === 'uncertain'
     || input.worldModel?.epistemicState.certainty === 'lingering'
     || input.repairLedger?.shouldConstrainPresentTense === true
@@ -65,18 +78,38 @@ export function buildDialogueObligation(input: {
 
   let kind: AlicizationDialogueObligationKind = 'answer'
   if (
-    input.semantics.responseNeed === 'repair'
-    || input.semantics.act === 'verify-grounding'
+    ((input.semantics.responseNeed === 'repair' || input.semantics.act === 'verify-grounding')
+      && !dialogueFirstSubject
+      && (sceneBoundTurn || sceneThreadSubject)
+      && !shouldPreferSceneAnswerOverRepair)
     || input.semantics.act === 'correct'
-    || input.semantics.act === 'challenge'
-    || (unstableTruth && input.semantics.truthExpectation === 'strict')
+    || (input.semantics.act === 'challenge' && sceneBoundTurn && !shouldPreferSceneAnswerOverRepair)
+    || (
+      unstableTruth
+      && input.semantics.truthExpectation === 'strict'
+      && sceneBoundTurn
+      && !dialogueFirstSubject
+      && !shouldPreferSceneAnswerOverRepair
+    )
   ) {
     kind = 'repair'
+  }
+  else if (nonSceneChallenge) {
+    kind = 'answer'
+  }
+  else if (
+    input.semantics.responseNeed === 'repair'
+    || input.semantics.act === 'verify-grounding'
+  ) {
+    kind = input.semantics.subjectPreference === 'relationship' ? 'accompany' : 'answer'
   }
   else if (input.semantics.responseNeed === 'teach' || input.semantics.act === 'ask-teach') {
     kind = 'teach'
   }
-  else if (input.semantics.responseNeed === 'guide' || (codingLike && input.semantics.act === 'ask-help')) {
+  else if (
+    !dialogueFirstSubject
+    && (input.semantics.responseNeed === 'guide' || (codingLike && input.semantics.act === 'ask-help'))
+  ) {
     kind = 'guide'
   }
   else if (input.semantics.responseNeed === 'care' || input.semantics.act === 'seek-care' || (careLike && input.semantics.act === 'share-state')) {

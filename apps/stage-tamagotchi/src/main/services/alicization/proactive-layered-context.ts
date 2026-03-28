@@ -192,6 +192,10 @@ export function inferForegroundWorkloadFromWindow(windowLike: AlicizationSystemP
   return classifyFromForegroundWindow(windowLike, workloadMatchers, 'unknown').kind
 }
 
+export function inferForegroundContentFromWindow(windowLike: AlicizationSystemProbeSample['foregroundWindow']) {
+  return classifyFromForegroundWindow(windowLike, contentMatchers, 'unknown').kind
+}
+
 export function isLateNightWindow(date: Date) {
   const hour = date.getHours()
   const minute = date.getMinutes()

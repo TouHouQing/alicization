@@ -99,6 +99,36 @@ describe('attention anchor helpers', () => {
     }))
   })
 
+  it('rejects weak shell targets like Screen 1 so the anchor stays on concrete tools', () => {
+    const anchored = updatePerceptionStateWithObservation({
+      state: createDefaultPerceptionState(1_000),
+      now: 2_000,
+      source: 'sensory-snapshot',
+      target: {
+        appName: 'Code',
+        processName: 'Code',
+        title: 'runtime.ts - Project Alice',
+      },
+    })
+
+    const afterShell = updatePerceptionStateWithObservation({
+      state: anchored,
+      now: 3_000,
+      source: 'chat-start',
+      target: {
+        appName: 'idea',
+        processName: 'idea',
+        title: 'Screen 1',
+      },
+    })
+
+    expect(afterShell.attentionAnchor).toEqual(expect.objectContaining({
+      appName: 'Code',
+      title: 'runtime.ts - Project Alice',
+    }))
+    expect(afterShell.recentObservations).toHaveLength(1)
+  })
+
   it('activates invited inspection and reuses the last non-self foreground target', () => {
     const observed = updatePerceptionStateWithObservation({
       state: createDefaultPerceptionState(1_000),

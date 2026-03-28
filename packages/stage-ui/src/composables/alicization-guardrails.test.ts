@@ -2,7 +2,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import { describe, expect, it } from 'vitest'
 
-import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from './alicization-guardrails'
+import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from './alicization-guardrails'
 import { composeAlicizationPromptMessages } from './alicization-prompt-composer'
 
 describe('alicization guardrails', () => {
@@ -50,6 +50,46 @@ describe('alicization guardrails', () => {
 
     expect(sanitized.blocked).toBe(true)
     expect(sanitized.reason).toBe('sanitize-timeout')
+  })
+
+  it('compacts stale dialogue history before prompt composition while keeping the recent tail', () => {
+    const messages: Message[] = Array.from({ length: 12 }).flatMap((_, index) => ([
+      { role: 'user', content: `用户第 ${index + 1} 轮问题：${'旧上下文 '.repeat(20)}` },
+      { role: 'assistant', content: `助手第 ${index + 1} 轮回答：${'旧回答 '.repeat(20)}` },
+    ]))
+
+    const compacted = compactMessagesForPromptAssembly(messages, {
+      maxRecentUserTurns: 4,
+      maxMessages: 10,
+      totalDialogueTokens: 900,
+    })
+
+    expect(compacted.report.afterCount).toBeLessThan(compacted.report.beforeCount)
+    expect(compacted.report.retainedUserTurns).toBeLessThanOrEqual(4)
+    expect(JSON.stringify(compacted.messages)).toContain('用户第 12 轮问题')
+    expect(JSON.stringify(compacted.messages)).not.toContain('用户第 1 轮问题')
+  })
+
+  it('keeps the latest repair turn bundle protected during prompt assembly compaction', () => {
+    const messages: Message[] = [
+      { role: 'assistant', content: '很早之前的闲聊'.repeat(80) },
+      { role: 'user', content: '继续'.repeat(80) },
+      { role: 'assistant', content: '上一次我看错了浏览器页面。'.repeat(30) },
+      { role: 'user', content: '不是这个，重新看我现在的 diff'.repeat(30) },
+      { role: 'assistant', content: '收到，我重新以当前画面为准。'.repeat(30) },
+      { role: 'user', content: '只看现在这个窗口'.repeat(30) },
+    ]
+
+    const compacted = compactMessagesForPromptAssembly(messages, {
+      maxRecentUserTurns: 2,
+      maxMessages: 4,
+      totalDialogueTokens: 260,
+    })
+
+    const serialized = JSON.stringify(compacted.messages)
+    expect(serialized).toContain('重新看我现在的 diff')
+    expect(serialized).toContain('只看现在这个窗口')
+    expect(compacted.messages.at(-1)?.role).toBe('user')
   })
 
   it('applies section budgets and keeps current user turn', () => {

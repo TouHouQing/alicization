@@ -109,6 +109,19 @@ function repairScore(entry: AlicizationRepairLedgerEntry) {
   return entry.urgency * 0.58 + entry.confidence * 0.26 + (entry.status === 'open' ? 0.16 : entry.status === 'tracking' ? 0.08 : 0)
 }
 
+function hasFreshGroundedScene(input: {
+  currentScene: AlicizationVisualSceneSnapshot | null
+  worldModel: AlicizationWorldModelSnapshot
+}) {
+  return Boolean(
+    input.currentScene
+    && (input.currentScene.source === 'screen-semantic-summary' || input.currentScene.source === 'invited-grounding' || input.currentScene.source === 'durability-hook')
+    && input.worldModel.activeThread?.source === 'grounded-scene'
+    && input.worldModel.epistemicState.certainty === 'grounded'
+    && input.worldModel.epistemicState.freshness === 'live',
+  )
+}
+
 export function buildRepairLedger(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -137,6 +150,10 @@ export function buildRepairLedger(input: {
   const currentPlan = activeInquiryPlan(input.inquiryPlanner)
   const currentHypothesis = activeHypothesis(input.hypothesisGraph)
   const currentConcern = governingConcern(input.concernContinuity)
+  const freshGroundedScene = hasFreshGroundedScene({
+    currentScene: input.currentScene,
+    worldModel: input.worldModel,
+  })
   const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId)
     ?? input.beliefLedger?.beliefs[0]
     ?? null
@@ -144,9 +161,12 @@ export function buildRepairLedger(input: {
   const entries: AlicizationRepairLedgerEntry[] = []
 
   if (
-    posture.requiresRegroundBeforeSurface
-    || currentPlan?.askForGrounding
-    || currentCommitment?.kind === 'recheck-scene'
+    !freshGroundedScene
+    && (
+      posture.requiresRegroundBeforeSurface
+      || currentPlan?.askForGrounding
+      || currentCommitment?.kind === 'recheck-scene'
+    )
   ) {
     const summary = currentPlan?.question
       ?? currentCommitment?.summary
@@ -179,11 +199,14 @@ export function buildRepairLedger(input: {
   }
 
   if (
-    input.worldModel.activeThread?.source === 'continuity'
-    || input.worldModel.activeThread?.source === 'working-memory'
-    || (
-      input.worldModel.epistemicState.certainty === 'lingering'
-      && currentConcern?.status === 'carried'
+    !freshGroundedScene
+    && (
+      input.worldModel.activeThread?.source === 'continuity'
+      || input.worldModel.activeThread?.source === 'working-memory'
+      || (
+        input.worldModel.epistemicState.certainty === 'lingering'
+        && currentConcern?.status === 'carried'
+      )
     )
   ) {
     const summary = currentConcern?.summary
@@ -214,8 +237,11 @@ export function buildRepairLedger(input: {
   }
 
   if (
-    (input.beliefRevision?.contradictionPressure ?? 0) >= 0.42
-    || currentHypothesis?.kind === 'misread-drift'
+    !freshGroundedScene
+    && (
+      (input.beliefRevision?.contradictionPressure ?? 0) >= 0.42
+      || currentHypothesis?.kind === 'misread-drift'
+    )
   ) {
     const summary = currentHypothesis?.summary
       ?? focusBelief?.statement

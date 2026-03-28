@@ -1,0 +1,156 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  buildRecallGovernor,
+  buildRecallGovernorSystemBlock,
+} from './recall-governor'
+
+describe('buildRecallGovernor', () => {
+  it('suppresses associative recall for scene-repair turns', () => {
+    const governor = buildRecallGovernor({
+      now: 10_000,
+      dialogueWorldThread: {
+        activeThread: 'Repair the stale browser anchor before answering.',
+        currentQuestion: 'What is on screen right now?',
+        openLoops: ['What is on screen right now?'],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'guarded',
+        memoryMode: 'scene-anchored',
+        recallKeys: ['current screen'],
+        lastUserMove: 'What is on screen right now?',
+        lastAssistantMove: 'The old browser anchor may be stale.',
+        lastOutcome: 'repairing',
+        pendingValidation: null,
+        confidence: 0.9,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      conversationState: {
+        jointThread: 'Repair the stale browser anchor before answering.',
+        hostMove: 'What is on screen right now?',
+        activeProject: null,
+        unansweredQuestion: 'What is on screen right now?',
+        owedRepair: 'The earlier browser anchor is stale.',
+        activeCommitments: [],
+        relationFrame: 'repair',
+        continuityPolicy: 'scene-before-memory',
+        memoryMode: 'scene-anchored',
+        memoryQueryHints: ['current screen'],
+        shouldHoldThread: true,
+        confidence: 0.88,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      answerCompiler: {
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        speechObligation: 'repair-truth',
+        relationMove: 'repair',
+        turnMode: 'screen-repair',
+        responseMode: 'repair-and-reanchor',
+        recommendedAct: 'ask-reground',
+        evidenceMode: 'repair-first',
+        openingStyle: 'direct-correction',
+        personaKernelMode: 'muted',
+        relationshipPosture: 'restrained',
+        openingDirective: 'Repair the stale anchor first.',
+        openingClaim: 'The older screen anchor is stale.',
+        supportingReality: [],
+        uncertaintyBoundary: 'Need a fresh look.',
+        careVector: null,
+        nextMove: 'Ask for a fresh look.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.9,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(governor).toEqual(expect.objectContaining({
+      mode: 'scene',
+      suppressAssociativeRecall: true,
+      allowRecalledFragments: false,
+      carryAsMemory: true,
+    }))
+  })
+
+  it('admits emotionally resonant memory when the live thread is felt rather than purely visual', () => {
+    const governor = buildRecallGovernor({
+      now: 20_000,
+      dialogueWorldThread: {
+        activeThread: 'The host is still drained from the late-night debugging session.',
+        currentQuestion: null,
+        openLoops: ['The session is still emotionally heavy.'],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['late-night debugging'],
+        relationDrift: 'warming',
+        memoryMode: 'emotional-resonance',
+        recallKeys: ['late-night debugging', 'emotional_tension:late-night-drain'],
+        lastUserMove: '我有点累了',
+        lastAssistantMove: '先停一下也可以。',
+        lastOutcome: 'aligned',
+        pendingValidation: null,
+        confidence: 0.74,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      conversationState: {
+        jointThread: 'The host is still drained from the late-night debugging session.',
+        hostMove: 'I am getting tired.',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'answer-then-carry',
+        memoryMode: 'emotional-resonance',
+        memoryQueryHints: ['late-night debugging', 'fatigue'],
+        shouldHoldThread: false,
+        confidence: 0.72,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'care',
+        speakingFrom: 'dialogue-bond',
+        memoryMode: 'emotional-resonance',
+        openingBeat: 'Acknowledge the host condition first.',
+        whyThisReplyNow: 'The host is still carrying late-night drain.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+      privateThought: {
+        stance: 'care',
+        confidence: 0.75,
+        rationaleTags: ['late-night'],
+        thoughtText: 'Stay near the host and keep the tone soft.',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        embodiedPresence: 'concerned',
+        expiresAt: 60_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'late-night-drain',
+      },
+    })
+
+    expect(governor).toEqual(expect.objectContaining({
+      mode: 'emotional-resonance',
+      suppressAssociativeRecall: false,
+      allowActiveThoughts: true,
+      allowRecalledFragments: true,
+    }))
+    expect(buildRecallGovernorSystemBlock(governor)).toContain('[ALICIZATION_RECALL_GOVERNOR]')
+  })
+})

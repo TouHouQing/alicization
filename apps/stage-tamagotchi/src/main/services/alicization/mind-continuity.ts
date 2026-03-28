@@ -55,6 +55,13 @@ function continuitySignature(state: AlicizationVisualPresenceStateSnapshot | nul
     state?.reflectionLedger?.latestEntryId ?? 'none',
     state?.executiveCycle?.phase ?? 'none',
     state?.mindKernel?.dominantMode ?? 'none',
+    state?.conversationState?.continuityPolicy ?? 'none',
+    state?.conversationState?.memoryMode ?? 'none',
+    state?.dialogueWorldThread?.lastOutcome ?? 'none',
+    state?.dialogueWorldThread?.relationDrift ?? 'none',
+    state?.replyDeliberation?.selectedMotive ?? 'none',
+    state?.replyDeliberation?.speakingFrom ?? 'none',
+    state?.recallGovernor?.mode ?? 'none',
     state?.answerPlanner?.act ?? 'none',
     state?.answerPlanner?.evidenceMode ?? 'none',
     thread?.id ?? 'none',
@@ -108,7 +115,11 @@ export function buildMindContinuityFragment(input: {
     || latestReflection?.revision
     || dominantProject?.summary
     || input.nextState.executiveCycle?.currentLine
+    || input.nextState.dialogueWorldThread?.activeThread
+    || input.nextState.dialogueWorldThread?.currentQuestion
     || input.nextState.answerPlanner?.governingFocus
+    || input.nextState.replyDeliberation?.whyThisReplyNow
+    || input.nextState.conversationState?.jointThread
     || input.nextState.actionEcology?.why
     || activeHypothesis?.summary
     || thread?.summary
@@ -139,6 +150,13 @@ export function buildMindContinuityFragment(input: {
     latestReflection?.outcome ? `reflection:${latestReflection.outcome}` : '',
     input.nextState.executiveCycle?.phase ? `executive_phase:${input.nextState.executiveCycle.phase}` : '',
     input.nextState.mindKernel?.dominantMode ? `mind_kernel:${input.nextState.mindKernel.dominantMode}` : '',
+    input.nextState.conversationState?.continuityPolicy ? `conversation_policy:${input.nextState.conversationState.continuityPolicy}` : '',
+    input.nextState.conversationState?.memoryMode ? `conversation_memory:${input.nextState.conversationState.memoryMode}` : '',
+    input.nextState.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${input.nextState.dialogueWorldThread.lastOutcome}` : '',
+    input.nextState.dialogueWorldThread?.relationDrift ? `dialogue_relation:${input.nextState.dialogueWorldThread.relationDrift}` : '',
+    input.nextState.replyDeliberation?.selectedMotive ? `reply_motive:${input.nextState.replyDeliberation.selectedMotive}` : '',
+    input.nextState.replyDeliberation?.speakingFrom ? `reply_from:${input.nextState.replyDeliberation.speakingFrom}` : '',
+    input.nextState.recallGovernor?.mode ? `recall_mode:${input.nextState.recallGovernor.mode}` : '',
     input.nextState.answerPlanner?.act ? `answer_act:${input.nextState.answerPlanner.act}` : '',
     input.nextState.answerPlanner?.evidenceMode ? `answer_evidence:${input.nextState.answerPlanner.evidenceMode}` : '',
     input.nextState.actionEcology?.mode ? `action_ecology:${input.nextState.actionEcology.mode}` : '',
@@ -191,6 +209,15 @@ export function buildMindContinuityRecallSeed(state: AlicizationVisualPresenceSt
     dominantProject?.kind ? `mind_project:${dominantProject.kind}/${dominantProject.status}` : '',
     latestReflection?.outcome ? `reflection:${latestReflection.outcome}` : '',
     state?.executiveCycle?.phase ? `executive_phase:${state.executiveCycle.phase}` : '',
+    state?.conversationState?.jointThread ? sanitizeText(state.conversationState.jointThread, 180) : '',
+    state?.conversationState?.unansweredQuestion ? sanitizeText(state.conversationState.unansweredQuestion, 180) : '',
+    state?.conversationState?.memoryMode ? `conversation_memory:${state.conversationState.memoryMode}` : '',
+    state?.dialogueWorldThread?.activeThread ? sanitizeText(state.dialogueWorldThread.activeThread, 180) : '',
+    state?.dialogueWorldThread?.currentQuestion ? sanitizeText(state.dialogueWorldThread.currentQuestion, 180) : '',
+    state?.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${state.dialogueWorldThread.lastOutcome}` : '',
+    state?.replyDeliberation?.selectedMotive ? `reply_motive:${state.replyDeliberation.selectedMotive}` : '',
+    state?.replyDeliberation?.speakingFrom ? `reply_from:${state.replyDeliberation.speakingFrom}` : '',
+    state?.recallGovernor?.mode ? `recall_mode:${state.recallGovernor.mode}` : '',
     state?.answerPlanner?.act ? `answer_act:${state.answerPlanner.act}` : '',
     state?.answerPlanner?.evidenceMode ? `answer_evidence:${state.answerPlanner.evidenceMode}` : '',
     state?.mindKernel?.dominantMode ? `mind_kernel:${state.mindKernel.dominantMode}` : '',

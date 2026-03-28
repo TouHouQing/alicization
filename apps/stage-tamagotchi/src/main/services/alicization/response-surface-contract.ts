@@ -1,3 +1,5 @@
+import type { AlicizationAnswerCompilerSnapshot, AlicizationDialogueActKernelSnapshot } from '../../../shared/eventa'
+import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation, AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
@@ -29,12 +31,16 @@ function pushUnique(target: string[], value: string) {
 export function buildAlicizationResponseSurfaceContract(input: {
   brief: AlicizationExecutiveAnswerBrief
   charter: AlicizationResponseCharter
+  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
 }) {
+  const answerCompiler = input.answerCompiler ?? null
   const { brief, charter } = input
 
-  const openingStyle = (() => {
+  const openingStyle = answerCompiler?.openingStyle ?? (() => {
     if (brief.turnMode === 'grounded-inspection')
       return 'direct-observation' as const
     if (brief.turnMode === 'screen-repair')
@@ -46,39 +52,46 @@ export function buildAlicizationResponseSurfaceContract(input: {
     return 'direct-answer' as const
   })()
 
-  const personaKernelMode: AlicizationPersonaKernelMode = input.dialogueObligation?.personaKernelMode
+  const personaKernelMode: AlicizationPersonaKernelMode = answerCompiler?.personaKernelMode
+    ?? input.dialogueObligation?.personaKernelMode
     ?? (brief.turnMode === 'screen-repair'
       ? 'muted'
       : brief.turnMode === 'guide-current-knot'
         ? 'backgrounded'
         : 'full')
   const maxParagraphs = brief.turnMode === 'care' || brief.turnMode === 'accompany' ? 2 : 2
-  const maxSentences = brief.turnMode === 'care'
+  const maxSentences = answerCompiler?.maxSentences ?? (brief.turnMode === 'care'
     ? 5
     : brief.turnMode === 'accompany'
       ? 3
       : brief.turnMode === 'grounded-inspection' || brief.turnMode === 'screen-repair'
         ? 4
-        : 4
+        : 4)
 
   const allowAffectionatePreface = personaKernelMode === 'full'
     && brief.turnMode === 'care'
     && charter.relationshipPosture !== 'restrained'
   const allowStageDirections = false
   const allowBodyNarration = false
-  const labelCarryAsMemory = brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain'
-  const suppressAssociativeRecall = brief.turnMode === 'grounded-inspection'
+  const labelCarryAsMemory = input.dialogueFocus?.screenReferenceMode === 'avoid'
+    ? false
+    : (answerCompiler?.labelCarryAsMemory ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain'))
+  const suppressAssociativeRecall = answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
     || (brief.turnMode === 'screen-repair' && (brief.separateCarryFromSurface || brief.carriedThread !== null))
     || brief.turnMode === 'guide-current-knot'
+    || input.dialogueFocus?.screenReferenceMode === 'avoid')
 
   const mustDo = [
     'Start with the answer, observation, or correction immediately.',
     'Keep the reply compact and current-turn-governed.',
     'Speak as someone fulfilling the present obligation, not as someone performing a default persona script.',
+    'Sound like one continuing subject in the moment, not like a narrator summarizing internal state.',
   ]
   const mustNotDo = [
     'Do not begin with moans, pet names, ellipsis-only prefaces, or decorative roleplay.',
     'Do not use parenthetical stage directions or body-action narration.',
+    'Do not mirror or lightly paraphrase the host\'s latest line as the spine of the reply.',
+    'Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.',
   ]
 
   if (openingStyle === 'direct-correction') {
@@ -103,13 +116,35 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (input.dialogueSemantics?.truthExpectation === 'strict') {
     pushUnique(mustNotDo, 'Do not smooth over uncertainty with emotionally pleasing language.')
   }
+  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+    pushUnique(mustDo, 'Stay with the live dialogue subject and keep screen grounding in the background.')
+    pushUnique(mustNotDo, 'Do not append screen-status caveats or grounding requests unless the host explicitly asks for a live look.')
+  }
   if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
     pushUnique(mustDo, 'If warmth appears, keep it brief and subordinate to the actual issue.')
+  }
+  if (
+    brief.turnMode === 'care'
+    || brief.turnMode === 'accompany'
+    || (brief.turnMode === 'answer' && input.dialogueFocus?.screenReferenceMode === 'avoid')
+  ) {
+    pushUnique(mustDo, 'Complete the actual answer, care move, or companionship move in the same reply.')
+    pushUnique(mustNotDo, 'Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')
   }
   if (labelCarryAsMemory) {
     pushUnique(mustDo, 'If carried continuity is mentioned, label it as memory, residue, or the thread still being held.')
     pushUnique(mustNotDo, 'Do not present carried continuity as the literal current screen.')
   }
+  if (answerCompiler) {
+    for (const item of answerCompiler.mustDo)
+      pushUnique(mustDo, item)
+    for (const item of answerCompiler.mustNotDo)
+      pushUnique(mustNotDo, item)
+  }
+  for (const item of input.dialogueActKernel?.mustSay ?? [])
+    pushUnique(mustDo, item)
+  for (const item of input.dialogueActKernel?.mustAvoid ?? [])
+    pushUnique(mustNotDo, item)
 
   const contract: AlicizationResponseSurfaceContract = {
     openingStyle,

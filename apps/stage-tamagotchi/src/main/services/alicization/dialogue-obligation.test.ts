@@ -154,6 +154,75 @@ describe('dialogue-obligation', () => {
     expect(obligation.mustAnswerDirectly).toBe(true)
   })
 
+  it('keeps current-activity scene questions in answer/guide mode instead of forcing repair', () => {
+    const obligation = buildDialogueObligation({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        affectiveTone: 'urgent',
+        subjectPreference: 'task-knot',
+        taskAnchor: 'runtime.ts diff',
+        sharedAttentionDemand: 0.88,
+        personaSuppression: 0.74,
+        confidence: 0.78,
+        summary: 'The host asks what they are doing right now on the current coding screen.',
+        source: 'hybrid',
+        reasonTags: ['current-activity-question', 'scene-bound-turn', 'question-turn'],
+      },
+      context: baseContext,
+      worldModel: {
+        ...baseWorldModel,
+        epistemicState: {
+          ...baseWorldModel.epistemicState,
+          certainty: 'lingering',
+        },
+      },
+      privateThought: {
+        stance: 'uncertain',
+        confidence: 0.72,
+        rationaleTags: [],
+        thoughtText: 'The scene is not fully grounded yet, but the host is asking for a best-effort read.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 60_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'tense-debug',
+      },
+    })
+
+    expect(obligation.kind).toBe('guide')
+    expect(obligation.mustRepairFirst).toBe(false)
+    expect(obligation.mustAnswerDirectly).toBe(true)
+  })
+
+  it('does not coerce detached dialogue-first self turns back into guide under coding carry', () => {
+    const obligation = buildDialogueObligation({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'neutral',
+        subjectPreference: 'alicization-self',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.48,
+        personaSuppression: 0.5,
+        confidence: 0.66,
+        summary: 'The host is turning the dialogue back toward Alicization herself and expects a plain direct answer.',
+        source: 'heuristic',
+        reasonTags: ['detached-question', 'dialogue-first-turn', 'scene-detached-turn'],
+      },
+      context: baseContext,
+      worldModel: baseWorldModel,
+    })
+
+    expect(obligation.kind).toBe('answer')
+    expect(obligation.mustRepairFirst).toBe(false)
+    expect(obligation.mustStayTaskBound).toBe(false)
+    expect(obligation.mustAnswerDirectly).toBe(true)
+  })
+
   it('keeps warmth available for care turns instead of muting the whole persona kernel', () => {
     const obligation = buildDialogueObligation({
       semantics: {

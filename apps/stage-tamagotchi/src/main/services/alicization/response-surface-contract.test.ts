@@ -77,5 +77,52 @@ describe('response-surface-contract', () => {
     expect(result.contract.allowAffectionatePreface).toBe(true)
     expect(result.contract.allowBodyNarration).toBe(false)
     expect(result.contract.mustNotDo).toContain('Do not begin with moans, pet names, ellipsis-only prefaces, or decorative roleplay.')
+    expect(result.contract.mustNotDo).toContain('Do not mirror or lightly paraphrase the host\'s latest line as the spine of the reply.')
+  })
+
+  it('forbids dialogue-first answer shells that stop at an opener', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: 'previous browser tab',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Pay off the current dialogue turn directly.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'repairing',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        shouldBypassScreenRepair: true,
+        weakLiveScene: true,
+        focusSummary: 'Keep this turn dialogue-first.',
+        confidence: 0.74,
+        reasonTags: ['dialogue-first-turn'],
+      },
+    })
+
+    expect(result.contract.mustDo).toContain('Complete the actual answer, care move, or companionship move in the same reply.')
+    expect(result.contract.mustNotDo).toContain('Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')
+    expect(result.contract.mustNotDo).toContain('Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.')
   })
 })

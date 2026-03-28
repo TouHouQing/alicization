@@ -231,4 +231,148 @@ describe('visual episodic memory', () => {
     expect(state.initiativeArbitration?.selectedProposalId).toBe('counterfactual:repair')
     expect(state.initiativeArbitration?.proposals[0]?.action).toBe('recheck')
   })
+
+  it('normalizes and carries conversation state with reply deliberation', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      conversationState: {
+        jointThread: 'The host is still asking about the current diff.',
+        hostMove: 'What is wrong with this diff?',
+        activeProject: 'ProjectAtlas diff',
+        unansweredQuestion: 'What is wrong with this diff?',
+        owedRepair: null,
+        activeCommitments: ['Explain the current diff first.'],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: ['ProjectAtlas diff'],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      dialogueWorldThread: {
+        activeThread: 'The host is still asking about the current diff.',
+        currentQuestion: 'What is wrong with this diff?',
+        openLoops: ['What is wrong with this diff?'],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['ProjectAtlas diff'],
+        relationDrift: 'steady',
+        memoryMode: 'task-thread',
+        recallKeys: ['ProjectAtlas diff', 'reply_motive:guide'],
+        lastUserMove: 'What is wrong with this diff?',
+        lastAssistantMove: 'Pay off the current knot first.',
+        lastOutcome: 'pending',
+        pendingValidation: {
+          question: 'What is wrong with this diff?',
+          expectedMode: 'guide',
+          openedAt: 10_000,
+        },
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: 'Pay off the current knot first.',
+        whyThisReplyNow: 'The current diff is still unresolved.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: ['withhold-associative-recall-noise'],
+        candidateMotives: [{
+          kind: 'guide',
+          summary: 'Explain the current diff before moving on.',
+          weight: 0.84,
+          sourceTags: ['conversation-state'],
+        }],
+        shouldSpeak: true,
+        mustInclude: ['Pay off the current knot first.'],
+        mustAvoid: ['Do not drift away from the diff.'],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      recallGovernor: {
+        mode: 'thread',
+        recallSeed: 'ProjectAtlas diff | What is wrong with this diff?',
+        suppressAssociativeRecall: true,
+        allowActiveThoughts: true,
+        allowRecalledFragments: false,
+        carryAsMemory: false,
+        rationale: 'Carry the current thread without admitting associative recall.',
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.conversationState?.memoryMode).toBe('task-thread')
+    expect(state.dialogueWorldThread?.lastOutcome).toBe('pending')
+    expect(state.replyDeliberation?.selectedMotive).toBe('guide')
+    expect(state.replyDeliberation?.speakingFrom).toBe('task-thread')
+    expect(state.recallGovernor?.mode).toBe('thread')
+  })
+
+  it('normalizes and carries dialogue act kernel snapshots', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      dialogueActKernel: {
+        subject: 'task-knot',
+        hostGoal: 'resolve-problem',
+        relationNeed: 'guidance',
+        activeProject: 'VS Code diff',
+        truthMode: 'live-grounded',
+        speechAct: 'guide',
+        turnMode: 'guide-current-knot',
+        screenReferenceMode: 'helpful',
+        speakingFrom: 'task-thread',
+        selectedEvidence: [{
+          kind: 'scene',
+          source: 'current-scene',
+          summary: 'VS Code diff with missing guard',
+          confidence: 0.9,
+        }],
+        openingClaim: 'The missing guard is the current issue.',
+        openingMove: 'State the missing guard first.',
+        whyNow: 'The host is asking about the active diff.',
+        mustSay: ['Answer the current diff directly.'],
+        mustAvoid: ['Do not answer from stale residue.'],
+        sourceTrace: ['speech-act:guide'],
+        confidence: 0.9,
+        updatedAt: 1,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 1,
+    }, 1)
+
+    const next = updateVisualPresenceState({
+      now: 2,
+      previousState: state,
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      attention: null,
+      privateThought: null,
+      nextSuggestedProbeMs: 45_000,
+    })
+
+    expect(state.dialogueActKernel?.speechAct).toBe('guide')
+    expect(next.dialogueActKernel?.openingClaim).toContain('current issue')
+    expect(next.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('missing guard')
+  })
 })

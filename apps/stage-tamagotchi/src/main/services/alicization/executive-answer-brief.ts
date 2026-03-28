@@ -1,14 +1,23 @@
-import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type {
+  AlicizationAnswerCompilerSnapshot,
+  AlicizationDiscourseStateSnapshot,
+  AlicizationMindSynthesisSnapshot,
+  AlicizationVisualPresenceStateSnapshot,
+} from '../../../shared/eventa'
 import type { AlicizationPerceptionState, AlicizationPerceptionTarget } from './attention-anchor'
+import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationResponseCharter } from './response-charter'
+
+import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
 import {
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
   isSelfPerceptionTarget,
 } from './attention-anchor'
+import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -17,14 +26,26 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function describeTarget(target?: AlicizationPerceptionTarget | null) {
-  if (!target)
+function sanitizeCarryThreadCandidate(raw: unknown, maxChars = 220) {
+  return sanitizeDialogueSurfaceText(raw, maxChars)
+}
+
+function describeTarget(input: {
+  target?: AlicizationPerceptionTarget | null
+  sceneSummary?: string | null
+  scenario?: string | null
+  workloadKind?: string | null
+  contentKind?: string | null
+}) {
+  if (!input.target && !input.sceneSummary)
     return 'none'
-  return [
-    sanitizeText(target.appName, 48),
-    sanitizeText(target.processName, 48),
-    sanitizeText(target.title, 120),
-  ].filter(Boolean).join(' | ') || 'none'
+  return buildAlicizationScreenSurfaceCue({
+    rawCues: [input.sceneSummary],
+    target: input.target ?? null,
+    scenario: input.scenario ?? null,
+    workloadKind: input.workloadKind ?? null,
+    contentKind: input.contentKind ?? null,
+  })
 }
 
 function targetSignature(target?: AlicizationPerceptionTarget | null) {
@@ -44,6 +65,21 @@ function pushUnique(target: string[], value: string) {
   if (target.includes(normalized))
     return
   target.push(normalized)
+}
+
+function isWeakGenericSurface(target?: AlicizationPerceptionTarget | null) {
+  if (!target)
+    return true
+  const signature = targetSignature(target)
+  if (!signature)
+    return true
+  if (
+    ['finder', 'chat overlay', 'alicization', 'codex', 'unknown']
+      .some(marker => signature.includes(marker))
+  ) {
+    return true
+  }
+  return isWeakAlicizationScreenSurfaceCue(target.title)
 }
 
 export interface AlicizationExecutiveAnswerBrief {
@@ -68,8 +104,19 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   responseCharter: AlicizationResponseCharter
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  mindSynthesis?: AlicizationMindSynthesisSnapshot | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
 }) {
+  const discourseState = input.discourseState ?? input.visualPresenceState.discourseState ?? null
+  const mindSynthesis = input.mindSynthesis ?? input.visualPresenceState.mindSynthesis ?? null
+  const answerCompiler = input.answerCompiler ?? input.visualPresenceState.answerCompiler ?? null
   const truthContract = deriveMindTruthContract(input.visualPresenceState)
+  const preferredScreenReferenceMode = answerCompiler?.screenReferenceMode
+    ?? discourseState?.screenReferenceMode
+    ?? input.dialogueFocus?.screenReferenceMode
+    ?? null
   const liveSurfaceTarget = input.currentForeground
     ?? input.visualPresenceState.attention?.target
     ?? input.visualPresenceState.currentScene?.target
@@ -77,14 +124,15 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   const activeAnchor = getActiveAttentionAnchor(input.perceptionState, input.now)
   const residue = getActivePerceptionSceneResidue(input.perceptionState, input.now, 10 * 60_000)
   const carriedThreadCandidates = [
-    sanitizeText(residue?.summary ?? '', 220),
-    sanitizeText(input.visualPresenceState.worldModel?.activeThread?.summary ?? '', 220),
-    sanitizeText(input.visualPresenceState.answerPlanner?.governingFocus ?? '', 220),
-    sanitizeText(input.visualPresenceState.currentScene?.summary ?? '', 220),
+    sanitizeCarryThreadCandidate(residue?.summary ?? '', 220),
+    sanitizeCarryThreadCandidate(input.visualPresenceState.worldModel?.activeThread?.summary ?? '', 220),
+    sanitizeCarryThreadCandidate(input.visualPresenceState.answerPlanner?.governingFocus ?? '', 220),
+    sanitizeCarryThreadCandidate(input.visualPresenceState.currentScene?.summary ?? '', 220),
   ].filter(Boolean)
   const liveSurfaceSignature = targetSignature(liveSurfaceTarget)
   const carryTarget = residue?.focusTarget ?? activeAnchor ?? null
   const carryTargetSignature = targetSignature(carryTarget)
+  const weakLiveSurface = isWeakGenericSurface(liveSurfaceTarget)
   const carryFromNonSelfResidue = Boolean(
     liveSurfaceTarget
     && isSelfPerceptionTarget(liveSurfaceTarget)
@@ -100,15 +148,33 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
       && Boolean(liveSurfaceSignature)
       && targetSignature(input.visualPresenceState.currentScene?.target) !== liveSurfaceSignature
     )
-  const carriedThread = separateCarryFromSurface
+  const carriedThread = separateCarryFromSurface && preferredScreenReferenceMode !== 'avoid'
     ? carriedThreadCandidates[0] ?? null
     : null
+  const truthState = input.groundedThisTurn && preferredScreenReferenceMode !== 'avoid'
+    ? 'live-grounded' as const
+    : truthContract.truthState
 
   const turnMode = (() => {
-    if (input.groundedThisTurn)
+    if (answerCompiler)
+      return answerCompiler.turnMode
+    if (
+      input.groundedThisTurn
+      && preferredScreenReferenceMode !== 'avoid'
+      && input.dialogueFocus?.subject !== 'alicization-self'
+      && input.dialogueFocus?.subject !== 'relationship'
+      && input.dialogueFocus?.subject !== 'host-state'
+    ) {
       return 'grounded-inspection' as const
+    }
     if (input.dialogueObligation?.kind === 'repair')
       return 'screen-repair' as const
+    if (input.dialogueFocus?.subject === 'alicization-self')
+      return 'answer' as const
+    if (input.dialogueFocus?.subject === 'relationship')
+      return 'accompany' as const
+    if (input.dialogueFocus?.subject === 'host-state')
+      return 'care' as const
     if (input.dialogueObligation?.kind === 'guide' || input.dialogueObligation?.kind === 'teach')
       return 'guide-current-knot' as const
     if (input.dialogueObligation?.kind === 'care')
@@ -131,16 +197,19 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     || input.dialogueObligation?.mustStayTaskBound === true
     || turnMode === 'screen-repair'
     || turnMode === 'guide-current-knot'
-    || truthContract.truthState === 'remembered'
-    || truthContract.truthState === 'uncertain'
+    || truthState === 'remembered'
+    || truthState === 'uncertain'
+    || preferredScreenReferenceMode === 'avoid'
 
-  const maxRecentUserTurns = input.groundedThisTurn || input.inspectionRequested
-    ? 2
-    : input.dialogueObligation?.mustStayTaskBound
+  const maxRecentUserTurns = preferredScreenReferenceMode === 'avoid'
+    ? 3
+    : input.groundedThisTurn || input.inspectionRequested
       ? 2
-      : turnMode === 'screen-repair' || turnMode === 'guide-current-knot'
-        ? 3
-        : 4
+      : input.dialogueObligation?.mustStayTaskBound
+        ? 2
+        : turnMode === 'screen-repair' || turnMode === 'guide-current-knot'
+          ? 3
+          : 4
 
   const mustDo: string[] = [
     'Lead with the concrete answer or correction in the first sentence.',
@@ -155,6 +224,13 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   if (input.groundedThisTurn) {
     pushUnique(mustDo, 'Treat the grounded screenshot from this turn as the primary truth source.')
   }
+  if (answerCompiler) {
+    for (const item of answerCompiler.mustDo)
+      pushUnique(mustDo, item)
+    for (const item of answerCompiler.mustNotDo)
+      pushUnique(mustNotDo, item)
+    pushUnique(mustDo, answerCompiler.openingDirective)
+  }
   if (turnMode === 'screen-repair') {
     pushUnique(mustDo, 'Correct the stale anchor plainly before offering any new interpretation.')
     pushUnique(mustNotDo, 'Do not defend the old read once you know it may be stale.')
@@ -162,6 +238,14 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   if (turnMode === 'guide-current-knot') {
     pushUnique(mustDo, 'Keep the reply narrow, task-shaped, and actionable.')
     pushUnique(mustNotDo, 'Do not drift into broad generic troubleshooting lists.')
+  }
+  if (preferredScreenReferenceMode === 'avoid') {
+    pushUnique(mustDo, 'Answer the actual self, relationship, or host-state subject before mentioning any screen context.')
+    pushUnique(mustNotDo, 'Do not open with screen grounding, Finder/Desktop status, or live-view disclaimers when the screen is not the subject.')
+  }
+  if (weakLiveSurface && input.dialogueFocus?.screenReferenceMode !== 'required') {
+    pushUnique(mustDo, 'Treat a generic desktop shell as background noise unless the host explicitly asks about it.')
+    pushUnique(mustNotDo, 'Do not let a weak generic surface outrank the user’s real question.')
   }
   if (input.dialogueObligation?.mustAnswerDirectly) {
     pushUnique(mustDo, 'Treat the opening sentence as the owed action for this turn.')
@@ -176,6 +260,9 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     pushUnique(mustDo, 'Label carried or uncertain scene details as memory, residue, or tentative read.')
     pushUnique(mustNotDo, 'Do not describe carried memory in simple present tense.')
   }
+  if (answerCompiler?.labelCarryAsMemory || discourseState?.unresolvedCarry) {
+    pushUnique(mustDo, 'Keep carried continuity explicitly separate from what is visible right now.')
+  }
   if (separateCarryFromSurface) {
     pushUnique(mustDo, 'If you mention the carried thread, label it as the task you are still holding or rechecking, not the current visible surface.')
     pushUnique(mustNotDo, 'Do not collapse the carried thread into what is literally visible now.')
@@ -186,9 +273,15 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
 
   const brief: AlicizationExecutiveAnswerBrief = {
     turnMode,
-    liveSurface: describeTarget(liveSurfaceTarget),
-    carriedThread,
-    truthState: truthContract.truthState,
+    liveSurface: describeTarget({
+      target: liveSurfaceTarget,
+      sceneSummary: input.visualPresenceState.currentScene?.summary ?? null,
+      scenario: input.visualPresenceState.currentScene?.scenario ?? null,
+      workloadKind: input.visualPresenceState.currentScene?.workloadKind ?? null,
+      contentKind: input.visualPresenceState.currentScene?.contentKind ?? null,
+    }),
+    carriedThread: carriedThread ?? (sanitizeText(discourseState?.unresolvedCarry ?? mindSynthesis?.commitments[0]?.summary ?? '', 220) || null),
+    truthState,
     separateCarryFromSurface,
     shouldCompactHistory,
     maxRecentUserTurns,

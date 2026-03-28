@@ -187,6 +187,62 @@ describe('buildAnswerPlanner', () => {
     expect(buildAlicizationAnswerPlannerSystemBlock(planner)).toContain('[ALICIZATION_ANSWER_PLAN]')
   })
 
+  it('stops asking for reground when this inspection turn is already grounded live', () => {
+    const planner = buildAnswerPlanner({
+      now: 32_000,
+      context: baseContext,
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'cursor diff focus',
+        source: 'invited-grounding',
+        confidence: 0.62,
+        target: null,
+        beganAt: 31_000,
+        lastSeenAt: 32_000,
+      },
+      repairLedger: {
+        governingRepairId: 'repair::scene',
+        entries: [{
+          id: 'repair::scene',
+          kind: 'reground-scene',
+          status: 'open',
+          summary: 'The scene needs a fresh look.',
+          rationale: 'The old anchor is stale.',
+          urgency: 0.84,
+          confidence: 0.86,
+          createdAt: 0,
+          lastUpdatedAt: 32_000,
+          expiresAt: 120_000,
+        }],
+        repairPressure: 0.84,
+        truthRisk: 0.88,
+        shouldConstrainPresentTense: true,
+        narrative: [],
+        updatedAt: 32_000,
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.72,
+        rationaleTags: [],
+        thoughtText: 'The live screenshot is already attached this turn.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      },
+      inspectionRequested: true,
+      groundedThisTurn: true,
+    })
+
+    expect(planner.evidenceMode).toBe('live-grounded')
+    expect(planner.shouldAskForGrounding).toBe(false)
+    expect(planner.act).not.toBe('ask-reground')
+  })
+
   it('chooses correct-stale-anchor when continuity is outrunning live sight', () => {
     const planner = buildAnswerPlanner({
       now: 40_000,
@@ -437,5 +493,118 @@ describe('buildAnswerPlanner', () => {
 
     expect(planner.act).toBe('care')
     expect(planner.relationshipPosture).toBe('tender')
+  })
+
+  it('treats detached self questions as dialogue-grounded instead of screen-repair work', () => {
+    const planner = buildAnswerPlanner({
+      now: 55_000,
+      context: baseContext,
+      currentScene: {
+        workloadKind: 'unknown',
+        contentKind: 'unknown',
+        scenario: 'general',
+        summary: 'Entire screen',
+        source: 'foreground-window-heuristic',
+        confidence: 0.74,
+        target: {
+          appName: 'Finder',
+          processName: 'Finder',
+          title: 'Entire screen',
+          pid: 7,
+        },
+        beganAt: 50_000,
+        lastSeenAt: 55_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-diff',
+          kind: 'change-review',
+          status: 'lingering',
+          source: 'continuity',
+          title: 'runtime.ts diff',
+          summary: 'The old diff knot is still being carried.',
+          confidence: 0.68,
+          significance: 0.7,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 55_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'afterglow',
+          sceneAgeMs: 5_000,
+          attentionAgeMs: 5_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 55_000,
+      },
+      dialogueSemantics: {
+        act: 'ask-help',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'neutral',
+        taskAnchor: 'runtime.ts diff',
+        sharedAttentionDemand: 0.22,
+        personaSuppression: 0.44,
+        confidence: 0.82,
+        summary: 'answer the host\'s direct question: 你的名字叫什么',
+        source: 'hybrid',
+        reasonTags: ['scene-detached-turn', 'question-turn'],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        summary: 'answer the host\'s direct question: 你的名字叫什么',
+        confidence: 0.8,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        shouldBypassScreenRepair: true,
+        weakLiveScene: true,
+        focusSummary: 'answer the host\'s direct question: 你的名字叫什么',
+        confidence: 0.84,
+        reasonTags: ['subject:alicization-self', 'screen:avoid'],
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.58,
+        rationaleTags: [],
+        thoughtText: 'The turn is about Alicization herself, not the carried screen residue.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 80_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'calm-browse',
+      },
+      inspectionRequested: false,
+    })
+
+    expect(planner.act).toBe('answer')
+    expect(planner.evidenceMode).toBe('dialogue-grounded')
+    expect(planner.shouldAskForGrounding).toBe(false)
+    expect(planner.mustNotDo).toContain('Do not open with grounding disclaimers, live-screen caveats, or desktop narration when the host is not asking about the screen.')
   })
 })

@@ -10,6 +10,8 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+
 const passiveProbeMs = 45_000
 const symbioticProbeMs = 12_000
 const invitedProbeMs = 6_000
@@ -71,16 +73,18 @@ function resolveSceneSummary(input: {
   scenario: AlicizationProactiveScenario
   context: Pick<AlicizationProactiveLayeredContext, 'workload' | 'content'>
 }) {
-  const groundedSummary = sanitizeText(input.groundedSummary, 220)
-  if (groundedSummary)
-    return groundedSummary
-  if (input.foregroundTarget?.title)
-    return input.foregroundTarget.title
-  if (input.foregroundTarget?.appName && input.foregroundTarget?.processName && input.foregroundTarget.appName !== input.foregroundTarget.processName)
-    return `${input.foregroundTarget.appName} ${input.foregroundTarget.processName}`
-  return input.foregroundTarget?.appName
-    ?? input.foregroundTarget?.processName
-    ?? `${input.scenario} ${input.context.content.kind}`
+  return buildAlicizationScreenSurfaceCue({
+    rawCues: [
+      sanitizeText(input.groundedSummary, 220),
+      input.foregroundTarget?.title,
+      input.foregroundTarget?.appName,
+      input.foregroundTarget?.processName,
+    ],
+    target: input.foregroundTarget,
+    scenario: input.scenario,
+    workloadKind: input.context.workload.kind,
+    contentKind: input.context.content.kind,
+  })
 }
 
 function resolveSceneSource(input: {
@@ -91,10 +95,10 @@ function resolveSceneSource(input: {
 }) {
   if (input.durabilityPulse && input.durabilityPulse.kind !== 'none')
     return 'durability-hook' as const
-  if (input.invitedInspectionActive && input.groundedSummary)
-    return 'invited-grounding' as const
   if (input.screenSemanticSummaryActive && input.groundedSummary)
     return 'screen-semantic-summary' as const
+  if (input.invitedInspectionActive && input.groundedSummary)
+    return 'invited-grounding' as const
   return 'foreground-window-heuristic' as const
 }
 

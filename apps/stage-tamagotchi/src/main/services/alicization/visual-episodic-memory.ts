@@ -1,14 +1,20 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerPlannerSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
   AlicizationConcernSnapshot,
+  AlicizationConversationStateSnapshot,
   AlicizationCounterfactualDeliberationSnapshot,
   AlicizationDeliberationStateSnapshot,
   AlicizationDesireMemorySnapshot,
+  AlicizationDialogueActKernelSnapshot,
+  AlicizationDialoguePendingValidationSnapshot,
+  AlicizationDialogueWorldThreadSnapshot,
+  AlicizationDiscourseStateSnapshot,
   AlicizationDurabilityPulseSnapshot,
   AlicizationEntityWorldModelSnapshot,
   AlicizationExecutiveCycleSnapshot,
@@ -22,10 +28,14 @@ import type {
   AlicizationLivingWorldStateSnapshot,
   AlicizationMindDynamicsSnapshot,
   AlicizationMindKernelSnapshot,
+  AlicizationMindSynthesisSnapshot,
+  AlicizationMindTurnFrameSnapshot,
   AlicizationPrivateThoughtSnapshot,
+  AlicizationRecallGovernorSnapshot,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
+  AlicizationReplyDeliberationSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
@@ -42,6 +52,9 @@ import type {
   AlicizationWorldOntologySnapshot,
   AlicizationWorldThreadSnapshot,
 } from '../../../shared/eventa'
+
+import { normalizeDialogueActKernel } from './dialogue-act-kernel'
+import { normalizeMindTurnFrame } from './mind-turn-frame'
 
 export const visualWorkingMemoryTtlMs = 10 * 60_000
 const visualWorkingMemoryLimit = 8
@@ -962,6 +975,550 @@ function normalizeInitiativeArbitration(raw: unknown): AlicizationInitiativeArbi
   }
 }
 
+function normalizeDiscourseState(raw: unknown): AlicizationDiscourseStateSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const currentTurnSubject = candidate.currentTurnSubject
+  const screenReferenceMode = candidate.screenReferenceMode
+  const owedAction = candidate.owedAction
+  const relationMove = candidate.relationMove
+  const continuityMode = candidate.continuityMode
+  if (
+    (currentTurnSubject !== 'alicization-self'
+      && currentTurnSubject !== 'relationship'
+      && currentTurnSubject !== 'host-state'
+      && currentTurnSubject !== 'task-knot'
+      && currentTurnSubject !== 'visible-scene'
+      && currentTurnSubject !== 'general')
+    || (screenReferenceMode !== 'required'
+      && screenReferenceMode !== 'helpful'
+      && screenReferenceMode !== 'incidental'
+      && screenReferenceMode !== 'avoid')
+    || (owedAction !== 'answer-self'
+      && owedAction !== 'answer-relationship'
+      && owedAction !== 'care-host'
+      && owedAction !== 'guide-task'
+      && owedAction !== 'repair-truth'
+      && owedAction !== 'inspect-scene'
+      && owedAction !== 'answer-general')
+    || (relationMove !== 'self-disclose'
+      && relationMove !== 'attune'
+      && relationMove !== 'guide'
+      && relationMove !== 'repair'
+      && relationMove !== 'witness'
+      && relationMove !== 'care'
+      && relationMove !== 'clarify')
+    || (continuityMode !== 'dialogue-first'
+      && continuityMode !== 'task-first'
+      && continuityMode !== 'scene-first')
+  ) {
+    return null
+  }
+
+  const currentTurnSummary = sanitizeText(candidate.currentTurnSummary, 220)
+  if (!currentTurnSummary)
+    return null
+
+  return {
+    currentTurnSubject,
+    screenReferenceMode,
+    currentTurnSummary,
+    currentQuestion: sanitizeText(candidate.currentQuestion, 180) || null,
+    owedAction,
+    relationMove,
+    continuityMode,
+    unresolvedCarry: sanitizeText(candidate.unresolvedCarry, 180) || null,
+    ruptureRepair: sanitizeText(candidate.ruptureRepair, 180) || null,
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeMindSynthesis(raw: unknown): AlicizationMindSynthesisSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const answerSubject = candidate.answerSubject
+  const relationMove = candidate.relationMove
+  const speechObligation = candidate.speechObligation
+  if (
+    (answerSubject !== 'alicization-self'
+      && answerSubject !== 'relationship'
+      && answerSubject !== 'host-state'
+      && answerSubject !== 'task-knot'
+      && answerSubject !== 'visible-scene'
+      && answerSubject !== 'general')
+    || (relationMove !== 'self-disclose'
+      && relationMove !== 'attune'
+      && relationMove !== 'guide'
+      && relationMove !== 'repair'
+      && relationMove !== 'witness'
+      && relationMove !== 'care'
+      && relationMove !== 'clarify')
+    || (speechObligation !== 'answer-self'
+      && speechObligation !== 'answer-relationship'
+      && speechObligation !== 'care-host'
+      && speechObligation !== 'guide-task'
+      && speechObligation !== 'repair-truth'
+      && speechObligation !== 'inspect-scene'
+      && speechObligation !== 'answer-general')
+  ) {
+    return null
+  }
+
+  const openingIntent = sanitizeText(candidate.openingIntent, 220)
+  const truthBoundary = sanitizeText(candidate.truthBoundary, 220)
+  const interiorSummary = sanitizeText(candidate.interiorSummary, 220)
+  if (!openingIntent || !truthBoundary || !interiorSummary)
+    return null
+
+  const normalizeStatements = (value: unknown) => Array.isArray(value)
+    ? value
+        .filter(item => item && typeof item === 'object')
+        .map((item) => {
+          const statement = item as Record<string, unknown>
+          const label = sanitizeText(statement.label, 48)
+          const summary = sanitizeText(statement.summary, 220)
+          if (!label || !summary)
+            return null
+          return {
+            label,
+            summary,
+            confidence: clamp01(Number(statement.confidence)),
+            sourceTags: Array.isArray(statement.sourceTags)
+              ? statement.sourceTags.filter((tag): tag is string => typeof tag === 'string').map(tag => sanitizeText(tag, 48)).filter(Boolean).slice(0, 6)
+              : [],
+          }
+        })
+        .filter((item): item is AlicizationMindSynthesisSnapshot['beliefs'][number] => Boolean(item))
+        .slice(0, 6)
+    : []
+
+  return {
+    answerSubject,
+    relationMove,
+    speechObligation,
+    beliefs: normalizeStatements(candidate.beliefs),
+    uncertainties: normalizeStatements(candidate.uncertainties),
+    concerns: normalizeStatements(candidate.concerns),
+    commitments: normalizeStatements(candidate.commitments),
+    desires: normalizeStatements(candidate.desires),
+    openingIntent,
+    truthBoundary,
+    interiorSummary,
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeConversationState(raw: unknown): AlicizationConversationStateSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const relationFrame = candidate.relationFrame
+  const continuityPolicy = candidate.continuityPolicy
+  const memoryMode = candidate.memoryMode
+  if (
+    (relationFrame !== 'self-disclose'
+      && relationFrame !== 'attune'
+      && relationFrame !== 'guide'
+      && relationFrame !== 'repair'
+      && relationFrame !== 'witness'
+      && relationFrame !== 'care'
+      && relationFrame !== 'clarify')
+    || (continuityPolicy !== 'stay-on-thread'
+      && continuityPolicy !== 'answer-then-carry'
+      && continuityPolicy !== 'scene-before-memory'
+      && continuityPolicy !== 'dialogue-before-scene')
+    || (memoryMode !== 'suppress-associative'
+      && memoryMode !== 'task-thread'
+      && memoryMode !== 'scene-anchored'
+      && memoryMode !== 'dialogue-carry'
+      && memoryMode !== 'emotional-resonance')
+  ) {
+    return null
+  }
+
+  const jointThread = sanitizeText(candidate.jointThread, 220)
+  const hostMove = sanitizeText(candidate.hostMove, 220)
+  if (!jointThread || !hostMove)
+    return null
+
+  return {
+    jointThread,
+    hostMove,
+    activeProject: sanitizeText(candidate.activeProject, 180) || null,
+    unansweredQuestion: sanitizeText(candidate.unansweredQuestion, 180) || null,
+    owedRepair: sanitizeText(candidate.owedRepair, 180) || null,
+    activeCommitments: Array.isArray(candidate.activeCommitments)
+      ? candidate.activeCommitments.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : [],
+    relationFrame,
+    continuityPolicy,
+    memoryMode,
+    memoryQueryHints: Array.isArray(candidate.memoryQueryHints)
+      ? candidate.memoryQueryHints.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    shouldHoldThread: candidate.shouldHoldThread === true,
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const answerSubject = candidate.answerSubject
+  const screenReferenceMode = candidate.screenReferenceMode
+  const speechObligation = candidate.speechObligation
+  const relationMove = candidate.relationMove
+  const turnMode = candidate.turnMode
+  const responseMode = candidate.responseMode
+  const recommendedAct = candidate.recommendedAct
+  const evidenceMode = candidate.evidenceMode
+  const openingStyle = candidate.openingStyle
+  const personaKernelMode = candidate.personaKernelMode
+  const relationshipPosture = candidate.relationshipPosture
+  if (
+    (answerSubject !== 'alicization-self'
+      && answerSubject !== 'relationship'
+      && answerSubject !== 'host-state'
+      && answerSubject !== 'task-knot'
+      && answerSubject !== 'visible-scene'
+      && answerSubject !== 'general')
+    || (screenReferenceMode !== 'required'
+      && screenReferenceMode !== 'helpful'
+      && screenReferenceMode !== 'incidental'
+      && screenReferenceMode !== 'avoid')
+    || (speechObligation !== 'answer-self'
+      && speechObligation !== 'answer-relationship'
+      && speechObligation !== 'care-host'
+      && speechObligation !== 'guide-task'
+      && speechObligation !== 'repair-truth'
+      && speechObligation !== 'inspect-scene'
+      && speechObligation !== 'answer-general')
+    || (relationMove !== 'self-disclose'
+      && relationMove !== 'attune'
+      && relationMove !== 'guide'
+      && relationMove !== 'repair'
+      && relationMove !== 'witness'
+      && relationMove !== 'care'
+      && relationMove !== 'clarify')
+    || (turnMode !== 'grounded-inspection'
+      && turnMode !== 'screen-repair'
+      && turnMode !== 'guide-current-knot'
+      && turnMode !== 'care'
+      && turnMode !== 'accompany'
+      && turnMode !== 'answer')
+    || (responseMode !== 'repair-and-reanchor'
+      && responseMode !== 'guide-current-knot'
+      && responseMode !== 'care-with-boundary'
+      && responseMode !== 'accompany-lightly'
+      && responseMode !== 'answer-naturally')
+    || (recommendedAct !== 'answer'
+      && recommendedAct !== 'guide'
+      && recommendedAct !== 'ask-reground'
+      && recommendedAct !== 'correct-stale-anchor'
+      && recommendedAct !== 'care'
+      && recommendedAct !== 'defer')
+    || (evidenceMode !== 'live-grounded'
+      && evidenceMode !== 'live-observed'
+      && evidenceMode !== 'coarse-held'
+      && evidenceMode !== 'dialogue-grounded'
+      && evidenceMode !== 'continuity-carry'
+      && evidenceMode !== 'repair-first')
+    || (openingStyle !== 'direct-observation'
+      && openingStyle !== 'direct-correction'
+      && openingStyle !== 'direct-answer'
+      && openingStyle !== 'gentle-care'
+      && openingStyle !== 'light-accompaniment')
+    || (personaKernelMode !== 'full' && personaKernelMode !== 'backgrounded' && personaKernelMode !== 'muted')
+    || (relationshipPosture !== 'restrained' && relationshipPosture !== 'warm' && relationshipPosture !== 'tender')
+  ) {
+    return null
+  }
+
+  const openingDirective = sanitizeText(candidate.openingDirective, 220)
+  const openingClaim = sanitizeText(candidate.openingClaim, 220)
+  if (!openingDirective || !openingClaim)
+    return null
+
+  return {
+    answerSubject,
+    screenReferenceMode,
+    speechObligation,
+    relationMove,
+    turnMode,
+    responseMode,
+    recommendedAct,
+    evidenceMode,
+    openingStyle,
+    personaKernelMode,
+    relationshipPosture,
+    openingDirective,
+    openingClaim,
+    supportingReality: Array.isArray(candidate.supportingReality)
+      ? candidate.supportingReality.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : [],
+    uncertaintyBoundary: sanitizeText(candidate.uncertaintyBoundary, 220) || null,
+    careVector: sanitizeText(candidate.careVector, 180) || null,
+    nextMove: sanitizeText(candidate.nextMove, 180) || null,
+    suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
+    labelCarryAsMemory: candidate.labelCarryAsMemory === true,
+    maxSentences: Number.isFinite(Number(candidate.maxSentences))
+      ? Math.max(1, Math.floor(Number(candidate.maxSentences)))
+      : 4,
+    mustDo: Array.isArray(candidate.mustDo)
+      ? candidate.mustDo.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    mustNotDo: Array.isArray(candidate.mustNotDo)
+      ? candidate.mustNotDo.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeReplyDeliberation(raw: unknown): AlicizationReplyDeliberationSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const selectedMotive = candidate.selectedMotive
+  const speakingFrom = candidate.speakingFrom
+  const memoryMode = candidate.memoryMode
+  if (
+    (selectedMotive !== 'repair'
+      && selectedMotive !== 'guide'
+      && selectedMotive !== 'answer'
+      && selectedMotive !== 'care'
+      && selectedMotive !== 'attune'
+      && selectedMotive !== 'witness'
+      && selectedMotive !== 'defer')
+    || (speakingFrom !== 'live-scene'
+      && speakingFrom !== 'task-thread'
+      && speakingFrom !== 'dialogue-bond'
+      && speakingFrom !== 'self-continuity'
+      && speakingFrom !== 'held-memory')
+    || (memoryMode !== 'suppress-associative'
+      && memoryMode !== 'task-thread'
+      && memoryMode !== 'scene-anchored'
+      && memoryMode !== 'dialogue-carry'
+      && memoryMode !== 'emotional-resonance')
+  ) {
+    return null
+  }
+
+  const openingBeat = sanitizeText(candidate.openingBeat, 220)
+  const whyThisReplyNow = sanitizeText(candidate.whyThisReplyNow, 220)
+  if (!openingBeat || !whyThisReplyNow)
+    return null
+
+  const normalizeMotives = (value: unknown) => Array.isArray(value)
+    ? value
+        .filter(item => item && typeof item === 'object')
+        .map((item) => {
+          const motive = item as Record<string, unknown>
+          const kind = motive.kind
+          if (
+            kind !== 'repair'
+            && kind !== 'guide'
+            && kind !== 'answer'
+            && kind !== 'care'
+            && kind !== 'attune'
+            && kind !== 'witness'
+            && kind !== 'defer'
+          ) {
+            return null
+          }
+          const summary = sanitizeText(motive.summary, 180)
+          if (!summary)
+            return null
+          return {
+            kind,
+            summary,
+            weight: clamp01(Number(motive.weight)),
+            sourceTags: Array.isArray(motive.sourceTags)
+              ? motive.sourceTags.filter((tag): tag is string => typeof tag === 'string').map(tag => sanitizeText(tag, 48)).filter(Boolean).slice(0, 6)
+              : [],
+          }
+        })
+        .filter((item): item is AlicizationReplyDeliberationSnapshot['candidateMotives'][number] => Boolean(item))
+        .slice(0, 6)
+    : []
+
+  return {
+    selectedMotive,
+    speakingFrom,
+    memoryMode,
+    openingBeat,
+    whyThisReplyNow,
+    whyNotOtherCandidates: Array.isArray(candidate.whyNotOtherCandidates)
+      ? candidate.whyNotOtherCandidates.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : [],
+    withheldImpulses: Array.isArray(candidate.withheldImpulses)
+      ? candidate.withheldImpulses.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : [],
+    candidateMotives: normalizeMotives(candidate.candidateMotives),
+    shouldSpeak: candidate.shouldSpeak === true,
+    mustInclude: Array.isArray(candidate.mustInclude)
+      ? candidate.mustInclude.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    mustAvoid: Array.isArray(candidate.mustAvoid)
+      ? candidate.mustAvoid.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeDialogueWorldThread(raw: unknown): AlicizationDialogueWorldThreadSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const relationDrift = candidate.relationDrift
+  const memoryMode = candidate.memoryMode
+  const lastOutcome = candidate.lastOutcome
+  if (
+    (relationDrift !== 'steady' && relationDrift !== 'warming' && relationDrift !== 'repairing' && relationDrift !== 'guarded')
+    || (memoryMode !== 'suppress-associative'
+      && memoryMode !== 'task-thread'
+      && memoryMode !== 'scene-anchored'
+      && memoryMode !== 'dialogue-carry'
+      && memoryMode !== 'emotional-resonance')
+    || (lastOutcome !== 'none'
+      && lastOutcome !== 'pending'
+      && lastOutcome !== 'aligned'
+      && lastOutcome !== 'missed'
+      && lastOutcome !== 'repairing'
+      && lastOutcome !== 'deferred')
+  ) {
+    return null
+  }
+
+  const activeThread = sanitizeText(candidate.activeThread, 220)
+  const lastUserMove = sanitizeText(candidate.lastUserMove, 220)
+  if (!activeThread || !lastUserMove)
+    return null
+
+  const pendingValidationRaw = candidate.pendingValidation && typeof candidate.pendingValidation === 'object'
+    ? candidate.pendingValidation as Record<string, unknown>
+    : null
+  const expectedMode = pendingValidationRaw?.expectedMode
+  const normalizedExpectedMode: AlicizationDialoguePendingValidationSnapshot['expectedMode'] | null
+    = expectedMode === 'repair'
+      || expectedMode === 'guide'
+      || expectedMode === 'answer'
+      || expectedMode === 'care'
+      || expectedMode === 'attune'
+      || expectedMode === 'witness'
+      || expectedMode === 'defer'
+      ? expectedMode
+      : null
+  const pendingValidation = pendingValidationRaw
+    && normalizedExpectedMode
+    ? {
+        question: sanitizeText(pendingValidationRaw.question, 180) || null,
+        expectedMode: normalizedExpectedMode,
+        openedAt: Number.isFinite(Number(pendingValidationRaw.openedAt))
+          ? Math.max(0, Math.floor(Number(pendingValidationRaw.openedAt)))
+          : Date.now(),
+      }
+    : null
+
+  return {
+    activeThread,
+    currentQuestion: sanitizeText(candidate.currentQuestion, 180) || null,
+    openLoops: Array.isArray(candidate.openLoops)
+      ? candidate.openLoops.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    recentlyResolvedLoops: Array.isArray(candidate.recentlyResolvedLoops)
+      ? candidate.recentlyResolvedLoops.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : [],
+    carriedFacts: Array.isArray(candidate.carriedFacts)
+      ? candidate.carriedFacts.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
+      : [],
+    relationDrift,
+    memoryMode,
+    recallKeys: Array.isArray(candidate.recallKeys)
+      ? candidate.recallKeys.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    lastUserMove,
+    lastAssistantMove: sanitizeText(candidate.lastAssistantMove, 220) || null,
+    lastOutcome,
+    pendingValidation,
+    confidence: clamp01(Number(candidate.confidence)),
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
+function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const mode = candidate.mode
+  if (
+    mode !== 'none'
+    && mode !== 'thread'
+    && mode !== 'scene'
+    && mode !== 'emotional-resonance'
+    && mode !== 'self-continuity'
+  ) {
+    return null
+  }
+
+  const rationale = sanitizeText(candidate.rationale, 220)
+  if (!rationale)
+    return null
+
+  return {
+    mode,
+    recallSeed: sanitizeText(candidate.recallSeed, 400),
+    suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
+    allowActiveThoughts: candidate.allowActiveThoughts === true,
+    allowRecalledFragments: candidate.allowRecalledFragments === true,
+    carryAsMemory: candidate.carryAsMemory === true,
+    rationale,
+    narrative: Array.isArray(candidate.narrative)
+      ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
 function normalizeIntentionStream(raw: unknown): AlicizationIntentionStreamSnapshot | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -986,6 +1543,7 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     currentScene: null,
     attention: null,
     workingMemoryEpisodes: [],
+    mindTurnFrame: null,
     worldModel: null,
     worldOntology: null,
     beliefLedger: null,
@@ -1019,6 +1577,14 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     initiativeArbitration: null,
     initiative: null,
     desireMemory: null,
+    discourseState: null,
+    mindSynthesis: null,
+    conversationState: null,
+    dialogueWorldThread: null,
+    dialogueActKernel: null,
+    answerCompiler: null,
+    replyDeliberation: null,
+    recallGovernor: null,
     answerPlanner: null,
     privateThought: null,
     captureState: {
@@ -1052,6 +1618,7 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
         .map(normalizeEpisode)
         .filter((episode): episode is AlicizationVisualEpisode => Boolean(episode)), now)
     : []
+  base.mindTurnFrame = normalizeMindTurnFrame(candidate.mindTurnFrame)
   base.worldModel = normalizeWorldModel(candidate.worldModel)
   base.worldOntology = normalizeWorldOntology(candidate.worldOntology)
   base.beliefLedger = normalizeBeliefLedger(candidate.beliefLedger)
@@ -1107,6 +1674,14 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   base.desireMemory = candidate.desireMemory && typeof candidate.desireMemory === 'object'
     ? candidate.desireMemory as AlicizationDesireMemorySnapshot
     : null
+  base.discourseState = normalizeDiscourseState(candidate.discourseState)
+  base.mindSynthesis = normalizeMindSynthesis(candidate.mindSynthesis)
+  base.conversationState = normalizeConversationState(candidate.conversationState)
+  base.dialogueWorldThread = normalizeDialogueWorldThread(candidate.dialogueWorldThread)
+  base.dialogueActKernel = normalizeDialogueActKernel(candidate.dialogueActKernel)
+  base.answerCompiler = normalizeAnswerCompiler(candidate.answerCompiler)
+  base.replyDeliberation = normalizeReplyDeliberation(candidate.replyDeliberation)
+  base.recallGovernor = normalizeRecallGovernor(candidate.recallGovernor)
   base.answerPlanner = candidate.answerPlanner && typeof candidate.answerPlanner === 'object'
     ? candidate.answerPlanner as AlicizationAnswerPlannerSnapshot
     : null
@@ -1198,6 +1773,7 @@ export function updateVisualPresenceState(input: {
   watchMode: AlicizationVisualPresenceStateSnapshot['watchMode']
   scene: AlicizationVisualSceneSnapshot | null
   attention: AlicizationVisualAttentionSnapshot | null
+  mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   worldOntology?: AlicizationWorldOntologySnapshot | null
   beliefLedger?: AlicizationBeliefLedgerSnapshot | null
@@ -1231,6 +1807,14 @@ export function updateVisualPresenceState(input: {
   initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  mindSynthesis?: AlicizationMindSynthesisSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState?: AlicizationVisualPresenceStateSnapshot['captureState']
@@ -1257,6 +1841,7 @@ export function updateVisualPresenceState(input: {
     currentScene: input.scene,
     attention: input.attention,
     workingMemoryEpisodes,
+    mindTurnFrame: input.mindTurnFrame ?? previousState.mindTurnFrame ?? null,
     worldModel: input.worldModel ?? previousState.worldModel ?? null,
     worldOntology: input.worldOntology ?? previousState.worldOntology ?? null,
     beliefLedger: input.beliefLedger ?? previousState.beliefLedger ?? null,
@@ -1290,6 +1875,14 @@ export function updateVisualPresenceState(input: {
     initiativeArbitration: input.initiativeArbitration ?? previousState.initiativeArbitration ?? null,
     initiative: input.initiative ?? null,
     desireMemory: input.desireMemory ?? previousState.desireMemory ?? null,
+    discourseState: input.discourseState ?? previousState.discourseState ?? null,
+    mindSynthesis: input.mindSynthesis ?? previousState.mindSynthesis ?? null,
+    conversationState: input.conversationState ?? previousState.conversationState ?? null,
+    dialogueWorldThread: input.dialogueWorldThread ?? previousState.dialogueWorldThread ?? null,
+    dialogueActKernel: input.dialogueActKernel ?? previousState.dialogueActKernel ?? null,
+    answerCompiler: input.answerCompiler ?? previousState.answerCompiler ?? null,
+    replyDeliberation: input.replyDeliberation ?? previousState.replyDeliberation ?? null,
+    recallGovernor: input.recallGovernor ?? previousState.recallGovernor ?? null,
     answerPlanner: input.answerPlanner ?? previousState.answerPlanner ?? null,
     privateThought: input.privateThought,
     captureState: input.captureState ?? previousState.captureState,

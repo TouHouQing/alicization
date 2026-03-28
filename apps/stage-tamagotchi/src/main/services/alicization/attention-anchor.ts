@@ -3,6 +3,7 @@ import type { AlicizationContentKind, AlicizationWorkloadKind } from './proactiv
 import {
   extractInspectionSemanticTerms,
   inferAlicizationInspectionIntent,
+  isWeakAlicizationScreenSurfaceTarget,
 } from '@proj-alicization/stage-shared'
 
 import { inferForegroundWorkloadFromWindow } from './proactive-layered-context'
@@ -351,6 +352,7 @@ export function updatePerceptionStateWithObservation(input: {
   if (
     !nextTarget
     || isSelfPerceptionTarget(nextTarget, input.selfPattern)
+    || isWeakAlicizationScreenSurfaceTarget(nextTarget)
     || isPermissionGrantSurfaceTarget(nextTarget, Boolean(invitedInspection))
   ) {
     return {
@@ -407,12 +409,14 @@ export function activateInvitedInspection(input: {
   const activeUntil = input.now + Math.max(60_000, input.durationMs ?? 3 * 60_000)
   const fallbackTarget = input.state.lastNonSelfForegroundTarget
   const nextAnchor = input.state.attentionAnchor
+    && !isWeakAlicizationScreenSurfaceTarget(input.state.attentionAnchor)
     ? {
         ...input.state.attentionAnchor,
         reason: 'invited-inspection' as const,
         confidence: clampConfidence(Math.max(input.state.attentionAnchor.confidence, 0.9)),
       }
     : fallbackTarget
+      && !isWeakAlicizationScreenSurfaceTarget(fallbackTarget)
       ? {
           appName: fallbackTarget.appName,
           processName: fallbackTarget.processName,
@@ -438,17 +442,49 @@ export function activateInvitedInspection(input: {
   } satisfies AlicizationPerceptionState
 }
 
+export function releaseInvitedInspection(input: {
+  state: AlicizationPerceptionState
+  now: number
+  clearSceneResidue?: boolean
+}) {
+  const attentionAnchor = input.state.attentionAnchor?.reason === 'invited-inspection'
+    ? {
+        ...input.state.attentionAnchor,
+        reason: 'recent-foreground' as const,
+        confidence: clampConfidence(Math.min(input.state.attentionAnchor.confidence, 0.82)),
+      }
+    : input.state.attentionAnchor
+
+  return {
+    ...input.state,
+    attentionAnchor,
+    invitedInspection: null,
+    recentSceneResidue: input.clearSceneResidue && input.state.recentSceneResidue?.source === 'invited-inspection'
+      ? null
+      : input.state.recentSceneResidue,
+    updatedAt: input.now,
+  } satisfies AlicizationPerceptionState
+}
+
 export function getActiveAttentionAnchor(
   state: AlicizationPerceptionState,
   now: number,
   maxAgeMs = 3 * 60_000,
 ) {
   if (state.attentionAnchor) {
-    if (now - state.attentionAnchor.lastObservedAt <= maxAgeMs || isInspectionActive(state.invitedInspection, now))
+    if (
+      !isWeakAlicizationScreenSurfaceTarget(state.attentionAnchor)
+      && (now - state.attentionAnchor.lastObservedAt <= maxAgeMs || isInspectionActive(state.invitedInspection, now))
+    ) {
       return state.attentionAnchor
+    }
   }
 
-  if (state.lastNonSelfForegroundTarget && now - state.lastNonSelfForegroundTarget.observedAt <= maxAgeMs) {
+  if (
+    state.lastNonSelfForegroundTarget
+    && !isWeakAlicizationScreenSurfaceTarget(state.lastNonSelfForegroundTarget)
+    && now - state.lastNonSelfForegroundTarget.observedAt <= maxAgeMs
+  ) {
     return {
       appName: state.lastNonSelfForegroundTarget.appName,
       processName: state.lastNonSelfForegroundTarget.processName,

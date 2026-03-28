@@ -14,6 +14,13 @@ interface PromptBudgetOptions {
   currentTurnRatio?: number
 }
 
+interface PromptAssemblyOptions {
+  totalDialogueTokens?: number
+  maxRecentUserTurns?: number
+  maxMessages?: number
+  minTailMessages?: number
+}
+
 interface PromptBudgetSectionStats {
   beforeTokens: number
   afterTokens: number
@@ -45,6 +52,20 @@ export interface PromptBudgetReport {
 export interface PromptBudgetResult {
   messages: Message[]
   report: PromptBudgetReport
+}
+
+export interface PromptAssemblyReport {
+  beforeCount: number
+  afterCount: number
+  beforeTokens: number
+  afterTokens: number
+  droppedMessageCount: number
+  retainedUserTurns: number
+}
+
+export interface PromptAssemblyResult {
+  messages: Message[]
+  report: PromptAssemblyReport
 }
 
 export interface SanitizeOptions {
@@ -79,6 +100,13 @@ const defaultPromptBudget: Required<PromptBudgetOptions> = {
   soulRatio: 0.25,
   memoryRatio: 0.25,
   currentTurnRatio: 0.5,
+}
+
+const defaultPromptAssembly: Required<PromptAssemblyOptions> = {
+  totalDialogueTokens: 1800,
+  maxRecentUserTurns: 6,
+  maxMessages: 18,
+  minTailMessages: 4,
 }
 
 const runtimeSensoryHeader = alicizationFixedSensoryContextHeader
@@ -182,6 +210,89 @@ function writeMessageText(message: Message, text: string) {
 
 function cloneMessages(messages: Message[]) {
   return messages.map(message => ({ ...message }))
+}
+
+function countUserTurns(messages: Message[]) {
+  return messages.reduce((count, message) => count + (message.role === 'user' ? 1 : 0), 0)
+}
+
+export function compactMessagesForPromptAssembly(messages: Message[], options?: PromptAssemblyOptions): PromptAssemblyResult {
+  const cfg = {
+    ...defaultPromptAssembly,
+    ...options,
+  }
+  const systemMessages = messages.filter(message => message.role === 'system')
+  const dialogueMessages = messages.filter(message => message.role !== 'system') as Message[]
+  const beforeTokens = messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+
+  if (dialogueMessages.length === 0) {
+    return {
+      messages,
+      report: {
+        beforeCount: messages.length,
+        afterCount: messages.length,
+        beforeTokens,
+        afterTokens: beforeTokens,
+        droppedMessageCount: 0,
+        retainedUserTurns: 0,
+      },
+    }
+  }
+
+  let cutoffIndex = 0
+  let userTurnsSeen = 0
+  for (let index = dialogueMessages.length - 1; index >= 0; index -= 1) {
+    if (dialogueMessages[index]?.role === 'user')
+      userTurnsSeen += 1
+    cutoffIndex = index
+    if (userTurnsSeen >= Math.max(1, Math.floor(cfg.maxRecentUserTurns)))
+      break
+  }
+
+  const compactedDialogue: Message[] = dialogueMessages.slice(cutoffIndex)
+  while (compactedDialogue.length > cfg.maxMessages && compactedDialogue.length > cfg.minTailMessages) {
+    compactedDialogue.shift()
+  }
+
+  const isProtectedIndex = (index: number) => index >= Math.max(0, compactedDialogue.length - cfg.minTailMessages)
+  let dialogueTokens = compactedDialogue.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+
+  while (dialogueTokens > cfg.totalDialogueTokens && compactedDialogue.length > cfg.minTailMessages) {
+    const removableIndex = compactedDialogue.findIndex((_, index) => !isProtectedIndex(index))
+    if (removableIndex < 0)
+      break
+    dialogueTokens -= estimateMessageTokens(compactedDialogue[removableIndex]!)
+    compactedDialogue.splice(removableIndex, 1)
+  }
+
+  if (dialogueTokens > cfg.totalDialogueTokens && compactedDialogue.length > 0) {
+    const trimIndex = compactedDialogue.findIndex((_, index) => !isProtectedIndex(index))
+    const targetIndex = trimIndex >= 0 ? trimIndex : 0
+    const targetMessage = compactedDialogue[targetIndex]
+    if (targetMessage) {
+      const overflow = Math.max(0, dialogueTokens - cfg.totalDialogueTokens)
+      const currentTokens = estimateMessageTokens(targetMessage)
+      const nextBudget = Math.max(24, currentTokens - overflow)
+      const nextText = trimTextToTokenBudget(readMessageText(targetMessage), nextBudget, 'middle')
+      compactedDialogue[targetIndex] = writeMessageText(targetMessage, nextText) as Message
+      dialogueTokens = compactedDialogue.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+    }
+  }
+
+  const nextMessages = [...systemMessages, ...compactedDialogue]
+  const afterTokens = nextMessages.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+
+  return {
+    messages: nextMessages,
+    report: {
+      beforeCount: messages.length,
+      afterCount: nextMessages.length,
+      beforeTokens,
+      afterTokens,
+      droppedMessageCount: Math.max(0, messages.length - nextMessages.length),
+      retainedUserTurns: countUserTurns(compactedDialogue),
+    },
+  }
 }
 
 function trimTextToTokenBudget(text: string, budgetTokens: number, mode: 'head' | 'tail' | 'middle' = 'tail') {
@@ -561,7 +672,8 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
     }
   }
 
-  const isProtectedIndex = (index: number) => [soulIndex, runtimeIndex, memoryIndex, currentTurnIndex].includes(index)
+  const isProtectedIndex = (index: number) =>
+    [soulIndex, runtimeIndex, memoryIndex, currentTurnIndex].includes(index)
 
   let droppedMessageCount = 0
   let totalAfter = result.reduce((sum, message) => sum + estimateMessageTokens(message), 0)

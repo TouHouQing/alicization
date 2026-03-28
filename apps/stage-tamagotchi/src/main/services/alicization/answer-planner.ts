@@ -1,25 +1,33 @@
 import type {
   AlicizationAnswerAct,
+  AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerEvidenceMode,
   AlicizationAnswerPlannerSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
+  AlicizationConversationStateSnapshot,
+  AlicizationDialogueWorldThreadSnapshot,
+  AlicizationDiscourseStateSnapshot,
   AlicizationExecutiveCycleSnapshot,
   AlicizationInquiryPlannerSnapshot,
   AlicizationIntentionStreamSnapshot,
   AlicizationMindKernelSnapshot,
+  AlicizationMindSynthesisSnapshot,
   AlicizationPrivateThoughtSnapshot,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
+  AlicizationReplyDeliberationSnapshot,
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
 
 function clamp01(value: number) {
@@ -32,6 +40,50 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function pickUserFacingAnchor(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = sanitizeDialogueAnchorText(value, 180)
+    if (normalized)
+      return normalized
+  }
+  return ''
+}
+
+function resolveFreshGroundingRepairSubject(input: {
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+}) {
+  return input.dialogueFocus?.subject
+    ?? input.dialogueSemantics?.subjectPreference
+    ?? null
+}
+
+function repairIsSatisfiedByFreshGrounding(input: {
+  groundedThisTurn?: boolean
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+}) {
+  if (input.groundedThisTurn !== true)
+    return false
+
+  const subject = resolveFreshGroundingRepairSubject(input)
+  if (subject !== 'visible-scene' && subject !== 'task-knot')
+    return false
+
+  const screenReferenceMode = input.dialogueFocus?.screenReferenceMode
+    ?? (subject === 'visible-scene' ? 'required' : 'helpful')
+  return screenReferenceMode !== 'avoid'
+}
+
+function groundedRepairFollowupAct(input: {
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+}) {
+  return resolveFreshGroundingRepairSubject(input) === 'task-knot'
+    ? 'guide' as const
+    : 'answer' as const
 }
 
 function governingConcern(concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null) {
@@ -76,7 +128,19 @@ function evidenceMode(input: {
   worldOntology?: AlicizationWorldOntologySnapshot | null
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  groundedThisTurn?: boolean
 }) {
+  if (
+    input.dialogueFocus
+    && input.dialogueFocus.shouldBypassScreenRepair
+    && input.dialogueFocus.subject !== 'visible-scene'
+  ) {
+    return 'dialogue-grounded' as const
+  }
+  if (input.groundedThisTurn === true)
+    return 'live-grounded' as const
+
   const truth = deriveMindTruthContract({
     currentScene: input.currentScene,
     worldModel: input.worldModel ?? null,
@@ -95,7 +159,18 @@ function evidenceMode(input: {
     return 'continuity-carry' as const
   if ((input.concernContinuity?.unresolvedCount ?? 0) > 0)
     return 'coarse-held' as const
-  return 'repair-first' as const
+  const sceneFocusedTurn = input.dialogueFocus?.subject === 'task-knot'
+    || input.dialogueFocus?.subject === 'visible-scene'
+  const screenReferenceRequired = input.dialogueFocus?.screenReferenceMode === 'required'
+    || input.dialogueFocus?.screenReferenceMode === 'helpful'
+  const sceneContextAvailable = Boolean(
+    input.currentScene?.summary
+    || input.currentScene?.target
+    || input.worldModel?.activeThread,
+  )
+  if (sceneFocusedTurn || screenReferenceRequired || sceneContextAvailable)
+    return 'coarse-held' as const
+  return 'dialogue-grounded' as const
 }
 
 function answerAct(input: {
@@ -112,6 +187,8 @@ function answerAct(input: {
   inspectionRequested: boolean
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  groundedThisTurn?: boolean
 }) {
   const concern = governingConcern(input.concernContinuity)
   const repair = governingRepair(input.repairLedger)
@@ -120,6 +197,17 @@ function answerAct(input: {
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
   if (input.dialogueObligation?.kind === 'repair') {
+    if (repairIsSatisfiedByFreshGrounding({
+      groundedThisTurn: input.groundedThisTurn === true,
+      dialogueFocus: input.dialogueFocus ?? null,
+      dialogueSemantics: input.dialogueSemantics ?? null,
+    })) {
+      return groundedRepairFollowupAct({
+        dialogueFocus: input.dialogueFocus ?? null,
+        dialogueSemantics: input.dialogueSemantics ?? null,
+      })
+    }
+
     return input.evidenceMode === 'repair-first'
       ? 'ask-reground' as const
       : 'correct-stale-anchor' as const
@@ -133,6 +221,16 @@ function answerAct(input: {
   if (input.dialogueObligation?.kind === 'clarify')
     return 'ask-reground' as const
 
+  if (input.dialogueFocus?.shouldBypassScreenRepair && input.dialogueFocus.subject !== 'visible-scene') {
+    if (input.dialogueFocus.subject === 'task-knot')
+      return 'guide' as const
+    if (input.dialogueFocus.subject === 'host-state')
+      return 'care' as const
+    if (input.dialogueFocus.subject === 'relationship')
+      return input.executiveCycle?.shouldAct ? 'answer' as const : 'defer' as const
+    return 'answer' as const
+  }
+
   if (
     input.executiveCycle?.phase === 'reflecting'
     && (reflection?.outcome === 'missed' || reflection?.outcome === 'corrected' || reflection?.outcome === 'stalled')
@@ -144,13 +242,21 @@ function answerAct(input: {
   if (repair?.kind === 'stale-scene-anchor' || repair?.kind === 'belief-contradiction')
     return 'correct-stale-anchor' as const
   if (
-    repair?.kind === 'reground-scene'
-    || (
-      input.evidenceMode === 'repair-first'
-      && (input.inspectionRequested || inquiryPlan?.askForGrounding)
+    !input.groundedThisTurn
+    && (
+      repair?.kind === 'reground-scene'
+      || (
+        input.evidenceMode === 'repair-first'
+        && (input.inspectionRequested || inquiryPlan?.askForGrounding)
+      )
     )
   ) {
     return 'ask-reground' as const
+  }
+  if (
+    repair?.kind === 'reground-scene'
+  ) {
+    return 'correct-stale-anchor' as const
   }
   if (project?.kind === 'care-host')
     return 'care' as const
@@ -235,6 +341,8 @@ function governingFocus(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
   const concern = governingConcern(input.concernContinuity)
   const repair = governingRepair(input.repairLedger)
@@ -243,7 +351,10 @@ function governingFocus(input: {
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
   return sanitizeText(
-    input.dialogueObligation?.summary
+    input.replyDeliberation?.whyThisReplyNow
+    ?? input.dialogueWorldThread?.currentQuestion
+    ?? input.dialogueWorldThread?.activeThread
+    ?? input.dialogueObligation?.summary
     ?? input.dialogueSemantics?.summary
     ?? reflection?.revision
     ?? input.executiveCycle?.currentLine
@@ -263,8 +374,13 @@ function openingMove(input: {
   act: AlicizationAnswerAct
   evidenceMode: AlicizationAnswerEvidenceMode
   dialogueObligation?: AlicizationDialogueObligation | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
-  if (input.dialogueObligation?.mustRepairFirst)
+  if (input.replyDeliberation?.openingBeat)
+    return input.replyDeliberation.openingBeat
+  if (input.evidenceMode === 'dialogue-grounded')
+    return 'Open by answering the host’s real subject directly, and only mention the screen if it truly matters.'
+  if (input.dialogueObligation?.mustRepairFirst && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
     return 'Open by repairing the truth seam before you do anything else.'
   if (input.act === 'correct-stale-anchor')
     return 'Open by correcting the carried anchor before giving any new interpretation.'
@@ -288,14 +404,33 @@ function answerIntent(input: {
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
   const concern = governingConcern(input.concernContinuity)
   const repair = governingRepair(input.repairLedger)
+  if (input.replyDeliberation?.whyThisReplyNow)
+    return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'Answer from the inner reply decision that best fits the living seam.'
+  if (input.dialogueWorldThread?.currentQuestion)
+    return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'Pay off the current unresolved dialogue seam.'
+  if (
+    input.dialogueFocus
+    && input.dialogueFocus.screenReferenceMode === 'avoid'
+  ) {
+    return sanitizeText(
+      input.dialogueObligation?.summary
+      || input.dialogueFocus.focusSummary
+      || input.dialogueSemantics?.summary
+      || 'Answer the host directly from living continuity instead of screen residue.',
+      160,
+    ) || 'Answer the host directly from living continuity instead of screen residue.'
+  }
   if (input.dialogueObligation?.kind === 'teach')
     return sanitizeText(input.dialogueObligation.summary, 160) || 'Teach from the host’s actual knot, not from generic lecture flow.'
   if (input.dialogueObligation?.kind === 'guide')
     return sanitizeText(input.dialogueObligation.summary, 160) || 'Guide from the concrete knot the host is asking about now.'
-  if (input.dialogueObligation?.kind === 'repair')
+  if (input.dialogueObligation?.kind === 'repair' && (input.act === 'correct-stale-anchor' || input.act === 'ask-reground'))
     return sanitizeText(input.dialogueObligation.summary, 160) || 'Repair the truth seam before continuing.'
   if (input.dialogueObligation?.kind === 'care')
     return sanitizeText(input.dialogueObligation.summary, 160) || 'Care for the host in a way that still answers the present turn.'
@@ -320,11 +455,18 @@ function buildMustDo(input: {
   shouldAskForGrounding: boolean
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
   const rows = [
     'Let the executive answer plan outrank persona flourish and older recalled residue.',
     'Answer the host’s current move, not the nearest remembered topic.',
   ]
+  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+    rows.push(
+      'Treat the screen as background unless the host explicitly turns this reply back toward it.',
+      'Let self, relationship, or host-state continuity carry the opening answer when that is the real subject.',
+    )
+  }
   if (input.dialogueObligation?.mustAnswerDirectly) {
     rows.push('Treat the first sentence as fulfillment of the current obligation, not as a runway for atmosphere.')
   }
@@ -371,12 +513,18 @@ function buildMustNotDo(input: {
   evidenceMode: AlicizationAnswerEvidenceMode
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
   const rows = [
     'Do not let affectionate or theatrical language outrun the truth boundary.',
     'Do not reuse stale page names, old screenshots, or old window titles as if they are current facts.',
     'Do not answer a nearby remembered concern if the host is asking for something else right now.',
   ]
+  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+    rows.push(
+      'Do not open with grounding disclaimers, live-screen caveats, or desktop narration when the host is not asking about the screen.',
+    )
+  }
   if (input.dialogueObligation?.personaKernelMode !== 'full') {
     rows.push('Do not let persona mannerisms become the spine of the reply for this turn.')
   }
@@ -411,13 +559,94 @@ export function buildAnswerPlanner(input: {
   inspectionRequested: boolean
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  mindSynthesis?: AlicizationMindSynthesisSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  groundedThisTurn?: boolean
 }): AlicizationAnswerPlannerSnapshot {
+  const selectedConcern = governingConcern(input.concernContinuity)
+  const selectedRepair = governingRepair(input.repairLedger)
+  const selectedCommitment = governingCommitment(input.commitmentLedger)
+  const selectedInquiry = activeInquiryPlan(input.inquiryPlanner)
+  const selectedProject = dominantProject(input.intentionStream)
+  const selectedReflection = latestReflection(input.reflectionLedger)
+
+  if (input.answerCompiler) {
+    const focus = sanitizeText(
+      pickUserFacingAnchor(
+        input.replyDeliberation?.whyThisReplyNow,
+        input.dialogueWorldThread?.currentQuestion,
+        input.answerCompiler.openingClaim,
+        input.conversationState?.activeProject,
+        input.discourseState?.currentTurnSummary,
+        input.dialogueFocus?.focusSummary,
+        input.dialogueObligation?.summary,
+        input.mindSynthesis?.openingIntent,
+        input.mindSynthesis?.interiorSummary,
+      ),
+      220,
+    ) || 'Stay with the current compiled turn spine.'
+    const shouldAskForGrounding = input.groundedThisTurn === true
+      ? false
+      : input.answerCompiler.recommendedAct === 'ask-reground'
+        || input.answerCompiler.evidenceMode === 'repair-first'
+    const shouldAcknowledgeRepair = input.answerCompiler.turnMode === 'screen-repair'
+      || input.answerCompiler.recommendedAct === 'correct-stale-anchor'
+      || input.answerCompiler.recommendedAct === 'ask-reground'
+
+    return {
+      act: input.answerCompiler.recommendedAct,
+      evidenceMode: input.answerCompiler.evidenceMode,
+      confidence: input.answerCompiler.confidence,
+      governingFocus: focus,
+      openingMove: input.replyDeliberation?.openingBeat ?? input.answerCompiler.openingDirective,
+      answerIntent: sanitizeText(
+        pickUserFacingAnchor(
+          input.dialogueWorldThread?.currentQuestion,
+          input.conversationState?.activeProject,
+          input.answerCompiler.openingClaim,
+          input.answerCompiler.nextMove,
+          input.discourseState?.currentTurnSummary,
+          input.mindSynthesis?.openingIntent,
+          input.replyDeliberation?.whyThisReplyNow,
+        ),
+        160,
+      ) || input.answerCompiler.openingClaim,
+      relationshipPosture: input.answerCompiler.relationshipPosture,
+      shouldAskForGrounding,
+      shouldAcknowledgeRepair,
+      selectedConcernEntryId: selectedConcern?.id ?? null,
+      selectedRepairId: selectedRepair?.id ?? null,
+      selectedCommitmentId: selectedCommitment?.id ?? null,
+      selectedInquiryPlanId: selectedInquiry?.id ?? null,
+      selectedRuntimeThreadId: input.worldModel?.activeThread?.id ?? null,
+      selectedProjectId: selectedProject?.id ?? null,
+      selectedReflectionId: selectedReflection?.id ?? null,
+      executivePhase: input.executiveCycle?.phase ?? null,
+      selectedTruthFrame: input.worldOntology?.dominantFrame ?? null,
+      mustDo: [...input.answerCompiler.mustDo],
+      mustNotDo: [...input.answerCompiler.mustNotDo],
+      narrative: [
+        ...input.answerCompiler.narrative,
+        input.discourseState ? `compiled-subject:${input.discourseState.currentTurnSubject}` : '',
+        focus,
+      ].filter(Boolean),
+      updatedAt: input.now,
+    } satisfies AlicizationAnswerPlannerSnapshot
+  }
+
   const mode = evidenceMode({
     currentScene: input.currentScene,
     worldModel: input.worldModel,
     worldOntology: input.worldOntology,
     concernContinuity: input.concernContinuity,
     repairLedger: input.repairLedger,
+    dialogueFocus: input.dialogueFocus,
+    groundedThisTurn: input.groundedThisTurn === true,
   })
   const act = answerAct({
     evidenceMode: mode,
@@ -433,6 +662,8 @@ export function buildAnswerPlanner(input: {
     inspectionRequested: input.inspectionRequested,
     dialogueSemantics: input.dialogueSemantics,
     dialogueObligation: input.dialogueObligation,
+    dialogueFocus: input.dialogueFocus,
+    groundedThisTurn: input.groundedThisTurn === true,
   })
   const posture = relationshipPosture({
     act,
@@ -443,19 +674,17 @@ export function buildAnswerPlanner(input: {
     executiveCycle: input.executiveCycle,
     dialogueObligation: input.dialogueObligation,
   })
-  const selectedConcern = governingConcern(input.concernContinuity)
-  const selectedRepair = governingRepair(input.repairLedger)
-  const selectedCommitment = governingCommitment(input.commitmentLedger)
-  const selectedInquiry = activeInquiryPlan(input.inquiryPlanner)
-  const selectedProject = dominantProject(input.intentionStream)
-  const selectedReflection = latestReflection(input.reflectionLedger)
   const shouldAskForGrounding
-    = act === 'ask-reground'
-      || Boolean(selectedInquiry?.askForGrounding && (mode === 'repair-first' || mode === 'continuity-carry'))
+    = input.groundedThisTurn === true
+      ? false
+      : act === 'ask-reground'
+        || Boolean(selectedInquiry?.askForGrounding && (mode === 'repair-first' || mode === 'continuity-carry'))
   const shouldAcknowledgeRepair
-    = act === 'correct-stale-anchor'
-      || act === 'ask-reground'
-      || Boolean(selectedRepair && selectedRepair.kind !== 'present-tense-boundary')
+    = input.groundedThisTurn === true && act !== 'correct-stale-anchor' && act !== 'ask-reground'
+      ? false
+      : act === 'correct-stale-anchor'
+        || act === 'ask-reground'
+        || Boolean(selectedRepair && selectedRepair.kind !== 'present-tense-boundary')
   const focus = governingFocus({
     worldModel: input.worldModel,
     concernContinuity: input.concernContinuity,
@@ -468,6 +697,8 @@ export function buildAnswerPlanner(input: {
     privateThought: input.privateThought,
     dialogueObligation: input.dialogueObligation,
     dialogueSemantics: input.dialogueSemantics,
+    dialogueWorldThread: input.dialogueWorldThread,
+    replyDeliberation: input.replyDeliberation,
   })
 
   return {
@@ -488,6 +719,7 @@ export function buildAnswerPlanner(input: {
       act,
       evidenceMode: mode,
       dialogueObligation: input.dialogueObligation,
+      replyDeliberation: input.replyDeliberation,
     }),
     answerIntent: answerIntent({
       act,
@@ -496,6 +728,9 @@ export function buildAnswerPlanner(input: {
       repairLedger: input.repairLedger,
       dialogueObligation: input.dialogueObligation,
       dialogueSemantics: input.dialogueSemantics,
+      dialogueFocus: input.dialogueFocus,
+      dialogueWorldThread: input.dialogueWorldThread,
+      replyDeliberation: input.replyDeliberation,
     }),
     relationshipPosture: posture,
     shouldAskForGrounding,
@@ -515,17 +750,21 @@ export function buildAnswerPlanner(input: {
       shouldAskForGrounding,
       dialogueSemantics: input.dialogueSemantics,
       dialogueObligation: input.dialogueObligation,
+      dialogueFocus: input.dialogueFocus,
     }),
     mustNotDo: buildMustNotDo({
       act,
       evidenceMode: mode,
       dialogueSemantics: input.dialogueSemantics,
       dialogueObligation: input.dialogueObligation,
+      dialogueFocus: input.dialogueFocus,
     }),
     narrative: [
       `answer_act:${act}`,
       `evidence_mode:${mode}`,
       `relationship_posture:${posture}`,
+      input.dialogueFocus?.subject ? `focus_subject:${input.dialogueFocus.subject}` : '',
+      input.dialogueFocus?.screenReferenceMode ? `screen_reference:${input.dialogueFocus.screenReferenceMode}` : '',
       input.dialogueSemantics?.act ? `dialogue_act:${input.dialogueSemantics.act}` : '',
       input.dialogueObligation?.kind ? `dialogue_obligation:${input.dialogueObligation.kind}` : '',
       input.executiveCycle?.phase ? `executive_phase:${input.executiveCycle.phase}` : '',

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
+import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
@@ -42,6 +42,7 @@ import {
   alicizationChatStreamDispatchChannel,
   alicizationChatStreamError,
   alicizationChatStreamFinish,
+  alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
   alicizationChatStreamToolResult,
   alicizationDialogueResponded,
@@ -702,6 +703,18 @@ function handleAlicizationChatStreamChunk(payload?: AlicizationChatStreamChunkEv
   })
 }
 
+function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
+  if (!payload)
+    return
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
+  if (!pending)
+    return
+  void pending.onStreamEvent?.({
+    type: 'meta',
+    governance: payload.governance ?? null,
+  })
+}
+
 function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEvent) {
   if (!payload)
     return
@@ -825,6 +838,9 @@ function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDisp
   if (!payload)
     return
   switch (payload.eventType) {
+    case 'meta':
+      handleAlicizationChatStreamMeta(payload.body)
+      return
     case 'chunk':
       handleAlicizationChatStreamChunk(payload.body)
       return
@@ -1116,6 +1132,10 @@ context.value.on(alicizationSafetyPermissionRequested, (event) => {
 
 context.value.on(alicizationChatStreamChunk, (event) => {
   handleAlicizationChatStreamChunk(event?.body)
+})
+
+context.value.on(alicizationChatStreamMeta, (event) => {
+  handleAlicizationChatStreamMeta(event?.body)
 })
 
 context.value.on(alicizationChatStreamToolCall, (event) => {

@@ -4,7 +4,20 @@ import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
 } from '../stores/alicization-bridge'
-import { buildMindGovernedFallbackSurface } from './alicization-mind-fallback'
+import {
+  buildGovernedMindThought,
+  buildMindGovernedFallbackSurface,
+  replyLeaksGovernedMindSurface,
+  replyLooksCoherentSceneAnswer,
+  replyLooksThinGovernedShell,
+  resolveGovernedMindEmotion,
+  resolveGovernedMindObligation,
+  resolveGovernedMindTone,
+  resolveGovernedMindTruth,
+  shouldDeferGovernedMindLocalRepair,
+  shouldForceGovernedMindSurface,
+  shouldPreserveDialogueFirstVisibleReply,
+} from './alicization-mind-fallback'
 
 const sentimentLexiconPositive = [
   '谢谢',
@@ -492,6 +505,28 @@ function thoughtHasMindSpine(thought: string) {
   return thoughtMindSpineMarkers.every(marker => normalized.includes(marker))
 }
 
+function readThoughtMarker(thought: string, key: typeof thoughtMindSpineMarkers[number]) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = thought.match(new RegExp(`${escaped}\\s*([^;\\n]+)`, 'i'))
+  return match?.[1]?.trim().toLowerCase() ?? ''
+}
+
+function thoughtConflictsWithGovernance(thought: string, governance: AlicizationMindTurnGovernance) {
+  if (!thoughtHasMindSpine(thought))
+    return true
+
+  const expectedObligation = resolveGovernedMindObligation(governance)
+  const expectedTruth = resolveGovernedMindTruth(governance)
+  const expectedTone = resolveGovernedMindTone(governance)
+
+  return readThoughtMarker(thought, 'obligation=') !== expectedObligation
+    || readThoughtMarker(thought, 'truth=') !== expectedTruth
+    || (
+      (governance.relationshipPosture === 'restrained' || governance.repairState !== 'none')
+      && readThoughtMarker(thought, 'tone=') !== expectedTone
+    )
+}
+
 export function sanitizeStructuredReplySurface(reply: string) {
   return reply
     .replace(stageDirectionPattern, ' ')
@@ -653,6 +688,13 @@ export function repairStructuredContractLocally(input: {
   if (input.validationIssues.length === 0)
     return null
 
+  if (
+    input.validationIssues.some(issue => issue.code === 'json-contract-missing')
+    && shouldDeferGovernedMindLocalRepair(input.governance)
+  ) {
+    return null
+  }
+
   const allowedCodes = new Set<StructuredValidationIssueCode>([
     'json-contract-missing',
     'thought-missing-mind-spine',
@@ -668,8 +710,23 @@ export function repairStructuredContractLocally(input: {
         translate: input.translate,
       })
     : null
-  const reply = governedSurface?.reply
-    || sanitizeStructuredReplySurface(input.structured.reply.trim() || input.fallbackReply?.trim() || '')
+  const normalizedVisibleReply = sanitizeStructuredReplySurface(input.structured.reply.trim() || input.fallbackReply?.trim() || '')
+  const strictSurface = shouldForceGovernedMindSurface(input.governance)
+  const leakedGovernedSurface = replyLeaksGovernedMindSurface(normalizedVisibleReply, input.governance)
+  const preserveSceneReply = replyLooksCoherentSceneAnswer({
+    reply: normalizedVisibleReply,
+    governance: input.governance,
+    userText: input.userText,
+  })
+  const preserveVisibleReply = Boolean(
+    normalizedVisibleReply
+    && !leakedGovernedSurface
+    && (!strictSurface || preserveSceneReply),
+  )
+  const reply = preserveVisibleReply
+    ? normalizedVisibleReply
+    : governedSurface?.reply
+      || normalizedVisibleReply
   if (!reply)
     return null
 
@@ -692,6 +749,192 @@ export function repairStructuredContractLocally(input: {
     format: 'mind-turn-v1',
     parsePath: 'repair-json',
     repairTimedOut: false,
+  }
+}
+
+export function enforceGovernedMindTurn(input: {
+  structured: StructuredOutputResult & { contractFailed?: boolean }
+  governance?: AlicizationMindTurnGovernance | null
+  personalityState?: StructuredValidationPersonalityState | null
+  preferGroundedEvidence?: boolean
+  fallbackReply?: string
+  userText?: string
+  translate?: (path: string, params?: Record<string, unknown>) => string
+}): StructuredOutputResult & { contractFailed?: boolean } {
+  const baseReply = sanitizeStructuredReplySurface(
+    input.structured.reply.trim()
+    || input.fallbackReply?.trim()
+    || '',
+  )
+  const normalizedStructured = {
+    ...input.structured,
+    reply: baseReply || input.structured.reply.trim() || input.fallbackReply?.trim() || '',
+  }
+
+  if (!input.governance)
+    return normalizedStructured
+
+  const governedThought = buildGovernedMindThought({
+    governance: input.governance,
+    userText: input.userText,
+  })
+  const governedEmotion = normalizeAlicizationEmotion(
+    resolveGovernedMindEmotion(input.governance),
+  ).emotion
+  const needsThoughtRepair = thoughtConflictsWithGovernance(
+    normalizedStructured.thought,
+    input.governance,
+  )
+  const deferVisibleRepair = shouldDeferGovernedMindLocalRepair(input.governance)
+  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(input.governance)
+  const shouldForceSurface = shouldForceGovernedMindSurface(input.governance)
+  const leakedGovernedSurface = replyLeaksGovernedMindSurface(
+    normalizedStructured.reply,
+    input.governance,
+  )
+  const governedSurface = input.translate
+    ? buildMindGovernedFallbackSurface({
+        governance: input.governance,
+        userText: input.userText,
+        translate: input.translate,
+      })
+    : null
+  const thinGovernedShell = governedSurface
+    ? replyLooksThinGovernedShell(
+        normalizedStructured.reply,
+        governedSurface.reply,
+        input.governance,
+        governedSurface.thinShellCue,
+      )
+    : false
+  const coherentSceneReply = replyLooksCoherentSceneAnswer({
+    reply: normalizedStructured.reply,
+    governance: input.governance,
+    userText: input.userText,
+  })
+
+  const shouldOverrideVisibleReply = shouldForceSurface
+    ? leakedGovernedSurface
+    || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
+    || !coherentSceneReply
+    : leakedGovernedSurface
+      || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
+
+  if (shouldOverrideVisibleReply) {
+    const reply = governedSurface?.reply
+      || normalizedStructured.reply
+      || input.fallbackReply?.trim()
+      || ''
+    const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? governedEmotion).emotion
+    return {
+      ...normalizedStructured,
+      thought: governedSurface?.thought ?? governedThought,
+      emotion,
+      reply,
+      performance: normalizeAlicizationPerformancePayload(
+        governedSurface ? undefined : normalizedStructured.performance,
+        emotion,
+      ),
+      format: 'mind-turn-v1',
+      parsePath: 'repair-json',
+      repairTimedOut: false,
+      contractFailed: false,
+    }
+  }
+
+  const normalizedFormat = typeof normalizedStructured.format === 'string'
+    ? normalizedStructured.format.trim().toLowerCase()
+    : ''
+  const validationIssues: StructuredValidationIssue[] = []
+  if (
+    normalizedStructured.contractFailed === true
+    || !normalizedFormat
+    || normalizedFormat === 'fallback-v1'
+    || normalizedFormat === 'epoch1-v1'
+  ) {
+    validationIssues.push({
+      code: 'json-contract-missing',
+      message: 'Mind-governed turn must settle into mind-turn-v1 before it can be surfaced.',
+    })
+  }
+  if (!thoughtHasMindSpine(normalizedStructured.thought)) {
+    validationIssues.push({
+      code: 'thought-missing-mind-spine',
+      message: 'Mind-governed turn must carry obligation/truth/focus/move/tone markers.',
+    })
+  }
+  else if (needsThoughtRepair) {
+    validationIssues.push({
+      code: 'thought-missing-mind-spine',
+      message: 'Mind-governed turn thought markers no longer match the governing turn charter.',
+    })
+  }
+  if (sanitizeStructuredReplySurface(normalizedStructured.reply) !== normalizedStructured.reply.trim()) {
+    validationIssues.push({
+      code: 'reply-surface-roleplay-residue',
+      message: 'Mind-governed turn cannot keep decorative roleplay residue on the reply surface.',
+    })
+  }
+
+  if (validationIssues.length === 0) {
+    return {
+      ...normalizedStructured,
+      thought: needsThoughtRepair ? governedThought : normalizedStructured.thought,
+      emotion: governedEmotion,
+      format: 'mind-turn-v1' as const,
+      contractFailed: false,
+    }
+  }
+
+  const repaired = repairStructuredContractLocally({
+    structured: normalizedStructured,
+    validationIssues,
+    personalityState: input.personalityState,
+    preferGroundedEvidence: input.preferGroundedEvidence,
+    fallbackReply: normalizedStructured.reply || input.fallbackReply,
+    governance: input.governance,
+    userText: input.userText,
+    translate: input.translate,
+  })
+  if (repaired) {
+    return {
+      ...repaired,
+      contractFailed: false,
+    }
+  }
+
+  const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? normalizedStructured.emotion).emotion
+  const reply = deferVisibleRepair
+    ? (
+        normalizedStructured.reply
+        || input.fallbackReply?.trim()
+        || governedSurface?.reply
+        || ''
+      )
+    : (
+        governedSurface?.reply
+        || normalizedStructured.reply
+        || input.fallbackReply?.trim()
+        || ''
+      )
+
+  return {
+    ...normalizedStructured,
+    thought: governedSurface?.thought
+      ?? governedThought
+      ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
+    emotion,
+    reply,
+    performance: normalizeAlicizationPerformancePayload(
+      governedSurface
+        ? undefined
+        : normalizedStructured.performance,
+      emotion,
+    ),
+    format: 'mind-turn-v1',
+    parsePath: 'repair-json',
+    repairTimedOut: false,
+    contractFailed: false,
   }
 }
 

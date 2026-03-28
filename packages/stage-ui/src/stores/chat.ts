@@ -14,10 +14,10 @@ import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { ref, toRaw } from 'vue'
 
-import { applyPromptBudget, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
+import { applyPromptBudget, compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay, sanitizeForRemoteModel } from '../composables/alicization-guardrails'
 import { composeAlicizationPromptMessages } from '../composables/alicization-prompt-composer'
 import { detectRealtimeQueryIntent } from '../composables/alicization-realtime-query'
-import { normalizeStructuredOutput, repairStructuredContractLocally, sanitizeStructuredReplySurface, validateStructuredContract } from '../composables/alicization-structured-output'
+import { enforceGovernedMindTurn, normalizeStructuredOutput, repairStructuredContractLocally, sanitizeStructuredReplySurface, validateStructuredContract } from '../composables/alicization-structured-output'
 import { abortAlicizationTurns, completeAlicizationTurnAbort, isAlicizationAbortError, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
@@ -986,6 +986,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
+    let turnMindGovernance: AlicizationMindTurnGovernance | null = null
 
     const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
       stagedAssistantResolution = resolution
@@ -1129,7 +1130,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         message: sendingMessage,
         recentMessages: sessionMessagesForSend.slice(0, -1),
       })
-      const preferLocalContractRepair = hasVisualAttachment || inspectionLikeTurn
+      const preferLocalContractRepair = hasVisualAttachment || inspectionLikeTurn || Boolean(turnMindGovernance)
       const strictEpoch1Mode = alicizationEpoch1StrictModeEnabled && hasAlicizationBridge()
       const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'
         ? detectRealtimeQueryIntent(sendingMessage)
@@ -1362,7 +1363,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const categorizer = createStreamingCategorizer(activeProvider.value)
       let streamPosition = 0
       let turnPersonalityState: AlicizationPersonalityState | null = null
-      let turnMindGovernance: AlicizationMindTurnGovernance | null = null
       let streamSpeechMode: 'undecided' | 'plain' | 'structured-json' = 'undecided'
       let streamSpeechPrelude = ''
 
@@ -1434,6 +1434,21 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               'Rewrite the draft assistant output into strict JSON contract.',
               `User input:\n${sendingMessage}`,
               `Assistant draft:\n${payload.reply || payload.fullText}`,
+              turnMindGovernance
+                ? `Mind governance snapshot (must preserve exactly):\n${JSON.stringify({
+                  turnMode: turnMindGovernance.turnMode,
+                  truthState: turnMindGovernance.truthState,
+                  answerAct: turnMindGovernance.answerAct,
+                  screenReferenceMode: turnMindGovernance.screenReferenceMode,
+                  answerIntent: turnMindGovernance.answerIntent,
+                  openingMove: turnMindGovernance.openingMove,
+                  carriedThread: turnMindGovernance.carriedThread,
+                  shouldAskForGrounding: turnMindGovernance.shouldAskForGrounding,
+                  shouldAcknowledgeRepair: turnMindGovernance.shouldAcknowledgeRepair,
+                  maxSentences: turnMindGovernance.maxSentences,
+                  embodiedPresence: turnMindGovernance.embodiedPresence,
+                })}`
+                : '',
               `Current personality state:\n${formatTurnPersonalityState()}`,
               `Violations to fix:\n${payload.validationIssues.map((issue, index) => `${index + 1}. ${issue.message}`).join('\n')}`,
               isLowObedienceDeniedTurn()
@@ -1669,6 +1684,51 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         return fallback
       }
 
+      const finalizeGovernedStructuredOutput = async (
+        structured: StructuredWithContract,
+        fallbackReply?: string,
+      ): Promise<StructuredWithContract> => {
+        const governed = enforceGovernedMindTurn({
+          structured,
+          governance: turnMindGovernance,
+          personalityState: turnPersonalityState,
+          preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+          fallbackReply,
+          userText: sendingMessage,
+          translate: stageChatText,
+        })
+
+        if (
+          turnMindGovernance
+          && (
+            governed.format !== structured.format
+            || governed.thought !== structured.thought
+            || governed.reply !== structured.reply
+            || governed.emotion !== structured.emotion
+          )
+        ) {
+          await appendAlicizationAuditLog({
+            level: 'notice',
+            category: 'alicization.structured',
+            action: 'mind-turn-governed',
+            message: 'Mind governance took over the final assistant structured surface before persistence.',
+            details: {
+              sessionId,
+              turnId,
+              previousFormat: structured.format ?? 'unknown',
+              nextFormat: governed.format,
+              turnMode: turnMindGovernance.turnMode,
+              repairState: turnMindGovernance.repairState,
+              changedThought: governed.thought !== structured.thought,
+              changedReply: governed.reply !== structured.reply,
+              changedEmotion: governed.emotion !== structured.emotion,
+            },
+          })
+        }
+
+        return governed
+      }
+
       const applyAssistantResult = async (payload: {
         fullText: string
         reasoning: string
@@ -1691,68 +1751,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         if (payload.policyLocked) {
           structured.policyLocked = payload.policyLocked
         }
-        const finalReply = structured.reply.trim() || payload.reply
+        const governedStructured = await finalizeGovernedStructuredOutput(structured, nonContractReply)
+        const finalReply = governedStructured.reply.trim() || payload.reply
 
         return setStagedAssistantResolution({
           categorization: {
             speech: finalReply,
             reasoning: payload.reasoning,
           },
-          structured,
+          structured: governedStructured,
           reply: finalReply,
-        })
-      }
-
-      const appendConversationTurnRecord = async (assistantText: string) => {
-        if (!hasAlicizationBridge())
-          return
-
-        if (abortSignal.aborted || shouldAbort()) {
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'kill-switch',
-            action: 'turn-write-skipped-aborted',
-            message: 'Skipped conversation turn persistence because current turn was aborted.',
-            details: {
-              sessionId,
-              turnId,
-            },
-          })
-          return
-        }
-
-        await getAlicizationBridge().appendConversationTurn({
-          turnId,
-          sessionId,
-          userText: sendingMessage,
-          assistantText,
-          structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
-          createdAt: Date.now(),
-        }).catch(async (error) => {
-          if (isAlicizationAbortError(error) || abortSignal.aborted || shouldAbort()) {
-            await appendAlicizationAuditLog({
-              level: 'notice',
-              category: 'kill-switch',
-              action: 'turn-write-skipped-aborted',
-              message: 'Dropped conversation turn persistence due to abort in runtime write queue.',
-              details: {
-                sessionId,
-                turnId,
-              },
-            })
-            return
-          }
-
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'conversation',
-            action: 'append-turn-failed',
-            message: 'Failed to persist conversation turn into SQLite.',
-            details: {
-              sessionId,
-              reason: error instanceof Error ? error.message : String(error),
-            },
-          })
         })
       }
 
@@ -1780,7 +1788,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const assistantOutputText = await commitAssistantResolution()
         persistBuiltAssistantMessage()
         assistantOutputCommitted = true
-        await appendConversationTurnRecord(assistantOutputText)
+        if (hasAlicizationBridge()) {
+          await getAlicizationBridge().appendConversationTurn({
+            turnId,
+            sessionId,
+            userText: sendingMessage,
+            assistantText: assistantOutputText,
+            structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            governance: turnMindGovernance,
+            createdAt: Date.now(),
+          }).catch(() => {})
+        }
         await emitAssistantTurnHooks(assistantOutputText)
 
         if (isForegroundSession()) {
@@ -1988,6 +2006,24 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         return rawMessage
       })
+      const promptAssembly = compactMessagesForPromptAssembly(newMessages as Message[])
+      newMessages = promptAssembly.messages as any
+      if (promptAssembly.report.afterCount < promptAssembly.report.beforeCount) {
+        await appendAlicizationAuditLog({
+          level: 'notice',
+          category: 'alicization.prompt',
+          action: 'assembly-compacted',
+          message: 'Compacted dialogue history before Alicization prompt composition to preserve current mind context.',
+          details: {
+            beforeCount: promptAssembly.report.beforeCount,
+            afterCount: promptAssembly.report.afterCount,
+            beforeTokens: promptAssembly.report.beforeTokens,
+            afterTokens: promptAssembly.report.afterTokens,
+            droppedMessageCount: promptAssembly.report.droppedMessageCount,
+            retainedUserTurns: promptAssembly.report.retainedUserTurns,
+          },
+        })
+      }
 
       const contextsSnapshot = chatContext.getContextsSnapshot()
       if (hasAlicizationBridge()) {
@@ -2648,6 +2684,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             userText: sendingMessage,
             assistantText: assistantOutputText,
             structured: buildingMessage.structured ? { ...buildingMessage.structured } : undefined,
+            governance: turnMindGovernance,
             createdAt: Date.now(),
           }).catch(() => {})
         }
