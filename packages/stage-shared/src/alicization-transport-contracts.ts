@@ -171,6 +171,7 @@ export interface AlicizationMindTurnFrameSnapshot {
 }
 
 export interface AlicizationMindTurnGovernance {
+  decisionTraceId?: string | null
   turnMode: AlicizationMindTurnMode
   truthState: AlicizationMindTruthState
   groundedThisTurn?: boolean

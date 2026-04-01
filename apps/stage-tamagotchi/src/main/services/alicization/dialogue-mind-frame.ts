@@ -207,6 +207,7 @@ export function buildDialogueMindFrameSystemBlock(input: {
     'This block is the authoritative speaking mind for the current turn. Speak from it as one living subject. Supporting blocks may clarify facts, but they must not replace this frame.',
     '',
     'Current position:',
+    governance.decisionTraceId ? `- Decision trace: ${governance.decisionTraceId}.` : '',
     `- ${describeSubject(governance.answerSubject ?? frame?.relation.subject)}`,
     `- ${describeTurnMode(governance.turnMode)}`,
     focus ? `- The focus to pay off now is: ${focus}.` : '',

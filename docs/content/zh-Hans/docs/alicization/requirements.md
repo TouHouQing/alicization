@@ -277,6 +277,7 @@ Alicization（Artificial Labile Intelligent Cybernated Existence）定位为：
 - P0：运行时主权、跨进程契约真源、Card Scope 一致性、Browser Bridge 语义对齐、异步记忆抽取非阻塞。
 - P1：对话心智链闭环（`dialogueTurnEncounter`、`currentConsciousFrame`、`claimEvidenceLedger`）必须进入治理与状态快照。
 - P2：回答面真值纪律（`responseCharter`、`responseSurfaceContract`）必须可执行，并对不支持细节与空壳回复执行硬拦截与审计。
+- P3：可追溯心智治理（`decisionTraceId` 全链路、统一 truth-discipline reducer、接管审计可复盘）必须成为默认工程约束。
 
 治理要求：
 

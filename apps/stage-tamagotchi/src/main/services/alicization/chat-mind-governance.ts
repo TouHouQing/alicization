@@ -21,6 +21,8 @@ import type { AlicizationResponseSurfaceContract } from './response-surface-cont
 
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { ensureMindGovernanceDecisionTraceId } from './mind-governance-trace'
+import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -188,6 +190,7 @@ export function buildAlicizationMindTurnGovernance(input: {
   dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   groundedThisTurn?: boolean
+  decisionTraceId?: string | null
 }): AlicizationMindTurnGovernance {
   const dialogueFocus = input.dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const frame = input.mindTurnFrame ?? null
@@ -239,20 +242,53 @@ export function buildAlicizationMindTurnGovernance(input: {
       return normalized
     return anchorsMateriallyConflict(normalized, dominantAnchor) ? '' : normalized
   }
+  const turnMode = frame?.obligation.turnMode ?? input.kernel?.turnMode ?? input.brief.turnMode
+  const answerSubject = frame?.relation.subject
+    ?? input.kernel?.subject
+    ?? input.answerCompiler?.answerSubject
+    ?? input.discourseState?.currentTurnSubject
+    ?? input.dialogueEncounter?.subject
+    ?? dialogueFocus?.subject
+    ?? null
+  const answerAct = frame?.obligation.answerAct
+    ?? input.kernel?.speechAct
+    ?? input.answerCompiler?.recommendedAct
+    ?? input.answerPlanner?.act
+    ?? null
+  const evidenceMode = input.kernel?.truthMode === 'memory-only'
+    ? input.answerCompiler?.evidenceMode ?? input.answerPlanner?.evidenceMode ?? null
+    : input.kernel?.truthMode ?? input.answerCompiler?.evidenceMode ?? input.answerPlanner?.evidenceMode ?? null
+  const truthDiscipline = deriveAlicizationTruthDiscipline({
+    answerSubject,
+    screenReferenceMode,
+    truthState,
+    turnMode,
+    repairState,
+    evidenceMode,
+    labelCarryAsMemory: frame?.memory.labelCarryAsMemory
+      ?? input.recallGovernor?.carryAsMemory
+      ?? input.answerCompiler?.labelCarryAsMemory
+      ?? input.surfaceContract.labelCarryAsMemory,
+    suppressAssociativeRecall: frame?.memory.suppressAssociativeRecall
+      ?? input.recallGovernor?.suppressAssociativeRecall
+      ?? input.answerCompiler?.suppressAssociativeRecall
+      ?? input.surfaceContract.suppressAssociativeRecall,
+    currentConsciousFrame: null,
+    claimEvidenceLedger: input.claimEvidenceLedger ?? null,
+  })
 
   return {
-    turnMode: frame?.obligation.turnMode ?? input.kernel?.turnMode ?? input.brief.turnMode,
+    decisionTraceId: ensureMindGovernanceDecisionTraceId(input.decisionTraceId),
+    turnMode,
     truthState,
     groundedThisTurn,
     personaKernelMode: input.surfaceContract.personaKernelMode,
     openingStyle: input.surfaceContract.openingStyle,
     relationshipPosture: frame?.relation.relationshipPosture ?? input.charter.relationshipPosture,
-    answerSubject: frame?.relation.subject ?? input.kernel?.subject ?? input.answerCompiler?.answerSubject ?? input.discourseState?.currentTurnSubject ?? input.dialogueEncounter?.subject ?? dialogueFocus?.subject ?? null,
+    answerSubject,
     screenReferenceMode,
-    answerAct: frame?.obligation.answerAct ?? input.kernel?.speechAct ?? input.answerCompiler?.recommendedAct ?? input.answerPlanner?.act ?? null,
-    evidenceMode: input.kernel?.truthMode === 'memory-only'
-      ? input.answerCompiler?.evidenceMode ?? input.answerPlanner?.evidenceMode ?? null
-      : input.kernel?.truthMode ?? input.answerCompiler?.evidenceMode ?? input.answerPlanner?.evidenceMode ?? null,
+    answerAct,
+    evidenceMode,
     repairState,
     liveSurface: sanitizeUserFacingCandidate(frame?.world.visibleSurface ?? input.brief.liveSurface) || null,
     focusAnchor: dominantAnchor
@@ -305,7 +341,7 @@ export function buildAlicizationMindTurnGovernance(input: {
       ?? input.answerPlanner?.openingMove
       ?? input.answerCompiler?.openingDirective,
     ) || null,
-    carriedThread: screenReferenceMode === 'avoid'
+    carriedThread: truthDiscipline.shouldBlockScreenCarry
       ? null
       : (() => {
           const carry = sanitizeSemanticAnchorCandidate(
@@ -319,7 +355,7 @@ export function buildAlicizationMindTurnGovernance(input: {
             return null
           return carry
         })(),
-    suppressAssociativeRecall: frame?.memory.suppressAssociativeRecall ?? input.recallGovernor?.suppressAssociativeRecall ?? input.answerCompiler?.suppressAssociativeRecall ?? input.surfaceContract.suppressAssociativeRecall,
+    suppressAssociativeRecall: truthDiscipline.shouldSuppressAssociativeRecall,
     labelCarryAsMemory: frame?.memory.labelCarryAsMemory ?? input.recallGovernor?.carryAsMemory ?? input.answerCompiler?.labelCarryAsMemory ?? input.surfaceContract.labelCarryAsMemory,
     shouldAskForGrounding: groundedThisTurn
       ? false
@@ -335,27 +371,28 @@ export function buildAlicizationMindTurnGovernance(input: {
     claimEvidence: input.claimEvidenceLedger ?? null,
     mustDo: uniqueList([
       ...anchorCoherence.reasonTags.map(tag => `anchor:${tag}`),
+      ...truthDiscipline.reasonTags.map(tag => `truth:${tag}`),
       ...(frame?.mustDo ?? []),
       ...(input.kernel?.mustSay ?? []),
-      input.claimEvidenceLedger?.shouldLabelHypothesis
+      truthDiscipline.shouldLabelHypothesis
         ? 'Keep direct observation and any hypothesis in separate clauses.'
         : null,
       ...(input.answerCompiler?.mustDo ?? []),
       ...input.brief.mustDo,
       ...input.surfaceContract.mustDo,
       ...(input.answerPlanner?.mustDo ?? []),
-    ]),
+    ], 12),
     mustNotDo: uniqueList([
       ...(frame?.mustNotDo ?? []),
       ...(input.kernel?.mustAvoid ?? []),
-      input.claimEvidenceLedger?.forbidUnsupportedSpecificity
+      truthDiscipline.forbidUnsupportedSpecificity
         ? 'Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.'
         : null,
       ...(input.answerCompiler?.mustNotDo ?? []),
       ...input.brief.mustNotDo,
       ...input.surfaceContract.mustNotDo,
       ...(input.answerPlanner?.mustNotDo ?? []),
-    ]),
+    ], 12),
     mindTurnFrame: frame,
   }
 }

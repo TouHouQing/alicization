@@ -375,3 +375,29 @@ P2 的目标是让“可见回答”受到真值纪律约束，而不是只在�
    - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
+## 13. Alicization P3 强约束（可追溯心智治理）
+
+P3 的目标不是再加一层“更聪明”文案，而是让每个心智决策都可追踪、可复盘、可验证。
+
+1. **Decision Trace ID 全链路贯通**
+   - 每个受治理轮次必须具备 `decisionTraceId`，并跟随 `AlicizationMindTurnGovernance` 在治理生成、结构化落盘、meta 流事件、治理接管审计中全链路保留。
+   - 不允许中途重建治理对象时丢失 trace id。
+
+2. **Truth Discipline 单一归约器**
+   - 回答表面合约（response surface）与 runtime 覆盖判定（reply override）必须复用同一个 truth-discipline 归约器：
+     `deriveAlicizationTruthDiscipline(...)`。
+   - 禁止两套各自演化的条件树导致“合约要求”和“运行时接管”口径漂移。
+
+3. **细节真实性防火墙一致性**
+   - unsupported specificity 判定必须由 claim evidence + truth discipline 共同驱动。
+   - 当 truth discipline 要求禁止伪具体时，runtime 必须进入可审计覆盖路径，且审计记录需包含具体命中 cue。
+
+4. **Dialogue-first 去污染语义一致**
+   - dialogue-first 回答去污染逻辑必须以 truth-discipline 的 `dialogueFirst` 语义为主，不得只依赖单一字段（例如仅 `screenReferenceMode`）做简化判断。
+
+5. **P3 验收测试锚点**
+   - `apps/stage-tamagotchi/src/main/services/alicization/mind-governance-trace.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`

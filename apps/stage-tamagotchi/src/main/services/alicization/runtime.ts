@@ -235,6 +235,7 @@ import { buildIntentionStream } from './intention-stream'
 import { buildLivingWorldState } from './living-world-state'
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindDynamics } from './mind-dynamics'
+import { ensureMindGovernanceDecisionTraceId, sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
 import { buildMindKernel } from './mind-kernel'
 import { stabilizeMindStateInvariants } from './mind-state-invariants'
 import { buildMindSynthesis, buildMindSynthesisSystemBlock } from './mind-synthesizer'
@@ -295,6 +296,7 @@ import {
 } from './subjective-scene-model'
 import { buildThoughtThreads } from './thought-threads'
 import { buildThreadRuntime } from './thread-runtime'
+import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 import { registerDialogueWorldThreadAssistantTurn, settleDialogueWorldThreadOnUserTurn } from './turn-outcome-reducer'
 import {
   buildVisualRecallSeed,
@@ -1693,8 +1695,10 @@ function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGovernanc
   const dialogueActKernel = normalizeDialogueActKernel(candidate.dialogueActKernel)
   const mindTurnFrame = normalizeMindTurnFrame(candidate.mindTurnFrame)
   const claimEvidence = normalizeClaimEvidenceLedger(candidate.claimEvidence)
+  const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(candidate.decisionTraceId)
 
   return {
+    decisionTraceId: decisionTraceId || null,
     turnMode: turnMode as AlicizationMindTurnGovernance['turnMode'],
     truthState: truthState as AlicizationMindTurnGovernance['truthState'],
     groundedThisTurn: candidate.groundedThisTurn === true,
@@ -2488,14 +2492,27 @@ function analyzeUnsupportedTechnicalSpecificity(input: {
       || input.governance.turnMode === 'grounded-inspection'
       || input.governance.turnMode === 'screen-repair'
     )
+  const truthDiscipline = deriveAlicizationTruthDiscipline({
+    answerSubject: input.governance.answerSubject ?? input.governance.mindTurnFrame?.relation.subject ?? null,
+    screenReferenceMode: input.governance.screenReferenceMode ?? null,
+    truthState: input.governance.truthState,
+    turnMode: input.governance.turnMode,
+    repairState: input.governance.repairState,
+    evidenceMode: input.governance.evidenceMode ?? input.governance.claimEvidence?.evidenceMode ?? null,
+    labelCarryAsMemory: input.governance.labelCarryAsMemory,
+    suppressAssociativeRecall: input.governance.suppressAssociativeRecall,
+    claimEvidenceLedger: input.governance.claimEvidence ?? null,
+    currentConsciousFrame: null,
+  })
 
   return {
     replyCues,
     allowedCues,
     unsupportedCues,
+    truthDisciplineMode: truthDiscipline.mode,
     shouldOverride: unsupportedCues.length > 0
       && (
-        input.governance.claimEvidence?.forbidUnsupportedSpecificity === true
+        truthDiscipline.forbidUnsupportedSpecificity
         || screenCentricTurn
       ),
   }
@@ -2506,13 +2523,26 @@ function analyzeDialogueFirstVisibleReply(input: {
   userText?: string
   governance: AlicizationMindTurnGovernance
 }) {
-  if (input.governance.screenReferenceMode !== 'avoid') {
+  const truthDiscipline = deriveAlicizationTruthDiscipline({
+    answerSubject: input.governance.answerSubject ?? input.governance.mindTurnFrame?.relation.subject ?? null,
+    screenReferenceMode: input.governance.screenReferenceMode ?? null,
+    truthState: input.governance.truthState,
+    turnMode: input.governance.turnMode,
+    repairState: input.governance.repairState,
+    evidenceMode: input.governance.evidenceMode ?? input.governance.claimEvidence?.evidenceMode ?? null,
+    labelCarryAsMemory: input.governance.labelCarryAsMemory,
+    suppressAssociativeRecall: input.governance.suppressAssociativeRecall,
+    claimEvidenceLedger: input.governance.claimEvidence ?? null,
+    currentConsciousFrame: null,
+  })
+  if (!truthDiscipline.dialogueFirst) {
     return {
       overlapRatio: 1,
       roleplayPreface: false,
       staleCarryReference: false,
       sceneCueMentions: [] as string[],
       foreignTechnicalCues: [] as string[],
+      truthDisciplineMode: truthDiscipline.mode,
       contaminated: false,
     }
   }
@@ -2563,6 +2593,7 @@ function analyzeDialogueFirstVisibleReply(input: {
     staleCarryReference,
     sceneCueMentions,
     foreignTechnicalCues,
+    truthDisciplineMode: truthDiscipline.mode,
     contaminated: roleplayPreface
       || staleCarryReference
       || (sceneCueMentions.length > 0 && overlapRatio < 0.34)
@@ -2725,8 +2756,15 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
         dialogueActKernel,
       }
     : governance
-  const governedAnchorRepair = reconcileMindGovernanceAnchors(resolvedGovernance, input.userText)
-  const coherentGovernance = governedAnchorRepair.governance
+  const tracedGovernance = {
+    ...resolvedGovernance,
+    decisionTraceId: ensureMindGovernanceDecisionTraceId(resolvedGovernance.decisionTraceId),
+  } satisfies AlicizationMindTurnGovernance
+  const governedAnchorRepair = reconcileMindGovernanceAnchors(tracedGovernance, input.userText)
+  const coherentGovernance = {
+    ...governedAnchorRepair.governance,
+    decisionTraceId: ensureMindGovernanceDecisionTraceId(governedAnchorRepair.governance.decisionTraceId),
+  } satisfies AlicizationMindTurnGovernance
   const normalizedEmotion = resolveMindGovernanceEmotion(
     coherentGovernance,
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
@@ -2945,6 +2983,8 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
     audit: {
       owner_before: ownerBefore,
       owner_after: resolveGovernanceTurnOwner(coherentGovernance),
+      decision_trace_id_before: governance.decisionTraceId ?? null,
+      decision_trace_id_after: coherentGovernance.decisionTraceId ?? null,
       subject_before: governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null,
       subject_after: coherentGovernance.answerSubject ?? coherentGovernance.mindTurnFrame?.relation.subject ?? null,
       screen_mode_before: governance.screenReferenceMode ?? null,
@@ -2971,9 +3011,11 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
       stale_carry_reference: dialogueFirstVisibleReply.staleCarryReference,
       scene_cue_mentions: dialogueFirstVisibleReply.sceneCueMentions,
       foreign_technical_cues: dialogueFirstVisibleReply.foreignTechnicalCues,
+      dialogue_truth_discipline_mode: dialogueFirstVisibleReply.truthDisciplineMode,
       reply_specificity_cues: unsupportedTechnicalSpecificity.replyCues,
       allowed_specificity_cues: unsupportedTechnicalSpecificity.allowedCues,
       unsupported_specificity_cues: unsupportedTechnicalSpecificity.unsupportedCues,
+      specificity_truth_discipline_mode: unsupportedTechnicalSpecificity.truthDisciplineMode,
       claim_specificity_budget: coherentGovernance.claimEvidence?.specificityBudget ?? null,
       claim_observed_surface: coherentGovernance.claimEvidence?.observedSurface ?? null,
       claim_task_hypothesis: coherentGovernance.claimEvidence?.taskHypothesis ?? null,
@@ -11240,6 +11282,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }) {
     return buildDialogueMindFrameSystemBlock({
       governance: input.governance ?? {
+        decisionTraceId: 'mind:fallback:controlframe',
         turnMode: input.brief.turnMode,
         truthState: input.brief.truthState,
         personaKernelMode: input.contract.personaKernelMode,

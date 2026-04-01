@@ -215,6 +215,7 @@ description: Alicization Epoch 1-5 路线图、当前状态、风险与阶段门
 | P0 | 已完成 | 运行时单一治理、跨进程契约真源、Card Scope 一致性、Browser Bridge 对齐、异步记忆抽取闭环 | `runtime.ts`、`packages/stage-shared`、`packages/stage-ui` |
 | P1 | 已完成 | 对话心智链闭环：`dialogueTurnEncounter`、`currentConsciousFrame`、`claimEvidenceLedger` 成为统一治理基线 | `dialogue-turn-encounter.ts`、`current-conscious-frame.ts`、`claim-evidence-ledger.ts` |
 | P2 | 已完成 | 真实回答面约束：`responseCharter` + `responseSurfaceContract` 双层门禁，细节真实性审计可追溯 | `response-charter.ts`、`response-surface-contract.ts`、`runtime.ts` |
+| P3 | 已完成 | 可追溯心智治理：`decisionTraceId` 全链路、`truth-discipline` 单一归约器、接管审计口径统一 | `chat-mind-governance.ts`、`runtime.ts`、`truth-discipline.ts` |
 
 约束说明：
 

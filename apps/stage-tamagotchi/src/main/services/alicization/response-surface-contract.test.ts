@@ -178,4 +178,40 @@ describe('response-surface-contract', () => {
     expect(result.contract.mustDo).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
     expect(result.contract.mustNotDo).toContain('Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
   })
+
+  it('derives hypothesis and specificity discipline from uncertain coarse turns even without explicit ledger flags', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: 'Git commit diff in Java code editor',
+        carriedThread: null,
+        truthState: 'uncertain',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'coarse-live',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Separate observation from guess and keep the guess soft.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'uncertain',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+    })
+
+    expect(result.contract.mustDo).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
+    expect(result.contract.mustNotDo).toContain('Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
+  })
 })

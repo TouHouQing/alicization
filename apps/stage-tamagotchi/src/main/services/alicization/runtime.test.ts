@@ -1016,6 +1016,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect((persisted?.structured as Record<string, unknown> | undefined)?.governance).toEqual(expect.objectContaining({
       turnMode: 'screen-repair',
     }))
+    const persistedGovernance = (persisted?.structured as Record<string, unknown> | undefined)?.governance as Record<string, unknown> | undefined
+    expect(String(persistedGovernance?.decisionTraceId ?? '')).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
     expect(String((persisted?.structured as Record<string, unknown> | undefined)?.thought ?? '')).toContain('obligation=repair')
 
     const events = getDialogueRespondedEvents()
@@ -1023,6 +1025,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(events[0]?.structured.governance).toEqual(expect.objectContaining({
       turnMode: 'screen-repair',
     }))
+    expect(events[0]?.structured.governance?.decisionTraceId).toBe(persistedGovernance?.decisionTraceId)
   })
 
   it('realigns conflicting thought and emotion metadata to the governed repair state before persistence', async () => {

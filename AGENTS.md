@@ -131,6 +131,17 @@ Concise but detailed reference for contributors working across the `TouHouQing/a
   - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
   - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
 
+## Alicization P3 Engineering Requirements (Traceable Mind Governance)
+
+- Decision trace continuity: every governed turn MUST carry `decisionTraceId` on `AlicizationMindTurnGovernance`; downstream normalized payloads and takeover audits MUST preserve this id end-to-end.
+- Unified truth discipline reducer: response-surface shaping and runtime reply-override checks MUST both use `deriveAlicizationTruthDiscipline(...)` as shared truth-discipline authority, instead of duplicating ad-hoc condition trees.
+- Specificity firewall coherence: unsupported technical specificity override policy MUST read from the shared truth-discipline flags plus claim-evidence budget, keeping response contracts and runtime takeover behavior aligned.
+- Dialogue contamination coherence: dialogue-first contamination checks MUST key off shared truth-discipline `dialogueFirst` semantics rather than isolated `screenReferenceMode` checks.
+- P3 invariants MUST be covered by tests in:
+  - `apps/stage-tamagotchi/src/main/services/alicization/mind-governance-trace.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
+
 ## Styling & Components
 
 - Prefer Vue v-bind class arrays for readability when working with UnoCSS & tailwindcss: do `:class="['px-2 py-1','flex items-center','bg-white/50 dark:bg-black/50']"`, don't do `class="px-2 py-1 flex items-center bg-white/50 dark:bg-black/50"`, don't do `px="2" py="1" flex="~ items-center" bg="white/50 dark:black/50"`; avoid long inline `class=""`. Refactor legacy when you touch it.

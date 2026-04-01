@@ -536,4 +536,86 @@ describe('buildAlicizationMindTurnGovernance', () => {
     expect(result.mustNotDo).toContain('Do not revive stale browser residue.')
     expect(result.mindTurnFrame?.world.visibleSurface).toBe('VS Code | user.ts diff')
   })
+
+  it('stamps a governance trace id and enforces truth-discipline specificity guardrails', () => {
+    const result = buildAlicizationMindTurnGovernance({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: 'Git commit diff in Java code editor',
+        carriedThread: null,
+        truthState: 'uncertain',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'coarse-live',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Separate observation from hypothesis.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: null,
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      surfaceContract: {
+        openingStyle: 'direct-answer',
+        maxParagraphs: 2,
+        maxSentences: 3,
+        personaKernelMode: 'backgrounded',
+        allowAffectionatePreface: false,
+        allowStageDirections: false,
+        allowBodyNarration: false,
+        labelCarryAsMemory: false,
+        suppressAssociativeRecall: false,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      answerPlanner: {
+        act: 'guide',
+        evidenceMode: 'coarse-held',
+        confidence: 0.72,
+        governingFocus: 'Explain current uncertainty first.',
+        openingMove: 'Separate what is visible from what is guessed.',
+        answerIntent: 'Stay concrete first, then guess softly.',
+        relationshipPosture: 'warm',
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        updatedAt: 1,
+      },
+      claimEvidenceLedger: {
+        subject: 'task-knot',
+        evidenceMode: 'coarse-held',
+        observedSurface: 'Git commit diff in Java code editor',
+        taskHypothesis: 'The host may be editing a Java diff.',
+        intentHypothesis: 'Keep guesses soft.',
+        specificityBudget: 'coarse-scene',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.81,
+        reasonTags: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(result.decisionTraceId).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
+    expect(result.mustDo).toContain('Keep direct observation and any hypothesis in separate clauses.')
+    expect(result.mustNotDo).toContain('Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.')
+  })
 })

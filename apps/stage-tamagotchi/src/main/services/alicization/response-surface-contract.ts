@@ -10,6 +10,8 @@ import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationResponseCharter } from './response-charter'
 
+import { deriveAlicizationTruthDiscipline } from './truth-discipline'
+
 export interface AlicizationResponseSurfaceContract {
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
   maxParagraphs: number
@@ -51,6 +53,18 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const answerCompiler = input.answerCompiler ?? null
   const claimEvidenceLedger = input.claimEvidenceLedger ?? null
   const { brief, charter } = input
+  const truthDiscipline = deriveAlicizationTruthDiscipline({
+    answerSubject: dialogueEncounter?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
+    screenReferenceMode: dialogueEncounter?.screenReferenceMode ?? dialogueFocus?.screenReferenceMode ?? answerCompiler?.screenReferenceMode ?? null,
+    truthState: brief.truthState,
+    turnMode: answerCompiler?.turnMode ?? brief.turnMode,
+    repairState: brief.turnMode === 'screen-repair' ? 'stale-anchor' : 'none',
+    evidenceMode: answerCompiler?.evidenceMode ?? claimEvidenceLedger?.evidenceMode ?? null,
+    labelCarryAsMemory: (answerCompiler?.labelCarryAsMemory ?? brief.separateCarryFromSurface) || brief.truthState === 'remembered',
+    suppressAssociativeRecall: answerCompiler?.suppressAssociativeRecall ?? false,
+    claimEvidenceLedger,
+    currentConsciousFrame: null,
+  })
 
   const openingStyle = answerCompiler?.openingStyle ?? (() => {
     if (brief.turnMode === 'grounded-inspection')
@@ -85,13 +99,16 @@ export function buildAlicizationResponseSurfaceContract(input: {
     && charter.relationshipPosture !== 'restrained'
   const allowStageDirections = false
   const allowBodyNarration = false
-  const labelCarryAsMemory = dialogueFocus?.screenReferenceMode === 'avoid'
+  const explicitDialogueFirstSurfaceAvoid = dialogueEncounter?.screenReferenceMode === 'avoid'
+    || dialogueFocus?.screenReferenceMode === 'avoid'
+    || answerCompiler?.screenReferenceMode === 'avoid'
+  const labelCarryAsMemory = truthDiscipline.shouldBlockScreenCarry
     ? false
     : (answerCompiler?.labelCarryAsMemory ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain'))
-  const suppressAssociativeRecall = answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
+  const suppressAssociativeRecall = truthDiscipline.shouldSuppressAssociativeRecall || (answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
     || (brief.turnMode === 'screen-repair' && (brief.separateCarryFromSurface || brief.carriedThread !== null))
     || brief.turnMode === 'guide-current-knot'
-    || dialogueFocus?.screenReferenceMode === 'avoid')
+    || explicitDialogueFirstSurfaceAvoid))
 
   const mustDo = [
     'Start with the answer, observation, or correction immediately.',
@@ -128,14 +145,14 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (dialogueSemantics?.truthExpectation === 'strict') {
     pushUnique(mustNotDo, 'Do not smooth over uncertainty with emotionally pleasing language.')
   }
-  if (dialogueFocus?.screenReferenceMode === 'avoid') {
+  if (truthDiscipline.dialogueFirst) {
     pushUnique(mustDo, 'Stay with the live dialogue subject and keep screen grounding in the background.')
     pushUnique(mustNotDo, 'Do not append screen-status caveats or grounding requests unless the host explicitly asks for a live look.')
   }
-  if (claimEvidenceLedger?.shouldLabelHypothesis) {
+  if (truthDiscipline.shouldLabelHypothesis) {
     pushUnique(mustDo, 'When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
   }
-  if (claimEvidenceLedger?.forbidUnsupportedSpecificity) {
+  if (truthDiscipline.forbidUnsupportedSpecificity) {
     pushUnique(mustNotDo, 'Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
   }
   if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
@@ -144,7 +161,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (
     brief.turnMode === 'care'
     || brief.turnMode === 'accompany'
-    || (brief.turnMode === 'answer' && dialogueFocus?.screenReferenceMode === 'avoid')
+    || (brief.turnMode === 'answer' && truthDiscipline.dialogueFirst)
   ) {
     pushUnique(mustDo, 'Complete the actual answer, care move, or companionship move in the same reply.')
     pushUnique(mustNotDo, 'Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')
