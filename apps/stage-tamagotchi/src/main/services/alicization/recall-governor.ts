@@ -6,6 +6,9 @@ import type {
   AlicizationRecallGovernorSnapshot,
   AlicizationReplyDeliberationSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+
+import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -26,15 +29,29 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+function pickRecallAnchor(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = sanitizeDialogueAnchorText(value, 180)
+    if (normalized)
+      return normalized
+  }
+  return ''
+}
+
 function resolveMode(input: {
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  primaryTurnAnchor?: string | null
 }) {
   if (!input.dialogueWorldThread || !input.conversationState)
     return 'none' as const
+
+  const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst === true
+    || input.dialogueEncounter?.screenReferenceMode === 'avoid'
 
   if (
     input.answerCompiler?.recommendedAct === 'ask-reground'
@@ -47,18 +64,33 @@ function resolveMode(input: {
   }
 
   if (
-    input.replyDeliberation?.selectedMotive === 'attune'
-    || input.conversationState.memoryMode === 'dialogue-carry'
-  ) {
-    return 'self-continuity' as const
-  }
-
-  if (
     input.conversationState.memoryMode === 'emotional-resonance'
     || input.replyDeliberation?.selectedMotive === 'care'
     || input.privateThought?.emotionalTension === 'late-night-drain'
   ) {
     return 'emotional-resonance' as const
+  }
+
+  if (
+    dialogueFirstTurn
+    && (
+      input.primaryTurnAnchor
+      || input.dialogueEncounter?.mustAnswerDirectly
+      || input.dialogueEncounter?.mustStayTaskBound
+    )
+  ) {
+    const continuitySubject = input.answerCompiler?.answerSubject ?? input.dialogueEncounter?.subject
+    const selfContinuityTurn = (continuitySubject === 'alicization-self' || continuitySubject === 'relationship')
+      && input.replyDeliberation?.selectedMotive === 'attune'
+      && input.conversationState.carryEligible === true
+    return selfContinuityTurn ? 'self-continuity' : 'thread'
+  }
+
+  if (
+    input.replyDeliberation?.selectedMotive === 'attune'
+    || input.conversationState.memoryMode === 'dialogue-carry'
+  ) {
+    return 'self-continuity' as const
   }
 
   if (
@@ -79,18 +111,28 @@ export function buildRecallGovernor(input: {
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
 }): AlicizationRecallGovernorSnapshot | null {
   const dialogueWorldThread = input.dialogueWorldThread ?? null
   const conversationState = input.conversationState ?? null
   if (!dialogueWorldThread || !conversationState)
     return null
 
+  const primaryTurnAnchor = pickRecallAnchor(
+    conversationState.primaryTurnAnchor,
+    input.dialogueEncounter?.taskAnchor,
+    input.dialogueEncounter?.summary,
+    dialogueWorldThread.currentQuestion,
+    dialogueWorldThread.activeThread,
+  ) || null
   const mode = resolveMode({
     dialogueWorldThread,
     conversationState,
     answerCompiler: input.answerCompiler ?? null,
     replyDeliberation: input.replyDeliberation ?? null,
     privateThought: input.privateThought ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+    primaryTurnAnchor,
   })
   const suppressAssociativeRecall = Boolean(
     input.answerCompiler?.suppressAssociativeRecall
@@ -107,6 +149,9 @@ export function buildRecallGovernor(input: {
     || mode === 'emotional-resonance',
   )
   const recallSeed = uniqueList([
+    primaryTurnAnchor,
+    input.dialogueEncounter?.taskAnchor,
+    input.dialogueEncounter?.summary,
     dialogueWorldThread.activeThread,
     dialogueWorldThread.currentQuestion,
     ...dialogueWorldThread.recallKeys,
@@ -116,13 +161,15 @@ export function buildRecallGovernor(input: {
 
   const rationale = mode === 'scene'
     ? 'Keep recall tightly constrained because live grounding or repair has priority over association.'
-    : mode === 'thread'
-      ? 'Carry only the current dialogue seam and unresolved loops; associative recall would dilute the knot.'
-      : mode === 'emotional-resonance'
-        ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
-        : mode === 'self-continuity'
-          ? 'Carry dialogue/self continuity without pretending old scene residue is live.'
-          : 'Do not admit memory unless the living turn explicitly earns it.'
+    : mode === 'thread' && (input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid')
+      ? 'Stay bound to the current turn anchor; old self/scene carry should not outrank what the host just asked.'
+      : mode === 'thread'
+        ? 'Carry only the current dialogue seam and unresolved loops; associative recall would dilute the knot.'
+        : mode === 'emotional-resonance'
+          ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
+          : mode === 'self-continuity'
+            ? 'Carry dialogue/self continuity without pretending old scene residue is live.'
+            : 'Do not admit memory unless the living turn explicitly earns it.'
 
   return {
     mode,
@@ -138,6 +185,7 @@ export function buildRecallGovernor(input: {
       allowActiveThoughts ? 'allow:active-thoughts' : 'suppress:active-thoughts',
       allowRecalledFragments ? 'allow:recalled-fragments' : 'suppress:recalled-fragments',
       carryAsMemory ? 'carry:memory' : 'carry:none',
+      primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       dialogueWorldThread.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
     ], 8),

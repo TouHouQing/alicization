@@ -18,6 +18,9 @@ import type {
   AlicizationSubjectiveSceneAppraisal,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+
+import { isDialogueFirstSubject } from './dialogue-surface-text'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -94,11 +97,30 @@ function strongestDesire(desireMemory?: AlicizationDesireMemorySnapshot | null) 
     ?? null
 }
 
+function resolveTurnAnchorCue(input: {
+  discourseState: AlicizationDiscourseStateSnapshot
+  conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+}) {
+  return sanitizeText(
+    input.conversationState?.primaryTurnAnchor
+    || input.discourseState.primaryTurnAnchor
+    || input.dialogueEncounter?.taskAnchor
+    || input.conversationState?.unansweredQuestion
+    || input.discourseState.currentQuestion
+    || input.dialogueEncounter?.summary
+    || input.conversationState?.jointThread
+    || '',
+    180,
+  ) || null
+}
+
 function resolveOpeningIntent(input: {
   subject: AlicizationDialogueAnswerSubject
   speechObligation: AlicizationMindSpeechObligation
   discourseState: AlicizationDiscourseStateSnapshot
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  anchorCue?: string | null
 }) {
   if (input.speechObligation === 'repair-truth')
     return 'Repair the truth seam before warmth, style, or old carry can take over.'
@@ -114,6 +136,16 @@ function resolveOpeningIntent(input: {
     return 'Stay with the relationship bid directly without forcing an oversized scene explanation.'
   if (input.privateThought?.stance === 'accompany')
     return 'Stay near the host without letting companionship replace the actual answer.'
+  if (
+    input.anchorCue
+    && (
+      input.discourseState.screenReferenceMode === 'avoid'
+      || input.discourseState.continuityMode === 'dialogue-first'
+      || isDialogueFirstSubject(input.subject)
+    )
+  ) {
+    return `Answer the present seam directly: ${input.anchorCue}`
+  }
   return `Fulfill the present turn directly: ${input.discourseState.currentTurnSummary}`
 }
 
@@ -148,9 +180,12 @@ function resolveInteriorSummary(input: {
   repairSummary?: string | null
   desireSummary?: string | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  turnAnchorCue?: string | null
+  dialogueFirstTurn?: boolean
 }) {
   return sanitizeText(
     input.privateThought?.thoughtText
+    || (input.dialogueFirstTurn ? input.turnAnchorCue : '')
     || input.concernSummary
     || input.commitmentSummary
     || input.repairSummary
@@ -163,6 +198,7 @@ function resolveInteriorSummary(input: {
 export function buildMindSynthesis(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   conversationState?: AlicizationConversationStateSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   subjectiveInference?: AlicizationSubjectiveInferenceSnapshot | null
@@ -185,8 +221,24 @@ export function buildMindSynthesis(input: {
   const repair = governingRepair(input.repairLedger)
   const reflection = latestReflection(input.reflectionLedger)
   const desire = strongestDesire(input.desireMemory)
+  const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst
+    ?? isDialogueFirstSubject(input.discourseState.currentTurnSubject)
+  const turnAnchorCue = resolveTurnAnchorCue({
+    discourseState: input.discourseState,
+    conversationState: input.conversationState ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+  })
 
   const beliefs = uniqueByLabel([
+    makeStatement({
+      label: 'turn-anchor',
+      summary: turnAnchorCue,
+      confidence: Math.max(
+        input.conversationState?.confidence ?? 0.4,
+        input.dialogueEncounter?.confidence ?? input.discourseState.confidence,
+      ),
+      sourceTags: ['dialogue-anchor', input.conversationState?.primaryTurnAnchorSource ?? 'encounter'],
+    }),
     makeStatement({
       label: 'living-thread',
       summary: input.worldModel?.activeThread?.summary ?? input.worldModel?.activeThread?.title ?? null,
@@ -333,12 +385,24 @@ export function buildMindSynthesis(input: {
     repairLedger: input.repairLedger ?? null,
     subjectiveInference: input.subjectiveInference ?? null,
   })
-  const conversationOpeningIntent = sanitizeText(
-    input.conversationState?.shouldHoldThread
+  const shouldAnchorDialogueOpeningIntent = dialogueFirstTurn
+    && (
+      input.discourseState.currentTurnSubject === 'general'
+      || input.discourseState.currentTurnSubject === 'host-state'
+    )
+  const conversationOpeningSource = shouldAnchorDialogueOpeningIntent
+    ? turnAnchorCue
+    ?? input.dialogueEncounter?.summary
+    ?? input.conversationState?.unansweredQuestion
+    ?? input.conversationState?.jointThread
+    : input.conversationState?.shouldHoldThread
       ? input.conversationState.unansweredQuestion
+      ?? input.conversationState.primaryTurnAnchor
       ?? input.conversationState.activeCommitments[0]
       ?? input.conversationState.jointThread
-      : '',
+      : ''
+  const conversationOpeningIntent = sanitizeText(
+    conversationOpeningSource,
     220,
   )
   const openingIntent = conversationOpeningIntent
@@ -347,14 +411,17 @@ export function buildMindSynthesis(input: {
       speechObligation: input.discourseState.owedAction,
       discourseState: input.discourseState,
       privateThought: input.privateThought ?? null,
+      anchorCue: dialogueFirstTurn ? turnAnchorCue : null,
     })
   const interiorSummary = resolveInteriorSummary({
     discourseState: input.discourseState,
     concernSummary: concerns[0]?.summary ?? null,
     commitmentSummary: commitments[0]?.summary ?? null,
     repairSummary: repair?.summary ?? null,
-    desireSummary: input.conversationState?.jointThread ?? desires[0]?.summary ?? null,
+    desireSummary: turnAnchorCue ?? input.conversationState?.jointThread ?? desires[0]?.summary ?? null,
     privateThought: input.privateThought ?? null,
+    turnAnchorCue,
+    dialogueFirstTurn,
   })
 
   return {

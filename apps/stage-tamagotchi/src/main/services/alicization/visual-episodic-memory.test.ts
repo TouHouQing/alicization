@@ -232,6 +232,76 @@ describe('visual episodic memory', () => {
     expect(state.initiativeArbitration?.proposals[0]?.action).toBe('recheck')
   })
 
+  it('normalizes and carries the current conscious frame snapshot', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'witness',
+        truthDiscipline: 'observe-then-hypothesize',
+        consciousNeed: 'Start from what is visible before naming the task.',
+        consciousTension: 'The scene is still too coarse for class-level certainty.',
+        speakingIntention: 'Separate observation from guess and keep the guess soft.',
+        focusAnchor: 'Git commit diff in Java code editor',
+        withheldImpulse: 'Do not collapse coarse visual evidence into file, class, or field certainty.',
+        shouldWithholdSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['discipline:observe-then-hypothesize'],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.currentConsciousFrame?.truthDiscipline).toBe('observe-then-hypothesize')
+    expect(state.currentConsciousFrame?.shouldWithholdSpecificity).toBe(true)
+    expect(state.currentConsciousFrame?.speakingIntention).toContain('guess')
+  })
+
+  it('normalizes and carries the claim evidence ledger snapshot', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      claimEvidenceLedger: {
+        subject: 'task-knot',
+        evidenceMode: 'coarse-held',
+        observedSurface: 'Git commit diff in Java code editor',
+        taskHypothesis: 'The host is probably working through a Java diff.',
+        intentHypothesis: 'Separate observation from guess and keep the guess soft.',
+        specificityBudget: 'coarse-scene',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: ['budget:coarse-scene'],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.claimEvidenceLedger?.specificityBudget).toBe('coarse-scene')
+    expect(state.claimEvidenceLedger?.shouldLabelHypothesis).toBe(true)
+    expect(state.claimEvidenceLedger?.observedSurface).toContain('Java')
+  })
+
   it('normalizes and carries conversation state with reply deliberation', () => {
     const state = normalizeVisualPresenceState({
       watchMode: 'mnemonic-passive',
@@ -374,5 +444,57 @@ describe('visual episodic memory', () => {
     expect(state.dialogueActKernel?.speechAct).toBe('guide')
     expect(next.dialogueActKernel?.openingClaim).toContain('current issue')
     expect(next.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('missing guard')
+  })
+
+  it('normalizes and persists dialogue encounter snapshots', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      dialogueEncounter: {
+        act: 'continue-thread',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        subject: 'general',
+        screenReferenceMode: 'avoid',
+        continuityMode: 'dialogue-first',
+        inspectionRequested: false,
+        inspectionState: 'dialogue-first',
+        releaseInspectionCarry: true,
+        taskAnchor: '屏幕相关对话还在串台',
+        summary: '屏幕相关对话还在串台',
+        dialogueFirst: true,
+        shouldBypassScreenRepair: true,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        confidence: 0.82,
+        reasonTags: ['dialogue-first-turn', 'subject:general'],
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 1,
+    }, 1)
+
+    const next = updateVisualPresenceState({
+      now: 2,
+      previousState: state,
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      attention: null,
+      privateThought: null,
+      nextSuggestedProbeMs: 45_000,
+    })
+
+    expect(state.dialogueEncounter?.summary).toBe('屏幕相关对话还在串台')
+    expect(state.dialogueEncounter?.taskAnchor).toBe('屏幕相关对话还在串台')
+    expect(next.dialogueEncounter?.screenReferenceMode).toBe('avoid')
+    expect(next.dialogueEncounter?.mustAnswerDirectly).toBe(true)
   })
 })

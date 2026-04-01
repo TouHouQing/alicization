@@ -184,4 +184,161 @@ describe('buildReplyDeliberation', () => {
     }))
     expect(state?.whyThisReplyNow).toContain('stale')
   })
+
+  it('keeps dialogue-first deliberation attached to the primary turn anchor instead of control directives', () => {
+    const state = buildReplyDeliberation({
+      now: 30_000,
+      conversationState: {
+        ...conversationState,
+        primaryTurnAnchor: '你能做什么呀',
+        primaryTurnAnchorSource: 'user-text',
+        carryEligible: false,
+        carryReason: null,
+        memoryMode: 'dialogue-carry',
+      } as any,
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        primaryTurnAnchor: '你能做什么呀',
+        primaryTurnAnchorSource: 'user-text',
+        owedAction: 'answer-question',
+      } as any,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        openingDirective: 'Answer the host\'s current move before opening any new thread.',
+        openingClaim: 'Open by answering the host\'s real subject directly.',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Stay attached to this turn anchor.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 30_000,
+      } as any,
+      dialogueEncounter: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        dialogueFirst: true,
+        taskAnchor: '你能做什么呀',
+        summary: '你能做什么呀',
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+      } as any,
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'answer',
+      speakingFrom: 'self-continuity',
+    }))
+    expect(state?.mustInclude).toContain('你能做什么呀')
+    expect(state?.mustAvoid).toContain('Do not let control directives outrank the current turn anchor.')
+    expect(state?.narrative).toContain('anchor:你能做什么呀')
+  })
+
+  it('lets the conscious frame force coarse screen turns into hypothesis discipline', () => {
+    const state = buildReplyDeliberation({
+      now: 40_000,
+      conversationState: {
+        ...conversationState,
+        jointThread: 'The host wants a guess from the current workspace.',
+        hostMove: '猜猜我在干嘛',
+        unansweredQuestion: '猜猜我在干嘛',
+        memoryMode: 'scene-anchored',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Guess what the host is doing from the visible workspace.',
+        currentQuestion: '猜猜我在干嘛',
+      },
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'witness',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'live-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Stay with the coarse scene before naming a larger story.',
+        openingClaim: 'Git commit diff in Java code editor',
+        supportingReality: ['Git commit diff in Java code editor'],
+        uncertaintyBoundary: 'The exact file or class is not safely grounded yet.',
+        careVector: null,
+        nextMove: 'Describe the visible knot first, then keep the guess soft.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 40_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'witness',
+        truthDiscipline: 'observe-then-hypothesize',
+        consciousNeed: 'Start from what is visible before naming the task.',
+        consciousTension: 'The scene is still too coarse for file-level certainty.',
+        speakingIntention: 'Separate observation from guess and keep the guess soft.',
+        focusAnchor: 'Git commit diff in Java code editor',
+        withheldImpulse: 'Do not collapse coarse visual evidence into file, class, or field certainty.',
+        shouldWithholdSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.8,
+        reasonTags: ['discipline:observe-then-hypothesize'],
+        updatedAt: 40_000,
+      },
+      claimEvidenceLedger: {
+        subject: 'task-knot',
+        evidenceMode: 'live-grounded',
+        observedSurface: 'Git commit diff in Java code editor',
+        taskHypothesis: 'The host is probably working through a Java diff.',
+        intentHypothesis: 'Separate observation from guess and keep the guess soft.',
+        specificityBudget: 'coarse-scene',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.8,
+        reasonTags: ['budget:coarse-scene'],
+        updatedAt: 40_000,
+      },
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'witness',
+      speakingFrom: 'live-scene',
+    }))
+    expect(state?.mustInclude).toContain('Keep direct observation and any task guess in separate clauses.')
+    expect(state?.mustAvoid).toContain('Do not jump from coarse visual cues to file, class, enum, or field-level certainty.')
+    expect(state?.mustAvoid).toContain('Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.')
+    expect(state?.narrative).toContain('claim-budget:coarse-scene')
+    expect(state?.narrative).toContain('truth-discipline:observe-then-hypothesize')
+  })
 })

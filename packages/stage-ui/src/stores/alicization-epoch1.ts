@@ -7,13 +7,25 @@ import type {
   AlicizationSubconsciousFragment,
 } from './alicization-bridge'
 
+import { errorMessageFrom } from '@moeru/std'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 import { calibrateSentimentConfidence, estimateLexicalSentiment } from '../composables/alicization-structured-output'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
-import { getMemoryStats, runMemoryPrune } from './alicization-memory'
+import {
+  asyncExtractionBatchThreshold,
+  asyncExtractionIdleMs,
+  evaluateAsyncExtractionBudget,
+  evaluateAsyncExtractionTrigger,
+} from './alicization-epoch1-scheduler'
+import {
+  extractRuleFacts,
+  getMemoryStats,
+  runMemoryPrune,
+  upsertFacts,
+} from './alicization-memory'
 import { computePersonalityDelta } from './alicization-personality'
 import { useChatOrchestratorStore } from './chat'
 
@@ -56,6 +68,102 @@ function parseUserText(content: unknown) {
     }).join('')
   }
   return ''
+}
+
+interface PendingAsyncExtractionTurn {
+  turnId: string
+  sessionId: string
+  userText: string
+  assistantText: string
+  queuedAt: number
+}
+
+interface ParsedAsyncExtractionFact {
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+}
+
+function sanitizeFactToken(raw: unknown, maxLength = 96) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+}
+
+function clampFactConfidence(raw: unknown) {
+  const value = typeof raw === 'number'
+    ? raw
+    : typeof raw === 'string'
+      ? Number.parseFloat(raw)
+      : Number.NaN
+  if (!Number.isFinite(value))
+    return 0.65
+  return clamp(value, 0.45, 0.95)
+}
+
+function extractJsonFenceBody(text: string) {
+  const fenceStart = text.indexOf('```')
+  if (fenceStart < 0)
+    return null
+  const firstNewline = text.indexOf('\n', fenceStart + 3)
+  if (firstNewline < 0)
+    return null
+  const fenceEnd = text.indexOf('```', firstNewline + 1)
+  if (fenceEnd < 0)
+    return null
+  const body = text.slice(firstNewline + 1, fenceEnd).trim()
+  return body || null
+}
+
+function parseAsyncExtractionFacts(raw: string): ParsedAsyncExtractionFact[] {
+  const text = raw.trim()
+  if (!text)
+    return []
+
+  let payload: unknown = null
+  try {
+    payload = JSON.parse(text)
+  }
+  catch {
+    const fenced = extractJsonFenceBody(text)
+    if (!fenced)
+      return []
+    try {
+      payload = JSON.parse(fenced.trim())
+    }
+    catch {
+      return []
+    }
+  }
+
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === 'object' && Array.isArray((payload as { facts?: unknown[] }).facts)
+      ? (payload as { facts: unknown[] }).facts
+      : []
+
+  return list
+    .map((item) => {
+      if (!item || typeof item !== 'object')
+        return null
+      const candidate = item as Record<string, unknown>
+      const subject = sanitizeFactToken(candidate.subject, 60)
+      const predicate = sanitizeFactToken(candidate.predicate, 60)
+      const object = sanitizeFactToken(candidate.object, 180)
+      if (!subject || !predicate || !object)
+        return null
+      return {
+        subject,
+        predicate,
+        object,
+        confidence: clampFactConfidence(candidate.confidence),
+      } satisfies ParsedAsyncExtractionFact
+    })
+    .filter((item): item is ParsedAsyncExtractionFact => Boolean(item))
 }
 
 function extractSoulBody(content: string) {
@@ -134,6 +242,14 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
 
   let initialized = false
   let genesisPollTimer: ReturnType<typeof setInterval> | undefined
+  let asyncExtractionFlushTimer: ReturnType<typeof setTimeout> | undefined
+  let asyncExtractionInFlight = false
+  let asyncExtractionLastQueuedAt: number | null = null
+  let asyncExtractionBudgetState = {
+    windowStartedAt: Date.now(),
+    consumed: 0,
+  }
+  const pendingAsyncExtractionTurns = ref<PendingAsyncExtractionTurn[]>([])
   let lastAssistantEmotion: string | null = null
   const hookDisposers: Array<() => void> = []
 
@@ -277,6 +393,223 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     }, genesisPollIntervalMs)
   }
 
+  function stopAsyncExtractionFlushTimer() {
+    if (!asyncExtractionFlushTimer)
+      return
+    clearTimeout(asyncExtractionFlushTimer)
+    asyncExtractionFlushTimer = undefined
+  }
+
+  function scheduleAsyncExtractionFlush(delayMs = asyncExtractionIdleMs) {
+    stopAsyncExtractionFlushTimer()
+    asyncExtractionFlushTimer = setTimeout(() => {
+      void flushPendingAsyncExtraction('idle')
+    }, Math.max(500, delayMs))
+  }
+
+  async function runAsyncExtractionWithMainGateway(batch: PendingAsyncExtractionTurn[]) {
+    if (!hasAlicizationBridge())
+      return []
+
+    const bridge = getAlicizationBridge()
+    if (!bridge.streamChat || !bridge.getLlmConfig)
+      return []
+
+    const llmConfig = await bridge.getLlmConfig().catch(() => null)
+    const providerId = llmConfig?.activeProviderId?.trim() ?? ''
+    const model = llmConfig?.activeModelId?.trim() ?? ''
+    if (!providerId || !model)
+      return []
+
+    const providerConfig = llmConfig?.providerCredentials?.[providerId] ?? {}
+    if (!providerConfig || typeof providerConfig !== 'object' || Array.isArray(providerConfig))
+      return []
+
+    let output = ''
+    const abortController = new AbortController()
+    const timeout = setTimeout(() => {
+      abortController.abort(new DOMException('Async extraction timed out.', 'AbortError'))
+    }, 12_000)
+
+    try {
+      await bridge.streamChat({
+        turnId: `memory-async-extract:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 8)}`,
+        providerId,
+        model,
+        providerConfig: providerConfig as Record<string, unknown>,
+        supportsTools: false,
+        waitForTools: false,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You are Alicization asynchronous memory extractor.',
+              'Return JSON only. No markdown.',
+              'Schema:',
+              '{"facts":[{"subject":"user|assistant|relationship","predicate":"likes|dislikes|plan|fact|constraint|preference","object":"short text","confidence":0.45-0.95}]}',
+              'Rules:',
+              '- Keep only durable facts that matter for future continuity.',
+              '- Ignore one-off small talk and transient phatic lines.',
+              '- Deduplicate semantically similar facts.',
+              '- Max 8 facts in one response.',
+            ].join('\n'),
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              turns: batch.map(item => ({
+                turnId: item.turnId,
+                user: item.userText,
+                assistant: item.assistantText,
+              })),
+            }),
+          },
+        ],
+      }, {
+        abortSignal: abortController.signal,
+        onStreamEvent: async (event) => {
+          if (event.type === 'text-delta')
+            output += event.text
+          if (event.type === 'error')
+            throw event.error ?? new Error('Async extraction stream failed.')
+        },
+      })
+    }
+    finally {
+      clearTimeout(timeout)
+    }
+
+    return parseAsyncExtractionFacts(output)
+  }
+
+  async function flushPendingAsyncExtraction(trigger: 'batch' | 'idle' | 'force') {
+    if (asyncExtractionInFlight)
+      return
+
+    const pending = pendingAsyncExtractionTurns.value
+    if (pending.length === 0)
+      return
+
+    const budgetDecision = evaluateAsyncExtractionBudget({
+      state: asyncExtractionBudgetState,
+      now: Date.now(),
+    })
+    asyncExtractionBudgetState = budgetDecision.nextState
+    if (!budgetDecision.allowed) {
+      await appendAlicizationAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'async-extraction-budget-exhausted',
+        message: 'Skipped async memory extraction because current budget window is exhausted.',
+        details: {
+          trigger,
+          pendingCount: pending.length,
+          consumed: asyncExtractionBudgetState.consumed,
+          windowStartedAt: asyncExtractionBudgetState.windowStartedAt,
+        },
+      })
+      scheduleAsyncExtractionFlush(60_000)
+      return
+    }
+
+    asyncExtractionInFlight = true
+    stopAsyncExtractionFlushTimer()
+    const batch = pending.splice(0, asyncExtractionBatchThreshold)
+    pendingAsyncExtractionTurns.value = [...pending]
+
+    try {
+      const llmFacts = await runAsyncExtractionWithMainGateway(batch)
+      const facts = llmFacts.length > 0
+        ? llmFacts
+        : batch.flatMap(item => extractRuleFacts({
+            userText: item.userText,
+            replyText: item.assistantText,
+          }))
+
+      if (facts.length > 0) {
+        await upsertFacts(facts, 'async-llm')
+      }
+
+      await appendAlicizationAuditLog({
+        level: 'notice',
+        category: 'alicization.memory',
+        action: 'async-extraction-batch-flushed',
+        message: 'Flushed pending async memory extraction batch.',
+        details: {
+          trigger,
+          batchSize: batch.length,
+          extractedCount: facts.length,
+          llmExtractedCount: llmFacts.length,
+          remainingCount: pendingAsyncExtractionTurns.value.length,
+        },
+      })
+    }
+    catch (error) {
+      await appendAlicizationAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'async-extraction-batch-failed',
+        message: 'Async memory extraction batch failed.',
+        details: {
+          trigger,
+          batchSize: batch.length,
+          reason: error instanceof Error ? error.message : String(error),
+          remainingCount: pendingAsyncExtractionTurns.value.length,
+        },
+      })
+    }
+    finally {
+      asyncExtractionInFlight = false
+      const pendingCount = pendingAsyncExtractionTurns.value.length
+      if (pendingCount > 0) {
+        const nextTrigger = evaluateAsyncExtractionTrigger({
+          pendingCount,
+          lastQueuedAt: asyncExtractionLastQueuedAt,
+          now: Date.now(),
+        })
+        if (nextTrigger === 'batch')
+          void flushPendingAsyncExtraction('batch')
+        else
+          scheduleAsyncExtractionFlush()
+      }
+    }
+  }
+
+  async function enqueueAsyncExtractionTurn(payload: {
+    turnId: string
+    sessionId: string
+    userText: string
+    assistantText: string
+  }) {
+    const userText = payload.userText.trim()
+    if (!userText)
+      return
+
+    pendingAsyncExtractionTurns.value = [
+      ...pendingAsyncExtractionTurns.value,
+      {
+        turnId: payload.turnId,
+        sessionId: payload.sessionId,
+        userText,
+        assistantText: payload.assistantText.trim(),
+        queuedAt: Date.now(),
+      },
+    ]
+    asyncExtractionLastQueuedAt = Date.now()
+
+    const trigger = evaluateAsyncExtractionTrigger({
+      pendingCount: pendingAsyncExtractionTurns.value.length,
+      lastQueuedAt: asyncExtractionLastQueuedAt,
+      now: Date.now(),
+    })
+    if (trigger === 'batch') {
+      void flushPendingAsyncExtraction('batch')
+      return
+    }
+
+    scheduleAsyncExtractionFlush()
+  }
+
   async function bootstrapRuntime() {
     if (!hasAlicizationBridge()) {
       needsGenesis.value = false
@@ -360,11 +693,34 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     const chatOrchestrator = useChatOrchestratorStore()
 
     hookDisposers.push(
-      chatOrchestrator.onChatTurnComplete(async ({ output }, context) => {
+      chatOrchestrator.onChatTurnComplete(async ({ output, outputText }, context) => {
         const userText = parseUserText(context.message.content)
+        const assistantText = parseUserText(outputText || output.content)
         const structured = output.structured
         const turnId = output.id ?? context.message.id ?? nanoid()
+        const sessionId = context.sessionId ?? 'unknown-session'
         const debugAuditEnabled = isAlicizationDebugAuditEnabled()
+
+        if (output.origin !== 'subconscious-proactive' && userText.trim()) {
+          void enqueueAsyncExtractionTurn({
+            turnId,
+            sessionId,
+            userText,
+            assistantText,
+          }).catch(async (error) => {
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'alicization.memory',
+              action: 'async-extraction-enqueue-failed',
+              message: 'Failed to enqueue async memory extraction turn.',
+              details: {
+                turnId,
+                sessionId,
+                reason: errorMessageFrom(error) ?? 'unknown-error',
+              },
+            })
+          })
+        }
 
         await appendAlicizationAuditLog({
           level: 'info',
@@ -372,7 +728,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
           action: 'assistant-turn-emotion',
           message: 'Recorded assistant turn emotion telemetry.',
           details: {
-            sessionId: context.sessionId,
+            sessionId,
             turnId,
             emotion: structured?.emotion ?? 'neutral',
             parsePath: structured?.parsePath ?? 'fallback',
@@ -393,7 +749,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             action: 'contract-failed-skip-learning',
             message: 'Skipped personality drift because structured output contract failed.',
             details: {
-              sessionId: context.sessionId,
+              sessionId,
               turnId,
               parsePath: structured.parsePath,
               format: structured.format,
@@ -410,7 +766,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             action: 'policy-locked-skip-learning',
             message: 'Skipped personality drift for policy-locked turn.',
             details: {
-              sessionId: context.sessionId,
+              sessionId,
               turnId,
               policyLocked: structured.policyLocked,
             },
@@ -453,7 +809,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
           action: 'drift-signal',
           message: 'Computed autonomous personality drift signal from user-first sentiment weighting.',
           details: {
-            sessionId: context.sessionId,
+            sessionId,
             turnId,
             userSignal,
             modelScore,
@@ -486,7 +842,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             action: 'personality-drift-updated',
             message: 'Applied autonomous multi-axis personality drift from structured turn sentiment.',
             details: {
-              sessionId: context.sessionId,
+              sessionId,
               turnId,
               userSignal,
               modelScore,
@@ -535,6 +891,14 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     }
 
     stopGenesisPolling()
+    stopAsyncExtractionFlushTimer()
+    pendingAsyncExtractionTurns.value = []
+    asyncExtractionInFlight = false
+    asyncExtractionLastQueuedAt = null
+    asyncExtractionBudgetState = {
+      windowStartedAt: Date.now(),
+      consumed: 0,
+    }
     lastAssistantEmotion = null
     initialized = false
   }

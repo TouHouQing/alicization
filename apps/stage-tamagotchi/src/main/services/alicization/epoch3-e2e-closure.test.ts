@@ -55,6 +55,8 @@ const dbStub = {
   searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
   listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
+  appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
+  getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
   insertScheduledTask: vi.fn().mockResolvedValue(undefined),
   claimDueScheduledTasks: vi.fn().mockResolvedValue([]),
   requeueScheduledTask: vi.fn().mockResolvedValue(undefined),

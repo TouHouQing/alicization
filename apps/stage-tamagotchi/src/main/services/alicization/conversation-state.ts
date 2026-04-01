@@ -12,9 +12,11 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 
 import { isDialogueFirstSubject, isSceneThreadSubject, pickDialogueSurfaceText, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { resolvePrimaryTurnAnchor, turnAnchorAligns } from './dialogue-turn-anchor'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -98,6 +100,7 @@ function resolveContinuityPolicy(input: {
 export function buildConversationState(input: {
   now: number
   userText?: string
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
@@ -111,6 +114,11 @@ export function buildConversationState(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   previous?: AlicizationConversationStateSnapshot | null
 }): AlicizationConversationStateSnapshot | null {
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
+  const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
+  const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
+
   if (!input.discourseState)
     return null
 
@@ -126,27 +134,60 @@ export function buildConversationState(input: {
     discourseState: input.discourseState,
     worldModel: input.worldModel ?? null,
   })
-  const dialogueFirst = isDialogueFirstSubject(input.discourseState.currentTurnSubject)
+  const dialogueFirst = dialogueEncounter?.dialogueFirst ?? isDialogueFirstSubject(input.discourseState.currentTurnSubject)
   const carryRepairForward = isSceneThreadSubject(input.discourseState.currentTurnSubject)
+  const { text: primaryTurnAnchor, source: primaryTurnAnchorSource } = resolvePrimaryTurnAnchor([
+    { source: 'user-text', text: dialogueFirst ? input.userText : null },
+    { source: 'question', text: input.discourseState.primaryTurnAnchorSource === 'question' ? input.discourseState.primaryTurnAnchor : null },
+    { source: 'question', text: input.discourseState.currentQuestion },
+    { source: 'dialogue-summary', text: dialogueFirst ? input.discourseState.primaryTurnAnchor : null },
+    { source: 'dialogue-summary', text: dialogueFirst ? input.discourseState.currentTurnSummary : null },
+    { source: 'focus-summary', text: dialogueEncounter?.summary ?? dialogueFocus?.focusSummary },
+    { source: 'obligation', text: dialogueObligation?.summary },
+    { source: 'thread', text: input.worldModel?.activeThread?.summary },
+    { source: 'carry', text: input.previous?.primaryTurnAnchor },
+  ])
+  const explicitlyContinuingPreviousQuestion = Boolean(
+    dialogueFirst
+    && (
+      dialogueSemantics?.act === 'continue-thread'
+      || dialogueSemantics?.reasonTags.includes('continue-thread')
+    ),
+  )
   const previousQuestionCanCarry = Boolean(
     input.previous?.shouldHoldThread
+    && input.previous?.unansweredQuestion
     && (
       dialogueFirst
         ? input.previous.continuityPolicy === 'dialogue-before-scene'
         : input.previous.continuityPolicy !== 'scene-before-memory'
+    )
+    && (
+      explicitlyContinuingPreviousQuestion
+      || turnAnchorAligns({
+        anchor: primaryTurnAnchor,
+        context: [
+          input.previous.unansweredQuestion,
+          input.previous.primaryTurnAnchor,
+          input.previous.jointThread,
+          input.previous.hostMove,
+        ],
+      })
     ),
   )
   const jointThread = sanitizeDialogueAnchorText(
-    (dialogueFirst
+    primaryTurnAnchor
+    || (dialogueFirst
       ? input.userText
       : '')
     || (dialogueFirst
       ? input.discourseState.currentTurnSummary
       : '')
     || input.discourseState.currentQuestion
-    || input.dialogueFocus?.focusSummary
-    || input.dialogueObligation?.summary
-    || input.dialogueSemantics?.summary
+    || dialogueEncounter?.summary
+    || dialogueFocus?.focusSummary
+    || dialogueObligation?.summary
+    || dialogueSemantics?.summary
     || input.worldModel?.activeThread?.summary
     || input.worldModel?.activeThread?.title
     || input.previous?.jointThread
@@ -156,11 +197,13 @@ export function buildConversationState(input: {
   ) || 'Stay with the current living thread.'
   const hostMove = sanitizeText(
     input.userText
+    || primaryTurnAnchor
     || (dialogueFirst
       ? input.discourseState.currentTurnSummary
       : '')
-    || input.dialogueSemantics?.summary
-    || input.dialogueFocus?.focusSummary
+    || dialogueEncounter?.summary
+    || dialogueSemantics?.summary
+    || dialogueFocus?.focusSummary
     || input.previous?.hostMove
     || jointThread,
     220,
@@ -198,7 +241,7 @@ export function buildConversationState(input: {
     dialogueFirst
       ? ''
       : pickDialogueSurfaceText(
-          sanitizeDialogueAnchorText(input.dialogueSemantics?.taskAnchor, 180),
+          sanitizeDialogueAnchorText(dialogueSemantics?.taskAnchor, 180),
           sanitizeDialogueAnchorText(input.worldModel?.activeThread?.title, 180),
           sanitizeDialogueAnchorText(input.worldModel?.activeThread?.summary, 180),
           commitment?.title,
@@ -212,7 +255,20 @@ export function buildConversationState(input: {
     || activeCommitments.length > 0
     || continuityPolicy === 'stay-on-thread',
   )
+  const carryReason = unansweredQuestion
+    ? (previousQuestionCanCarry && !input.discourseState.currentQuestion
+        ? 'aligned-previous-question'
+        : 'current-question')
+    : carryRepairForward && input.worldModel?.activeThread?.unresolved
+      ? 'unresolved-scene-thread'
+      : activeCommitments.length > 0
+        ? 'active-commitment'
+        : continuityPolicy === 'stay-on-thread'
+          ? 'continuity-policy'
+          : null
+  const carryEligible = Boolean(primaryTurnAnchor && carryReason)
   const memoryQueryHints = uniqueList([
+    primaryTurnAnchor,
     jointThread,
     hostMove,
     dialogueFirst
@@ -233,6 +289,8 @@ export function buildConversationState(input: {
   return {
     jointThread,
     hostMove,
+    primaryTurnAnchor,
+    primaryTurnAnchorSource,
     activeProject,
     unansweredQuestion,
     owedRepair,
@@ -242,19 +300,23 @@ export function buildConversationState(input: {
     memoryMode,
     memoryQueryHints,
     shouldHoldThread,
+    carryEligible,
+    carryReason,
     confidence: clamp01(
       input.discourseState.confidence * 0.44
-      + (input.dialogueSemantics?.confidence ?? 0.34) * 0.18
+      + (dialogueEncounter?.confidence ?? dialogueSemantics?.confidence ?? 0.34) * 0.18
       + (commitment?.confidence ?? 0.32) * 0.14
       + (repair?.confidence ?? 0.32) * 0.12
       + (input.privateThought?.confidence ?? 0.32) * 0.12,
     ),
     narrative: uniqueList([
+      primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       `joint:${jointThread}`,
       unansweredQuestion ? `question:${unansweredQuestion}` : null,
       owedRepair ? `repair:${owedRepair}` : null,
       `memory:${memoryMode}`,
       `continuity:${continuityPolicy}`,
+      carryReason ? `carry:${carryReason}` : null,
       shouldHoldThread ? 'hold-thread' : 'answer-and-release',
     ], 6),
     updatedAt: input.now,
@@ -270,6 +332,8 @@ export function buildConversationStateSystemBlock(state: AlicizationConversation
     'This block is the carried conversational world-thread. It decides what Alicization believes "we are doing together" in this turn.',
     `Joint thread: ${state.jointThread}.`,
     `Host move: ${state.hostMove}.`,
+    `Primary turn anchor: ${state.primaryTurnAnchor ?? 'none'}.`,
+    `Primary turn anchor source: ${state.primaryTurnAnchorSource ?? 'none'}.`,
     `Active project: ${state.activeProject ?? 'none'}.`,
     `Unanswered question: ${state.unansweredQuestion ?? 'none'}.`,
     `Owed repair: ${state.owedRepair ?? 'none'}.`,
@@ -277,6 +341,8 @@ export function buildConversationStateSystemBlock(state: AlicizationConversation
     `Continuity policy: ${state.continuityPolicy}.`,
     `Memory mode: ${state.memoryMode}.`,
     `Should hold thread: ${state.shouldHoldThread ? 'yes' : 'no'}.`,
+    `Carry eligible: ${state.carryEligible === true ? 'yes' : 'no'}.`,
+    `Carry reason: ${state.carryReason ?? 'none'}.`,
     `Active commitments: ${state.activeCommitments.length > 0 ? state.activeCommitments.join(' | ') : 'none'}.`,
     `Memory query hints: ${state.memoryQueryHints.length > 0 ? state.memoryQueryHints.join(' | ') : 'none'}.`,
     'The reply must stay inside this shared thread before it reaches for associative memory, idle affection, or stale scene residue.',

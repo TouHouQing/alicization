@@ -153,4 +153,87 @@ describe('buildRecallGovernor', () => {
     }))
     expect(buildRecallGovernorSystemBlock(governor)).toContain('[ALICIZATION_RECALL_GOVERNOR]')
   })
+
+  it('keeps dialogue-first attune turns thread-bound unless self-carry is explicitly eligible', () => {
+    const governor = buildRecallGovernor({
+      now: 30_000,
+      dialogueWorldThread: {
+        activeThread: '你在说什么呢',
+        currentQuestion: '你在说什么呢',
+        openLoops: [],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['old browser tab'],
+        relationDrift: 'warming',
+        memoryMode: 'dialogue-carry',
+        recallKeys: ['old browser tab'],
+        lastUserMove: '你在说什么呢',
+        lastAssistantMove: '上一轮有点串台。',
+        lastOutcome: 'repairing',
+        pendingValidation: null,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 30_000,
+      },
+      conversationState: {
+        jointThread: '你在说什么呢',
+        hostMove: '你在说什么呢',
+        activeProject: null,
+        unansweredQuestion: '你在说什么呢',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'attune',
+        continuityPolicy: 'answer-then-carry',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['你在说什么呢'],
+        shouldHoldThread: false,
+        primaryTurnAnchor: '你在说什么呢',
+        primaryTurnAnchorSource: 'user-text',
+        carryEligible: false,
+        carryReason: null,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 30_000,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'answer',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+      } as any,
+      replyDeliberation: {
+        selectedMotive: 'attune',
+        speakingFrom: 'dialogue-bond',
+        memoryMode: 'dialogue-carry',
+        openingBeat: 'Answer the host directly.',
+        whyThisReplyNow: 'The host wants this sentence answered plainly.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.76,
+        narrative: [],
+        updatedAt: 30_000,
+      },
+      dialogueEncounter: {
+        subject: 'relationship',
+        screenReferenceMode: 'avoid',
+        dialogueFirst: true,
+        taskAnchor: '你在说什么呢',
+        summary: '你在说什么呢',
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+      } as any,
+    })
+
+    expect(governor).toEqual(expect.objectContaining({
+      mode: 'thread',
+      suppressAssociativeRecall: true,
+      carryAsMemory: false,
+    }))
+    expect(governor?.recallSeed).toContain('你在说什么呢')
+    expect(governor?.rationale).toContain('current turn anchor')
+  })
 })

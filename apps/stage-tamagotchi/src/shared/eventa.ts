@@ -1,6 +1,15 @@
 import type { Locale } from '@intlify/core'
 import type { ServerOptions } from '@proj-alicization/server-runtime/server'
 import type {
+  AlicizationAnswerAct as SharedAlicizationAnswerAct,
+  AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
+  AlicizationMemorySource as SharedAlicizationMemorySource,
+  AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
+  AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
+  AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
+  AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
+} from '@proj-alicization/stage-shared'
+import type {
   ThreeHitTestReadTracePayload,
   ThreeSceneRenderInfoTracePayload,
   VrmDisposeEndTracePayload,
@@ -368,7 +377,7 @@ export interface AlicizationMemoryStats {
   lastPrunedAt: number | null
 }
 
-export type AlicizationMemorySource = 'rule' | 'async-llm'
+export type AlicizationMemorySource = SharedAlicizationMemorySource
 
 export interface AlicizationMemoryFact {
   id: string
@@ -507,25 +516,11 @@ export interface AlicizationAuditLogInput {
   createdAt?: number
 }
 
-export type AlicizationRealtimeCategory = 'weather' | 'news' | 'finance' | 'sports'
+export type AlicizationRealtimeCategory = SharedAlicizationRealtimeCategory
 
-export interface AlicizationRealtimeExecutePayload {
-  category: AlicizationRealtimeCategory
-  query: string
-  locale?: string
-  now?: number
-}
+export type AlicizationRealtimeExecutePayload = SharedAlicizationRealtimeExecutePayload
 
-export interface AlicizationRealtimeExecuteResult {
-  category: AlicizationRealtimeCategory
-  source: 'builtin'
-  ok: boolean
-  summary?: string
-  data?: Record<string, unknown>
-  errorCode?: string
-  errorMessage?: string
-  durationMs: number
-}
+export type AlicizationRealtimeExecuteResult = SharedAlicizationRealtimeExecuteResult
 
 export type AlicizationSystemProbeDegradeReason
   = | 'battery-unavailable'
@@ -1374,6 +1369,30 @@ export type AlicizationDialogueScreenReferenceMode
     | 'incidental'
     | 'avoid'
 
+export type AlicizationDialogueAct
+  = | 'ask-help'
+    | 'ask-teach'
+    | 'verify-grounding'
+    | 'correct'
+    | 'challenge'
+    | 'share-state'
+    | 'seek-care'
+    | 'social-bid'
+    | 'continue-thread'
+    | 'close-thread'
+    | 'unknown'
+
+export type AlicizationDialogueResponseNeed
+  = | 'repair'
+    | 'guide'
+    | 'teach'
+    | 'answer'
+    | 'care'
+    | 'accompany'
+    | 'clarify'
+
+export type AlicizationDialogueTruthExpectation = 'strict' | 'normal' | 'light'
+
 export type AlicizationMindRelationMove
   = | 'self-disclose'
     | 'attune'
@@ -1392,11 +1411,32 @@ export type AlicizationMindSpeechObligation
     | 'inspect-scene'
     | 'answer-general'
 
+export type AlicizationTurnAnchorSource
+  = | 'user-text'
+    | 'dialogue-summary'
+    | 'question'
+    | 'focus-summary'
+    | 'obligation'
+    | 'thread'
+    | 'scene'
+    | 'carry'
+    | 'unknown'
+
+export type AlicizationInspectionTurnState
+  = | 'dialogue-first'
+    | 'inspection-live'
+    | 'inspection-carry'
+    | 'screen-repair'
+
+export type AlicizationPersonaKernelMode = 'full' | 'backgrounded' | 'muted'
+
 export interface AlicizationDiscourseStateSnapshot {
   currentTurnSubject: AlicizationDialogueAnswerSubject
   screenReferenceMode: AlicizationDialogueScreenReferenceMode
   currentTurnSummary: string
   currentQuestion?: string | null
+  primaryTurnAnchor?: string | null
+  primaryTurnAnchorSource?: AlicizationTurnAnchorSource | null
   owedAction: AlicizationMindSpeechObligation
   relationMove: AlicizationMindRelationMove
   continuityMode: 'dialogue-first' | 'task-first' | 'scene-first'
@@ -1405,6 +1445,29 @@ export interface AlicizationDiscourseStateSnapshot {
   confidence: number
   narrative: string[]
   updatedAt: number
+}
+
+export interface AlicizationDialogueTurnEncounterSnapshot {
+  act: AlicizationDialogueAct
+  responseNeed: AlicizationDialogueResponseNeed
+  truthExpectation: AlicizationDialogueTruthExpectation
+  subject: AlicizationDialogueAnswerSubject
+  screenReferenceMode: AlicizationDialogueScreenReferenceMode
+  continuityMode: 'dialogue-first' | 'task-first' | 'scene-first'
+  inspectionRequested: boolean
+  inspectionState: AlicizationInspectionTurnState
+  releaseInspectionCarry: boolean
+  taskAnchor?: string | null
+  summary: string
+  dialogueFirst: boolean
+  shouldBypassScreenRepair: boolean
+  mustRepairFirst: boolean
+  mustAnswerDirectly: boolean
+  mustStayTaskBound: boolean
+  shouldAskClarifyingQuestion: boolean
+  personaKernelMode: AlicizationPersonaKernelMode
+  confidence: number
+  reasonTags: string[]
 }
 
 export interface AlicizationMindStatementSnapshot {
@@ -1441,6 +1504,8 @@ export type AlicizationConversationMemoryMode
 export interface AlicizationConversationStateSnapshot {
   jointThread: string
   hostMove: string
+  primaryTurnAnchor?: string | null
+  primaryTurnAnchorSource?: AlicizationTurnAnchorSource | null
   activeProject?: string | null
   unansweredQuestion?: string | null
   owedRepair?: string | null
@@ -1450,6 +1515,8 @@ export interface AlicizationConversationStateSnapshot {
   memoryMode: AlicizationConversationMemoryMode
   memoryQueryHints: string[]
   shouldHoldThread: boolean
+  carryEligible?: boolean
+  carryReason?: string | null
   confidence: number
   narrative: string[]
   updatedAt: number
@@ -1469,6 +1536,52 @@ export interface AlicizationReplyMotiveSnapshot {
   summary: string
   weight: number
   sourceTags: string[]
+}
+
+export type AlicizationConsciousTruthDiscipline
+  = | 'repair-first'
+    | 'observe-first'
+    | 'observe-then-hypothesize'
+    | 'dialogue-first'
+    | 'memory-labeled'
+
+export interface AlicizationCurrentConsciousFrameSnapshot {
+  subject: AlicizationDialogueAnswerSubject
+  centerOfGravity: AlicizationReplyMotive
+  truthDiscipline: AlicizationConsciousTruthDiscipline
+  consciousNeed: string
+  consciousTension: string
+  speakingIntention: string
+  focusAnchor?: string | null
+  withheldImpulse?: string | null
+  shouldWithholdSpecificity: boolean
+  shouldSelfRevise: boolean
+  confidence: number
+  reasonTags: string[]
+  updatedAt: number
+}
+
+export type AlicizationClaimSpecificityBudget
+  = | 'dialogue-only'
+    | 'coarse-scene'
+    | 'grounded-artifacts'
+
+export interface AlicizationClaimEvidenceLedgerSnapshot {
+  subject: AlicizationDialogueAnswerSubject
+  evidenceMode: AlicizationAnswerEvidenceMode
+  observedSurface?: string | null
+  taskHypothesis?: string | null
+  intentHypothesis?: string | null
+  specificityBudget: AlicizationClaimSpecificityBudget
+  hostReferencedCues: string[]
+  groundedArtifactCues: string[]
+  allowedSpecificCues: string[]
+  shouldLabelHypothesis: boolean
+  forbidUnsupportedSpecificity: boolean
+  shouldSelfRevise: boolean
+  confidence: number
+  reasonTags: string[]
+  updatedAt: number
 }
 
 export interface AlicizationReplyDeliberationSnapshot {
@@ -1505,12 +1618,16 @@ export interface AlicizationDialoguePendingValidationSnapshot {
 export interface AlicizationDialogueWorldThreadSnapshot {
   activeThread: string
   currentQuestion?: string | null
+  primaryTurnAnchor?: string | null
+  primaryTurnAnchorSource?: AlicizationTurnAnchorSource | null
   openLoops: string[]
   recentlyResolvedLoops: string[]
   carriedFacts: string[]
   relationDrift: 'steady' | 'warming' | 'repairing' | 'guarded'
   memoryMode: AlicizationConversationMemoryMode
   recallKeys: string[]
+  carryEligible?: boolean
+  carryReason?: string | null
   lastUserMove: string
   lastAssistantMove?: string | null
   lastOutcome: AlicizationDialogueWorldOutcome
@@ -1532,21 +1649,9 @@ export interface AlicizationRecallGovernorSnapshot {
   updatedAt: number
 }
 
-export type AlicizationAnswerAct
-  = | 'answer'
-    | 'guide'
-    | 'ask-reground'
-    | 'correct-stale-anchor'
-    | 'care'
-    | 'defer'
+export type AlicizationAnswerAct = SharedAlicizationAnswerAct
 
-export type AlicizationAnswerEvidenceMode
-  = | 'live-grounded'
-    | 'live-observed'
-    | 'coarse-held'
-    | 'dialogue-grounded'
-    | 'continuity-carry'
-    | 'repair-first'
+export type AlicizationAnswerEvidenceMode = SharedAlicizationAnswerEvidenceMode
 
 export interface AlicizationAnswerPlannerSnapshot {
   act: AlicizationAnswerAct
@@ -2053,11 +2158,14 @@ export interface AlicizationVisualPresenceStateSnapshot {
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounterSnapshot | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
@@ -2417,36 +2525,7 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   waitForTools?: boolean
 }
 
-export interface AlicizationMindTurnGovernance {
-  turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
-  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
-  groundedThisTurn?: boolean
-  personaKernelMode: 'full' | 'backgrounded' | 'muted'
-  openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
-  relationshipPosture: 'restrained' | 'warm' | 'tender'
-  answerSubject?: 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general' | null
-  screenReferenceMode?: 'required' | 'helpful' | 'incidental' | 'avoid' | null
-  answerAct?: AlicizationAnswerAct | null
-  evidenceMode?: AlicizationAnswerEvidenceMode | null
-  repairState: 'none' | 'stale-anchor' | 'need-reground'
-  liveSurface?: string | null
-  focusAnchor?: string | null
-  answerIntent?: string | null
-  openingMove?: string | null
-  carriedThread?: string | null
-  suppressAssociativeRecall: boolean
-  labelCarryAsMemory: boolean
-  shouldAskForGrounding: boolean
-  shouldAcknowledgeRepair: boolean
-  maxSentences: number
-  mindMode?: AlicizationMindKernelMode | null
-  embodiedPresence?: AlicizationEmbodiedPresenceState
-  emotionalTension?: AlicizationEmotionalTension
-  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
-  mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
-  mustDo: string[]
-  mustNotDo: string[]
-}
+export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance
 
 export interface AlicizationChatStartResult {
   accepted: boolean

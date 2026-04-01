@@ -95,6 +95,42 @@ Concise but detailed reference for contributors working across the `TouHouQing/a
 - If the refactor scope is small, do a progressive refactor step by step.
 - When modifying code, always check for opportunities to do small, minimal progressive refactors alongside the change.
 
+## Alicization P0 Engineering Requirements (Mind-First)
+
+- Runtime-first turn governance: when `AlicizationBridge.streamChat` is available, Renderer MUST NOT assemble core prompt blocks, enforce prompt budget, or sanitize remote payload as turn-governance authority. Main runtime is the single governor for mind-turn composition and contract enforcement.
+- Shared transport contract single source: cross-process Alicization chat/governance/event types MUST be defined in `packages/stage-shared/src/alicization-transport-contracts.ts` and imported by both `packages/stage-ui/src/stores/alicization-bridge.ts` and `apps/stage-tamagotchi/src/shared/eventa.ts`. Do not duplicate these contract types locally.
+- Main runtime prompt authority: `apps/stage-tamagotchi/src/main/services/alicization/runtime.ts` MUST prepend fixed core prompt blocks (`core system`, `host directive`, `structured contract anchor`) before dynamic memory/sensory/performance context on every main-gateway turn.
+- Card-scope consistency: runtime chat lifecycle handlers (`chatStart`, `streamChat`, persistence writes, delivery retries) MUST execute inside `withCardScope(cardId, ...)` before touching card data/state.
+- Browser bridge parity: `packages/stage-ui/src/stores/alicization-browser-bridge.ts` MUST preserve stream `meta` events, persist visual-presence pulses, and return non-null `getVisualPresenceState` through persisted state or deterministic fallback synthesis.
+- Realtime execution parity: browser bridge `realtimeExecute` MUST use the builtin realtime query path and return normalized category payloads (`weather/news/finance/sports`) compatible with runtime semantics.
+- Async memory extraction pipeline: `packages/stage-ui/src/stores/alicization-epoch1.ts` MUST enqueue completed turns asynchronously (non-blocking), evaluate scheduler trigger/budget windows, and persist extracted facts through `upsertFacts(..., 'async-llm')`.
+- Lifecycle hygiene: Alicization stores MUST cancel async extraction timers and clear pending extraction queues during `dispose()` to prevent cross-session leakage.
+- Any deliberate deviation from these P0 constraints requires an inline `// NOTICE:` comment including root cause and a rollback/follow-up path.
+
+## Alicization P1 Engineering Requirements (Dialogue-Cognition Chain)
+
+- Turn encounter single reducer: runtime MUST build `dialogueEncounter` (`semantics + obligation + ownership + focus`) before downstream planning, and all dialogue-first / inspection / continuity decisions MUST read from that reducer instead of duplicating local heuristics.
+- Conscious frame + evidence ledger required: runtime MUST derive both `currentConsciousFrame` and `claimEvidenceLedger` for governed turns, then carry them through governance state and visual presence state snapshots.
+- Dialogue-first contamination guard: when subject is dialogue-first (`alicization-self` / `relationship` / `host-state`) or `screenReferenceMode === 'avoid'`, runtime MUST suppress stale scene carry and foreign technical cues from visible reply surface.
+- Answer intent precedence: `mindTurnFrame.obligation.answerIntent` MUST preserve planner intent when provided, and focus anchors MUST NOT overwrite that intent in dialogue-first turns.
+- Mind-turn format authority: turns carrying governance state MUST normalize to `format: 'mind-turn-v1'`; legacy `epoch1-v1` payloads are migration-only compatibility input and cannot remain as final governed output.
+- Coherence invariants MUST be covered by tests in:
+  - `apps/stage-tamagotchi/src/main/services/alicization/dialogue-anchor-coherence.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/mind-turn-frame.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
+## Alicization P2 Engineering Requirements (Truthful Response Surface)
+
+- Response charter + surface contract required: runtime MUST build both `responseCharter` and `responseSurfaceContract` before final answer shaping, and system blocks from both must participate in the final governed prompt surface.
+- Unsupported-specificity firewall: when `claimEvidenceLedger.forbidUnsupportedSpecificity === true`, runtime MUST reject or override unsupported file/class/enum-level specificity in visible replies and emit takeover audit reasons.
+- Hypothesis labeling discipline: when `claimEvidenceLedger.shouldLabelHypothesis === true`, response surface contract MUST require explicit guess/hypothesis labeling for beyond-observation claims.
+- Dialogue-shell ban: response surface contract MUST explicitly forbid shell openers that announce intent without paying off actual answer/care/companionship content in the same reply.
+- Audit completeness: governance takeover audits MUST include anchor conflict, specificity budget, unsupported cue set, and fallback reason fields so turn-level truth discipline is explainable post-hoc.
+- Truth-surface invariants MUST be covered by tests in:
+  - `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
 ## Styling & Components
 
 - Prefer Vue v-bind class arrays for readability when working with UnoCSS & tailwindcss: do `:class="['px-2 py-1','flex items-center','bg-white/50 dark:bg-black/50']"`, don't do `class="px-2 py-1 flex items-center bg-white/50 dark:bg-black/50"`, don't do `px="2" py="1" flex="~ items-center" bg="white/50 dark:black/50"`; avoid long inline `class=""`. Refactor legacy when you touch it.

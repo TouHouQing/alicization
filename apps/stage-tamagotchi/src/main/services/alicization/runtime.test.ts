@@ -95,6 +95,8 @@ const dbStub = {
   searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
   listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
+  appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
+  getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
   insertScheduledTask: vi.fn().mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
     taskId: input.taskId,
@@ -175,6 +177,10 @@ function resetDbStubMocks() {
   dbStub.listRecentSubconsciousFragments.mockResolvedValue([])
   dbStub.countSubconsciousFragments.mockReset()
   dbStub.countSubconsciousFragments.mockResolvedValue(0)
+  dbStub.appendRelationshipDynamics.mockReset()
+  dbStub.appendRelationshipDynamics.mockResolvedValue(undefined)
+  dbStub.getLatestRelationshipDynamics.mockReset()
+  dbStub.getLatestRelationshipDynamics.mockResolvedValue(null)
   dbStub.insertScheduledTask.mockReset()
   dbStub.insertScheduledTask.mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
@@ -1215,6 +1221,241 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
   })
 
+  it('rewrites contaminated dialogue-first replies when visible surface residue leaks back onto the answer', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-dialogue-first-contaminated-visible-reply',
+      sessionId: 'session-test',
+      userText: '你仔细看看呢',
+      assistantText: '主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。',
+      structured: {
+        thought: 'obligation=repair; truth=memory; focus=intellij-idea; move=protect-focus; tone=warm',
+        emotion: 'neutral',
+        reply: '主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: 'IntelliJ IDEA',
+        focusAnchor: '你仔细看看呢',
+        answerIntent: '你仔细看看呢',
+        openingMove: 'Start from the current turn.',
+        carriedThread: 'CaseApplyTypeEnum',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'hesitant',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).not.toBe('主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。')
+    expect(persistedReply).toContain('不把旧画面或旧线程硬套回现在')
+    expect(persistedReply).not.toContain('IntelliJ IDEA')
+    expect(persistedReply).not.toContain('主人')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.reasons).toContain('dialogue-first-visible-reply-contaminated')
+    expect(takeoverAudit?.payload?.screen_mode_before).toBe('avoid')
+    expect(takeoverAudit?.payload?.screen_mode_after).toBe('avoid')
+    expect(takeoverAudit?.payload?.owner_before).toBe('dialogue')
+    expect(takeoverAudit?.payload?.owner_after).toBe('dialogue')
+    expect(takeoverAudit?.payload?.scene_cue_mentions).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
+  })
+
+  it('soft-repairs removable dialogue-first contamination before falling back to governed shell prose', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-dialogue-first-soft-repair-preface',
+      sessionId: 'session-test',
+      userText: '你能做什么呀',
+      assistantText: '主人，我能陪你聊，也能帮你一起看当前这件事。',
+      structured: {
+        thought: 'obligation=answer; truth=memory; focus=current-user-turn; move=answer-the-host-directly; tone=warm',
+        emotion: 'neutral',
+        reply: '主人，我能陪你聊，也能帮你一起看当前这件事。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: 'current-user-turn',
+        answerIntent: 'Answer the host\'s current move before opening any new thread.',
+        openingMove: 'Open by answering the host\'s real subject directly.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    expect(String(persistedStructured?.reply ?? '')).toBe('我能陪你聊，也能帮你一起看当前这件事。')
+    expect(String(persistedStructured?.reply ?? '')).not.toContain('主人')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+    expect(takeoverAudit?.payload?.soft_repair_applied).toBe(true)
+    expect(String(takeoverAudit?.payload?.soft_repair_reason ?? '')).toContain('removed-roleplay-preface')
+    expect(takeoverAudit?.payload?.reasons).toContain('dialogue-first-visible-reply-soft-repaired')
+    expect(String(takeoverAudit?.payload?.answer_intent_after ?? '')).not.toContain('Answer the host')
+    expect((takeoverAudit?.payload?.anchor_candidates_after ?? []).join(' | ')).not.toContain('Answer the host')
+  })
+
+  it('does not treat current-turn dialogue evidence as scene contamination on dialogue-first turns', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-dialogue-first-thread-evidence-not-scene-contamination',
+      sessionId: 'session-test',
+      userText: '我好累',
+      assistantText: '你现在好累，那我先陪你缓一下，不把话题扯开。',
+      structured: {
+        thought: '',
+        emotion: 'concerned',
+        reply: '你现在好累，那我先陪你缓一下，不把话题扯开。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'care',
+        truthState: 'remembered',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'gentle-care',
+        relationshipPosture: 'warm',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        answerAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: 'Cursor diff window',
+        focusAnchor: '我好累',
+        answerIntent: '我好累',
+        openingMove: 'Answer the tiredness directly.',
+        carriedThread: '你刚刚想说什么？',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'late-night-drain',
+        dialogueActKernel: {
+          subject: 'host-state',
+          hostGoal: 'chat',
+          relationNeed: 'care',
+          activeProject: null,
+          truthMode: 'dialogue-grounded',
+          speechAct: 'care',
+          turnMode: 'care',
+          screenReferenceMode: 'avoid',
+          speakingFrom: 'dialogue-bond',
+          selectedEvidence: [{
+            kind: 'thread',
+            source: 'dialogue-world-thread',
+            summary: '好累',
+            confidence: 0.82,
+          }],
+          openingClaim: '我好累',
+          openingMove: 'Answer the tiredness directly.',
+          whyNow: 'The host is directly naming tiredness in this turn.',
+          mustSay: [],
+          mustAvoid: [],
+          sourceTrace: ['subject:host-state'],
+          confidence: 0.8,
+          updatedAt: Date.now(),
+        },
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).toBe('你现在好累，那我先陪你缓一下，不把话题扯开。')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    const takeoverReasons = Array.isArray(takeoverAudit?.payload?.reasons)
+      ? takeoverAudit?.payload?.reasons
+      : []
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
+    expect(takeoverReasons).not.toContain('dialogue-first-visible-reply-contaminated')
+    expect(takeoverAudit?.payload?.scene_cue_mentions ?? []).toEqual([])
+  })
+
   it('suppresses soft strict-governance visible takeover on non-repair guide turns', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -1643,6 +1884,94 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
     expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
     expect(takeoverAudit?.payload?.reasons).toContain('reply-used-weak-grounded-scene-cue')
+  })
+
+  it('blocks unsupported technical specificity when a coarse screen read has not grounded those artifacts', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-coarse-screen-unsupported-specificity',
+      sessionId: 'session-test',
+      userText: '猜猜我在干嘛',
+      assistantText: '你像是在改 AppArbitorController 和 CaseApplyTypeEnum。',
+      structured: {
+        thought: 'obligation=guide; truth=uncertain; focus=java-diff; move=stay-on-visible-knot; tone=direct',
+        emotion: 'thinking',
+        reply: '你像是在改 AppArbitorController 和 CaseApplyTypeEnum。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'uncertain',
+        groundedThisTurn: false,
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'guide',
+        evidenceMode: 'coarse-held',
+        repairState: 'none',
+        liveSurface: 'Git commit diff in Java code editor',
+        focusAnchor: 'Git commit diff in Java code editor',
+        answerIntent: 'Guess what the host is doing from the visible workspace.',
+        openingMove: 'Stay with the visible knot before naming a larger story.',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'tracking',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        claimEvidence: {
+          subject: 'task-knot',
+          evidenceMode: 'coarse-held',
+          observedSurface: 'Git commit diff in Java code editor',
+          taskHypothesis: 'The host is probably working through a Java diff.',
+          intentHypothesis: 'Separate observation from guess and keep the guess soft.',
+          specificityBudget: 'coarse-scene',
+          hostReferencedCues: [],
+          groundedArtifactCues: [],
+          allowedSpecificCues: [],
+          shouldLabelHypothesis: true,
+          forbidUnsupportedSpecificity: true,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: ['budget:coarse-scene'],
+          updatedAt: Date.now(),
+        },
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    const persisted = dbStub.appendConversationTurn.mock.calls.at(-1)?.[0] as AlicizationConversationTurnInput | undefined
+    const persistedStructured = persisted?.structured as Record<string, unknown> | undefined
+    const persistedReply = String(persistedStructured?.reply ?? '')
+
+    expect(persistedReply).not.toContain('AppArbitorController')
+    expect(persistedReply).not.toContain('CaseApplyTypeEnum')
+
+    const takeoverAudit = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
+    expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
+    expect(takeoverAudit?.payload?.reasons).toContain('reply-introduced-unsupported-technical-specificity')
+    expect(takeoverAudit?.payload?.unsupported_specificity_cues).toEqual(expect.arrayContaining([
+      'AppArbitorController',
+      'CaseApplyTypeEnum',
+    ]))
   })
 
   it('localizes repair fallback to the current user language instead of leaking english governance prose', async () => {
@@ -6070,6 +6399,14 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamResult.processedCards).toContain('default')
     expect(afterSoul.frontmatter.personality.obedience).toBeLessThan(beforeSoul.frontmatter.personality.obedience)
     expect(afterSoul.frontmatter.host_attitude).toBe('表面克制，但已经开始担心宿主是否又在硬撑')
+    expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
+      hostAttitude: '表面克制，但已经开始担心宿主是否又在硬撑',
+      previousHostAttitude: '礼貌而克制，保持观察',
+      obedienceDelta: -0.03,
+      livelinessDelta: -0.01,
+      sensibilityDelta: 0.02,
+      source: 'dream-llm',
+    }))
     expect(dbStub.replaceActiveThoughts).toBeCalledWith([
       { text: '继续观察宿主晚间作息' },
       { text: '要更敏感地察觉宿主硬撑和逞强的信号' },

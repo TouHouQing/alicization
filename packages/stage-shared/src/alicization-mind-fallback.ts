@@ -291,6 +291,7 @@ function groundedSceneShouldSuppressRepair(governance: AlicizationMindTurnGovern
 function buildDialogueFirstFallbackBodies(input: {
   governance: AlicizationMindTurnGovernanceLike
   translate: (path: string, params?: Record<string, unknown>) => string
+  forceAnswerFallback?: boolean
 }) {
   const subject = input.governance.answerSubject ?? input.governance.mindTurnFrame?.relation?.subject ?? null
   const unstableTruth = truthStateIsUnstable(input.governance)
@@ -318,6 +319,22 @@ function buildDialogueFirstFallbackBodies(input: {
     )
   ) {
     sentences.push(t('mind-fallback.accompany-body'))
+    if (unstableTruth)
+      sentences.push(t('mind-fallback.dialogue-boundary-memory'))
+    return uniqueSentences(sentences, 2)
+  }
+
+  if (input.forceAnswerFallback) {
+    if (subject === 'relationship') {
+      sentences.push(t('mind-fallback.accompany-body'))
+    }
+    else {
+      sentences.push(
+        input.governance.repairState !== 'none'
+          ? t('mind-fallback.answer-repair-body')
+          : t('mind-fallback.answer-dialogue-body'),
+      )
+    }
     if (unstableTruth)
       sentences.push(t('mind-fallback.dialogue-boundary-memory'))
     return uniqueSentences(sentences, 2)
@@ -699,6 +716,7 @@ export function buildMindGovernedFallbackSurface(input: {
   governance?: AlicizationMindTurnGovernanceLike | null
   userText?: string
   translate: (path: string, params?: Record<string, unknown>) => string
+  forceDialogueAnswerFallback?: boolean
 }): AlicizationMindFallbackSurface | null {
   const governance = input.governance
   if (!governance)
@@ -713,7 +731,10 @@ export function buildMindGovernedFallbackSurface(input: {
   const sentences: string[] = []
   const carriedThread = sanitizeGovernedSurfaceCue(governance.carriedThread, governance, input.userText, 140)
   const focus = anchor || t('mind-fallback.focus-default')
-  const usePlainOpening = !anchor || dialogueFirst
+  const preferAnchoredDialogueOpening = dialogueFirst
+    && input.forceDialogueAnswerFallback === true
+    && Boolean(anchor)
+  const usePlainOpening = !anchor || (dialogueFirst && !preferAnchoredDialogueOpening)
   const suppressDialogueFirstPlainOpener = usePlainOpening && shouldSuppressDialogueFirstPlainOpener(governance)
   const truthMode = resolveGovernedMindTruth(governance)
   const repairSuppressedByGrounding = groundedSceneShouldSuppressRepair(governance)
@@ -792,6 +813,7 @@ export function buildMindGovernedFallbackSurface(input: {
     sentences.push(...buildDialogueFirstFallbackBodies({
       governance,
       translate: t,
+      forceAnswerFallback: input.forceDialogueAnswerFallback === true,
     }))
   }
 

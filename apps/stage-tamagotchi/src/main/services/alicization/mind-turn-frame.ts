@@ -276,6 +276,8 @@ export function buildMindTurnFrame(input: {
     || subject === 'general'
     || screenReferenceMode === 'avoid'
   const fallbackFocusAnchor = pickText(
+    dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor : null,
+    dialogueFirstTurn ? input.dialogueWorldThread?.primaryTurnAnchor : null,
     dialogueFirstTurn ? input.dialogueWorldThread?.currentQuestion : null,
     dialogueFirstTurn ? input.conversationState?.jointThread : null,
     dialogueFirstTurn ? input.answerPlanner?.answerIntent : null,
@@ -295,6 +297,8 @@ export function buildMindTurnFrame(input: {
     truthState,
     hostMove: input.conversationState?.hostMove ?? input.dialogueWorldThread?.lastUserMove ?? null,
     candidates: [
+      { role: 'focus', text: dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor : null },
+      { role: 'focus', text: dialogueFirstTurn ? input.dialogueWorldThread?.primaryTurnAnchor : null },
       { role: 'question', text: dialogueFirstTurn ? input.dialogueWorldThread?.currentQuestion : null },
       { role: 'thread', text: dialogueFirstTurn ? input.conversationState?.jointThread : null },
       { role: 'answer-intent', text: dialogueFirstTurn ? input.answerPlanner?.answerIntent : null },
@@ -444,9 +448,11 @@ export function buildMindTurnFrame(input: {
         input.answerCompiler?.openingDirective,
       ),
       answerIntent: pickSurfaceText(
-        dialogueFirstTurn ? null : focusAnchor,
         keepCoherent(input.answerPlanner?.answerIntent),
+        dialogueFirstTurn ? focusAnchor : null,
         keepCoherent(input.answerCompiler?.openingClaim),
+        dialogueFirstTurn ? keepCoherent(input.conversationState?.primaryTurnAnchor) : null,
+        dialogueFirstTurn ? keepCoherent(input.dialogueWorldThread?.primaryTurnAnchor) : null,
         keepCoherent(input.dialogueWorldThread?.currentQuestion),
         keepCoherent(input.conversationState?.jointThread),
         keepCoherent(input.answerCompiler?.nextMove),

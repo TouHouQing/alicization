@@ -10,6 +10,8 @@ const streamMock = vi.fn()
 const executeRealtimeQueryTurnMock = vi.fn()
 const appendConversationTurnMock = vi.fn()
 const appendAuditLogMock = vi.fn()
+const extractRuleFactsMock = vi.fn()
+const upsertFactsMock = vi.fn()
 
 const activeSessionId = ref('session-test')
 const streamingMessage = ref({
@@ -147,6 +149,17 @@ vi.mock('../composables/alicization-prompt-composer', () => ({
 }))
 
 vi.mock('../composables/alicization-guardrails', () => ({
+  compactMessagesForPromptAssembly: (messages: any[]) => ({
+    messages,
+    report: {
+      beforeCount: messages.length,
+      afterCount: messages.length,
+      beforeTokens: 0,
+      afterTokens: 0,
+      droppedMessageCount: 0,
+      retainedUserTurns: 0,
+    },
+  }),
   applyPromptBudget: (messages: any[]) => ({
     messages,
     report: {
@@ -180,6 +193,11 @@ vi.mock('../composables/alicization-guardrails', () => ({
     redactions: 0,
     elapsedMs: 0,
   }),
+}))
+
+vi.mock('./alicization-memory', () => ({
+  extractRuleFacts: (...args: any[]) => extractRuleFactsMock(...args),
+  upsertFacts: (...args: any[]) => upsertFactsMock(...args),
 }))
 
 vi.mock('../composables/response-categoriser', () => ({
@@ -259,8 +277,8 @@ function installAlicizationBridge(options?: {
     runMemoryPrune: vi.fn(),
     updateMemoryStats: vi.fn(),
     retrieveMemoryFacts: vi.fn(),
-    upsertMemoryFacts: vi.fn(),
-    importLegacyMemory: vi.fn(),
+    upsertMemoryFacts: vi.fn().mockResolvedValue(undefined),
+    importLegacyMemory: vi.fn().mockResolvedValue(undefined),
     appendConversationTurn: appendConversationTurnMock,
     appendAuditLog: appendAuditLogMock,
     realtimeExecute: vi.fn(),
@@ -297,6 +315,10 @@ describe('chat orchestrator', () => {
     executeRealtimeQueryTurnMock.mockReset()
     appendConversationTurnMock.mockReset()
     appendAuditLogMock.mockReset()
+    extractRuleFactsMock.mockReset()
+    extractRuleFactsMock.mockReturnValue([])
+    upsertFactsMock.mockReset()
+    upsertFactsMock.mockResolvedValue(undefined)
     appendConversationTurnMock.mockResolvedValue(undefined)
     appendAuditLogMock.mockResolvedValue(undefined)
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
@@ -339,6 +361,45 @@ describe('chat orchestrator', () => {
     const payload = appendConversationTurnMock.mock.calls[0]?.[0]
     expect(payload?.structured?.policyLocked).toBeUndefined()
     expect(payload?.assistantText).toContain('普通回复')
+  })
+
+  it('extracts and upserts rule-based memory facts from ui user turns', async () => {
+    extractRuleFactsMock.mockReturnValueOnce([
+      {
+        subject: 'user',
+        predicate: 'likes',
+        object: '抹茶拿铁',
+        confidence: 0.74,
+      },
+    ])
+
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=memory; focus=user-preference; move=acknowledge; tone=warm","emotion":"neutral","reply":"记住了。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('我喜欢抹茶拿铁', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(upsertFactsMock).toBeCalledTimes(1)
+    expect(upsertFactsMock).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        subject: 'user',
+        predicate: 'likes',
+        object: '抹茶拿铁',
+      }),
+    ]), 'rule')
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.memory',
+      action: 'rule-facts-upserted',
+    }))
   })
 
   it('uses deterministic user message id derived from turnId to prevent replay duplicates', async () => {

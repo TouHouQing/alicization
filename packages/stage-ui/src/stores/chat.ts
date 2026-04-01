@@ -8,6 +8,7 @@ import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, Streamin
 import type { AlicizationEmotion, AlicizationMindTurnGovernance, AlicizationPersonalityState } from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
+import { errorMessageFrom } from '@moeru/std'
 import { inferAlicizationInspectionIntent } from '@proj-alicization/stage-shared'
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
@@ -25,6 +26,7 @@ import { useAnalytics } from '../composables/use-analytics'
 import { translateStageUi } from '../utils/i18n'
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
 import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
+import { extractRuleFacts, upsertFacts } from './alicization-memory'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -1114,6 +1116,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
         }
       }
+      const origin = options.origin ?? 'ui-user'
 
       if (shouldAbort())
         return
@@ -1124,7 +1127,40 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       sessionMessagesForSend.push({ role: 'user', content: finalContent, createdAt: sendingCreatedAt, id: userTurnMessageId })
       chatSession.persistSessionMessages(sessionId)
 
-      const origin = options.origin ?? 'ui-user'
+      if (origin === 'ui-user') {
+        const extractedFacts = extractRuleFacts({ userText: sendingMessage })
+        if (extractedFacts.length > 0) {
+          void upsertFacts(extractedFacts, 'rule')
+            .then(async () => {
+              await appendAlicizationAuditLog({
+                level: 'notice',
+                category: 'alicization.memory',
+                action: 'rule-facts-upserted',
+                message: 'Extracted rule-based facts from the current user turn and persisted them to memory.',
+                details: {
+                  sessionId,
+                  turnId,
+                  factCount: extractedFacts.length,
+                },
+              })
+            })
+            .catch(async (error) => {
+              await appendAlicizationAuditLog({
+                level: 'warning',
+                category: 'alicization.memory',
+                action: 'rule-facts-upsert-failed',
+                message: 'Failed to persist rule-based facts extracted from the current user turn.',
+                details: {
+                  sessionId,
+                  turnId,
+                  factCount: extractedFacts.length,
+                  reason: errorMessageFrom(error) ?? 'unknown-error',
+                },
+              })
+            })
+        }
+      }
+
       const hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
       const inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn({
         message: sendingMessage,
@@ -1135,6 +1171,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'
         ? detectRealtimeQueryIntent(sendingMessage)
         : detectRealtimeQueryIntent('')
+      const alicizationBridge = hasAlicizationBridge() ? getAlicizationBridge() : null
+      const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
       const requiresReminderToolCall = origin === 'ui-user' && detectReminderToolIntent(sendingMessage)
       const parsedReminderIntent = requiresReminderToolCall
@@ -1217,7 +1255,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
 
-        const bridge = hasAlicizationBridge() ? getAlicizationBridge() : null
+        const bridge = alicizationBridge
         const bridgeStreamChat = bridge?.streamChat
         if (bridgeStreamChat) {
           const messagePayload = messages.flatMap((message) => {
@@ -2029,135 +2067,148 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (hasAlicizationBridge()) {
         const soulSnapshot = await safelyGetAlicizationSoulSnapshot()
         turnPersonalityState = soulSnapshot?.frontmatter?.personality ?? null
-        const composed = composeAlicizationPromptMessages({
-          messages: newMessages as Message[],
-          soulContent: soulSnapshot?.content ?? null,
-          hostName: soulSnapshot?.frontmatter?.profile?.hostName ?? null,
-          personalityState: turnPersonalityState,
-          contextsSnapshot,
-        })
-        newMessages = composed.messages as any
-
-        if (composed.personalityDirectiveResult) {
+        if (runtimeAuthoritativeBridge) {
           await appendAlicizationAuditLog({
             level: 'notice',
             category: 'alicization.prompt',
-            action: 'personality-directives.injected',
-            message: 'Injected low-personality semantic directives into SOUL anchor.',
+            action: 'runtime-governance-delegated',
+            message: 'Delegated Alicization prompt governance to main runtime pipeline.',
             details: {
-              triggered: composed.personalityDirectiveResult.triggered,
+              contextSourceCount: Object.keys(contextsSnapshot).length,
             },
           })
         }
+        else {
+          const composed = composeAlicizationPromptMessages({
+            messages: newMessages as Message[],
+            soulContent: soulSnapshot?.content ?? null,
+            hostName: soulSnapshot?.frontmatter?.profile?.hostName ?? null,
+            personalityState: turnPersonalityState,
+            contextsSnapshot,
+          })
+          newMessages = composed.messages as any
 
-        if (composed.contractRequiresMindSpine) {
+          if (composed.personalityDirectiveResult) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.prompt',
+              action: 'personality-directives.injected',
+              message: 'Injected low-personality semantic directives into SOUL anchor.',
+              details: {
+                triggered: composed.personalityDirectiveResult.triggered,
+              },
+            })
+          }
+
+          if (composed.contractRequiresMindSpine) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.prompt',
+              action: 'contract-mind-spine-required',
+              message: 'Runtime structured contract requires obligation/truth/focus/move/tone control markers.',
+            })
+          }
+
+          const budgeted = applyPromptBudget(newMessages as Message[])
+          newMessages = budgeted.messages as any
+          if (budgeted.report.safeMode.activated) {
+            await appendAlicizationAuditLog({
+              level: 'critical',
+              category: 'alicization.budget',
+              action: 'overflow_soul',
+              message: 'SOUL exceeded prompt budget and safe mode degradation was applied.',
+              details: {
+                totalBeforeTokens: budgeted.report.totalBeforeTokens,
+                totalAfterTokens: budgeted.report.totalAfterTokens,
+                soulTokensBefore: budgeted.report.safeMode.soulTokensBefore,
+                soulTokensAfter: budgeted.report.safeMode.soulTokensAfter,
+                reason: budgeted.report.safeMode.reason,
+              },
+            })
+          }
+
+          if (!budgeted.report.anchorPreserved) {
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'prompt-budget',
+              action: 'anchor-mutated',
+              message: 'SOUL anchor message changed during budget processing unexpectedly.',
+              details: {
+                sections: budgeted.report.sections,
+              },
+            })
+          }
+
+          if (budgeted.report.truncated) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'prompt-budget',
+              action: 'truncate',
+              message: 'Prompt budget manager truncated context before model call.',
+              details: {
+                totalBeforeTokens: budgeted.report.totalBeforeTokens,
+                totalAfterTokens: budgeted.report.totalAfterTokens,
+                droppedMessageCount: budgeted.report.droppedMessageCount,
+                sections: budgeted.report.sections,
+              },
+            })
+          }
+
+          if (budgeted.report.runtimeContractAnchorRecovered) {
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'alicization.prompt',
+              action: 'runtime-contract-anchor-recovered',
+              message: 'Runtime structured contract anchor was missing and recovered by prompt budget guard.',
+            })
+          }
+
+          const runtimeSystemMessage = budgeted.messages.find((message, index) => index !== 0 && message.role === 'system')
+          const runtimeContractAnchorPreserved = typeof runtimeSystemMessage?.content === 'string'
+            ? runtimeSystemMessage.content.includes(runtimeContractAnchorHeader)
+            : JSON.stringify(runtimeSystemMessage?.content ?? '').includes(runtimeContractAnchorHeader)
+
           await appendAlicizationAuditLog({
-            level: 'notice',
+            level: runtimeContractAnchorPreserved ? 'notice' : 'warning',
             category: 'alicization.prompt',
-            action: 'contract-mind-spine-required',
-            message: 'Runtime structured contract requires obligation/truth/focus/move/tone control markers.',
+            action: runtimeContractAnchorPreserved
+              ? 'runtime-contract-anchor-preserved'
+              : 'runtime-contract-anchor-missing',
+            message: runtimeContractAnchorPreserved
+              ? 'Runtime structured contract anchor is preserved after prompt budgeting.'
+              : 'Runtime structured contract anchor is missing after prompt budgeting.',
           })
+
+          const sanitized = sanitizeForRemoteModel(newMessages as Message[], { timeBudgetMs: 50, chunkSize: 2048 })
+          if (sanitized.blocked) {
+            await appendAlicizationAuditLog({
+              level: 'critical',
+              category: 'sanitize',
+              action: 'blocked',
+              message: 'Outbound model request blocked by sanitize gateway.',
+              details: {
+                reason: sanitized.reason,
+                elapsedMs: sanitized.elapsedMs,
+              },
+            })
+            throw new Error(stageChatText('errors.privacy-blocked'))
+          }
+
+          if (sanitized.redactions > 0) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'sanitize',
+              action: 'redacted',
+              message: 'Sanitize gateway redacted sensitive content before model call.',
+              details: {
+                redactions: sanitized.redactions,
+                elapsedMs: sanitized.elapsedMs,
+              },
+            })
+          }
+
+          newMessages = sanitized.messages as any
         }
-
-        const budgeted = applyPromptBudget(newMessages as Message[])
-        newMessages = budgeted.messages as any
-        if (budgeted.report.safeMode.activated) {
-          await appendAlicizationAuditLog({
-            level: 'critical',
-            category: 'alicization.budget',
-            action: 'overflow_soul',
-            message: 'SOUL exceeded prompt budget and safe mode degradation was applied.',
-            details: {
-              totalBeforeTokens: budgeted.report.totalBeforeTokens,
-              totalAfterTokens: budgeted.report.totalAfterTokens,
-              soulTokensBefore: budgeted.report.safeMode.soulTokensBefore,
-              soulTokensAfter: budgeted.report.safeMode.soulTokensAfter,
-              reason: budgeted.report.safeMode.reason,
-            },
-          })
-        }
-
-        if (!budgeted.report.anchorPreserved) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'prompt-budget',
-            action: 'anchor-mutated',
-            message: 'SOUL anchor message changed during budget processing unexpectedly.',
-            details: {
-              sections: budgeted.report.sections,
-            },
-          })
-        }
-
-        if (budgeted.report.truncated) {
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'prompt-budget',
-            action: 'truncate',
-            message: 'Prompt budget manager truncated context before model call.',
-            details: {
-              totalBeforeTokens: budgeted.report.totalBeforeTokens,
-              totalAfterTokens: budgeted.report.totalAfterTokens,
-              droppedMessageCount: budgeted.report.droppedMessageCount,
-              sections: budgeted.report.sections,
-            },
-          })
-        }
-
-        if (budgeted.report.runtimeContractAnchorRecovered) {
-          await appendAlicizationAuditLog({
-            level: 'warning',
-            category: 'alicization.prompt',
-            action: 'runtime-contract-anchor-recovered',
-            message: 'Runtime structured contract anchor was missing and recovered by prompt budget guard.',
-          })
-        }
-
-        const runtimeSystemMessage = budgeted.messages.find((message, index) => index !== 0 && message.role === 'system')
-        const runtimeContractAnchorPreserved = typeof runtimeSystemMessage?.content === 'string'
-          ? runtimeSystemMessage.content.includes(runtimeContractAnchorHeader)
-          : JSON.stringify(runtimeSystemMessage?.content ?? '').includes(runtimeContractAnchorHeader)
-
-        await appendAlicizationAuditLog({
-          level: runtimeContractAnchorPreserved ? 'notice' : 'warning',
-          category: 'alicization.prompt',
-          action: runtimeContractAnchorPreserved
-            ? 'runtime-contract-anchor-preserved'
-            : 'runtime-contract-anchor-missing',
-          message: runtimeContractAnchorPreserved
-            ? 'Runtime structured contract anchor is preserved after prompt budgeting.'
-            : 'Runtime structured contract anchor is missing after prompt budgeting.',
-        })
-
-        const sanitized = sanitizeForRemoteModel(newMessages as Message[], { timeBudgetMs: 50, chunkSize: 2048 })
-        if (sanitized.blocked) {
-          await appendAlicizationAuditLog({
-            level: 'critical',
-            category: 'sanitize',
-            action: 'blocked',
-            message: 'Outbound model request blocked by sanitize gateway.',
-            details: {
-              reason: sanitized.reason,
-              elapsedMs: sanitized.elapsedMs,
-            },
-          })
-          throw new Error(stageChatText('errors.privacy-blocked'))
-        }
-
-        if (sanitized.redactions > 0) {
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'sanitize',
-            action: 'redacted',
-            message: 'Sanitize gateway redacted sensitive content before model call.',
-            details: {
-              redactions: sanitized.redactions,
-              elapsedMs: sanitized.elapsedMs,
-            },
-          })
-        }
-
-        newMessages = sanitized.messages as any
       }
       else if (Object.keys(contextsSnapshot).length > 0) {
         const system = newMessages.slice(0, 1)

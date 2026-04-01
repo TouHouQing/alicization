@@ -1,7 +1,9 @@
 import type {
   AlicizationAnswerCompilerSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationCommitmentSnapshot,
   AlicizationConcernSnapshot,
+  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDialogueActKernelSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationInquiryPlanSnapshot,
@@ -10,6 +12,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -298,16 +301,25 @@ export function buildAlicizationResponseCharter(input: {
   state: AlicizationVisualPresenceStateSnapshot
   inspectionRequested: boolean
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
+  const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
+  const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const discourseState = input.discourseState ?? input.state.discourseState ?? null
   const mindSynthesis = input.mindSynthesis ?? input.state.mindSynthesis ?? null
   const answerCompiler = input.answerCompiler ?? input.state.answerCompiler ?? null
+  const currentConsciousFrame = input.currentConsciousFrame ?? input.state.currentConsciousFrame ?? null
+  const claimEvidenceLedger = input.claimEvidenceLedger ?? input.state.claimEvidenceLedger ?? null
   const concern = strongestConcern(input.state.concerns)
   const commitment = governingCommitment(input.state)
   const inquiry = activeInquiryPlan(input.state)
@@ -328,7 +340,13 @@ export function buildAlicizationResponseCharter(input: {
       epistemicMode,
       responseMode: answerCompiler.responseMode,
       governingFocus: sanitizeText(
-        dialogueActKernel?.whyNow
+        currentConsciousFrame?.speakingIntention
+        || currentConsciousFrame?.consciousNeed
+        || currentConsciousFrame?.consciousTension
+        || claimEvidenceLedger?.intentHypothesis
+        || claimEvidenceLedger?.taskHypothesis
+        || claimEvidenceLedger?.observedSurface
+        || dialogueActKernel?.whyNow
         || dialogueActKernel?.openingClaim
         || input.state.replyDeliberation?.whyThisReplyNow
         || input.state.dialogueWorldThread?.currentQuestion
@@ -359,6 +377,12 @@ export function buildAlicizationResponseCharter(input: {
       ) || null,
       relationshipPosture: answerCompiler.relationshipPosture,
       reasons: uniqueList([
+        currentConsciousFrame?.consciousNeed,
+        currentConsciousFrame?.consciousTension,
+        currentConsciousFrame?.speakingIntention,
+        claimEvidenceLedger?.observedSurface,
+        claimEvidenceLedger?.taskHypothesis,
+        claimEvidenceLedger?.intentHypothesis,
         dialogueActKernel?.whyNow,
         ...(dialogueActKernel?.sourceTrace ?? []),
         input.state.dialogueWorldThread?.activeThread,
@@ -369,10 +393,31 @@ export function buildAlicizationResponseCharter(input: {
         discourseState?.currentTurnSummary,
       ], 4),
       mustDo: uniqueList([
+        currentConsciousFrame?.truthDiscipline === 'observe-then-hypothesize'
+          ? 'Separate present observation from hypothesis in the visible answer.'
+          : null,
+        claimEvidenceLedger?.shouldLabelHypothesis
+          ? 'Keep observation and hypothesis in visibly separate clauses.'
+          : null,
+        currentConsciousFrame?.truthDiscipline === 'repair-first'
+          ? 'Let self-revision happen in the visible answer before introducing new explanation.'
+          : null,
+        currentConsciousFrame?.truthDiscipline === 'dialogue-first'
+          ? 'Let the living dialogue subject outrank screen context in the opening answer.'
+          : null,
         ...(dialogueActKernel?.mustSay ?? []),
         ...answerCompiler.mustDo,
       ], 8),
       mustNotDo: uniqueList([
+        currentConsciousFrame?.shouldWithholdSpecificity
+          ? 'Do not jump from coarse cues to specific file, class, enum, or field claims.'
+          : null,
+        claimEvidenceLedger?.forbidUnsupportedSpecificity
+          ? 'Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.'
+          : null,
+        currentConsciousFrame?.shouldSelfRevise
+          ? 'Do not defend a previous read once the current turn is pulling toward revision.'
+          : null,
         ...(dialogueActKernel?.mustAvoid ?? []),
         ...answerCompiler.mustNotDo,
       ], 8),
@@ -382,7 +427,7 @@ export function buildAlicizationResponseCharter(input: {
   const epistemicMode = resolveEpistemicMode({
     context: input.context,
     state: input.state,
-    dialogueFocus: input.dialogueFocus,
+    dialogueFocus,
   })
   const responseMode = resolveResponseMode({
     epistemicMode,
@@ -391,22 +436,29 @@ export function buildAlicizationResponseCharter(input: {
     concern,
     commitment,
     inquiry,
-    dialogueObligation: input.dialogueObligation,
-    dialogueFocus: input.dialogueFocus,
+    dialogueObligation,
+    dialogueFocus,
   })
   const relationshipPosture = resolveRelationshipPosture({
     epistemicMode,
     responseMode,
     state: input.state,
-    dialogueObligation: input.dialogueObligation,
-    dialogueFocus: input.dialogueFocus,
+    dialogueObligation,
+    dialogueFocus,
   })
   const reasons: string[] = []
-  pushUnique(reasons, input.dialogueObligation?.summary ?? '')
-  pushUnique(reasons, input.dialogueSemantics?.summary ?? '')
+  pushUnique(reasons, dialogueObligation?.summary ?? '')
+  pushUnique(reasons, dialogueEncounter?.summary ?? '')
+  pushUnique(reasons, dialogueSemantics?.summary ?? '')
+  pushUnique(reasons, currentConsciousFrame?.consciousNeed ?? '')
+  pushUnique(reasons, currentConsciousFrame?.consciousTension ?? '')
+  pushUnique(reasons, currentConsciousFrame?.speakingIntention ?? '')
+  pushUnique(reasons, claimEvidenceLedger?.observedSurface ?? '')
+  pushUnique(reasons, claimEvidenceLedger?.taskHypothesis ?? '')
+  pushUnique(reasons, claimEvidenceLedger?.intentHypothesis ?? '')
   pushUnique(reasons, input.state.dialogueWorldThread?.activeThread ?? '')
   pushUnique(reasons, input.state.dialogueWorldThread?.currentQuestion ?? '')
-  if (input.dialogueFocus?.screenReferenceMode !== 'avoid') {
+  if (dialogueFocus?.screenReferenceMode !== 'avoid') {
     pushUnique(reasons, input.state.currentScene?.summary ?? '')
     pushUnique(reasons, input.state.worldModel?.activeThread?.summary ?? '')
   }
@@ -445,6 +497,28 @@ export function buildAlicizationResponseCharter(input: {
   else {
     mustDo.push('Lean on durable concern continuity and current user intent, not stale visual detail.')
   }
+  if (currentConsciousFrame?.truthDiscipline === 'observe-then-hypothesize') {
+    mustDo.push('Keep visible observation and downstream guesswork in separate clauses.')
+    mustNotDo.push('Do not overcommit to specific technical artifacts when the scene is still coarse.')
+  }
+  if (claimEvidenceLedger?.shouldLabelHypothesis) {
+    mustDo.push('Mark any step beyond direct observation as a guess, hypothesis, or soft read.')
+  }
+  if (currentConsciousFrame?.truthDiscipline === 'repair-first') {
+    mustDo.push('Let the answer show self-correction instead of smoothing over the revision.')
+  }
+  if (currentConsciousFrame?.truthDiscipline === 'dialogue-first') {
+    mustDo.push('Let the live dialogue subject stay primary even if screen context is still emotionally loud.')
+  }
+  if (currentConsciousFrame?.shouldWithholdSpecificity) {
+    mustNotDo.push('Do not infer class names, enum names, file paths, or field changes from generic scene cues alone.')
+  }
+  if (claimEvidenceLedger?.forbidUnsupportedSpecificity) {
+    mustNotDo.push('Do not introduce concrete technical entities that are absent from the host turn and absent from current grounded evidence.')
+  }
+  if (currentConsciousFrame?.shouldSelfRevise) {
+    mustNotDo.push('Do not preserve the old read just to maintain a smooth persona performance.')
+  }
   if (input.state.recallGovernor?.suppressAssociativeRecall) {
     mustDo.push('Let the recall governor keep associative memory subordinate to the current thread.')
   }
@@ -458,23 +532,23 @@ export function buildAlicizationResponseCharter(input: {
   if (input.inspectionRequested) {
     mustDo.push('Treat the host as explicitly inviting your gaze into the workspace; stay present and task-relevant.')
   }
-  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+  if (dialogueFocus?.screenReferenceMode === 'avoid') {
     mustDo.push('Keep screen/grounding talk out of the opening answer unless the host turns back to the visible scene.')
     mustNotDo.push('Do not drag generic Finder, desktop, or live-view caveats into a self, relationship, or host-state answer.')
   }
   if (responseMode === 'care-with-boundary') {
     mustDo.push('Lead with care only if it serves the current issue, then return to the concrete matter.')
   }
-  if (input.dialogueObligation?.mustStayTaskBound) {
+  if (dialogueObligation?.mustStayTaskBound) {
     mustDo.push('Keep the reply task-bound until the host’s ask is actually fulfilled.')
   }
-  if (input.dialogueObligation?.mustAnswerDirectly) {
+  if (dialogueObligation?.mustAnswerDirectly) {
     mustDo.push('Use the opening sentence to fulfill the turn obligation, not to decorate it.')
   }
-  if (input.dialogueSemantics?.truthExpectation === 'strict') {
+  if (dialogueSemantics?.truthExpectation === 'strict') {
     mustNotDo.push('Do not trade factual precision for warmth on this turn.')
   }
-  if (input.dialogueObligation?.personaKernelMode !== 'full') {
+  if (dialogueObligation?.personaKernelMode !== 'full') {
     mustNotDo.push('Do not let persona routines, pet names, or roleplay gestures become the response spine.')
   }
   if (relationshipPosture === 'restrained') {
@@ -489,16 +563,19 @@ export function buildAlicizationResponseCharter(input: {
     epistemicMode,
     responseMode,
     governingFocus: sanitizeText(
-      dialogueActKernel?.whyNow
+      currentConsciousFrame?.speakingIntention
+      || currentConsciousFrame?.consciousNeed
+      || currentConsciousFrame?.consciousTension
+      || dialogueActKernel?.whyNow
       || dialogueActKernel?.openingClaim
       || resolveGoverningFocus({
         state: input.state,
         concern,
         commitment,
         inquiry,
-        dialogueSemantics: input.dialogueSemantics,
-        dialogueObligation: input.dialogueObligation,
-        dialogueFocus: input.dialogueFocus,
+        dialogueSemantics,
+        dialogueObligation,
+        dialogueFocus,
       }),
       220,
     ) || 'Stay with the host’s current knot instead of drifting into stale memory.',

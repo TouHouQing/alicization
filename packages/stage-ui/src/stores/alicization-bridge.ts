@@ -1,3 +1,14 @@
+import type {
+  AlicizationAnswerAct as SharedAlicizationAnswerAct,
+  AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
+  AlicizationBridgeChatStreamEvent as SharedAlicizationBridgeChatStreamEvent,
+  AlicizationMemorySource as SharedAlicizationMemorySource,
+  AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
+  AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
+  AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
+  AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
+} from '@proj-alicization/stage-shared'
+
 export type AlicizationKillSwitchState = 'ACTIVE' | 'SUSPENDED'
 
 export interface AlicizationCardScope {
@@ -88,7 +99,7 @@ export interface AlicizationMemoryStats {
   lastPrunedAt: number | null
 }
 
-export type AlicizationMemorySource = 'rule' | 'async-llm'
+export type AlicizationMemorySource = SharedAlicizationMemorySource
 
 export interface AlicizationMemoryFact {
   id: string
@@ -201,25 +212,11 @@ export interface AlicizationAuditLogInput {
   createdAt?: number
 }
 
-export type AlicizationRealtimeCategory = 'weather' | 'news' | 'finance' | 'sports'
+export type AlicizationRealtimeCategory = SharedAlicizationRealtimeCategory
 
-export interface AlicizationRealtimeExecutePayload {
-  category: AlicizationRealtimeCategory
-  query: string
-  locale?: string
-  now?: number
-}
+export type AlicizationRealtimeExecutePayload = SharedAlicizationRealtimeExecutePayload
 
-export interface AlicizationRealtimeExecuteResult {
-  category: AlicizationRealtimeCategory
-  source: 'builtin'
-  ok: boolean
-  summary?: string
-  data?: Record<string, unknown>
-  errorCode?: string
-  errorMessage?: string
-  durationMs: number
-}
+export type AlicizationRealtimeExecuteResult = SharedAlicizationRealtimeExecuteResult
 
 export type AlicizationSystemProbeDegradeReason
   = | 'battery-unavailable'
@@ -1096,21 +1093,9 @@ export interface AlicizationMindSynthesisSnapshot {
   updatedAt: number
 }
 
-export type AlicizationAnswerAct
-  = | 'answer'
-    | 'guide'
-    | 'ask-reground'
-    | 'correct-stale-anchor'
-    | 'care'
-    | 'defer'
+export type AlicizationAnswerAct = SharedAlicizationAnswerAct
 
-export type AlicizationAnswerEvidenceMode
-  = | 'live-grounded'
-    | 'live-observed'
-    | 'coarse-held'
-    | 'dialogue-grounded'
-    | 'continuity-carry'
-    | 'repair-first'
+export type AlicizationAnswerEvidenceMode = SharedAlicizationAnswerEvidenceMode
 
 export interface AlicizationAnswerPlannerSnapshot {
   act: AlicizationAnswerAct
@@ -1888,36 +1873,7 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   waitForTools?: boolean
 }
 
-export interface AlicizationMindTurnGovernance {
-  turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
-  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
-  groundedThisTurn?: boolean
-  personaKernelMode: 'full' | 'backgrounded' | 'muted'
-  openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
-  relationshipPosture: 'restrained' | 'warm' | 'tender'
-  answerSubject?: 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general' | null
-  screenReferenceMode?: 'required' | 'helpful' | 'incidental' | 'avoid' | null
-  answerAct?: 'answer' | 'guide' | 'ask-reground' | 'correct-stale-anchor' | 'care' | 'defer' | null
-  evidenceMode?: 'live-grounded' | 'live-observed' | 'coarse-held' | 'dialogue-grounded' | 'continuity-carry' | 'repair-first' | null
-  repairState: 'none' | 'stale-anchor' | 'need-reground'
-  liveSurface?: string | null
-  focusAnchor?: string | null
-  answerIntent?: string | null
-  openingMove?: string | null
-  carriedThread?: string | null
-  suppressAssociativeRecall: boolean
-  labelCarryAsMemory: boolean
-  shouldAskForGrounding: boolean
-  shouldAcknowledgeRepair: boolean
-  maxSentences: number
-  mindMode?: AlicizationMindKernelMode | null
-  embodiedPresence?: AlicizationEmbodiedPresenceState
-  emotionalTension?: AlicizationEmotionalTension
-  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
-  mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
-  mustDo: string[]
-  mustNotDo: string[]
-}
+export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance
 
 export interface AlicizationChatStartResult {
   accepted: boolean
@@ -1946,13 +1902,7 @@ export interface AlicizationReminderScheduleResult {
   code?: string
 }
 
-export type AlicizationBridgeChatStreamEvent
-  = | { type: 'text-delta', text: string }
-    | { type: 'meta', governance: AlicizationMindTurnGovernance | null }
-    | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
-    | { type: 'tool-result', toolCallId: string, result?: unknown }
-    | { type: 'finish' }
-    | { type: 'error', error: unknown }
+export type AlicizationBridgeChatStreamEvent = SharedAlicizationBridgeChatStreamEvent
 
 export type AlicizationToolRiskLevel = 'safe' | 'sensitive' | 'danger'
 

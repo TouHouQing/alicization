@@ -205,3 +205,18 @@ description: Alicization Epoch 1-5 路线图、当前状态、风险与阶段门
 2. 安全与隐私红线无回归。
 3. 性能基线无明显退化。
 4. README、需求、架构、路线图与收官文档之间不存在明显口径断裂。
+
+## 8. P0-P2 工程治理分层（截至 2026-04-01）
+
+为避免“只讲愿景，不讲执行”，当前在 Epoch 主线之外，额外采用 P0/P1/P2 工程治理分层作为硬门禁。
+
+| 分层 | 当前状态 | 核心目标 | 主体落点 |
+| --- | --- | --- | --- |
+| P0 | 已完成 | 运行时单一治理、跨进程契约真源、Card Scope 一致性、Browser Bridge 对齐、异步记忆抽取闭环 | `runtime.ts`、`packages/stage-shared`、`packages/stage-ui` |
+| P1 | 已完成 | 对话心智链闭环：`dialogueTurnEncounter`、`currentConsciousFrame`、`claimEvidenceLedger` 成为统一治理基线 | `dialogue-turn-encounter.ts`、`current-conscious-frame.ts`、`claim-evidence-ledger.ts` |
+| P2 | 已完成 | 真实回答面约束：`responseCharter` + `responseSurfaceContract` 双层门禁，细节真实性审计可追溯 | `response-charter.ts`、`response-surface-contract.ts`、`runtime.ts` |
+
+约束说明：
+
+- P1/P2 不是替代 Epoch，而是保证 Epoch 3 的多模态增强不会把回答链路退化回“黑箱回复器”。
+- P1/P2 的验收以测试通过为硬条件，至少覆盖 `runtime.test.ts`、`mind-turn-frame.test.ts`、`dialogue-anchor-coherence.test.ts`、`response-charter.test.ts`、`response-surface-contract.test.ts`。

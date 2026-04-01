@@ -215,6 +215,7 @@ describe('buildDialogueWorldThread', () => {
 
     expect(state?.activeThread).toBe('你真可爱')
     expect(state?.openLoops).toEqual([])
+    expect(state?.recentlyResolvedLoops).toEqual([])
     expect(state?.carriedFacts).toEqual([])
     expect(state?.recallKeys.join(' | ')).not.toContain('Java interview questions')
     expect(state?.recallKeys.join(' | ')).not.toContain('What is wrong with this diff?')

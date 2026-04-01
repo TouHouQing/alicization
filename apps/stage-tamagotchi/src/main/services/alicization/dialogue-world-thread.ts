@@ -11,6 +11,7 @@ import type {
 
 import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { resolvePrimaryTurnAnchor, turnAnchorAligns } from './dialogue-turn-anchor'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -46,10 +47,15 @@ function shouldCarryPreviousDialogueAnchor(input: {
   previous?: AlicizationDialogueWorldThreadSnapshot | null
 }) {
   const previousActiveThread = sanitizeDialogueFact(input.previous?.activeThread, 180)
-  if (!previousActiveThread || input.previous?.memoryMode !== 'dialogue-carry')
+  const previousAnchor = sanitizeDialogueFact(
+    input.previous?.primaryTurnAnchor ?? input.previous?.currentQuestion ?? previousActiveThread,
+    180,
+  )
+  if (!previousActiveThread || !previousAnchor || input.previous?.memoryMode !== 'dialogue-carry' || input.previous?.carryEligible !== true)
     return false
 
   const currentAnchors = uniqueList([
+    input.conversationState.primaryTurnAnchor,
     input.conversationState.hostMove,
     input.conversationState.jointThread,
     input.conversationState.unansweredQuestion,
@@ -57,7 +63,10 @@ function shouldCarryPreviousDialogueAnchor(input: {
   if (currentAnchors.length === 0)
     return false
 
-  return measureDialogueFocusAlignment({
+  return turnAnchorAligns({
+    anchor: previousAnchor,
+    context: currentAnchors,
+  }) || measureDialogueFocusAlignment({
     message: previousActiveThread,
     contextPhrases: currentAnchors,
   }).overlapRatio >= 0.18
@@ -139,8 +148,18 @@ export function buildDialogueWorldThread(input: {
       : null
   }
 
+  const dialogueCarry = input.conversationState.memoryMode === 'dialogue-carry'
+  const { text: primaryTurnAnchor, source: primaryTurnAnchorSource } = resolvePrimaryTurnAnchor([
+    { source: input.conversationState.primaryTurnAnchorSource ?? 'unknown', text: input.conversationState.primaryTurnAnchor },
+    { source: 'question', text: input.conversationState.unansweredQuestion },
+    { source: 'thread', text: input.conversationState.jointThread },
+    { source: 'user-text', text: dialogueCarry ? input.conversationState.hostMove : null },
+    { source: 'user-text', text: dialogueCarry ? null : input.conversationState.hostMove },
+    { source: 'carry', text: input.previous?.primaryTurnAnchor },
+  ])
   const activeThread = sanitizeText(
-    input.conversationState.jointThread
+    (dialogueCarry ? primaryTurnAnchor : input.conversationState.jointThread)
+    || (dialogueCarry ? input.conversationState.jointThread : primaryTurnAnchor)
     || input.previous?.activeThread
     || input.worldModel?.activeThread?.summary
     || input.worldModel?.activeThread?.title
@@ -149,23 +168,26 @@ export function buildDialogueWorldThread(input: {
     || 'Stay with the current dialogue seam.',
     220,
   ) || 'Stay with the current dialogue seam.'
+  const conversationCarryEligible = input.conversationState.carryEligible
+    ?? Boolean(primaryTurnAnchor && input.conversationState.shouldHoldThread)
 
   const currentQuestion = sanitizeText(
     input.conversationState.unansweredQuestion
     || (
-      input.conversationState.shouldHoldThread
+      conversationCarryEligible
+      && input.conversationState.shouldHoldThread
         ? input.previous?.currentQuestion
         : ''
     )
     || '',
     180,
   ) || null
-  const dialogueCarry = input.conversationState.memoryMode === 'dialogue-carry'
   const carryPreviousDialogueAnchor = shouldCarryPreviousDialogueAnchor({
     conversationState: input.conversationState,
     previous: input.previous ?? null,
   })
   const dialogueCarryAnchors = uniqueList([
+    primaryTurnAnchor,
     input.conversationState.hostMove,
     input.conversationState.jointThread,
     currentQuestion,
@@ -179,16 +201,12 @@ export function buildDialogueWorldThread(input: {
     input.conversationState.owedRepair,
     ...input.conversationState.activeCommitments,
     ...(
-      dialogueCarry
+      dialogueCarry || !carryPreviousDialogueAnchor
         ? []
         : (input.previous?.pendingValidation?.question ? [input.previous.pendingValidation.question] : [])
     ),
-    ...(dialogueCarry ? [] : (input.previous?.openLoops ?? [])),
+    ...(dialogueCarry || !carryPreviousDialogueAnchor ? [] : (input.previous?.openLoops ?? [])),
   ], 6)
-  const recentlyResolvedLoops = uniqueList(
-    (input.previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
-    4,
-  )
   const carriedFacts = dialogueCarry
     ? uniqueList(filterDialogueCarryFacts([
         ...(input.answerCompiler?.supportingReality ?? []),
@@ -200,6 +218,15 @@ export function buildDialogueWorldThread(input: {
         input.worldModel?.activeThread?.summary,
         ...(input.previous?.carriedFacts ?? []),
       ], 6)
+  const recentlyResolvedLoops = dialogueCarry
+    ? uniqueList(filterDialogueCarryFacts(
+        (input.previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
+        dialogueCarryAnchors,
+      ), 4)
+    : uniqueList(
+        (input.previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
+        4,
+      )
   const relationDrift = resolveRelationDrift({
     conversationState: input.conversationState,
     discourseState: input.discourseState ?? null,
@@ -209,6 +236,7 @@ export function buildDialogueWorldThread(input: {
     previous: input.previous ?? null,
   })
   const recallKeys = uniqueList([
+    primaryTurnAnchor,
     activeThread,
     currentQuestion,
     input.conversationState.hostMove,
@@ -224,12 +252,16 @@ export function buildDialogueWorldThread(input: {
   return {
     activeThread,
     currentQuestion,
+    primaryTurnAnchor,
+    primaryTurnAnchorSource,
     openLoops,
     recentlyResolvedLoops,
     carriedFacts,
     relationDrift,
     memoryMode: input.conversationState.memoryMode,
     recallKeys,
+    carryEligible: conversationCarryEligible,
+    carryReason: input.conversationState.carryReason ?? null,
     lastUserMove: sanitizeText(input.conversationState.hostMove, 220) || input.previous?.lastUserMove || activeThread,
     lastAssistantMove: input.previous?.lastAssistantMove ?? null,
     lastOutcome: input.previous?.lastOutcome ?? 'none',
@@ -242,11 +274,13 @@ export function buildDialogueWorldThread(input: {
       + (input.previous?.confidence ?? 0.3) * 0.12,
     ),
     narrative: uniqueList([
+      primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       `thread:${activeThread}`,
       currentQuestion ? `question:${currentQuestion}` : null,
       input.conversationState.owedRepair ? `repair:${input.conversationState.owedRepair}` : null,
       `relation:${relationDrift}`,
       `memory:${input.conversationState.memoryMode}`,
+      input.conversationState.carryReason ? `carry:${input.conversationState.carryReason}` : (conversationCarryEligible ? 'carry:hold-thread' : null),
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
     ], 8),
     updatedAt: input.now,
@@ -262,11 +296,15 @@ export function buildDialogueWorldThreadSystemBlock(state: AlicizationDialogueWo
     'This block is the carried cross-turn dialogue seam. Treat it as the living thread Alicization believes she is still inside.',
     `Active thread: ${state.activeThread}.`,
     `Current question: ${state.currentQuestion ?? 'none'}.`,
+    `Primary turn anchor: ${state.primaryTurnAnchor ?? 'none'}.`,
+    `Primary turn anchor source: ${state.primaryTurnAnchorSource ?? 'none'}.`,
     `Open loops: ${state.openLoops.length > 0 ? state.openLoops.join(' | ') : 'none'}.`,
     `Recently resolved loops: ${state.recentlyResolvedLoops.length > 0 ? state.recentlyResolvedLoops.join(' | ') : 'none'}.`,
     `Carried facts: ${state.carriedFacts.length > 0 ? state.carriedFacts.join(' | ') : 'none'}.`,
     `Relation drift: ${state.relationDrift}.`,
     `Memory mode: ${state.memoryMode}.`,
+    `Carry eligible: ${state.carryEligible === true ? 'yes' : 'no'}.`,
+    `Carry reason: ${state.carryReason ?? 'none'}.`,
     `Last user move: ${state.lastUserMove}.`,
     `Last assistant move: ${state.lastAssistantMove ?? 'none'}.`,
     `Last outcome: ${state.lastOutcome}.`,

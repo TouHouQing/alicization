@@ -468,6 +468,7 @@ export function buildDialogueActKernel(input: {
           : 'uncertain',
     hostMove: input.conversationState?.hostMove ?? input.dialogueWorldThread?.lastUserMove ?? null,
     candidates: [
+      { role: 'focus', text: dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor ?? input.discourseState?.primaryTurnAnchor : null },
       { role: 'scene', text: dialogueFirstTurn ? null : sceneCue || null },
       { role: 'opening-claim', text: dialogueFirstTurn ? null : input.answerCompiler?.openingClaim ?? null },
       { role: 'answer-intent', text: dialogueFirstTurn ? null : input.answerPlanner?.answerIntent ?? null },
@@ -480,7 +481,7 @@ export function buildDialogueActKernel(input: {
   })
   const dominantAnchor = anchorCoherence.dominant
   const keepCoherent = (value: unknown) => {
-    const normalized = sanitizeKernelSurface(value, 220)
+    const normalized = sanitizeKernelAnchor(value, 220)
     if (!normalized)
       return null
     if (!anchorCoherence.sceneAuthority || !dominantAnchor)

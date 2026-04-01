@@ -275,3 +275,103 @@ Renderer 侧通过 `AlicizationBridge` 访问主运行时能力。当前关键�
 - 不能为了提升执行力而绕开工作区沙箱和人在回路。
 - 不能为了丰富多模态而绕开 local-first 数据主权策略。
 - 不能为了追求“像活的”而把未来能力写成今天已经具备的能力。
+
+## 10. Alicization P0 强约束（数字生命心智）
+
+本节是当前阶段的工程硬约束。任何不满足以下约束的实现，都视为 Alicization 心智链路回退，不可合入主线。
+
+1. **主运行时单一治理（Single Governor）**
+   - 当 `AlicizationBridge.streamChat` 可用时，Renderer 不再承担核心提示词治理权。
+   - Renderer 必须委托 Main Runtime 执行心智轮次治理，不得重复做核心系统块拼装、治理级预算裁剪、远程治理级文本清洗。
+   - 运行时落点：`apps/stage-tamagotchi/src/main/services/alicization/runtime.ts`。
+
+2. **跨进程契约单一真源（Contract SSOT）**
+   - Alicization 对话治理、实时执行、流事件相关传输类型必须统一定义在：
+     `packages/stage-shared/src/alicization-transport-contracts.ts`。
+   - `packages/stage-ui/src/stores/alicization-bridge.ts` 与
+     `apps/stage-tamagotchi/src/shared/eventa.ts` 必须复用该真源类型，不得本地重复声明。
+
+3. **主运行时核心提示词主权（Prompt Authority）**
+   - Main Runtime 每次主链路对话都必须先注入固定核心块：
+     `core system`、`host directive`、`structured contract anchor`。
+   - 然后再拼接动态上下文（记忆、感知、performance 等），确保人格锚点与输出契约稳定。
+
+4. **Card Scope 一致性**
+   - `chatStart`、`streamChat` 及相关落盘/投递重试流程必须在 `withCardScope(cardId, ...)` 内执行。
+   - 禁止在 card scope 外读写卡片级状态，防止跨卡心智污染。
+
+5. **Browser Bridge 语义对齐（Parity）**
+   - 浏览器桥必须保留并处理 `meta` 流事件。
+   - 必须持久化 visual presence pulse，并保证 `getVisualPresenceState` 返回可用状态（持久化值或确定性回退合成值），不能长期 `null`。
+   - `realtimeExecute` 不能是空实现，必须走内置实时查询链路并返回标准化分类结果。
+
+6. **异步记忆抽取 P0（非阻塞）**
+   - 轮次完成后必须采用异步队列抽取事实记忆，不得阻塞主对话闭环。
+   - 必须使用预算/触发窗口控制（batch + idle + budget），避免持续过载。
+   - 抽取结果写入统一记忆面，source 标记为 `async-llm`。
+   - 落点：`packages/stage-ui/src/stores/alicization-epoch1.ts`。
+
+7. **生命周期清理**
+   - Store `dispose()` 必须清理异步抽取计时器与待处理队列，防止跨会话泄漏和重复抽取。
+
+8. **偏离约束时的可审计性**
+   - 若出现必须临时偏离 P0 约束的情况，必须在代码中加入 `// NOTICE:` 说明根因、影响范围、回滚或补齐路径，并在审计日志中可追踪。
+
+## 11. Alicization P1 强约束（对话心智链闭环）
+
+P1 的目标是把“对话意图、责任、认知焦点、证据预算”压缩成可执行的统一心智链，避免每个模块各说各话。
+
+1. **Turn Encounter 单一归约器**
+   - 每个受治理轮次必须先构建 `dialogueTurnEncounter`（`semantics + obligation + ownership + focus`）。
+   - 后续 `discourseState`、`conversationState`、`answerPlanner`、`recallGovernor`、`mindSynthesis` 不得绕过该归约器重复实现主语义判断。
+
+2. **当前意识帧 + 证据账本强制存在**
+   - 对受治理轮次，运行时必须生成并携带 `currentConsciousFrame` 与 `claimEvidenceLedger`。
+   - 这两者必须进入治理 payload 和 visual presence 状态，作为回答阶段与后续审计的事实基线。
+
+3. **Dialogue-first 去污染**
+   - 当 `subject` 属于 `alicization-self` / `relationship` / `host-state`，或 `screenReferenceMode === 'avoid'` 时，回答面必须优先对话中心，不得把旧屏幕线索当作当前事实主轴。
+   - stale carry、外来技术细节、角色扮演式空壳开头都应进入治理修复或覆盖路径。
+
+4. **answerIntent 主权**
+   - `mindTurnFrame.obligation.answerIntent` 必须优先保留 answer planner 给出的真实作答意图。
+   - `focusAnchor` 可辅助，不得在 dialogue-first 轮次反向覆盖作答意图。
+
+5. **`mind-turn-v1` 终态规范**
+   - 携带治理状态的最终轮次结构必须归一为 `format: 'mind-turn-v1'`。
+   - `epoch1-v1` 仅允许作为输入兼容层，不允许作为治理终态继续向下游广播。
+
+6. **P1 验收测试锚点**
+   - `apps/stage-tamagotchi/src/main/services/alicization/dialogue-anchor-coherence.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/mind-turn-frame.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
+## 12. Alicization P2 强约束（真实回答面约束）
+
+P2 的目标是让“可见回答”受到真值纪律约束，而不是只在内部治理层正确。
+
+1. **回答章程 + 表面合约双层门禁**
+   - 每轮最终回答前必须构建 `responseCharter` 与 `responseSurfaceContract`。
+   - 两者 system block 都必须进入最终提示词面，且优先级高于 persona 表演习惯。
+
+2. **不支持细节防火墙**
+   - 当 `claimEvidenceLedger.forbidUnsupportedSpecificity === true` 时，运行时必须拦截或覆盖未被本轮证据支持的文件名、类名、枚举名、字段级细节。
+   - 覆盖行为必须在 `mind-governance-takeover` 审计里留下原因与命中 cue。
+
+3. **假设显式标注**
+   - 当 `claimEvidenceLedger.shouldLabelHypothesis === true` 时，回答必须明确区分“可观察事实”和“推测”。
+   - 禁止把粗粒度场景推断伪装为确定事实。
+
+4. **空壳回答禁令**
+   - 回答合约必须禁止“先宣言后空转”的壳句（如只说“我会直接回答”但不真正回答）。
+   - 当前轮次的 answer/care/accompany 义务必须在同一条可见回复中完成。
+
+5. **治理接管审计完整性**
+   - `mind-governance-takeover` 审计 payload 必须至少包含：
+     anchor 冲突信息、specificity budget、unsupported cues、fallback reason、reply before/after 摘要。
+   - 保证每次接管都可复盘“为什么修、怎么修、修了什么”。
+
+6. **P2 验收测试锚点**
+   - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`

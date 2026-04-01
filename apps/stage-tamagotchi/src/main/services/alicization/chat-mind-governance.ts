@@ -1,6 +1,7 @@
 import type {
   AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerPlannerSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationDialogueActKernelSnapshot,
   AlicizationDialogueWorldThreadSnapshot,
@@ -13,12 +14,13 @@ import type {
   AlicizationReplyDeliberationSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
 
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
-import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -28,6 +30,13 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 
 function sanitizeUserFacingCandidate(raw: unknown, maxChars = 180) {
   const normalized = sanitizeDialogueSurfaceText(raw, maxChars)
+  if (!normalized)
+    return ''
+  return normalized
+}
+
+function sanitizeSemanticAnchorCandidate(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeDialogueAnchorText(raw, maxChars)
   if (!normalized)
     return ''
   return normalized
@@ -78,7 +87,7 @@ function mirrorsHostMove(candidate: unknown, hostMove: unknown) {
 
 function pickGovernedCue(hostMove: unknown, ...values: unknown[]) {
   for (const value of values) {
-    const normalized = sanitizeUserFacingCandidate(value)
+    const normalized = sanitizeSemanticAnchorCandidate(value)
     if (!normalized || mirrorsHostMove(normalized, hostMove))
       continue
     return normalized
@@ -120,8 +129,10 @@ function resolveGovernedAnchorCoherence(input: {
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   answerSubject?: AlicizationMindTurnGovernance['answerSubject'] | null
   screenReferenceMode?: AlicizationMindTurnGovernance['screenReferenceMode'] | null
   truthState?: AlicizationMindTurnGovernance['truthState'] | null
@@ -135,6 +146,10 @@ function resolveGovernedAnchorCoherence(input: {
     groundedThisTurn: input.groundedThisTurn === true,
     hostMove: input.conversationState?.hostMove ?? null,
     candidates: [
+      { role: 'focus', text: input.conversationState?.primaryTurnAnchor },
+      { role: 'focus', text: input.discourseState?.primaryTurnAnchor },
+      { role: 'focus', text: input.dialogueEncounter?.taskAnchor },
+      { role: 'question', text: input.dialogueEncounter?.summary },
       { role: 'focus', text: input.mindTurnFrame?.focusAnchor },
       { role: 'visible-surface', text: allowScreen ? input.mindTurnFrame?.world.visibleSurface : null },
       { role: 'carry', text: input.mindTurnFrame?.memory.carriedThread },
@@ -167,11 +182,14 @@ export function buildAlicizationMindTurnGovernance(input: {
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindMode?: AlicizationMindKernelMode | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   groundedThisTurn?: boolean
 }): AlicizationMindTurnGovernance {
+  const dialogueFocus = input.dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const frame = input.mindTurnFrame ?? null
   const repairState = frame?.obligation.repairState ?? resolveRepairState({
     brief: input.brief,
@@ -181,7 +199,8 @@ export function buildAlicizationMindTurnGovernance(input: {
   const screenReferenceMode = input.kernel?.screenReferenceMode
     ?? input.answerCompiler?.screenReferenceMode
     ?? input.discourseState?.screenReferenceMode
-    ?? input.dialogueFocus?.screenReferenceMode
+    ?? input.dialogueEncounter?.screenReferenceMode
+    ?? dialogueFocus?.screenReferenceMode
     ?? null
   const groundedThisTurn = input.groundedThisTurn === true
   const truthState = groundedThisTurn && screenReferenceMode !== 'avoid'
@@ -194,14 +213,16 @@ export function buildAlicizationMindTurnGovernance(input: {
     answerPlanner: input.answerPlanner,
     answerCompiler: input.answerCompiler,
     conversationState: input.conversationState ?? null,
+    discourseState: input.discourseState ?? null,
     dialogueWorldThread: input.dialogueWorldThread ?? null,
     replyDeliberation: input.replyDeliberation ?? null,
-    answerSubject: frame?.relation.subject ?? input.kernel?.subject ?? input.answerCompiler?.answerSubject ?? input.discourseState?.currentTurnSubject ?? input.dialogueFocus?.subject ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+    answerSubject: frame?.relation.subject ?? input.kernel?.subject ?? input.answerCompiler?.answerSubject ?? input.discourseState?.currentTurnSubject ?? input.dialogueEncounter?.subject ?? dialogueFocus?.subject ?? null,
     screenReferenceMode,
     truthState,
     groundedThisTurn,
   })
-  const conversationalProjectAnchor = sanitizeUserFacingCandidate(input.conversationState?.activeProject) || null
+  const conversationalProjectAnchor = sanitizeSemanticAnchorCandidate(input.conversationState?.activeProject) || null
   const dominantAnchor = (
     !anchorCoherence.sceneAuthority
     && !frame
@@ -211,7 +232,7 @@ export function buildAlicizationMindTurnGovernance(input: {
     ? conversationalProjectAnchor
     : anchorCoherence.dominant
   const keepCoherent = (value: unknown) => {
-    const normalized = sanitizeUserFacingCandidate(value)
+    const normalized = sanitizeSemanticAnchorCandidate(value)
     if (!normalized)
       return ''
     if (!anchorCoherence.sceneAuthority || !dominantAnchor)
@@ -226,7 +247,7 @@ export function buildAlicizationMindTurnGovernance(input: {
     personaKernelMode: input.surfaceContract.personaKernelMode,
     openingStyle: input.surfaceContract.openingStyle,
     relationshipPosture: frame?.relation.relationshipPosture ?? input.charter.relationshipPosture,
-    answerSubject: frame?.relation.subject ?? input.kernel?.subject ?? input.answerCompiler?.answerSubject ?? input.discourseState?.currentTurnSubject ?? input.dialogueFocus?.subject ?? null,
+    answerSubject: frame?.relation.subject ?? input.kernel?.subject ?? input.answerCompiler?.answerSubject ?? input.discourseState?.currentTurnSubject ?? input.dialogueEncounter?.subject ?? dialogueFocus?.subject ?? null,
     screenReferenceMode,
     answerAct: frame?.obligation.answerAct ?? input.kernel?.speechAct ?? input.answerCompiler?.recommendedAct ?? input.answerPlanner?.act ?? null,
     evidenceMode: input.kernel?.truthMode === 'memory-only'
@@ -235,13 +256,21 @@ export function buildAlicizationMindTurnGovernance(input: {
     repairState,
     liveSurface: sanitizeUserFacingCandidate(frame?.world.visibleSurface ?? input.brief.liveSurface) || null,
     focusAnchor: dominantAnchor
-      ?? (sanitizeUserFacingCandidate(
-        input.conversationState?.activeProject
+      ?? (sanitizeSemanticAnchorCandidate(
+        input.conversationState?.primaryTurnAnchor
+        ?? input.discourseState?.primaryTurnAnchor
+        ?? input.dialogueEncounter?.taskAnchor
+        ?? input.dialogueEncounter?.summary
+        ?? input.conversationState?.activeProject
         ?? (screenReferenceMode === 'avoid' ? null : input.brief.liveSurface),
       ) || null),
     answerIntent: pickGovernedCue(
       input.conversationState?.hostMove ?? '',
       dominantAnchor,
+      input.conversationState?.primaryTurnAnchor,
+      input.discourseState?.primaryTurnAnchor,
+      input.dialogueEncounter?.taskAnchor,
+      input.dialogueEncounter?.summary,
       keepCoherent(frame?.obligation.answerIntent),
       keepCoherent(frame?.focusAnchor),
       keepCoherent(screenReferenceMode === 'avoid' ? null : frame?.world.visibleSurface),
@@ -256,8 +285,12 @@ export function buildAlicizationMindTurnGovernance(input: {
       keepCoherent(input.replyDeliberation?.whyThisReplyNow),
       keepCoherent(input.dialogueWorldThread?.currentQuestion),
       keepCoherent(input.conversationState?.jointThread),
-    ) || sanitizeUserFacingCandidate(
+    ) || sanitizeSemanticAnchorCandidate(
       dominantAnchor
+      ?? input.conversationState?.primaryTurnAnchor
+      ?? input.discourseState?.primaryTurnAnchor
+      ?? input.dialogueEncounter?.taskAnchor
+      ?? input.dialogueEncounter?.summary
       ?? keepCoherent(frame?.focusAnchor)
       ?? keepCoherent(input.conversationState?.activeProject)
       ?? keepCoherent(input.brief.liveSurface)
@@ -275,7 +308,11 @@ export function buildAlicizationMindTurnGovernance(input: {
     carriedThread: screenReferenceMode === 'avoid'
       ? null
       : (() => {
-          const carry = sanitizeUserFacingCandidate(frame?.memory.carriedThread ?? input.brief.carriedThread)
+          const carry = sanitizeSemanticAnchorCandidate(
+            frame?.memory.carriedThread
+            ?? input.brief.carriedThread
+            ?? input.conversationState?.primaryTurnAnchor,
+          )
           if (!carry)
             return null
           if (dominantAnchor && anchorsMateriallyConflict(carry, dominantAnchor))
@@ -295,10 +332,14 @@ export function buildAlicizationMindTurnGovernance(input: {
     embodiedPresence: frame?.self.embodiedPresence ?? input.privateThought?.embodiedPresence ?? 'none',
     emotionalTension: frame?.self.emotionalTension ?? input.privateThought?.emotionalTension,
     dialogueActKernel: input.kernel ?? null,
+    claimEvidence: input.claimEvidenceLedger ?? null,
     mustDo: uniqueList([
       ...anchorCoherence.reasonTags.map(tag => `anchor:${tag}`),
       ...(frame?.mustDo ?? []),
       ...(input.kernel?.mustSay ?? []),
+      input.claimEvidenceLedger?.shouldLabelHypothesis
+        ? 'Keep direct observation and any hypothesis in separate clauses.'
+        : null,
       ...(input.answerCompiler?.mustDo ?? []),
       ...input.brief.mustDo,
       ...input.surfaceContract.mustDo,
@@ -307,6 +348,9 @@ export function buildAlicizationMindTurnGovernance(input: {
     mustNotDo: uniqueList([
       ...(frame?.mustNotDo ?? []),
       ...(input.kernel?.mustAvoid ?? []),
+      input.claimEvidenceLedger?.forbidUnsupportedSpecificity
+        ? 'Do not introduce file names, class names, enum names, or field changes that this turn has not actually evidenced.'
+        : null,
       ...(input.answerCompiler?.mustNotDo ?? []),
       ...input.brief.mustNotDo,
       ...input.surfaceContract.mustNotDo,

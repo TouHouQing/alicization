@@ -403,6 +403,163 @@ describe('buildAnswerCompiler', () => {
     expect(compiler?.openingClaim).toBe('能不能说人话')
   })
 
+  it('quarantines stale scene residue out of dialogue-first supporting reality', () => {
+    const compiler = buildAnswerCompiler({
+      now: 47_000,
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'The host wants a direct dialogue-first answer.',
+        currentQuestion: null,
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: '她还没重新看见这条线程。',
+        ruptureRepair: '她还没重新看见这条线程。',
+      },
+      conversationState: {
+        jointThread: '你仔细看看呢',
+        hostMove: '你仔细看看呢',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'clarify',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['你仔细看看呢'],
+        shouldHoldThread: false,
+        confidence: 0.74,
+        narrative: [],
+        updatedAt: 47_000,
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'general',
+        relationMove: 'clarify',
+        speechObligation: 'answer-general',
+        beliefs: [{
+          label: 'living-thread',
+          summary: '宿主停留在 current screen 这一刻。',
+          confidence: 0.84,
+          sourceTags: ['world-model'],
+        }],
+        concerns: [{
+          label: 'protect-focus',
+          summary: '她更想先护住你的专注，不急着插进来。',
+          confidence: 0.8,
+          sourceTags: ['concern-continuity'],
+        }],
+        commitments: [{
+          label: 'repair',
+          summary: '她还没重新看见这条线程。',
+          confidence: 0.86,
+          sourceTags: ['repair-ledger'],
+        }],
+        openingIntent: 'Answer the host directly.',
+        truthBoundary: 'This turn is dialogue-first and should stay with the host move.',
+        interiorSummary: 'Keep the reply attached to the current dialogue turn.',
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::stale-screen',
+          kind: 'browsing',
+          status: 'lingering',
+          source: 'continuity',
+          title: 'current screen',
+          summary: '宿主停留在 current screen 这一刻。',
+          confidence: 0.74,
+          significance: 0.62,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 47_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'reacquired',
+          sceneAgeMs: 47_000,
+          attentionAgeMs: 47_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 47_000,
+      },
+    })
+
+    expect(compiler?.supportingReality).toEqual(['你仔细看看呢'])
+    expect(compiler?.supportingReality.join(' | ')).not.toContain('current screen')
+    expect(compiler?.supportingReality.join(' | ')).not.toContain('护住你的专注')
+  })
+
+  it('prefers the carried primary turn anchor over generic continue shells', () => {
+    const compiler = buildAnswerCompiler({
+      now: 48_000,
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'general',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Continue from the present dialogue seam directly.',
+        currentQuestion: null,
+        primaryTurnAnchor: '屏幕相关对话还在串台',
+        primaryTurnAnchorSource: 'thread',
+        owedAction: 'answer-general',
+        relationMove: 'clarify',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+      },
+      conversationState: {
+        jointThread: '继续',
+        hostMove: '继续',
+        primaryTurnAnchor: '屏幕相关对话还在串台',
+        primaryTurnAnchorSource: 'thread',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'clarify',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['屏幕相关对话还在串台'],
+        shouldHoldThread: true,
+        carryEligible: true,
+        carryReason: 'aligned-primary-anchor',
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 48_000,
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'general',
+        relationMove: 'clarify',
+        speechObligation: 'answer-general',
+        openingIntent: 'Answer the present seam directly: 屏幕相关对话还在串台',
+        truthBoundary: 'This turn is dialogue-first and should stay with the host move.',
+        interiorSummary: 'Keep the reply attached to 屏幕相关对话还在串台.',
+      },
+    })
+
+    expect(compiler?.openingClaim).toBe('屏幕相关对话还在串台')
+    expect(compiler?.supportingReality[0]).toBe('屏幕相关对话还在串台')
+    expect(compiler?.narrative.join(' | ')).toContain('anchor:屏幕相关对话还在串台')
+  })
+
   it('does not use the raw host utterance as the care opening claim', () => {
     const compiler = buildAnswerCompiler({
       now: 50_000,

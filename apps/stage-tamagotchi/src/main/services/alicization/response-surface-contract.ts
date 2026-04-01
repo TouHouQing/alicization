@@ -1,6 +1,11 @@
-import type { AlicizationAnswerCompilerSnapshot, AlicizationDialogueActKernelSnapshot } from '../../../shared/eventa'
+import type {
+  AlicizationAnswerCompilerSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
+  AlicizationDialogueActKernelSnapshot,
+} from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation, AlicizationPersonaKernelMode } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationResponseCharter } from './response-charter'
@@ -32,12 +37,19 @@ export function buildAlicizationResponseSurfaceContract(input: {
   brief: AlicizationExecutiveAnswerBrief
   charter: AlicizationResponseCharter
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
+  const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
+  const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const answerCompiler = input.answerCompiler ?? null
+  const claimEvidenceLedger = input.claimEvidenceLedger ?? null
   const { brief, charter } = input
 
   const openingStyle = answerCompiler?.openingStyle ?? (() => {
@@ -53,7 +65,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   })()
 
   const personaKernelMode: AlicizationPersonaKernelMode = answerCompiler?.personaKernelMode
-    ?? input.dialogueObligation?.personaKernelMode
+    ?? dialogueObligation?.personaKernelMode
     ?? (brief.turnMode === 'screen-repair'
       ? 'muted'
       : brief.turnMode === 'guide-current-knot'
@@ -73,13 +85,13 @@ export function buildAlicizationResponseSurfaceContract(input: {
     && charter.relationshipPosture !== 'restrained'
   const allowStageDirections = false
   const allowBodyNarration = false
-  const labelCarryAsMemory = input.dialogueFocus?.screenReferenceMode === 'avoid'
+  const labelCarryAsMemory = dialogueFocus?.screenReferenceMode === 'avoid'
     ? false
     : (answerCompiler?.labelCarryAsMemory ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain'))
   const suppressAssociativeRecall = answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
     || (brief.turnMode === 'screen-repair' && (brief.separateCarryFromSurface || brief.carriedThread !== null))
     || brief.turnMode === 'guide-current-knot'
-    || input.dialogueFocus?.screenReferenceMode === 'avoid')
+    || dialogueFocus?.screenReferenceMode === 'avoid')
 
   const mustDo = [
     'Start with the answer, observation, or correction immediately.',
@@ -104,21 +116,27 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, 'Move from the observed knot to one actionable next step.')
     pushUnique(mustNotDo, 'Do not drift into generic multi-option advice lists unless the user asks.')
   }
-  if (input.dialogueObligation?.mustAnswerDirectly) {
+  if (dialogueObligation?.mustAnswerDirectly) {
     pushUnique(mustDo, 'Use the first sentence to pay off the host’s current ask.')
   }
-  if (input.dialogueObligation?.mustStayTaskBound) {
+  if (dialogueObligation?.mustStayTaskBound) {
     pushUnique(mustDo, 'Keep the reply inside the active knot until the knot is answered.')
   }
   if (personaKernelMode !== 'full') {
     pushUnique(mustNotDo, 'Do not use persona flourishes, pet names, or coy prefaces as the reply spine.')
   }
-  if (input.dialogueSemantics?.truthExpectation === 'strict') {
+  if (dialogueSemantics?.truthExpectation === 'strict') {
     pushUnique(mustNotDo, 'Do not smooth over uncertainty with emotionally pleasing language.')
   }
-  if (input.dialogueFocus?.screenReferenceMode === 'avoid') {
+  if (dialogueFocus?.screenReferenceMode === 'avoid') {
     pushUnique(mustDo, 'Stay with the live dialogue subject and keep screen grounding in the background.')
     pushUnique(mustNotDo, 'Do not append screen-status caveats or grounding requests unless the host explicitly asks for a live look.')
+  }
+  if (claimEvidenceLedger?.shouldLabelHypothesis) {
+    pushUnique(mustDo, 'When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
+  }
+  if (claimEvidenceLedger?.forbidUnsupportedSpecificity) {
+    pushUnique(mustNotDo, 'Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
   }
   if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
     pushUnique(mustDo, 'If warmth appears, keep it brief and subordinate to the actual issue.')
@@ -126,7 +144,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (
     brief.turnMode === 'care'
     || brief.turnMode === 'accompany'
-    || (brief.turnMode === 'answer' && input.dialogueFocus?.screenReferenceMode === 'avoid')
+    || (brief.turnMode === 'answer' && dialogueFocus?.screenReferenceMode === 'avoid')
   ) {
     pushUnique(mustDo, 'Complete the actual answer, care move, or companionship move in the same reply.')
     pushUnique(mustNotDo, 'Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')

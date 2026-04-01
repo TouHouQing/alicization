@@ -269,3 +269,16 @@ Alicization（Artificial Labile Intelligent Cybernated Existence）定位为：
 - 优先新增 `alicization` 域模块与适配层，避免大规模改写上游核心路径。
 - 目标平台优先 `stage-tamagotchi`；其他端按共享层复用与阶段推进扩展。
 - 隐私策略默认 pure local-first，除非宿主显式开启云增强能力。
+
+## 10. P0 / P1 / P2 工程落地要求（截至 2026-04-01）
+
+为保证“数字生命心智”不是文案层口号，而是运行时约束，本仓库采用以下治理分层：
+
+- P0：运行时主权、跨进程契约真源、Card Scope 一致性、Browser Bridge 语义对齐、异步记忆抽取非阻塞。
+- P1：对话心智链闭环（`dialogueTurnEncounter`、`currentConsciousFrame`、`claimEvidenceLedger`）必须进入治理与状态快照。
+- P2：回答面真值纪律（`responseCharter`、`responseSurfaceContract`）必须可执行，并对不支持细节与空壳回复执行硬拦截与审计。
+
+治理要求：
+
+- 任何 P0/P1/P2 偏离都必须在代码中用 `// NOTICE:` 说明根因、影响范围和补齐路径。
+- P0/P1/P2 相关能力必须有可运行测试覆盖，且回归失败视为心智链路退化。

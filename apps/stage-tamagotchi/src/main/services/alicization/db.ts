@@ -78,6 +78,26 @@ interface DbSubconsciousFragmentRow {
   recall_count: number
 }
 
+export interface AlicizationRelationshipDynamicsState {
+  hostAttitude: string
+  previousHostAttitude: string | null
+  obedienceDelta: number
+  livelinessDelta: number
+  sensibilityDelta: number
+  source: string
+  createdAt: number
+}
+
+interface DbRelationshipDynamicsRow {
+  host_attitude: string
+  previous_host_attitude: string | null
+  obedience_delta: number
+  liveliness_delta: number
+  sensibility_delta: number
+  source: string
+  created_at: number
+}
+
 type AlicizationScheduledTaskStatus = 'pending' | 'running' | 'completed' | 'failed'
 
 export interface AlicizationScheduledTaskRecord {
@@ -198,6 +218,12 @@ function mapSubconsciousFragmentRow(row: DbSubconsciousFragmentRow): Alicization
 
 function now() {
   return Date.now()
+}
+
+function clampRelationshipDelta(value: number, maxAbs = 0.08) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(-maxAbs, Math.min(maxAbs, value))
 }
 
 function mapScheduledTaskRow(row: DbScheduledTaskRow): AlicizationScheduledTaskRecord {
@@ -360,6 +386,16 @@ export interface AlicizationDbService {
   searchSubconsciousFragments: (query: string, limit?: number) => Promise<AlicizationSubconsciousFragment[]>
   listRecentSubconsciousFragments: (limit?: number) => Promise<AlicizationSubconsciousFragment[]>
   countSubconsciousFragments: () => Promise<number>
+  appendRelationshipDynamics: (input: {
+    hostAttitude: string
+    previousHostAttitude?: string | null
+    obedienceDelta?: number
+    livelinessDelta?: number
+    sensibilityDelta?: number
+    source: string
+    createdAt?: number
+  }) => Promise<void>
+  getLatestRelationshipDynamics: () => Promise<AlicizationRelationshipDynamicsState | null>
   insertScheduledTask: (input: {
     taskId: string
     triggerAt: number
@@ -473,6 +509,20 @@ export async function setupAlicizationDb(
       text,
       tokenize = 'trigram'
     )`)
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS relationship_dynamics (
+        id TEXT PRIMARY KEY,
+        host_attitude TEXT NOT NULL,
+        previous_host_attitude TEXT,
+        obedience_delta REAL NOT NULL,
+        liveliness_delta REAL NOT NULL,
+        sensibility_delta REAL NOT NULL,
+        source TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_relationship_dynamics_created_at ON relationship_dynamics(created_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS conversation_turns (
@@ -1151,6 +1201,18 @@ export async function setupAlicizationDb(
     return normalized.slice(0, maxChars)
   }
 
+  function mapRelationshipDynamicsRow(row: DbRelationshipDynamicsRow): AlicizationRelationshipDynamicsState {
+    return {
+      hostAttitude: normalizeOrganicMemoryText(row.host_attitude, 120),
+      previousHostAttitude: normalizeOrganicMemoryText(row.previous_host_attitude, 120) || null,
+      obedienceDelta: clampRelationshipDelta(row.obedience_delta),
+      livelinessDelta: clampRelationshipDelta(row.liveliness_delta),
+      sensibilityDelta: clampRelationshipDelta(row.sensibility_delta),
+      source: normalizeOrganicMemoryText(row.source, 64) || 'unknown',
+      createdAt: Number.isFinite(row.created_at) ? Math.max(0, Math.floor(row.created_at)) : 0,
+    }
+  }
+
   async function listActiveThoughts() {
     const rows = await all<DbActiveThoughtRow>(
       database,
@@ -1355,6 +1417,76 @@ export async function setupAlicizationDb(
     return row?.total ?? 0
   }
 
+  async function appendRelationshipDynamics(input: {
+    hostAttitude: string
+    previousHostAttitude?: string | null
+    obedienceDelta?: number
+    livelinessDelta?: number
+    sensibilityDelta?: number
+    source: string
+    createdAt?: number
+  }) {
+    const hostAttitude = normalizeOrganicMemoryText(input.hostAttitude, 120)
+    if (!hostAttitude)
+      return
+
+    const previousHostAttitude = normalizeOrganicMemoryText(input.previousHostAttitude, 120) || null
+    const source = normalizeOrganicMemoryText(input.source, 64) || 'unknown'
+    const createdAt = Number.isFinite(input.createdAt)
+      ? Math.max(0, Math.floor(Number(input.createdAt)))
+      : now()
+
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT INTO relationship_dynamics (
+          id,
+          host_attitude,
+          previous_host_attitude,
+          obedience_delta,
+          liveliness_delta,
+          sensibility_delta,
+          source,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          randomUUID(),
+          hostAttitude,
+          previousHostAttitude,
+          clampRelationshipDelta(Number(input.obedienceDelta ?? 0)),
+          clampRelationshipDelta(Number(input.livelinessDelta ?? 0)),
+          clampRelationshipDelta(Number(input.sensibilityDelta ?? 0)),
+          source,
+          createdAt,
+        ],
+      )
+    })
+  }
+
+  async function getLatestRelationshipDynamics() {
+    const row = await get<DbRelationshipDynamicsRow>(
+      database,
+      `
+      SELECT
+        host_attitude,
+        previous_host_attitude,
+        obedience_delta,
+        liveliness_delta,
+        sensibility_delta,
+        source,
+        created_at
+      FROM relationship_dynamics
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+    )
+    if (!row)
+      return null
+    return mapRelationshipDynamicsRow(row)
+  }
+
   async function importLegacyMemory(snapshot: AlicizationMemoryLegacySnapshot): Promise<AlicizationMemoryMigrationResult> {
     const currentTs = now()
     const marker = await getMetaValue(legacyMigrationMarker)
@@ -1536,6 +1668,8 @@ export async function setupAlicizationDb(
     searchSubconsciousFragments,
     listRecentSubconsciousFragments,
     countSubconsciousFragments,
+    appendRelationshipDynamics,
+    getLatestRelationshipDynamics,
     insertScheduledTask,
     claimDueScheduledTasks,
     requeueScheduledTask,

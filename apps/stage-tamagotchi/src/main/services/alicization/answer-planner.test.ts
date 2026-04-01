@@ -243,6 +243,113 @@ describe('buildAnswerPlanner', () => {
     expect(planner.act).not.toBe('ask-reground')
   })
 
+  it('keeps the current dialogue anchor ahead of an older carried question', () => {
+    const planner = buildAnswerPlanner({
+      now: 35_000,
+      context: baseContext,
+      currentScene: null,
+      conversationState: {
+        jointThread: '我好累',
+        hostMove: '我好累',
+        primaryTurnAnchor: '我好累',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['我好累'],
+        shouldHoldThread: false,
+        carryEligible: false,
+        carryReason: null,
+        confidence: 0.76,
+        narrative: [],
+        updatedAt: 35_000,
+      },
+      discourseState: {
+        currentTurnSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'The host is directly saying she feels worn out.',
+        currentQuestion: null,
+        primaryTurnAnchor: '我好累',
+        primaryTurnAnchorSource: 'user-text',
+        owedAction: 'care-host',
+        relationMove: 'care',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 35_000,
+      },
+      dialogueWorldThread: {
+        activeThread: '你刚刚想说什么？',
+        currentQuestion: '你刚刚想说什么？',
+        primaryTurnAnchor: '你刚刚想说什么？',
+        primaryTurnAnchorSource: 'carry',
+        openLoops: ['你刚刚想说什么？'],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'steady',
+        memoryMode: 'dialogue-carry',
+        recallKeys: ['你刚刚想说什么？'],
+        carryEligible: true,
+        carryReason: 'aligned-previous-question',
+        lastUserMove: '你刚刚想说什么？',
+        lastAssistantMove: null,
+        lastOutcome: 'pending',
+        pendingValidation: null,
+        confidence: 0.68,
+        narrative: [],
+        updatedAt: 34_000,
+      },
+      dialogueSemantics: {
+        act: 'share-state',
+        responseNeed: 'care',
+        truthExpectation: 'normal',
+        affectiveTone: 'tired',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.18,
+        personaSuppression: 0.28,
+        confidence: 0.74,
+        summary: 'The host is plainly saying she is exhausted.',
+        source: 'hybrid',
+        reasonTags: ['dialogue-first-turn'],
+      },
+      dialogueObligation: {
+        kind: 'care',
+        summary: 'Answer the host’s tiredness directly before anything else.',
+        confidence: 0.8,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      privateThought: {
+        stance: 'care',
+        confidence: 0.72,
+        rationaleTags: [],
+        thoughtText: 'Stay with the tiredness she just named.',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        embodiedPresence: 'attentive',
+        expiresAt: 90_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'late-night-drain',
+      },
+      inspectionRequested: false,
+    })
+
+    expect(planner.governingFocus).toContain('我好累')
+    expect(planner.answerIntent).toContain('我好累')
+    expect(planner.governingFocus).not.toContain('你刚刚想说什么')
+    expect(planner.answerIntent).not.toContain('你刚刚想说什么')
+  })
+
   it('chooses correct-stale-anchor when continuity is outrunning live sight', () => {
     const planner = buildAnswerPlanner({
       now: 40_000,

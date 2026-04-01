@@ -26,6 +26,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
@@ -52,6 +53,25 @@ function pickUserFacingAnchor(...values: unknown[]) {
       return normalized
   }
   return ''
+}
+
+function pickCurrentTurnAnchor(input: {
+  conversationState?: AlicizationConversationStateSnapshot | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueObligation?: AlicizationDialogueObligation | null
+}) {
+  return pickUserFacingAnchor(
+    input.conversationState?.primaryTurnAnchor,
+    input.discourseState?.primaryTurnAnchor,
+    input.conversationState?.hostMove,
+    input.discourseState?.currentQuestion,
+    input.discourseState?.currentTurnSummary,
+    input.dialogueFocus?.focusSummary,
+    input.dialogueObligation?.summary,
+    input.dialogueSemantics?.summary,
+  ) || null
 }
 
 interface AlicizationAnswerPlannerTurnProfile {
@@ -372,6 +392,9 @@ function governingFocus(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
@@ -381,8 +404,16 @@ function governingFocus(input: {
   const inquiryPlan = activeInquiryPlan(input.inquiryPlanner)
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
+  const currentTurnAnchor = pickCurrentTurnAnchor({
+    conversationState: input.conversationState,
+    discourseState: input.discourseState,
+    dialogueFocus: input.dialogueFocus,
+    dialogueSemantics: input.dialogueSemantics,
+    dialogueObligation: input.dialogueObligation,
+  })
   return sanitizeText(
     input.replyDeliberation?.whyThisReplyNow
+    ?? currentTurnAnchor
     ?? input.dialogueWorldThread?.currentQuestion
     ?? input.dialogueWorldThread?.activeThread
     ?? input.dialogueObligation?.summary
@@ -435,14 +466,26 @@ function answerIntent(input: {
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
+  dialogueFocus?: AlicizationDialogueFocusGovernance | null
+  discourseState?: AlicizationDiscourseStateSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
   turnProfile: AlicizationAnswerPlannerTurnProfile
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
 }) {
   const concern = governingConcern(input.concernContinuity)
   const repair = governingRepair(input.repairLedger)
+  const currentTurnAnchor = pickCurrentTurnAnchor({
+    conversationState: input.conversationState,
+    discourseState: input.discourseState,
+    dialogueFocus: input.dialogueFocus,
+    dialogueSemantics: input.dialogueSemantics,
+    dialogueObligation: input.dialogueObligation,
+  })
   if (input.replyDeliberation?.whyThisReplyNow)
     return sanitizeText(input.replyDeliberation.whyThisReplyNow, 160) || 'Answer from the inner reply decision that best fits the living seam.'
+  if (currentTurnAnchor)
+    return sanitizeText(currentTurnAnchor, 160) || 'Answer the host from the freshest living anchor in this turn.'
   if (input.dialogueWorldThread?.currentQuestion)
     return sanitizeText(input.dialogueWorldThread.currentQuestion, 160) || 'Pay off the current unresolved dialogue seam.'
   if (
@@ -586,6 +629,7 @@ export function buildAnswerPlanner(input: {
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   executiveCycle?: AlicizationExecutiveCycleSnapshot | null
   inspectionRequested: boolean
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   ownership?: AlicizationDialogueTurnOwnership | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
@@ -598,6 +642,11 @@ export function buildAnswerPlanner(input: {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   groundedThisTurn?: boolean
 }): AlicizationAnswerPlannerSnapshot {
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const ownership = dialogueEncounter?.ownership ?? input.ownership ?? null
+  const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
+  const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
+  const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const selectedConcern = governingConcern(input.concernContinuity)
   const selectedRepair = governingRepair(input.repairLedger)
   const selectedCommitment = governingCommitment(input.commitmentLedger)
@@ -605,22 +654,26 @@ export function buildAnswerPlanner(input: {
   const selectedProject = dominantProject(input.intentionStream)
   const selectedReflection = latestReflection(input.reflectionLedger)
   const turnProfile = resolveAnswerPlannerTurnProfile({
-    ownership: input.ownership ?? null,
+    ownership,
     discourseState: input.discourseState ?? null,
-    dialogueFocus: input.dialogueFocus ?? null,
-    dialogueSemantics: input.dialogueSemantics ?? null,
+    dialogueFocus,
+    dialogueSemantics,
   })
 
   if (input.answerCompiler) {
     const focus = sanitizeText(
       pickUserFacingAnchor(
         input.replyDeliberation?.whyThisReplyNow,
+        input.conversationState?.primaryTurnAnchor,
+        input.discourseState?.primaryTurnAnchor,
+        input.conversationState?.hostMove,
         input.dialogueWorldThread?.currentQuestion,
         input.answerCompiler.openingClaim,
         input.conversationState?.activeProject,
         input.discourseState?.currentTurnSummary,
-        input.dialogueFocus?.focusSummary,
-        input.dialogueObligation?.summary,
+        dialogueEncounter?.summary,
+        dialogueFocus?.focusSummary,
+        dialogueObligation?.summary,
         input.mindSynthesis?.openingIntent,
         input.mindSynthesis?.interiorSummary,
       ),
@@ -642,6 +695,9 @@ export function buildAnswerPlanner(input: {
       openingMove: input.replyDeliberation?.openingBeat ?? input.answerCompiler.openingDirective,
       answerIntent: sanitizeText(
         pickUserFacingAnchor(
+          input.conversationState?.primaryTurnAnchor,
+          input.discourseState?.primaryTurnAnchor,
+          input.conversationState?.hostMove,
           input.dialogueWorldThread?.currentQuestion,
           input.conversationState?.activeProject,
           input.answerCompiler.openingClaim,
@@ -696,8 +752,8 @@ export function buildAnswerPlanner(input: {
     executiveCycle: input.executiveCycle,
     privateThought: input.privateThought,
     inspectionRequested: input.inspectionRequested,
-    dialogueSemantics: input.dialogueSemantics,
-    dialogueObligation: input.dialogueObligation,
+    dialogueSemantics,
+    dialogueObligation,
     turnProfile,
     groundedThisTurn: input.groundedThisTurn === true,
   })
@@ -708,7 +764,7 @@ export function buildAnswerPlanner(input: {
     privateThought: input.privateThought,
     mindKernel: input.mindKernel,
     executiveCycle: input.executiveCycle,
-    dialogueObligation: input.dialogueObligation,
+    dialogueObligation,
   })
   const shouldAskForGrounding
     = input.groundedThisTurn === true
@@ -731,8 +787,11 @@ export function buildAnswerPlanner(input: {
     reflectionLedger: input.reflectionLedger,
     executiveCycle: input.executiveCycle,
     privateThought: input.privateThought,
-    dialogueObligation: input.dialogueObligation,
-    dialogueSemantics: input.dialogueSemantics,
+    dialogueObligation,
+    dialogueSemantics,
+    dialogueFocus,
+    discourseState: input.discourseState,
+    conversationState: input.conversationState,
     dialogueWorldThread: input.dialogueWorldThread,
     replyDeliberation: input.replyDeliberation,
   })
@@ -754,7 +813,7 @@ export function buildAnswerPlanner(input: {
     openingMove: openingMove({
       act,
       evidenceMode: mode,
-      dialogueObligation: input.dialogueObligation,
+      dialogueObligation,
       replyDeliberation: input.replyDeliberation,
     }),
     answerIntent: answerIntent({
@@ -762,8 +821,11 @@ export function buildAnswerPlanner(input: {
       worldModel: input.worldModel,
       concernContinuity: input.concernContinuity,
       repairLedger: input.repairLedger,
-      dialogueObligation: input.dialogueObligation,
-      dialogueSemantics: input.dialogueSemantics,
+      dialogueObligation,
+      dialogueSemantics,
+      dialogueFocus,
+      discourseState: input.discourseState,
+      conversationState: input.conversationState,
       turnProfile,
       dialogueWorldThread: input.dialogueWorldThread,
       replyDeliberation: input.replyDeliberation,
@@ -784,15 +846,15 @@ export function buildAnswerPlanner(input: {
       act,
       evidenceMode: mode,
       shouldAskForGrounding,
-      dialogueSemantics: input.dialogueSemantics,
-      dialogueObligation: input.dialogueObligation,
+      dialogueSemantics,
+      dialogueObligation,
       turnProfile,
     }),
     mustNotDo: buildMustNotDo({
       act,
       evidenceMode: mode,
-      dialogueSemantics: input.dialogueSemantics,
-      dialogueObligation: input.dialogueObligation,
+      dialogueSemantics,
+      dialogueObligation,
       turnProfile,
     }),
     narrative: [
@@ -801,8 +863,8 @@ export function buildAnswerPlanner(input: {
       `relationship_posture:${posture}`,
       `focus_subject:${turnProfile.subject}`,
       `screen_reference:${turnProfile.screenReferenceMode}`,
-      input.dialogueSemantics?.act ? `dialogue_act:${input.dialogueSemantics.act}` : '',
-      input.dialogueObligation?.kind ? `dialogue_obligation:${input.dialogueObligation.kind}` : '',
+      dialogueSemantics?.act ? `dialogue_act:${dialogueSemantics.act}` : '',
+      dialogueObligation?.kind ? `dialogue_obligation:${dialogueObligation.kind}` : '',
       input.executiveCycle?.phase ? `executive_phase:${input.executiveCycle.phase}` : '',
       selectedProject ? `mind_project:${selectedProject.kind}` : '',
       selectedReflection ? `reflection:${selectedReflection.outcome}` : '',

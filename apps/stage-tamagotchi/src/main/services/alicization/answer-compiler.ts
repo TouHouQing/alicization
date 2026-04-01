@@ -14,10 +14,11 @@ import type {
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationPersonaKernelMode } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
-import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
 
 function clamp01(value: number) {
@@ -113,6 +114,24 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function resolvePrimaryTurnAnchor(input: {
+  discourseState: AlicizationDiscourseStateSnapshot
+  conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+}) {
+  return sanitizeDialogueAnchorText(
+    input.conversationState?.primaryTurnAnchor
+    || input.discourseState.primaryTurnAnchor
+    || input.dialogueEncounter?.taskAnchor
+    || input.conversationState?.unansweredQuestion
+    || input.discourseState.currentQuestion
+    || input.dialogueEncounter?.summary
+    || input.conversationState?.jointThread
+    || '',
+    180,
+  ) || null
 }
 
 function governingRepair(repairLedger?: AlicizationRepairLedgerSnapshot | null) {
@@ -397,12 +416,18 @@ function resolveOpeningDirective(input: {
 function resolveOpeningClaim(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   mindSynthesis: AlicizationMindSynthesisSnapshot
   recommendedAct: AlicizationAnswerAct
   currentScene?: AlicizationVisualSceneSnapshot | null
   groundedThisTurn?: boolean
 }) {
   const hostMove = input.conversationState?.hostMove ?? ''
+  const primaryTurnAnchor = resolvePrimaryTurnAnchor({
+    discourseState: input.discourseState,
+    conversationState: input.conversationState ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+  })
   const sceneCue = buildAlicizationScreenSurfaceCue({
     rawCues: [
       input.currentScene?.summary,
@@ -448,6 +473,7 @@ function resolveOpeningClaim(input: {
   }
   if (input.recommendedAct === 'guide') {
     return pickSurfaceClaim(
+      primaryTurnAnchor,
       input.discourseState.currentQuestion,
       input.conversationState?.activeProject,
       input.discourseState.currentTurnSummary,
@@ -458,6 +484,7 @@ function resolveOpeningClaim(input: {
   if (input.recommendedAct === 'care') {
     return pickSurfaceClaimDistinctFrom(
       hostMove,
+      primaryTurnAnchor,
       input.mindSynthesis.concerns[0]?.summary,
       input.mindSynthesis.desires[0]?.summary,
       input.mindSynthesis.interiorSummary,
@@ -471,6 +498,7 @@ function resolveOpeningClaim(input: {
   if (input.discourseState.currentTurnSubject === 'host-state') {
     return pickSurfaceClaimDistinctFrom(
       hostMove,
+      primaryTurnAnchor,
       input.discourseState.currentTurnSummary,
       input.conversationState?.jointThread,
       input.mindSynthesis.concerns[0]?.summary,
@@ -484,9 +512,11 @@ function resolveOpeningClaim(input: {
   if (input.discourseState.currentTurnSubject === 'alicization-self') {
     return pickSurfaceClaimDistinctFrom(
       hostMove,
+      primaryTurnAnchor,
       input.discourseState.currentTurnSummary,
       input.conversationState?.jointThread,
     )
+    || sanitizeSurfaceClaim(primaryTurnAnchor, 180)
     || sanitizeSurfaceClaim(hostMove, 180)
     || pickSurfaceClaimDistinctFrom(
       hostMove,
@@ -499,9 +529,11 @@ function resolveOpeningClaim(input: {
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return pickSurfaceClaimDistinctFrom(
       hostMove,
+      primaryTurnAnchor,
       input.discourseState.currentTurnSummary,
       input.conversationState?.jointThread,
     )
+    || sanitizeSurfaceClaim(primaryTurnAnchor, 180)
     || sanitizeSurfaceClaim(hostMove, 180)
     || pickSurfaceClaimDistinctFrom(
       hostMove,
@@ -513,6 +545,7 @@ function resolveOpeningClaim(input: {
     || 'The host is reaching for closeness in this turn, so the answer should stay near that bid.'
   }
   return pickSurfaceClaim(
+    primaryTurnAnchor,
     hostMove,
     input.discourseState.currentQuestion,
     input.conversationState?.activeProject,
@@ -552,6 +585,7 @@ export function buildAnswerCompiler(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   currentScene?: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
@@ -613,11 +647,22 @@ export function buildAnswerCompiler(input: {
   const openingClaim = resolveOpeningClaim({
     discourseState: input.discourseState,
     conversationState: input.conversationState ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
     mindSynthesis: input.mindSynthesis,
     recommendedAct,
     currentScene: input.currentScene ?? null,
     groundedThisTurn: input.groundedThisTurn === true,
   })
+  const primaryTurnAnchor = resolvePrimaryTurnAnchor({
+    discourseState: input.discourseState,
+    conversationState: input.conversationState ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+  })
+  const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst
+    ?? (
+      input.discourseState.screenReferenceMode === 'avoid'
+      || isDialogueFirstSubject(input.discourseState.currentTurnSubject)
+    )
   const sceneCue = buildAlicizationScreenSurfaceCue({
     rawCues: [
       input.currentScene?.summary,
@@ -630,16 +675,18 @@ export function buildAnswerCompiler(input: {
     workloadKind: input.currentScene?.workloadKind ?? null,
     contentKind: input.currentScene?.contentKind ?? null,
   })
-  const supportingReality = uniqueList([
-    input.discourseState.screenReferenceMode === 'avoid'
-      ? null
-      : sanitizeDialogueSurfaceText(sceneCue, 220) || null,
-    sanitizeDialogueSurfaceText(
-      input.discourseState.screenReferenceMode === 'avoid'
-        ? input.discourseState.currentTurnSummary
-        : input.conversationState?.jointThread,
-      220,
-    ) || null,
+  const dialogueFirstSupportingReality = uniqueList([
+    primaryTurnAnchor,
+    sanitizeDialogueSurfaceText(input.dialogueEncounter?.summary, 220) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.jointThread, 220) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.hostMove, 220) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.unansweredQuestion, 180) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.activeCommitments[0], 180) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.owedRepair, 180) || null,
+  ], 5)
+  const sceneSupportingReality = uniqueList([
+    sanitizeDialogueSurfaceText(sceneCue, 220) || null,
+    sanitizeDialogueSurfaceText(input.conversationState?.jointThread, 220) || null,
     input.conversationState?.hostMove,
     input.mindSynthesis.beliefs[0]?.summary,
     input.mindSynthesis.beliefs[1]?.summary,
@@ -647,10 +694,11 @@ export function buildAnswerCompiler(input: {
     input.mindSynthesis.commitments[0]?.summary,
     input.discourseState.unresolvedCarry,
     input.discourseState.ruptureRepair,
-    input.discourseState.screenReferenceMode === 'avoid'
-      ? null
-      : input.worldModel?.activeThread?.summary,
+    input.worldModel?.activeThread?.summary,
   ], 5)
+  const supportingReality = dialogueFirstTurn
+    ? dialogueFirstSupportingReality
+    : sceneSupportingReality
   const uncertaintyBoundary = evidenceMode === 'live-grounded' && input.repairLedger?.shouldConstrainPresentTense !== true
     ? null
     : sanitizeText(input.mindSynthesis.uncertainties[0]?.summary ?? input.mindSynthesis.truthBoundary, 220) || null
@@ -715,6 +763,9 @@ export function buildAnswerCompiler(input: {
       : null,
     input.conversationState?.shouldHoldThread
       ? 'Keep the answer attached to the shared thread until the owed seam is paid off.'
+      : null,
+    dialogueFirstTurn && primaryTurnAnchor
+      ? `Stay attached to this turn anchor: ${primaryTurnAnchor}.`
       : null,
     labelCarryAsMemory
       ? 'If continuity carry appears, label it explicitly as memory, residue, or held thread.'
@@ -781,6 +832,7 @@ export function buildAnswerCompiler(input: {
       `evidence:${evidenceMode}`,
       `subject:${input.discourseState.currentTurnSubject}`,
       `screen-reference:${input.discourseState.screenReferenceMode}`,
+      primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       sanitizeDialogueAnchorText(openingClaim, 180) || openingClaim,
     ], 7),
     updatedAt: input.now,

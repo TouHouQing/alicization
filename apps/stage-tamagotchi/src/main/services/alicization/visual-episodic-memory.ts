@@ -4,15 +4,21 @@ import type {
   AlicizationAnswerPlannerSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
   AlicizationConcernSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationCounterfactualDeliberationSnapshot,
+  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDeliberationStateSnapshot,
   AlicizationDesireMemorySnapshot,
+  AlicizationDialogueAct,
   AlicizationDialogueActKernelSnapshot,
   AlicizationDialoguePendingValidationSnapshot,
+  AlicizationDialogueResponseNeed,
+  AlicizationDialogueTruthExpectation,
+  AlicizationDialogueTurnEncounterSnapshot,
   AlicizationDialogueWorldThreadSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationDurabilityPulseSnapshot,
@@ -24,12 +30,14 @@ import type {
   AlicizationInitiativeSnapshot,
   AlicizationInquiryLoopSnapshot,
   AlicizationInquiryPlannerSnapshot,
+  AlicizationInspectionTurnState,
   AlicizationIntentionStreamSnapshot,
   AlicizationLivingWorldStateSnapshot,
   AlicizationMindDynamicsSnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMindSynthesisSnapshot,
   AlicizationMindTurnFrameSnapshot,
+  AlicizationPersonaKernelMode,
   AlicizationPrivateThoughtSnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationReflectionLedgerSnapshot,
@@ -53,6 +61,7 @@ import type {
   AlicizationWorldThreadSnapshot,
 } from '../../../shared/eventa'
 
+import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 
@@ -69,6 +78,138 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function normalizeTurnAnchorSource(raw: unknown): AlicizationDiscourseStateSnapshot['primaryTurnAnchorSource'] {
+  return raw === 'user-text'
+    || raw === 'dialogue-summary'
+    || raw === 'question'
+    || raw === 'focus-summary'
+    || raw === 'obligation'
+    || raw === 'thread'
+    || raw === 'scene'
+    || raw === 'carry'
+    || raw === 'unknown'
+    ? raw
+    : null
+}
+
+function normalizeDialogueAct(raw: unknown): AlicizationDialogueAct | null {
+  return raw === 'ask-help'
+    || raw === 'ask-teach'
+    || raw === 'verify-grounding'
+    || raw === 'correct'
+    || raw === 'challenge'
+    || raw === 'share-state'
+    || raw === 'seek-care'
+    || raw === 'social-bid'
+    || raw === 'continue-thread'
+    || raw === 'close-thread'
+    || raw === 'unknown'
+    ? raw
+    : null
+}
+
+function normalizeDialogueResponseNeed(raw: unknown): AlicizationDialogueResponseNeed | null {
+  return raw === 'repair'
+    || raw === 'guide'
+    || raw === 'teach'
+    || raw === 'answer'
+    || raw === 'care'
+    || raw === 'accompany'
+    || raw === 'clarify'
+    ? raw
+    : null
+}
+
+function normalizeDialogueTruthExpectation(raw: unknown): AlicizationDialogueTruthExpectation | null {
+  return raw === 'strict' || raw === 'normal' || raw === 'light'
+    ? raw
+    : null
+}
+
+function normalizeInspectionTurnState(raw: unknown): AlicizationInspectionTurnState | null {
+  return raw === 'dialogue-first'
+    || raw === 'inspection-live'
+    || raw === 'inspection-carry'
+    || raw === 'screen-repair'
+    ? raw
+    : null
+}
+
+function normalizePersonaKernelMode(raw: unknown): AlicizationPersonaKernelMode | null {
+  return raw === 'full' || raw === 'backgrounded' || raw === 'muted'
+    ? raw
+    : null
+}
+
+function normalizeDialogueTurnEncounter(raw: unknown): AlicizationDialogueTurnEncounterSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const act = normalizeDialogueAct(candidate.act)
+  const responseNeed = normalizeDialogueResponseNeed(candidate.responseNeed)
+  const truthExpectation = normalizeDialogueTruthExpectation(candidate.truthExpectation)
+  const subject = candidate.subject
+  const screenReferenceMode = candidate.screenReferenceMode
+  const continuityMode = candidate.continuityMode
+  const inspectionState = normalizeInspectionTurnState(candidate.inspectionState)
+  const personaKernelMode = normalizePersonaKernelMode(candidate.personaKernelMode)
+  const summary = sanitizeText(candidate.summary, 180)
+  if (
+    !act
+    || !responseNeed
+    || !truthExpectation
+    || (
+      subject !== 'alicization-self'
+      && subject !== 'relationship'
+      && subject !== 'host-state'
+      && subject !== 'task-knot'
+      && subject !== 'visible-scene'
+      && subject !== 'general'
+    )
+    || (
+      screenReferenceMode !== 'required'
+      && screenReferenceMode !== 'helpful'
+      && screenReferenceMode !== 'incidental'
+      && screenReferenceMode !== 'avoid'
+    )
+    || (
+      continuityMode !== 'dialogue-first'
+      && continuityMode !== 'task-first'
+      && continuityMode !== 'scene-first'
+    )
+    || !inspectionState
+    || !personaKernelMode
+    || !summary
+  ) {
+    return null
+  }
+
+  return {
+    act,
+    responseNeed,
+    truthExpectation,
+    subject,
+    screenReferenceMode,
+    continuityMode,
+    inspectionRequested: candidate.inspectionRequested === true,
+    inspectionState,
+    releaseInspectionCarry: candidate.releaseInspectionCarry === true,
+    taskAnchor: sanitizeText(candidate.taskAnchor, 180) || null,
+    summary,
+    dialogueFirst: candidate.dialogueFirst === true,
+    shouldBypassScreenRepair: candidate.shouldBypassScreenRepair === true,
+    mustRepairFirst: candidate.mustRepairFirst === true,
+    mustAnswerDirectly: candidate.mustAnswerDirectly === true,
+    mustStayTaskBound: candidate.mustStayTaskBound === true,
+    shouldAskClarifyingQuestion: candidate.shouldAskClarifyingQuestion === true,
+    personaKernelMode,
+    confidence: clamp01(Number(candidate.confidence)),
+    reasonTags: Array.isArray(candidate.reasonTags)
+      ? candidate.reasonTags.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 96)).filter(Boolean).slice(0, 12)
+      : [],
+  }
 }
 
 function normalizePid(raw: unknown) {
@@ -1025,6 +1166,8 @@ function normalizeDiscourseState(raw: unknown): AlicizationDiscourseStateSnapsho
     screenReferenceMode,
     currentTurnSummary,
     currentQuestion: sanitizeText(candidate.currentQuestion, 180) || null,
+    primaryTurnAnchor: sanitizeText(candidate.primaryTurnAnchor, 180) || null,
+    primaryTurnAnchorSource: normalizeTurnAnchorSource(candidate.primaryTurnAnchorSource),
     owedAction,
     relationMove,
     continuityMode,
@@ -1158,6 +1301,8 @@ function normalizeConversationState(raw: unknown): AlicizationConversationStateS
   return {
     jointThread,
     hostMove,
+    primaryTurnAnchor: sanitizeText(candidate.primaryTurnAnchor, 180) || null,
+    primaryTurnAnchorSource: normalizeTurnAnchorSource(candidate.primaryTurnAnchorSource),
     activeProject: sanitizeText(candidate.activeProject, 180) || null,
     unansweredQuestion: sanitizeText(candidate.unansweredQuestion, 180) || null,
     owedRepair: sanitizeText(candidate.owedRepair, 180) || null,
@@ -1171,6 +1316,8 @@ function normalizeConversationState(raw: unknown): AlicizationConversationStateS
       ? candidate.memoryQueryHints.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
       : [],
     shouldHoldThread: candidate.shouldHoldThread === true,
+    carryEligible: candidate.carryEligible === true,
+    carryReason: sanitizeText(candidate.carryReason, 120) || null,
     confidence: clamp01(Number(candidate.confidence)),
     narrative: Array.isArray(candidate.narrative)
       ? candidate.narrative.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
@@ -1398,6 +1545,69 @@ function normalizeReplyDeliberation(raw: unknown): AlicizationReplyDeliberationS
   }
 }
 
+function normalizeConsciousTruthDiscipline(raw: unknown): AlicizationCurrentConsciousFrameSnapshot['truthDiscipline'] | null {
+  return raw === 'repair-first'
+    || raw === 'observe-first'
+    || raw === 'observe-then-hypothesize'
+    || raw === 'dialogue-first'
+    || raw === 'memory-labeled'
+    ? raw
+    : null
+}
+
+function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConsciousFrameSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const subject = candidate.subject
+  const centerOfGravity = candidate.centerOfGravity
+  const truthDiscipline = normalizeConsciousTruthDiscipline(candidate.truthDiscipline)
+  if (
+    (subject !== 'alicization-self'
+      && subject !== 'relationship'
+      && subject !== 'host-state'
+      && subject !== 'task-knot'
+      && subject !== 'visible-scene'
+      && subject !== 'general')
+    || (centerOfGravity !== 'repair'
+      && centerOfGravity !== 'guide'
+      && centerOfGravity !== 'answer'
+      && centerOfGravity !== 'care'
+      && centerOfGravity !== 'attune'
+      && centerOfGravity !== 'witness'
+      && centerOfGravity !== 'defer')
+    || !truthDiscipline
+  ) {
+    return null
+  }
+
+  const consciousNeed = sanitizeText(candidate.consciousNeed, 220)
+  const consciousTension = sanitizeText(candidate.consciousTension, 220)
+  const speakingIntention = sanitizeText(candidate.speakingIntention, 220)
+  if (!consciousNeed || !consciousTension || !speakingIntention)
+    return null
+
+  return {
+    subject,
+    centerOfGravity,
+    truthDiscipline,
+    consciousNeed,
+    consciousTension,
+    speakingIntention,
+    focusAnchor: sanitizeText(candidate.focusAnchor, 180) || null,
+    withheldImpulse: sanitizeText(candidate.withheldImpulse, 180) || null,
+    shouldWithholdSpecificity: candidate.shouldWithholdSpecificity === true,
+    shouldSelfRevise: candidate.shouldSelfRevise === true,
+    confidence: clamp01(Number(candidate.confidence)),
+    reasonTags: Array.isArray(candidate.reasonTags)
+      ? candidate.reasonTags.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 96)).filter(Boolean).slice(0, 10)
+      : [],
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
 function normalizeDialogueWorldThread(raw: unknown): AlicizationDialogueWorldThreadSnapshot | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -1455,6 +1665,8 @@ function normalizeDialogueWorldThread(raw: unknown): AlicizationDialogueWorldThr
   return {
     activeThread,
     currentQuestion: sanitizeText(candidate.currentQuestion, 180) || null,
+    primaryTurnAnchor: sanitizeText(candidate.primaryTurnAnchor, 180) || null,
+    primaryTurnAnchorSource: normalizeTurnAnchorSource(candidate.primaryTurnAnchorSource),
     openLoops: Array.isArray(candidate.openLoops)
       ? candidate.openLoops.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 8)
       : [],
@@ -1469,6 +1681,8 @@ function normalizeDialogueWorldThread(raw: unknown): AlicizationDialogueWorldThr
     recallKeys: Array.isArray(candidate.recallKeys)
       ? candidate.recallKeys.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 10)
       : [],
+    carryEligible: candidate.carryEligible === true,
+    carryReason: sanitizeText(candidate.carryReason, 120) || null,
     lastUserMove,
     lastAssistantMove: sanitizeText(candidate.lastAssistantMove, 220) || null,
     lastOutcome,
@@ -1578,11 +1792,14 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     initiative: null,
     desireMemory: null,
     discourseState: null,
+    dialogueEncounter: null,
     mindSynthesis: null,
     conversationState: null,
     dialogueWorldThread: null,
     dialogueActKernel: null,
     answerCompiler: null,
+    currentConsciousFrame: null,
+    claimEvidenceLedger: null,
     replyDeliberation: null,
     recallGovernor: null,
     answerPlanner: null,
@@ -1675,11 +1892,14 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
     ? candidate.desireMemory as AlicizationDesireMemorySnapshot
     : null
   base.discourseState = normalizeDiscourseState(candidate.discourseState)
+  base.dialogueEncounter = normalizeDialogueTurnEncounter(candidate.dialogueEncounter)
   base.mindSynthesis = normalizeMindSynthesis(candidate.mindSynthesis)
   base.conversationState = normalizeConversationState(candidate.conversationState)
   base.dialogueWorldThread = normalizeDialogueWorldThread(candidate.dialogueWorldThread)
   base.dialogueActKernel = normalizeDialogueActKernel(candidate.dialogueActKernel)
   base.answerCompiler = normalizeAnswerCompiler(candidate.answerCompiler)
+  base.currentConsciousFrame = normalizeCurrentConsciousFrame(candidate.currentConsciousFrame)
+  base.claimEvidenceLedger = normalizeClaimEvidenceLedger(candidate.claimEvidenceLedger)
   base.replyDeliberation = normalizeReplyDeliberation(candidate.replyDeliberation)
   base.recallGovernor = normalizeRecallGovernor(candidate.recallGovernor)
   base.answerPlanner = candidate.answerPlanner && typeof candidate.answerPlanner === 'object'
@@ -1808,11 +2028,14 @@ export function updateVisualPresenceState(input: {
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounterSnapshot | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
@@ -1876,11 +2099,14 @@ export function updateVisualPresenceState(input: {
     initiative: input.initiative ?? null,
     desireMemory: input.desireMemory ?? previousState.desireMemory ?? null,
     discourseState: input.discourseState ?? previousState.discourseState ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? previousState.dialogueEncounter ?? null,
     mindSynthesis: input.mindSynthesis ?? previousState.mindSynthesis ?? null,
     conversationState: input.conversationState ?? previousState.conversationState ?? null,
     dialogueWorldThread: input.dialogueWorldThread ?? previousState.dialogueWorldThread ?? null,
     dialogueActKernel: input.dialogueActKernel ?? previousState.dialogueActKernel ?? null,
     answerCompiler: input.answerCompiler ?? previousState.answerCompiler ?? null,
+    currentConsciousFrame: input.currentConsciousFrame ?? previousState.currentConsciousFrame ?? null,
+    claimEvidenceLedger: input.claimEvidenceLedger ?? previousState.claimEvidenceLedger ?? null,
     replyDeliberation: input.replyDeliberation ?? previousState.replyDeliberation ?? null,
     recallGovernor: input.recallGovernor ?? previousState.recallGovernor ?? null,
     answerPlanner: input.answerPlanner ?? previousState.answerPlanner ?? null,

@@ -1,5 +1,6 @@
 import type {
   AlicizationAnswerCompilerSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindSynthesisSnapshot,
   AlicizationVisualPresenceStateSnapshot,
@@ -7,6 +8,7 @@ import type {
 import type { AlicizationPerceptionState, AlicizationPerceptionTarget } from './attention-anchor'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 import type { AlicizationResponseCharter } from './response-charter'
 
@@ -102,20 +104,27 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   perceptionState: AlicizationPerceptionState
   visualPresenceState: AlicizationVisualPresenceStateSnapshot
   responseCharter: AlicizationResponseCharter
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
+  const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
+  const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const discourseState = input.discourseState ?? input.visualPresenceState.discourseState ?? null
   const mindSynthesis = input.mindSynthesis ?? input.visualPresenceState.mindSynthesis ?? null
   const answerCompiler = input.answerCompiler ?? input.visualPresenceState.answerCompiler ?? null
+  const claimEvidenceLedger = input.claimEvidenceLedger ?? input.visualPresenceState.claimEvidenceLedger ?? null
   const truthContract = deriveMindTruthContract(input.visualPresenceState)
   const preferredScreenReferenceMode = answerCompiler?.screenReferenceMode
     ?? discourseState?.screenReferenceMode
-    ?? input.dialogueFocus?.screenReferenceMode
+    ?? dialogueFocus?.screenReferenceMode
     ?? null
   const liveSurfaceTarget = input.currentForeground
     ?? input.visualPresenceState.attention?.target
@@ -161,25 +170,25 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     if (
       input.groundedThisTurn
       && preferredScreenReferenceMode !== 'avoid'
-      && input.dialogueFocus?.subject !== 'alicization-self'
-      && input.dialogueFocus?.subject !== 'relationship'
-      && input.dialogueFocus?.subject !== 'host-state'
+      && dialogueFocus?.subject !== 'alicization-self'
+      && dialogueFocus?.subject !== 'relationship'
+      && dialogueFocus?.subject !== 'host-state'
     ) {
       return 'grounded-inspection' as const
     }
-    if (input.dialogueObligation?.kind === 'repair')
+    if (dialogueObligation?.kind === 'repair')
       return 'screen-repair' as const
-    if (input.dialogueFocus?.subject === 'alicization-self')
+    if (dialogueFocus?.subject === 'alicization-self')
       return 'answer' as const
-    if (input.dialogueFocus?.subject === 'relationship')
+    if (dialogueFocus?.subject === 'relationship')
       return 'accompany' as const
-    if (input.dialogueFocus?.subject === 'host-state')
+    if (dialogueFocus?.subject === 'host-state')
       return 'care' as const
-    if (input.dialogueObligation?.kind === 'guide' || input.dialogueObligation?.kind === 'teach')
+    if (dialogueObligation?.kind === 'guide' || dialogueObligation?.kind === 'teach')
       return 'guide-current-knot' as const
-    if (input.dialogueObligation?.kind === 'care')
+    if (dialogueObligation?.kind === 'care')
       return 'care' as const
-    if (input.dialogueObligation?.kind === 'accompany')
+    if (dialogueObligation?.kind === 'accompany')
       return 'accompany' as const
     if (input.responseCharter.responseMode === 'repair-and-reanchor')
       return 'screen-repair' as const
@@ -194,7 +203,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
 
   const shouldCompactHistory = input.groundedThisTurn
     || input.inspectionRequested
-    || input.dialogueObligation?.mustStayTaskBound === true
+    || dialogueObligation?.mustStayTaskBound === true
     || turnMode === 'screen-repair'
     || turnMode === 'guide-current-knot'
     || truthState === 'remembered'
@@ -205,7 +214,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     ? 3
     : input.groundedThisTurn || input.inspectionRequested
       ? 2
-      : input.dialogueObligation?.mustStayTaskBound
+      : dialogueObligation?.mustStayTaskBound
         ? 2
         : turnMode === 'screen-repair' || turnMode === 'guide-current-knot'
           ? 3
@@ -243,17 +252,23 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     pushUnique(mustDo, 'Answer the actual self, relationship, or host-state subject before mentioning any screen context.')
     pushUnique(mustNotDo, 'Do not open with screen grounding, Finder/Desktop status, or live-view disclaimers when the screen is not the subject.')
   }
-  if (weakLiveSurface && input.dialogueFocus?.screenReferenceMode !== 'required') {
+  if (weakLiveSurface && dialogueFocus?.screenReferenceMode !== 'required') {
     pushUnique(mustDo, 'Treat a generic desktop shell as background noise unless the host explicitly asks about it.')
     pushUnique(mustNotDo, 'Do not let a weak generic surface outrank the user’s real question.')
   }
-  if (input.dialogueObligation?.mustAnswerDirectly) {
+  if (dialogueObligation?.mustAnswerDirectly) {
     pushUnique(mustDo, 'Treat the opening sentence as the owed action for this turn.')
   }
-  if (input.dialogueObligation?.personaKernelMode !== 'full') {
+  if (claimEvidenceLedger?.shouldLabelHypothesis) {
+    pushUnique(mustDo, 'Separate direct observation from downstream guesswork in the visible answer.')
+  }
+  if (claimEvidenceLedger?.forbidUnsupportedSpecificity) {
+    pushUnique(mustNotDo, 'Do not introduce concrete technical entities that are absent from the host turn and absent from the current evidence.')
+  }
+  if (dialogueObligation?.personaKernelMode !== 'full') {
     pushUnique(mustNotDo, 'Do not let pet names, coy prefaces, or persona routines delay the first useful sentence.')
   }
-  if (input.dialogueSemantics?.truthExpectation === 'strict') {
+  if (dialogueSemantics?.truthExpectation === 'strict') {
     pushUnique(mustDo, 'Keep truth, repair, and task focus above mood display.')
   }
   if (truthContract.truthState === 'remembered' || truthContract.truthState === 'uncertain') {

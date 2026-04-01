@@ -335,4 +335,51 @@ describe('response-charter', () => {
     expect(block).toContain('Must do:')
     expect(block).toContain('Must not do:')
   })
+
+  it('lets the conscious frame impose hypothesis discipline on coarse screen turns', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState({
+        currentConsciousFrame: {
+          subject: 'task-knot',
+          centerOfGravity: 'witness',
+          truthDiscipline: 'observe-then-hypothesize',
+          consciousNeed: 'Start from what is visible before naming the task.',
+          consciousTension: 'The scene is still too coarse for class-level certainty.',
+          speakingIntention: 'Separate observation from guess and keep the guess soft.',
+          focusAnchor: 'Git commit diff in Java code editor',
+          withheldImpulse: 'Do not collapse coarse visual evidence into file, class, or field certainty.',
+          shouldWithholdSpecificity: true,
+          shouldSelfRevise: false,
+          confidence: 0.82,
+          reasonTags: ['discipline:observe-then-hypothesize'],
+          updatedAt: 1_700_000_000_000,
+        },
+        claimEvidenceLedger: {
+          subject: 'task-knot',
+          evidenceMode: 'coarse-held',
+          observedSurface: 'Git commit diff in Java code editor',
+          taskHypothesis: 'The host is probably working through a Java diff.',
+          intentHypothesis: 'Separate observation from guess and keep the guess soft.',
+          specificityBudget: 'coarse-scene',
+          hostReferencedCues: [],
+          groundedArtifactCues: [],
+          allowedSpecificCues: [],
+          shouldLabelHypothesis: true,
+          forbidUnsupportedSpecificity: true,
+          shouldSelfRevise: false,
+          confidence: 0.8,
+          reasonTags: ['budget:coarse-scene'],
+          updatedAt: 1_700_000_000_000,
+        },
+      }),
+      inspectionRequested: true,
+    })
+
+    expect(charter.governingFocus).toContain('guess')
+    expect(charter.mustDo).toContain('Keep visible observation and downstream guesswork in separate clauses.')
+    expect(charter.mustDo).toContain('Mark any step beyond direct observation as a guess, hypothesis, or soft read.')
+    expect(charter.mustNotDo).toContain('Do not infer class names, enum names, file paths, or field changes from generic scene cues alone.')
+    expect(charter.mustNotDo).toContain('Do not introduce concrete technical entities that are absent from the host turn and absent from current grounded evidence.')
+  })
 })

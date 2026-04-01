@@ -1,6 +1,8 @@
 import type {
   AlicizationAnswerCompilerSnapshot,
+  AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationConversationStateSnapshot,
+  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindSynthesisSnapshot,
   AlicizationPrivateThoughtSnapshot,
@@ -9,8 +11,9 @@ import type {
   AlicizationReplyMotiveSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 
-import { pickDialogueSurfaceText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { pickDialogueSurfaceText, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -35,6 +38,46 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
       break
   }
   return result
+}
+
+function pickDialogueAnchorText(...values: unknown[]) {
+  for (const value of values) {
+    const normalized = sanitizeDialogueAnchorText(value, 180)
+    if (normalized)
+      return normalized
+  }
+  return ''
+}
+
+function resolvePrimaryReplyAnchor(input: {
+  conversationState: AlicizationConversationStateSnapshot
+  discourseState: AlicizationDiscourseStateSnapshot
+  answerCompiler: AlicizationAnswerCompilerSnapshot
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+}) {
+  return pickDialogueAnchorText(
+    input.conversationState.primaryTurnAnchor,
+    input.discourseState.primaryTurnAnchor,
+    input.dialogueEncounter?.taskAnchor,
+    input.dialogueEncounter?.summary,
+    input.conversationState.hostMove,
+    input.answerCompiler.openingClaim,
+  )
+}
+
+function isDialogueFirstReplyTurn(input: {
+  discourseState: AlicizationDiscourseStateSnapshot
+  answerCompiler: AlicizationAnswerCompilerSnapshot
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+}) {
+  const subject = input.dialogueEncounter?.subject
+    ?? input.answerCompiler.answerSubject
+    ?? input.discourseState.currentTurnSubject
+  return input.dialogueEncounter?.screenReferenceMode === 'avoid'
+    || subject === 'relationship'
+    || subject === 'alicization-self'
+    || subject === 'host-state'
+    || subject === 'general'
 }
 
 function makeMotive(input: {
@@ -114,17 +157,38 @@ function whyThisReplyNow(input: {
   conversationState: AlicizationConversationStateSnapshot
   answerCompiler: AlicizationAnswerCompilerSnapshot
   worldModel?: AlicizationWorldModelSnapshot | null
+  primaryTurnAnchor?: string | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
+  const consciousFrameReason = pickDialogueSurfaceText(
+    input.currentConsciousFrame?.speakingIntention,
+    input.currentConsciousFrame?.consciousNeed,
+    input.currentConsciousFrame?.consciousTension,
+  )
+  if (consciousFrameReason)
+    return consciousFrameReason
+
+  const claimEvidenceReason = pickDialogueSurfaceText(
+    input.claimEvidenceLedger?.intentHypothesis,
+    input.claimEvidenceLedger?.taskHypothesis,
+    input.claimEvidenceLedger?.observedSurface,
+  )
+  if (claimEvidenceReason)
+    return claimEvidenceReason
+
   if (input.selectedMotive === 'repair') {
     return pickDialogueSurfaceText(
       input.conversationState.owedRepair
       || input.answerCompiler.uncertaintyBoundary
       || input.worldModel?.epistemicState.staleRisks[0]
+      || input.primaryTurnAnchor
       || '',
     ) || 'The last read may no longer be true.'
   }
   if (input.selectedMotive === 'guide') {
     return pickDialogueSurfaceText(
+      input.primaryTurnAnchor,
       input.conversationState.unansweredQuestion
       || input.conversationState.activeProject
       || input.conversationState.activeCommitments[0]
@@ -135,6 +199,7 @@ function whyThisReplyNow(input: {
   }
   if (input.selectedMotive === 'care') {
     return pickDialogueSurfaceText(
+      input.primaryTurnAnchor,
       input.answerCompiler.careVector
       || input.conversationState.hostMove
       || input.conversationState.jointThread
@@ -143,6 +208,7 @@ function whyThisReplyNow(input: {
   }
   if (input.selectedMotive === 'attune') {
     return pickDialogueSurfaceText(
+      input.primaryTurnAnchor,
       input.conversationState.hostMove
       || input.conversationState.jointThread
       || input.answerCompiler.openingClaim,
@@ -150,12 +216,14 @@ function whyThisReplyNow(input: {
   }
   if (input.selectedMotive === 'witness') {
     return pickDialogueSurfaceText(
+      input.primaryTurnAnchor,
       input.answerCompiler.openingClaim
       || input.conversationState.jointThread
       || input.worldModel?.activeThread?.summary,
     ) || 'The live scene is still the clearest place to begin.'
   }
   return pickDialogueSurfaceText(
+    input.primaryTurnAnchor,
     input.conversationState.hostMove
     || input.answerCompiler.openingClaim
     || input.conversationState.jointThread,
@@ -168,16 +236,37 @@ export function buildReplyDeliberation(input: {
   discourseState?: AlicizationDiscourseStateSnapshot | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
 }): AlicizationReplyDeliberationSnapshot | null {
   if (!input.conversationState || !input.discourseState || !input.mindSynthesis || !input.answerCompiler)
     return null
 
+  const primaryTurnAnchor = resolvePrimaryReplyAnchor({
+    conversationState: input.conversationState,
+    discourseState: input.discourseState,
+    answerCompiler: input.answerCompiler,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+  }) || null
+  const dialogueFirstTurn = isDialogueFirstReplyTurn({
+    discourseState: input.discourseState,
+    answerCompiler: input.answerCompiler,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+  })
   const groundedRepairResolved = repairIsAlreadySettledByFreshGrounding({
     answerCompiler: input.answerCompiler,
     discourseState: input.discourseState,
   })
+  const frameCenter = input.currentConsciousFrame?.centerOfGravity ?? null
+  const shouldWithholdSpecificity = input.currentConsciousFrame?.shouldWithholdSpecificity === true
+  const shouldSelfRevise = input.currentConsciousFrame?.shouldSelfRevise === true
+  const truthDiscipline = input.currentConsciousFrame?.truthDiscipline ?? null
+  const claimEvidenceLedger = input.claimEvidenceLedger ?? null
+  const coarseSceneBudget = claimEvidenceLedger?.specificityBudget === 'coarse-scene'
+  const shouldLabelHypothesis = claimEvidenceLedger?.shouldLabelHypothesis === true
 
   const candidates = [
     makeMotive({
@@ -187,60 +276,84 @@ export function buildReplyDeliberation(input: {
         ? 0.08
         : input.discourseState.owedAction === 'repair-truth' || input.answerCompiler.recommendedAct === 'ask-reground' || input.answerCompiler.recommendedAct === 'correct-stale-anchor'
           ? 0.96
-          : 0.12,
+          : 0.12
+            + (frameCenter === 'repair' ? 0.12 : 0)
+            + (shouldSelfRevise ? 0.1 : 0),
       sourceTags: ['discourse-state', 'answer-compiler'],
     }),
     makeMotive({
       kind: 'guide',
-      summary: input.conversationState.unansweredQuestion
+      summary: primaryTurnAnchor
+        ?? input.conversationState.unansweredQuestion
         ?? input.conversationState.activeProject
         ?? input.conversationState.activeCommitments[0]
         ?? input.mindSynthesis.commitments[0]?.summary,
-      weight: groundedRepairResolved && input.answerCompiler.answerSubject === 'task-knot'
-        ? 0.92
-        : input.discourseState.owedAction === 'guide-task' || input.answerCompiler.recommendedAct === 'guide'
-          ? 0.88
-          : input.conversationState.shouldHoldThread ? 0.52 : 0.18,
+      weight: (
+        groundedRepairResolved && input.answerCompiler.answerSubject === 'task-knot'
+          ? 0.92
+          : input.discourseState.owedAction === 'guide-task' || input.answerCompiler.recommendedAct === 'guide'
+            ? 0.88
+            : input.conversationState.shouldHoldThread ? 0.52 : 0.18
+      )
+      + (frameCenter === 'guide' ? 0.12 : 0)
+      - (coarseSceneBudget ? 0.12 : 0)
+      - (shouldWithholdSpecificity ? 0.18 : 0),
       sourceTags: ['conversation-state', 'mind-synthesis'],
     }),
     makeMotive({
       kind: 'care',
-      summary: input.answerCompiler.careVector
+      summary: primaryTurnAnchor
+        ?? input.answerCompiler.careVector
         ?? input.mindSynthesis.concerns[0]?.summary
         ?? input.conversationState.hostMove,
       weight: input.discourseState.owedAction === 'care-host' || input.answerCompiler.recommendedAct === 'care' || input.privateThought?.stance === 'care' || input.privateThought?.stance === 'warn'
         ? 0.84
-        : 0.18,
+        : 0.18
+          + (frameCenter === 'care' ? 0.12 : 0),
       sourceTags: ['private-thought', 'mind-synthesis'],
     }),
     makeMotive({
       kind: 'attune',
-      summary: input.conversationState.hostMove,
+      summary: primaryTurnAnchor ?? input.conversationState.hostMove,
       weight: input.discourseState.currentTurnSubject === 'relationship'
         ? 0.82
         : input.discourseState.currentTurnSubject === 'alicization-self'
           ? 0.74
-          : 0.14,
+          : dialogueFirstTurn
+            ? 0.44
+            : 0.14
+              + (frameCenter === 'attune' ? 0.12 : 0),
       sourceTags: ['conversation-state', 'discourse-state'],
     }),
     makeMotive({
       kind: 'witness',
-      summary: input.answerCompiler.openingClaim ?? input.conversationState.jointThread,
-      weight: groundedRepairResolved && input.answerCompiler.answerSubject === 'visible-scene'
-        ? 0.92
-        : input.discourseState.currentTurnSubject === 'visible-scene'
-          ? 0.8
-          : input.answerCompiler.evidenceMode === 'live-grounded' || input.answerCompiler.evidenceMode === 'live-observed'
-            ? 0.64
-            : 0.16,
+      summary: dialogueFirstTurn
+        ? primaryTurnAnchor ?? input.conversationState.jointThread
+        : input.answerCompiler.openingClaim ?? input.conversationState.jointThread,
+      weight: (
+        groundedRepairResolved && input.answerCompiler.answerSubject === 'visible-scene'
+          ? 0.92
+          : input.discourseState.currentTurnSubject === 'visible-scene'
+            ? 0.8
+            : input.answerCompiler.evidenceMode === 'live-grounded' || input.answerCompiler.evidenceMode === 'live-observed'
+              ? (dialogueFirstTurn ? 0.22 : 0.64)
+              : 0.16
+      )
+      + (frameCenter === 'witness' ? 0.12 : 0)
+      + (coarseSceneBudget ? 0.14 : 0)
+      + (shouldWithholdSpecificity ? 0.28 : 0),
       sourceTags: ['answer-compiler', 'world-model'],
     }),
     makeMotive({
       kind: 'answer',
-      summary: input.answerCompiler.openingClaim ?? input.conversationState.hostMove,
+      summary: primaryTurnAnchor ?? input.answerCompiler.openingClaim ?? input.conversationState.hostMove,
       weight: input.answerCompiler.recommendedAct === 'answer'
-        ? 0.72
-        : 0.32,
+        ? (dialogueFirstTurn ? 0.8 : 0.72) - (coarseSceneBudget ? 0.08 : 0)
+        : dialogueFirstTurn
+          ? 0.42
+          : 0.32
+            + (frameCenter === 'answer' ? 0.12 : 0)
+            - (shouldWithholdSpecificity ? 0.1 : 0),
       sourceTags: ['answer-compiler'],
     }),
     makeMotive({
@@ -248,7 +361,8 @@ export function buildReplyDeliberation(input: {
       summary: 'Keep the reply light enough that it does not overwhelm the turn.',
       weight: input.answerCompiler.recommendedAct === 'defer' || input.privateThought?.shouldSpeak === false
         ? 0.58
-        : 0.08,
+        : 0.08
+          + (frameCenter === 'defer' ? 0.12 : 0),
       sourceTags: ['private-thought', 'answer-compiler'],
     }),
   ].filter((candidate): candidate is AlicizationReplyMotiveSnapshot => Boolean(candidate)).sort((left, right) => right.weight - left.weight)
@@ -257,15 +371,24 @@ export function buildReplyDeliberation(input: {
   if (!selected)
     return null
 
-  const speakingSource = speakingFrom({
-    answerCompiler: input.answerCompiler,
-    discourseState: input.discourseState,
-  })
+  const speakingSource = truthDiscipline === 'dialogue-first'
+    ? (input.discourseState.currentTurnSubject === 'alicization-self' ? 'self-continuity' : 'dialogue-bond')
+    : truthDiscipline === 'memory-labeled' || shouldSelfRevise
+      ? 'held-memory'
+      : shouldWithholdSpecificity
+        ? 'live-scene'
+        : speakingFrom({
+            answerCompiler: input.answerCompiler,
+            discourseState: input.discourseState,
+          })
   const whyNow = whyThisReplyNow({
     selectedMotive: selected.kind,
     conversationState: input.conversationState,
     answerCompiler: input.answerCompiler,
     worldModel: input.worldModel ?? null,
+    primaryTurnAnchor,
+    currentConsciousFrame: input.currentConsciousFrame ?? null,
+    claimEvidenceLedger,
   })
   const mustInclude = uniqueList([
     openingBeat({
@@ -273,12 +396,21 @@ export function buildReplyDeliberation(input: {
       answerCompiler: input.answerCompiler,
       conversationState: input.conversationState,
     }),
+    primaryTurnAnchor,
+    shouldLabelHypothesis
+      ? 'Keep direct observation and any task guess in separate clauses.'
+      : null,
+    claimEvidenceLedger?.observedSurface ?? null,
+    input.currentConsciousFrame?.speakingIntention ?? null,
     whyNow,
-    input.answerCompiler.openingDirective,
+    dialogueFirstTurn ? null : input.answerCompiler.openingDirective,
     input.answerCompiler.nextMove,
   ], 5)
   const mustAvoid = uniqueList([
     input.answerCompiler.mustNotDo[0],
+    dialogueFirstTurn && primaryTurnAnchor
+      ? 'Do not let control directives outrank the current turn anchor.'
+      : null,
     input.conversationState.memoryMode === 'dialogue-carry'
       ? 'Do not let live-screen repair hijack a dialogue-first turn.'
       : null,
@@ -287,6 +419,15 @@ export function buildReplyDeliberation(input: {
       : null,
     input.conversationState.memoryMode === 'task-thread'
       ? 'Do not drift into decorative association before the knot is answered.'
+      : null,
+    shouldWithholdSpecificity
+      ? 'Do not jump from coarse visual cues to file, class, enum, or field-level certainty.'
+      : null,
+    claimEvidenceLedger?.forbidUnsupportedSpecificity
+      ? 'Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.'
+      : null,
+    shouldSelfRevise
+      ? 'Do not preserve the previous read just because it sounds coherent; revise it if truth demands it.'
       : null,
   ], 5)
 
@@ -316,6 +457,10 @@ export function buildReplyDeliberation(input: {
       `selected:${selected.kind}`,
       `speaking-from:${speakingSource}`,
       `memory:${input.conversationState.memoryMode}`,
+      frameCenter ? `conscious-center:${frameCenter}` : null,
+      truthDiscipline ? `truth-discipline:${truthDiscipline}` : null,
+      claimEvidenceLedger?.specificityBudget ? `claim-budget:${claimEvidenceLedger.specificityBudget}` : null,
+      primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       whyNow,
       ...mustAvoid,
     ], 7),

@@ -55,6 +55,7 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
+import type { AlicizationRelationshipDynamicsState } from './db'
 import type { AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-ownership'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
@@ -79,6 +80,9 @@ import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { errorMessageFrom } from '@moeru/std'
 import { resolveLocalePreference } from '@proj-alicization/i18n'
 import {
+  alicizationFixedCoreSystemInstruction,
+  alicizationFixedHostNameDirectiveTemplate,
+  alicizationFixedStructuredContractAnchor,
   buildAlicizationScreenSurfaceCue,
   buildMindGovernedFallbackSurface,
   defaultAlicizationCustomDirectives,
@@ -87,6 +91,7 @@ import {
   inferAlicizationInspectionIntent,
   isWeakAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceTarget,
+  renderAlicizationPromptTemplate,
   replyLeaksGovernedMindSurface,
   replyLooksCoherentSceneAnswer,
   replyLooksThinGovernedShell,
@@ -181,21 +186,31 @@ import { updateVisualAttentionModel } from './attention-model'
 import { buildBeliefLedger } from './belief-ledger'
 import { buildBeliefRevision } from './belief-revision'
 import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
+import {
+  buildClaimEvidenceLedger,
+  buildClaimEvidenceLedgerSystemBlock,
+  extractTechnicalSpecificityClaims,
+  normalizeClaimEvidenceLedger,
+  normalizeTechnicalSpecificityCue,
+} from './claim-evidence-ledger'
 import { buildCommitmentLedger } from './commitment-ledger'
 import { buildConcernContinuityLedger } from './concern-continuity-ledger'
 import { updateConcernGraph } from './concern-graph'
 import { buildConversationState, buildConversationStateSystemBlock } from './conversation-state'
 import { buildCounterfactualDeliberation } from './counterfactual-deliberator'
+import { buildCurrentConsciousFrame, buildCurrentConsciousFrameSystemBlock } from './current-conscious-frame'
 import { setupAlicizationDb } from './db'
 import { buildDeliberationState } from './deliberation-thread'
 import { buildDesireMemory } from './desire-memory'
 import { buildDialogueActKernel, buildDialogueActKernelSystemBlock, normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
-import { buildDialogueFocusGovernance, buildDialogueFocusGovernanceSystemBlock } from './dialogue-focus-governor'
+import { buildDialogueFocusGovernanceSystemBlock } from './dialogue-focus-governor'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
 import { buildDialogueMindFrameSystemBlock } from './dialogue-mind-frame'
-import { buildAlicizationDialogueObligationSystemBlock, buildDialogueObligation } from './dialogue-obligation'
+import { buildAlicizationDialogueObligationSystemBlock } from './dialogue-obligation'
+import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
+import { buildDialogueTurnEncounter, buildDialogueTurnEncounterSystemBlock } from './dialogue-turn-encounter'
 import { buildDialogueTurnOwnership } from './dialogue-turn-ownership'
 import {
   buildDialogueTurnSemantics,
@@ -416,6 +431,7 @@ interface OrganicMemoryPromptContext {
   coreIncarnation: string
   activeThoughts: AlicizationActiveThought[]
   recalledFragments: AlicizationSubconsciousFragment[]
+  relationshipDynamics?: AlicizationRelationshipDynamicsState | null
 }
 
 interface ContextualConversationTurn {
@@ -454,6 +470,7 @@ interface DesktopCaptureAccessResult {
 
 interface CardScopeOptions {
   label?: string
+  skipQueueWhenScopeAlreadyActive?: boolean
 }
 
 function normalizeCardId(raw: unknown) {
@@ -806,6 +823,19 @@ function sanitizeBriefText(raw: string, maxLength = 160) {
   if (text.length <= maxLength)
     return text
   return `${text.slice(0, Math.max(8, maxLength - 1))}…`
+}
+
+function uniqueCarryAnchors(values: unknown[], maxItems = 6) {
+  const anchors: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeBriefText(readStringValue(value), 180)
+    if (!normalized || anchors.includes(normalized))
+      continue
+    anchors.push(normalized)
+    if (anchors.length >= maxItems)
+      break
+  }
+  return anchors
 }
 
 function normalizeReminderMessage(value: string) {
@@ -1662,6 +1692,7 @@ function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGovernanc
     : []
   const dialogueActKernel = normalizeDialogueActKernel(candidate.dialogueActKernel)
   const mindTurnFrame = normalizeMindTurnFrame(candidate.mindTurnFrame)
+  const claimEvidence = normalizeClaimEvidenceLedger(candidate.claimEvidence)
 
   return {
     turnMode: turnMode as AlicizationMindTurnGovernance['turnMode'],
@@ -1752,6 +1783,7 @@ function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGovernanc
       : undefined,
     dialogueActKernel,
     mindTurnFrame,
+    claimEvidence,
     mustDo,
     mustNotDo,
   }
@@ -2096,6 +2128,74 @@ function replyIncludesAnchorCue(reply: string, cue: unknown) {
   return normalizedReply.includes(normalizedCue)
 }
 
+function excerptGovernedReply(raw: unknown, maxChars = 220) {
+  const normalized = sanitizeBriefText(readStringValue(raw), maxChars)
+  return normalized || null
+}
+
+interface AlicizationGovernanceAnchorAuditCandidate {
+  role: 'focus' | 'visible-surface' | 'scene' | 'opening-claim' | 'answer-intent' | 'project' | 'thread' | 'carry'
+  text: string
+}
+
+function collectGovernanceAnchorAuditCandidates(governance: AlicizationMindTurnGovernance): AlicizationGovernanceAnchorAuditCandidate[] {
+  const candidates: Array<{ role: AlicizationGovernanceAnchorAuditCandidate['role'], text: unknown }> = [
+    { role: 'focus', text: governance.focusAnchor },
+    { role: 'focus', text: governance.mindTurnFrame?.focusAnchor },
+    { role: 'visible-surface', text: governance.liveSurface },
+    { role: 'visible-surface', text: governance.mindTurnFrame?.world.visibleSurface },
+    { role: 'scene', text: governance.dialogueActKernel?.selectedEvidence[0]?.summary },
+    { role: 'opening-claim', text: governance.dialogueActKernel?.openingClaim ?? governance.mindTurnFrame?.obligation.openingClaim },
+    { role: 'answer-intent', text: governance.answerIntent },
+    { role: 'answer-intent', text: governance.mindTurnFrame?.obligation.answerIntent },
+    { role: 'project', text: governance.dialogueActKernel?.activeProject },
+    { role: 'thread', text: governance.mindTurnFrame?.memory.carriedThread },
+    { role: 'carry', text: governance.carriedThread },
+  ]
+
+  const result: AlicizationGovernanceAnchorAuditCandidate[] = []
+  for (const candidate of candidates) {
+    const normalized = sanitizeDialogueAnchorText(candidate.text, 220)
+    if (!normalized)
+      continue
+    if (result.some(item => item.role === candidate.role && item.text === normalized))
+      continue
+    result.push({
+      role: candidate.role,
+      text: normalized,
+    })
+  }
+  return result
+}
+
+function summarizeGovernanceAnchorAuditCandidates(candidates: AlicizationGovernanceAnchorAuditCandidate[]) {
+  return candidates.map(candidate => `${candidate.role}:${candidate.text}`)
+}
+
+const dialogueFirstRoleplayPrefacePattern = /^(?:主人(?:[，。…!！\s]|$)|……欸～主人|欸～主人|宝贝|亲爱的)[，。…!！\s]*/u
+const dialogueFirstStaleCarryClausePattern = /(?:那个|刚才那个|上一个|之前那个|之前那条|上一条).{0,8}(?:枚举|页面|浏览器|模块|窗口|线程|diff|改动|case)|\b(?:that|the previous|the old|earlier)\s+(?:enum|page|browser|module|window|thread|diff|change)\b/iu
+const dialogueFirstProcessOnlyReplyPattern = /^(?:那?我[先就再会]?|先)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,16}(?:[看听陪]|看看|留在|接住|回答|说清|说)[\p{Script=Han}\p{Letter}\p{Number}\s,，。.!！?？]{0,8}$/u
+
+function splitDialogueReplyClauses(reply: string) {
+  const clauses = reply.match(/[^。！？!?；;\n]+[。！？!?；;]*/gu) ?? [reply]
+  return clauses
+    .map(clause => clause.trim())
+    .filter(Boolean)
+}
+
+function replyLooksProcessOnlyRepairShell(reply: string) {
+  const normalized = sanitizeBriefText(reply, 120)
+  if (!normalized)
+    return false
+  if (/[你妳累]|这句|现在|这个|这件事|问题|事情|情绪|难过|伤心/u.test(normalized))
+    return false
+  return dialogueFirstProcessOnlyReplyPattern.test(normalized)
+}
+
+function clauseMentionsCue(clause: string, cues: string[]) {
+  return cues.some(cue => replyIncludesAnchorCue(clause, cue))
+}
+
 function replyUsesWeakGroundedSceneCue(reply: string, governance: AlicizationMindTurnGovernance) {
   if (governance.screenReferenceMode === 'avoid')
     return false
@@ -2137,37 +2237,32 @@ function replyUsesWeakGroundedSceneCue(reply: string, governance: AlicizationMin
   return uncertainTruth && (weakShellMentionedInReply || weakCueMentioned)
 }
 
-function reconcileMindGovernanceAnchors(governance: AlicizationMindTurnGovernance) {
+function reconcileMindGovernanceAnchors(governance: AlicizationMindTurnGovernance, userText?: string) {
+  const anchorCandidatesBefore = collectGovernanceAnchorAuditCandidates(governance)
   const coherence = resolveDialogueAnchorCoherence({
     subject: governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? governance.dialogueActKernel?.subject ?? null,
     screenReferenceMode: governance.screenReferenceMode ?? null,
     truthState: governance.mindTurnFrame?.world.truthState ?? governance.truthState,
     groundedThisTurn: governance.groundedThisTurn === true,
     hostMove: governance.mindTurnFrame?.relation.hostMove ?? null,
-    candidates: [
-      { role: 'focus', text: governance.mindTurnFrame?.focusAnchor ?? governance.focusAnchor },
-      { role: 'visible-surface', text: governance.mindTurnFrame?.world.visibleSurface ?? governance.liveSurface },
-      { role: 'scene', text: governance.dialogueActKernel?.selectedEvidence[0]?.summary },
-      { role: 'opening-claim', text: governance.mindTurnFrame?.obligation.openingClaim ?? governance.dialogueActKernel?.openingClaim },
-      { role: 'answer-intent', text: governance.mindTurnFrame?.obligation.answerIntent ?? governance.answerIntent },
-      { role: 'project', text: governance.dialogueActKernel?.activeProject },
-      { role: 'thread', text: governance.mindTurnFrame?.memory.carriedThread },
-      { role: 'carry', text: governance.carriedThread },
-    ],
+    candidates: anchorCandidatesBefore,
   })
   const dominantAnchor = coherence.dominant
   const keepCoherent = (value: unknown) => {
-    const normalized = sanitizeBriefText(readStringValue(value), 220) || null
+    const normalized = sanitizeDialogueAnchorText(value, 220) || null
     if (!normalized)
       return null
     if (!dominantAnchor || !coherence.sceneAuthority)
       return normalized
     return anchorsMateriallyConflict(normalized, dominantAnchor) ? null : normalized
   }
+  const dialogueFirstTurn = governance.screenReferenceMode === 'avoid'
 
   const nextFocusAnchor = keepCoherent(dominantAnchor ?? governance.focusAnchor)
-    ?? keepCoherent(governance.mindTurnFrame?.world.visibleSurface)
-    ?? keepCoherent(governance.liveSurface)
+    ?? keepCoherent(dialogueFirstTurn ? null : governance.mindTurnFrame?.world.visibleSurface)
+    ?? keepCoherent(dialogueFirstTurn ? null : governance.liveSurface)
+    ?? sanitizeDialogueAnchorText(userText, 220)
+    ?? null
   const nextAnswerIntent = keepCoherent(governance.mindTurnFrame?.obligation.answerIntent)
     ?? keepCoherent(governance.answerIntent)
     ?? nextFocusAnchor
@@ -2200,22 +2295,27 @@ function reconcileMindGovernanceAnchors(governance: AlicizationMindTurnGovernanc
     || nextMindTurnFrame?.memory.carriedThread !== governance.mindTurnFrame?.memory.carriedThread
     || nextMindTurnFrame?.obligation.answerIntent !== governance.mindTurnFrame?.obligation.answerIntent
 
+  const nextGovernance = {
+    ...governance,
+    focusAnchor: nextFocusAnchor,
+    answerIntent: nextAnswerIntent,
+    carriedThread: nextCarriedThread,
+    mindTurnFrame: nextMindTurnFrame,
+    mustDo: [
+      ...governance.mustDo,
+      ...coherence.reasonTags
+        .map(tag => `anchor:${tag}`)
+        .filter(tag => !governance.mustDo.includes(tag)),
+    ].slice(0, 8),
+  } satisfies AlicizationMindTurnGovernance
+  const anchorCandidatesAfter = collectGovernanceAnchorAuditCandidates(nextGovernance)
+
   return {
-    governance: {
-      ...governance,
-      focusAnchor: nextFocusAnchor,
-      answerIntent: nextAnswerIntent,
-      carriedThread: nextCarriedThread,
-      mindTurnFrame: nextMindTurnFrame,
-      mustDo: [
-        ...governance.mustDo,
-        ...coherence.reasonTags
-          .map(tag => `anchor:${tag}`)
-          .filter(tag => !governance.mustDo.includes(tag)),
-      ].slice(0, 8),
-    } satisfies AlicizationMindTurnGovernance,
+    governance: nextGovernance,
     coherence,
     changed,
+    anchorCandidatesBefore,
+    anchorCandidatesAfter,
   }
 }
 
@@ -2257,8 +2357,16 @@ function detectReplyConflictingAnchors(
     .filter(candidate => anchorsMateriallyConflict(candidate, dominantAnchor))
     .filter((candidate, index, items) => items.findIndex(item => item === candidate) === index)
 
-  if (conflictingCandidates.length === 0)
-    return { hasConflict: false, reason: '', coherence }
+  if (conflictingCandidates.length === 0) {
+    return {
+      hasConflict: false,
+      reason: '',
+      coherence,
+      dominantAnchor,
+      conflictingCandidates: [] as string[],
+      mentionedConflicts: [] as string[],
+    }
+  }
 
   const mentionsDominant = replyIncludesAnchorCue(reply, dominantAnchor)
   const mentionedConflicts = conflictingCandidates.filter(candidate => replyIncludesAnchorCue(reply, candidate))
@@ -2273,7 +2381,297 @@ function detectReplyConflictingAnchors(
           : 'reply-conflicting-anchors')
       : '',
     coherence,
+    dominantAnchor,
+    conflictingCandidates,
+    mentionedConflicts,
   }
+}
+
+function extractForeignTechnicalReplyCues(input: {
+  reply: string
+  userText?: string
+  governance: AlicizationMindTurnGovernance
+}) {
+  const replyCues = extractTechnicalSpecificityClaims(input.reply, 12)
+  if (replyCues.length === 0)
+    return []
+
+  const allowedAnchors = collectAllowedTechnicalSpecificityCues({
+    governance: input.governance,
+    userText: input.userText,
+  })
+
+  return replyCues.filter((cue) => {
+    const normalizedCue = normalizeTechnicalSpecificityCue(cue)
+    if (!normalizedCue)
+      return false
+    return !allowedAnchors.some(anchor => technicalSpecificityCueMatches(anchor, cue))
+  })
+}
+
+function technicalSpecificityCueMatches(left: string, right: string) {
+  const normalizedLeft = normalizeTechnicalSpecificityCue(left)
+  const normalizedRight = normalizeTechnicalSpecificityCue(right)
+  if (!normalizedLeft || !normalizedRight)
+    return false
+  if (normalizedLeft === normalizedRight)
+    return true
+  const shorterLength = Math.max(1, Math.min(normalizedLeft.length, normalizedRight.length))
+  return (
+    (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
+    && shorterLength / Math.max(normalizedLeft.length, normalizedRight.length) >= 0.68
+  )
+}
+
+function uniqueTechnicalSpecificityCues(values: Array<string | null | undefined>, maxItems = 12) {
+  const items: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeBriefText(value ?? '', 120)
+    const normalizedCue = normalizeTechnicalSpecificityCue(normalized)
+    if (!normalized || !normalizedCue)
+      continue
+    if (items.some(item => technicalSpecificityCueMatches(item, normalized)))
+      continue
+    items.push(normalized)
+    if (items.length >= maxItems)
+      break
+  }
+  return items
+}
+
+function collectAllowedTechnicalSpecificityCues(input: {
+  governance: AlicizationMindTurnGovernance
+  userText?: string
+}) {
+  return uniqueTechnicalSpecificityCues([
+    ...(input.governance.claimEvidence?.allowedSpecificCues ?? []),
+    ...extractTechnicalSpecificityClaims(input.userText, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.focusAnchor, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.answerIntent, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.liveSurface, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.mindTurnFrame?.focusAnchor, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.mindTurnFrame?.relation.hostMove, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.mindTurnFrame?.obligation.answerIntent, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.dialogueActKernel?.openingClaim, 8),
+    ...extractTechnicalSpecificityClaims(input.governance.dialogueActKernel?.selectedEvidence[0]?.summary, 8),
+  ], 12)
+}
+
+function analyzeUnsupportedTechnicalSpecificity(input: {
+  reply: string
+  userText?: string
+  governance: AlicizationMindTurnGovernance
+}) {
+  const replyCues = uniqueTechnicalSpecificityCues(
+    extractTechnicalSpecificityClaims(input.reply, 12),
+    12,
+  )
+  if (replyCues.length === 0) {
+    return {
+      replyCues: [] as string[],
+      allowedCues: [] as string[],
+      unsupportedCues: [] as string[],
+      shouldOverride: false,
+    }
+  }
+
+  const allowedCues = collectAllowedTechnicalSpecificityCues({
+    governance: input.governance,
+    userText: input.userText,
+  })
+  const unsupportedCues = replyCues.filter(cue => !allowedCues.some(allowed => technicalSpecificityCueMatches(allowed, cue)))
+  const screenCentricTurn = input.governance.screenReferenceMode !== 'avoid'
+    && (
+      input.governance.answerSubject === 'task-knot'
+      || input.governance.answerSubject === 'visible-scene'
+      || input.governance.turnMode === 'guide-current-knot'
+      || input.governance.turnMode === 'grounded-inspection'
+      || input.governance.turnMode === 'screen-repair'
+    )
+
+  return {
+    replyCues,
+    allowedCues,
+    unsupportedCues,
+    shouldOverride: unsupportedCues.length > 0
+      && (
+        input.governance.claimEvidence?.forbidUnsupportedSpecificity === true
+        || screenCentricTurn
+      ),
+  }
+}
+
+function analyzeDialogueFirstVisibleReply(input: {
+  reply: string
+  userText?: string
+  governance: AlicizationMindTurnGovernance
+}) {
+  if (input.governance.screenReferenceMode !== 'avoid') {
+    return {
+      overlapRatio: 1,
+      roleplayPreface: false,
+      staleCarryReference: false,
+      sceneCueMentions: [] as string[],
+      foreignTechnicalCues: [] as string[],
+      contaminated: false,
+    }
+  }
+
+  const focusAnchors = uniqueCarryAnchors([
+    input.userText,
+    input.governance.focusAnchor,
+    input.governance.answerIntent,
+    input.governance.mindTurnFrame?.relation.hostMove,
+    input.governance.mindTurnFrame?.obligation.answerIntent,
+  ], 8)
+  const overlapRatio = focusAnchors.length === 0
+    ? 0
+    : measureDialogueFocusAlignment({
+      message: input.reply,
+      contextPhrases: focusAnchors,
+    }).overlapRatio
+  const sceneEvidenceCues = (input.governance.dialogueActKernel?.selectedEvidence ?? [])
+    .filter((item) => {
+      if (!item?.summary)
+        return false
+      if (item.kind === 'scene')
+        return item.source === 'current-scene' || item.source === 'world-model' || item.source === 'appraisal'
+      if (item.kind === 'project')
+        return item.source === 'current-scene' || item.source === 'world-model'
+      return false
+    })
+    .map(item => item.summary)
+  const sceneCueMentions = uniqueCarryAnchors([
+    input.governance.liveSurface,
+    input.governance.mindTurnFrame?.world.visibleSurface,
+    ...sceneEvidenceCues,
+  ], 6).filter((cue) => {
+    if (!replyIncludesAnchorCue(input.reply, cue))
+      return false
+    return measureDialogueFocusAlignment({
+      message: cue,
+      contextPhrases: focusAnchors,
+    }).overlapRatio < 0.34
+  })
+  const roleplayPreface = /^(?:主人(?:[，。…!！\s]|$)|……欸～主人|欸～主人|宝贝|亲爱的)/u.test(input.reply.trim())
+  const staleCarryReference = /(?:那个|刚才那个|上一个|之前那个|之前那条|上一条).{0,8}(?:枚举|页面|浏览器|模块|窗口|线程|diff|改动|case)|\b(?:that|the previous|the old|earlier)\s+(?:enum|page|browser|module|window|thread|diff|change)\b/iu.test(input.reply)
+  const foreignTechnicalCues = extractForeignTechnicalReplyCues(input)
+
+  return {
+    overlapRatio,
+    roleplayPreface,
+    staleCarryReference,
+    sceneCueMentions,
+    foreignTechnicalCues,
+    contaminated: roleplayPreface
+      || staleCarryReference
+      || (sceneCueMentions.length > 0 && overlapRatio < 0.34)
+      || foreignTechnicalCues.length > 0,
+  }
+}
+
+function repairDialogueFirstVisibleReply(input: {
+  reply: string
+  userText?: string
+  governance: AlicizationMindTurnGovernance
+  analysis: ReturnType<typeof analyzeDialogueFirstVisibleReply>
+}) {
+  if (!input.analysis.contaminated) {
+    return {
+      applied: false,
+      reply: input.reply,
+      analysis: input.analysis,
+      reason: null as string | null,
+      droppedClauses: [] as string[],
+    }
+  }
+
+  const repairReasons: string[] = []
+  const trimmedReply = input.reply.trim()
+  const withoutPreface = trimmedReply.replace(dialogueFirstRoleplayPrefacePattern, '').trim()
+  if (withoutPreface !== trimmedReply)
+    repairReasons.push('removed-roleplay-preface')
+
+  const contaminationCues = uniqueCarryAnchors([
+    ...input.analysis.sceneCueMentions,
+    ...input.analysis.foreignTechnicalCues,
+  ], 10)
+  const clauses = splitDialogueReplyClauses(withoutPreface || trimmedReply)
+  const keptClauses: string[] = []
+  const droppedClauses: string[] = []
+
+  for (const clause of clauses) {
+    if (!clause)
+      continue
+    const dropForStaleCarry = dialogueFirstStaleCarryClausePattern.test(clause)
+    const dropForContaminationCue = contaminationCues.length > 0 && clauseMentionsCue(clause, contaminationCues)
+    if (dropForStaleCarry || dropForContaminationCue) {
+      droppedClauses.push(clause)
+      if (dropForStaleCarry)
+        repairReasons.push('pruned-stale-carry-clause')
+      if (dropForContaminationCue)
+        repairReasons.push('pruned-contaminated-anchor-clause')
+      continue
+    }
+    keptClauses.push(clause)
+  }
+
+  const repairedReply = sanitizeBriefText(
+    keptClauses.join(' ').replace(/\s+([。！？!?；;])/gu, '$1'),
+    2_000,
+  )
+  if (!repairedReply || repairedReply === trimmedReply || replyLooksProcessOnlyRepairShell(repairedReply)) {
+    return {
+      applied: false,
+      reply: input.reply,
+      analysis: input.analysis,
+      reason: repairReasons.length > 0 ? uniqueCarryAnchors(repairReasons, 4).join('|') : null,
+      droppedClauses,
+    }
+  }
+
+  const repairedAnalysis = analyzeDialogueFirstVisibleReply({
+    reply: repairedReply,
+    userText: input.userText,
+    governance: input.governance,
+  })
+  if (repairedAnalysis.contaminated) {
+    return {
+      applied: false,
+      reply: input.reply,
+      analysis: input.analysis,
+      reason: repairReasons.length > 0 ? uniqueCarryAnchors(repairReasons, 4).join('|') : null,
+      droppedClauses,
+    }
+  }
+
+  return {
+    applied: true,
+    reply: repairedReply,
+    analysis: repairedAnalysis,
+    reason: uniqueCarryAnchors(repairReasons, 4).join('|') || 'local-dialogue-first-repair',
+    droppedClauses,
+  }
+}
+
+function resolveGovernanceTurnOwner(governance?: AlicizationMindTurnGovernance | null) {
+  if (!governance)
+    return null
+  if (governance.screenReferenceMode === 'avoid')
+    return 'dialogue'
+
+  const subject = governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null
+  if (
+    subject === 'task-knot'
+    || subject === 'visible-scene'
+    || governance.turnMode === 'grounded-inspection'
+    || governance.turnMode === 'screen-repair'
+    || governance.turnMode === 'guide-current-knot'
+  ) {
+    return 'screen'
+  }
+
+  return 'dialogue'
 }
 
 function isExplicitGovernanceRepairTurn(governance: AlicizationMindTurnGovernance) {
@@ -2307,12 +2705,12 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
     : {}
   const governance = normalizeMindTurnGovernance(input.governance ?? structuredPayload.governance)
   if (input.origin === 'subconscious-proactive' || !governance)
-    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[] }
+    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
   const reply = readStringValue(structuredPayload.reply).trim()
     || sanitizeBriefText(readStringValue(input.assistantText), 2_000)
   if (!reply)
-    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[] }
+    return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
   const thought = readStringValue(structuredPayload.thought).trim()
   const format = normalizeDialogueStructuredFormat(structuredPayload.format)
@@ -2320,41 +2718,81 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
   const dialogueActKernel = normalizeDialogueActKernel(
     structuredPayload.dialogueActKernel ?? governance.dialogueActKernel,
   )
+  const ownerBefore = resolveGovernanceTurnOwner(governance)
   const resolvedGovernance = dialogueActKernel
     ? {
         ...governance,
         dialogueActKernel,
       }
     : governance
-  const governedAnchorRepair = reconcileMindGovernanceAnchors(resolvedGovernance)
+  const governedAnchorRepair = reconcileMindGovernanceAnchors(resolvedGovernance, input.userText)
   const coherentGovernance = governedAnchorRepair.governance
   const normalizedEmotion = resolveMindGovernanceEmotion(
     coherentGovernance,
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
   )
   const thoughtConflict = thoughtConflictsWithMindGovernance(thought, coherentGovernance)
-  const governedSurface = buildMindGovernedFallbackSurface({
+  const initialGovernedSurface = buildMindGovernedFallbackSurface({
     governance: coherentGovernance,
     userText: input.userText,
     translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
   })
   const strictGovernance = shouldForceGovernedMindSurface(coherentGovernance)
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(reply, coherentGovernance)
-  const weakGroundedSceneCue = replyUsesWeakGroundedSceneCue(reply, coherentGovernance)
-  const conflictingAnchors = detectReplyConflictingAnchors(
+  const initialDialogueFirstVisibleReply = analyzeDialogueFirstVisibleReply({
     reply,
+    userText: input.userText,
+    governance: coherentGovernance,
+  })
+  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(coherentGovernance)
+  const dialogueFirstSoftRepair = preserveDialogueFirstVisibleReply
+    ? repairDialogueFirstVisibleReply({
+        reply,
+        userText: input.userText,
+        governance: coherentGovernance,
+        analysis: initialDialogueFirstVisibleReply,
+      })
+    : {
+        applied: false,
+        reply,
+        analysis: initialDialogueFirstVisibleReply,
+        reason: null as string | null,
+        droppedClauses: [] as string[],
+      }
+  const candidateReply = dialogueFirstSoftRepair.applied ? dialogueFirstSoftRepair.reply : reply
+  const leakedGovernedSurface = replyLeaksGovernedMindSurface(candidateReply, coherentGovernance)
+  const weakGroundedSceneCue = replyUsesWeakGroundedSceneCue(candidateReply, coherentGovernance)
+  const unsupportedTechnicalSpecificity = analyzeUnsupportedTechnicalSpecificity({
+    reply: candidateReply,
+    userText: input.userText,
+    governance: coherentGovernance,
+  })
+  const conflictingAnchors = detectReplyConflictingAnchors(
+    candidateReply,
     resolvedGovernance,
     governedAnchorRepair.coherence.dominant ?? coherentGovernance.focusAnchor,
   )
   const scriptMismatch = replyScriptMismatchesUserTurn({
     userText: input.userText,
-    reply,
+    reply: candidateReply,
   })
+  const dialogueFirstVisibleReply = dialogueFirstSoftRepair.analysis
+  const dialogueFirstOverrideRequired = Boolean(
+    preserveDialogueFirstVisibleReply
+    && dialogueFirstVisibleReply.contaminated,
+  )
+  const governedSurface = (dialogueFirstOverrideRequired && !initialGovernedSurface?.reply)
+    ? buildMindGovernedFallbackSurface({
+        governance: coherentGovernance,
+        userText: input.userText,
+        translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
+        forceDialogueAnswerFallback: true,
+      })
+    : initialGovernedSurface
   const thinGovernedShell = governedSurface
-    ? replyLooksThinGovernedShell(reply, governedSurface.reply, coherentGovernance, governedSurface.thinShellCue)
+    ? replyLooksThinGovernedShell(candidateReply, governedSurface.reply, coherentGovernance, governedSurface.thinShellCue)
     : false
   const coherentSceneReply = replyLooksCoherentSceneAnswer({
-    reply,
+    reply: candidateReply,
     governance: coherentGovernance,
     userText: input.userText,
   })
@@ -2370,22 +2808,26 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
     missingMindThought ? 'thought-missing-mind-spine' : '',
     thoughtConflict ? 'thought-governance-mismatch' : '',
     governedAnchorRepair.changed ? 'governance-anchor-coherence-repaired' : '',
+    dialogueFirstSoftRepair.applied ? 'dialogue-first-visible-reply-soft-repaired' : '',
     strictGovernance ? 'strict-governance-surface' : '',
     leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
     weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
+    unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
     scriptMismatch ? 'reply-script-mismatch-with-user-turn' : '',
     conflictingAnchors.reason,
+    dialogueFirstVisibleReply.contaminated && !dialogueFirstSoftRepair.applied ? 'dialogue-first-visible-reply-contaminated' : '',
     thinGovernedShell ? 'reply-thin-governed-shell' : '',
-    shouldDeferGovernedMindLocalRepair(coherentGovernance) ? 'dialogue-first-repair-deferred' : '',
+    shouldDeferGovernedMindLocalRepair(coherentGovernance) && !dialogueFirstSoftRepair.applied ? 'dialogue-first-repair-deferred' : '',
     structuredPayload.governance == null ? 'governance-snapshot-injected' : '',
   ].filter(Boolean)
 
-  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(coherentGovernance)
   const hardOverrideRequired = Boolean(
     leakedGovernedSurface
     || weakGroundedSceneCue
+    || unsupportedTechnicalSpecificity.shouldOverride
     || scriptMismatch
-    || conflictingAnchors.hasConflict,
+    || conflictingAnchors.hasConflict
+    || dialogueFirstOverrideRequired,
   )
   const thinShellOverrideRequired = Boolean(thinGovernedShell && !preserveDialogueFirstVisibleReply)
   const strictOverrideRequired = strictGovernance
@@ -2414,13 +2856,35 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
       || (strictOverrideRequired && !softStrictOverrideSuppressed)
     ),
   )
+  const replyKeptDespiteMismatch = Boolean(
+    !shouldOverrideVisibleReply
+    && (
+      thoughtConflict
+      || governedAnchorRepair.changed
+      || dialogueFirstVisibleReply.contaminated
+      || unsupportedTechnicalSpecificity.unsupportedCues.length > 0
+      || conflictingAnchors.hasConflict
+    ),
+  )
+  if (replyKeptDespiteMismatch)
+    reasons.push('reply-kept-despite-mismatch')
   const overrideClass = shouldOverrideVisibleReply
     ? (hardOverrideRequired ? 'hard-override' : 'soft-override')
     : 'none'
   const fallbackPatternId = resolveGovernedFallbackPatternId(coherentGovernance, shouldOverrideVisibleReply)
+  const hardFallbackReason = shouldOverrideVisibleReply && hardOverrideRequired
+    ? [
+        leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
+        weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
+        unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
+        scriptMismatch ? 'reply-script-mismatch-with-user-turn' : '',
+        conflictingAnchors.reason,
+        dialogueFirstOverrideRequired ? 'dialogue-first-visible-reply-contaminated' : '',
+      ].find(Boolean) ?? 'hard-governance-fallback'
+    : null
   const finalReply = shouldOverrideVisibleReply && governedSurface?.reply
     ? governedSurface.reply
-    : reply
+    : candidateReply
   const finalThought = (missingMindThought || thoughtConflict)
     ? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
     : thought
@@ -2478,6 +2942,53 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
     overrideClass,
     fallbackPatternId,
     reasons,
+    audit: {
+      owner_before: ownerBefore,
+      owner_after: resolveGovernanceTurnOwner(coherentGovernance),
+      subject_before: governance.answerSubject ?? governance.mindTurnFrame?.relation.subject ?? null,
+      subject_after: coherentGovernance.answerSubject ?? coherentGovernance.mindTurnFrame?.relation.subject ?? null,
+      screen_mode_before: governance.screenReferenceMode ?? null,
+      screen_mode_after: coherentGovernance.screenReferenceMode ?? null,
+      truth_state_before: governance.truthState,
+      truth_state_after: coherentGovernance.truthState,
+      repair_state_before: governance.repairState,
+      repair_state_after: coherentGovernance.repairState,
+      focus_anchor_before: governance.focusAnchor ?? null,
+      focus_anchor_after: coherentGovernance.focusAnchor ?? null,
+      live_surface_before: governance.liveSurface ?? null,
+      live_surface_after: coherentGovernance.liveSurface ?? null,
+      answer_intent_before: governance.answerIntent ?? null,
+      answer_intent_after: coherentGovernance.answerIntent ?? null,
+      carried_thread_before: governance.carriedThread ?? null,
+      carried_thread_after: coherentGovernance.carriedThread ?? null,
+      anchor_candidates_before: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesBefore),
+      anchor_candidates_after: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesAfter),
+      dominant_anchor: conflictingAnchors.dominantAnchor ?? null,
+      conflicting_anchor_candidates: conflictingAnchors.conflictingCandidates,
+      mentioned_conflicting_anchors: conflictingAnchors.mentionedConflicts,
+      dialogue_focus_overlap: Number(dialogueFirstVisibleReply.overlapRatio.toFixed(2)),
+      roleplay_preface: dialogueFirstVisibleReply.roleplayPreface,
+      stale_carry_reference: dialogueFirstVisibleReply.staleCarryReference,
+      scene_cue_mentions: dialogueFirstVisibleReply.sceneCueMentions,
+      foreign_technical_cues: dialogueFirstVisibleReply.foreignTechnicalCues,
+      reply_specificity_cues: unsupportedTechnicalSpecificity.replyCues,
+      allowed_specificity_cues: unsupportedTechnicalSpecificity.allowedCues,
+      unsupported_specificity_cues: unsupportedTechnicalSpecificity.unsupportedCues,
+      claim_specificity_budget: coherentGovernance.claimEvidence?.specificityBudget ?? null,
+      claim_observed_surface: coherentGovernance.claimEvidence?.observedSurface ?? null,
+      claim_task_hypothesis: coherentGovernance.claimEvidence?.taskHypothesis ?? null,
+      claim_intent_hypothesis: coherentGovernance.claimEvidence?.intentHypothesis ?? null,
+      claim_should_label_hypothesis: coherentGovernance.claimEvidence?.shouldLabelHypothesis === true,
+      claim_forbid_unsupported_specificity: coherentGovernance.claimEvidence?.forbidUnsupportedSpecificity === true,
+      reply_before_excerpt: excerptGovernedReply(reply),
+      reply_after_excerpt: excerptGovernedReply(finalReply),
+      soft_repair_applied: dialogueFirstSoftRepair.applied,
+      soft_repair_reason: dialogueFirstSoftRepair.reason,
+      soft_repair_dropped_clauses: dialogueFirstSoftRepair.droppedClauses,
+      hard_fallback_reason: hardFallbackReason,
+      fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
+      reply_kept_despite_mismatch: replyKeptDespiteMismatch,
+    },
   }
 }
 
@@ -3860,6 +4371,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
     }
+
+    if (options?.skipQueueWhenScopeAlreadyActive && requestedCardId === activeCardId)
+      return await execute()
+
     const next = scopeLifecycleQueueState.queue.then(execute, execute)
     scopeLifecycleQueueState.queue = next.then(() => undefined, () => undefined)
     return await next
@@ -4738,6 +5253,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           fallbackPatternId: governedTurn.fallbackPatternId ?? 'none',
           reasons: governedTurn.reasons,
           format: readStringValue((normalizedPayload.structured as Record<string, unknown> | undefined)?.format),
+          ...governedTurn.audit,
         },
       })
     }
@@ -5215,6 +5731,113 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function shouldQuarantineDialogueFirstCarry(input: {
+    dialogueSemantics?: ReturnType<typeof buildDialogueTurnSemantics> | null
+    inspectionRequested?: boolean
+  }) {
+    if (input.inspectionRequested === true)
+      return false
+
+    const subjectPreference = input.dialogueSemantics?.subjectPreference ?? null
+    if (subjectPreference === 'task-knot' || subjectPreference === 'visible-scene')
+      return false
+
+    if (input.dialogueSemantics?.responseNeed === 'repair' || input.dialogueSemantics?.responseNeed === 'guide' || input.dialogueSemantics?.responseNeed === 'teach')
+      return false
+
+    if (input.dialogueSemantics?.truthExpectation === 'strict')
+      return false
+
+    return Boolean(input.dialogueSemantics)
+  }
+
+  function filterDialogueAnchoredWorldThreads(
+    threads: ReturnType<typeof buildWorldModel>['lingeringThreads'],
+    anchors: string[],
+    maxItems = 4,
+  ) {
+    if (anchors.length === 0)
+      return []
+
+    return threads
+      .filter((thread) => {
+        const message = sanitizeBriefText([thread.title, thread.summary].filter(Boolean).join(' '), 220)
+        if (!message)
+          return false
+        return measureDialogueFocusAlignment({
+          message,
+          contextPhrases: anchors,
+        }).overlapRatio >= 0.18
+      })
+      .slice(0, maxItems)
+  }
+
+  function filterDialogueAnchoredCarryValues(values: string[], anchors: string[], maxItems = 4) {
+    if (anchors.length === 0)
+      return []
+
+    const filtered: string[] = []
+    for (const value of values) {
+      const normalized = sanitizeBriefText(value, 180)
+      if (!normalized || filtered.includes(normalized))
+        continue
+      if (measureDialogueFocusAlignment({
+        message: normalized,
+        contextPhrases: anchors,
+      }).overlapRatio < 0.18) {
+        continue
+      }
+      filtered.push(normalized)
+      if (filtered.length >= maxItems)
+        break
+    }
+    return filtered
+  }
+
+  function quarantineDialogueFirstWorldModel(input: {
+    userText?: string
+    worldModel: ReturnType<typeof buildWorldModel>
+    dialogueSemantics?: ReturnType<typeof buildDialogueTurnSemantics> | null
+    inspectionRequested?: boolean
+  }) {
+    if (!shouldQuarantineDialogueFirstCarry({
+      dialogueSemantics: input.dialogueSemantics ?? null,
+      inspectionRequested: input.inspectionRequested,
+    })) {
+      return input.worldModel
+    }
+
+    const anchors = uniqueCarryAnchors([
+      input.userText,
+      input.dialogueSemantics?.summary,
+      input.dialogueSemantics?.taskAnchor,
+    ])
+    if (anchors.length === 0)
+      return input.worldModel
+
+    const activeThread = input.worldModel.activeThread && measureDialogueFocusAlignment({
+      message: sanitizeBriefText([
+        input.worldModel.activeThread.title,
+        input.worldModel.activeThread.summary,
+      ].filter(Boolean).join(' '), 220),
+      contextPhrases: anchors,
+    }).overlapRatio >= 0.18
+      ? input.worldModel.activeThread
+      : null
+
+    return {
+      ...input.worldModel,
+      activeThread,
+      lingeringThreads: filterDialogueAnchoredWorldThreads(input.worldModel.lingeringThreads, anchors),
+      focusTarget: activeThread?.target ?? null,
+      epistemicState: {
+        ...input.worldModel.epistemicState,
+        openQuestions: filterDialogueAnchoredCarryValues(input.worldModel.epistemicState.openQuestions, anchors),
+        staleRisks: filterDialogueAnchoredCarryValues(input.worldModel.epistemicState.staleRisks, anchors),
+      },
+    }
+  }
+
   async function resolveDialogueTurnSemantics(input: {
     cardId: string
     userText: string
@@ -5683,27 +6306,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       liveWorldModel,
       ingressWorldModel: dialogueTurnGrounding?.worldModel ?? null,
     })
-    const entityWorld = buildEntityWorldModel({
-      now: input.now,
-      context: input.context,
-      scene: input.visualHeartbeat.scene,
-      attention: input.attention,
-      worldModel,
-      previousModel: input.previousVisualPresenceState.entityWorld ?? null,
-      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
-      durabilityPulse: input.durabilityPulse,
-    })
-    const heuristicAppraisal = buildSubjectiveSceneAppraisal({
-      now: input.now,
-      context: input.context,
-      watchMode: input.visualHeartbeat.watchMode,
-      scene: input.visualHeartbeat.scene,
-      attention: input.attention,
-      worldModel,
-      recentTransition: input.visualHeartbeat.recentTransition,
-      durabilityPulse: input.durabilityPulse,
-      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
-    })
     const dialogueSemantics = input.userText
       ? await resolveDialogueTurnSemantics({
           cardId: input.cardId,
@@ -5718,6 +6320,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           timeoutMs: effectiveDialogueTurnSemanticsTimeoutMs,
         })
       : null
+    const governedWorldModel = quarantineDialogueFirstWorldModel({
+      userText: input.userText,
+      worldModel,
+      dialogueSemantics,
+      inspectionRequested: input.inspectionRequested === true,
+    })
+    const entityWorld = buildEntityWorldModel({
+      now: input.now,
+      context: input.context,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      worldModel: governedWorldModel,
+      previousModel: input.previousVisualPresenceState.entityWorld ?? null,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+      durabilityPulse: input.durabilityPulse,
+    })
+    const heuristicAppraisal = buildSubjectiveSceneAppraisal({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      scene: input.visualHeartbeat.scene,
+      attention: input.attention,
+      worldModel: governedWorldModel,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      durabilityPulse: input.durabilityPulse,
+      workingMemoryEpisodes: input.previousVisualPresenceState.workingMemoryEpisodes,
+    })
     const subjectiveInference = await resolveSubjectiveInference({
       cardId: input.cardId,
       now: input.now,
@@ -5725,7 +6354,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       previousVisualPresenceState: input.previousVisualPresenceState,
       visualHeartbeat: input.visualHeartbeat,
       attention: input.attention,
-      worldModel,
+      worldModel: governedWorldModel,
       heuristicAppraisal,
       durabilityPulse: input.durabilityPulse,
       dialogueSemantics: dialogueSemantics ?? undefined,
@@ -5739,7 +6368,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       context: input.context,
       scene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       appraisal,
       previous: input.previousVisualPresenceState.beliefLedger ?? null,
@@ -5747,7 +6376,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const goalStack = buildGoalStack({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       appraisal,
       previousGoalStack: input.previousVisualPresenceState.goalStack ?? null,
@@ -5758,7 +6387,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const relationshipModel = buildRelationshipModel({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       previous: input.previousVisualPresenceState.relationshipModel ?? null,
       watchMode: input.visualHeartbeat.watchMode,
@@ -5767,7 +6396,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       previousConcerns: input.previousVisualPresenceState.concerns,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       scene: input.visualHeartbeat.scene,
       recentTransition: input.visualHeartbeat.recentTransition,
@@ -5776,7 +6405,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const selfContinuity = buildSelfContinuity({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       goalStack,
       previous: input.previousVisualPresenceState.selfContinuity ?? null,
@@ -5786,7 +6415,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       context: input.context,
       scene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       beliefLedger,
       relationshipModel,
@@ -5794,7 +6423,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const beliefRevision = buildBeliefRevision({
       now: input.now,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefLedger,
       relationshipModel,
       previous: input.previousVisualPresenceState.beliefRevision ?? null,
@@ -5804,7 +6433,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       context: input.context,
       watchMode: input.visualHeartbeat.watchMode,
       scene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefLedger,
       beliefRevision,
       inquiryLoop,
@@ -5818,7 +6447,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       context: input.context,
       watchMode: input.visualHeartbeat.watchMode,
       scene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       recentTransition: input.visualHeartbeat.recentTransition,
       durabilityPulse: input.durabilityPulse,
@@ -5828,7 +6457,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       watchMode: input.visualHeartbeat.watchMode,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       livingWorldState: livingWorldStateRaw,
       relationshipModel,
       selfGovernor: null,
@@ -5838,7 +6467,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const worldOntology = buildWorldOntology({
       now: input.now,
       scene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefLedger,
       beliefRevision,
       hypothesisGraph,
@@ -5847,7 +6476,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const selfState = buildSelfState({
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       concerns,
       watchMode: input.visualHeartbeat.watchMode,
@@ -5861,7 +6490,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const deliberationState = buildDeliberationState({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefLedger,
       beliefRevision,
       relationshipModel,
@@ -5882,7 +6511,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const commitmentLedger = buildCommitmentLedger({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefLedger,
       beliefRevision,
       hypothesisGraph,
@@ -5895,7 +6524,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const inquiryPlanner = buildInquiryPlanner({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       commitmentLedger,
       beliefRevision,
       threadRuntime,
@@ -5905,7 +6534,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const concernContinuity = buildConcernContinuityLedger({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       concerns,
       commitmentLedger,
       inquiryPlanner,
@@ -5915,7 +6544,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       context: input.context,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       worldOntology,
       beliefLedger,
       beliefRevision,
@@ -5929,7 +6558,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       context: input.context,
       watchMode: input.visualHeartbeat.watchMode,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       subjectiveInference,
       concerns,
@@ -5948,7 +6577,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const selfGovernorRaw = buildSelfGovernor({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       livingWorldState,
       selfContinuity,
       relationshipModel,
@@ -5963,7 +6592,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       watchMode: input.visualHeartbeat.watchMode,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       livingWorldState,
       relationshipModel,
       selfGovernor: selfGovernorRaw,
@@ -5972,7 +6601,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }).selfGovernor ?? selfGovernorRaw
     const mindKernel = buildMindKernel({
       now: input.now,
-      worldModel,
+      worldModel: governedWorldModel,
       mindDynamics,
       commitmentLedger,
       inquiryPlanner,
@@ -5988,7 +6617,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const thoughtThreadsRaw = buildThoughtThreads({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       livingWorldState,
       selfGovernor,
       beliefLedger,
@@ -6001,7 +6630,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       now: input.now,
       watchMode: input.visualHeartbeat.watchMode,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       livingWorldState,
       relationshipModel,
       selfGovernor,
@@ -6014,7 +6643,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const intentionStream = buildIntentionStream({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       concernContinuity,
       repairLedger,
       commitmentLedger,
@@ -6027,7 +6656,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const reflectionLedger = buildReflectionLedger({
       now: input.now,
-      worldModel,
+      worldModel: governedWorldModel,
       repairLedger,
       intentionStream,
       previousIntentionStream: input.previousVisualPresenceState.intentionStream ?? null,
@@ -6036,7 +6665,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const executiveCycle = buildExecutiveCycle({
       now: input.now,
-      worldModel,
+      worldModel: governedWorldModel,
       repairLedger,
       intentionStream,
       reflectionLedger,
@@ -6046,7 +6675,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const counterfactualDeliberation = buildCounterfactualDeliberation({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       subjectiveInference,
       concerns,
@@ -6065,7 +6694,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const actionEcology = buildActionEcology({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       beliefRevision,
       relationshipModel,
       deliberationState,
@@ -6082,7 +6711,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const initiativeArbitration = buildInitiativeArbitration({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       worldOntology,
       concerns,
       selfState,
@@ -6099,7 +6728,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const initiative = buildInitiativeSnapshot({
       context: input.context,
       watchMode: input.visualHeartbeat.watchMode,
-      worldModel,
+      worldModel: governedWorldModel,
       worldOntology,
       appraisal,
       concerns,
@@ -6129,7 +6758,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const desireMemory = buildDesireMemory({
       now: input.now,
       context: input.context,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       goalStack,
       selfContinuity,
@@ -6148,7 +6777,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       currentScene: input.visualHeartbeat.scene,
       attention: input.attention,
       recentTransition: input.visualHeartbeat.recentTransition,
-      worldModel,
+      worldModel: governedWorldModel,
       entityWorld,
       livingWorldState: stabilizedLivingWorldState,
       beliefLedger,
@@ -6181,45 +6810,34 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       reflectionLedger,
       executiveCycle,
     })
-    const dialogueObligation = dialogueSemantics
-      ? buildDialogueObligation({
+    const dialogueEncounter = dialogueSemantics
+      ? buildDialogueTurnEncounter({
           semantics: dialogueSemantics,
           context: input.context,
-          worldModel,
+          currentScene: input.visualHeartbeat.scene,
+          worldModel: governedWorldModel,
           repairLedger,
           privateThought,
-        })
-      : null
-    const dialogueTurnOwnership = dialogueSemantics
-      ? buildDialogueTurnOwnership({
-          semantics: dialogueSemantics,
-          obligation: dialogueObligation,
-          worldModel,
           inspectionRequested: input.inspectionRequested === true,
           inspectionState: input.inspectionState ?? (input.inspectionRequested ? 'inspection-live' : 'dialogue-first'),
           releaseInspectionCarry: input.inspectionState === 'dialogue-first',
           ingressHint: input.turnOwnershipHint ?? null,
         })
       : null
-    const dialogueFocus = dialogueSemantics
-      ? buildDialogueFocusGovernance({
-          semantics: dialogueSemantics,
-          obligation: dialogueObligation,
-          ownership: dialogueTurnOwnership,
-          currentScene: input.visualHeartbeat.scene,
-          worldModel,
-        })
-      : null
+    const dialogueObligation = dialogueEncounter?.obligation ?? null
+    const dialogueTurnOwnership = dialogueEncounter?.ownership ?? null
+    const dialogueFocus = dialogueEncounter?.focus ?? null
     const discourseState = dialogueSemantics
       ? buildDiscourseState({
           now: input.now,
           userText: input.userText,
+          dialogueEncounter,
           dialogueSemantics,
           dialogueObligation,
           dialogueFocus,
           ownership: dialogueTurnOwnership,
           inspectionRequested: dialogueTurnOwnership?.inspectionRequested ?? (input.inspectionRequested === true),
-          worldModel,
+          worldModel: governedWorldModel,
           relationshipModel,
           repairLedger,
           reflectionLedger,
@@ -6230,12 +6848,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ? buildConversationState({
           now: input.now,
           userText: input.userText,
+          dialogueEncounter,
           dialogueSemantics,
           dialogueObligation,
           dialogueFocus,
           discourseState,
           currentScene: input.visualHeartbeat.scene,
-          worldModel,
+          worldModel: governedWorldModel,
           relationshipModel,
           commitmentLedger,
           repairLedger,
@@ -6258,9 +6877,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           now: input.now,
           discourseState,
           conversationState,
-          worldModel,
+          worldModel: governedWorldModel,
           subjectiveInference,
           appraisal,
+          dialogueEncounter,
           concernContinuity,
           commitmentLedger,
           repairLedger,
@@ -6277,14 +6897,39 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           now: input.now,
           discourseState,
           conversationState,
+          dialogueEncounter,
           mindSynthesis,
           currentScene: input.visualHeartbeat.scene,
-          worldModel,
+          worldModel: governedWorldModel,
           worldOntology,
           relationshipModel,
           repairLedger,
           privateThought,
           groundedThisTurn: input.groundedThisTurn === true,
+        })
+      : null
+    const currentConsciousFrame = discourseState && answerCompiler
+      ? buildCurrentConsciousFrame({
+          now: input.now,
+          discourseState,
+          conversationState,
+          dialogueEncounter,
+          mindSynthesis,
+          answerCompiler,
+          privateThought,
+          initiative,
+          desireMemory,
+        })
+      : null
+    const claimEvidenceLedger = discourseState && answerCompiler
+      ? buildClaimEvidenceLedger({
+          now: input.now,
+          discourseState,
+          conversationState,
+          dialogueEncounter,
+          answerCompiler,
+          currentConsciousFrame,
+          currentScene: input.visualHeartbeat.scene,
         })
       : null
     const replyDeliberation = discourseState && mindSynthesis && answerCompiler
@@ -6294,8 +6939,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           discourseState,
           mindSynthesis,
           answerCompiler,
+          currentConsciousFrame,
+          claimEvidenceLedger,
           privateThought,
-          worldModel,
+          worldModel: governedWorldModel,
+          dialogueEncounter,
         })
       : null
     const dialogueWorldThread = buildDialogueWorldThread({
@@ -6303,7 +6951,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       conversationState: conversationState ?? input.previousVisualPresenceState.conversationState ?? null,
       discourseState,
       mindSynthesis,
-      worldModel,
+      worldModel: governedWorldModel,
       replyDeliberation,
       answerCompiler,
       privateThought,
@@ -6316,12 +6964,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       answerCompiler,
       replyDeliberation,
       privateThought,
+      dialogueEncounter,
     })
     const answerPlanner = buildAnswerPlanner({
       now: input.now,
       context: input.context,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       worldOntology,
       concernContinuity,
       repairLedger,
@@ -6334,6 +6983,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       reflectionLedger,
       executiveCycle,
       inspectionRequested: dialogueTurnOwnership?.inspectionRequested ?? (input.inspectionRequested === true),
+      dialogueEncounter: dialogueEncounter ?? null,
       ownership: dialogueTurnOwnership ?? null,
       dialogueSemantics: dialogueSemantics ?? undefined,
       dialogueObligation: dialogueObligation ?? undefined,
@@ -6357,12 +7007,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       replyDeliberation: replyDeliberation ?? undefined,
       answerPlanner,
       privateThought,
-      worldModel,
+      worldModel: governedWorldModel,
     })
     const mindTurnFrame = buildMindTurnFrame({
       now: input.now,
       currentScene: input.visualHeartbeat.scene,
-      worldModel,
+      worldModel: governedWorldModel,
       appraisal,
       mindSynthesis,
       conversationState,
@@ -6378,6 +7028,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
 
     return {
+      dialogueEncounter,
       dialogueSemantics,
       dialogueObligation,
       dialogueFocus,
@@ -6386,7 +7037,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       mindTurnFrame,
       dialogueActKernel,
       answerCompiler,
-      worldModel,
+      worldModel: governedWorldModel,
       worldOntology,
       entityWorld,
       livingWorldState: stabilizedLivingWorldState,
@@ -6423,6 +7074,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       initiativeArbitration,
       initiative,
       desireMemory,
+      currentConsciousFrame,
+      claimEvidenceLedger,
       answerPlanner,
       privateThought,
     }
@@ -7591,11 +8244,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       initiative: digitalLifeMindState.initiative,
       desireMemory: digitalLifeMindState.desireMemory,
       discourseState: digitalLifeMindState.discourseState,
+      dialogueEncounter: digitalLifeMindState.dialogueEncounter ?? null,
       mindSynthesis: digitalLifeMindState.mindSynthesis,
       conversationState: digitalLifeMindState.conversationState,
       dialogueWorldThread: digitalLifeMindState.dialogueWorldThread,
       dialogueActKernel: digitalLifeMindState.dialogueActKernel,
       answerCompiler: digitalLifeMindState.answerCompiler,
+      currentConsciousFrame: digitalLifeMindState.currentConsciousFrame ?? null,
       replyDeliberation: digitalLifeMindState.replyDeliberation,
       recallGovernor: digitalLifeMindState.recallGovernor,
       answerPlanner: digitalLifeMindState.answerPlanner,
@@ -8158,6 +8813,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         },
       })
     }
+
+    await alicizationDb.appendRelationshipDynamics({
+      hostAttitude,
+      previousHostAttitude: normalizedPreviousHostAttitude,
+      obedienceDelta,
+      livelinessDelta,
+      sensibilityDelta,
+      source: llmMetabolism ? 'dream-llm' : 'dream-heuristic',
+      createdAt: Date.now(),
+    }).catch(async (error) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.dream',
+        action: 'relationship-dynamics-write-failed',
+        message: 'Failed to persist relationship dynamics after dream metabolism.',
+        payload: {
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+        },
+      })
+    })
 
     const previousCoreIncarnation = normalizeCoreIncarnation(dreamSoul.frontmatter.core_incarnation)
     const nextCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
@@ -10494,6 +11169,32 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             shouldAcknowledgeRepair: state.answerPlanner.shouldAcknowledgeRepair,
           })
         : 'none'}.`,
+      `Current conscious frame: ${state.currentConsciousFrame
+        ? JSON.stringify({
+            subject: state.currentConsciousFrame.subject,
+            centerOfGravity: state.currentConsciousFrame.centerOfGravity,
+            truthDiscipline: state.currentConsciousFrame.truthDiscipline,
+            consciousNeed: sanitizeBriefText(state.currentConsciousFrame.consciousNeed, 160),
+            consciousTension: sanitizeBriefText(state.currentConsciousFrame.consciousTension, 160),
+            speakingIntention: sanitizeBriefText(state.currentConsciousFrame.speakingIntention, 160),
+            focusAnchor: sanitizeBriefText(state.currentConsciousFrame.focusAnchor ?? '', 140) || null,
+            shouldWithholdSpecificity: state.currentConsciousFrame.shouldWithholdSpecificity,
+            shouldSelfRevise: state.currentConsciousFrame.shouldSelfRevise,
+          })
+        : 'none'}.`,
+      `Claim evidence ledger: ${state.claimEvidenceLedger
+        ? JSON.stringify({
+            subject: state.claimEvidenceLedger.subject,
+            evidenceMode: state.claimEvidenceLedger.evidenceMode,
+            observedSurface: sanitizeBriefText(state.claimEvidenceLedger.observedSurface ?? '', 160) || null,
+            taskHypothesis: sanitizeBriefText(state.claimEvidenceLedger.taskHypothesis ?? '', 160) || null,
+            intentHypothesis: sanitizeBriefText(state.claimEvidenceLedger.intentHypothesis ?? '', 160) || null,
+            specificityBudget: state.claimEvidenceLedger.specificityBudget,
+            allowedSpecificCues: state.claimEvidenceLedger.allowedSpecificCues,
+            shouldLabelHypothesis: state.claimEvidenceLedger.shouldLabelHypothesis,
+            forbidUnsupportedSpecificity: state.claimEvidenceLedger.forbidUnsupportedSpecificity,
+          })
+        : 'none'}.`,
       `Private thought: ${privateThought
         ? JSON.stringify({
             stance: privateThought.stance,
@@ -11249,11 +11950,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       initiative: chatMindState.initiative,
       desireMemory: chatMindState.desireMemory,
       discourseState: chatMindState.discourseState,
+      dialogueEncounter: chatMindState.dialogueEncounter ?? null,
       mindSynthesis: chatMindState.mindSynthesis,
       conversationState: chatMindState.conversationState,
       dialogueWorldThread: chatMindState.dialogueWorldThread,
       dialogueActKernel: chatMindState.dialogueActKernel,
       answerCompiler: chatMindState.answerCompiler,
+      currentConsciousFrame: chatMindState.currentConsciousFrame ?? null,
+      claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? null,
       replyDeliberation: chatMindState.replyDeliberation,
       recallGovernor: chatMindState.recallGovernor,
       answerPlanner: chatMindState.answerPlanner,
@@ -11283,12 +11987,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       state: visualPresenceState,
       inspectionRequested: inspectionIntent.active,
       dialogueActKernel: chatMindState.dialogueActKernel ?? undefined,
+      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
       dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
       dialogueObligation: chatMindState.dialogueObligation ?? undefined,
       dialogueFocus: chatMindState.dialogueFocus ?? undefined,
       discourseState: chatMindState.discourseState ?? undefined,
       mindSynthesis: chatMindState.mindSynthesis ?? undefined,
       answerCompiler: chatMindState.answerCompiler ?? undefined,
+      currentConsciousFrame: chatMindState.currentConsciousFrame ?? undefined,
+      claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
     })
     const executiveAnswerBrief = buildAlicizationExecutiveAnswerBrief({
       now,
@@ -11298,21 +12005,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       perceptionState,
       visualPresenceState,
       responseCharter,
+      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
       dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
       dialogueObligation: chatMindState.dialogueObligation ?? undefined,
       dialogueFocus: chatMindState.dialogueFocus ?? undefined,
       discourseState: chatMindState.discourseState ?? undefined,
       mindSynthesis: chatMindState.mindSynthesis ?? undefined,
       answerCompiler: chatMindState.answerCompiler ?? undefined,
+      claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
     })
     const responseSurfaceContract = buildAlicizationResponseSurfaceContract({
       brief: executiveAnswerBrief.brief,
       charter: responseCharter,
       dialogueActKernel: chatMindState.dialogueActKernel ?? undefined,
+      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
       dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
       dialogueObligation: chatMindState.dialogueObligation ?? undefined,
       dialogueFocus: chatMindState.dialogueFocus ?? undefined,
       answerCompiler: chatMindState.answerCompiler ?? undefined,
+      claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
     })
     const compactedMessages = executiveAnswerBrief.brief.shouldCompactHistory
       ? compactMindGovernedChatMessages({
@@ -11339,8 +12050,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       answerPlanner: visualPresenceState.answerPlanner,
       replyDeliberation: visualPresenceState.replyDeliberation,
       recallGovernor: visualPresenceState.recallGovernor,
+      claimEvidenceLedger: visualPresenceState.claimEvidenceLedger,
       privateThought: visualPresenceState.privateThought,
       mindMode: visualPresenceState.mindKernel?.dominantMode ?? null,
+      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
       dialogueFocus: chatMindState.dialogueFocus ?? undefined,
       groundedThisTurn,
     })
@@ -11364,6 +12077,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       visualPresenceState.answerCompiler
         ? buildAnswerCompilerSystemBlock(visualPresenceState.answerCompiler)
         : '',
+      visualPresenceState.currentConsciousFrame
+        ? buildCurrentConsciousFrameSystemBlock(visualPresenceState.currentConsciousFrame)
+        : '',
+      visualPresenceState.claimEvidenceLedger
+        ? buildClaimEvidenceLedgerSystemBlock(visualPresenceState.claimEvidenceLedger)
+        : '',
       visualPresenceState.replyDeliberation
         ? buildReplyDeliberationSystemBlock(visualPresenceState.replyDeliberation)
         : '',
@@ -11372,6 +12091,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         : '',
       visualPresenceState.answerPlanner
         ? buildAlicizationAnswerPlannerSystemBlock(visualPresenceState.answerPlanner)
+        : '',
+      chatMindState.dialogueEncounter
+        ? buildDialogueTurnEncounterSystemBlock(chatMindState.dialogueEncounter)
         : '',
       chatMindState.dialogueSemantics && chatMindState.dialogueObligation
         ? buildAlicizationDialogueObligationSystemBlock({
@@ -11586,6 +12308,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ].join('\n'))
     }
 
+    if (context.relationshipDynamics) {
+      const relationshipDynamics = context.relationshipDynamics
+      const signedDelta = (value: number) => {
+        const normalized = Number.isFinite(value) ? value : 0
+        return `${normalized >= 0 ? '+' : ''}${normalized.toFixed(2)}`
+      }
+      blocks.push([
+        '[ALICIZATION_RELATIONSHIP_DYNAMICS]',
+        '这是你最近一次关系动态代谢快照，优先用于保持关系连续性，不可覆盖当前轮次事实边界。',
+        `当前关系态势：${relationshipDynamics.hostAttitude}`,
+        relationshipDynamics.previousHostAttitude
+          ? `上一关系态势：${relationshipDynamics.previousHostAttitude}`
+          : '上一关系态势：无',
+        `人格漂移：obedience ${signedDelta(relationshipDynamics.obedienceDelta)}, liveliness ${signedDelta(relationshipDynamics.livelinessDelta)}, sensibility ${signedDelta(relationshipDynamics.sensibilityDelta)}`,
+        `来源：${relationshipDynamics.source}`,
+      ].join('\n'))
+    }
+
     return blocks
   }
 
@@ -11666,6 +12406,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
   }): Promise<OrganicMemoryPromptContext> {
     const snapshot = await getOrganicMemorySnapshot()
+    const relationshipDynamics = await alicizationDb.getLatestRelationshipDynamics().catch(() => null)
     const recallSeed = options?.recallGovernor?.recallSeed || options?.recallSeed || ''
     const allowRecalledFragments = options?.recallGovernor
       ? options.recallGovernor.allowRecalledFragments === true
@@ -11682,10 +12423,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         })
 
     return {
-      hostAttitude: snapshot.hostAttitude,
+      hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
       coreIncarnation: snapshot.coreIncarnation,
       activeThoughts,
       recalledFragments,
+      relationshipDynamics,
     }
   }
 
@@ -11757,6 +12499,84 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return directives
     }
     return ''
+  }
+
+  function extractHostNameFromMessages(messages: Message[]) {
+    for (const message of messages) {
+      if (message.role !== 'system')
+        continue
+      const systemText = readMessageContentAsText(message.content)
+      if (!systemText.startsWith('---\n'))
+        continue
+      const parsed = parseSoul(systemText)
+      const hostName = sanitizeText(parsed.frontmatter.profile.hostName, '')
+      if (hostName)
+        return hostName
+    }
+    return ''
+  }
+
+  async function resolveCardHostName(cardId: string, options?: { messages?: Message[] }) {
+    const normalizedCardId = normalizeCardId(cardId)
+    let readFailed = false
+    try {
+      if (normalizedCardId === activeCardId && soulSnapshot) {
+        const hostName = sanitizeText(soulSnapshot.frontmatter.profile.hostName, '')
+        if (hostName)
+          return hostName
+      }
+
+      const targetSoulPath = resolveCardPaths(normalizedCardId).soulPath
+      if (existsSync(targetSoulPath)) {
+        const content = await readFile(targetSoulPath, 'utf-8')
+        const hostName = sanitizeText(parseSoul(content).frontmatter.profile.hostName, '')
+        if (hostName)
+          return hostName
+      }
+    }
+    catch (error) {
+      readFailed = true
+      await appendRuntimeDebugLine('host-name.resolve-error', {
+        cardId: normalizedCardId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    }
+
+    const fallback = extractHostNameFromMessages(options?.messages ?? [])
+    if (fallback)
+      return fallback
+
+    if (readFailed) {
+      await appendRuntimeDebugLine('host-name.resolve-fallback-empty', {
+        cardId: normalizedCardId,
+      })
+    }
+    return ''
+  }
+
+  function buildMainRuntimeCorePromptBlocks(input: {
+    hostName?: string
+  }) {
+    const blocks: string[] = []
+    if (alicizationFixedCoreSystemInstruction.trim())
+      blocks.push(alicizationFixedCoreSystemInstruction.trim())
+
+    const hostName = sanitizeText(input.hostName, '')
+    if (hostName) {
+      blocks.push(renderAlicizationPromptTemplate(alicizationFixedHostNameDirectiveTemplate, {
+        hostName,
+        source: 'host',
+        content: '',
+        iso: '',
+        local: '',
+        moduleName: '',
+      }).trim())
+    }
+
+    if (alicizationFixedStructuredContractAnchor.trim())
+      blocks.push(alicizationFixedStructuredContractAnchor.trim())
+
+    return blocks.filter(Boolean)
   }
 
   async function resolveCardCustomDirectives(cardId: string, options?: { messages?: Message[] }): Promise<ResolvedCardCustomDirectives> {
@@ -12664,13 +13484,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const allowTools = payload.supportsTools !== false
     const waitForTools = payload.waitForTools === true
-    const [performanceManifest, customDirectivesResolution, tools] = await Promise.all([
+    const [performanceManifest, customDirectivesResolution, hostName, tools] = await Promise.all([
       getPerformanceManifest(),
       resolveCardCustomDirectives(payload.cardId, { messages }),
+      resolveCardHostName(payload.cardId, { messages }),
       allowTools ? buildMainGatewayTools(payload.cardId) : Promise.resolve(undefined),
     ])
+    const runtimeCorePromptBlocks = buildMainRuntimeCorePromptBlocks({ hostName })
 
     messages = prependSystemBlocksToMessages(messages, [
+      ...runtimeCorePromptBlocks,
       ...perceptionAugmentation.promptSystemBlocks,
       ...buildOrganicMemorySystemBlocks(organicPromptContext),
       ...buildPerformanceManifestSystemBlocks(performanceManifest),
@@ -13583,40 +14406,45 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   })
   defineInvokeHandler(context, electronAlicizationChatStart, async (payload, eventaOptions) => {
     const cardId = normalizeCardId(payload.cardId)
-    const startedAt = Date.now()
-    await appendRuntimeDebugLine('chat-start.invoke-requested', {
-      cardId,
-      turnId: payload.turnId,
-      providerId: sanitizeText(payload.providerId),
-      model: sanitizeText(payload.model),
-      activeCardId,
-    })
+    return await withCardScope(cardId, async () => {
+      const startedAt = Date.now()
+      await appendRuntimeDebugLine('chat-start.invoke-requested', {
+        cardId,
+        turnId: payload.turnId,
+        providerId: sanitizeText(payload.providerId),
+        model: sanitizeText(payload.model),
+        activeCardId,
+      })
 
-    try {
-      const result = await startMainChatStream({
-        ...payload,
-        cardId,
-      }, eventaOptions)
-      await appendRuntimeDebugLine('chat-start.invoke-resolved', {
-        cardId,
-        turnId: payload.turnId,
-        state: result.state,
-        accepted: result.accepted,
-        elapsedMs: Date.now() - startedAt,
-        activeCardId,
-      })
-      return result
-    }
-    catch (error) {
-      await appendRuntimeDebugLine('chat-start.invoke-failed', {
-        cardId,
-        turnId: payload.turnId,
-        elapsedMs: Date.now() - startedAt,
-        reason: error instanceof Error ? error.message : String(error),
-        activeCardId,
-      })
-      throw error
-    }
+      try {
+        const result = await startMainChatStream({
+          ...payload,
+          cardId,
+        }, eventaOptions)
+        await appendRuntimeDebugLine('chat-start.invoke-resolved', {
+          cardId,
+          turnId: payload.turnId,
+          state: result.state,
+          accepted: result.accepted,
+          elapsedMs: Date.now() - startedAt,
+          activeCardId,
+        })
+        return result
+      }
+      catch (error) {
+        await appendRuntimeDebugLine('chat-start.invoke-failed', {
+          cardId,
+          turnId: payload.turnId,
+          elapsedMs: Date.now() - startedAt,
+          reason: error instanceof Error ? error.message : String(error),
+          activeCardId,
+        })
+        throw error
+      }
+    }, {
+      label: `chat-start:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
   })
   defineInvokeHandler(context, electronAlicizationChatAbort, async payload => await handleDirectChatAbort(payload))
 
