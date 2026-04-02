@@ -1,5 +1,20 @@
 export type AlicizationMemorySource = 'rule' | 'async-llm'
 
+export interface AlicizationMemoryUpsertTrace {
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  origin?: 'user-turn' | 'subconscious-proactive' | 'system'
+  trigger?: 'batch' | 'idle' | 'force' | 'manual' | null
+  batchSize?: number | null
+  extractedCount?: number | null
+  batchPriority?: {
+    max: number
+    min: number
+    avg: number
+  } | null
+}
+
 export type AlicizationRealtimeCategory = 'weather' | 'news' | 'finance' | 'sports'
 
 export interface AlicizationRealtimeExecutePayload {
@@ -201,6 +216,34 @@ export interface AlicizationMindTurnGovernance {
   claimEvidence?: AlicizationClaimEvidenceLedgerSnapshot | null
   mustDo: string[]
   mustNotDo: string[]
+}
+
+export type AlicizationMindTurnEventKind
+  = | 'governance-normalized'
+    | 'takeover-audit'
+    | 'persistence-written'
+    | 'dialogue-emitted'
+    | 'memory-facts-upserted'
+
+export interface AlicizationMindTurnEventInput {
+  decisionTraceId: string
+  turnId?: string | null
+  sessionId?: string | null
+  origin?: 'user-turn' | 'subconscious-proactive' | 'system'
+  kind: AlicizationMindTurnEventKind
+  payload?: Record<string, unknown> | null
+  createdAt?: number
+}
+
+export interface AlicizationMindTurnEventRecord {
+  id: string
+  decisionTraceId: string
+  turnId: string | null
+  sessionId: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  kind: AlicizationMindTurnEventKind
+  payload: Record<string, unknown> | null
+  createdAt: number
 }
 
 export type AlicizationBridgeChatStreamEvent

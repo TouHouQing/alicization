@@ -1144,6 +1144,9 @@ pages:
               screen-capture:
                 title: 螢幕擷取
                 description: 檢查螢幕與視窗擷取來源
+              mind-replay:
+                title: 心智回放
+                description: 依 trace 或 turn 查詢心智回合事件帳本
               vibrant:
                 title: 色彩擷取
                 description: 測試色彩擷取

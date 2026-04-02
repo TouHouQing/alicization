@@ -1028,9 +1028,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         speech: finalReply,
         reasoning: '',
       }
+      const structuredWithGovernance = {
+        ...structured,
+        governance: turnMindGovernance ?? null,
+      }
 
       buildingMessage.categorization = categorization
-      buildingMessage.structured = structured
+      buildingMessage.structured = structuredWithGovernance
       buildingMessage.content = finalReply
       buildingMessage.slices = replaceAssistantTextSlices(buildingMessage.slices, finalReply)
       finalAssistantDisplayText = finalReply

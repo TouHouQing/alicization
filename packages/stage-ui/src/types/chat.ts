@@ -1,7 +1,7 @@
 import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@proj-alicization/server-sdk'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
-import type { AlicizationDialogueStructuredFormat, AlicizationProactiveMetadata } from '../stores/alicization-bridge'
+import type { AlicizationDialogueStructuredFormat, AlicizationMindTurnGovernance, AlicizationProactiveMetadata } from '../stores/alicization-bridge'
 
 export interface ChatSlicesText {
   type: 'text'
@@ -53,6 +53,7 @@ export interface ChatAssistantMessage extends AssistantMessage {
     contractFailed?: boolean
     policyLocked?: 'epoch1-strict-realtime'
     proactive?: AlicizationProactiveMetadata
+    governance?: AlicizationMindTurnGovernance | null
   }
 }
 

@@ -32,7 +32,9 @@ import {
   electronAlicizationInitializeGenesis,
   electronAlicizationKillSwitchResume,
   electronAlicizationKillSwitchSuspend,
+  electronAlicizationListMindTurnEvents,
   electronAlicizationLlmSyncConfig,
+  electronAlicizationMemoryUpsertFacts,
   electronAlicizationReminderSchedule,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationSearchOrganicSubconsciousFragments,
@@ -119,6 +121,8 @@ const dbStub = {
   getLatestConversationSessionId: vi.fn().mockResolvedValue(undefined),
   listConversationTurnsSince: vi.fn().mockResolvedValue([]),
   listConversationTurnsBySession: vi.fn().mockResolvedValue([]),
+  appendMindTurnEvents: vi.fn().mockResolvedValue(undefined),
+  listMindTurnEvents: vi.fn().mockResolvedValue([]),
   clearConversationData: vi.fn().mockResolvedValue(undefined),
   getMetaValue: vi.fn(async (key: string) => metaStore.get(key)),
   setMetaValue: vi.fn(async (key: string, value: string) => {
@@ -213,6 +217,10 @@ function resetDbStubMocks() {
   dbStub.listConversationTurnsSince.mockResolvedValue([])
   dbStub.listConversationTurnsBySession.mockReset()
   dbStub.listConversationTurnsBySession.mockResolvedValue([])
+  dbStub.appendMindTurnEvents.mockReset()
+  dbStub.appendMindTurnEvents.mockResolvedValue(undefined)
+  dbStub.listMindTurnEvents.mockReset()
+  dbStub.listMindTurnEvents.mockResolvedValue([])
   dbStub.clearConversationData.mockReset()
   dbStub.clearConversationData.mockResolvedValue(undefined)
   dbStub.getMetaValue.mockReset()
@@ -1026,6 +1034,186 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       turnMode: 'screen-repair',
     }))
     expect(events[0]?.structured.governance?.decisionTraceId).toBe(persistedGovernance?.decisionTraceId)
+  })
+
+  it('persists replayable mind-turn events for governed user turns', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-test-mind-turn-events',
+      sessionId: 'session-test',
+      userText: '帮我看一下这个 diff',
+      assistantText: '先盯住这个改动里最危险的一段。',
+      structured: {
+        thought: 'obligation=answer; truth=live-observed; focus=diff-risk-hunk; move=answer-the-hosts-question-about-alicization-directly; tone=restrained',
+        emotion: 'neutral',
+        reply: '先盯住这个改动里最危险的一段。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'live-observed',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        answerAct: 'guide',
+        evidenceMode: 'coarse-held',
+        repairState: 'none',
+        liveSurface: 'VS Code | diff',
+        focusAnchor: 'diff-risk-hunk',
+        answerIntent: '先给出最可能的问题点',
+        openingMove: '先锁定风险块。',
+        carriedThread: null,
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    expect(dbStub.appendMindTurnEvents).toBeCalledTimes(1)
+    const appendedEvents = dbStub.appendMindTurnEvents.mock.calls.at(-1)?.[0] as Array<{ decisionTraceId?: string, kind?: string }> | undefined
+    expect(appendedEvents?.map(event => event.kind)).toEqual(expect.arrayContaining([
+      'governance-normalized',
+      'persistence-written',
+      'dialogue-emitted',
+    ]))
+    const traceIdSet = new Set((appendedEvents ?? []).map(event => event.decisionTraceId).filter(Boolean))
+    expect(traceIdSet.size).toBe(1)
+    expect(String([...traceIdSet][0] ?? '')).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
+  })
+
+  it('appends async memory upsert trace into replayable mind-turn events', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const upsertMemoryFacts = invokeHandlers.get(electronAlicizationMemoryUpsertFacts)
+    expect(upsertMemoryFacts).toBeTypeOf('function')
+
+    dbStub.upsertMemoryFacts.mockClear()
+    dbStub.appendMindTurnEvents.mockClear()
+
+    await upsertMemoryFacts!({
+      cardId: 'default',
+      facts: [{
+        subject: 'user',
+        predicate: 'plan',
+        object: '明天继续完善 Alicization 心智链路',
+        confidence: 0.82,
+      }],
+      source: 'async-llm',
+      trace: {
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-memory-upsert-1',
+        sessionId: 'session-memory-upsert',
+        origin: 'user-turn',
+        trigger: 'batch',
+        batchSize: 3,
+        extractedCount: 5,
+        batchPriority: {
+          max: 260,
+          min: 120,
+          avg: 190,
+        },
+      },
+    })
+
+    expect(dbStub.upsertMemoryFacts).toBeCalledWith([
+      {
+        subject: 'user',
+        predicate: 'plan',
+        object: '明天继续完善 Alicization 心智链路',
+        confidence: 0.82,
+      },
+    ], 'async-llm')
+    expect(dbStub.appendMindTurnEvents).toBeCalledTimes(1)
+
+    const appendedEvents = dbStub.appendMindTurnEvents.mock.calls.at(-1)?.[0] as Array<{
+      decisionTraceId?: string
+      kind?: string
+      turnId?: string | null
+      sessionId?: string | null
+      origin?: string
+      payload?: Record<string, unknown> | null
+    }> | undefined
+    expect(appendedEvents?.[0]).toEqual(expect.objectContaining({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      turnId: 'turn-memory-upsert-1',
+      sessionId: 'session-memory-upsert',
+      origin: 'user-turn',
+      kind: 'memory-facts-upserted',
+      payload: expect.objectContaining({
+        source: 'async-llm',
+        trigger: 'batch',
+        factInputCount: 1,
+        extractedCount: 5,
+        batchSize: 3,
+        batchPriority: {
+          max: 260,
+          min: 120,
+          avg: 190,
+        },
+      }),
+    }))
+  })
+
+  it('lists replayable mind-turn events through invoke handler', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const listMindTurnEvents = invokeHandlers.get(electronAlicizationListMindTurnEvents)
+    expect(listMindTurnEvents).toBeTypeOf('function')
+
+    dbStub.listMindTurnEvents.mockResolvedValue([
+      {
+        id: 'evt-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'governance-normalized',
+        payload: {
+          turnMode: 'guide-current-knot',
+        },
+        createdAt: Date.now(),
+      },
+    ])
+
+    const result = await listMindTurnEvents!({
+      cardId: 'default',
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      limit: 20,
+    })
+
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      turnId: undefined,
+      limit: 20,
+    })
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'evt-1',
+        kind: 'governance-normalized',
+      }),
+    ]))
   })
 
   it('realigns conflicting thought and emotion metadata to the governed repair state before persistence', async () => {

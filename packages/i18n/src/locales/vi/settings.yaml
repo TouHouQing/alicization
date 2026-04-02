@@ -1144,6 +1144,9 @@ pages:
               screen-capture:
                 title: Ghi màn hình
                 description: Kiểm tra các nguồn ghi màn hình và cửa sổ
+              mind-replay:
+                title: Phát lại tâm trí
+                description: Truy vấn sổ sự kiện lượt tư duy theo trace hoặc turn
               vibrant:
                 title: Trích xuất màu
                 description: Thử nghiệm trích xuất màu sắc

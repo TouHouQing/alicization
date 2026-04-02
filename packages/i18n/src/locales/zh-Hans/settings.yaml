@@ -1631,6 +1631,55 @@ pages:
               screen-capture:
                 title: 屏幕捕获
                 description: 检查屏幕与窗口捕获源
+              mind-replay:
+                title: 心智回放
+                description: 按 trace 或 turn 查询心智回合事件账本
+                page:
+                  placeholders:
+                    decision_trace: mind:xxxxxx:xxxxxxxxxxxx
+                    turn_id: turn id
+                    limit: limit (1-500)
+                  actions:
+                    query: 查询
+                    by_trace: 按 Trace
+                    by_turn: 按 Turn
+                    clear: 清空
+                  required:
+                    label: 必要链路
+                    complete: 完整
+                    missing: 缺失
+                    missing_kind: '缺失：{kind}'
+                  optional:
+                    dialogue_emitted: dialogue-emitted
+                    takeover_audit: takeover-audit
+                    memory_facts_upserted: memory-facts-upserted
+                  summary:
+                    decision_trace: 决策 Trace
+                    turn_id: Turn ID
+                    session_id: Session ID
+                    event_count: 事件总数
+                    memory_fact_inputs: 记忆事实输入数
+                    trigger_set: 触发集合
+                    none: 无
+                    not_available: n/a
+                  states:
+                    loading: 正在加载回放事件...
+                    empty: 暂无回放事件。请按 decisionTraceId 或 turnId 查询。
+                  event:
+                    trace: trace
+                    turn: turn
+                    session: session
+                    payload: payload
+                    origin_labels:
+                      user_turn: user-turn
+                      subconscious_proactive: subconscious-proactive
+                      system: system
+                    kind_labels:
+                      governance_normalized: governance-normalized
+                      persistence_written: persistence-written
+                      dialogue_emitted: dialogue-emitted
+                      takeover_audit: takeover-audit
+                      memory_facts_upserted: memory-facts-upserted
               vibrant:
                 title: 颜色提取
                 description: 测试颜色提取

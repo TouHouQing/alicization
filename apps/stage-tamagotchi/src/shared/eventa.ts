@@ -4,6 +4,10 @@ import type {
   AlicizationAnswerAct as SharedAlicizationAnswerAct,
   AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
   AlicizationMemorySource as SharedAlicizationMemorySource,
+  AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
+  AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
+  AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord as SharedAlicizationMindTurnEventRecord,
   AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
@@ -404,6 +408,14 @@ export interface AlicizationMemoryFactInput {
   confidence: number
 }
 
+export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
+
+export interface AlicizationMemoryUpsertFactsPayload extends AlicizationCardScope {
+  facts: AlicizationMemoryFactInput[]
+  source: AlicizationMemorySource
+  trace?: AlicizationMemoryUpsertTrace | null
+}
+
 export interface AlicizationMemoryLegacySnapshot {
   facts: AlicizationMemoryFact[]
   archive: AlicizationMemoryArchiveRecord[]
@@ -491,6 +503,18 @@ export interface AlicizationConversationTurnRecord {
 export interface AlicizationListConversationTurnsPayload extends AlicizationCardScope {
   sessionId: string
   sinceCreatedAt?: number
+  limit?: number
+}
+
+export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
+
+export type AlicizationMindTurnEventInput = SharedAlicizationMindTurnEventInput
+
+export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
+
+export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope {
+  decisionTraceId?: string
+  turnId?: string
   limit?: number
 }
 
@@ -2615,7 +2639,7 @@ export const electronAlicizationGetMemoryStats = defineInvokeEventa<AlicizationM
 export const electronAlicizationRunMemoryPrune = defineInvokeEventa<AlicizationMemoryStats, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:run-prune')
 export const electronAlicizationUpdateMemoryStats = defineInvokeEventa<AlicizationMemoryStats, AlicizationCardScope & AlicizationMemoryStats>('eventa:invoke:electron:alicization:memory:update-stats')
 export const electronAlicizationMemoryRetrieveFacts = defineInvokeEventa<AlicizationMemoryFact[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:retrieve-facts')
-export const electronAlicizationMemoryUpsertFacts = defineInvokeEventa<void, AlicizationCardScope & { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource }>('eventa:invoke:electron:alicization:memory:upsert-facts')
+export const electronAlicizationMemoryUpsertFacts = defineInvokeEventa<void, AlicizationMemoryUpsertFactsPayload>('eventa:invoke:electron:alicization:memory:upsert-facts')
 export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<AlicizationMemoryMigrationResult, AlicizationCardScope & AlicizationMemoryLegacySnapshot>('eventa:invoke:electron:alicization:memory:import-legacy')
 export const electronAlicizationGetOrganicMemorySnapshot = defineInvokeEventa<AlicizationOrganicMemorySnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-organic-snapshot')
 export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
@@ -2623,6 +2647,7 @@ export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<Char
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
+export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
 export const electronAlicizationReportProactiveFeedback = defineInvokeEventa<void, AlicizationProactiveFeedbackPayload>('eventa:invoke:electron:alicization:conversation:report-proactive-feedback')
 export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')

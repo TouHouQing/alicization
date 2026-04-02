@@ -153,6 +153,13 @@ const developerMenuDescriptors: StageDeveloperMenuDescriptor[] = [
     runtimes: ['desktop', 'web', 'mobile'],
   },
   {
+    titleKey: 'settings.pages.system.sections.section.developer.sections.section.mind-replay.title',
+    descriptionKey: 'settings.pages.system.sections.section.developer.sections.section.mind-replay.description',
+    icon: 'i-solar:history-bold-duotone',
+    to: '/devtools/mind-replay',
+    runtimes: ['desktop', 'web', 'mobile'],
+  },
+  {
     titleKey: 'settings.pages.system.sections.section.developer.sections.section.vibrant.title',
     descriptionKey: 'settings.pages.system.sections.section.developer.sections.section.vibrant.description',
     icon: 'i-solar:sledgehammer-bold-duotone',

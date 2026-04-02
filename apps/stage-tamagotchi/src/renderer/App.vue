@@ -70,6 +70,7 @@ import {
   electronAlicizationKillSwitchResume,
   electronAlicizationKillSwitchSuspend,
   electronAlicizationListConversationTurns,
+  electronAlicizationListMindTurnEvents,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryImportLegacy,
@@ -161,6 +162,7 @@ const alicizationGetKillSwitchState = useElectronEventaInvoke(electronAlicizatio
 const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchSuspend)
 const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
+const alicizationListMindTurnEvents = useElectronEventaInvoke(electronAlicizationListMindTurnEvents)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
 const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
 const alicizationGetPerformanceManifest = useElectronEventaInvoke(electronAlicizationGetPerformanceManifest)
@@ -917,6 +919,7 @@ setAlicizationBridge({
   getPerformanceManifest: async () => await alicizationGetPerformanceManifest(resolveAlicizationScope()),
   setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
+  listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
   reportProactiveFeedback: async payload => await alicizationReportProactiveFeedback({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),

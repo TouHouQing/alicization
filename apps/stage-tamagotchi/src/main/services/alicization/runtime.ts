@@ -30,6 +30,10 @@ import type {
   AlicizationEmotion,
   AlicizationGender,
   AlicizationGenesisInput,
+  AlicizationListMindTurnEventsPayload,
+  AlicizationMemoryUpsertFactsPayload,
+  AlicizationMindTurnEventInput,
+  AlicizationMindTurnEventRecord,
   AlicizationMindTurnGovernance,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
@@ -140,6 +144,7 @@ import {
   electronAlicizationKillSwitchResume,
   electronAlicizationKillSwitchSuspend,
   electronAlicizationListConversationTurns,
+  electronAlicizationListMindTurnEvents,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryImportLegacy,
@@ -268,6 +273,7 @@ import {
 } from './proactive-screen-semantic'
 import { buildRecallGovernor, buildRecallGovernorSystemBlock } from './recall-governor'
 import { buildReflectionLedger } from './reflection-ledger'
+import { buildReflectionLedgerFragment } from './reflection-memory'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
 import { buildReplyDeliberation, buildReplyDeliberationSystemBlock } from './reply-deliberator'
@@ -3034,6 +3040,98 @@ function coerceConversationTurnToMindGovernedPayload(input: AlicizationConversat
   }
 }
 
+function buildMindTurnTraceEvents(input: {
+  payload: AlicizationConversationTurnInput
+  governedTurn: ReturnType<typeof coerceConversationTurnToMindGovernedPayload>
+  createdAt: number
+  dialoguePayload?: Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null
+}): AlicizationMindTurnEventInput[] {
+  const governance = input.governedTurn.governance
+  const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(governance?.decisionTraceId)
+  if (!decisionTraceId)
+    return []
+
+  const structured = input.payload.structured && typeof input.payload.structured === 'object'
+    ? input.payload.structured as Record<string, unknown>
+    : {}
+  const turnId = sanitizeText(input.payload.turnId) || null
+  const sessionId = sanitizeText(input.payload.sessionId) || null
+  const origin = input.payload.origin === 'subconscious-proactive'
+    ? 'subconscious-proactive'
+    : 'user-turn'
+
+  const events: AlicizationMindTurnEventInput[] = [{
+    decisionTraceId,
+    turnId,
+    sessionId,
+    origin,
+    kind: 'governance-normalized',
+    payload: {
+      turnMode: governance?.turnMode ?? null,
+      truthState: governance?.truthState ?? null,
+      repairState: governance?.repairState ?? null,
+      answerSubject: governance?.answerSubject ?? null,
+      screenReferenceMode: governance?.screenReferenceMode ?? null,
+      tookOver: input.governedTurn.tookOver,
+      replyOverridden: input.governedTurn.replyOverridden,
+      overrideClass: input.governedTurn.overrideClass ?? 'none',
+      fallbackPatternId: input.governedTurn.fallbackPatternId ?? 'none',
+      reasons: input.governedTurn.reasons,
+    },
+    createdAt: input.createdAt,
+  }]
+
+  if (input.governedTurn.tookOver && input.governedTurn.audit) {
+    events.push({
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      kind: 'takeover-audit',
+      payload: input.governedTurn.audit,
+      createdAt: input.createdAt,
+    })
+  }
+
+  events.push({
+    decisionTraceId,
+    turnId,
+    sessionId,
+    origin,
+    kind: 'persistence-written',
+    payload: {
+      format: readStringValue(structured.format).trim().toLowerCase() || null,
+      parsePath: readStringValue(structured.parsePath).trim().toLowerCase() || null,
+      emotion: readStringValue(structured.emotion).trim().toLowerCase() || null,
+      rawEmotion: readStringValue(structured.rawEmotion).trim().toLowerCase() || null,
+      replyExcerpt: excerptGovernedReply(readStringValue(structured.reply).trim()),
+      assistantExcerpt: excerptGovernedReply(readStringValue(input.payload.assistantText).trim()),
+    },
+    createdAt: input.createdAt,
+  })
+
+  if (input.dialoguePayload) {
+    events.push({
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      kind: 'dialogue-emitted',
+      payload: {
+        origin: input.dialoguePayload.origin,
+        isFallback: input.dialoguePayload.isFallback,
+        format: input.dialoguePayload.structured.format,
+        emotion: input.dialoguePayload.structured.emotion,
+        rawEmotion: input.dialoguePayload.structured.rawEmotion,
+        createdAt: input.dialoguePayload.createdAt,
+      },
+      createdAt: input.dialoguePayload.createdAt,
+    })
+  }
+
+  return events
+}
+
 function normalizeDialogueRespondedPayload(
   input: AlicizationConversationTurnInput,
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
@@ -5335,6 +5433,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return false
     }
 
+    const appendMindTurnTraceEvents = async (
+      dialoguePayload?: Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null,
+    ) => {
+      const events = buildMindTurnTraceEvents({
+        payload: normalizedPayload,
+        governedTurn,
+        createdAt: normalizedCreatedAt,
+        dialoguePayload,
+      })
+      if (events.length === 0)
+        return
+      try {
+        await alicizationDb.appendMindTurnEvents(events, { signal })
+      }
+      catch (error) {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.dialogue',
+          action: 'mind-turn-events-append-failed',
+          message: 'Failed to append replayable mind-turn events for governed dialogue persistence.',
+          payload: {
+            turnId: normalizedPayload.turnId,
+            sessionId: normalizedPayload.sessionId,
+            decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
+            reason: errorMessageFrom(error) ?? 'unknown-error',
+          },
+        })
+      }
+    }
+
     try {
       await alicizationDb.appendConversationTurn(normalizedPayload, { signal })
       if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.assistantText).length > 0) {
@@ -5379,6 +5507,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
       if (signal?.aborted || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(activeCardId).state === 'SUSPENDED') {
+        await appendMindTurnTraceEvents(null)
         await appendAuditLog({
           level: 'notice',
           category: 'kill-switch',
@@ -5392,9 +5521,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return true
       }
 
+      let emittedDialoguePayload: Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null = null
       const performanceManifest = await getPerformanceManifest()
       const dialoguePayload = normalizeDialogueRespondedPayload(normalizedPayload, performanceManifest)
       if (dialoguePayload) {
+        emittedDialoguePayload = dialoguePayload
         emitDialogueRespondedWithDelivery({
           cardId: activeCardId,
           ...dialoguePayload,
@@ -5432,6 +5563,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           },
         })
       }
+      await appendMindTurnTraceEvents(emittedDialoguePayload)
       return true
     }
     catch (error) {
@@ -8331,6 +8463,28 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })
     }
 
+    const reflectionLedgerText = buildReflectionLedgerFragment({
+      previousLedger: previousMindPresenceState.reflectionLedger ?? null,
+      nextLedger: visualPresenceState.reflectionLedger ?? null,
+    })
+    if (reflectionLedgerText) {
+      await alicizationDb.appendSubconsciousFragments([{
+        text: reflectionLedgerText,
+        sourceKind: 'mind-continuity',
+      }]).catch(async (error) => {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.mind',
+          action: 'reflection-ledger-write-failed',
+          message: 'Failed to append reflection-ledger fragment after subconscious mind-state update.',
+          payload: {
+            reason: errorMessageFrom(error) ?? 'unknown error',
+            fragment: reflectionLedgerText,
+          },
+        })
+      })
+    }
+
     if (visualPresenceState.workingMemoryEpisodes.length > previousWorkingMemoryCount) {
       const latestEpisode = visualPresenceState.workingMemoryEpisodes.at(-1)
       const visualSedimentText = latestEpisode
@@ -8347,7 +8501,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             action: 'visual-sediment-write-failed',
             message: 'Failed to append visual sediment fragment after visual episode closure.',
             payload: {
-              reason: error instanceof Error ? error.message : String(error),
+              reason: errorMessageFrom(error) ?? 'unknown error',
               fragment: visualSedimentText,
             },
           })
@@ -14227,7 +14381,73 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   defineInvokeHandler(context, electronAlicizationUpdateMemoryStats, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.overrideMemoryStats(payload)))
   defineInvokeHandler(context, electronAlicizationRunMemoryPrune, async scope => await withCardScope(cardIdFrom(scope), async () => await alicizationDb.runMemoryPrune()))
   defineInvokeHandler(context, electronAlicizationMemoryRetrieveFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.retrieveMemoryFacts(payload.query, payload.limit)))
-  defineInvokeHandler(context, electronAlicizationMemoryUpsertFacts, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.upsertMemoryFacts(payload.facts, payload.source)))
+  defineInvokeHandler(context, electronAlicizationMemoryUpsertFacts, async (payload: AlicizationMemoryUpsertFactsPayload) => await withCardScope(payload.cardId, async () => {
+    await alicizationDb.upsertMemoryFacts(payload.facts, payload.source)
+
+    if (payload.source !== 'async-llm')
+      return
+
+    const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(payload.trace?.decisionTraceId)
+    if (!decisionTraceId)
+      return
+
+    const turnId = sanitizeText(payload.trace?.turnId) || null
+    const sessionId = normalizeSessionId(payload.trace?.sessionId) || null
+    const origin = payload.trace?.origin === 'subconscious-proactive' || payload.trace?.origin === 'system'
+      ? payload.trace.origin
+      : 'user-turn'
+    const trigger = payload.trace?.trigger === 'batch' || payload.trace?.trigger === 'idle' || payload.trace?.trigger === 'force' || payload.trace?.trigger === 'manual'
+      ? payload.trace.trigger
+      : null
+    const batchSize = Number.isFinite(payload.trace?.batchSize)
+      ? Math.max(0, Math.floor(Number(payload.trace?.batchSize)))
+      : null
+    const extractedCount = Number.isFinite(payload.trace?.extractedCount)
+      ? Math.max(0, Math.floor(Number(payload.trace?.extractedCount)))
+      : null
+    const batchPriority = payload.trace?.batchPriority && typeof payload.trace.batchPriority === 'object'
+      ? {
+          max: Number.isFinite(payload.trace.batchPriority.max) ? Number(payload.trace.batchPriority.max) : 0,
+          min: Number.isFinite(payload.trace.batchPriority.min) ? Number(payload.trace.batchPriority.min) : 0,
+          avg: Number.isFinite(payload.trace.batchPriority.avg) ? Number(payload.trace.batchPriority.avg) : 0,
+        }
+      : null
+
+    const event: AlicizationMindTurnEventInput = {
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      kind: 'memory-facts-upserted',
+      payload: {
+        source: payload.source,
+        trigger,
+        factInputCount: payload.facts.length,
+        extractedCount,
+        batchSize,
+        batchPriority,
+      },
+      createdAt: Date.now(),
+    }
+
+    try {
+      await alicizationDb.appendMindTurnEvents([event])
+    }
+    catch (error) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'mind-turn-memory-event-append-failed',
+        message: 'Failed to append memory upsert trace event for async extraction facts.',
+        payload: {
+          decisionTraceId,
+          turnId,
+          sessionId,
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+        },
+      })
+    }
+  }))
   defineInvokeHandler(context, electronAlicizationMemoryImportLegacy, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.importLegacyMemory(payload)))
   defineInvokeHandler(context, electronAlicizationSearchOrganicSubconsciousFragments, async payload => await withCardScope(payload.cardId, async () => await searchOrganicSubconsciousFragments(payload.query, payload.limit)))
   defineInvokeHandler(context, electronAlicizationSetPerformanceManifest, async payload => await withCardScope(payload.cardId, async () => await setPerformanceManifest(payload.manifest)))
@@ -14371,6 +14591,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         createdAt: row.createdAt,
       }
     })
+  }))
+  defineInvokeHandler(context, electronAlicizationListMindTurnEvents, async (payload: AlicizationListMindTurnEventsPayload) => await withCardScope(payload.cardId, async () => {
+    const rows = await alicizationDb.listMindTurnEvents({
+      decisionTraceId: payload.decisionTraceId,
+      turnId: payload.turnId,
+      limit: payload.limit,
+    })
+    return rows as AlicizationMindTurnEventRecord[]
   }))
   defineInvokeHandler(context, electronAlicizationAppendAuditLog, async payload => await withCardScope(payload.cardId, async () => await alicizationDb.appendAuditLog(payload)))
   defineInvokeHandler(context, electronAlicizationRealtimeExecute, async (payload) => {

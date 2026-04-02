@@ -1144,6 +1144,9 @@ pages:
               screen-capture:
                 title: 화면 캡처
                 description: 화면 및 창 캡처 소스 검사
+              mind-replay:
+                title: 마인드 리플레이
+                description: trace 또는 turn 기준으로 마인드 턴 이벤트 원장을 조회합니다
               vibrant:
                 title: 색상 추출
                 description: 색상 추출 테스트

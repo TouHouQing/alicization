@@ -1146,6 +1146,9 @@ pages:
               screen-capture:
                 title: Захват экрана
                 description: Проверка источников захвата экрана и окон
+              mind-replay:
+                title: Повтор разума
+                description: Запрос журнала событий ментальных ходов по trace или turn
               vibrant:
                 title: Извлечение цвета
                 description: Проверка извлечения цвета

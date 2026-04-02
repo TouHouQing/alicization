@@ -8,11 +8,13 @@ import type {
   AlicizationInitializeGenesisResult,
   AlicizationKillSwitchSnapshot,
   AlicizationKillSwitchState,
+  AlicizationListMindTurnEventsPayload,
   AlicizationLlmConfigPayload,
   AlicizationMemoryArchiveRecord,
   AlicizationMemoryFact,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
+  AlicizationMindTurnEventRecord,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
   AlicizationPersonalityUpdatePayload,
@@ -1736,6 +1738,11 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const fragmentText = buildSubconsciousFragmentText(record)
       if (fragmentText)
         await appendSubconsciousFragment(cardId, fragmentText, 'dream-fragment')
+    },
+    listMindTurnEvents: async (_payload: AlicizationListMindTurnEventsPayload): Promise<AlicizationMindTurnEventRecord[]> => {
+      // NOTICE: Browser fallback runtime has no persistent mind_turn_events ledger.
+      // Keep interface parity with Electron runtime and return an empty replay chain.
+      return []
     },
     reportProactiveFeedback: async () => {},
     setActiveSession: async (payload) => {

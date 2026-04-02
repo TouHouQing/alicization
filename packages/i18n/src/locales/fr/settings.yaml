@@ -1144,6 +1144,9 @@ pages:
               screen-capture:
                 title: Capture d'écran
                 description: Inspecter les sources de capture d'écran et de fenêtre
+              mind-replay:
+                title: Relecture mentale
+                description: Interroger le journal d'événements des tours mentaux par trace ou tour
               vibrant:
                 title: Extraction de couleur
                 description: Tester l'extraction de couleurs

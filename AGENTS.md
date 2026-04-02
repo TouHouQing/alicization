@@ -142,6 +142,16 @@ Concise but detailed reference for contributors working across the `TouHouQing/a
   - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
   - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
 
+## Alicization P4 Engineering Requirements (Replayable Mind Event Ledger)
+
+- Mind-turn event ledger required: runtime MUST persist replayable `mind_turn_events` for governed user turns with `decisionTraceId`, `turnId`, `sessionId`, `kind`, `origin`, and structured payload.
+- Replay chain completeness: for persisted governed turns, runtime MUST emit at least `governance-normalized` and `persistence-written` events; when dialogue event is emitted, runtime MUST append `dialogue-emitted`; when takeover occurs, runtime MUST append `takeover-audit`.
+- Card-scope data hygiene: `clearConversationData` MUST clear `mind_turn_events` together with `conversation_turns` and reminder task rows to avoid stale cross-session replay traces.
+- Query surface: runtime MUST expose `electronAlicizationListMindTurnEvents` and support querying by `decisionTraceId` and/or `turnId` for deterministic replay and post-hoc governance audits.
+- P4 invariants MUST be covered by tests in:
+  - `apps/stage-tamagotchi/src/main/services/alicization/db.test.ts`
+  - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
 ## Styling & Components
 
 - Prefer Vue v-bind class arrays for readability when working with UnoCSS & tailwindcss: do `:class="['px-2 py-1','flex items-center','bg-white/50 dark:bg-black/50']"`, don't do `class="px-2 py-1 flex items-center bg-white/50 dark:bg-black/50"`, don't do `px="2" py="1" flex="~ items-center" bg="white/50 dark:black/50"`; avoid long inline `class=""`. Refactor legacy when you touch it.

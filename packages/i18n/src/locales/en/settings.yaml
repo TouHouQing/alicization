@@ -1671,6 +1671,55 @@ pages:
               screen-capture:
                 title: Screen Capture
                 description: Inspect screen and window capture sources
+              mind-replay:
+                title: Mind Replay
+                description: Query mind turn event ledger by trace or turn
+                page:
+                  placeholders:
+                    decision_trace: mind:xxxxxx:xxxxxxxxxxxx
+                    turn_id: turn id
+                    limit: limit (1-500)
+                  actions:
+                    query: Query
+                    by_trace: By Trace
+                    by_turn: By Turn
+                    clear: Clear
+                  required:
+                    label: required
+                    complete: complete
+                    missing: missing
+                    missing_kind: 'missing: {kind}'
+                  optional:
+                    dialogue_emitted: dialogue-emitted
+                    takeover_audit: takeover-audit
+                    memory_facts_upserted: memory-facts-upserted
+                  summary:
+                    decision_trace: Decision Trace
+                    turn_id: Turn ID
+                    session_id: Session ID
+                    event_count: Event Count
+                    memory_fact_inputs: Memory Fact Inputs
+                    trigger_set: Trigger Set
+                    none: none
+                    not_available: n/a
+                  states:
+                    loading: Loading replay events...
+                    empty: No replay events. Query by decisionTraceId or turnId.
+                  event:
+                    trace: trace
+                    turn: turn
+                    session: session
+                    payload: payload
+                    origin_labels:
+                      user_turn: user-turn
+                      subconscious_proactive: subconscious-proactive
+                      system: system
+                    kind_labels:
+                      governance_normalized: governance-normalized
+                      persistence_written: persistence-written
+                      dialogue_emitted: dialogue-emitted
+                      takeover_audit: takeover-audit
+                      memory_facts_upserted: memory-facts-upserted
               vibrant:
                 title: Color Extract
                 description: Test color extraction

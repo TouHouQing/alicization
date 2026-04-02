@@ -4,7 +4,10 @@ import type {
   AlicizationMemoryArchiveRecord as BridgeAlicizationMemoryArchiveRecord,
   AlicizationMemoryFact as BridgeAlicizationMemoryFact,
   AlicizationMemorySource as BridgeAlicizationMemorySource,
+  AlicizationMemoryUpsertTrace as BridgeAlicizationMemoryUpsertTrace,
 } from './alicization-bridge'
+
+import { errorMessageFrom } from '@moeru/std'
 
 import { storage } from '../database/storage'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
@@ -22,6 +25,11 @@ let runtimeWriteBlockLogged = false
 export type AlicizationMemorySource = BridgeAlicizationMemorySource
 export type AlicizationMemoryFact = BridgeAlicizationMemoryFact
 export type AlicizationMemoryArchiveRecord = BridgeAlicizationMemoryArchiveRecord
+export type AlicizationMemoryUpsertTrace = BridgeAlicizationMemoryUpsertTrace
+
+interface AlicizationMemoryUpsertOptions {
+  trace?: AlicizationMemoryUpsertTrace | null
+}
 
 interface AlicizationMemoryMeta {
   lastPrunedAt: number | null
@@ -170,7 +178,7 @@ export async function ensureRuntimeMemoryMigration() {
   }
   catch (error) {
     await markRuntimeWriteBlocked('Legacy memory migration failed, switched to read-only fallback.', {
-      reason: error instanceof Error ? error.message : String(error),
+      reason: errorMessageFrom(error) ?? 'unknown-error',
     })
   }
 }
@@ -218,6 +226,7 @@ export function extractRuleFacts(input: AlicizationMemoryExtractInput): Array<Pi
 export async function upsertFacts(
   facts: Array<Pick<AlicizationMemoryFact, 'subject' | 'predicate' | 'object' | 'confidence'>>,
   source: AlicizationMemorySource,
+  options?: AlicizationMemoryUpsertOptions,
 ) {
   if (facts.length === 0)
     return
@@ -229,9 +238,13 @@ export async function upsertFacts(
     if (normalized.length === 0)
       return
 
-    await getAlicizationBridge().upsertMemoryFacts({ facts: normalized, source }).catch(async (error) => {
+    await getAlicizationBridge().upsertMemoryFacts({
+      facts: normalized,
+      source,
+      trace: options?.trace ?? null,
+    }).catch(async (error) => {
       await markRuntimeWriteBlocked('SQLite memory write failed, switched to read-only fallback.', {
-        reason: error instanceof Error ? error.message : String(error),
+        reason: errorMessageFrom(error) ?? 'unknown-error',
       })
     })
     return

@@ -2,6 +2,7 @@ import type {
   AlicizationGenesisInput,
   AlicizationKillSwitchSnapshot,
   AlicizationMemoryStats,
+  AlicizationMindTurnGovernance,
   AlicizationOrganicMemorySnapshot,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
@@ -17,8 +18,12 @@ import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge
 import {
   asyncExtractionBatchThreshold,
   asyncExtractionIdleMs,
+  asyncExtractionMaxPendingTurns,
   evaluateAsyncExtractionBudget,
   evaluateAsyncExtractionTrigger,
+  hasAsyncExtractionDuplicate,
+  pickAsyncExtractionBatch,
+  trimAsyncExtractionQueue,
 } from './alicization-epoch1-scheduler'
 import {
   extractRuleFacts,
@@ -70,11 +75,120 @@ function parseUserText(content: unknown) {
   return ''
 }
 
+function normalizeAsyncExtractionDedupeSegment(raw: string, maxLength = 140) {
+  return raw
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength)
+}
+
+function buildAsyncExtractionDedupeKey(userText: string, assistantText: string) {
+  const userSegment = normalizeAsyncExtractionDedupeSegment(userText, 140)
+  const assistantSegment = normalizeAsyncExtractionDedupeSegment(assistantText, 140)
+  if (!userSegment && !assistantSegment)
+    return 'empty-turn'
+  return `${userSegment}|${assistantSegment}`
+}
+
+const durableMemoryCuePattern = /喜欢|不喜欢|讨厌|偏好|习惯|计划|约定|限制|禁忌|记住|别忘|明天|下周|always|never|prefer|like|dislike|plan|constraint|remember/iu
+
+function parseMindSignalField(thought: string, field: 'obligation' | 'truth' | 'focus') {
+  const pattern = new RegExp(`${field}=([^;\\n]+)`, 'i')
+  const match = pattern.exec(thought)
+  if (!match?.[1])
+    return null
+  const value = normalizeAsyncExtractionDedupeSegment(match[1], 48)
+  return value || null
+}
+
+function deriveMindAwareExtractionPriority(input: {
+  userText: string
+  assistantText: string
+  thought?: string | null
+  structuredFormat?: string | null
+  contractFailed?: boolean
+  governance?: AlicizationMindTurnGovernance | null
+}) {
+  let priority = 100
+
+  if (input.structuredFormat === 'mind-turn-v1')
+    priority += 35
+
+  const thought = input.thought ?? ''
+  const obligation = thought ? parseMindSignalField(thought, 'obligation') : null
+  const truth = thought ? parseMindSignalField(thought, 'truth') : null
+  const focus = thought ? parseMindSignalField(thought, 'focus') : null
+
+  if (obligation === 'care' || obligation === 'accompany')
+    priority += 35
+  else if (obligation === 'repair' || obligation === 'clarify')
+    priority += 20
+  else if (obligation === 'answer' || obligation === 'guide')
+    priority += 15
+
+  if (truth === 'grounded')
+    priority += 20
+  else if (truth === 'uncertain')
+    priority -= 12
+
+  if (focus) {
+    if (focus.includes('relationship') || focus.includes('host') || focus.includes('self'))
+      priority += 45
+    else if (focus.includes('task') || focus.includes('thread'))
+      priority += 25
+    else if (focus.includes('scene'))
+      priority += 10
+  }
+
+  if (input.contractFailed)
+    priority -= 25
+
+  switch (input.governance?.answerSubject) {
+    case 'relationship':
+      priority += 60
+      break
+    case 'alicization-self':
+    case 'host-state':
+      priority += 45
+      break
+    case 'task-knot':
+      priority += 25
+      break
+    default:
+      break
+  }
+
+  if (input.governance?.repairState && input.governance.repairState !== 'none')
+    priority -= 15
+
+  if (input.governance?.claimEvidence?.forbidUnsupportedSpecificity)
+    priority += 10
+
+  if (durableMemoryCuePattern.test(input.userText))
+    priority += 45
+
+  const compactTurn = input.userText.trim().length <= 8 && input.assistantText.trim().length <= 18
+  if (compactTurn)
+    priority -= 35
+
+  return clamp(Math.round(priority), 10, 300)
+}
+
 interface PendingAsyncExtractionTurn {
   turnId: string
   sessionId: string
   userText: string
   assistantText: string
+  dedupeKey: string
+  priority: number
+  decisionTraceId: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  thoughtObligation: string | null
+  thoughtTruth: string | null
+  thoughtFocus: string | null
+  structuredFormat: string | null
   queuedAt: number
 }
 
@@ -461,6 +575,13 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
                 turnId: item.turnId,
                 user: item.userText,
                 assistant: item.assistantText,
+                priority: item.priority,
+                mind: {
+                  obligation: item.thoughtObligation,
+                  truth: item.thoughtTruth,
+                  focus: item.thoughtFocus,
+                  format: item.structuredFormat,
+                },
               })),
             }),
           },
@@ -514,8 +635,16 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
 
     asyncExtractionInFlight = true
     stopAsyncExtractionFlushTimer()
-    const batch = pending.splice(0, asyncExtractionBatchThreshold)
-    pendingAsyncExtractionTurns.value = [...pending]
+    const selection = pickAsyncExtractionBatch({
+      pending,
+      batchSize: asyncExtractionBatchThreshold,
+    })
+    const batch = selection.batch
+    pendingAsyncExtractionTurns.value = selection.remaining
+    if (batch.length === 0) {
+      asyncExtractionInFlight = false
+      return
+    }
 
     try {
       const llmFacts = await runAsyncExtractionWithMainGateway(batch)
@@ -526,8 +655,26 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             replyText: item.assistantText,
           }))
 
+      const batchPriority = {
+        max: Math.max(...batch.map(item => item.priority)),
+        min: Math.min(...batch.map(item => item.priority)),
+        avg: Math.round(batch.reduce((sum, item) => sum + item.priority, 0) / batch.length),
+      }
+
       if (facts.length > 0) {
-        await upsertFacts(facts, 'async-llm')
+        const traceCandidate = batch.find(item => Boolean(item.decisionTraceId)) ?? batch[0]
+        await upsertFacts(facts, 'async-llm', {
+          trace: {
+            decisionTraceId: traceCandidate?.decisionTraceId ?? null,
+            turnId: traceCandidate?.turnId ?? null,
+            sessionId: traceCandidate?.sessionId ?? null,
+            origin: traceCandidate?.origin ?? 'user-turn',
+            trigger,
+            batchSize: batch.length,
+            extractedCount: facts.length,
+            batchPriority,
+          },
+        })
       }
 
       await appendAlicizationAuditLog({
@@ -538,6 +685,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
         details: {
           trigger,
           batchSize: batch.length,
+          batchPriority,
           extractedCount: facts.length,
           llmExtractedCount: llmFacts.length,
           remainingCount: pendingAsyncExtractionTurns.value.length,
@@ -553,7 +701,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
         details: {
           trigger,
           batchSize: batch.length,
-          reason: error instanceof Error ? error.message : String(error),
+          reason: errorMessageFrom(error) ?? 'unknown-error',
           remainingCount: pendingAsyncExtractionTurns.value.length,
         },
       })
@@ -580,21 +728,67 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     sessionId: string
     userText: string
     assistantText: string
+    origin?: 'user-turn' | 'subconscious-proactive'
+    thought?: string | null
+    structuredFormat?: string | null
+    contractFailed?: boolean
+    governance?: AlicizationMindTurnGovernance | null
   }) {
     const userText = payload.userText.trim()
     if (!userText)
       return
 
-    pendingAsyncExtractionTurns.value = [
-      ...pendingAsyncExtractionTurns.value,
-      {
-        turnId: payload.turnId,
-        sessionId: payload.sessionId,
+    const assistantText = payload.assistantText.trim()
+    const nextItem: PendingAsyncExtractionTurn = {
+      turnId: payload.turnId,
+      sessionId: payload.sessionId,
+      userText,
+      assistantText,
+      dedupeKey: buildAsyncExtractionDedupeKey(userText, assistantText),
+      priority: deriveMindAwareExtractionPriority({
         userText,
-        assistantText: payload.assistantText.trim(),
-        queuedAt: Date.now(),
-      },
-    ]
+        assistantText,
+        thought: payload.thought,
+        structuredFormat: payload.structuredFormat ?? null,
+        contractFailed: payload.contractFailed,
+        governance: payload.governance,
+      }),
+      decisionTraceId: payload.governance?.decisionTraceId?.trim() || null,
+      origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
+      thoughtObligation: payload.thought ? parseMindSignalField(payload.thought, 'obligation') : null,
+      thoughtTruth: payload.thought ? parseMindSignalField(payload.thought, 'truth') : null,
+      thoughtFocus: payload.thought ? parseMindSignalField(payload.thought, 'focus') : null,
+      structuredFormat: payload.structuredFormat ?? null,
+      queuedAt: Date.now(),
+    }
+
+    if (hasAsyncExtractionDuplicate(pendingAsyncExtractionTurns.value, nextItem))
+      return
+
+    const trimmed = trimAsyncExtractionQueue({
+      pending: [...pendingAsyncExtractionTurns.value, nextItem],
+      maxPending: asyncExtractionMaxPendingTurns,
+    })
+    pendingAsyncExtractionTurns.value = trimmed.queue
+    if (trimmed.dropped.length > 0) {
+      await appendAlicizationAuditLog({
+        level: 'notice',
+        category: 'alicization.memory',
+        action: 'async-extraction-queue-trimmed',
+        message: 'Dropped low-priority pending async extraction turns to keep queue bounded.',
+        details: {
+          droppedCount: trimmed.dropped.length,
+          dropped: trimmed.dropped.map(item => ({
+            turnId: item.turnId,
+            priority: item.priority,
+            queuedAt: item.queuedAt,
+          })),
+          pendingCount: pendingAsyncExtractionTurns.value.length,
+          maxPending: asyncExtractionMaxPendingTurns,
+        },
+      })
+    }
+
     asyncExtractionLastQueuedAt = Date.now()
 
     const trigger = evaluateAsyncExtractionTrigger({
@@ -707,6 +901,11 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             sessionId,
             userText,
             assistantText,
+            origin: output.origin,
+            thought: structured?.thought ?? null,
+            structuredFormat: structured?.format ?? null,
+            contractFailed: Boolean(structured?.contractFailed),
+            governance: structured?.governance ?? null,
           }).catch(async (error) => {
             await appendAlicizationAuditLog({
               level: 'warning',

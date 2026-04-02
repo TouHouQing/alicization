@@ -3,6 +3,9 @@ import type {
   AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
   AlicizationBridgeChatStreamEvent as SharedAlicizationBridgeChatStreamEvent,
   AlicizationMemorySource as SharedAlicizationMemorySource,
+  AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
+  AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord as SharedAlicizationMindTurnEventRecord,
   AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
@@ -100,6 +103,7 @@ export interface AlicizationMemoryStats {
 }
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
+export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 
 export interface AlicizationMemoryFact {
   id: string
@@ -199,6 +203,16 @@ export interface AlicizationConversationTurnInput {
   structured?: Record<string, unknown>
   governance?: AlicizationMindTurnGovernance | null
   createdAt?: number
+}
+
+export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
+
+export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
+
+export interface AlicizationListMindTurnEventsPayload {
+  decisionTraceId?: string
+  turnId?: string
+  limit?: number
 }
 
 export type AlicizationAuditLogLevel = 'info' | 'notice' | 'warning' | 'critical'
@@ -1939,13 +1953,14 @@ interface AlicizationBridge {
   runMemoryPrune: () => Promise<AlicizationMemoryStats>
   updateMemoryStats: (payload: AlicizationMemoryStats) => Promise<AlicizationMemoryStats>
   retrieveMemoryFacts: (payload: { query: string, limit?: number }) => Promise<AlicizationMemoryFact[]>
-  upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource }) => Promise<void>
+  upsertMemoryFacts: (payload: { facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource, trace?: AlicizationMemoryUpsertTrace | null }) => Promise<void>
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
   getPerformanceManifest?: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   setPerformanceManifest?: (payload: CharacterPerformanceCapabilitiesManifest | null) => Promise<void>
   appendConversationTurn: (payload: AlicizationConversationTurnInput) => Promise<void>
+  listMindTurnEvents?: (payload: AlicizationListMindTurnEventsPayload) => Promise<AlicizationMindTurnEventRecord[]>
   reportProactiveFeedback?: (payload: AlicizationProactiveFeedbackPayload) => Promise<void>
   setActiveSession?: (payload: { sessionId: string }) => Promise<void>
   appendAuditLog: (payload: AlicizationAuditLogInput) => Promise<void>

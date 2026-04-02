@@ -8,6 +8,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const runCalls: string[] = []
 const metaState = new Map<string, string>()
+const mindTurnEvents: Array<{
+  id: string
+  decision_trace_id: string
+  turn_id: string | null
+  session_id: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  kind: string
+  payload_json: string | null
+  created_at: number
+}> = []
 const scheduledTasks = new Map<string, {
   id: string
   task_id: string
@@ -45,6 +55,21 @@ class FakeSqliteDatabase {
       if (typeof key === 'string' && typeof value === 'string') {
         metaState.set(key, value)
       }
+    }
+
+    if (sql.includes('INSERT INTO mind_turn_events')) {
+      const [id, decisionTraceId, turnId, sessionId, origin, kind, payloadJson, createdAt]
+        = actualParams as [string, string, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string, string | null, number]
+      mindTurnEvents.push({
+        id,
+        decision_trace_id: decisionTraceId,
+        turn_id: turnId ?? null,
+        session_id: sessionId ?? null,
+        origin,
+        kind,
+        payload_json: payloadJson ?? null,
+        created_at: createdAt,
+      })
     }
 
     if (sql.includes('INSERT INTO scheduled_tasks')) {
@@ -119,6 +144,9 @@ class FakeSqliteDatabase {
     else if (sql.includes('DELETE FROM scheduled_tasks')) {
       scheduledTasks.clear()
     }
+    else if (sql.includes('DELETE FROM mind_turn_events')) {
+      mindTurnEvents.length = 0
+    }
 
     actualCallback?.call({ changes, lastID: 1 }, null)
     return this
@@ -179,6 +207,27 @@ class FakeSqliteDatabase {
       actualCallback?.(null, rows)
       return this
     }
+    if (_sql.includes('FROM mind_turn_events')) {
+      const limit = Number(actualParams.at(-1) ?? 200)
+      const turnId = _sql.includes('turn_id = ?')
+        ? String(actualParams[_sql.includes('decision_trace_id = ?') ? 1 : 0] ?? '')
+        : ''
+      const decisionTraceId = _sql.includes('decision_trace_id = ?')
+        ? String(actualParams[0] ?? '')
+        : ''
+      const rows = mindTurnEvents
+        .filter((event) => {
+          if (decisionTraceId && event.decision_trace_id !== decisionTraceId)
+            return false
+          if (turnId && event.turn_id !== turnId)
+            return false
+          return true
+        })
+        .sort((a, b) => b.created_at - a.created_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
     actualCallback?.(null, [])
     return this
   }
@@ -212,6 +261,7 @@ describe('alicization sqlite dao', () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     expect(runCalls.some(sql => sql.includes('PRAGMA journal_mode = WAL'))).toBe(true)
@@ -224,11 +274,13 @@ describe('alicization sqlite dao', () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.clearConversationData()
 
     expect(runCalls.some(sql => sql.includes('DELETE FROM conversation_turns'))).toBe(true)
+    expect(runCalls.some(sql => sql.includes('DELETE FROM mind_turn_events'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM scheduled_tasks'))).toBe(true)
     await db.close()
   })
@@ -237,6 +289,7 @@ describe('alicization sqlite dao', () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     const snapshot: AlicizationMemoryLegacySnapshot = {
@@ -259,6 +312,7 @@ describe('alicization sqlite dao', () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     const controller = new AbortController()
@@ -277,10 +331,55 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('stores and queries replayable mind-turn events by decision trace', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendMindTurnEvents([
+      {
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'governance-normalized',
+        payload: {
+          turnMode: 'guide-current-knot',
+        },
+        createdAt: 100,
+      },
+      {
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'persistence-written',
+        payload: {
+          format: 'mind-turn-v1',
+        },
+        createdAt: 120,
+      },
+    ])
+
+    const rows = await db.listMindTurnEvents({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      limit: 10,
+    })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.kind).toBe('governance-normalized')
+    expect(rows[1]?.kind).toBe('persistence-written')
+    expect(rows[0]?.decisionTraceId).toBe('mind:l9f3lq:feedfacecafe')
+    await db.close()
+  })
+
   it('claims due scheduled tasks once and supports complete/fail transitions', async () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     const nowMs = Date.now()
@@ -314,6 +413,7 @@ describe('alicization sqlite dao', () => {
     runCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
+    mindTurnEvents.length = 0
 
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     const nowMs = Date.now()

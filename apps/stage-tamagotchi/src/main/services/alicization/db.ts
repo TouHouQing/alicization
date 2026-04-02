@@ -8,6 +8,9 @@ import type {
   AlicizationMemoryMigrationResult,
   AlicizationMemorySource,
   AlicizationMemoryStats,
+  AlicizationMindTurnEventInput,
+  AlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
@@ -59,6 +62,17 @@ interface DbConversationTurnRow {
   user_text: string | null
   assistant_text: string | null
   structured_json: string | null
+  created_at: number
+}
+
+interface DbMindTurnEventRow {
+  id: string
+  decision_trace_id: string
+  turn_id: string | null
+  session_id: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  kind: AlicizationMindTurnEventKind
+  payload_json: string | null
   created_at: number
 }
 
@@ -130,6 +144,20 @@ interface DbScheduledTaskRow {
 
 interface DbWriteOptions {
   signal?: AbortSignal
+}
+
+function parseMindTurnEventPayload(raw: string | null) {
+  if (!raw)
+    return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object'
+      ? parsed as Record<string, unknown>
+      : null
+  }
+  catch {
+    return null
+  }
 }
 
 function clamp01(value: number) {
@@ -371,6 +399,12 @@ export interface AlicizationDbService {
     structuredJson: string | null
     createdAt: number
   }>>
+  appendMindTurnEvents: (events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) => Promise<void>
+  listMindTurnEvents: (input: {
+    decisionTraceId?: string
+    turnId?: string
+    limit?: number
+  }) => Promise<AlicizationMindTurnEventRecord[]>
   clearConversationData: () => Promise<void>
   appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
   appendConversationTurn: (input: AlicizationConversationTurnInput, options?: DbWriteOptions) => Promise<void>
@@ -539,6 +573,22 @@ export async function setupAlicizationDb(
     await run(database, 'ALTER TABLE conversation_turns ADD COLUMN turn_id TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_turn_id ON conversation_turns(turn_id)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_session_created_at ON conversation_turns(session_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS mind_turn_events (
+        id TEXT PRIMARY KEY,
+        decision_trace_id TEXT NOT NULL,
+        turn_id TEXT,
+        session_id TEXT,
+        origin TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        payload_json TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_trace_created_at ON mind_turn_events(decision_trace_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_turn_created_at ON mind_turn_events(turn_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_session_created_at ON mind_turn_events(session_id, created_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS audit_logs (
@@ -780,9 +830,178 @@ export async function setupAlicizationDb(
     }))
   }
 
+  async function appendMindTurnEvents(events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) {
+    if (events.length === 0)
+      return
+
+    const normalized = events
+      .map((event) => {
+        const decisionTraceId = typeof event.decisionTraceId === 'string'
+          ? event.decisionTraceId.trim()
+          : ''
+        if (!decisionTraceId)
+          return null
+        const kind = event.kind
+        if (!kind)
+          return null
+
+        return {
+          id: randomUUID(),
+          decisionTraceId,
+          turnId: typeof event.turnId === 'string' && event.turnId.trim()
+            ? event.turnId.trim()
+            : null,
+          sessionId: typeof event.sessionId === 'string' && event.sessionId.trim()
+            ? event.sessionId.trim()
+            : null,
+          origin: event.origin === 'subconscious-proactive'
+            ? 'subconscious-proactive'
+            : event.origin === 'system'
+              ? 'system'
+              : 'user-turn' as const,
+          kind,
+          payloadJson: event.payload && typeof event.payload === 'object'
+            ? JSON.stringify(event.payload)
+            : null,
+          createdAt: Number.isFinite(event.createdAt)
+            ? Math.max(0, Math.floor(Number(event.createdAt)))
+            : now(),
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+
+    if (normalized.length === 0)
+      return
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await runInTransaction(database, async () => {
+        for (const event of normalized) {
+          await run(
+            database,
+            `
+            INSERT INTO mind_turn_events (
+              id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              origin,
+              kind,
+              payload_json,
+              created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              event.id,
+              event.decisionTraceId,
+              event.turnId,
+              event.sessionId,
+              event.origin,
+              event.kind,
+              event.payloadJson,
+              event.createdAt,
+            ],
+          )
+        }
+      })
+    }, options)
+  }
+
+  async function listMindTurnEvents(input: {
+    decisionTraceId?: string
+    turnId?: string
+    limit?: number
+  }) {
+    const decisionTraceId = typeof input.decisionTraceId === 'string'
+      ? input.decisionTraceId.trim()
+      : ''
+    const turnId = typeof input.turnId === 'string'
+      ? input.turnId.trim()
+      : ''
+    if (!decisionTraceId && !turnId)
+      return [] as AlicizationMindTurnEventRecord[]
+
+    const limit = Math.max(1, Math.min(5_000, Math.floor(input.limit ?? 300)))
+    const rows = decisionTraceId && turnId
+      ? await all<DbMindTurnEventRow>(
+          database,
+          `
+          SELECT
+            id,
+            decision_trace_id,
+            turn_id,
+            session_id,
+            origin,
+            kind,
+            payload_json,
+            created_at
+          FROM mind_turn_events
+          WHERE decision_trace_id = ?
+            AND turn_id = ?
+          ORDER BY created_at DESC
+          LIMIT ?
+          `,
+          [decisionTraceId, turnId, limit],
+        )
+      : decisionTraceId
+        ? await all<DbMindTurnEventRow>(
+            database,
+            `
+            SELECT
+              id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              origin,
+              kind,
+              payload_json,
+              created_at
+            FROM mind_turn_events
+            WHERE decision_trace_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            `,
+            [decisionTraceId, limit],
+          )
+        : await all<DbMindTurnEventRow>(
+            database,
+            `
+            SELECT
+              id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              origin,
+              kind,
+              payload_json,
+              created_at
+            FROM mind_turn_events
+            WHERE turn_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            `,
+            [turnId, limit],
+          )
+
+    return [...rows]
+      .reverse()
+      .map((row): AlicizationMindTurnEventRecord => ({
+        id: row.id,
+        decisionTraceId: row.decision_trace_id,
+        turnId: row.turn_id,
+        sessionId: row.session_id,
+        origin: row.origin,
+        kind: row.kind,
+        payload: parseMindTurnEventPayload(row.payload_json),
+        createdAt: row.created_at,
+      }))
+  }
+
   async function clearConversationData() {
     await enqueueWrite(async () => await runInTransaction(database, async () => {
       await run(database, 'DELETE FROM conversation_turns')
+      await run(database, 'DELETE FROM mind_turn_events')
       await run(database, 'DELETE FROM scheduled_tasks')
     }))
   }
@@ -1653,6 +1872,8 @@ export async function setupAlicizationDb(
     getLatestConversationSessionId,
     listConversationTurnsSince,
     listConversationTurnsBySession,
+    appendMindTurnEvents,
+    listMindTurnEvents,
     clearConversationData,
     appendAuditLog,
     appendConversationTurn,

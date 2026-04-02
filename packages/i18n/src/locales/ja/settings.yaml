@@ -1144,6 +1144,9 @@ pages:
               screen-capture:
                 title: 画面キャプチャ
                 description: 画面とウィンドウのキャプチャソースを確認する
+              mind-replay:
+                title: マインドリプレイ
+                description: trace または turn で思考ターンのイベント台帳を照会する
               vibrant:
                 title: 色の抽出
                 description: テスト色の抽出
