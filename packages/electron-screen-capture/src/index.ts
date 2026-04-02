@@ -32,3 +32,15 @@ export const screenCapture = {
   checkMacOSPermission: screenCaptureCheckMacOSPermission,
   requestMacOSPermission: screenCaptureRequestMacOSPermission,
 }
+
+export {
+  choosePreferredScreenCaptureSource,
+  classifyScreenCaptureSourceKind,
+  sortScreenCaptureSources,
+} from './source-policy'
+
+export type {
+  ScreenCaptureSourceIdentity,
+  ScreenCaptureSourceKind,
+  SortScreenCaptureSourcesOptions,
+} from './source-policy'

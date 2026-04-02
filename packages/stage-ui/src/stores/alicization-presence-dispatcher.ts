@@ -12,14 +12,27 @@ import { normalizeAlicizationEmotion } from './alicization-bridge'
 
 type DialogueListener = (payload: AlicizationDialogueRespondedPayload) => void
 type PresenceAuditLogger = (input: AlicizationAuditLogInput) => Promise<void> | void
+type AlicizationPresenceChannel = 'live2d' | 'vrm' | 'tts' | string
 
-export interface AlicizationPresenceLive2DController {
+export interface AlicizationPresenceVisualController {
   applyPerformance: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
   applyPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
 }
 
+export interface AlicizationPresenceLive2DController extends AlicizationPresenceVisualController {}
+
+export interface AlicizationPresenceVRMController extends AlicizationPresenceVisualController {}
+
 export interface AlicizationPresenceTTSController {
   speak: (reply: string, performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
+}
+
+export interface AlicizationPresenceEmbodimentController {
+  channel: AlicizationPresenceChannel
+  isActive?: () => boolean
+  applyPerformance?: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
+  applyPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
+  speak?: (reply: string, performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
 }
 
 const maxRememberedTurnIds = 512
@@ -28,8 +41,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
   const listeners = new Set<DialogueListener>()
   const seenTurnIds = new Set<string>()
   const turnIdOrder: string[] = []
-  const live2dController = ref<AlicizationPresenceLive2DController | null>(null)
-  const ttsController = ref<AlicizationPresenceTTSController | null>(null)
+  const embodimentControllers = new Set<AlicizationPresenceEmbodimentController>()
   const auditLogger = ref<PresenceAuditLogger | null>(null)
 
   async function appendWarning(action: string, message: string, payload?: Record<string, unknown>) {
@@ -60,6 +72,50 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     }
 
     return true
+  }
+
+  function resolveDispatchFailureAction(channel: AlicizationPresenceChannel, kind: 'performance' | 'tts') {
+    if (kind === 'tts' || channel === 'tts')
+      return 'tts-dispatch-failed'
+
+    if (channel === 'vrm')
+      return 'vrm-dispatch-failed'
+
+    if (channel === 'live2d')
+      return 'live2d-dispatch-failed'
+
+    return 'embodiment-dispatch-failed'
+  }
+
+  function resolveDispatchFailureMessage(channel: AlicizationPresenceChannel, kind: 'performance' | 'tts') {
+    if (kind === 'tts' || channel === 'tts')
+      return 'TTS presence dispatch failed and was degraded silently.'
+
+    if (channel === 'vrm')
+      return 'VRM presence dispatch failed and was degraded silently.'
+
+    if (channel === 'live2d')
+      return 'Live2D presence dispatch failed and was degraded silently.'
+
+    return 'Embodiment presence dispatch failed and was degraded silently.'
+  }
+
+  function resolveActiveEmbodimentControllers() {
+    const active: AlicizationPresenceEmbodimentController[] = []
+    for (const controller of embodimentControllers) {
+      try {
+        if (controller.isActive && !controller.isActive())
+          continue
+      }
+      catch {
+        // NOTICE: isActive guard failures should degrade silently to keep chat flow resilient.
+        continue
+      }
+
+      active.push(controller)
+    }
+
+    return active
   }
 
   async function dispatchDialogueResponded(payload: AlicizationDialogueRespondedPayload) {
@@ -97,22 +153,28 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       )
     }
 
-    const dispatchTasks: Array<{ target: 'live2d' | 'tts', promise: Promise<void> }> = []
-    if (live2dController.value) {
-      dispatchTasks.push({
-        target: 'live2d',
-        promise: Promise.resolve(
-          live2dController.value.applyPerformance(normalizedPayload.structured.performance, normalizedPayload),
-        ),
-      })
-    }
-    if (ttsController.value) {
-      dispatchTasks.push({
-        target: 'tts',
-        promise: Promise.resolve(
-          ttsController.value.speak(normalizedPayload.structured.reply ?? '', normalizedPayload.structured.performance, normalizedPayload),
-        ),
-      })
+    const activeControllers = resolveActiveEmbodimentControllers()
+    const dispatchTasks: Array<{ channel: AlicizationPresenceChannel, kind: 'performance' | 'tts', promise: Promise<void> }> = []
+    for (const controller of activeControllers) {
+      if (controller.applyPerformance) {
+        dispatchTasks.push({
+          channel: controller.channel,
+          kind: 'performance',
+          promise: Promise.resolve(
+            controller.applyPerformance(normalizedPayload.structured.performance, normalizedPayload),
+          ),
+        })
+      }
+
+      if (controller.speak) {
+        dispatchTasks.push({
+          channel: controller.channel,
+          kind: 'tts',
+          promise: Promise.resolve(
+            controller.speak(normalizedPayload.structured.reply ?? '', normalizedPayload.structured.performance, normalizedPayload),
+          ),
+        })
+      }
     }
 
     if (dispatchTasks.length > 0) {
@@ -120,17 +182,17 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       for (const [index, result] of results.entries()) {
         if (result.status !== 'rejected')
           continue
-        const target = dispatchTasks[index]?.target
-        if (!target)
+
+        const task = dispatchTasks[index]
+        if (!task)
           continue
 
         await appendWarning(
-          target === 'live2d' ? 'live2d-dispatch-failed' : 'tts-dispatch-failed',
-          target === 'live2d'
-            ? 'Live2D presence dispatch failed and was degraded silently.'
-            : 'TTS presence dispatch failed and was degraded silently.',
+          resolveDispatchFailureAction(task.channel, task.kind),
+          resolveDispatchFailureMessage(task.channel, task.kind),
           {
             turnId: payload.turnId,
+            channel: task.channel,
             reason: result.reason instanceof Error
               ? result.reason.message
               : String(result.reason),
@@ -153,22 +215,36 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     if (!payload || payload.embodiedPresence === 'none' || payload.expiresAt <= Date.now())
       return
 
-    if (!live2dController.value?.applyPresencePulse)
+    const activeControllers = resolveActiveEmbodimentControllers()
+    const tasks = activeControllers
+      .filter(controller => typeof controller.applyPresencePulse === 'function')
+      .map(controller => ({
+        channel: controller.channel,
+        promise: Promise.resolve(controller.applyPresencePulse!(payload)),
+      }))
+
+    if (tasks.length === 0)
       return
 
-    try {
-      await Promise.resolve(live2dController.value.applyPresencePulse(payload))
-    }
-    catch (error) {
+    const results = await Promise.allSettled(tasks.map(task => task.promise))
+    for (const [index, result] of results.entries()) {
+      if (result.status !== 'rejected')
+        continue
+
+      const task = tasks[index]
+      if (!task)
+        continue
+
       await appendWarning(
         'presence-pulse-dispatch-failed',
         'Silent Alicization presence pulse failed and was degraded silently.',
         {
+          channel: task.channel,
           watchMode: payload.watchMode,
           embodiedPresence: payload.embodiedPresence,
-          reason: error instanceof Error
-            ? error.message
-            : String(error),
+          reason: result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason),
         },
       )
     }
@@ -181,20 +257,32 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     }
   }
 
-  function registerLive2DController(controller: AlicizationPresenceLive2DController) {
-    live2dController.value = controller
+  function registerEmbodimentController(controller: AlicizationPresenceEmbodimentController) {
+    embodimentControllers.add(controller)
     return () => {
-      if (live2dController.value === controller)
-        live2dController.value = null
+      embodimentControllers.delete(controller)
     }
   }
 
+  function registerLive2DController(controller: AlicizationPresenceLive2DController) {
+    return registerEmbodimentController({
+      channel: 'live2d',
+      ...controller,
+    })
+  }
+
+  function registerVRMController(controller: AlicizationPresenceVRMController) {
+    return registerEmbodimentController({
+      channel: 'vrm',
+      ...controller,
+    })
+  }
+
   function registerTTSController(controller: AlicizationPresenceTTSController) {
-    ttsController.value = controller
-    return () => {
-      if (ttsController.value === controller)
-        ttsController.value = null
-    }
+    return registerEmbodimentController({
+      channel: 'tts',
+      speak: controller.speak,
+    })
   }
 
   function setAuditLogger(logger: PresenceAuditLogger | null) {
@@ -205,8 +293,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     listeners.clear()
     seenTurnIds.clear()
     turnIdOrder.splice(0, turnIdOrder.length)
-    live2dController.value = null
-    ttsController.value = null
+    embodimentControllers.clear()
     auditLogger.value = null
   }
 
@@ -214,7 +301,9 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     dispatchDialogueResponded,
     dispatchPresencePulse,
     onDialogueResponded,
+    registerEmbodimentController,
     registerLive2DController,
+    registerVRMController,
     registerTTSController,
     setAuditLogger,
     resetDispatcher,

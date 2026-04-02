@@ -2,6 +2,7 @@
 import type { SerializableDesktopCapturerSource } from '@proj-alicization/electron-screen-capture'
 import type { SourcesOptions } from 'electron'
 
+import { sortScreenCaptureSources } from '@proj-alicization/electron-screen-capture/source-policy'
 import { useElectronScreenCapture } from '@proj-alicization/electron-screen-capture/vue'
 import { Button, SelectTab } from '@proj-alicization/ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -115,15 +116,10 @@ async function refetchSources() {
   try {
     isRefetching.value = true
 
-    const nextSources = (await getSources())
-      .sort((a, b) => {
-        const aIsScreen = a.id.startsWith('screen:')
-        const bIsScreen = b.id.startsWith('screen:')
-        if (aIsScreen !== bIsScreen)
-          return aIsScreen ? -1 : 1
-
-        return a.name.localeCompare(b.name)
-      })
+    const nextSources = sortScreenCaptureSources(await getSources(), {
+      preferredKinds: ['display', 'window', 'device'],
+      preferredNameKeywords: ['entire', 'screen', 'display'],
+    })
 
     sources.value.forEach((oldSource) => {
       if (oldSource.appIconURL)

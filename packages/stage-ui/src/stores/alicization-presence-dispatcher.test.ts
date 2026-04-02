@@ -139,6 +139,80 @@ describe('alicization presence dispatcher', () => {
     }))
   })
 
+  it('supports multi-channel embodiment routing with active channel guard', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const live2dApplyPerformance = vi.fn()
+    const vrmApplyPerformance = vi.fn()
+
+    store.registerEmbodimentController({
+      channel: 'live2d',
+      isActive: () => false,
+      applyPerformance: live2dApplyPerformance,
+    })
+    store.registerEmbodimentController({
+      channel: 'vrm',
+      isActive: () => true,
+      applyPerformance: vrmApplyPerformance,
+    })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-vrm-active',
+      structured: {
+        thought: '',
+        emotion: 'happy',
+        reply: '专注在当前渲染器',
+        performance: {
+          baseEmotion: 'happy',
+          emotion: 'happy',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'energetic',
+          emphasis: 1,
+        },
+      },
+    }))
+
+    expect(vrmApplyPerformance).toBeCalledTimes(1)
+    expect(live2dApplyPerformance).not.toBeCalled()
+  })
+
+  it('reports vrm dispatch failure with channel specific audit action', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn().mockRejectedValueOnce(new Error('vrm-failed'))
+    const appendAuditLog = vi.fn()
+
+    store.registerEmbodimentController({
+      channel: 'vrm',
+      applyPerformance,
+    })
+    store.setAuditLogger(appendAuditLog)
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-vrm-failure',
+      structured: {
+        thought: '',
+        emotion: 'neutral',
+        reply: 'VRM失败降级',
+        performance: {
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      },
+    }))
+
+    expect(applyPerformance).toBeCalledTimes(1)
+    expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'vrm-dispatch-failed',
+      payload: expect.objectContaining({
+        channel: 'vrm',
+      }),
+    }))
+  })
+
   it('reports tts failure correctly when live2d controller is absent', async () => {
     const store = useAlicizationPresenceDispatcherStore()
     const speak = vi.fn().mockRejectedValueOnce(new Error('tts-failed'))

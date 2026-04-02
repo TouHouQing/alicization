@@ -692,6 +692,18 @@ const currentPerformanceManifest = computed(() => {
   return null
 })
 
+function clampPresencePerformanceToManifest(performance: AlicizationDialoguePerformancePayload) {
+  return clampAlicizationPerformancePayloadToManifest(
+    performance,
+    currentPerformanceManifest.value,
+    performance.baseEmotion,
+  ).performance
+}
+
+function resolveClampedPresencePulsePerformance(payload: AlicizationPresencePulsePayload) {
+  return clampPresencePerformanceToManifest(resolvePresencePulsePerformance(payload))
+}
+
 watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimations], async () => {
   await refreshResolvedVrmExternalAnimations()
 }, { immediate: true, deep: true })
@@ -712,20 +724,13 @@ watch(currentPerformanceManifest, async (manifest) => {
   await getAlicizationBridge().setPerformanceManifest?.(manifest)
 }, { immediate: true, deep: true })
 
-presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DController({
+presenceCleanups.push(alicizationPresenceDispatcherStore.registerEmbodimentController({
+  channel: 'live2d',
+  isActive: () => stageModelRenderer.value === 'live2d',
   applyPerformance: async (performance, payload) => {
-    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
-      performance,
-      currentPerformanceManifest.value,
-      performance.baseEmotion,
-    ).performance
+    const clampedPerformance = clampPresencePerformanceToManifest(performance)
     const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
     applyEmotionSpeechStyle(emotionName)
-
-    if (stageModelRenderer.value === 'vrm') {
-      await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
-      return
-    }
 
     const mappedAction = currentLive2DActionCapabilities.value.find(item => item.actionKey === clampedPerformance.actionCue)
     if (mappedAction) {
@@ -742,18 +747,9 @@ presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DControlle
     })
   },
   applyPresencePulse: async (payload) => {
-    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
-      resolvePresencePulsePerformance(payload),
-      currentPerformanceManifest.value,
-      resolvePresencePulsePerformance(payload).baseEmotion,
-    ).performance
+    const clampedPerformance = resolveClampedPresencePulsePerformance(payload)
     const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
     applyEmotionSpeechStyle(emotionName)
-
-    if (stageModelRenderer.value === 'vrm') {
-      await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
-      return
-    }
 
     emotionsQueue.enqueue({
       name: emotionName,
@@ -766,13 +762,29 @@ presenceCleanups.push(alicizationPresenceDispatcherStore.registerLive2DControlle
   },
 }))
 
-presenceCleanups.push(alicizationPresenceDispatcherStore.registerTTSController({
+presenceCleanups.push(alicizationPresenceDispatcherStore.registerEmbodimentController({
+  channel: 'vrm',
+  isActive: () => stageModelRenderer.value === 'vrm',
+  applyPerformance: async (performance) => {
+    const clampedPerformance = clampPresencePerformanceToManifest(performance)
+    const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
+    applyEmotionSpeechStyle(emotionName)
+
+    await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
+  },
+  applyPresencePulse: async (payload) => {
+    const clampedPerformance = resolveClampedPresencePulsePerformance(payload)
+    const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
+    applyEmotionSpeechStyle(emotionName)
+
+    await vrmViewerRef.value?.applyPerformance?.(clampedPerformance)
+  },
+}))
+
+presenceCleanups.push(alicizationPresenceDispatcherStore.registerEmbodimentController({
+  channel: 'tts',
   speak: async (reply, performance) => {
-    const clampedPerformance = clampAlicizationPerformancePayloadToManifest(
-      performance,
-      currentPerformanceManifest.value,
-      performance.baseEmotion,
-    ).performance
+    const clampedPerformance = clampPresencePerformanceToManifest(performance)
     const emotionName = normalizePresenceEmotionName(clampedPerformance.baseEmotion)
     applyEmotionSpeechStyle(emotionName)
 

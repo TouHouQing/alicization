@@ -8,6 +8,7 @@ import analyserWorklet from '@nekopaw/tempora/worklet?url'
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { startAnalyser as startTemporaAnalyser } from '@nekopaw/tempora'
 import { setupElectronScreenCapture } from '@proj-alicization/electron-screen-capture/renderer'
+import { choosePreferredScreenCaptureSource } from '@proj-alicization/electron-screen-capture/source-policy'
 
 import { isStageTamagotchi, isStageWeb, StageEnvironment } from '../environment'
 import { isElectronWindow } from '../window'
@@ -166,9 +167,14 @@ export function createBeatSyncDetector(options: CreateBeatSyncDetectorOptions): 
 
         const stream = await selectWithSource(
           (sources) => {
-            if (sources.length === 0)
+            const preferredSource = choosePreferredScreenCaptureSource(sources, {
+              preferredKinds: ['display', 'window'],
+              preferredNameKeywords: ['entire', 'screen', 'display'],
+            })
+            if (!preferredSource)
               throw new Error('No screen source available')
-            return sources[0].id
+
+            return preferredSource.id
           },
           async () => await navigator.mediaDevices.getDisplayMedia({
             video: true,
