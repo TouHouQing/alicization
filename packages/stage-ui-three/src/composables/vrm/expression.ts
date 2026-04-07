@@ -3,6 +3,8 @@ import type { VRMCore } from '@pixiv/three-vrm-core'
 import { VRMExpression } from '@pixiv/three-vrm-core'
 import { ref } from 'vue'
 
+import { resolveVrmExpressionAliasCandidates } from './capabilities'
+
 interface EmotionExpressionEntry {
   name: string
   value: number
@@ -50,6 +52,22 @@ function normalizeExpressionIdentity(raw: unknown) {
   return normalizeExpressionName(raw).toLowerCase()
 }
 
+function mergeExpressionEntries(entries: EmotionExpressionEntry[]) {
+  const mergedEntries = new Map<string, number>()
+  entries.forEach((entry) => {
+    const normalizedName = normalizeExpressionName(entry.name)
+    if (!normalizedName)
+      return
+
+    mergedEntries.set(
+      normalizedName,
+      clamp01((mergedEntries.get(normalizedName) ?? 0) + clamp01(entry.value)),
+    )
+  })
+
+  return [...mergedEntries.entries()].map(([name, value]) => ({ name, value }))
+}
+
 function hasMorphTargetDictionary(
   primitive: unknown,
 ): primitive is { morphTargetDictionary?: Record<string, number>, uuid?: string } {
@@ -80,8 +98,17 @@ export function useVRMEmote(vrm: VRMCore) {
   const resetTimeout = ref<number>()
 
   const expressionManager = vrm.expressionManager
+  const supportedExpressionNameMap = new Map<string, string>()
+  Object.keys(expressionManager?.expressionMap ?? {})
+    .forEach((expressionName) => {
+      const normalizedName = normalizeExpressionIdentity(expressionName)
+      if (!normalizedName || supportedExpressionNameMap.has(normalizedName))
+        return
+
+      supportedExpressionNameMap.set(normalizedName, expressionName)
+    })
   const supportedExpressions = new Set(
-    Object.keys(expressionManager?.expressionMap ?? {})
+    [...supportedExpressionNameMap.values()]
       .map(name => normalizeExpressionName(name))
       .filter(Boolean),
   )
@@ -92,7 +119,7 @@ export function useVRMEmote(vrm: VRMCore) {
       ...(expressionManager?.mouthExpressionNames ?? []),
       ...defaultMouthExpressionNames,
     ]
-      .map(name => normalizeExpressionIdentity(name))
+      .flatMap(name => resolveVrmExpressionAliasCandidates(normalizeExpressionIdentity(name)))
       .filter(Boolean),
   )
   const baseLayerMouthAffectedNames = new Set<string>()
@@ -156,8 +183,63 @@ export function useVRMEmote(vrm: VRMCore) {
   let mouthOverrideAlpha = 0
   let visemeActive = false
 
+  function resolveSupportedExpressionName(expressionName: string) {
+    const normalizedExpressionName = normalizeExpressionName(expressionName)
+    if (!normalizedExpressionName)
+      return ''
+
+    if (isInternalMouthShadowExpression(normalizedExpressionName))
+      return normalizedExpressionName
+
+    const candidates = resolveVrmExpressionAliasCandidates(normalizedExpressionName)
+    for (const candidate of candidates) {
+      const resolvedName = supportedExpressionNameMap.get(candidate)
+      if (resolvedName)
+        return resolvedName
+    }
+
+    return supportedExpressions.size === 0
+      ? normalizedExpressionName
+      : ''
+  }
+
+  function resolveSupportedExpressionNames(expressionName: string) {
+    const normalizedExpressionName = normalizeExpressionName(expressionName)
+    if (!normalizedExpressionName)
+      return []
+
+    if (isInternalMouthShadowExpression(normalizedExpressionName))
+      return [normalizedExpressionName]
+
+    const resolvedNames = new Set<string>()
+    const candidates = resolveVrmExpressionAliasCandidates(normalizedExpressionName)
+    candidates.forEach((candidate) => {
+      const resolvedName = supportedExpressionNameMap.get(candidate)
+      if (resolvedName)
+        resolvedNames.add(resolvedName)
+    })
+
+    if (resolvedNames.size > 0)
+      return [...resolvedNames]
+
+    return supportedExpressions.size === 0
+      ? [normalizedExpressionName]
+      : []
+  }
+
   function resolveExpression(name: string) {
-    return expressionManager?.getExpression(name) ?? null
+    const normalizedName = normalizeExpressionName(name)
+    if (!normalizedName)
+      return null
+
+    if (isInternalMouthShadowExpression(normalizedName))
+      return expressionManager?.getExpression(normalizedName) ?? null
+
+    const resolvedName = resolveSupportedExpressionName(normalizedName)
+    if (resolvedName)
+      return expressionManager?.getExpression(resolvedName) ?? null
+
+    return expressionManager?.getExpression(normalizedName) ?? null
   }
 
   function resolveObjectId(target: object) {
@@ -317,7 +399,7 @@ export function useVRMEmote(vrm: VRMCore) {
   function replaceExpressionNameSet(target: Set<string>, names: string[]) {
     target.clear()
     names
-      .map(name => normalizeExpressionName(name))
+      .map(name => resolveSupportedExpressionName(name))
       .filter(Boolean)
       .forEach(name => target.add(name))
 
@@ -337,12 +419,9 @@ export function useVRMEmote(vrm: VRMCore) {
     layer.blendDuration = Math.max(0.05, blendDuration ?? layer.blendDuration)
 
     Object.entries(weights).forEach(([name, value]) => {
-      const normalizedName = normalizeExpressionName(name)
+      const normalizedName = resolveSupportedExpressionName(name)
       const normalizedValue = clamp01(value)
       if (!normalizedName || normalizedValue <= 0.001)
-        return
-
-      if (supportedExpressions.size > 0 && !supportedExpressions.has(normalizedName))
         return
 
       layer.target.set(normalizedName, normalizedValue)
@@ -378,10 +457,20 @@ export function useVRMEmote(vrm: VRMCore) {
   function resolveEmotionState(emotionName: string) {
     const normalizedName = normalizeExpressionName(emotionName).toLowerCase()
     const state = emotionStates.get(normalizedName) ?? emotionStates.get('neutral')!
-    const filteredExpressions = state.expression.filter((entry) => {
-      const normalizedExpressionName = normalizeExpressionName(entry.name)
-      return normalizedExpressionName && (supportedExpressions.size === 0 || supportedExpressions.has(normalizedExpressionName))
-    })
+    const filteredExpressions = mergeExpressionEntries(
+      state.expression
+        .map((entry) => {
+          const resolvedExpressionName = resolveSupportedExpressionName(entry.name)
+          if (!resolvedExpressionName)
+            return null
+
+          return {
+            ...entry,
+            name: resolvedExpressionName,
+          }
+        })
+        .filter((entry): entry is EmotionExpressionEntry => Boolean(entry)),
+    )
 
     if (filteredExpressions.length > 0) {
       return {
@@ -390,10 +479,31 @@ export function useVRMEmote(vrm: VRMCore) {
       }
     }
 
-    return emotionStates.get('neutral')!
+    const neutral = emotionStates.get('neutral')!
+    return {
+      ...neutral,
+      expression: mergeExpressionEntries(
+        neutral.expression
+          .map((entry) => {
+            const resolvedExpressionName = resolveSupportedExpressionName(entry.name)
+            if (!resolvedExpressionName)
+              return null
+
+            return {
+              ...entry,
+              name: resolvedExpressionName,
+            }
+          })
+          .filter((entry): entry is EmotionExpressionEntry => Boolean(entry)),
+      ),
+    }
   }
 
-  function setEmotion(emotionName: string, intensity = 1) {
+  function setEmotion(
+    emotionName: string,
+    intensity = 1,
+    options?: { blendDuration?: number },
+  ) {
     clearResetTimeout()
 
     const state = resolveEmotionState(emotionName)
@@ -402,7 +512,7 @@ export function useVRMEmote(vrm: VRMCore) {
     transitionProgress.value = 0
 
     const weights = toWeightRecord(state.expression, intensity)
-    setLayerTarget(baseLayer, weights, state.blendDuration)
+    setLayerTarget(baseLayer, weights, options?.blendDuration ?? state.blendDuration)
     replaceExpressionNameSet(
       baseLayerMouthAffectedNames,
       state.affectsMouth === true
@@ -411,12 +521,17 @@ export function useVRMEmote(vrm: VRMCore) {
     )
   }
 
-  function setEmotionWithResetAfter(emotionName: string, ms: number, intensity = 1) {
+  function setEmotionWithResetAfter(
+    emotionName: string,
+    ms: number,
+    intensity = 1,
+    options?: { blendDuration?: number },
+  ) {
     clearResetTimeout()
-    setEmotion(emotionName, intensity)
+    setEmotion(emotionName, intensity, options)
 
     resetTimeout.value = window.setTimeout(() => {
-      setEmotion('neutral')
+      setEmotion('neutral', 1, options)
       resetTimeout.value = undefined
     }, ms)
   }
@@ -424,7 +539,7 @@ export function useVRMEmote(vrm: VRMCore) {
   function setFacialCue(expressionName: string | null | undefined, intensity = 1, options?: { affectsMouth?: boolean, blendDuration?: number }) {
     clearResetTimeout()
 
-    const normalizedName = normalizeExpressionName(expressionName)
+    const normalizedName = resolveSupportedExpressionName(normalizeExpressionName(expressionName))
     currentFacialCue.value = normalizedName || null
 
     if (!normalizedName) {
@@ -452,14 +567,50 @@ export function useVRMEmote(vrm: VRMCore) {
   }
 
   function setVisemeWeights(weights: Record<string, number>, active: boolean) {
+    const resolvedWeights: Record<string, number> = {}
+    Object.entries(weights).forEach(([name, value]) => {
+      const resolvedName = resolveSupportedExpressionName(name)
+      if (!resolvedName)
+        return
+
+      resolvedWeights[resolvedName] = Math.max(
+        clamp01(value),
+        resolvedWeights[resolvedName] ?? 0,
+      )
+    })
+
     visemeActive = active
-    Object.keys(weights).forEach(name => managedExpressionNames.add(name))
-    setLayerTarget(visemeLayer, weights, 0.06)
+    Object.keys(resolvedWeights).forEach(name => managedExpressionNames.add(name))
+    setLayerTarget(visemeLayer, resolvedWeights, 0.06)
   }
 
   function setBlinkWeights(weights: Record<string, number>) {
-    Object.keys(weights).forEach(name => managedExpressionNames.add(name))
-    setLayerTarget(blinkLayer, weights, 0.08)
+    const resolvedWeights: Record<string, number> = {}
+    Object.entries(weights).forEach(([name, value]) => {
+      const normalizedName = normalizeExpressionIdentity(name)
+      if (normalizedName === 'blink') {
+        const blinkNames = resolveSupportedExpressionNames('blink')
+        blinkNames.forEach((blinkName) => {
+          resolvedWeights[blinkName] = Math.max(
+            clamp01(value),
+            resolvedWeights[blinkName] ?? 0,
+          )
+        })
+        return
+      }
+
+      const resolvedName = resolveSupportedExpressionName(name)
+      if (!resolvedName)
+        return
+
+      resolvedWeights[resolvedName] = Math.max(
+        clamp01(value),
+        resolvedWeights[resolvedName] ?? 0,
+      )
+    })
+
+    Object.keys(resolvedWeights).forEach(name => managedExpressionNames.add(name))
+    setLayerTarget(blinkLayer, resolvedWeights, 0.08)
   }
 
   function addEmotionState(emotionName: string, state: EmotionState) {

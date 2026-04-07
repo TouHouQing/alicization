@@ -3,10 +3,12 @@ import type {
   AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
+  AlicizationDialogueTurnEncounterSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationVisualSceneSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
@@ -44,6 +46,11 @@ function pickAnchorText(...values: unknown[]) {
   }
   return ''
 }
+
+interface AlicizationDialogueEncounterSurface extends Pick<
+  AlicizationDialogueTurnEncounterSnapshot,
+  'subject' | 'screenReferenceMode' | 'dialogueFirst' | 'summary' | 'taskAnchor'
+> {}
 
 export function normalizeTechnicalSpecificityCue(raw: unknown) {
   if (typeof raw !== 'string')
@@ -164,7 +171,7 @@ function resolveObservedSurface(input: {
   dialogueFirst: boolean
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   answerCompiler: AlicizationAnswerCompilerSnapshot
 }) {
   if (input.dialogueFirst) {
@@ -191,53 +198,62 @@ export function buildClaimEvidenceLedger(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | AlicizationDialogueEncounterSurface | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   currentScene?: AlicizationVisualSceneSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationClaimEvidenceLedgerSnapshot | null {
-  if (!input.discourseState || !input.answerCompiler)
+  const runtimeSurface = input.runtimeSurface ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueEncounter = runtimeSurface?.dialogue.dialogueEncounter ?? input.dialogueEncounter ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? input.currentConsciousFrame ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene ?? null
+
+  if (!discourseState || !answerCompiler)
     return null
 
-  const subject = input.dialogueEncounter?.subject
-    ?? input.answerCompiler.answerSubject
-    ?? input.discourseState.currentTurnSubject
-  const dialogueFirst = input.dialogueEncounter?.screenReferenceMode === 'avoid'
-    || input.answerCompiler.screenReferenceMode === 'avoid'
+  const subject = dialogueEncounter?.subject
+    ?? answerCompiler.answerSubject
+    ?? discourseState.currentTurnSubject
+  const dialogueFirst = dialogueEncounter?.screenReferenceMode === 'avoid'
+    || answerCompiler.screenReferenceMode === 'avoid'
     || isDialogueFirstSubject(subject)
   const screenCentricTurn = subject === 'task-knot' || subject === 'visible-scene'
   const sceneCue = buildAlicizationScreenSurfaceCue({
     rawCues: [
-      input.currentScene?.summary,
-      input.currentScene?.target?.title,
-      input.answerCompiler.supportingReality[0],
-      input.answerCompiler.supportingReality[1],
+      currentScene?.summary,
+      currentScene?.target?.title,
+      answerCompiler.supportingReality[0],
+      answerCompiler.supportingReality[1],
     ],
-    target: input.currentScene?.target ?? null,
-    scenario: input.currentScene?.scenario ?? null,
-    workloadKind: input.currentScene?.workloadKind ?? null,
-    contentKind: input.currentScene?.contentKind ?? null,
+    target: currentScene?.target ?? null,
+    scenario: currentScene?.scenario ?? null,
+    workloadKind: currentScene?.workloadKind ?? null,
+    contentKind: currentScene?.contentKind ?? null,
   })
 
   const hostReferencedCues = uniqueList([
-    ...extractTechnicalSpecificityClaims(input.conversationState?.hostMove),
-    ...extractTechnicalSpecificityClaims(input.conversationState?.unansweredQuestion),
-    ...extractTechnicalSpecificityClaims(input.conversationState?.primaryTurnAnchor),
-    ...extractTechnicalSpecificityClaims(input.discourseState.currentQuestion),
-    ...extractTechnicalSpecificityClaims(input.discourseState.primaryTurnAnchor),
-    ...extractTechnicalSpecificityClaims(input.dialogueEncounter?.taskAnchor),
+    ...extractTechnicalSpecificityClaims(conversationState?.hostMove),
+    ...extractTechnicalSpecificityClaims(conversationState?.unansweredQuestion),
+    ...extractTechnicalSpecificityClaims(conversationState?.primaryTurnAnchor),
+    ...extractTechnicalSpecificityClaims(discourseState.currentQuestion),
+    ...extractTechnicalSpecificityClaims(discourseState.primaryTurnAnchor),
+    ...extractTechnicalSpecificityClaims(dialogueEncounter?.taskAnchor),
   ], 12)
 
   const groundedArtifactCues = (
     !dialogueFirst
-    && (input.answerCompiler.evidenceMode === 'live-grounded' || input.answerCompiler.evidenceMode === 'live-observed')
+    && (answerCompiler.evidenceMode === 'live-grounded' || answerCompiler.evidenceMode === 'live-observed')
   )
     ? uniqueList([
-        ...extractTechnicalSpecificityClaims(input.currentScene?.summary),
-        ...extractTechnicalSpecificityClaims(input.currentScene?.target?.title),
-        ...extractTechnicalSpecificityClaims(input.answerCompiler.openingClaim),
-        ...extractTechnicalSpecificityClaims(input.answerCompiler.supportingReality[0]),
-        ...extractTechnicalSpecificityClaims(input.answerCompiler.supportingReality[1]),
+        ...extractTechnicalSpecificityClaims(currentScene?.summary),
+        ...extractTechnicalSpecificityClaims(currentScene?.target?.title),
+        ...extractTechnicalSpecificityClaims(answerCompiler.openingClaim),
+        ...extractTechnicalSpecificityClaims(answerCompiler.supportingReality[0]),
+        ...extractTechnicalSpecificityClaims(answerCompiler.supportingReality[1]),
       ], 12)
     : []
 
@@ -253,37 +269,37 @@ export function buildClaimEvidenceLedger(input: {
   const shouldLabelHypothesis = screenCentricTurn
     && (
       specificityBudget === 'coarse-scene'
-      || input.answerCompiler.evidenceMode === 'coarse-held'
-      || input.answerCompiler.evidenceMode === 'continuity-carry'
-      || input.answerCompiler.evidenceMode === 'repair-first'
-      || input.currentConsciousFrame?.truthDiscipline === 'observe-then-hypothesize'
-      || input.currentConsciousFrame?.shouldWithholdSpecificity === true
+      || answerCompiler.evidenceMode === 'coarse-held'
+      || answerCompiler.evidenceMode === 'continuity-carry'
+      || answerCompiler.evidenceMode === 'repair-first'
+      || currentConsciousFrame?.truthDiscipline === 'observe-then-hypothesize'
+      || currentConsciousFrame?.shouldWithholdSpecificity === true
     )
   const observedSurface = resolveObservedSurface({
     sceneCue,
     dialogueFirst,
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
-    dialogueEncounter: input.dialogueEncounter ?? null,
-    answerCompiler: input.answerCompiler,
+    discourseState,
+    conversationState,
+    dialogueEncounter,
+    answerCompiler,
   })
   const taskHypothesis = pickSurfaceText(
-    input.answerCompiler.openingClaim,
-    input.conversationState?.jointThread,
-    input.conversationState?.unansweredQuestion,
-    input.discourseState.currentQuestion,
-    input.dialogueEncounter?.summary,
+    answerCompiler.openingClaim,
+    conversationState?.jointThread,
+    conversationState?.unansweredQuestion,
+    discourseState.currentQuestion,
+    dialogueEncounter?.summary,
   ) || null
   const intentHypothesis = pickSurfaceText(
-    input.currentConsciousFrame?.speakingIntention,
-    input.currentConsciousFrame?.consciousNeed,
-    input.answerCompiler.nextMove,
-    input.answerCompiler.openingDirective,
+    currentConsciousFrame?.speakingIntention,
+    currentConsciousFrame?.consciousNeed,
+    answerCompiler.nextMove,
+    answerCompiler.openingDirective,
   ) || null
 
   return {
     subject,
-    evidenceMode: input.answerCompiler.evidenceMode,
+    evidenceMode: answerCompiler.evidenceMode,
     observedSurface,
     taskHypothesis,
     intentHypothesis,
@@ -293,25 +309,25 @@ export function buildClaimEvidenceLedger(input: {
     allowedSpecificCues,
     shouldLabelHypothesis,
     forbidUnsupportedSpecificity: dialogueFirst || screenCentricTurn,
-    shouldSelfRevise: input.currentConsciousFrame?.shouldSelfRevise === true
-      || input.answerCompiler.recommendedAct === 'ask-reground'
-      || input.answerCompiler.recommendedAct === 'correct-stale-anchor',
+    shouldSelfRevise: currentConsciousFrame?.shouldSelfRevise === true
+      || answerCompiler.recommendedAct === 'ask-reground'
+      || answerCompiler.recommendedAct === 'correct-stale-anchor',
     confidence: clamp01(
-      input.answerCompiler.confidence * 0.46
-      + input.discourseState.confidence * 0.28
-      + (input.currentConsciousFrame?.confidence ?? 0.42) * 0.26,
+      answerCompiler.confidence * 0.46
+      + discourseState.confidence * 0.28
+      + (currentConsciousFrame?.confidence ?? 0.42) * 0.26,
     ),
     reasonTags: uniqueList([
       `subject:${subject}`,
-      `evidence:${input.answerCompiler.evidenceMode}`,
+      `evidence:${answerCompiler.evidenceMode}`,
       `budget:${specificityBudget}`,
       shouldLabelHypothesis ? 'label-hypothesis' : null,
       (dialogueFirst || screenCentricTurn) ? 'forbid-unsupported-specificity' : null,
       hostReferencedCues.length > 0 ? 'host-referenced-artifacts' : null,
       groundedArtifactCues.length > 0 ? 'grounded-artifacts' : null,
-      input.currentConsciousFrame?.shouldWithholdSpecificity ? 'withhold-specificity' : null,
-      input.currentConsciousFrame?.shouldSelfRevise ? 'self-revise' : null,
-      pickAnchorText(input.currentConsciousFrame?.focusAnchor, input.discourseState.primaryTurnAnchor) || null,
+      currentConsciousFrame?.shouldWithholdSpecificity ? 'withhold-specificity' : null,
+      currentConsciousFrame?.shouldSelfRevise ? 'self-revise' : null,
+      pickAnchorText(currentConsciousFrame?.focusAnchor, discourseState.primaryTurnAnchor) || null,
     ], 8),
     updatedAt: input.now,
   }

@@ -231,3 +231,39 @@ screen-capture:
     empty:
       title: 当前分类下没有可用来源
       description: 请切换分类，或刷新捕获来源列表后重试。
+    diagnostics:
+      title: 捕获诊断
+      loading: 正在加载实时诊断...
+      updated_at: 更新时间：
+      sections:
+        renderer: 渲染器会话
+        main_probe: 主进程探测
+        lease: 主进程租约
+      fields:
+        permission: 权限：
+        phase: 阶段：
+        reason: 原因：
+        selected_source: 已选来源：
+        current_source: 当前来源：
+        source_preference: 偏好来源：
+        last_used_at: 最近使用：
+        last_error: 最近错误：
+        window: 窗口：
+        probe_status: 探测状态：
+        probe_types: 来源类型：
+        source_count: 来源数量：
+        requested_at: 请求时间：
+        completed_at: 完成时间：
+        duration: 持续时间：
+        lease_status: 租约状态：
+        lease_handle: 句柄：
+        lease_source: 租约来源：
+        lease_owner: 持有窗口：
+        lease_types: 租约类型：
+        acquired_at: 获取时间：
+        expires_at: 过期时间：
+        release_reason: 释放原因：
+      values:
+        none: 无
+        idle: 空闲
+        probing: 探测中

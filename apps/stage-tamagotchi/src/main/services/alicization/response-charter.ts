@@ -14,8 +14,15 @@ import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-govern
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type {
+  AlicizationDigitalLifeOperatingMode,
+  AlicizationDigitalLifeSubsystemId,
+} from './digital-life-architecture'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildEpistemicSurfacePosture } from './epistemic-surface'
 
 export type AlicizationResponseEpistemicMode
@@ -44,6 +51,9 @@ export interface AlicizationResponseCharter {
   executivePhase: string | null
   truthFrame: string | null
   mindMode: string | null
+  digitalLifeOperatingMode?: AlicizationDigitalLifeOperatingMode | null
+  digitalLifeDominantSystem?: AlicizationDigitalLifeSubsystemId | null
+  digitalLifeSummary?: string | null
   relationshipPosture: 'restrained' | 'warm' | 'tender'
   reasons: string[]
   mustDo: string[]
@@ -63,45 +73,46 @@ function strongestConcern(concerns: AlicizationConcernSnapshot[] | null | undefi
     .sort((left, right) => (right.tension * right.careWeight) - (left.tension * left.careWeight))[0] ?? null
 }
 
-function governingCommitment(state: AlicizationVisualPresenceStateSnapshot) {
-  const commitments = state.commitmentLedger?.commitments ?? []
+function governingCommitment(commitmentLedger?: AlicizationVisualPresenceStateSnapshot['commitmentLedger'] | null) {
+  const commitments = commitmentLedger?.commitments ?? []
   if (commitments.length === 0)
     return null
-  return commitments.find(commitment => commitment.id === state.commitmentLedger?.governingCommitmentId)
+  return commitments.find(commitment => commitment.id === commitmentLedger?.governingCommitmentId)
     ?? commitments[0]
     ?? null
 }
 
-function activeInquiryPlan(state: AlicizationVisualPresenceStateSnapshot) {
-  const plans = state.inquiryPlanner?.plans ?? []
+function activeInquiryPlan(inquiryPlanner?: AlicizationVisualPresenceStateSnapshot['inquiryPlanner'] | null) {
+  const plans = inquiryPlanner?.plans ?? []
   if (plans.length === 0)
     return null
-  return plans.find(plan => plan.id === state.inquiryPlanner?.activePlanId)
+  return plans.find(plan => plan.id === inquiryPlanner?.activePlanId)
     ?? plans[0]
     ?? null
 }
 
-function dominantProject(state: AlicizationVisualPresenceStateSnapshot) {
-  const projects = state.intentionStream?.projects ?? []
+function dominantProject(intentionStream?: AlicizationVisualPresenceStateSnapshot['intentionStream'] | null) {
+  const projects = intentionStream?.projects ?? []
   if (projects.length === 0)
     return null
-  return projects.find(project => project.id === state.intentionStream?.dominantProjectId)
+  return projects.find(project => project.id === intentionStream?.dominantProjectId)
     ?? projects[0]
     ?? null
 }
 
-function latestReflection(state: AlicizationVisualPresenceStateSnapshot) {
-  const entries = state.reflectionLedger?.entries ?? []
+function latestReflection(reflectionLedger?: AlicizationVisualPresenceStateSnapshot['reflectionLedger'] | null) {
+  const entries = reflectionLedger?.entries ?? []
   if (entries.length === 0)
     return null
-  return entries.find(entry => entry.id === state.reflectionLedger?.latestEntryId)
+  return entries.find(entry => entry.id === reflectionLedger?.latestEntryId)
     ?? entries[0]
     ?? null
 }
 
 function resolveEpistemicMode(input: {
   context: AlicizationProactiveLayeredContext
-  state: AlicizationVisualPresenceStateSnapshot
+  worldModel?: AlicizationVisualPresenceStateSnapshot['worldModel'] | null
+  beliefRevision?: AlicizationVisualPresenceStateSnapshot['beliefRevision'] | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
   if (
@@ -111,13 +122,13 @@ function resolveEpistemicMode(input: {
   ) {
     return 'dialogue-grounded' as const
   }
-  if (!input.state.worldModel)
+  if (!input.worldModel)
     return 'memory-only' as const
-  const certainty = input.state.worldModel?.epistemicState.certainty ?? 'uncertain'
+  const certainty = input.worldModel?.epistemicState.certainty ?? 'uncertain'
   const posture = buildEpistemicSurfacePosture({
     context: input.context,
-    worldModel: input.state.worldModel,
-    beliefRevision: input.state.beliefRevision,
+    worldModel: input.worldModel,
+    beliefRevision: input.beliefRevision,
   })
   if (certainty === 'grounded')
     return 'grounded-live' as const
@@ -131,10 +142,14 @@ function resolveEpistemicMode(input: {
 function resolveResponseMode(input: {
   epistemicMode: AlicizationResponseEpistemicMode
   context: AlicizationProactiveLayeredContext
-  state: AlicizationVisualPresenceStateSnapshot
+  answerPlanner?: AlicizationVisualPresenceStateSnapshot['answerPlanner'] | null
+  executiveCycle?: AlicizationVisualPresenceStateSnapshot['executiveCycle'] | null
+  privateThought?: AlicizationVisualPresenceStateSnapshot['privateThought'] | null
+  actionEcology?: AlicizationVisualPresenceStateSnapshot['actionEcology'] | null
   concern: AlicizationConcernSnapshot | null
   commitment: AlicizationCommitmentSnapshot | null
   inquiry: AlicizationInquiryPlanSnapshot | null
+  project: ReturnType<typeof dominantProject>
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
@@ -156,27 +171,27 @@ function resolveResponseMode(input: {
     return 'care-with-boundary' as const
   if (input.dialogueObligation?.kind === 'accompany')
     return 'accompany-lightly' as const
-  if (input.state.answerPlanner?.act === 'correct-stale-anchor' || input.state.answerPlanner?.act === 'ask-reground')
+  if (input.answerPlanner?.act === 'correct-stale-anchor' || input.answerPlanner?.act === 'ask-reground')
     return 'repair-and-reanchor' as const
-  if (input.state.answerPlanner?.act === 'care')
+  if (input.answerPlanner?.act === 'care')
     return 'care-with-boundary' as const
-  if (input.state.answerPlanner?.act === 'guide')
+  if (input.answerPlanner?.act === 'guide')
     return 'guide-current-knot' as const
-  if (input.state.answerPlanner?.act === 'defer')
+  if (input.answerPlanner?.act === 'defer')
     return 'accompany-lightly' as const
-  if (input.state.executiveCycle?.phase === 'reflecting' || input.state.executiveCycle?.phase === 'inferring')
+  if (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
     return 'repair-and-reanchor' as const
-  if (dominantProject(input.state)?.kind === 'care-host')
+  if (input.project?.kind === 'care-host')
     return 'care-with-boundary' as const
-  if (dominantProject(input.state)?.kind === 'hold-knot')
+  if (input.project?.kind === 'hold-knot')
     return 'guide-current-knot' as const
-  if (dominantProject(input.state)?.kind === 'stay-near' || dominantProject(input.state)?.kind === 'witness-afterglow')
+  if (input.project?.kind === 'stay-near' || input.project?.kind === 'witness-afterglow')
     return 'accompany-lightly' as const
   if (
     input.concern?.kind === 'care-body'
     || input.commitment?.kind === 'care-host'
-    || input.state.privateThought?.stance === 'care'
-    || input.state.privateThought?.stance === 'warn'
+    || input.privateThought?.stance === 'care'
+    || input.privateThought?.stance === 'warn'
   ) {
     return 'care-with-boundary' as const
   }
@@ -200,10 +215,10 @@ function resolveResponseMode(input: {
     return 'guide-current-knot' as const
   }
   if (
-    input.state.privateThought?.stance === 'observe'
-    || input.state.privateThought?.stance === 'accompany'
-    || input.state.actionEcology?.mode === 'quiet-accompany'
-    || input.state.actionEcology?.mode === 'silent-presence'
+    input.privateThought?.stance === 'observe'
+    || input.privateThought?.stance === 'accompany'
+    || input.actionEcology?.mode === 'quiet-accompany'
+    || input.actionEcology?.mode === 'silent-presence'
   ) {
     return 'accompany-lightly' as const
   }
@@ -213,17 +228,20 @@ function resolveResponseMode(input: {
 function resolveRelationshipPosture(input: {
   epistemicMode: AlicizationResponseEpistemicMode
   responseMode: AlicizationResponseMode
-  state: AlicizationVisualPresenceStateSnapshot
+  selfContinuity?: AlicizationVisualPresenceStateSnapshot['selfContinuity'] | null
+  mindKernel?: AlicizationVisualPresenceStateSnapshot['mindKernel'] | null
+  executiveCycle?: AlicizationVisualPresenceStateSnapshot['executiveCycle'] | null
+  relationshipModel?: AlicizationVisualPresenceStateSnapshot['relationshipModel'] | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
   if (
     (input.epistemicMode === 'repair-needed' && input.dialogueFocus?.screenReferenceMode !== 'avoid')
-    || input.state.selfContinuity?.attachmentMode === 'guarded'
-    || input.state.selfContinuity?.initiativeTemperament === 'reserved'
-    || input.state.mindKernel?.dominantMode === 'repairing'
-    || input.state.executiveCycle?.phase === 'reflecting'
-    || input.state.executiveCycle?.phase === 'inferring'
+    || input.selfContinuity?.attachmentMode === 'guarded'
+    || input.selfContinuity?.initiativeTemperament === 'reserved'
+    || input.mindKernel?.dominantMode === 'repairing'
+    || input.executiveCycle?.phase === 'reflecting'
+    || input.executiveCycle?.phase === 'inferring'
   ) {
     return 'restrained' as const
   }
@@ -231,8 +249,8 @@ function resolveRelationshipPosture(input: {
     return 'tender' as const
   if (
     input.responseMode === 'care-with-boundary'
-    || input.state.relationshipModel?.approachVector === 'care'
-    || input.state.relationshipModel?.approachVector === 'stay-near'
+    || input.relationshipModel?.approachVector === 'care'
+    || input.relationshipModel?.approachVector === 'stay-near'
   ) {
     return 'tender' as const
   }
@@ -240,35 +258,43 @@ function resolveRelationshipPosture(input: {
 }
 
 function resolveGoverningFocus(input: {
-  state: AlicizationVisualPresenceStateSnapshot
+  currentScene?: AlicizationVisualPresenceStateSnapshot['currentScene'] | null
+  executiveCycle?: AlicizationVisualPresenceStateSnapshot['executiveCycle'] | null
+  answerPlanner?: AlicizationVisualPresenceStateSnapshot['answerPlanner'] | null
+  concernContinuity?: AlicizationVisualPresenceStateSnapshot['concernContinuity'] | null
+  repairLedger?: AlicizationVisualPresenceStateSnapshot['repairLedger'] | null
+  worldModel?: AlicizationVisualPresenceStateSnapshot['worldModel'] | null
+  privateThought?: AlicizationVisualPresenceStateSnapshot['privateThought'] | null
+  replyDeliberation?: AlicizationVisualPresenceStateSnapshot['replyDeliberation'] | null
+  dialogueWorldThread?: AlicizationVisualPresenceStateSnapshot['dialogueWorldThread'] | null
   concern: AlicizationConcernSnapshot | null
   commitment: AlicizationCommitmentSnapshot | null
   inquiry: AlicizationInquiryPlanSnapshot | null
+  project: ReturnType<typeof dominantProject>
+  reflection: ReturnType<typeof latestReflection>
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
 }) {
-  const project = dominantProject(input.state)
-  const reflection = latestReflection(input.state)
   return sanitizeText(
-    input.state.replyDeliberation?.whyThisReplyNow
-    || input.state.dialogueWorldThread?.currentQuestion
-    || input.state.dialogueWorldThread?.activeThread
+    input.replyDeliberation?.whyThisReplyNow
+    || input.dialogueWorldThread?.currentQuestion
+    || input.dialogueWorldThread?.activeThread
     || input.dialogueFocus?.focusSummary
     || input.dialogueSemantics?.summary
     || input.dialogueObligation?.summary
-    || reflection?.revision
-    || input.state.executiveCycle?.currentLine
-    || project?.summary
-    || input.state.answerPlanner?.governingFocus
-    || input.state.concernContinuity?.entries.find(entry => entry.id === input.state.concernContinuity?.governingEntryId)?.summary
-    || input.state.repairLedger?.entries.find(entry => entry.id === input.state.repairLedger?.governingRepairId)?.summary
-    || input.state.worldModel?.activeThread?.summary
+    || input.reflection?.revision
+    || input.executiveCycle?.currentLine
+    || input.project?.summary
+    || input.answerPlanner?.governingFocus
+    || input.concernContinuity?.entries.find(entry => entry.id === input.concernContinuity?.governingEntryId)?.summary
+    || input.repairLedger?.entries.find(entry => entry.id === input.repairLedger?.governingRepairId)?.summary
+    || input.worldModel?.activeThread?.summary
     || input.concern?.summary
     || input.commitment?.summary
     || input.inquiry?.question
-    || input.state.currentScene?.summary
-    || input.state.privateThought?.thoughtText
+    || input.currentScene?.summary
+    || input.privateThought?.thoughtText
     || '',
     220,
   ) || 'Stay with the host’s current knot instead of drifting into stale memory.'
@@ -299,6 +325,7 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
 export function buildAlicizationResponseCharter(input: {
   context: AlicizationProactiveLayeredContext
   state: AlicizationVisualPresenceStateSnapshot
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   inspectionRequested: boolean
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounter | null
@@ -311,21 +338,44 @@ export function buildAlicizationResponseCharter(input: {
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
+  const runtimeSurface = input.runtimeSurface ?? buildAlicizationDigitalLifeRuntimeSurface(input.state)
+  const digitalLifeArchitecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
   const dialogueEncounter = input.dialogueEncounter ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
   const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
-  const discourseState = input.discourseState ?? input.state.discourseState ?? null
-  const mindSynthesis = input.mindSynthesis ?? input.state.mindSynthesis ?? null
-  const answerCompiler = input.answerCompiler ?? input.state.answerCompiler ?? null
-  const currentConsciousFrame = input.currentConsciousFrame ?? input.state.currentConsciousFrame ?? null
-  const claimEvidenceLedger = input.claimEvidenceLedger ?? input.state.claimEvidenceLedger ?? null
-  const concern = strongestConcern(input.state.concerns)
-  const commitment = governingCommitment(input.state)
-  const inquiry = activeInquiryPlan(input.state)
-  const project = dominantProject(input.state)
-  const reflection = latestReflection(input.state)
-  const dialogueActKernel = input.dialogueActKernel ?? input.state.dialogueActKernel ?? null
+  const currentScene = runtimeSurface.perception.currentScene ?? null
+  const worldModel = runtimeSurface.world.worldModel ?? null
+  const worldOntology = runtimeSurface.world.worldOntology ?? null
+  const relationshipModel = runtimeSurface.world.relationshipModel ?? null
+  const beliefRevision = runtimeSurface.cognition.beliefRevision ?? null
+  const mindKernel = runtimeSurface.cognition.mindKernel ?? null
+  const privateThought = runtimeSurface.cognition.privateThought ?? null
+  const concerns = runtimeSurface.memory.concerns ?? null
+  const concernContinuity = runtimeSurface.memory.concernContinuity ?? null
+  const selfContinuity = runtimeSurface.memory.selfContinuity ?? null
+  const commitmentLedger = runtimeSurface.memory.commitmentLedger ?? null
+  const inquiryPlanner = runtimeSurface.memory.inquiryPlanner ?? null
+  const repairLedger = runtimeSurface.memory.repairLedger ?? null
+  const intentionStream = runtimeSurface.memory.intentionStream ?? null
+  const reflectionLedger = runtimeSurface.memory.reflectionLedger ?? null
+  const executiveCycle = runtimeSurface.memory.executiveCycle ?? null
+  const recallGovernor = runtimeSurface.memory.recallGovernor ?? null
+  const discourseState = runtimeSurface.dialogue.discourseState ?? input.discourseState ?? null
+  const mindSynthesis = runtimeSurface.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const dialogueWorldThread = runtimeSurface.dialogue.dialogueWorldThread ?? null
+  const dialogueActKernel = runtimeSurface.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
+  const answerCompiler = runtimeSurface.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const currentConsciousFrame = runtimeSurface.dialogue.currentConsciousFrame ?? input.currentConsciousFrame ?? null
+  const claimEvidenceLedger = runtimeSurface.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
+  const replyDeliberation = runtimeSurface.dialogue.replyDeliberation ?? null
+  const answerPlanner = runtimeSurface.dialogue.answerPlanner ?? null
+  const initiative = runtimeSurface.agency.initiative ?? null
+  const concern = strongestConcern(concerns)
+  const commitment = governingCommitment(commitmentLedger)
+  const inquiry = activeInquiryPlan(inquiryPlanner)
+  const project = dominantProject(intentionStream)
+  const reflection = latestReflection(reflectionLedger)
   if (answerCompiler) {
     const epistemicMode = answerCompiler.evidenceMode === 'live-grounded' || answerCompiler.evidenceMode === 'live-observed'
       ? 'grounded-live' as const
@@ -348,9 +398,9 @@ export function buildAlicizationResponseCharter(input: {
         || claimEvidenceLedger?.observedSurface
         || dialogueActKernel?.whyNow
         || dialogueActKernel?.openingClaim
-        || input.state.replyDeliberation?.whyThisReplyNow
-        || input.state.dialogueWorldThread?.currentQuestion
-        || input.state.dialogueWorldThread?.activeThread
+        || replyDeliberation?.whyThisReplyNow
+        || dialogueWorldThread?.currentQuestion
+        || dialogueWorldThread?.activeThread
         || answerCompiler.openingDirective
         || discourseState?.currentTurnSummary
         || mindSynthesis?.interiorSummary
@@ -362,19 +412,22 @@ export function buildAlicizationResponseCharter(input: {
       governingInquiry: sanitizeText(answerCompiler.nextMove ?? inquiry?.question ?? '', 180) || null,
       governingProject: sanitizeText(project?.summary ?? answerCompiler.openingClaim, 180) || null,
       latestRevision: sanitizeText(reflection?.revision ?? '', 180) || null,
-      executivePhase: sanitizeText(input.state.executiveCycle?.phase ?? '', 64) || null,
+      executivePhase: sanitizeText(executiveCycle?.phase ?? '', 64) || null,
       truthFrame: sanitizeText(
-        input.state.initiative?.selectedTruthFrame
-        ?? input.state.worldOntology?.dominantFrame
+        initiative?.selectedTruthFrame
+        ?? worldOntology?.dominantFrame
         ?? '',
         96,
       ) || null,
       mindMode: sanitizeText(
-        input.state.mindKernel?.dominantMode
-        ?? input.state.privateThought?.stance
+        mindKernel?.dominantMode
+        ?? privateThought?.stance
         ?? '',
         48,
       ) || null,
+      digitalLifeOperatingMode: digitalLifeArchitecture?.operatingMode ?? null,
+      digitalLifeDominantSystem: digitalLifeArchitecture?.dominantSystem ?? null,
+      digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
       relationshipPosture: answerCompiler.relationshipPosture,
       reasons: uniqueList([
         currentConsciousFrame?.consciousNeed,
@@ -385,8 +438,8 @@ export function buildAlicizationResponseCharter(input: {
         claimEvidenceLedger?.intentHypothesis,
         dialogueActKernel?.whyNow,
         ...(dialogueActKernel?.sourceTrace ?? []),
-        input.state.dialogueWorldThread?.activeThread,
-        input.state.dialogueWorldThread?.currentQuestion,
+        dialogueWorldThread?.activeThread,
+        dialogueWorldThread?.currentQuestion,
         answerCompiler.openingClaim,
         ...answerCompiler.supportingReality,
         mindSynthesis?.interiorSummary,
@@ -426,23 +479,31 @@ export function buildAlicizationResponseCharter(input: {
 
   const epistemicMode = resolveEpistemicMode({
     context: input.context,
-    state: input.state,
+    worldModel,
+    beliefRevision,
     dialogueFocus,
   })
   const responseMode = resolveResponseMode({
     epistemicMode,
     context: input.context,
-    state: input.state,
+    answerPlanner,
+    executiveCycle,
+    privateThought,
+    actionEcology: runtimeSurface.agency.actionEcology ?? null,
     concern,
     commitment,
     inquiry,
+    project,
     dialogueObligation,
     dialogueFocus,
   })
   const relationshipPosture = resolveRelationshipPosture({
     epistemicMode,
     responseMode,
-    state: input.state,
+    selfContinuity,
+    mindKernel,
+    executiveCycle,
+    relationshipModel,
     dialogueObligation,
     dialogueFocus,
   })
@@ -456,19 +517,19 @@ export function buildAlicizationResponseCharter(input: {
   pushUnique(reasons, claimEvidenceLedger?.observedSurface ?? '')
   pushUnique(reasons, claimEvidenceLedger?.taskHypothesis ?? '')
   pushUnique(reasons, claimEvidenceLedger?.intentHypothesis ?? '')
-  pushUnique(reasons, input.state.dialogueWorldThread?.activeThread ?? '')
-  pushUnique(reasons, input.state.dialogueWorldThread?.currentQuestion ?? '')
+  pushUnique(reasons, dialogueWorldThread?.activeThread ?? '')
+  pushUnique(reasons, dialogueWorldThread?.currentQuestion ?? '')
   if (dialogueFocus?.screenReferenceMode !== 'avoid') {
-    pushUnique(reasons, input.state.currentScene?.summary ?? '')
-    pushUnique(reasons, input.state.worldModel?.activeThread?.summary ?? '')
+    pushUnique(reasons, currentScene?.summary ?? '')
+    pushUnique(reasons, worldModel?.activeThread?.summary ?? '')
   }
   pushUnique(reasons, concern?.summary ?? '')
   pushUnique(reasons, commitment?.summary ?? '')
   pushUnique(reasons, inquiry?.question ?? '')
   pushUnique(reasons, project?.summary ?? '')
   pushUnique(reasons, reflection?.revision ?? '')
-  pushUnique(reasons, input.state.answerPlanner?.answerIntent ?? '')
-  pushUnique(reasons, input.state.privateThought?.thoughtText ?? '')
+  pushUnique(reasons, answerPlanner?.answerIntent ?? '')
+  pushUnique(reasons, privateThought?.thoughtText ?? '')
   pushUnique(reasons, dialogueActKernel?.whyNow ?? '')
 
   const mustDo: string[] = [
@@ -519,10 +580,10 @@ export function buildAlicizationResponseCharter(input: {
   if (currentConsciousFrame?.shouldSelfRevise) {
     mustNotDo.push('Do not preserve the old read just to maintain a smooth persona performance.')
   }
-  if (input.state.recallGovernor?.suppressAssociativeRecall) {
+  if (recallGovernor?.suppressAssociativeRecall) {
     mustDo.push('Let the recall governor keep associative memory subordinate to the current thread.')
   }
-  if (!input.state.recallGovernor?.allowRecalledFragments) {
+  if (!recallGovernor?.allowRecalledFragments) {
     mustNotDo.push('Do not pull in decorative recalled fragments when the recall governor has not admitted them.')
   }
 
@@ -554,6 +615,22 @@ export function buildAlicizationResponseCharter(input: {
   if (relationshipPosture === 'restrained') {
     mustNotDo.push('Do not overplay softness, clinginess, or theatrical intimacy while the truth boundary is unstable.')
   }
+  if (digitalLifeArchitecture?.operatingMode === 'speaking' || digitalLifeArchitecture?.dominantSystem === 'dialogue') {
+    mustDo.push('Treat this as an already-live speaking turn and pay off the current dialogue move before restarting scene setup.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'observing' || digitalLifeArchitecture?.dominantSystem === 'perception') {
+    mustDo.push('Let current observation lead before memory, theory, or persona color.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'acting' || digitalLifeArchitecture?.dominantSystem === 'control') {
+    mustDo.push('If the knot is task-shaped, converge on one concrete next move or decision boundary.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'remembering' || digitalLifeArchitecture?.dominantSystem === 'memory') {
+    mustDo.push('When continuity is memory-led, name it as carry or memory instead of present-tense sight.')
+    mustNotDo.push('Do not let remembered continuity impersonate a fresh live read.')
+  }
+  if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
+    mustNotDo.push('Do not let the urge to speak outrun the host’s actual turn.')
+  }
   for (const item of dialogueActKernel?.mustSay ?? [])
     pushUnique(mustDo, item)
   for (const item of dialogueActKernel?.mustAvoid ?? [])
@@ -569,10 +646,20 @@ export function buildAlicizationResponseCharter(input: {
       || dialogueActKernel?.whyNow
       || dialogueActKernel?.openingClaim
       || resolveGoverningFocus({
-        state: input.state,
+        currentScene,
+        executiveCycle,
+        answerPlanner,
+        concernContinuity,
+        repairLedger,
+        worldModel,
+        privateThought,
+        replyDeliberation,
+        dialogueWorldThread,
         concern,
         commitment,
         inquiry,
+        project,
+        reflection,
         dialogueSemantics,
         dialogueObligation,
         dialogueFocus,
@@ -584,19 +671,22 @@ export function buildAlicizationResponseCharter(input: {
     governingInquiry: sanitizeText(inquiry?.question ?? '', 180) || null,
     governingProject: sanitizeText(project?.summary ?? '', 180) || null,
     latestRevision: sanitizeText(reflection?.revision ?? '', 180) || null,
-    executivePhase: sanitizeText(input.state.executiveCycle?.phase ?? '', 64) || null,
+    executivePhase: sanitizeText(executiveCycle?.phase ?? '', 64) || null,
     truthFrame: sanitizeText(
-      input.state.initiative?.selectedTruthFrame
-      ?? input.state.worldOntology?.dominantFrame
+      initiative?.selectedTruthFrame
+      ?? worldOntology?.dominantFrame
       ?? '',
       96,
     ) || null,
     mindMode: sanitizeText(
-      input.state.mindKernel?.dominantMode
-      ?? input.state.privateThought?.stance
+      mindKernel?.dominantMode
+      ?? privateThought?.stance
       ?? '',
       48,
     ) || null,
+    digitalLifeOperatingMode: digitalLifeArchitecture?.operatingMode ?? null,
+    digitalLifeDominantSystem: digitalLifeArchitecture?.dominantSystem ?? null,
+    digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
     relationshipPosture,
     reasons: reasons.slice(0, 4),
     mustDo,
@@ -619,8 +709,17 @@ export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationR
     `Executive phase: ${charter.executivePhase ?? 'none'}.`,
     `Truth frame: ${charter.truthFrame ?? 'none'}.`,
     `Mind mode: ${charter.mindMode ?? 'none'}.`,
+    charter.digitalLifeOperatingMode
+      ? `Digital life mode: ${charter.digitalLifeOperatingMode}.`
+      : '',
+    charter.digitalLifeDominantSystem
+      ? `Digital life dominant system: ${charter.digitalLifeDominantSystem}.`
+      : '',
+    charter.digitalLifeSummary
+      ? `Digital life architecture: ${charter.digitalLifeSummary}.`
+      : '',
     `Relationship posture: ${charter.relationshipPosture}.`,
-  ]
+  ].filter(Boolean)
 
   if (charter.reasons.length > 0) {
     lines.push(

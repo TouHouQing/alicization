@@ -34,10 +34,10 @@ export function setCharacterLlmMarkerParserFactoryForTest(factory: ParserFactory
 }
 
 export const useCharacterStore = defineStore('character', () => {
-  const { activeCard, systemPrompt } = storeToRefs(useAiriCardStore())
+  const { activeCard, activeCardId, systemPrompt } = storeToRefs(useAiriCardStore())
 
   const name = computed(() => activeCard.value?.name ?? '')
-  const ownerId = computed(() => activeCard.value?.name ?? 'default')
+  const ownerId = computed(() => activeCardId.value || activeCard.value?.name || 'default')
 
   const reactions = ref<CharacterSparkNotifyReaction[]>([])
   const streamingReactions = ref<Map<string, StreamingReactionState>>(new Map())

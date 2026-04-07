@@ -13,13 +13,15 @@ const { platform } = useAppRuntime()
   <div
     bg="neutral-100 dark:neutral-900" w="100dvw"
     top="0"
-    fixed z-100 w-full select-none py-2 pr-4 drag-region
+    fixed z-100 w-full select-none py-2 pr-4
+    class="pointer-events-none"
     :class="[
       platform === 'macos' ? 'pl-20' : 'pl-4',
     ]"
   >
-    <div flex drag-region>
+    <div flex>
       <div
+        class="[-webkit-app-region:no-drag] pointer-events-auto"
         bg="hover:neutral-200 hover:dark:neutral-800"
         transition="all duration-200 ease-in-out"
         flex cursor-pointer select-none items-center gap-2 rounded-md px-1.5 py-0.5
@@ -27,8 +29,9 @@ const { platform } = useAppRuntime()
         <div :class="icon" select-none text="neutral-400 dark:neutral-500" whitespace-nowrap />
         <div><span select-none whitespace-nowrap text-sm>{{ title }}</span></div>
       </div>
-      <div w-full drag-region />
+      <div class="pointer-events-auto" w-full drag-region />
       <div
+        class="[-webkit-app-region:no-drag] pointer-events-auto"
         bg="hover:neutral-200 hover:dark:neutral-800"
         transition="all duration-200 ease-in-out"
         flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-0.5

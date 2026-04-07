@@ -1,7 +1,10 @@
+import { resolveStageEmbodimentLive2DMotionAliases } from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { useBroadcastChannel } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+
+import { Emotion, EMOTION_EmotionMotionName_value } from '../constants/emotions'
 
 type BroadcastChannelEvents
   = | BroadcastChannelEventShouldUpdateView
@@ -41,9 +44,44 @@ export interface Live2DAvailableMotion {
   fileName: string
 }
 
+export interface Live2DMotionSelection {
+  group: string
+  index: number
+}
+
+function resolveEmotionMotionName(emotion: Emotion | string) {
+  const aliases = resolveStageEmbodimentLive2DMotionAliases(emotion)
+  return aliases[0] ?? null
+}
+
+function normalizeMotionIdentity(raw: unknown) {
+  if (typeof raw !== 'string')
+    return ''
+
+  return raw.trim().toLowerCase()
+}
+
+function buildMotionSelectionSignature(motion: Live2DAvailableMotion) {
+  return `${normalizeMotionIdentity(motion.motionName)}:${motion.motionIndex}:${normalizeMotionIdentity(motion.fileName)}`
+}
+
+function dedupeMotionCandidates(candidates: Live2DAvailableMotion[]) {
+  const deduped: Live2DAvailableMotion[] = []
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    const signature = buildMotionSelectionSignature(candidate)
+    if (!signature || seen.has(signature))
+      continue
+    seen.add(signature)
+    deduped.push(candidate)
+  }
+  return deduped
+}
+
 export const useLive2d = defineStore('live2d', () => {
   const { post, data } = useBroadcastChannel<BroadcastChannelEvents, BroadcastChannelEvents>({ name: 'airi-stores-stage-ui-live2d' })
   const shouldUpdateViewHooks = ref(new Set<() => void>())
+  const emotionMotionSelectionState = new Map<string, { lastSignature: string, rotationIndex: number }>()
 
   const onShouldUpdateView = (hook: () => void) => {
     shouldUpdateViewHooks.value.add(hook)
@@ -100,6 +138,109 @@ export const useLive2d = defineStore('live2d', () => {
     return availableMotionsByModel.value[normalizedModelId] ?? []
   }
 
+  function resolveEmotionMotionCandidates(
+    motions: Live2DAvailableMotion[],
+    preferredMotionNames: string[],
+  ) {
+    const normalizedPreferredNames = new Set(
+      preferredMotionNames
+        .map(name => normalizeMotionIdentity(name))
+        .filter(Boolean),
+    )
+    if (normalizedPreferredNames.size === 0)
+      return []
+
+    const mappedCandidates = motions.filter((motion) => {
+      return normalizedPreferredNames.has(normalizeMotionIdentity(motionMap.value[motion.fileName]))
+    })
+    const directCandidates = motions.filter((motion) => {
+      return normalizedPreferredNames.has(normalizeMotionIdentity(motion.motionName))
+    })
+    return dedupeMotionCandidates([
+      ...mappedCandidates,
+      ...directCandidates,
+    ])
+  }
+
+  function pickMotionCandidate(selectionKey: string, candidates: Live2DAvailableMotion[]) {
+    if (candidates.length === 0)
+      return null
+
+    const dedupedCandidates = dedupeMotionCandidates(candidates)
+    if (dedupedCandidates.length === 0)
+      return null
+
+    const state = emotionMotionSelectionState.get(selectionKey) ?? {
+      lastSignature: '',
+      rotationIndex: 0,
+    }
+    const pool = state.lastSignature && dedupedCandidates.length > 1
+      ? dedupedCandidates.filter(candidate => buildMotionSelectionSignature(candidate) !== state.lastSignature)
+      : dedupedCandidates
+    const resolvedPool = pool.length > 0 ? pool : dedupedCandidates
+    const index = state.rotationIndex % resolvedPool.length
+    const selected = resolvedPool[index] ?? resolvedPool[0] ?? null
+    if (!selected)
+      return null
+
+    state.rotationIndex += 1
+    state.lastSignature = buildMotionSelectionSignature(selected)
+    emotionMotionSelectionState.set(selectionKey, state)
+    return selected
+  }
+
+  function resolveEmotionMotionSelection(
+    modelId: string | undefined,
+    emotion: Emotion | string,
+    options?: {
+      preferredMotionAliases?: readonly string[]
+    },
+  ): Live2DMotionSelection | null {
+    const motions = getAvailableMotionsForModel(modelId)
+    if (motions.length === 0)
+      return null
+
+    const preferredMotionAliases = [
+      ...new Set([
+        ...(options?.preferredMotionAliases ?? []).map(alias => normalizeMotionIdentity(alias)).filter(Boolean),
+        ...resolveStageEmbodimentLive2DMotionAliases(emotion).map(alias => normalizeMotionIdentity(alias)).filter(Boolean),
+      ]),
+    ]
+    const preferredMotionName = preferredMotionAliases[0] ?? resolveEmotionMotionName(emotion)
+    if (!preferredMotionName || preferredMotionAliases.length === 0)
+      return null
+
+    const normalizedModelId = normalizeModelId(modelId) || '__default__'
+    const normalizedPreferred = normalizeMotionIdentity(preferredMotionName)
+    const normalizedNeutral = normalizeMotionIdentity(EMOTION_EmotionMotionName_value[Emotion.Neutral])
+    const selectionKey = `${normalizedModelId}:${normalizedPreferred}`
+
+    const preferredCandidates = resolveEmotionMotionCandidates(motions, preferredMotionAliases)
+    const selectedPreferredMotion = pickMotionCandidate(selectionKey, preferredCandidates)
+    if (selectedPreferredMotion) {
+      return {
+        group: selectedPreferredMotion.motionName,
+        index: selectedPreferredMotion.motionIndex,
+      }
+    }
+
+    if (normalizeMotionIdentity(preferredMotionName) === normalizedNeutral)
+      return null
+
+    const neutralCandidates = resolveEmotionMotionCandidates(
+      motions,
+      resolveStageEmbodimentLive2DMotionAliases(Emotion.Neutral),
+    )
+    const selectedNeutralMotion = pickMotionCandidate(`${normalizedModelId}:${normalizedNeutral}`, neutralCandidates)
+    if (!selectedNeutralMotion)
+      return null
+
+    return {
+      group: selectedNeutralMotion.motionName,
+      index: selectedNeutralMotion.motionIndex,
+    }
+  }
+
   function resetState() {
     position.reset()
     currentMotion.reset()
@@ -108,6 +249,7 @@ export const useLive2d = defineStore('live2d', () => {
     motionMap.reset()
     scale.reset()
     modelParameters.reset()
+    emotionMotionSelectionState.clear()
     shouldUpdateView()
   }
 
@@ -122,6 +264,7 @@ export const useLive2d = defineStore('live2d', () => {
     modelParameters,
     setAvailableMotionsForModel,
     getAvailableMotionsForModel,
+    resolveEmotionMotionSelection,
 
     onShouldUpdateView,
     shouldUpdateView,

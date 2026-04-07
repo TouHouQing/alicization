@@ -4,6 +4,8 @@ import {
   buildConversationState,
   buildConversationStateSystemBlock,
 } from './conversation-state'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildConversationState', () => {
   it('holds an unresolved coding thread as task memory instead of associative drift', () => {
@@ -373,5 +375,173 @@ describe('buildConversationState', () => {
     expect(state?.unansweredQuestion).toBeNull()
     expect(state?.memoryMode).toBe('dialogue-carry')
     expect(state?.memoryQueryHints.join(' | ')).not.toContain('Java interview questions')
+  })
+
+  it('prefers runtimeSurface dialogue and memory state over conflicting raw carry inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(50_000)
+    runtimeBackedState.dialogueEncounter = {
+      summary: 'The runtime branch is still the live seam.',
+      dialogueFirst: false,
+    } as any
+    runtimeBackedState.discourseState = {
+      currentTurnSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      currentTurnSummary: 'Stay on the runtime branch.',
+      currentQuestion: 'Which runtime branch is failing?',
+      owedAction: 'guide-task',
+      relationMove: 'guide',
+      continuityMode: 'task-first',
+      unresolvedCarry: 'The runtime branch is still unresolved.',
+      ruptureRepair: null,
+      confidence: 0.88,
+      narrative: [],
+      updatedAt: 50_000,
+    } as any
+    runtimeBackedState.worldModel = {
+      activeThread: {
+        id: 'thread::runtime',
+        kind: 'debugging',
+        status: 'active',
+        source: 'grounded-scene',
+        title: 'Runtime diff',
+        summary: 'The runtime branch is still unresolved.',
+        confidence: 0.9,
+        significance: 0.82,
+        unresolved: true,
+        beganAt: 0,
+        lastUpdatedAt: 50_000,
+        target: null,
+      },
+      lingeringThreads: [],
+      focusTarget: null,
+      epistemicState: {
+        certainty: 'grounded',
+        freshness: 'live',
+        seenNow: [],
+        inferredNow: [],
+        openQuestions: [],
+        staleRisks: [],
+      },
+      continuity: {
+        label: 'staying-with-thread',
+        sceneAgeMs: 10_000,
+        attentionAgeMs: 10_000,
+        sameSceneAsBefore: true,
+        sameAttentionAsBefore: true,
+        afterglowOpen: false,
+      },
+      hostState: {
+        availability: 'focused',
+        burden: 'moderate',
+      },
+      updatedAt: 50_000,
+    } as any
+    runtimeBackedState.commitmentLedger = {
+      governingCommitmentId: 'commitment::runtime',
+      commitments: [{
+        id: 'commitment::runtime',
+        kind: 'follow-through',
+        source: 'continuity',
+        title: 'Runtime diff',
+        summary: 'Stay on the runtime branch.',
+        status: 'active',
+        priority: 0.82,
+        confidence: 0.84,
+        createdAt: 0,
+        lastRenewedAt: 50_000,
+        patienceUntil: 120_000,
+        expiresAt: 240_000,
+      }],
+      carryPressure: 0.78,
+      narrative: [],
+      updatedAt: 50_000,
+    } as any
+
+    const state = buildConversationState({
+      now: 50_000,
+      userText: '继续看 runtime branch',
+      discourseState: {
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'raw conflict',
+        currentQuestion: null,
+        owedAction: 'answer-self',
+        relationMove: 'self-disclose',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.22,
+        narrative: [],
+        updatedAt: 50_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::raw',
+          kind: 'unknown',
+          status: 'active',
+          source: 'continuity',
+          title: 'raw conflict',
+          summary: 'raw conflict',
+          confidence: 0.22,
+          significance: 0.22,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 50_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'scene-shift',
+          sceneAgeMs: 50_000,
+          attentionAgeMs: 50_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 50_000,
+      },
+      commitmentLedger: {
+        governingCommitmentId: 'commitment::raw',
+        commitments: [{
+          id: 'commitment::raw',
+          kind: 'follow-through',
+          source: 'continuity',
+          title: 'raw conflict',
+          summary: 'raw conflict',
+          status: 'active',
+          priority: 0.2,
+          confidence: 0.2,
+          createdAt: 0,
+          lastRenewedAt: 50_000,
+          patienceUntil: 60_000,
+          expiresAt: 90_000,
+        }],
+        carryPressure: 0.2,
+        narrative: [],
+        updatedAt: 50_000,
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      memoryMode: 'task-thread',
+      continuityPolicy: 'stay-on-thread',
+      activeProject: 'Runtime diff',
+      shouldHoldThread: true,
+    }))
+    expect(state?.activeCommitments).toContain('Stay on the runtime branch.')
   })
 })

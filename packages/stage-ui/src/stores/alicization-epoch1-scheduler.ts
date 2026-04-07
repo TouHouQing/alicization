@@ -3,6 +3,7 @@ export const asyncExtractionIdleMs = 5 * 60 * 1000
 export const asyncExtractionBudgetWindowMs = 60 * 60 * 1000
 export const asyncExtractionMaxBatchesPerWindow = 12
 export const asyncExtractionMaxPendingTurns = 48
+export const asyncExtractionForcePriorityThreshold = 210
 
 export interface AsyncExtractionBudgetState {
   windowStartedAt: number
@@ -17,10 +18,16 @@ export interface AsyncExtractionQueueEntry {
 }
 
 export function evaluateAsyncExtractionTrigger(input: {
+  forceFlush?: boolean
+  highestPriority?: number | null
   pendingCount: number
   lastQueuedAt: number | null
   now: number
 }) {
+  if (input.forceFlush)
+    return 'force' as const
+  if (Number.isFinite(input.highestPriority) && Number(input.highestPriority) >= asyncExtractionForcePriorityThreshold)
+    return 'force' as const
   if (input.pendingCount >= asyncExtractionBatchThreshold)
     return 'batch' as const
   if (input.pendingCount > 0 && input.lastQueuedAt != null && input.now - input.lastQueuedAt >= asyncExtractionIdleMs)

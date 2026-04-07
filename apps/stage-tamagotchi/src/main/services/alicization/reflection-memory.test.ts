@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildReflectionLedgerFragment } from './reflection-memory'
 
 describe('buildReflectionLedgerFragment', () => {
@@ -116,5 +117,74 @@ describe('buildReflectionLedgerFragment', () => {
     })
 
     expect(fragment).toBe('')
+  })
+
+  it('reads reflection ledgers from runtime surfaces', () => {
+    const previousState = {
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      privateThought: null,
+      captureState: {
+        permission: 'unknown',
+        lastGroundedAt: null,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 10_000,
+      updatedAt: 10_000,
+      reflectionLedger: {
+        latestEntryId: 'reflection::runtime::1',
+        entries: [{
+          id: 'reflection::runtime::1',
+          summary: 'The prior runtime surface was still carrying stale repair pressure.',
+          expectation: 'Repair pressure should ease once regrounded.',
+          observedOutcome: 'Still stale.',
+          outcome: 'stalled',
+          revision: 'Keep the repair thread alive.',
+          confidenceShift: -0.04,
+          createdAt: 10_000,
+        }],
+        revisionPressure: 0.2,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+    }
+    const nextState = {
+      ...previousState,
+      updatedAt: 20_000,
+      reflectionLedger: {
+        latestEntryId: 'reflection::runtime::2',
+        entries: [{
+          id: 'reflection::runtime::2',
+          targetProjectId: 'project::runtime-surface',
+          targetAnswerAct: 'guide',
+          targetThreadId: 'thread::runtime-surface',
+          summary: 'The runtime surface now carries the fresher governed line.',
+          expectation: 'Surface-based ledgers should stay replayable.',
+          observedOutcome: 'Read-side modules now agree on one runtime surface.',
+          outcome: 'corrected',
+          revision: 'Read reflection state from the digital-life surface, not raw field soup.',
+          confidenceShift: 0.12,
+          createdAt: 20_000,
+        }],
+        revisionPressure: 0.08,
+        narrative: [],
+        updatedAt: 20_000,
+      },
+    }
+
+    const fragment = buildReflectionLedgerFragment({
+      previousRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(previousState as any),
+      nextRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(nextState as any),
+    })
+
+    expect(fragment).toContain('reflection_outcome:corrected')
+    expect(fragment).toContain('reflection_project:project::runtime-surface')
+    expect(fragment).toContain('reflection_act:guide')
+    expect(fragment).toContain('reflection_confidence_shift:0.12')
+    expect(fragment).toContain('reflection_pressure:0.08')
+    expect(fragment).toContain('revision:Read reflection state from the digital-life surface, not raw field soup.')
   })
 })

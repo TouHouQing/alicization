@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest } from '../shared/eventa'
+import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationVisualPresenceStateChangedPayload, AlicizationVisualPresenceStateSnapshot } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-alicization/stage-layouts/composables/theme-color'
 import { ToasterRoot } from '@proj-alicization/stage-ui/components'
-import { clearAlicizationBridge, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import { clearAlicizationBridge, normalizeAlicizationDigitalLifeSpineDigest, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
 import { useAlicizationPresenceDispatcherStore } from '@proj-alicization/stage-ui/stores/alicization-presence-dispatcher'
 import { useSharedAnalyticsStore } from '@proj-alicization/stage-ui/stores/analytics'
@@ -53,12 +53,14 @@ import {
   electronAlicizationAckDialogue,
   electronAlicizationAppendAuditLog,
   electronAlicizationAppendConversationTurn,
+  electronAlicizationAppendExecutionEvents,
   electronAlicizationBootstrap,
   electronAlicizationChatAbort,
   electronAlicizationChatStart,
   electronAlicizationClearAllConversations,
   electronAlicizationDeleteAllData,
   electronAlicizationDeleteCardScope,
+  electronAlicizationDispatchTaskThread,
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetPerformanceManifest,
@@ -69,13 +71,18 @@ import {
   electronAlicizationKillSwitchGetState,
   electronAlicizationKillSwitchResume,
   electronAlicizationKillSwitchSuspend,
+  electronAlicizationListChannelCapabilityManifests,
   electronAlicizationListConversationTurns,
+  electronAlicizationListExecutionEvents,
+  electronAlicizationListExecutorSessions,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationListTaskThreads,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationPlanTaskThread,
   electronAlicizationRealtimeExecute,
   electronAlicizationReminderSchedule,
   electronAlicizationReplayDialogues,
@@ -91,7 +98,11 @@ import {
   electronAlicizationUpdateMemoryStats,
   electronAlicizationUpdatePersonality,
   electronAlicizationUpdateSoul,
+  electronAlicizationUpsertChannelCapabilityManifest,
+  electronAlicizationUpsertExecutorSession,
+  electronAlicizationUpsertTaskThread,
   electronAlicizationVisualPresenceChanged,
+  electronAlicizationVisualPresenceStateChanged,
   electronGetServerChannelConfig,
   electronMcpCallTool,
   electronMcpListTools,
@@ -163,6 +174,16 @@ const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicization
 const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
 const alicizationListMindTurnEvents = useElectronEventaInvoke(electronAlicizationListMindTurnEvents)
+const alicizationUpsertTaskThread = useElectronEventaInvoke(electronAlicizationUpsertTaskThread)
+const alicizationListTaskThreads = useElectronEventaInvoke(electronAlicizationListTaskThreads)
+const alicizationUpsertChannelCapabilityManifest = useElectronEventaInvoke(electronAlicizationUpsertChannelCapabilityManifest)
+const alicizationListChannelCapabilityManifests = useElectronEventaInvoke(electronAlicizationListChannelCapabilityManifests)
+const alicizationUpsertExecutorSession = useElectronEventaInvoke(electronAlicizationUpsertExecutorSession)
+const alicizationListExecutorSessions = useElectronEventaInvoke(electronAlicizationListExecutorSessions)
+const alicizationAppendExecutionEvents = useElectronEventaInvoke(electronAlicizationAppendExecutionEvents)
+const alicizationListExecutionEvents = useElectronEventaInvoke(electronAlicizationListExecutionEvents)
+const alicizationPlanTaskThread = useElectronEventaInvoke(electronAlicizationPlanTaskThread)
+const alicizationDispatchTaskThread = useElectronEventaInvoke(electronAlicizationDispatchTaskThread)
 const alicizationGetMemoryStats = useElectronEventaInvoke(electronAlicizationGetMemoryStats)
 const alicizationGetOrganicMemorySnapshot = useElectronEventaInvoke(electronAlicizationGetOrganicMemorySnapshot)
 const alicizationGetPerformanceManifest = useElectronEventaInvoke(electronAlicizationGetPerformanceManifest)
@@ -309,14 +330,7 @@ async function upsertProactiveAssistantTurn(payload: {
     return
 
   const normalizedCreatedAt = normalizeCreatedAt(payload.createdAt)
-  const structuredThought = typeof payload.structured?.thought === 'string'
-    ? payload.structured.thought.trim()
-    : ''
-  const structuredEmotion = typeof payload.structured?.emotion === 'string'
-    ? payload.structured.emotion.trim()
-    : 'neutral'
-  const structuredFormat = normalizeStructuredFormat(payload.structured?.format)
-  const proactive = normalizeProactiveMetadata(payload.structured?.proactive)
+  const normalizedStructured = normalizeChatStructuredRecord(payload.structured, assistantText)
 
   const sessionMessages = chatSessionStore.getSessionMessages(ensuredSessionId)
   const existing = sessionMessages.find(message => message.id === turnId && message.role === 'assistant')
@@ -327,16 +341,10 @@ async function upsertProactiveAssistantTurn(payload: {
     existingAssistant.slices = [{ type: 'text', text: assistantText }]
     existingAssistant.tool_results = []
     existingAssistant.origin = 'subconscious-proactive'
-    existingAssistant.structured = {
-      thought: structuredThought,
-      emotion: structuredEmotion,
-      reply: assistantText,
-      format: structuredFormat,
-      proactive,
-    }
+    existingAssistant.structured = normalizedStructured
     existingAssistant.categorization = {
       speech: assistantText,
-      reasoning: structuredThought,
+      reasoning: normalizedStructured.thought,
     }
   }
   else {
@@ -348,16 +356,10 @@ async function upsertProactiveAssistantTurn(payload: {
       origin: 'subconscious-proactive',
       slices: [{ type: 'text', text: assistantText }],
       tool_results: [],
-      structured: {
-        thought: structuredThought,
-        emotion: structuredEmotion,
-        reply: assistantText,
-        format: structuredFormat,
-        proactive,
-      },
+      structured: normalizedStructured,
       categorization: {
         speech: assistantText,
-        reasoning: structuredThought,
+        reasoning: normalizedStructured.thought,
       },
     })
   }
@@ -368,6 +370,24 @@ async function upsertProactiveAssistantTurn(payload: {
 
 function normalizeContentText(raw: unknown) {
   return String(raw ?? '').trim()
+}
+
+function normalizeChatStructuredRecord(raw: unknown, fallbackReply: string) {
+  const structured = raw && typeof raw === 'object'
+    ? raw as Record<string, unknown>
+    : {}
+
+  return {
+    ...structured,
+    thought: typeof structured.thought === 'string' ? structured.thought.trim() : '',
+    emotion: typeof structured.emotion === 'string' ? structured.emotion.trim() : 'neutral',
+    reply: typeof structured.reply === 'string' && structured.reply.trim()
+      ? structured.reply.trim()
+      : fallbackReply,
+    format: normalizeStructuredFormat(structured.format),
+    proactive: normalizeProactiveMetadata(structured.proactive),
+    digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
+  }
 }
 
 function getMessageText(message: any) {
@@ -500,17 +520,11 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
 
       const assistantText = normalizeContentText(row.assistantText)
       if (assistantText) {
-        const structured = row.structured && typeof row.structured === 'object'
-          ? row.structured as Record<string, unknown>
-          : {}
-        const structuredThought = typeof structured.thought === 'string' ? structured.thought.trim() : ''
-        const structuredEmotion = typeof structured.emotion === 'string' ? structured.emotion.trim() : 'neutral'
-        const structuredFormat = normalizeStructuredFormat(structured.format)
-        const proactive = normalizeProactiveMetadata(structured.proactive)
+        const structured = normalizeChatStructuredRecord(row.structured, assistantText)
         const inferredOrigin = turnId.startsWith('reminder:') || turnId.startsWith('subconscious:')
-          || structuredFormat === 'subconscious-proactive-v1'
-          || structuredFormat === 'subconscious-proactive-llm-v1'
-          || structuredFormat === 'subconscious-reminder-v1'
+          || structured.format === 'subconscious-proactive-v1'
+          || structured.format === 'subconscious-proactive-llm-v1'
+          || structured.format === 'subconscious-reminder-v1'
           ? 'subconscious-proactive'
           : 'user-turn'
         const assistantIndex = findReplayMessageIndex(sessionMessages as any[], {
@@ -525,8 +539,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             id: existing.id,
             content: existing.content,
             createdAt: existing.createdAt,
-            thought: existing.structured?.thought,
-            emotion: existing.structured?.emotion,
+            structured: existing.structured ?? null,
           })
           existing.id = turnId
           existing.content = assistantText
@@ -534,23 +547,16 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
           existing.origin = inferredOrigin
           existing.slices = [{ type: 'text', text: assistantText }]
           existing.tool_results = Array.isArray(existing.tool_results) ? existing.tool_results : []
-          existing.structured = {
-            thought: structuredThought,
-            emotion: structuredEmotion,
-            reply: assistantText,
-            format: structuredFormat,
-            proactive,
-          }
+          existing.structured = structured
           existing.categorization = {
             speech: assistantText,
-            reasoning: structuredThought,
+            reasoning: structured.thought,
           }
           const afterSignature = JSON.stringify({
             id: existing.id,
             content: existing.content,
             createdAt: existing.createdAt,
-            thought: existing.structured?.thought,
-            emotion: existing.structured?.emotion,
+            structured: existing.structured ?? null,
           })
           if (beforeSignature !== afterSignature)
             changed = true
@@ -564,16 +570,10 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             origin: inferredOrigin,
             slices: [{ type: 'text', text: assistantText }],
             tool_results: [],
-            structured: {
-              thought: structuredThought,
-              emotion: structuredEmotion,
-              reply: assistantText,
-              format: structuredFormat,
-              proactive,
-            },
+            structured,
             categorization: {
               speech: assistantText,
-              reasoning: structuredThought,
+              reasoning: structured.thought,
             },
           } as any)
           changed = true
@@ -714,6 +714,10 @@ function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
   void pending.onStreamEvent?.({
     type: 'meta',
     governance: payload.governance ?? null,
+    embodiment: payload.embodiment ?? null,
+    speechTimeline: payload.speechTimeline ?? null,
+    digitalLife: payload.digitalLife ?? null,
+    digitalLifeSpine: payload.digitalLifeSpine ?? null,
   })
 }
 
@@ -830,10 +834,34 @@ function handleAlicizationDialogueRespondedPayload(payload?: AlicizationDialogue
   void alicizationPresenceDispatcherStore.dispatchDialogueResponded(payload)
 }
 
+const visualPresencePulseListeners = new Set<(payload: AlicizationPresencePulsePayload) => void>()
+const visualPresenceStateListeners = new Set<(state: AlicizationVisualPresenceStateSnapshot | null) => void>()
+
 function handleAlicizationVisualPresencePayload(payload?: AlicizationPresencePulsePayload) {
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
   void alicizationPresenceDispatcherStore.dispatchPresencePulse(payload)
+  for (const listener of visualPresencePulseListeners) {
+    try {
+      listener(payload)
+    }
+    catch {
+      // NOTICE: Visual presence pulse listeners are observational and must degrade silently.
+    }
+  }
+}
+
+function handleAlicizationVisualPresenceStatePayload(payload?: AlicizationVisualPresenceStateChangedPayload) {
+  if (!payload || !isCurrentAlicizationCard(payload.cardId))
+    return
+  for (const listener of visualPresenceStateListeners) {
+    try {
+      listener(payload.state ?? null)
+    }
+    catch {
+      // NOTICE: Visual presence snapshot listeners are observational and must degrade silently.
+    }
+  }
 }
 
 function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDispatchPayload) {
@@ -920,12 +948,34 @@ setAlicizationBridge({
   setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
+  upsertTaskThread: async payload => await alicizationUpsertTaskThread({ ...resolveAlicizationScope(), ...payload }),
+  listTaskThreads: async payload => await alicizationListTaskThreads({ ...resolveAlicizationScope(), ...payload }),
+  upsertChannelCapabilityManifest: async payload => await alicizationUpsertChannelCapabilityManifest({ ...resolveAlicizationScope(), ...payload }),
+  listChannelCapabilityManifests: async payload => await alicizationListChannelCapabilityManifests({ ...resolveAlicizationScope(), ...payload }),
+  upsertExecutorSession: async payload => await alicizationUpsertExecutorSession({ ...resolveAlicizationScope(), ...payload }),
+  listExecutorSessions: async payload => await alicizationListExecutorSessions({ ...resolveAlicizationScope(), ...payload }),
+  appendExecutionEvents: async payload => await alicizationAppendExecutionEvents({ ...resolveAlicizationScope(), ...payload }),
+  listExecutionEvents: async payload => await alicizationListExecutionEvents({ ...resolveAlicizationScope(), ...payload }),
+  planTaskThread: async payload => await alicizationPlanTaskThread({ ...resolveAlicizationScope(), ...payload }),
+  dispatchTaskThread: async payload => await alicizationDispatchTaskThread({ ...resolveAlicizationScope(), ...payload }),
   reportProactiveFeedback: async payload => await alicizationReportProactiveFeedback({ ...resolveAlicizationScope(), ...payload }),
   setActiveSession: async payload => await alicizationSetActiveSession({ ...resolveAlicizationScope(), ...payload }),
   appendAuditLog: async payload => await alicizationAppendAuditLog({ ...resolveAlicizationScope(), ...payload }),
   realtimeExecute: async payload => await alicizationRealtimeExecute({ ...resolveAlicizationScope(), ...payload }),
   getSensorySnapshot: async () => await alicizationGetSensorySnapshot(resolveAlicizationScope()),
   getVisualPresenceState: async () => await alicizationGetVisualPresenceState(resolveAlicizationScope()),
+  onVisualPresencePulse: (listener) => {
+    visualPresencePulseListeners.add(listener)
+    return () => {
+      visualPresencePulseListeners.delete(listener)
+    }
+  },
+  onVisualPresenceState: (listener) => {
+    visualPresenceStateListeners.add(listener)
+    return () => {
+      visualPresenceStateListeners.delete(listener)
+    }
+  },
   getSubconsciousState: async () => await alicizationGetSubconsciousState(resolveAlicizationScope()),
   forceSubconsciousTick: async () => await alicizationForceSubconsciousTick(resolveAlicizationScope()),
   forceDreaming: async payload => await alicizationForceDreaming({ ...resolveAlicizationScope(), ...payload }),
@@ -1056,6 +1106,10 @@ setAlicizationBridge({
           await options.onStreamEvent?.({
             type: 'meta',
             governance: start.governance ?? null,
+            embodiment: start.embodiment ?? null,
+            speechTimeline: start.speechTimeline ?? null,
+            digitalLife: start.digitalLife ?? null,
+            digitalLifeSpine: start.digitalLifeSpine ?? null,
           })
         }
         if (!start.accepted) {
@@ -1124,6 +1178,7 @@ context.value.on(alicizationKillSwitchStateChanged, (event) => {
 
 context.value.on(alicizationDialogueResponded, event => handleAlicizationDialogueRespondedPayload(event?.body))
 context.value.on(electronAlicizationVisualPresenceChanged, event => handleAlicizationVisualPresencePayload(event?.body))
+context.value.on(electronAlicizationVisualPresenceStateChanged, event => handleAlicizationVisualPresenceStatePayload(event?.body))
 
 context.value.on(alicizationSafetyPermissionRequested, (event) => {
   const payload = event?.body

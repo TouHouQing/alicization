@@ -3,25 +3,25 @@ import type { SourcesOptions } from 'electron'
 import type { MaybeRefOrGetter } from 'vue'
 
 import type { ScreenCaptureSetSourceRequest, SerializableDesktopCapturerSource } from '..'
+import type { CreateScreenCaptureSessionOptions } from '../session'
 
-import { defineInvoke } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/renderer'
-import { toRaw, toValue } from 'vue'
+import { onScopeDispose, toRaw, toValue } from 'vue'
 
-import { screenCapture } from '..'
+import { setupElectronScreenCapture } from '../renderer'
+import { createScreenCaptureSession } from '../session'
 
 export function useElectronScreenCapture(ipcRenderer: IpcRenderer, sourcesOptions: MaybeRefOrGetter<SourcesOptions>) {
   const context = createContext(ipcRenderer).context
-
-  const invokeGetSources = defineInvoke(context, screenCapture.getSources)
-  const setSource = defineInvoke(context, screenCapture.setSource)
-  const resetSource = defineInvoke(context, screenCapture.resetSource)
-
-  const checkMacOSPermission = defineInvoke(context, screenCapture.checkMacOSPermission)
-  const requestMacOSPermission = defineInvoke(context, screenCapture.requestMacOSPermission)
+  const resolveSourcesOptions = () => toRaw(toValue(sourcesOptions))
+  const boundApi = setupElectronScreenCapture(context).bind(resolveSourcesOptions)
 
   async function getSources() {
-    return invokeGetSources(toRaw(toValue(sourcesOptions)))
+    return boundApi.getSources()
+  }
+
+  async function getDiagnostics() {
+    return await boundApi.getDiagnostics()
   }
 
   async function selectWithSource<R>(
@@ -34,26 +34,46 @@ export function useElectronScreenCapture(ipcRenderer: IpcRenderer, sourcesOption
 
     let handle: string | undefined
     try {
-      handle = await setSource({
-        options: toRaw(toValue(sourcesOptions)),
-        sourceId,
-        timeout: request?.timeout,
-      })
+      handle = await boundApi.setSource(sourceId, request)
       return await useFn()
     }
     finally {
       if (handle) {
-        await resetSource(handle)
+        await boundApi.resetSource(handle)
       }
     }
   }
 
+  function createSession(options: CreateScreenCaptureSessionOptions = {}) {
+    return createScreenCaptureSession(boundApi, options)
+  }
+
   return {
+    createSession,
+    getDiagnostics,
     getSources,
-    setSource,
-    resetSource,
+    setSource: boundApi.setSource,
+    resetSource: boundApi.resetSource,
     selectWithSource,
-    checkMacOSPermission,
-    requestMacOSPermission,
+    checkMacOSPermission: boundApi.checkMacOSPermission,
+    requestMacOSPermission: boundApi.requestMacOSPermission,
+  }
+}
+
+export function useElectronScreenCaptureSession(
+  ipcRenderer: IpcRenderer,
+  sourcesOptions: MaybeRefOrGetter<SourcesOptions>,
+  sessionOptions: CreateScreenCaptureSessionOptions = {},
+) {
+  const api = useElectronScreenCapture(ipcRenderer, sourcesOptions)
+  const session = api.createSession(sessionOptions)
+
+  onScopeDispose(() => {
+    session.dispose()
+  })
+
+  return {
+    ...api,
+    session,
   }
 }

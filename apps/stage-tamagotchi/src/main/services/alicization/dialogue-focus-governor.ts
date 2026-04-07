@@ -7,6 +7,7 @@ import type {
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { isDialogueFirstSubject } from './dialogue-surface-text'
 
@@ -93,7 +94,11 @@ export function buildDialogueFocusGovernance(input: {
   ownership?: AlicizationDialogueTurnOwnership | null
   currentScene: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
   const inspectionOwnedTurn = input.semantics.reasonTags.includes('inspection-owned-turn')
     || input.semantics.reasonTags.includes('inspection-requested-turn')
   const sceneBoundTurn = input.semantics.reasonTags.includes('scene-bound-turn')
@@ -102,8 +107,8 @@ export function buildDialogueFocusGovernance(input: {
     || input.semantics.reasonTags.includes('intelligence-critique')
     || input.semantics.reasonTags.includes('frustration-expression')
   const weakLiveScene = isWeakLiveScene({
-    currentScene: input.currentScene,
-    worldModel: input.worldModel ?? null,
+    currentScene,
+    worldModel,
   })
   const preferredSubject = input.semantics.subjectPreference ?? null
 
@@ -112,7 +117,7 @@ export function buildDialogueFocusGovernance(input: {
     subject = input.ownership.subject
   }
   else if (inspectionOwnedTurn) {
-    subject = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
+    subject = worldModel?.activeThread ? 'task-knot' : 'visible-scene'
   }
   else if ((input.semantics.act === 'challenge' || complaintTurn) && preferredSubject !== 'visible-scene' && preferredSubject !== 'task-knot') {
     subject = 'alicization-self'
@@ -139,7 +144,7 @@ export function buildDialogueFocusGovernance(input: {
     subject = 'task-knot'
   }
   else if (input.semantics.act === 'verify-grounding') {
-    subject = sceneBoundTurn && input.worldModel?.activeThread
+    subject = sceneBoundTurn && worldModel?.activeThread
       ? 'task-knot'
       : 'visible-scene'
   }
@@ -150,7 +155,7 @@ export function buildDialogueFocusGovernance(input: {
     subject = 'relationship'
   }
   else if (sceneBoundTurn) {
-    subject = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
+    subject = worldModel?.activeThread ? 'task-knot' : 'visible-scene'
   }
 
   let screenReferenceMode: AlicizationDialogueScreenReferenceMode = input.ownership?.screenReferenceMode ?? 'incidental'
@@ -193,10 +198,10 @@ export function buildDialogueFocusGovernance(input: {
       ? input.semantics.taskAnchor
       : '')
     || (!isDialogueFirstSubject(subject)
-      ? input.worldModel?.activeThread?.summary
+      ? worldModel?.activeThread?.summary
       : '')
     || (!isDialogueFirstSubject(subject)
-      ? input.currentScene?.summary
+      ? currentScene?.summary
       : '')
     || 'Stay with the actual subject of this turn.',
     180,

@@ -65,6 +65,177 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+function countPatternMatches(text: string, pattern: RegExp) {
+  return text.match(pattern)?.length ?? 0
+}
+
+const inferredEmotionProfiles: Array<{ emotion: string, pattern: RegExp, weight: number }> = [
+  { emotion: 'apologetic', pattern: /抱歉|对不起|不好意思|失礼|sorry|apolog/i, weight: 1.8 },
+  { emotion: 'tired', pattern: /累|困|疲惫|撑不住|drain|exhaust|tired|sleepy/i, weight: 1.6 },
+  { emotion: 'angry', pattern: /生气|愤怒|恼火|别再|立刻|必须|马上|angry|furious|annoy|stop/i, weight: 1.5 },
+  { emotion: 'concerned', pattern: /担心|小心|先别|注意|照顾|保重|careful|concern|worry|please rest/i, weight: 1.3 },
+  { emotion: 'sad', pattern: /难过|失落|沮丧|抱憾|遗憾|sad|upset|unhappy/i, weight: 1.2 },
+  { emotion: 'surprised', pattern: /惊|居然|竟然|\?!|!\?|！？|surpris|unexpected|wow/i, weight: 1.2 },
+  { emotion: 'thinking', pattern: /让我想|先看|我需要确认|也许|可能|或许|think|maybe|perhaps|let me check/i, weight: 0.95 },
+  { emotion: 'happy', pattern: /开心|高兴|太好了|真棒|喜欢|谢谢|great|awesome|glad|happy|thanks/i, weight: 1.05 },
+]
+
+const defaultDeliveryByEmotion: Record<string, AlicizationDialoguePerformancePayload['delivery']> = {
+  neutral: 'calm',
+  happy: 'energetic',
+  sad: 'gentle',
+  angry: 'firm',
+  concerned: 'gentle',
+  tired: 'calm',
+  apologetic: 'hesitant',
+  surprised: 'energetic',
+  thinking: 'hesitant',
+}
+
+function inferEmotionFromReply(input: {
+  reply: string
+  previousEmotion?: string
+}) {
+  const reply = input.reply.trim()
+  if (!reply) {
+    return normalizeAlicizationEmotion(input.previousEmotion ?? 'neutral').emotion
+  }
+
+  let bestEmotion = ''
+  let bestScore = 0
+  for (const profile of inferredEmotionProfiles) {
+    const matchScore = countPatternMatches(reply, profile.pattern) * profile.weight
+    if (matchScore > bestScore) {
+      bestScore = matchScore
+      bestEmotion = profile.emotion
+    }
+  }
+
+  if (bestEmotion) {
+    return normalizeAlicizationEmotion(bestEmotion).emotion
+  }
+
+  const lexicalScore = estimateLexicalSentiment(reply)
+  if (lexicalScore >= 0.45)
+    return 'happy'
+  if (lexicalScore <= -0.55)
+    return 'sad'
+  if (/[?？]/.test(reply))
+    return 'thinking'
+
+  return normalizeAlicizationEmotion(input.previousEmotion ?? 'neutral').emotion
+}
+
+function inferDeliveryFromReply(input: {
+  reply: string
+  emotion: string
+}) {
+  const reply = input.reply
+  if (/必须|立刻|马上|先停|不要|务必|must|need to|stop/i.test(reply))
+    return 'firm'
+  if (/也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply))
+    return 'hesitant'
+  if (/温柔|慢慢|先别急|没关系|先休息|gentle|softly|take it easy|rest/i.test(reply))
+    return 'gentle'
+  if (/调皮|逗你|哼|坏笑|tease|playful/i.test(reply))
+    return 'teasing'
+  if (/[!！]{2,}|太好了|真棒|great|awesome|wow/i.test(reply))
+    return 'energetic'
+
+  return defaultDeliveryByEmotion[input.emotion] ?? 'calm'
+}
+
+function inferEmphasisFromReply(input: {
+  reply: string
+  delivery: AlicizationDialoguePerformancePayload['delivery']
+}) {
+  const exclamationCount = countPatternMatches(input.reply, /[!！]/g)
+  const questionCount = countPatternMatches(input.reply, /[?？]/g)
+  const strongImperative = /必须|立刻|马上|务必|绝对|must|immediately|right now/i.test(input.reply)
+  const highArousal = /太好了|真棒|超级|非常|great|awesome|amazing|wow/i.test(input.reply)
+
+  if (strongImperative || exclamationCount >= 2 || highArousal)
+    return 2 as const
+  if (questionCount >= 2 || exclamationCount >= 1 || input.delivery === 'firm' || input.delivery === 'energetic')
+    return 1 as const
+  return 0 as const
+}
+
+function inferPerformanceFromReply(input: {
+  reply: string
+  fallbackEmotion: string
+}) {
+  const emotion = normalizeAlicizationEmotion(input.fallbackEmotion).emotion
+  const delivery = inferDeliveryFromReply({
+    reply: input.reply,
+    emotion,
+  })
+  const emphasis = inferEmphasisFromReply({
+    reply: input.reply,
+    delivery,
+  })
+
+  return normalizeAlicizationPerformancePayload({
+    baseEmotion: emotion,
+    emotion,
+    delivery,
+    emphasis,
+    facialCue: null,
+    actionCue: null,
+  }, emotion)
+}
+
+function alignPerformanceEmotion(
+  performance: AlicizationDialoguePerformancePayload | undefined,
+  emotion: string,
+): AlicizationDialoguePerformancePayload {
+  const normalizedEmotion = normalizeAlicizationEmotion(emotion).emotion
+  const normalized = normalizeAlicizationPerformancePayload(performance, normalizedEmotion)
+  return {
+    ...normalized,
+    baseEmotion: normalizedEmotion,
+    emotion: normalizedEmotion,
+  }
+}
+
+function hasPerformanceFieldValue(value: unknown) {
+  if (value == null)
+    return false
+  if (typeof value === 'string')
+    return value.trim().length > 0
+  return true
+}
+
+function hasPerformanceHint(payload: Record<string, unknown> | null) {
+  if (!payload)
+    return false
+
+  return [
+    'baseEmotion',
+    'emotion',
+    'facialCue',
+    'actionCue',
+    'delivery',
+    'emphasis',
+  ].some((key) => {
+    return hasPerformanceFieldValue(payload[key])
+  })
+}
+
+function hasPerformanceDynamicsHint(payload: Record<string, unknown> | null) {
+  if (!payload)
+    return false
+
+  return [
+    'facialCue',
+    'actionCue',
+    'delivery',
+    'emphasis',
+  ].some((key) => {
+    return hasPerformanceFieldValue(payload[key])
+  })
+}
+
 interface ActPayload {
   emotion?: unknown
   userSentimentScore?: unknown
@@ -327,15 +498,49 @@ function parsePayloadEmotion(payload: Record<string, unknown> | null) {
 function parsePayloadPerformance(
   payload: Record<string, unknown> | null,
   fallbackEmotion: string,
+  reply: string,
 ): AlicizationDialoguePerformancePayload {
   const normalizedFallbackEmotion = normalizeAlicizationEmotion(fallbackEmotion).emotion
   if (!payload) {
-    return normalizeAlicizationPerformancePayload(undefined, normalizedFallbackEmotion)
+    return inferPerformanceFromReply({
+      reply,
+      fallbackEmotion: normalizedFallbackEmotion,
+    })
   }
 
   const nestedPerformance = payload.performance
   if (nestedPerformance && typeof nestedPerformance === 'object' && !Array.isArray(nestedPerformance)) {
-    return normalizeAlicizationPerformancePayload(nestedPerformance, normalizedFallbackEmotion)
+    const nestedPerformanceRecord = nestedPerformance as Record<string, unknown>
+    if (!hasPerformanceHint(nestedPerformanceRecord)) {
+      return inferPerformanceFromReply({
+        reply,
+        fallbackEmotion: normalizedFallbackEmotion,
+      })
+    }
+    if (!hasPerformanceDynamicsHint(nestedPerformanceRecord)) {
+      const nestedEmotion = normalizeAlicizationEmotion(
+        nestedPerformanceRecord.baseEmotion ?? nestedPerformanceRecord.emotion ?? normalizedFallbackEmotion,
+      ).emotion
+      return inferPerformanceFromReply({
+        reply,
+        fallbackEmotion: nestedEmotion,
+      })
+    }
+    return normalizeAlicizationPerformancePayload(nestedPerformanceRecord, normalizedFallbackEmotion)
+  }
+
+  if (!hasPerformanceHint(payload)) {
+    return inferPerformanceFromReply({
+      reply,
+      fallbackEmotion: normalizedFallbackEmotion,
+    })
+  }
+  if (!hasPerformanceDynamicsHint(payload)) {
+    const directEmotion = normalizeAlicizationEmotion(payload.baseEmotion ?? payload.emotion ?? normalizedFallbackEmotion).emotion
+    return inferPerformanceFromReply({
+      reply,
+      fallbackEmotion: directEmotion,
+    })
   }
 
   return normalizeAlicizationPerformancePayload({
@@ -740,12 +945,7 @@ export function repairStructuredContractLocally(input: {
         ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
     emotion,
     reply,
-    performance: normalizeAlicizationPerformancePayload(
-      governedSurface
-        ? undefined
-        : input.structured.performance,
-      emotion,
-    ),
+    performance: alignPerformanceEmotion(input.structured.performance, emotion),
     format: 'mind-turn-v1',
     parsePath: 'repair-json',
     repairTimedOut: false,
@@ -831,10 +1031,7 @@ export function enforceGovernedMindTurn(input: {
       thought: governedSurface?.thought ?? governedThought,
       emotion,
       reply,
-      performance: normalizeAlicizationPerformancePayload(
-        governedSurface ? undefined : normalizedStructured.performance,
-        emotion,
-      ),
+      performance: alignPerformanceEmotion(normalizedStructured.performance, emotion),
       format: 'mind-turn-v1',
       parsePath: 'repair-json',
       repairTimedOut: false,
@@ -881,6 +1078,7 @@ export function enforceGovernedMindTurn(input: {
       ...normalizedStructured,
       thought: needsThoughtRepair ? governedThought : normalizedStructured.thought,
       emotion: governedEmotion,
+      performance: alignPerformanceEmotion(normalizedStructured.performance, governedEmotion),
       format: 'mind-turn-v1' as const,
       contractFailed: false,
     }
@@ -925,12 +1123,7 @@ export function enforceGovernedMindTurn(input: {
       ?? buildLocalRepairThought(input.personalityState, input.preferGroundedEvidence),
     emotion,
     reply,
-    performance: normalizeAlicizationPerformancePayload(
-      governedSurface
-        ? undefined
-        : normalizedStructured.performance,
-      emotion,
-    ),
+    performance: alignPerformanceEmotion(normalizedStructured.performance, emotion),
     format: 'mind-turn-v1',
     parsePath: 'repair-json',
     repairTimedOut: false,
@@ -952,11 +1145,16 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
     || input.reply.trim()
     || input.fullText.trim()
   const reply = sanitizeStructuredReplySurface(rawReply) || rawReply.trim()
+  const inferredEmotion = inferEmotionFromReply({
+    reply,
+    previousEmotion: input.previousEmotion,
+  })
   const rawEmotion = parsePayloadEmotion(payload)
     || parsePayloadEmotion(actPayload as Record<string, unknown> | null)
+    || inferredEmotion
     || 'neutral'
   const emotion = normalizeAlicizationEmotion(rawEmotion).emotion
-  const performance = parsePayloadPerformance(payload, emotion)
+  const performance = parsePayloadPerformance(payload, emotion, reply)
 
   const emotionScore = emotionToScore(emotion)
   const lexicalScore = estimateLexicalSentiment(reply)

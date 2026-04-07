@@ -9,6 +9,10 @@ export const useSpeechRuntimeStore = defineStore('speech-runtime', () => {
     return runtime.openIntent(options)
   }
 
+  function cancelOwner(ownerId: string, reason?: string) {
+    runtime.cancelOwner(ownerId, reason)
+  }
+
   async function registerHost(pipeline: Parameters<typeof runtime.registerHost>[0]) {
     await runtime.registerHost(pipeline)
   }
@@ -23,6 +27,7 @@ export const useSpeechRuntimeStore = defineStore('speech-runtime', () => {
 
   return {
     openIntent,
+    cancelOwner,
     registerHost,
     isHost,
     dispose,

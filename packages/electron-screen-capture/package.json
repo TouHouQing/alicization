@@ -19,8 +19,9 @@
     ".": "./dist/index.js",
     "./main": "./dist/main.mjs",
     "./renderer": "./dist/renderer.js",
+    "./session": "./dist/session.js",
+    "./source-policy": "./dist/source-policy.js",
     "./vue": "./dist/vue.js",
-    "./source-policy": "./src/source-policy.ts",
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",

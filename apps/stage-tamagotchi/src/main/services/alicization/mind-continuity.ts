@@ -1,4 +1,5 @@
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -6,7 +7,70 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function primaryThread(state: AlicizationVisualPresenceStateSnapshot | null | undefined) {
+interface AlicizationMindContinuitySource {
+  currentScene?: AlicizationVisualPresenceStateSnapshot['currentScene']
+  livingWorldState?: AlicizationVisualPresenceStateSnapshot['livingWorldState']
+  selfGovernor?: AlicizationVisualPresenceStateSnapshot['selfGovernor']
+  thoughtThreads?: AlicizationVisualPresenceStateSnapshot['thoughtThreads']
+  beliefRevision?: AlicizationVisualPresenceStateSnapshot['beliefRevision']
+  deliberationState?: AlicizationVisualPresenceStateSnapshot['deliberationState']
+  hypothesisGraph?: AlicizationVisualPresenceStateSnapshot['hypothesisGraph']
+  threadRuntime?: AlicizationVisualPresenceStateSnapshot['threadRuntime']
+  commitmentLedger?: AlicizationVisualPresenceStateSnapshot['commitmentLedger']
+  inquiryPlanner?: AlicizationVisualPresenceStateSnapshot['inquiryPlanner']
+  concernContinuity?: AlicizationVisualPresenceStateSnapshot['concernContinuity']
+  repairLedger?: AlicizationVisualPresenceStateSnapshot['repairLedger']
+  intentionStream?: AlicizationVisualPresenceStateSnapshot['intentionStream']
+  reflectionLedger?: AlicizationVisualPresenceStateSnapshot['reflectionLedger']
+  executiveCycle?: AlicizationVisualPresenceStateSnapshot['executiveCycle']
+  mindKernel?: AlicizationVisualPresenceStateSnapshot['mindKernel']
+  conversationState?: AlicizationVisualPresenceStateSnapshot['conversationState']
+  dialogueWorldThread?: AlicizationVisualPresenceStateSnapshot['dialogueWorldThread']
+  replyDeliberation?: AlicizationVisualPresenceStateSnapshot['replyDeliberation']
+  recallGovernor?: AlicizationVisualPresenceStateSnapshot['recallGovernor']
+  answerPlanner?: AlicizationVisualPresenceStateSnapshot['answerPlanner']
+  actionEcology?: AlicizationVisualPresenceStateSnapshot['actionEcology']
+  privateThought?: AlicizationVisualPresenceStateSnapshot['privateThought']
+  worldModel?: AlicizationVisualPresenceStateSnapshot['worldModel']
+}
+
+function resolveMindContinuitySource(
+  state?: AlicizationVisualPresenceStateSnapshot | AlicizationMindContinuitySource | null,
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null,
+): AlicizationMindContinuitySource | null {
+  if (runtimeSurface) {
+    return {
+      currentScene: runtimeSurface.perception.currentScene ?? null,
+      livingWorldState: runtimeSurface.world.livingWorldState ?? null,
+      selfGovernor: runtimeSurface.agency.selfGovernor ?? null,
+      thoughtThreads: runtimeSurface.memory.thoughtThreads ?? null,
+      beliefRevision: runtimeSurface.cognition.beliefRevision ?? null,
+      deliberationState: runtimeSurface.agency.deliberationState ?? null,
+      hypothesisGraph: runtimeSurface.cognition.hypothesisGraph ?? null,
+      threadRuntime: runtimeSurface.memory.threadRuntime ?? null,
+      commitmentLedger: runtimeSurface.memory.commitmentLedger ?? null,
+      inquiryPlanner: runtimeSurface.memory.inquiryPlanner ?? null,
+      concernContinuity: runtimeSurface.memory.concernContinuity ?? null,
+      repairLedger: runtimeSurface.memory.repairLedger ?? null,
+      intentionStream: runtimeSurface.memory.intentionStream ?? null,
+      reflectionLedger: runtimeSurface.memory.reflectionLedger ?? null,
+      executiveCycle: runtimeSurface.memory.executiveCycle ?? null,
+      mindKernel: runtimeSurface.cognition.mindKernel ?? null,
+      conversationState: runtimeSurface.dialogue.conversationState ?? null,
+      dialogueWorldThread: runtimeSurface.dialogue.dialogueWorldThread ?? null,
+      replyDeliberation: runtimeSurface.dialogue.replyDeliberation ?? null,
+      recallGovernor: runtimeSurface.memory.recallGovernor ?? null,
+      answerPlanner: runtimeSurface.dialogue.answerPlanner ?? null,
+      actionEcology: runtimeSurface.agency.actionEcology ?? null,
+      privateThought: runtimeSurface.cognition.privateThought ?? null,
+      worldModel: runtimeSurface.world.worldModel ?? null,
+    }
+  }
+
+  return state ?? null
+}
+
+function primaryThread(state: AlicizationMindContinuitySource | null | undefined) {
   if (state?.threadRuntime) {
     const runtimeThread = state.threadRuntime.threads.find(thread => thread.id === state.threadRuntime?.foregroundThreadId)
       ?? state.threadRuntime.threads[0]
@@ -36,7 +100,7 @@ function runtimeNeedLabel(thread: ReturnType<typeof primaryThread>) {
   return ''
 }
 
-function continuitySignature(state: AlicizationVisualPresenceStateSnapshot | null | undefined) {
+function continuitySignature(state: AlicizationMindContinuitySource | null | undefined) {
   const thread = primaryThread(state)
   return [
     state?.livingWorldState?.focusObjectId ?? 'none',
@@ -76,34 +140,41 @@ function continuitySignature(state: AlicizationVisualPresenceStateSnapshot | nul
 // posture she was holding toward that moment.
 export function buildMindContinuityFragment(input: {
   previousState?: AlicizationVisualPresenceStateSnapshot | null
-  nextState: AlicizationVisualPresenceStateSnapshot
+  nextState?: AlicizationVisualPresenceStateSnapshot | null
+  previousRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  nextRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
-  const previousSignature = continuitySignature(input.previousState)
-  const nextSignature = continuitySignature(input.nextState)
+  const previousState = resolveMindContinuitySource(input.previousState, input.previousRuntimeSurface)
+  const nextState = resolveMindContinuitySource(input.nextState, input.nextRuntimeSurface)
+  if (!nextState)
+    return ''
+
+  const previousSignature = continuitySignature(previousState)
+  const nextSignature = continuitySignature(nextState)
   if (previousSignature === nextSignature)
     return ''
 
-  const thread = primaryThread(input.nextState)
-  const activeHypothesis = input.nextState.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === input.nextState.hypothesisGraph?.activeHypothesisId)
+  const thread = primaryThread(nextState)
+  const activeHypothesis = nextState.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === nextState.hypothesisGraph?.activeHypothesisId)
     ?? null
-  const governingCommitment = input.nextState.commitmentLedger?.commitments.find(commitment => commitment.id === input.nextState.commitmentLedger?.governingCommitmentId)
+  const governingCommitment = nextState.commitmentLedger?.commitments.find(commitment => commitment.id === nextState.commitmentLedger?.governingCommitmentId)
     ?? null
-  const activePlan = input.nextState.inquiryPlanner?.plans.find(plan => plan.id === input.nextState.inquiryPlanner?.activePlanId)
+  const activePlan = nextState.inquiryPlanner?.plans.find(plan => plan.id === nextState.inquiryPlanner?.activePlanId)
     ?? null
-  const governingConcernContinuity = input.nextState.concernContinuity?.entries.find(entry => entry.id === input.nextState.concernContinuity?.governingEntryId)
+  const governingConcernContinuity = nextState.concernContinuity?.entries.find(entry => entry.id === nextState.concernContinuity?.governingEntryId)
     ?? null
-  const governingRepair = input.nextState.repairLedger?.entries.find(entry => entry.id === input.nextState.repairLedger?.governingRepairId)
+  const governingRepair = nextState.repairLedger?.entries.find(entry => entry.id === nextState.repairLedger?.governingRepairId)
     ?? null
-  const dominantProject = input.nextState.intentionStream?.projects.find(project => project.id === input.nextState.intentionStream?.dominantProjectId)
-    ?? input.nextState.intentionStream?.projects[0]
+  const dominantProject = nextState.intentionStream?.projects.find(project => project.id === nextState.intentionStream?.dominantProjectId)
+    ?? nextState.intentionStream?.projects[0]
     ?? null
-  const latestReflection = input.nextState.reflectionLedger?.entries.find(entry => entry.id === input.nextState.reflectionLedger?.latestEntryId)
-    ?? input.nextState.reflectionLedger?.entries[0]
+  const latestReflection = nextState.reflectionLedger?.entries.find(entry => entry.id === nextState.reflectionLedger?.latestEntryId)
+    ?? nextState.reflectionLedger?.entries[0]
     ?? null
-  const dominantIntention = input.nextState.selfGovernor?.activeIntentions.find(intention => intention.id === input.nextState.selfGovernor?.dominantIntentionId)
+  const dominantIntention = nextState.selfGovernor?.activeIntentions.find(intention => intention.id === nextState.selfGovernor?.dominantIntentionId)
     ?? null
-  const thoughtThread = input.nextState.thoughtThreads?.threads.find(candidate => candidate.id === input.nextState.thoughtThreads?.foregroundThreadId)
-    ?? input.nextState.thoughtThreads?.threads[0]
+  const thoughtThread = nextState.thoughtThreads?.threads.find(candidate => candidate.id === nextState.thoughtThreads?.foregroundThreadId)
+    ?? nextState.thoughtThreads?.threads[0]
     ?? null
   const summary = sanitizeText(
     thoughtThread?.summary
@@ -114,18 +185,18 @@ export function buildMindContinuityFragment(input: {
     || governingRepair?.summary
     || latestReflection?.revision
     || dominantProject?.summary
-    || input.nextState.executiveCycle?.currentLine
-    || input.nextState.dialogueWorldThread?.activeThread
-    || input.nextState.dialogueWorldThread?.currentQuestion
-    || input.nextState.answerPlanner?.governingFocus
-    || input.nextState.replyDeliberation?.whyThisReplyNow
-    || input.nextState.conversationState?.jointThread
-    || input.nextState.actionEcology?.why
+    || nextState.executiveCycle?.currentLine
+    || nextState.dialogueWorldThread?.activeThread
+    || nextState.dialogueWorldThread?.currentQuestion
+    || nextState.answerPlanner?.governingFocus
+    || nextState.replyDeliberation?.whyThisReplyNow
+    || nextState.conversationState?.jointThread
+    || nextState.actionEcology?.why
     || activeHypothesis?.summary
     || thread?.summary
-    || input.nextState.privateThought?.thoughtText
-    || input.nextState.worldModel?.activeThread?.summary
-    || input.nextState.currentScene?.summary
+    || nextState.privateThought?.thoughtText
+    || nextState.worldModel?.activeThread?.summary
+    || nextState.currentScene?.summary
     || '',
     220,
   )
@@ -133,34 +204,34 @@ export function buildMindContinuityFragment(input: {
     return ''
 
   return [
-    input.nextState.livingWorldState?.focusObjectId ? `living_world_focus:${input.nextState.livingWorldState.focusObjectId}` : '',
-    input.nextState.livingWorldState?.stability ? `living_world_stability:${input.nextState.livingWorldState.stability}` : '',
-    input.nextState.selfGovernor?.dominantDrive ? `governor_drive:${input.nextState.selfGovernor.dominantDrive}` : '',
+    nextState.livingWorldState?.focusObjectId ? `living_world_focus:${nextState.livingWorldState.focusObjectId}` : '',
+    nextState.livingWorldState?.stability ? `living_world_stability:${nextState.livingWorldState.stability}` : '',
+    nextState.selfGovernor?.dominantDrive ? `governor_drive:${nextState.selfGovernor.dominantDrive}` : '',
     dominantIntention?.kind ? `governor_intention:${dominantIntention.kind}` : '',
     thoughtThread?.kind ? `thought_thread:${thoughtThread.kind}/${thoughtThread.status}` : '',
-    input.nextState.beliefRevision?.stability ? `belief_stability:${input.nextState.beliefRevision.stability}` : '',
-    input.nextState.deliberationState?.dominantNeed ? `mind_need:${input.nextState.deliberationState.dominantNeed}` : '',
+    nextState.beliefRevision?.stability ? `belief_stability:${nextState.beliefRevision.stability}` : '',
+    nextState.deliberationState?.dominantNeed ? `mind_need:${nextState.deliberationState.dominantNeed}` : '',
     activeHypothesis?.kind ? `hypothesis:${activeHypothesis.kind}` : '',
-    input.nextState.threadRuntime?.foregroundThreadId ? `runtime_thread:${input.nextState.threadRuntime.foregroundThreadId}` : '',
+    nextState.threadRuntime?.foregroundThreadId ? `runtime_thread:${nextState.threadRuntime.foregroundThreadId}` : '',
     governingCommitment?.kind ? `commitment:${governingCommitment.kind}` : '',
     activePlan?.kind ? `inquiry_plan:${activePlan.kind}` : '',
     governingConcernContinuity?.kind ? `concern_continuity:${governingConcernContinuity.kind}/${governingConcernContinuity.status}` : '',
     governingRepair?.kind ? `repair_ledger:${governingRepair.kind}/${governingRepair.status}` : '',
     dominantProject?.kind ? `mind_project:${dominantProject.kind}/${dominantProject.status}` : '',
     latestReflection?.outcome ? `reflection:${latestReflection.outcome}` : '',
-    input.nextState.executiveCycle?.phase ? `executive_phase:${input.nextState.executiveCycle.phase}` : '',
-    input.nextState.mindKernel?.dominantMode ? `mind_kernel:${input.nextState.mindKernel.dominantMode}` : '',
-    input.nextState.conversationState?.continuityPolicy ? `conversation_policy:${input.nextState.conversationState.continuityPolicy}` : '',
-    input.nextState.conversationState?.memoryMode ? `conversation_memory:${input.nextState.conversationState.memoryMode}` : '',
-    input.nextState.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${input.nextState.dialogueWorldThread.lastOutcome}` : '',
-    input.nextState.dialogueWorldThread?.relationDrift ? `dialogue_relation:${input.nextState.dialogueWorldThread.relationDrift}` : '',
-    input.nextState.replyDeliberation?.selectedMotive ? `reply_motive:${input.nextState.replyDeliberation.selectedMotive}` : '',
-    input.nextState.replyDeliberation?.speakingFrom ? `reply_from:${input.nextState.replyDeliberation.speakingFrom}` : '',
-    input.nextState.recallGovernor?.mode ? `recall_mode:${input.nextState.recallGovernor.mode}` : '',
-    input.nextState.answerPlanner?.act ? `answer_act:${input.nextState.answerPlanner.act}` : '',
-    input.nextState.answerPlanner?.evidenceMode ? `answer_evidence:${input.nextState.answerPlanner.evidenceMode}` : '',
-    input.nextState.actionEcology?.mode ? `action_ecology:${input.nextState.actionEcology.mode}` : '',
-    input.nextState.privateThought?.emotionalTension ? `emotional_tension:${input.nextState.privateThought.emotionalTension}` : '',
+    nextState.executiveCycle?.phase ? `executive_phase:${nextState.executiveCycle.phase}` : '',
+    nextState.mindKernel?.dominantMode ? `mind_kernel:${nextState.mindKernel.dominantMode}` : '',
+    nextState.conversationState?.continuityPolicy ? `conversation_policy:${nextState.conversationState.continuityPolicy}` : '',
+    nextState.conversationState?.memoryMode ? `conversation_memory:${nextState.conversationState.memoryMode}` : '',
+    nextState.dialogueWorldThread?.lastOutcome ? `dialogue_outcome:${nextState.dialogueWorldThread.lastOutcome}` : '',
+    nextState.dialogueWorldThread?.relationDrift ? `dialogue_relation:${nextState.dialogueWorldThread.relationDrift}` : '',
+    nextState.replyDeliberation?.selectedMotive ? `reply_motive:${nextState.replyDeliberation.selectedMotive}` : '',
+    nextState.replyDeliberation?.speakingFrom ? `reply_from:${nextState.replyDeliberation.speakingFrom}` : '',
+    nextState.recallGovernor?.mode ? `recall_mode:${nextState.recallGovernor.mode}` : '',
+    nextState.answerPlanner?.act ? `answer_act:${nextState.answerPlanner.act}` : '',
+    nextState.answerPlanner?.evidenceMode ? `answer_evidence:${nextState.answerPlanner.evidenceMode}` : '',
+    nextState.actionEcology?.mode ? `action_ecology:${nextState.actionEcology.mode}` : '',
+    nextState.privateThought?.emotionalTension ? `emotional_tension:${nextState.privateThought.emotionalTension}` : '',
     threadKindLabel(thread) ? `thread_kind:${threadKindLabel(thread)}` : '',
     runtimeNeedLabel(thread) ? `runtime_need:${runtimeNeedLabel(thread)}` : '',
     `summary:${summary}`,
@@ -169,7 +240,17 @@ export function buildMindContinuityFragment(input: {
     .join(' ')
 }
 
-export function buildMindContinuityRecallSeed(state: AlicizationVisualPresenceStateSnapshot | null | undefined) {
+export function buildMindContinuityRecallSeed(
+  stateOrSurface: AlicizationVisualPresenceStateSnapshot | AlicizationDigitalLifeRuntimeSurface | null | undefined,
+) {
+  const state = resolveMindContinuitySource(
+    stateOrSurface && 'version' in stateOrSurface
+      ? undefined
+      : stateOrSurface ?? null,
+    stateOrSurface && 'version' in stateOrSurface
+      ? stateOrSurface
+      : null,
+  )
   const thread = primaryThread(state)
   const activeHypothesis = state?.hypothesisGraph?.hypotheses.find(hypothesis => hypothesis.id === state.hypothesisGraph?.activeHypothesisId)
     ?? null

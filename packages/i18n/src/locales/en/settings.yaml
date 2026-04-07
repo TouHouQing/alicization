@@ -124,6 +124,32 @@ live2d:
         label: Description
         description: Describe when this motion should be used so Alicization can call it precisely.
         placeholder: A small nod for agreement, acknowledgment, or gentle confirmation.
+  embodiment:
+    title: Emotion Motion Priority
+    description: Override Alicization's emotion-to-motion alias order for this Live2D model. Enter motion names or aliases separated by commas. Leave the field empty to remove the model override and fall back to the shared defaults.
+    defaults: 'Shared defaults: {aliases}'
+    effective: 'Effective order: {aliases}'
+    suggested: 'Shared suggestions: {aliases}'
+    emotions:
+      neutral: Neutral
+      happy: Happy
+      sad: Sad
+      angry: Angry
+      concerned: Concerned
+      tired: Tired
+      apologetic: Apologetic
+      surprised: Surprised
+      thinking: Thinking
+      awkward: Awkward
+      question: Questioning
+      curious: Curious
+    fields:
+      motion-aliases:
+        label: Preferred Motion Aliases
+        description: Alicization tries these aliases first for this model, then falls back to the shared defaults.
+      action-cues:
+        label: Preferred Action Cues
+        description: Override which `actionCue` keys this model should prefer for the emotion, so the planner picks motions that fit the rig better.
   parameters:
     title: Parameters
     idle-animation: Idle Animation
@@ -328,6 +354,11 @@ pages:
           former_core_incarnation: Former core incarnation
           unforged_shattering_event: Unforged shattering event
           attitude_shift: Attitude shift
+          mind_continuity: Mind continuity
+          visual_sediment: Visual sediment
+          reflection_ledger: Reflection ledger
+          dialogue_turn: Dialogue turn
+          fact_ledger: Fact ledger
       soul_forge:
         eyebrow: Soul Forge Chamber
         title: Soul Forge Chamber
@@ -1720,6 +1751,32 @@ pages:
                       dialogue_emitted: dialogue-emitted
                       takeover_audit: takeover-audit
                       memory_facts_upserted: memory-facts-upserted
+              embodiment:
+                title: Embodiment Lab
+                description: Inspect live gaze, posture, speech, and presence state on the real stage runtime
+                page:
+                  actions:
+                    follow_pointer: Follow pointer
+                    manual_focus: Drag to focus
+                    show_overlay: Show overlay
+                    hide_overlay: Hide overlay
+                    reset_focus: Reset focus
+                  preview:
+                    title: Stage Preview
+                    hint_follow: Move the pointer inside the preview to steer gaze.
+                    hint_manual: Drag inside the preview to steer gaze.
+                    focus: 'focus: {x}, {y}'
+                  sections:
+                    summary: Summary
+                    raw: Raw snapshot
+                  states:
+                    waiting: Waiting for stage diagnostics...
+                  cards:
+                    presence: Presence
+                    posture: Posture
+                    gaze: Gaze
+                    speech: Speech
+                    capture: Capture
               vibrant:
                 title: Color Extract
                 description: Test color extraction
@@ -2020,6 +2077,37 @@ vrm:
         label: Description
         description: Briefly describe what this action communicates so Alicization can choose it correctly.
         placeholder: A friendly hand wave for greeting or light acknowledgment.
+  embodiment:
+    title: Emotion Base Expression Priority
+    callout:
+      label: Model preference for VRM standard expressions
+      description: Override Alicization's emotion-to-base-expression alias order for this VRM model. Enter expression names or aliases separated by commas. Leave the field empty to remove the model override and fall back to the shared defaults.
+    defaults: 'Shared defaults: {aliases}'
+    effective: 'Effective order: {aliases}'
+    suggested: 'Shared suggestions: {aliases}'
+    emotions:
+      neutral: Neutral
+      happy: Happy
+      sad: Sad
+      angry: Angry
+      concerned: Concerned
+      tired: Tired
+      apologetic: Apologetic
+      surprised: Surprised
+      thinking: Thinking
+      awkward: Awkward
+      question: Questioning
+      curious: Curious
+    fields:
+      expression-aliases:
+        label: Preferred Base Expression Aliases
+        description: The runtime tries these aliases first, then falls back to the shared defaults.
+      facial-cues:
+        label: Preferred Facial Cues
+        description: Override which `facialCue` keys Alicization should favor for this emotion so expression selection better matches the model.
+      action-cues:
+        label: Preferred Action Cues
+        description: Override which `actionCue` keys Alicization should favor for this emotion so motion planning better fits the VRM rig.
   custom-expressions:
     title: Custom Expressions
     callout:

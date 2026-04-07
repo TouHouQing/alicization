@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildDialogueFocusGovernance } from './dialogue-focus-governor'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const codingScene = {
   workloadKind: 'coding' as const,
@@ -17,6 +19,46 @@ const codingScene = {
   },
   beganAt: 0,
   lastSeenAt: 30_000,
+}
+
+const runtimeWorldModel = {
+  activeThread: {
+    id: 'thread::runtime',
+    kind: 'change-review' as const,
+    status: 'active' as const,
+    source: 'grounded-scene' as const,
+    title: 'runtime.ts diff',
+    summary: 'The runtime diff is still the live knot.',
+    confidence: 0.88,
+    significance: 0.82,
+    unresolved: true,
+    beganAt: 0,
+    lastUpdatedAt: 30_000,
+    target: null,
+  },
+  lingeringThreads: [],
+  focusTarget: null,
+  epistemicState: {
+    certainty: 'grounded' as const,
+    freshness: 'live' as const,
+    seenNow: [],
+    inferredNow: [],
+    openQuestions: [],
+    staleRisks: [],
+  },
+  continuity: {
+    label: 'staying-with-thread' as const,
+    sceneAgeMs: 30_000,
+    attentionAgeMs: 30_000,
+    sameSceneAsBefore: true,
+    sameAttentionAsBefore: true,
+    afterglowOpen: false,
+  },
+  hostState: {
+    availability: 'focused' as const,
+    burden: 'moderate' as const,
+  },
+  updatedAt: 30_000,
 }
 
 describe('dialogue-focus-governor', () => {
@@ -298,5 +340,70 @@ describe('dialogue-focus-governor', () => {
     expect(focus.subject).toBe('alicization-self')
     expect(focus.screenReferenceMode).toBe('avoid')
     expect(focus.reasonTags).toContain('ownership-ssot')
+  })
+
+  it('prefers runtimeSurface scene and world state over conflicting raw inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(40_000)
+    runtimeBackedState.currentScene = codingScene as any
+    runtimeBackedState.worldModel = runtimeWorldModel as any
+
+    const focus = buildDialogueFocusGovernance({
+      semantics: {
+        act: 'verify-grounding',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        affectiveTone: 'urgent',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.86,
+        personaSuppression: 0.72,
+        confidence: 0.84,
+        summary: '',
+        source: 'hybrid',
+        reasonTags: ['scene-bound-turn', 'coding-question'],
+      },
+      obligation: {
+        kind: 'guide',
+        summary: '',
+        confidence: 0.82,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      currentScene: {
+        ...codingScene,
+        workloadKind: 'unknown',
+        contentKind: 'unknown',
+        summary: 'Entire screen',
+        target: {
+          appName: 'Finder',
+          processName: 'Finder',
+          title: 'Entire screen',
+          pid: 42,
+        },
+      },
+      worldModel: {
+        ...runtimeWorldModel,
+        activeThread: {
+          ...runtimeWorldModel.activeThread,
+          title: 'raw conflict',
+          summary: 'raw conflict',
+          confidence: 0.22,
+        },
+        epistemicState: {
+          ...runtimeWorldModel.epistemicState,
+          certainty: 'uncertain',
+          freshness: 'stale',
+        },
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(focus.subject).toBe('task-knot')
+    expect(focus.screenReferenceMode).toBe('helpful')
+    expect(focus.weakLiveScene).toBe(false)
+    expect(focus.focusSummary).toBe('The runtime diff is still the live knot.')
   })
 })

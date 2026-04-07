@@ -33,8 +33,10 @@ export default defineConfig([
     unbundle: true,
     platform: 'browser',
     entry: {
-      vue: 'src/vue/index.ts',
-      renderer: 'src/renderer.ts',
+      'session': 'src/session.ts',
+      'source-policy': 'src/source-policy.ts',
+      'vue': 'src/vue/index.ts',
+      'renderer': 'src/renderer.ts',
     },
     inlineOnly: false,
   },

@@ -18,6 +18,7 @@ import type {
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
   AlicizationPersonalityUpdatePayload,
+  AlicizationPresencePulsePayload,
   AlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult,
   AlicizationReminderScheduleResult,
@@ -42,7 +43,16 @@ import { nanoid } from 'nanoid'
 import { storage } from '../database/storage'
 import { SERVER_URL } from '../libs/auth'
 import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
-import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
+import {
+  clearAlicizationBridge,
+  normalizeAlicizationDigitalLifeSpineDigest,
+  setAlicizationBridge,
+} from './alicization-bridge'
+import {
+  buildAlicizationVisualPresenceStateFromSpineDigest,
+  buildFallbackAlicizationVisualPresenceState,
+  ensureAlicizationVisualPresenceResidentPerformance,
+} from './alicization-visual-presence-spine'
 import { useCharacterNotebookStore } from './character'
 import { useAiriCardStore } from './modules/airi-card'
 
@@ -60,6 +70,8 @@ const dayMs = 24 * 60 * 60 * 1000
 const browserCardsIndexKey = 'local:alicization/browser/card-ids:v1'
 const browserLlmConfigKey = 'local:alicization/browser/llm-config:v1'
 const realtimeRequestTimeoutMsec = 8000
+const visualPresencePulseListeners = new Set<(payload: AlicizationPresencePulsePayload) => void>()
+const visualPresenceStateListeners = new Set<(state: AlicizationVisualPresenceStateSnapshot | null) => void>()
 
 type BrowserRuntimeKind = 'web' | 'mobile'
 
@@ -169,6 +181,16 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
         governance: event.governance && typeof event.governance === 'object'
           ? event.governance
           : null,
+        embodiment: event.embodiment && typeof event.embodiment === 'object'
+          ? event.embodiment
+          : null,
+        speechTimeline: event.speechTimeline && typeof event.speechTimeline === 'object'
+          ? event.speechTimeline
+          : null,
+        digitalLife: event.digitalLife && typeof event.digitalLife === 'object'
+          ? event.digitalLife
+          : null,
+        digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(event.digitalLifeSpine),
       }
     case 'tool-call':
       return {
@@ -1138,82 +1160,98 @@ async function writePerformanceManifest(cardId: string, manifest: CharacterPerfo
   await storage.setItemRaw(buildPerformanceManifestKey(cardId), manifest)
 }
 
-function buildVisualTargetFromForeground(foreground?: AlicizationSensoryCacheSnapshot['sample']['foregroundWindow']) {
-  if (!foreground)
-    return null
-  return {
-    appName: sanitizeText(foreground.appName, ''),
-    processName: sanitizeText(foreground.processName, ''),
-    title: sanitizeText(foreground.title, ''),
-    pid: Number.isFinite(Number(foreground.pid)) ? Number(foreground.pid) : null,
-  }
-}
-
-function buildFallbackVisualPresenceState(snapshot: AlicizationSensoryCacheSnapshot): AlicizationVisualPresenceStateSnapshot {
-  const currentTs = now()
-  const target = buildVisualTargetFromForeground(snapshot.sample.foregroundWindow)
-  const summary = [target?.appName, target?.title].filter(Boolean).join(' - ')
-
-  return {
-    watchMode: 'mnemonic-passive',
-    currentScene: target
-      ? {
-          workloadKind: 'unknown',
-          contentKind: 'unknown',
-          scenario: 'general',
-          summary: summary || undefined,
-          source: 'foreground-window-heuristic',
-          confidence: 0.3,
-          target,
-          beganAt: currentTs,
-          lastSeenAt: currentTs,
-        }
-      : null,
-    attention: target
-      ? {
-          target,
-          source: 'foreground-window',
-          confidence: 0.3,
-          engagedAt: currentTs,
-          lastConfirmedAt: currentTs,
-          dwellMs: 0,
-        }
-      : null,
-    workingMemoryEpisodes: [],
-    privateThought: null,
-    captureState: {
-      permission: 'unknown',
-      lastGroundedAt: null,
-    },
-    durabilityPulse: null,
-    recentTransition: null,
-    nextSuggestedProbeMs: 60_000,
-    updatedAt: currentTs,
-  }
-}
-
 async function readVisualPresenceState(cardId: string) {
   await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<AlicizationVisualPresenceStateSnapshot>(buildVisualPresenceKey(cardId)) ?? null
+  const state = await storage.getItemRaw<AlicizationVisualPresenceStateSnapshot>(buildVisualPresenceKey(cardId)) ?? null
+  return state
+    ? ensureAlicizationVisualPresenceResidentPerformance(state)
+    : null
 }
 
 async function writeVisualPresenceState(cardId: string, state: AlicizationVisualPresenceStateSnapshot) {
   await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildVisualPresenceKey(cardId), state)
+  await storage.setItemRaw(
+    buildVisualPresenceKey(cardId),
+    ensureAlicizationVisualPresenceResidentPerformance(state),
+  )
 }
 
-async function persistVisualPresencePulseFromStreamMeta(cardId: string) {
-  const existing = await readVisualPresenceState(cardId)
+function buildVisualPresencePulsePayload(state: AlicizationVisualPresenceStateSnapshot): AlicizationPresencePulsePayload | null {
+  const privateThought = state.privateThought
+  const currentScene = state.currentScene
+  if (!privateThought || privateThought.embodiedPresence === 'none' || !currentScene)
+    return null
+
+  return {
+    watchMode: state.watchMode,
+    embodiedPresence: privateThought.embodiedPresence,
+    scenario: currentScene.scenario,
+    stance: privateThought.stance,
+    confidence: privateThought.confidence,
+    reasonTags: [...privateThought.rationaleTags],
+    emotionalTension: privateThought.emotionalTension,
+    expiresAt: privateThought.expiresAt,
+  }
+}
+
+function emitVisualPresenceState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) {
+  const cardId = normalizeCardId(cardIdRaw)
+  if (cardId !== resolveActiveCardId())
+    return
+
+  for (const listener of visualPresenceStateListeners)
+    listener(state)
+}
+
+function emitVisualPresencePulse(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) {
+  const cardId = normalizeCardId(cardIdRaw)
+  if (cardId !== resolveActiveCardId() || !state)
+    return
+
+  const payload = buildVisualPresencePulsePayload(state)
+  if (!payload || payload.expiresAt <= now())
+    return
+
+  for (const listener of visualPresencePulseListeners)
+    listener(payload)
+}
+
+async function persistVisualPresenceState(cardId: string, state: AlicizationVisualPresenceStateSnapshot) {
+  const normalizedState = ensureAlicizationVisualPresenceResidentPerformance(state)
+  await writeVisualPresenceState(cardId, normalizedState)
+  emitVisualPresenceState(cardId, normalizedState)
+  emitVisualPresencePulse(cardId, normalizedState)
+}
+
+async function persistVisualPresencePulseFromStreamMeta(input: {
+  cardId: string
+  runtime: BrowserRuntimeKind
+  event: Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
+}) {
+  const existing = await readVisualPresenceState(input.cardId)
+  const digest = input.event.digitalLifeSpine ?? null
+  if (digest) {
+    const sensory = await buildSensorySnapshot(input.runtime)
+    await persistVisualPresenceState(input.cardId, buildAlicizationVisualPresenceStateFromSpineDigest({
+      digest,
+      snapshot: sensory,
+      previous: existing,
+    }))
+    return
+  }
+
   if (existing) {
-    await writeVisualPresenceState(cardId, {
+    await persistVisualPresenceState(input.cardId, {
       ...existing,
       updatedAt: now(),
     })
     return
   }
 
-  const sensory = await buildSensorySnapshot('web')
-  await writeVisualPresenceState(cardId, buildFallbackVisualPresenceState(sensory))
+  const sensory = await buildSensorySnapshot(input.runtime)
+  await persistVisualPresenceState(input.cardId, buildFallbackAlicizationVisualPresenceState({
+    snapshot: sensory,
+  }))
 }
 
 async function appendAuditLog(cardId: string, payload: AlicizationAuditLogInput) {
@@ -1332,10 +1370,12 @@ async function buildSensorySnapshot(runtime: BrowserRuntimeKind): Promise<Aliciz
   const degraded: AlicizationSensoryCacheSnapshot['sample']['degraded'] = ['cpu-unavailable']
 
   let battery: AlicizationSensoryCacheSnapshot['sample']['battery'] | undefined
-  const navigatorWithBattery = navigator as Navigator & {
-    getBattery?: () => Promise<{ level: number, charging: boolean }>
-    deviceMemory?: number
-  }
+  const navigatorWithBattery = (typeof globalThis.navigator === 'object' && globalThis.navigator
+    ? globalThis.navigator
+    : {}) as Navigator & {
+      getBattery?: () => Promise<{ level: number, charging: boolean }>
+      deviceMemory?: number
+    }
 
   if (typeof navigatorWithBattery.getBattery === 'function') {
     try {
@@ -1354,12 +1394,14 @@ async function buildSensorySnapshot(runtime: BrowserRuntimeKind): Promise<Aliciz
     degraded.push('battery-unavailable')
   }
 
-  const performanceWithMemory = performance as Performance & {
-    memory?: {
-      jsHeapSizeLimit?: number
-      usedJSHeapSize?: number
+  const performanceWithMemory = (typeof globalThis.performance === 'object' && globalThis.performance
+    ? globalThis.performance
+    : {}) as Performance & {
+      memory?: {
+        jsHeapSizeLimit?: number
+        usedJSHeapSize?: number
+      }
     }
-  }
   const memoryInfo = performanceWithMemory.memory
   const memoryLimit = memoryInfo?.jsHeapSizeLimit
   const memoryUsed = memoryInfo?.usedJSHeapSize
@@ -1767,9 +1809,23 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         return existing
 
       const snapshot = await buildSensorySnapshot(runtime)
-      const fallback = buildFallbackVisualPresenceState(snapshot)
-      await writeVisualPresenceState(cardId, fallback)
+      const fallback = buildFallbackAlicizationVisualPresenceState({
+        snapshot,
+      })
+      await persistVisualPresenceState(cardId, fallback)
       return fallback
+    },
+    onVisualPresencePulse: (listener) => {
+      visualPresencePulseListeners.add(listener)
+      return () => {
+        visualPresencePulseListeners.delete(listener)
+      }
+    },
+    onVisualPresenceState: (listener) => {
+      visualPresenceStateListeners.add(listener)
+      return () => {
+        visualPresenceStateListeners.delete(listener)
+      }
     },
     syncLlmConfig: async (payload) => {
       await storage.setItemRaw(browserLlmConfigKey, payload)
@@ -1899,8 +1955,13 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
               if (!line)
                 continue
               const event = normalizeServerStreamEvent(JSON.parse(line))
-              if (event.type === 'meta')
-                await persistVisualPresencePulseFromStreamMeta(resolveActiveCardId())
+              if (event.type === 'meta') {
+                await persistVisualPresencePulseFromStreamMeta({
+                  cardId: resolveActiveCardId(),
+                  runtime,
+                  event,
+                })
+              }
               await options.onStreamEvent?.(event)
             }
           }
@@ -1908,8 +1969,13 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           const tail = buffer.trim()
           if (tail) {
             const event = normalizeServerStreamEvent(JSON.parse(tail))
-            if (event.type === 'meta')
-              await persistVisualPresencePulseFromStreamMeta(resolveActiveCardId())
+            if (event.type === 'meta') {
+              await persistVisualPresencePulseFromStreamMeta({
+                cardId: resolveActiveCardId(),
+                runtime,
+                event,
+              })
+            }
             await options.onStreamEvent?.(event)
           }
         }
@@ -1928,12 +1994,14 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     deleteCardScope: async (scope: AlicizationCardScope) => {
       const normalizedCardId = normalizeCardId(scope.cardId)
       await removeCardStorage(normalizedCardId)
+      emitVisualPresenceState(normalizedCardId, null)
       const remaining = (await getCardIds()).filter(cardId => cardId !== normalizedCardId)
       await saveCardIds(remaining.length > 0 ? remaining : [defaultAlicizationCardId])
     },
     deleteAllData: async () => {
       const knownCardIds = await getCardIds()
       await Promise.all(knownCardIds.map(cardId => removeCardStorage(cardId)))
+      emitVisualPresenceState(resolveActiveCardId(), null)
       await Promise.all([
         storage.removeItem(browserCardsIndexKey),
         storage.removeItem(browserLlmConfigKey),
@@ -1944,6 +2012,8 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
   return () => {
     pendingChatStreams.forEach(controller => controller.abort(createAbortError('bridge-dispose')))
     pendingChatStreams.clear()
+    visualPresencePulseListeners.clear()
+    visualPresenceStateListeners.clear()
     clearAlicizationBridge()
   }
 }

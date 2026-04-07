@@ -9,6 +9,7 @@ import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-govern
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnOwnership, AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -60,18 +61,25 @@ export function buildDialogueTurnEncounter(input: {
   inspectionState: AlicizationInspectionTurnState
   releaseInspectionCarry?: boolean
   ingressHint?: AlicizationDialogueTurnOwnershipHint | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueTurnEncounter {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const obligation = buildDialogueObligation({
     semantics: input.semantics,
     context: input.context,
-    worldModel: input.worldModel ?? null,
-    repairLedger: input.repairLedger ?? null,
-    privateThought: input.privateThought ?? null,
+    worldModel,
+    repairLedger,
+    privateThought,
+    runtimeSurface,
   })
   const ownership = buildDialogueTurnOwnership({
     semantics: input.semantics,
     obligation,
-    worldModel: input.worldModel ?? null,
+    worldModel,
     inspectionRequested: input.inspectionRequested,
     inspectionState: input.inspectionState,
     releaseInspectionCarry: input.releaseInspectionCarry,
@@ -81,8 +89,9 @@ export function buildDialogueTurnEncounter(input: {
     semantics: input.semantics,
     obligation,
     ownership,
-    currentScene: input.currentScene,
-    worldModel: input.worldModel ?? null,
+    currentScene,
+    worldModel,
+    runtimeSurface,
   })
 
   return {

@@ -16,6 +16,7 @@ import type {
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
@@ -246,29 +247,46 @@ export function buildMindTurnFrame(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   mindMode?: AlicizationMindKernelMode | null
   dominantDrive?: AlicizationSelfGovernorDrive | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationMindTurnFrameSnapshot {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const appraisal = runtimeSurface?.cognition.appraisal ?? input.appraisal ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
+  const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const answerPlanner = runtimeSurface?.dialogue.answerPlanner ?? input.answerPlanner ?? null
+  const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const recallGovernor = runtimeSurface?.memory.recallGovernor ?? input.recallGovernor ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const mindMode = runtimeSurface?.cognition.mindKernel?.dominantMode ?? input.mindMode ?? null
+  const dominantDrive = runtimeSurface?.agency.selfGovernor?.dominantDrive ?? input.dominantDrive ?? null
+
   const truthState = resolveTruthState({
-    dialogueActKernel: input.dialogueActKernel,
-    answerCompiler: input.answerCompiler,
-    worldModel: input.worldModel,
+    dialogueActKernel,
+    answerCompiler,
+    worldModel,
   })
   const turnMode = resolveTurnMode({
-    dialogueActKernel: input.dialogueActKernel,
-    answerCompiler: input.answerCompiler,
-    answerPlanner: input.answerPlanner,
-    privateThought: input.privateThought,
+    dialogueActKernel,
+    answerCompiler,
+    answerPlanner,
+    privateThought,
   })
   const repairState = resolveRepairState({
-    dialogueActKernel: input.dialogueActKernel,
-    answerPlanner: input.answerPlanner,
+    dialogueActKernel,
+    answerPlanner,
     truthState,
   })
-  const subject = input.dialogueActKernel?.subject
-    ?? input.answerCompiler?.answerSubject
-    ?? input.mindSynthesis?.answerSubject
+  const subject = dialogueActKernel?.subject
+    ?? answerCompiler?.answerSubject
+    ?? mindSynthesis?.answerSubject
     ?? 'general'
-  const screenReferenceMode = input.dialogueActKernel?.screenReferenceMode
-    ?? input.answerCompiler?.screenReferenceMode
+  const screenReferenceMode = dialogueActKernel?.screenReferenceMode
+    ?? answerCompiler?.screenReferenceMode
     ?? null
   const dialogueFirstTurn = subject === 'alicization-self'
     || subject === 'relationship'
@@ -276,46 +294,46 @@ export function buildMindTurnFrame(input: {
     || subject === 'general'
     || screenReferenceMode === 'avoid'
   const fallbackFocusAnchor = pickText(
-    dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor : null,
-    dialogueFirstTurn ? input.dialogueWorldThread?.primaryTurnAnchor : null,
-    dialogueFirstTurn ? input.dialogueWorldThread?.currentQuestion : null,
-    dialogueFirstTurn ? input.conversationState?.jointThread : null,
-    dialogueFirstTurn ? input.answerPlanner?.answerIntent : null,
-    dialogueFirstTurn ? input.answerCompiler?.openingClaim : null,
-    dialogueFirstTurn ? input.answerPlanner?.governingFocus : null,
-    dialogueFirstTurn ? null : input.dialogueActKernel?.selectedEvidence[0]?.summary,
-    dialogueFirstTurn ? null : input.answerPlanner?.governingFocus,
-    dialogueFirstTurn ? null : input.conversationState?.activeProject,
-    dialogueFirstTurn ? null : input.currentScene?.summary,
-    dialogueFirstTurn ? null : input.worldModel?.activeThread?.summary,
-    dialogueFirstTurn ? null : input.answerCompiler?.openingClaim,
-    input.dialogueWorldThread?.currentQuestion,
+    dialogueFirstTurn ? conversationState?.primaryTurnAnchor : null,
+    dialogueFirstTurn ? dialogueWorldThread?.primaryTurnAnchor : null,
+    dialogueFirstTurn ? dialogueWorldThread?.currentQuestion : null,
+    dialogueFirstTurn ? conversationState?.jointThread : null,
+    dialogueFirstTurn ? answerPlanner?.answerIntent : null,
+    dialogueFirstTurn ? answerCompiler?.openingClaim : null,
+    dialogueFirstTurn ? answerPlanner?.governingFocus : null,
+    dialogueFirstTurn ? null : dialogueActKernel?.selectedEvidence[0]?.summary,
+    dialogueFirstTurn ? null : answerPlanner?.governingFocus,
+    dialogueFirstTurn ? null : conversationState?.activeProject,
+    dialogueFirstTurn ? null : currentScene?.summary,
+    dialogueFirstTurn ? null : worldModel?.activeThread?.summary,
+    dialogueFirstTurn ? null : answerCompiler?.openingClaim,
+    dialogueWorldThread?.currentQuestion,
   )
   const focusCoherence = resolveDialogueAnchorCoherence({
     subject,
     screenReferenceMode,
     truthState,
-    hostMove: input.conversationState?.hostMove ?? input.dialogueWorldThread?.lastUserMove ?? null,
+    hostMove: conversationState?.hostMove ?? dialogueWorldThread?.lastUserMove ?? null,
     candidates: [
-      { role: 'focus', text: dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor : null },
-      { role: 'focus', text: dialogueFirstTurn ? input.dialogueWorldThread?.primaryTurnAnchor : null },
-      { role: 'question', text: dialogueFirstTurn ? input.dialogueWorldThread?.currentQuestion : null },
-      { role: 'thread', text: dialogueFirstTurn ? input.conversationState?.jointThread : null },
-      { role: 'answer-intent', text: dialogueFirstTurn ? input.answerPlanner?.answerIntent : null },
-      { role: 'opening-claim', text: dialogueFirstTurn ? input.answerCompiler?.openingClaim : null },
-      { role: 'answer-intent', text: dialogueFirstTurn ? input.answerPlanner?.governingFocus : null },
-      { role: 'scene', text: dialogueFirstTurn ? null : input.dialogueActKernel?.selectedEvidence[0]?.summary },
-      { role: 'answer-intent', text: dialogueFirstTurn ? null : input.answerPlanner?.governingFocus },
-      { role: 'project', text: dialogueFirstTurn ? null : input.conversationState?.activeProject },
-      { role: 'scene', text: dialogueFirstTurn ? null : input.currentScene?.summary },
-      { role: 'focus', text: dialogueFirstTurn ? null : input.worldModel?.activeThread?.summary },
-      { role: 'opening-claim', text: dialogueFirstTurn ? null : input.answerCompiler?.openingClaim },
-      { role: 'question', text: input.dialogueWorldThread?.currentQuestion },
+      { role: 'focus', text: dialogueFirstTurn ? conversationState?.primaryTurnAnchor : null },
+      { role: 'focus', text: dialogueFirstTurn ? dialogueWorldThread?.primaryTurnAnchor : null },
+      { role: 'question', text: dialogueFirstTurn ? dialogueWorldThread?.currentQuestion : null },
+      { role: 'thread', text: dialogueFirstTurn ? conversationState?.jointThread : null },
+      { role: 'answer-intent', text: dialogueFirstTurn ? answerPlanner?.answerIntent : null },
+      { role: 'opening-claim', text: dialogueFirstTurn ? answerCompiler?.openingClaim : null },
+      { role: 'answer-intent', text: dialogueFirstTurn ? answerPlanner?.governingFocus : null },
+      { role: 'scene', text: dialogueFirstTurn ? null : dialogueActKernel?.selectedEvidence[0]?.summary },
+      { role: 'answer-intent', text: dialogueFirstTurn ? null : answerPlanner?.governingFocus },
+      { role: 'project', text: dialogueFirstTurn ? null : conversationState?.activeProject },
+      { role: 'scene', text: dialogueFirstTurn ? null : currentScene?.summary },
+      { role: 'focus', text: dialogueFirstTurn ? null : worldModel?.activeThread?.summary },
+      { role: 'opening-claim', text: dialogueFirstTurn ? null : answerCompiler?.openingClaim },
+      { role: 'question', text: dialogueWorldThread?.currentQuestion },
       { role: 'visible-surface', text: dialogueFirstTurn
         ? null
         : describeVisibleSurface({
-            currentScene: input.currentScene,
-            worldModel: input.worldModel,
+            currentScene,
+            worldModel,
           }) },
     ],
   })
@@ -332,162 +350,162 @@ export function buildMindTurnFrame(input: {
   }
   const confidence = clamp01(
     (
-      (input.dialogueActKernel?.confidence ?? 0)
-      + (input.answerPlanner?.confidence ?? 0)
-      + (input.replyDeliberation?.confidence ?? 0)
-      + (input.privateThought?.confidence ?? 0)
+      (dialogueActKernel?.confidence ?? 0)
+      + (answerPlanner?.confidence ?? 0)
+      + (replyDeliberation?.confidence ?? 0)
+      + (privateThought?.confidence ?? 0)
     ) / 4,
   )
 
   return {
     world: {
       activeThread: pickText(
-        input.dialogueWorldThread?.activeThread,
-        input.worldModel?.activeThread?.summary,
-        input.conversationState?.jointThread,
+        dialogueWorldThread?.activeThread,
+        worldModel?.activeThread?.summary,
+        conversationState?.jointThread,
       ),
       visibleSurface: describeVisibleSurface({
-        currentScene: input.currentScene,
-        worldModel: input.worldModel,
+        currentScene,
+        worldModel,
       }),
       truthState,
       truthBoundary: pickText(
-        input.mindSynthesis?.truthBoundary,
-        input.answerCompiler?.uncertaintyBoundary,
+        mindSynthesis?.truthBoundary,
+        answerCompiler?.uncertaintyBoundary,
       ),
-      continuityPolicy: input.conversationState?.continuityPolicy ?? null,
+      continuityPolicy: conversationState?.continuityPolicy ?? null,
       continuitySummary: buildContinuitySummary({
-        worldModel: input.worldModel,
-        conversationState: input.conversationState,
+        worldModel,
+        conversationState,
       }),
       staleRisk: resolveStaleRisk({
         truthState,
-        worldModel: input.worldModel,
+        worldModel,
       }),
     },
     relation: {
       subject,
       hostMove: pickText(
-        input.conversationState?.hostMove,
-        input.dialogueWorldThread?.lastUserMove,
+        conversationState?.hostMove,
+        dialogueWorldThread?.lastUserMove,
       ),
-      hostGoal: input.dialogueActKernel?.hostGoal
-        ?? input.appraisal?.inferredHostGoal
+      hostGoal: dialogueActKernel?.hostGoal
+        ?? appraisal?.inferredHostGoal
         ?? null,
-      relationNeed: input.dialogueActKernel?.relationNeed
-        ?? input.appraisal?.relationshipNeed
+      relationNeed: dialogueActKernel?.relationNeed
+        ?? appraisal?.relationshipNeed
         ?? null,
-      relationMove: input.answerCompiler?.relationMove
-        ?? input.mindSynthesis?.relationMove
-        ?? input.conversationState?.relationFrame
+      relationMove: answerCompiler?.relationMove
+        ?? mindSynthesis?.relationMove
+        ?? conversationState?.relationFrame
         ?? null,
-      relationshipPosture: input.answerCompiler?.relationshipPosture
-        ?? input.answerPlanner?.relationshipPosture
-        ?? (input.privateThought?.stance === 'care' || input.privateThought?.stance === 'warn'
+      relationshipPosture: answerCompiler?.relationshipPosture
+        ?? answerPlanner?.relationshipPosture
+        ?? (privateThought?.stance === 'care' || privateThought?.stance === 'warn'
           ? 'tender'
           : null),
     },
     memory: {
-      memoryMode: input.dialogueWorldThread?.memoryMode
-        ?? input.conversationState?.memoryMode
+      memoryMode: dialogueWorldThread?.memoryMode
+        ?? conversationState?.memoryMode
         ?? null,
       carriedThread: pickText(
-        keepCoherent(input.dialogueWorldThread?.activeThread),
-        keepCoherent(input.conversationState?.jointThread),
+        keepCoherent(dialogueWorldThread?.activeThread),
+        keepCoherent(conversationState?.jointThread),
       ),
       carriedFacts: uniqueList([
-        ...(input.dialogueWorldThread?.carriedFacts ?? []),
-        ...(input.answerCompiler?.supportingReality ?? []),
+        ...(dialogueWorldThread?.carriedFacts ?? []),
+        ...(answerCompiler?.supportingReality ?? []),
       ], 4),
       recallKeys: uniqueList([
-        ...(input.dialogueWorldThread?.recallKeys ?? []),
-        ...(input.conversationState?.memoryQueryHints ?? []),
+        ...(dialogueWorldThread?.recallKeys ?? []),
+        ...(conversationState?.memoryQueryHints ?? []),
       ], 6),
       recallSeed: pickText(
-        input.recallGovernor?.recallSeed,
-        input.dialogueWorldThread?.activeThread,
-        input.conversationState?.activeProject,
+        recallGovernor?.recallSeed,
+        dialogueWorldThread?.activeThread,
+        conversationState?.activeProject,
       ),
-      lastOutcome: input.dialogueWorldThread?.lastOutcome ?? null,
-      suppressAssociativeRecall: input.recallGovernor?.suppressAssociativeRecall
-        ?? input.answerCompiler?.suppressAssociativeRecall
+      lastOutcome: dialogueWorldThread?.lastOutcome ?? null,
+      suppressAssociativeRecall: recallGovernor?.suppressAssociativeRecall
+        ?? answerCompiler?.suppressAssociativeRecall
         ?? false,
-      labelCarryAsMemory: input.recallGovernor?.carryAsMemory
-        ?? input.answerCompiler?.labelCarryAsMemory
+      labelCarryAsMemory: recallGovernor?.carryAsMemory
+        ?? answerCompiler?.labelCarryAsMemory
         ?? false,
     },
     self: {
-      stance: input.privateThought?.stance ?? null,
-      mindMode: input.mindMode ?? null,
-      dominantDrive: input.dominantDrive ?? input.privateThought?.governorDrive ?? null,
-      embodiedPresence: input.privateThought?.embodiedPresence ?? 'none',
-      emotionalTension: input.privateThought?.emotionalTension,
-      initiativeAction: input.privateThought?.initiativeAction ?? null,
-      thought: pickText(input.privateThought?.thoughtText),
+      stance: privateThought?.stance ?? null,
+      mindMode,
+      dominantDrive: dominantDrive ?? privateThought?.governorDrive ?? null,
+      embodiedPresence: privateThought?.embodiedPresence ?? 'none',
+      emotionalTension: privateThought?.emotionalTension,
+      initiativeAction: privateThought?.initiativeAction ?? null,
+      thought: pickText(privateThought?.thoughtText),
     },
     obligation: {
-      shouldSpeak: input.replyDeliberation?.shouldSpeak ?? input.privateThought?.shouldSpeak ?? true,
-      speechObligation: input.answerCompiler?.speechObligation
-        ?? input.mindSynthesis?.speechObligation
+      shouldSpeak: replyDeliberation?.shouldSpeak ?? privateThought?.shouldSpeak ?? true,
+      speechObligation: answerCompiler?.speechObligation
+        ?? mindSynthesis?.speechObligation
         ?? null,
-      answerAct: input.dialogueActKernel?.speechAct
-        ?? input.answerCompiler?.recommendedAct
-        ?? input.answerPlanner?.act
+      answerAct: dialogueActKernel?.speechAct
+        ?? answerCompiler?.recommendedAct
+        ?? answerPlanner?.act
         ?? null,
-      responseMode: input.answerCompiler?.responseMode ?? null,
+      responseMode: answerCompiler?.responseMode ?? null,
       turnMode,
       openingClaim: pickAnchorText(
-        input.dialogueActKernel?.openingClaim,
-        input.answerCompiler?.openingClaim,
-        input.currentScene?.summary,
-        input.conversationState?.activeProject,
+        dialogueActKernel?.openingClaim,
+        answerCompiler?.openingClaim,
+        currentScene?.summary,
+        conversationState?.activeProject,
       ),
       openingMove: pickText(
-        input.dialogueActKernel?.openingMove,
-        input.answerPlanner?.openingMove,
-        input.answerCompiler?.openingDirective,
+        dialogueActKernel?.openingMove,
+        answerPlanner?.openingMove,
+        answerCompiler?.openingDirective,
       ),
       answerIntent: pickSurfaceText(
-        keepCoherent(input.answerPlanner?.answerIntent),
+        keepCoherent(answerPlanner?.answerIntent),
         dialogueFirstTurn ? focusAnchor : null,
-        keepCoherent(input.answerCompiler?.openingClaim),
-        dialogueFirstTurn ? keepCoherent(input.conversationState?.primaryTurnAnchor) : null,
-        dialogueFirstTurn ? keepCoherent(input.dialogueWorldThread?.primaryTurnAnchor) : null,
-        keepCoherent(input.dialogueWorldThread?.currentQuestion),
-        keepCoherent(input.conversationState?.jointThread),
-        keepCoherent(input.answerCompiler?.nextMove),
-        anchorsMateriallyAlign(input.answerPlanner?.governingFocus, focusAnchor) ? input.answerPlanner?.governingFocus : null,
+        keepCoherent(answerCompiler?.openingClaim),
+        dialogueFirstTurn ? keepCoherent(conversationState?.primaryTurnAnchor) : null,
+        dialogueFirstTurn ? keepCoherent(dialogueWorldThread?.primaryTurnAnchor) : null,
+        keepCoherent(dialogueWorldThread?.currentQuestion),
+        keepCoherent(conversationState?.jointThread),
+        keepCoherent(answerCompiler?.nextMove),
+        anchorsMateriallyAlign(answerPlanner?.governingFocus, focusAnchor) ? answerPlanner?.governingFocus : null,
       ),
       whyNow: pickSurfaceText(
-        input.dialogueActKernel?.whyNow,
-        input.replyDeliberation?.whyThisReplyNow,
-        input.currentScene?.summary,
+        dialogueActKernel?.whyNow,
+        replyDeliberation?.whyThisReplyNow,
+        currentScene?.summary,
       ),
       repairState,
-      shouldAskForGrounding: input.answerPlanner?.shouldAskForGrounding
-        ?? (input.dialogueActKernel?.speechAct === 'ask-reground'),
-      shouldAcknowledgeRepair: input.answerPlanner?.shouldAcknowledgeRepair
+      shouldAskForGrounding: answerPlanner?.shouldAskForGrounding
+        ?? (dialogueActKernel?.speechAct === 'ask-reground'),
+      shouldAcknowledgeRepair: answerPlanner?.shouldAcknowledgeRepair
         ?? (repairState === 'stale-anchor'),
     },
     focusAnchor,
     confidence,
     mustDo: uniqueList([
-      ...(input.dialogueActKernel?.mustSay ?? []),
-      ...(input.answerCompiler?.mustDo ?? []),
-      ...(input.answerPlanner?.mustDo ?? []),
+      ...(dialogueActKernel?.mustSay ?? []),
+      ...(answerCompiler?.mustDo ?? []),
+      ...(answerPlanner?.mustDo ?? []),
     ]),
     mustNotDo: uniqueList([
-      ...(input.dialogueActKernel?.mustAvoid ?? []),
-      ...(input.answerCompiler?.mustNotDo ?? []),
-      ...(input.answerPlanner?.mustNotDo ?? []),
+      ...(dialogueActKernel?.mustAvoid ?? []),
+      ...(answerCompiler?.mustNotDo ?? []),
+      ...(answerPlanner?.mustNotDo ?? []),
     ]),
     narrative: uniqueList([
       ...focusCoherence.reasonTags,
-      ...(input.mindSynthesis?.narrative ?? []),
-      ...(input.replyDeliberation?.narrative ?? []),
-      ...(input.dialogueWorldThread?.narrative ?? []),
-      ...(input.answerCompiler?.narrative ?? []),
-      ...(input.answerPlanner?.narrative ?? []),
+      ...(mindSynthesis?.narrative ?? []),
+      ...(replyDeliberation?.narrative ?? []),
+      ...(dialogueWorldThread?.narrative ?? []),
+      ...(answerCompiler?.narrative ?? []),
+      ...(answerPlanner?.narrative ?? []),
     ], 10),
     updatedAt: input.now,
   }

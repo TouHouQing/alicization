@@ -18,7 +18,20 @@ const emit = defineEmits<{
 }>()
 
 const searchQuery = defineModel<string>('searchQuery', { required: true })
-const { t } = useI18n()
+const { t, te } = useI18n()
+
+const sourceKindLabelKeys: Record<AlicizationSubconsciousFragment['sourceKind'], string> = {
+  'active-demotion': 'settings.pages.card.alicization.organic_memory.source_kinds.active_demotion',
+  'dream-fragment': 'settings.pages.card.alicization.organic_memory.source_kinds.dream_fragment',
+  'former-core-incarnation': 'settings.pages.card.alicization.organic_memory.source_kinds.former_core_incarnation',
+  'unforged-shattering-event': 'settings.pages.card.alicization.organic_memory.source_kinds.unforged_shattering_event',
+  'attitude-shift': 'settings.pages.card.alicization.organic_memory.source_kinds.attitude_shift',
+  'mind-continuity': 'settings.pages.card.alicization.organic_memory.source_kinds.mind_continuity',
+  'visual-sediment': 'settings.pages.card.alicization.organic_memory.source_kinds.visual_sediment',
+  'reflection-ledger': 'settings.pages.card.alicization.organic_memory.source_kinds.reflection_ledger',
+  'dialogue-turn': 'settings.pages.card.alicization.organic_memory.source_kinds.dialogue_turn',
+  'fact-ledger': 'settings.pages.card.alicization.organic_memory.source_kinds.fact_ledger',
+}
 
 const tier3DisplayItems = computed(() => {
   if (searchQuery.value.trim())
@@ -42,20 +55,8 @@ function formatDateTime(value?: number | null) {
 }
 
 function sourceKindLabel(value: AlicizationSubconsciousFragment['sourceKind']) {
-  switch (value) {
-    case 'active-demotion':
-      return t('settings.pages.card.alicization.organic_memory.source_kinds.active_demotion')
-    case 'dream-fragment':
-      return t('settings.pages.card.alicization.organic_memory.source_kinds.dream_fragment')
-    case 'former-core-incarnation':
-      return t('settings.pages.card.alicization.organic_memory.source_kinds.former_core_incarnation')
-    case 'unforged-shattering-event':
-      return t('settings.pages.card.alicization.organic_memory.source_kinds.unforged_shattering_event')
-    case 'attitude-shift':
-      return t('settings.pages.card.alicization.organic_memory.source_kinds.attitude_shift')
-    default:
-      return value
-  }
+  const key = sourceKindLabelKeys[value]
+  return te(key) ? t(key) : value
 }
 
 function submitSearch() {

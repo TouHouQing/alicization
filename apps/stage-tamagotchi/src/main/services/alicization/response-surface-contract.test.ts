@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('response-surface-contract', () => {
   it('forces direct correction discipline for repair turns', () => {
@@ -213,5 +215,176 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.mustDo).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
     expect(result.contract.mustNotDo).toContain('Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
+  })
+
+  it('forces executor-result follow-ups to pay off the settled result before any new branch', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'care',
+        liveSurface: '',
+        carriedThread: 'recent executor thread',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'care-with-boundary',
+        governingFocus: 'Pay off the recent executor result directly.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      executionReplyObligation: {
+        channel: 'cli',
+        followUpQuestion: true,
+        goal: 'Run pnpm typecheck',
+        outcome: 'typecheck passed',
+        source: 'fresh-callback',
+        status: 'completed',
+        summary: 'Completed Run pnpm typecheck: typecheck passed',
+      },
+    })
+
+    expect(result.contract.openingStyle).toBe('direct-answer')
+    expect(result.contract.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
+    expect(result.contract.mustDo).toContain('State plainly that the task already finished and surface the strongest outcome before any new planning.')
+    expect(result.contract.mustNotDo).toContain('Do not bury the executor result behind scene narration, comfort language, or persona-preface.')
+    expect(result.contract.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
+  })
+
+  it('prefers runtime surface answer-governance cues over conflicting raw inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(80_000),
+      dialogueActKernel: {
+        mode: 'answer',
+        cadence: 'tight',
+        affect: 'steady',
+        mustSay: ['Pay off the current ask directly.'],
+        mustAvoid: ['Do not blur the answer into persona theater.'],
+        narrative: [],
+        updatedAt: 80_000,
+      },
+      dialogueEncounter: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        dialogueFirst: true,
+        summary: 'Keep this turn dialogue-first.',
+        taskAnchor: '你能做什么呀',
+        mustRepairFirst: false,
+        confidence: 0.8,
+      },
+      answerCompiler: {
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-question',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        openingDirective: 'Answer the host directly.',
+        openingClaim: 'Answer from Alicization herself.',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Stay attached to the current turn anchor.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: ['Use the first sentence to pay off the host’s current ask.'],
+        mustNotDo: ['Do not let pet names become the reply spine.'],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 80_000,
+      },
+      claimEvidenceLedger: {
+        subject: 'alicization-self',
+        evidenceMode: 'dialogue-grounded',
+        observedSurface: '你能做什么呀',
+        taskHypothesis: 'The host wants Alicization’s own answer.',
+        intentHypothesis: 'Pay off the current dialogue turn directly.',
+        specificityBudget: 'dialogue-only',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: false,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.82,
+        reasonTags: ['dialogue-first'],
+        updatedAt: 80_000,
+      },
+    } as any
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: 'Git commit diff in Java code editor',
+        carriedThread: null,
+        truthState: 'uncertain',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: true,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'coarse-live',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'raw conflict',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'uncertain',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        turnMode: 'guide-current-knot',
+        evidenceMode: 'coarse-held',
+        openingStyle: 'direct-observation',
+        personaKernelMode: 'backgrounded',
+        labelCarryAsMemory: true,
+        suppressAssociativeRecall: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      } as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(result.contract.openingStyle).toBe('direct-answer')
+    expect(result.contract.personaKernelMode).toBe('full')
+    expect(result.contract.suppressAssociativeRecall).toBe(true)
+    expect(result.contract.mustDo).toContain('Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
+    expect(result.contract.mustDo).toContain('Stay with the live dialogue subject and keep screen grounding in the background.')
+    expect(result.contract.mustDo).toContain('Pay off the current ask directly.')
+    expect(result.contract.mustNotDo).toContain('Do not blur the answer into persona theater.')
+    expect(result.systemBlock).toContain('Digital life mode:')
+    expect(result.systemBlock).toContain('Digital life architecture:')
   })
 })

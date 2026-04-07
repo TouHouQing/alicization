@@ -1,3 +1,5 @@
+import type { StageEmbodimentPresencePostureMode } from '@proj-alicization/stage-shared'
+
 export interface VrmActionBinding {
   id: string
   fileName: string
@@ -28,4 +30,10 @@ export interface VrmRuntimeCapabilitySnapshot {
   supportsLookAt: boolean
   supportsVisemeLipSync: boolean
   supportsMicroDynamics: boolean
+}
+
+export interface VrmIdleActionPreference {
+  binding: VrmActionBinding | null
+  confidence: number
+  mode: StageEmbodimentPresencePostureMode
 }

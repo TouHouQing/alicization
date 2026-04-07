@@ -4,6 +4,8 @@ import {
   buildAnswerCompiler,
   buildAnswerCompilerSystemBlock,
 } from './answer-compiler'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const repairDiscourse = {
   currentTurnSubject: 'visible-scene' as const,
@@ -208,6 +210,160 @@ describe('buildAnswerCompiler', () => {
       recommendedAct: 'answer',
       turnMode: 'grounded-inspection',
       responseMode: 'answer-naturally',
+    }))
+  })
+
+  it('prefers runtime surface dialogue and truth cues over conflicting raw inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(24_000),
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'runtime.ts diff',
+        source: 'foreground-window-heuristic',
+        confidence: 0.58,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 24_000,
+      },
+      discourseState: repairDiscourse,
+      mindSynthesis: repairMind,
+      worldModel: {
+        activeThread: {
+          id: 'thread::repair',
+          kind: 'debugging',
+          status: 'active',
+          source: 'continuity',
+          title: 'stale screen anchor',
+          summary: 'The current screen understanding is stale.',
+          confidence: 0.8,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 24_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'scene-shift',
+          sceneAgeMs: 24_000,
+          attentionAgeMs: 24_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 24_000,
+      },
+      worldOntology: {
+        dominantFrame: 'remembered',
+        truthPriority: ['live', 'remembered', 'imagined'],
+        live: null,
+        remembered: {
+          kind: 'remembered',
+          summary: 'The carried browser anchor is stronger than the live scene.',
+          confidence: 0.76,
+          stability: 0.68,
+          focusThreadId: 'thread::repair',
+          evidence: ['continuity'],
+        },
+        imagined: null,
+        updatedAt: 24_000,
+      },
+      repairLedger: {
+        governingRepairId: 'repair::scene',
+        entries: [{
+          id: 'repair::scene',
+          kind: 'reground-scene',
+          status: 'open',
+          summary: 'The scene needs a fresh look.',
+          rationale: 'The old anchor is stale.',
+          urgency: 0.84,
+          confidence: 0.86,
+          createdAt: 0,
+          lastUpdatedAt: 24_000,
+          expiresAt: 120_000,
+        }],
+        repairPressure: 0.84,
+        truthRisk: 0.88,
+        shouldConstrainPresentTense: true,
+        narrative: [],
+        updatedAt: 24_000,
+      },
+      privateThought: {
+        stance: 'uncertain',
+        confidence: 0.74,
+        rationaleTags: [],
+        thoughtText: 'The live scene still needs to be regrounded.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'hesitant',
+        expiresAt: 60_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'tense-debug',
+      },
+    } as any
+
+    const compiler = buildAnswerCompiler({
+      now: 24_000,
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        owedAction: 'answer-self',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        truthBoundary: 'Answer the self turn directly.',
+      },
+      currentScene: null,
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-scene',
+          sceneAgeMs: 1_000,
+          attentionAgeMs: 1_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'light',
+        },
+        updatedAt: 24_000,
+      } as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(compiler).toEqual(expect.objectContaining({
+      evidenceMode: 'repair-first',
+      recommendedAct: 'ask-reground',
+      turnMode: 'screen-repair',
+      responseMode: 'repair-and-reanchor',
     }))
   })
 

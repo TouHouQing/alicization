@@ -168,7 +168,7 @@ watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFoc
 
   setIgnoreMouseEvents([!shouldCaptureMouse, { forward: true }])
   shouldFadeOnCursorWithin.value = nextShouldFadeOnCursorWithin
-})
+}, { immediate: true })
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
 const { stream, enabled } = storeToRefs(settingsAudioDeviceStore)

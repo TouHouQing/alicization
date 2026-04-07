@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import { buildConversationState } from './conversation-state'
 import { buildDialogueTurnEncounter } from './dialogue-turn-encounter'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildDiscourseState } from './discourse-state'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const baseContext = {
   localTime: { hour: 13, minute: 45, isLateNight: false },
@@ -240,5 +242,66 @@ describe('dialogue-turn-encounter', () => {
       continuityPolicy: 'dialogue-before-scene',
       activeProject: null,
     }))
+  })
+
+  it('prefers runtimeSurface scene and world state over conflicting raw encounter inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(32_000)
+    runtimeBackedState.currentScene = {
+      workloadKind: 'coding',
+      contentKind: 'diff',
+      scenario: 'coding',
+      summary: 'runtime.ts diff',
+      source: 'foreground-window-heuristic',
+      confidence: 0.9,
+      target: {
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts - diff',
+        pid: 42,
+      },
+      beganAt: 0,
+      lastSeenAt: 32_000,
+    } as any
+    runtimeBackedState.worldModel = baseWorldModel as any
+
+    const encounter = buildDialogueTurnEncounter({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        affectiveTone: 'urgent',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.88,
+        personaSuppression: 0.74,
+        confidence: 0.86,
+        summary: '',
+        source: 'hybrid',
+        reasonTags: ['scene-bound-turn', 'coding-question'],
+      },
+      context: baseContext,
+      currentScene: weakCodingScene,
+      worldModel: {
+        ...baseWorldModel,
+        activeThread: {
+          ...baseWorldModel.activeThread,
+          title: 'raw conflict',
+          summary: 'raw conflict',
+          confidence: 0.22,
+        },
+        epistemicState: {
+          ...baseWorldModel.epistemicState,
+          certainty: 'uncertain',
+        },
+      },
+      inspectionRequested: true,
+      inspectionState: 'inspection-live',
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(encounter.subject).toBe('task-knot')
+    expect(encounter.screenReferenceMode).toBe('helpful')
+    expect(encounter.continuityMode).toBe('task-first')
+    expect(encounter.summary).toBe('The host is working through a runtime diff.')
+    expect(encounter.shouldBypassScreenRepair).toBe(false)
   })
 })

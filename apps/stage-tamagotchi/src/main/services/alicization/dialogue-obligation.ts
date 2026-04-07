@@ -4,6 +4,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { isDialogueFirstSubject, isSceneThreadSubject } from './dialogue-surface-text'
@@ -49,7 +50,12 @@ export function buildDialogueObligation(input: {
   worldModel?: AlicizationWorldModelSnapshot | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueObligation {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const sceneBoundTurn = input.semantics.reasonTags.includes('scene-bound-turn')
   const dialogueFirstSubject = isDialogueFirstSubject(input.semantics.subjectPreference)
   const sceneThreadSubject = isSceneThreadSubject(input.semantics.subjectPreference)
@@ -61,20 +67,20 @@ export function buildDialogueObligation(input: {
       || input.semantics.responseNeed === 'guide'
       || input.semantics.responseNeed === 'clarify'
     )
-  const unstableTruth = input.worldModel?.epistemicState.certainty === 'uncertain'
-    || input.worldModel?.epistemicState.certainty === 'lingering'
-    || input.repairLedger?.shouldConstrainPresentTense === true
-    || input.privateThought?.stance === 'uncertain'
+  const unstableTruth = worldModel?.epistemicState.certainty === 'uncertain'
+    || worldModel?.epistemicState.certainty === 'lingering'
+    || repairLedger?.shouldConstrainPresentTense === true
+    || privateThought?.stance === 'uncertain'
   const codingLike = input.context.workload.kind === 'coding'
     || input.context.workload.kind === 'terminal'
     || input.context.content.kind === 'error'
     || input.context.content.kind === 'diff'
-    || input.worldModel?.activeThread?.kind === 'debugging'
-    || input.worldModel?.activeThread?.kind === 'change-review'
+    || worldModel?.activeThread?.kind === 'debugging'
+    || worldModel?.activeThread?.kind === 'change-review'
   const careLike = input.context.relationship.fatigue >= 58
-    || input.worldModel?.activeThread?.kind === 'late-night-endurance'
-    || input.privateThought?.stance === 'care'
-    || input.privateThought?.stance === 'warn'
+    || worldModel?.activeThread?.kind === 'late-night-endurance'
+    || privateThought?.stance === 'care'
+    || privateThought?.stance === 'warn'
 
   let kind: AlicizationDialogueObligationKind = 'answer'
   if (
@@ -125,7 +131,7 @@ export function buildDialogueObligation(input: {
   const mustRepairFirst = kind === 'repair'
   const mustStayTaskBound = kind === 'repair' || kind === 'guide' || kind === 'teach'
   const shouldAskClarifyingQuestion = kind === 'clarify'
-    || (kind === 'repair' && !input.worldModel?.activeThread && !input.semantics.taskAnchor)
+    || (kind === 'repair' && !worldModel?.activeThread && !input.semantics.taskAnchor)
   const mustAnswerDirectly = kind !== 'accompany' && !shouldAskClarifyingQuestion
   const personaKernelMode: AlicizationPersonaKernelMode = mustRepairFirst
     ? 'muted'
@@ -138,7 +144,7 @@ export function buildDialogueObligation(input: {
   const summary = sanitizeText(
     input.semantics.summary
     || input.semantics.taskAnchor
-    || input.worldModel?.activeThread?.summary
+    || worldModel?.activeThread?.summary
     || 'This turn carries a concrete obligation.',
     180,
   ) || 'This turn carries a concrete obligation.'
@@ -148,7 +154,7 @@ export function buildDialogueObligation(input: {
     summary,
     confidence: clamp01(
       input.semantics.confidence * 0.58
-      + (input.worldModel?.activeThread?.confidence ?? 0.32) * 0.14
+      + (worldModel?.activeThread?.confidence ?? 0.32) * 0.14
       + (unstableTruth ? 0.12 : 0.04)
       + (mustStayTaskBound ? 0.08 : 0.04),
     ),

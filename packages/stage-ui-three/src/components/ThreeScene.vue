@@ -8,6 +8,11 @@
 */
 
 import type { VRM } from '@pixiv/three-vrm'
+import type {
+  StageEmbodimentPerformanceState,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { TresContext } from '@tresjs/core'
 import type { DirectionalLight, SphericalHarmonics3, Texture, WebGLRenderer, WebGLRenderTarget } from 'three'
 
@@ -15,6 +20,7 @@ import type { SceneBootstrap, ScenePhase, Vec3 } from '../stores/model-store'
 import type {
   VrmActionBinding,
   VrmCustomExpressionBinding,
+  VrmIdleActionPreference,
   VrmRuntimeCapabilitySnapshot,
 } from '../types/performance'
 
@@ -53,15 +59,20 @@ import { SkyBox } from './Environment'
 import { VRMModel } from './Model'
 
 const props = withDefaults(defineProps<{
-  currentAudioSource?: AudioBufferSourceNode
+  baseExpressionOverrides?: Record<string, string[]> | null
   customExpressionBindings?: VrmCustomExpressionBinding[]
   actionBindings?: VrmActionBinding[]
+  externalLookAtScreenPoint?: { x: number, y: number } | null
   modelSrc?: string
   modelId?: string
   skyBoxSrc?: string
   showAxes?: boolean
   idleAnimation?: string
   paused?: boolean
+  idleActionPreference?: VrmIdleActionPreference | null
+  performanceState?: StageEmbodimentPerformanceState | null
+  presencePosture?: StageEmbodimentPresencePostureState | null
+  speechRenderState?: StageEmbodimentSpeechRenderState | null
 }>(), {
   showAxes: false,
   idleAnimation: new URL('../assets/vrm/animations/idle_loop.vrma', import.meta.url).href,
@@ -815,9 +826,14 @@ defineExpose({
       </Suspense>
       <VRMModel
         ref="modelRef"
-        :current-audio-source="props.currentAudioSource"
+        :performance-state="props.performanceState"
+        :speech-render-state="props.speechRenderState"
+        :idle-action-preference="props.idleActionPreference"
+        :presence-posture="props.presencePosture"
+        :base-expression-overrides="props.baseExpressionOverrides"
         :custom-expression-bindings="props.customExpressionBindings"
         :action-bindings="props.actionBindings"
+        :external-look-at-screen-point="props.externalLookAtScreenPoint"
         :model-src="props.modelSrc"
         :model-id="props.modelId"
         :idle-animation="props.idleAnimation"

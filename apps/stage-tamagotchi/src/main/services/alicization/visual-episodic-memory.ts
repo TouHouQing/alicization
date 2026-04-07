@@ -47,6 +47,7 @@ import type {
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfGovernorSnapshot,
   AlicizationSelfStateSnapshot,
+  AlicizationSubconsciousFragmentSourceKind,
   AlicizationSubjectiveInferenceSnapshot,
   AlicizationSubjectiveSceneAppraisal,
   AlicizationThoughtThreadStateSnapshot,
@@ -60,6 +61,8 @@ import type {
   AlicizationWorldOntologySnapshot,
   AlicizationWorldThreadSnapshot,
 } from '../../../shared/eventa'
+
+import { deriveAlicizationResidentPerformanceSnapshot } from '@proj-alicization/stage-shared'
 
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
@@ -78,6 +81,23 @@ function sanitizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot): AlicizationVisualPresenceStateSnapshot {
+  return {
+    ...state,
+    residentPerformance: deriveAlicizationResidentPerformanceSnapshot({
+      watchMode: state.watchMode,
+      currentScene: state.currentScene,
+      attention: state.attention,
+      privateThought: state.privateThought,
+      captureState: state.captureState,
+      updatedAt: state.updatedAt,
+    }, {
+      fallbackUpdatedAt: state.updatedAt,
+      source: 'main-runtime',
+    }),
+  }
 }
 
 function normalizeTurnAnchorSource(raw: unknown): AlicizationDiscourseStateSnapshot['primaryTurnAnchorSource'] {
@@ -139,6 +159,21 @@ function normalizeInspectionTurnState(raw: unknown): AlicizationInspectionTurnSt
 
 function normalizePersonaKernelMode(raw: unknown): AlicizationPersonaKernelMode | null {
   return raw === 'full' || raw === 'backgrounded' || raw === 'muted'
+    ? raw
+    : null
+}
+
+function normalizeSubconsciousFragmentSourceKind(raw: unknown): AlicizationSubconsciousFragmentSourceKind | null {
+  return raw === 'active-demotion'
+    || raw === 'dream-fragment'
+    || raw === 'former-core-incarnation'
+    || raw === 'unforged-shattering-event'
+    || raw === 'attitude-shift'
+    || raw === 'mind-continuity'
+    || raw === 'visual-sediment'
+    || raw === 'reflection-ledger'
+    || raw === 'dialogue-turn'
+    || raw === 'fact-ledger'
     ? raw
     : null
 }
@@ -1715,13 +1750,43 @@ function normalizeRecallGovernor(raw: unknown): AlicizationRecallGovernorSnapsho
   const rationale = sanitizeText(candidate.rationale, 220)
   if (!rationale)
     return null
+  const allowRecalledFragments = candidate.allowRecalledFragments === true
+  const recalledFragmentCapRaw = Number(candidate.recalledFragmentCap)
+  const recalledFragmentCap = allowRecalledFragments
+    ? Number.isFinite(recalledFragmentCapRaw)
+      ? Math.max(1, Math.min(8, Math.floor(recalledFragmentCapRaw)))
+      : 2
+    : 0
+  const recalledFragmentSourceBudget: Array<{ sourceKind: AlicizationSubconsciousFragmentSourceKind, maxItems: number }> = []
+  const seenSourceKinds = new Set<AlicizationSubconsciousFragmentSourceKind>()
+  if (allowRecalledFragments && Array.isArray(candidate.recalledFragmentSourceBudget)) {
+    for (const item of candidate.recalledFragmentSourceBudget) {
+      if (!item || typeof item !== 'object' || Array.isArray(item))
+        continue
+      const sourceKind = normalizeSubconsciousFragmentSourceKind((item as Record<string, unknown>).sourceKind)
+      if (!sourceKind || seenSourceKinds.has(sourceKind))
+        continue
+      const maxItemsRaw = Number((item as Record<string, unknown>).maxItems)
+      if (!Number.isFinite(maxItemsRaw))
+        continue
+      recalledFragmentSourceBudget.push({
+        sourceKind,
+        maxItems: Math.max(0, Math.min(8, Math.floor(maxItemsRaw))),
+      })
+      seenSourceKinds.add(sourceKind)
+      if (recalledFragmentSourceBudget.length >= 10)
+        break
+    }
+  }
 
   return {
     mode,
     recallSeed: sanitizeText(candidate.recallSeed, 400),
     suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     allowActiveThoughts: candidate.allowActiveThoughts === true,
-    allowRecalledFragments: candidate.allowRecalledFragments === true,
+    allowRecalledFragments,
+    recalledFragmentCap,
+    recalledFragmentSourceBudget,
     carryAsMemory: candidate.carryAsMemory === true,
     rationale,
     narrative: Array.isArray(candidate.narrative)
@@ -1752,7 +1817,7 @@ function normalizeExecutiveCycle(raw: unknown): AlicizationExecutiveCycleSnapsho
 }
 
 export function createDefaultVisualPresenceState(now = Date.now()): AlicizationVisualPresenceStateSnapshot {
-  return {
+  return withResidentPerformance({
     watchMode: 'mnemonic-passive',
     currentScene: null,
     attention: null,
@@ -1812,7 +1877,7 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     recentTransition: null,
     nextSuggestedProbeMs: 45_000,
     updatedAt: now,
-  }
+  })
 }
 
 export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): AlicizationVisualPresenceStateSnapshot {
@@ -1911,20 +1976,26 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   const captureStateRaw = candidate.captureState && typeof candidate.captureState === 'object'
     ? candidate.captureState as Record<string, unknown>
     : null
-  base.captureState = captureStateRaw
-    ? {
-        permission: captureStateRaw.permission === 'granted'
-          || captureStateRaw.permission === 'denied'
-          || captureStateRaw.permission === 'prompt'
-          ? captureStateRaw.permission
-          : 'unknown',
-        lastGroundedAt: Number.isFinite(Number(captureStateRaw.lastGroundedAt))
-          ? Math.max(0, Math.floor(Number(captureStateRaw.lastGroundedAt)))
-          : null,
-        sourceName: sanitizeText(captureStateRaw.sourceName, 160) || undefined,
-        degradedReason: sanitizeText(captureStateRaw.degradedReason, 160) || undefined,
-      }
-    : base.captureState
+  if (captureStateRaw) {
+    const captureHealth = captureStateRaw.health === 'healthy'
+      || captureStateRaw.health === 'degraded'
+      || captureStateRaw.health === 'unavailable'
+      ? captureStateRaw.health
+      : undefined
+    base.captureState = {
+      permission: captureStateRaw.permission === 'granted'
+        || captureStateRaw.permission === 'denied'
+        || captureStateRaw.permission === 'prompt'
+        ? captureStateRaw.permission
+        : 'unknown',
+      ...(captureHealth ? { health: captureHealth } : {}),
+      lastGroundedAt: Number.isFinite(Number(captureStateRaw.lastGroundedAt))
+        ? Math.max(0, Math.floor(Number(captureStateRaw.lastGroundedAt)))
+        : null,
+      sourceName: sanitizeText(captureStateRaw.sourceName, 160) || undefined,
+      degradedReason: sanitizeText(captureStateRaw.degradedReason, 160) || undefined,
+    }
+  }
   base.durabilityPulse = candidate.durabilityPulse && typeof candidate.durabilityPulse === 'object'
     ? candidate.durabilityPulse as AlicizationDurabilityPulseSnapshot
     : null
@@ -1937,7 +2008,7 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   base.updatedAt = Number.isFinite(Number(candidate.updatedAt))
     ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
     : now
-  return base
+  return withResidentPerformance(base)
 }
 
 function isHighSemanticEpisode(input: {
@@ -2059,7 +2130,7 @@ export function updateVisualPresenceState(input: {
     workingMemoryEpisodes = [...workingMemoryEpisodes, previousEpisode].slice(-visualWorkingMemoryLimit)
   }
 
-  return {
+  return withResidentPerformance({
     watchMode: input.watchMode,
     currentScene: input.scene,
     attention: input.attention,
@@ -2118,7 +2189,7 @@ export function updateVisualPresenceState(input: {
     recentTransition: input.recentTransition ?? null,
     nextSuggestedProbeMs: Math.max(1_000, Math.floor(input.nextSuggestedProbeMs)),
     updatedAt: input.now,
-  }
+  })
 }
 
 export function buildVisualSedimentFragment(episode: AlicizationVisualEpisode) {

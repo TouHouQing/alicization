@@ -1,7 +1,13 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { CompletionToolCall, Message, Tool } from '@xsai/shared-chat'
 
-import type { AlicizationMindTurnGovernance } from './alicization-bridge'
+import type {
+  AlicizationDialogueEmbodimentEnvelope,
+  AlicizationDialogueSpeechTimeline,
+  AlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeSpineDigest,
+  AlicizationMindTurnGovernance,
+} from './alicization-bridge'
 
 import { listModels } from '@xsai/model'
 import { XSAIError } from '@xsai/shared'
@@ -13,7 +19,14 @@ import { debug, mcp } from '../tools'
 
 export type StreamEvent
   = | { type: 'text-delta', text: string }
-    | { type: 'meta', governance: AlicizationMindTurnGovernance | null }
+    | {
+      type: 'meta'
+      governance: AlicizationMindTurnGovernance | null
+      embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+      speechTimeline?: AlicizationDialogueSpeechTimeline | null
+      digitalLife?: AlicizationDigitalLifeEnvelope | null
+      digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+    }
     | ({ type: 'finish' } & any)
     | ({ type: 'tool-call' } & CompletionToolCall)
     | { type: 'tool-result', toolCallId: string, result?: unknown }
@@ -85,21 +98,21 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
   return new Promise<void>((resolve, reject) => {
     let settled = false
     const abortSignal = options?.abortSignal
-    const resolveOnce = () => {
+    function resolveOnce() {
       if (settled)
         return
       settled = true
       abortSignal?.removeEventListener('abort', abortHandler)
       resolve()
     }
-    const rejectOnce = (err: unknown) => {
+    function rejectOnce(err: unknown) {
       if (settled)
         return
       settled = true
       abortSignal?.removeEventListener('abort', abortHandler)
       reject(err)
     }
-    const abortHandler = () => {
+    function abortHandler() {
       rejectOnce(abortSignal?.reason ?? new DOMException('Aborted', 'AbortError'))
     }
 

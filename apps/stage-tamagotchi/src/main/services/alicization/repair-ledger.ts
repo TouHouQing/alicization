@@ -12,6 +12,7 @@ import type {
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { buildEpistemicSurfacePosture } from './epistemic-surface'
@@ -134,28 +135,42 @@ export function buildRepairLedger(input: {
   commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
   inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   previous?: AlicizationRepairLedgerSnapshot | null
 }): AlicizationRepairLedgerSnapshot {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel
+  const worldOntology = runtimeSurface?.world.worldOntology ?? input.worldOntology ?? null
+  const beliefLedger = runtimeSurface?.cognition.beliefLedger ?? input.beliefLedger ?? null
+  const beliefRevision = runtimeSurface?.cognition.beliefRevision ?? input.beliefRevision ?? null
+  const hypothesisGraph = runtimeSurface?.cognition.hypothesisGraph ?? input.hypothesisGraph ?? null
+  const commitmentLedger = runtimeSurface?.memory.commitmentLedger ?? input.commitmentLedger ?? null
+  const inquiryPlanner = runtimeSurface?.memory.inquiryPlanner ?? input.inquiryPlanner ?? null
+  const concernContinuity = runtimeSurface?.memory.concernContinuity ?? input.concernContinuity ?? null
+
   const posture = buildEpistemicSurfacePosture({
     context: input.context,
-    worldModel: input.worldModel,
-    beliefRevision: input.beliefRevision,
+    worldModel,
+    beliefRevision,
   })
-  const truthContract = deriveMindTruthContract({
-    currentScene: input.currentScene,
-    worldModel: input.worldModel,
-    worldOntology: input.worldOntology ?? null,
-  })
-  const currentCommitment = governingCommitment(input.commitmentLedger)
-  const currentPlan = activeInquiryPlan(input.inquiryPlanner)
-  const currentHypothesis = activeHypothesis(input.hypothesisGraph)
-  const currentConcern = governingConcern(input.concernContinuity)
+  const truthContract = deriveMindTruthContract(
+    runtimeSurface ?? {
+      currentScene,
+      worldModel,
+      worldOntology,
+    },
+  )
+  const currentCommitment = governingCommitment(commitmentLedger)
+  const currentPlan = activeInquiryPlan(inquiryPlanner)
+  const currentHypothesis = activeHypothesis(hypothesisGraph)
+  const currentConcern = governingConcern(concernContinuity)
   const freshGroundedScene = hasFreshGroundedScene({
-    currentScene: input.currentScene,
-    worldModel: input.worldModel,
+    currentScene,
+    worldModel,
   })
-  const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId)
-    ?? input.beliefLedger?.beliefs[0]
+  const focusBelief = beliefLedger?.beliefs.find(belief => belief.id === beliefLedger?.focusBeliefId)
+    ?? beliefLedger?.beliefs[0]
     ?? null
   const previousEntries = new Map((input.previous?.entries ?? []).map(entry => [entry.id, entry]))
   const entries: AlicizationRepairLedgerEntry[] = []
@@ -170,23 +185,23 @@ export function buildRepairLedger(input: {
   ) {
     const summary = currentPlan?.question
       ?? currentCommitment?.summary
-      ?? input.worldModel.epistemicState.openQuestions[0]
+      ?? worldModel.epistemicState.openQuestions[0]
       ?? 'The live scene still needs one cleaner grounding pass.'
     const id = stableRepairId('reground-scene', summary)
     entries.push(createEntry({
       now: input.now,
       kind: 'reground-scene',
       summary,
-      rationale: `Epistemic certainty is ${input.worldModel.epistemicState.certainty}; grounding need is ${(input.beliefRevision?.groundingNeed ?? 0).toFixed(2)}.`,
+      rationale: `Epistemic certainty is ${worldModel.epistemicState.certainty}; grounding need is ${(beliefRevision?.groundingNeed ?? 0).toFixed(2)}.`,
       urgency: clamp01(
-        (input.beliefRevision?.groundingNeed ?? 0.28) * 0.42
-        + (input.worldModel.epistemicState.certainty === 'uncertain' ? 0.28 : input.worldModel.epistemicState.certainty === 'lingering' ? 0.18 : 0)
+        (beliefRevision?.groundingNeed ?? 0.28) * 0.42
+        + (worldModel.epistemicState.certainty === 'uncertain' ? 0.28 : worldModel.epistemicState.certainty === 'lingering' ? 0.18 : 0)
         + (currentPlan?.askForGrounding ? 0.12 : 0)
         + (currentCommitment?.kind === 'recheck-scene' ? 0.12 : 0),
       ),
       confidence: clamp01(
         (currentPlan ? 0.18 : 0)
-        + (input.beliefRevision?.revisionPressure ?? 0.24) * 0.24
+        + (beliefRevision?.revisionPressure ?? 0.24) * 0.24
         + (currentConcern?.repairAffinity ?? 0.22) * 0.26
         + 0.3,
       ),
@@ -201,16 +216,16 @@ export function buildRepairLedger(input: {
   if (
     !freshGroundedScene
     && (
-      input.worldModel.activeThread?.source === 'continuity'
-      || input.worldModel.activeThread?.source === 'working-memory'
+      worldModel.activeThread?.source === 'continuity'
+      || worldModel.activeThread?.source === 'working-memory'
       || (
-        input.worldModel.epistemicState.certainty === 'lingering'
+        worldModel.epistemicState.certainty === 'lingering'
         && currentConcern?.status === 'carried'
       )
     )
   ) {
     const summary = currentConcern?.summary
-      ?? input.worldModel.activeThread?.summary
+      ?? worldModel.activeThread?.summary
       ?? 'The carried scene anchor may be outrunning the live view.'
     const id = stableRepairId('stale-scene-anchor', summary)
     entries.push(createEntry({
@@ -221,8 +236,8 @@ export function buildRepairLedger(input: {
       urgency: clamp01(
         (currentConcern?.repairAffinity ?? 0.2) * 0.3
         + (truthContract.shouldLabelMemory ? 0.24 : 0)
-        + (input.worldModel.activeThread?.source === 'continuity' ? 0.2 : 0)
-        + (input.worldModel.activeThread?.source === 'working-memory' ? 0.18 : 0),
+        + (worldModel.activeThread?.source === 'continuity' ? 0.2 : 0)
+        + (worldModel.activeThread?.source === 'working-memory' ? 0.18 : 0),
       ),
       confidence: clamp01(
         (currentConcern?.confidence ?? 0.42) * 0.24
@@ -239,7 +254,7 @@ export function buildRepairLedger(input: {
   if (
     !freshGroundedScene
     && (
-      (input.beliefRevision?.contradictionPressure ?? 0) >= 0.42
+      (beliefRevision?.contradictionPressure ?? 0) >= 0.42
       || currentHypothesis?.kind === 'misread-drift'
     )
   ) {
@@ -251,9 +266,9 @@ export function buildRepairLedger(input: {
       now: input.now,
       kind: 'belief-contradiction',
       summary,
-      rationale: `Contradiction pressure is ${(input.beliefRevision?.contradictionPressure ?? 0).toFixed(2)} and the active hypothesis is ${currentHypothesis?.kind ?? 'unknown'}.`,
+      rationale: `Contradiction pressure is ${(beliefRevision?.contradictionPressure ?? 0).toFixed(2)} and the active hypothesis is ${currentHypothesis?.kind ?? 'unknown'}.`,
       urgency: clamp01(
-        (input.beliefRevision?.contradictionPressure ?? 0.28) * 0.46
+        (beliefRevision?.contradictionPressure ?? 0.28) * 0.46
         + (currentHypothesis?.kind === 'misread-drift' ? 0.26 : 0),
       ),
       confidence: clamp01(
@@ -283,7 +298,7 @@ export function buildRepairLedger(input: {
       ),
       confidence: clamp01(
         (truthContract.shouldLabelMemory ? 0.42 : 0.22)
-        + (input.worldModel.activeThread?.confidence ?? 0.28) * 0.18,
+        + (worldModel.activeThread?.confidence ?? 0.28) * 0.18,
       ),
       targetConcernEntryId: currentConcern?.id ?? null,
       targetCommitmentId: currentCommitment?.id ?? null,
@@ -318,10 +333,10 @@ export function buildRepairLedger(input: {
     ? clamp01(Math.max(...dedupedEntries.map(entry => entry.urgency)))
     : 0
   const truthRisk = clamp01(
-    (input.beliefRevision?.groundingNeed ?? 0) * 0.3
-    + (input.beliefRevision?.contradictionPressure ?? 0) * 0.28
+    (beliefRevision?.groundingNeed ?? 0) * 0.3
+    + (beliefRevision?.contradictionPressure ?? 0) * 0.28
     + (!truthContract.canDescribeCurrentSceneAsFact ? 0.24 : 0)
-    + (input.worldModel.activeThread?.source === 'continuity' || input.worldModel.activeThread?.source === 'working-memory' ? 0.12 : 0),
+    + (worldModel.activeThread?.source === 'continuity' || worldModel.activeThread?.source === 'working-memory' ? 0.12 : 0),
   )
   const narrative = governingRepair
     ? [`Current governing repair is ${governingRepair.kind}: ${governingRepair.summary.toLowerCase()}.`]

@@ -5,6 +5,7 @@ import type {
   AlicizationPrivateThoughtSnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationReplyDeliberationSnapshot,
+  AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 
@@ -36,6 +37,35 @@ function pickRecallAnchor(...values: unknown[]) {
       return normalized
   }
   return ''
+}
+
+function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapshot['mode']): Array<{
+  sourceKind: AlicizationSubconsciousFragmentSourceKind
+  maxItems: number
+}> {
+  if (mode === 'self-continuity') {
+    return [
+      { sourceKind: 'dialogue-turn', maxItems: 2 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'reflection-ledger', maxItems: 1 },
+      { sourceKind: 'mind-continuity', maxItems: 1 },
+      { sourceKind: 'dream-fragment', maxItems: 0 },
+      { sourceKind: 'visual-sediment', maxItems: 0 },
+    ]
+  }
+
+  if (mode === 'emotional-resonance') {
+    return [
+      { sourceKind: 'reflection-ledger', maxItems: 2 },
+      { sourceKind: 'dialogue-turn', maxItems: 1 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'mind-continuity', maxItems: 1 },
+      { sourceKind: 'dream-fragment', maxItems: 1 },
+      { sourceKind: 'visual-sediment', maxItems: 0 },
+    ]
+  }
+
+  return []
 }
 
 function resolveMode(input: {
@@ -143,6 +173,12 @@ export function buildRecallGovernor(input: {
     && mode !== 'scene'
     && (mode !== 'thread' || !suppressAssociativeRecall)
   const allowRecalledFragments = !suppressAssociativeRecall && (mode === 'emotional-resonance' || mode === 'self-continuity')
+  const recalledFragmentCap = allowRecalledFragments
+    ? mode === 'emotional-resonance' ? 3 : 2
+    : 0
+  const recalledFragmentSourceBudget = allowRecalledFragments
+    ? buildRecalledFragmentSourceBudget(mode)
+    : []
   const carryAsMemory = Boolean(
     input.answerCompiler?.labelCarryAsMemory
     || mode === 'self-continuity'
@@ -177,6 +213,8 @@ export function buildRecallGovernor(input: {
     suppressAssociativeRecall,
     allowActiveThoughts,
     allowRecalledFragments,
+    recalledFragmentCap,
+    recalledFragmentSourceBudget,
     carryAsMemory,
     rationale,
     narrative: uniqueList([
@@ -184,6 +222,8 @@ export function buildRecallGovernor(input: {
       suppressAssociativeRecall ? 'suppress:associative' : 'allow:associative',
       allowActiveThoughts ? 'allow:active-thoughts' : 'suppress:active-thoughts',
       allowRecalledFragments ? 'allow:recalled-fragments' : 'suppress:recalled-fragments',
+      allowRecalledFragments ? `recalled-fragment-cap:${recalledFragmentCap}` : null,
+      ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       dialogueWorldThread.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
@@ -205,6 +245,10 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
     `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,
+    `Recalled fragment cap: ${state.recalledFragmentCap ?? 0}.`,
+    `Recalled fragment source budget: ${state.recalledFragmentSourceBudget && state.recalledFragmentSourceBudget.length > 0
+      ? state.recalledFragmentSourceBudget.map(item => `${item.sourceKind}:${item.maxItems}`).join(', ')
+      : 'none'}.`,
     `Carry as memory: ${state.carryAsMemory ? 'yes' : 'no'}.`,
     `Rationale: ${state.rationale}.`,
   ].join('\n')

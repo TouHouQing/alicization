@@ -1,7 +1,16 @@
 import type { ContextUpdate, MetadataEventSource, WebSocketEventInputs } from '@proj-alicization/server-sdk'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
-import type { AlicizationDialogueStructuredFormat, AlicizationMindTurnGovernance, AlicizationProactiveMetadata } from '../stores/alicization-bridge'
+import type {
+  AlicizationDialogueEmbodimentEnvelope,
+  AlicizationDialoguePerformancePayload,
+  AlicizationDialogueSpeechTimeline,
+  AlicizationDialogueStructuredFormat,
+  AlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeSpineDigest,
+  AlicizationMindTurnGovernance,
+  AlicizationProactiveMetadata,
+} from '../stores/alicization-bridge'
 
 export interface ChatSlicesText {
   type: 'text'
@@ -29,6 +38,27 @@ export interface ChatSlicesExecutionStatus {
 
 export type ChatSlices = ChatSlicesText | ChatSlicesToolCall | ChatSlicesToolCallResult | ChatSlicesExecutionStatus
 
+export interface ChatAssistantStructuredPayload {
+  thought: string
+  emotion: string
+  reply: string
+  performance?: AlicizationDialoguePerformancePayload
+  userSentimentScore?: number
+  sentimentConfidenceRaw?: number
+  sentimentConfidence?: number
+  format: AlicizationDialogueStructuredFormat
+  parsePath?: 'json' | 'repair-json' | 'act' | 'fallback'
+  repairTimedOut?: boolean
+  contractFailed?: boolean
+  embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  speechTimeline?: AlicizationDialogueSpeechTimeline | null
+  digitalLife?: AlicizationDigitalLifeEnvelope | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  proactive?: AlicizationProactiveMetadata
+  governance?: AlicizationMindTurnGovernance | null
+  policyLocked?: string
+}
+
 export interface ChatAssistantMessage extends AssistantMessage {
   origin?: 'user-turn' | 'subconscious-proactive'
   slices: ChatSlices[]
@@ -40,21 +70,7 @@ export interface ChatAssistantMessage extends AssistantMessage {
     speech: string
     reasoning: string
   }
-  structured?: {
-    thought: string
-    emotion: string
-    reply: string
-    userSentimentScore?: number
-    sentimentConfidenceRaw?: number
-    sentimentConfidence?: number
-    format: AlicizationDialogueStructuredFormat
-    parsePath?: 'json' | 'repair-json' | 'act' | 'fallback'
-    repairTimedOut?: boolean
-    contractFailed?: boolean
-    policyLocked?: 'epoch1-strict-realtime'
-    proactive?: AlicizationProactiveMetadata
-    governance?: AlicizationMindTurnGovernance | null
-  }
+  structured?: ChatAssistantStructuredPayload
 }
 
 export type ChatMessage = ChatAssistantMessage | SystemMessage | ToolMessage | UserMessage

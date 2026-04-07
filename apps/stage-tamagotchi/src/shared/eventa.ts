@@ -3,15 +3,72 @@ import type { ServerOptions } from '@proj-alicization/server-runtime/server'
 import type {
   AlicizationAnswerAct as SharedAlicizationAnswerAct,
   AlicizationAnswerEvidenceMode as SharedAlicizationAnswerEvidenceMode,
+  AlicizationAppendExecutionEventsInput as SharedAlicizationAppendExecutionEventsInput,
+  AlicizationChannelCapability as SharedAlicizationChannelCapability,
+  AlicizationChannelCapabilityManifestRecord as SharedAlicizationChannelCapabilityManifestRecord,
+  AlicizationChannelCapabilityManifestUpsertInput as SharedAlicizationChannelCapabilityManifestUpsertInput,
+  AlicizationClaudeCodeCommandInput as SharedAlicizationClaudeCodeCommandInput,
+  AlicizationClawFabricPlan as SharedAlicizationClawFabricPlan,
+  AlicizationClawTaskIntent as SharedAlicizationClawTaskIntent,
+  AlicizationCliCommandInput as SharedAlicizationCliCommandInput,
+  AlicizationCodexCommandInput as SharedAlicizationCodexCommandInput,
+  AlicizationDialogueEmbodimentEnvelope as SharedAlicizationDialogueEmbodimentEnvelope,
+  AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
+  AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
+  AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
+  AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
+  AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
+  AlicizationDigitalLifeEnvelope as SharedAlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
+  AlicizationDigitalLifeSpineMemoryDigest as SharedAlicizationDigitalLifeSpineMemoryDigest,
+  AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
+  AlicizationDispatchTaskThreadResult as SharedAlicizationDispatchTaskThreadResult,
+  AlicizationEmotion as SharedAlicizationEmotion,
+  AlicizationExecutionChannel as SharedAlicizationExecutionChannel,
+  AlicizationExecutionEventInput as SharedAlicizationExecutionEventInput,
+  AlicizationExecutionEventKind as SharedAlicizationExecutionEventKind,
+  AlicizationExecutionEventRecord as SharedAlicizationExecutionEventRecord,
+  AlicizationExecutionTaskKind as SharedAlicizationExecutionTaskKind,
+  AlicizationExecutionTurnOrigin as SharedAlicizationExecutionTurnOrigin,
+  AlicizationExecutorSessionRecord as SharedAlicizationExecutorSessionRecord,
+  AlicizationExecutorSessionStatus as SharedAlicizationExecutorSessionStatus,
+  AlicizationExecutorSessionUpsertInput as SharedAlicizationExecutorSessionUpsertInput,
+  AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
+  AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
+  AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
+  AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
+  AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
   AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord as SharedAlicizationMindTurnEventRecord,
   AlicizationMindTurnGovernance as SharedAlicizationMindTurnGovernance,
+  AlicizationOpenClawCommandInput as SharedAlicizationOpenClawCommandInput,
+  AlicizationPerformanceDelivery as SharedAlicizationPerformanceDelivery,
+  AlicizationPerformanceManifestClampResult as SharedAlicizationPerformanceManifestClampResult,
+  AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
+  AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
+  AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
+  AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
+  AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
+  AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
+  AlicizationSensoryCapturePermission as SharedAlicizationSensoryCapturePermission,
+  AlicizationSensoryCaptureSnapshot as SharedAlicizationSensoryCaptureSnapshot,
+  AlicizationSubconsciousFragmentSourceKind as SharedAlicizationSubconsciousFragmentSourceKind,
+  AlicizationSystemProbeDegradeReason as SharedAlicizationSystemProbeDegradeReason,
+  AlicizationSystemProbeSample as SharedAlicizationSystemProbeSample,
+  AlicizationTaskThreadRecord as SharedAlicizationTaskThreadRecord,
+  AlicizationTaskThreadStatus as SharedAlicizationTaskThreadStatus,
+  AlicizationTaskThreadUpsertInput as SharedAlicizationTaskThreadUpsertInput,
+  CharacterActionCapability as SharedCharacterActionCapability,
+  CharacterFacialCapability as SharedCharacterFacialCapability,
+  CharacterPerformanceCapabilitiesManifest as SharedCharacterPerformanceCapabilitiesManifest,
+  CharacterPerformanceEmbodimentHints as SharedCharacterPerformanceEmbodimentHints,
 } from '@proj-alicization/stage-shared'
 import type {
   ThreeHitTestReadTracePayload,
@@ -25,6 +82,13 @@ import type {
 } from '@proj-alicization/stage-ui-three/trace'
 
 import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
+import {
+  alicizationEmotionWhitelist as sharedAlicizationEmotionWhitelist,
+  clampAlicizationPerformancePayloadToManifest as sharedClampAlicizationPerformancePayloadToManifest,
+  normalizeAlicizationEmotion as sharedNormalizeAlicizationEmotion,
+  normalizeAlicizationPerformanceDelivery as sharedNormalizeAlicizationPerformanceDelivery,
+  normalizeAlicizationPerformancePayload as sharedNormalizeAlicizationPerformancePayload,
+} from '@proj-alicization/stage-shared'
 
 export const electronStartTrackMousePosition = defineInvokeEventa('eventa:invoke:electron:start-tracking-mouse-position')
 export const electronStartDraggingWindow = defineInvokeEventa('eventa:invoke:electron:start-dragging-window')
@@ -429,14 +493,7 @@ export interface AlicizationMemoryMigrationResult {
   marker: string
 }
 
-export type AlicizationSubconsciousFragmentSourceKind
-  = | 'active-demotion'
-    | 'dream-fragment'
-    | 'former-core-incarnation'
-    | 'unforged-shattering-event'
-    | 'attitude-shift'
-    | 'mind-continuity'
-    | 'visual-sediment'
+export type AlicizationSubconsciousFragmentSourceKind = SharedAlicizationSubconsciousFragmentSourceKind
 
 export interface AlicizationActiveThought {
   id: string
@@ -512,11 +569,78 @@ export type AlicizationMindTurnEventInput = SharedAlicizationMindTurnEventInput
 
 export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
 
-export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope {
-  decisionTraceId?: string
-  turnId?: string
-  limit?: number
-}
+export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope, SharedAlicizationListMindTurnEventsInput {}
+
+export type AlicizationExecutionChannel = SharedAlicizationExecutionChannel
+
+export type AlicizationExecutionTaskKind = SharedAlicizationExecutionTaskKind
+
+export type AlicizationExecutionTurnOrigin = SharedAlicizationExecutionTurnOrigin
+
+export type AlicizationChannelCapability = SharedAlicizationChannelCapability
+
+export type AlicizationChannelCapabilityManifestRecord = SharedAlicizationChannelCapabilityManifestRecord
+
+export type AlicizationChannelCapabilityManifestUpsertInput = SharedAlicizationChannelCapabilityManifestUpsertInput
+
+export interface AlicizationUpsertChannelCapabilityManifestPayload extends AlicizationCardScope, SharedAlicizationChannelCapabilityManifestUpsertInput {}
+
+export type AlicizationListChannelCapabilityManifestsInput = SharedAlicizationListChannelCapabilityManifestsInput
+
+export interface AlicizationListChannelCapabilityManifestsPayload extends AlicizationCardScope, SharedAlicizationListChannelCapabilityManifestsInput {}
+
+export type AlicizationClawTaskIntent = SharedAlicizationClawTaskIntent
+
+export type AlicizationClawFabricPlan = SharedAlicizationClawFabricPlan
+
+export type AlicizationCliCommandInput = SharedAlicizationCliCommandInput
+export type AlicizationCodexCommandInput = SharedAlicizationCodexCommandInput
+export type AlicizationClaudeCodeCommandInput = SharedAlicizationClaudeCodeCommandInput
+export type AlicizationOpenClawCommandInput = SharedAlicizationOpenClawCommandInput
+
+export type AlicizationTaskThreadStatus = SharedAlicizationTaskThreadStatus
+
+export type AlicizationTaskThreadUpsertInput = SharedAlicizationTaskThreadUpsertInput
+
+export type AlicizationTaskThreadRecord = SharedAlicizationTaskThreadRecord
+
+export interface AlicizationUpsertTaskThreadPayload extends AlicizationCardScope, AlicizationTaskThreadUpsertInput {}
+
+export type AlicizationListTaskThreadsInput = SharedAlicizationListTaskThreadsInput
+
+export interface AlicizationListTaskThreadsPayload extends AlicizationCardScope, SharedAlicizationListTaskThreadsInput {}
+
+export type AlicizationExecutionEventKind = SharedAlicizationExecutionEventKind
+
+export type AlicizationExecutionEventInput = SharedAlicizationExecutionEventInput
+
+export type AlicizationExecutionEventRecord = SharedAlicizationExecutionEventRecord
+
+export type AlicizationExecutorSessionStatus = SharedAlicizationExecutorSessionStatus
+
+export type AlicizationExecutorSessionRecord = SharedAlicizationExecutorSessionRecord
+
+export type AlicizationExecutorSessionUpsertInput = SharedAlicizationExecutorSessionUpsertInput
+
+export interface AlicizationUpsertExecutorSessionPayload extends AlicizationCardScope, SharedAlicizationExecutorSessionUpsertInput {}
+
+export type AlicizationListExecutorSessionsInput = SharedAlicizationListExecutorSessionsInput
+
+export interface AlicizationListExecutorSessionsPayload extends AlicizationCardScope, SharedAlicizationListExecutorSessionsInput {}
+
+export interface AlicizationAppendExecutionEventsPayload extends AlicizationCardScope, SharedAlicizationAppendExecutionEventsInput {}
+
+export type AlicizationListExecutionEventsInput = SharedAlicizationListExecutionEventsInput
+
+export interface AlicizationListExecutionEventsPayload extends AlicizationCardScope, SharedAlicizationListExecutionEventsInput {}
+
+export interface AlicizationPlanTaskThreadPayload extends AlicizationCardScope, SharedAlicizationPlanTaskThreadInput {}
+
+export type AlicizationPlanTaskThreadResult = SharedAlicizationPlanTaskThreadResult
+
+export interface AlicizationDispatchTaskThreadPayload extends AlicizationCardScope, SharedAlicizationDispatchTaskThreadInput {}
+
+export type AlicizationDispatchTaskThreadResult = SharedAlicizationDispatchTaskThreadResult
 
 export interface AlicizationDialogueAckPayload extends AlicizationCardScope {
   sessionId: string
@@ -546,70 +670,19 @@ export type AlicizationRealtimeExecutePayload = SharedAlicizationRealtimeExecute
 
 export type AlicizationRealtimeExecuteResult = SharedAlicizationRealtimeExecuteResult
 
-export type AlicizationSystemProbeDegradeReason
-  = | 'battery-unavailable'
-    | 'cpu-unavailable'
-    | 'memory-unavailable'
+export type AlicizationSystemProbeDegradeReason = SharedAlicizationSystemProbeDegradeReason
+export type AlicizationSystemProbeSample = SharedAlicizationSystemProbeSample
+export type AlicizationSensoryCapturePermission = SharedAlicizationSensoryCapturePermission
+export type AlicizationSensoryCaptureHealth = SharedAlicizationSensoryCaptureHealth
+export type AlicizationSensoryCaptureLeaseStatus = SharedAlicizationSensoryCaptureLeaseStatus
+export type AlicizationSensoryCaptureSnapshot = SharedAlicizationSensoryCaptureSnapshot
+export type AlicizationSensoryCacheSnapshot = SharedAlicizationSensoryCacheSnapshot
 
-export interface AlicizationSystemProbeSample {
-  collectedAt: number
-  time: {
-    iso: string
-    local: string
-    timezone: string
-  }
-  foregroundWindow?: {
-    appName?: string
-    processName?: string
-    title?: string
-    pid?: number | null
-  }
-  battery?: {
-    percent: number
-    charging: boolean
-    source: 'native' | 'fallback'
-  }
-  cpu: {
-    usagePercent: number
-    windowMs: number
-  }
-  memory: {
-    freeMB: number
-    totalMB: number
-    usagePercent: number
-  }
-  degraded?: AlicizationSystemProbeDegradeReason[]
-}
+export const alicizationEmotionWhitelist = sharedAlicizationEmotionWhitelist
 
-export interface AlicizationSensoryCacheSnapshot {
-  sample: AlicizationSystemProbeSample
-  stale: boolean
-  ageMs: number
-  nextTickAt: number | null
-  running: boolean
-}
+export type AlicizationEmotion = SharedAlicizationEmotion
 
-export const alicizationEmotionWhitelist = [
-  'neutral',
-  'happy',
-  'sad',
-  'angry',
-  'concerned',
-  'tired',
-  'apologetic',
-  'surprised',
-  'thinking',
-] as const
-
-export type AlicizationEmotion = typeof alicizationEmotionWhitelist[number]
-
-export type AlicizationPerformanceDelivery
-  = | 'calm'
-    | 'gentle'
-    | 'firm'
-    | 'energetic'
-    | 'hesitant'
-    | 'teasing'
+export type AlicizationPerformanceDelivery = SharedAlicizationPerformanceDelivery
 
 export type AlicizationProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
 export type AlicizationProactiveStyle = 'silent-observe' | 'light-nudge' | 'gentle-care' | 'firm-warning'
@@ -1667,6 +1740,11 @@ export interface AlicizationRecallGovernorSnapshot {
   suppressAssociativeRecall: boolean
   allowActiveThoughts: boolean
   allowRecalledFragments: boolean
+  recalledFragmentCap?: number
+  recalledFragmentSourceBudget?: Array<{
+    sourceKind: AlicizationSubconsciousFragmentSourceKind
+    maxItems: number
+  }>
   carryAsMemory: boolean
   rationale: string
   narrative: string[]
@@ -2193,9 +2271,11 @@ export interface AlicizationVisualPresenceStateSnapshot {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
     permission: 'granted' | 'denied' | 'prompt' | 'unknown'
+    health?: AlicizationSensoryCaptureHealth
     lastGroundedAt: number | null
     sourceName?: string
     degradedReason?: string
@@ -2217,6 +2297,10 @@ export interface AlicizationPresencePulsePayload extends AlicizationCardScope {
   expiresAt: number
 }
 
+export interface AlicizationVisualPresenceStateChangedPayload extends AlicizationCardScope {
+  state: AlicizationVisualPresenceStateSnapshot | null
+}
+
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean
   confidence: number
@@ -2228,17 +2312,8 @@ export interface AlicizationProactiveDecision {
   policyVersion: string
 }
 
-export interface AlicizationProactiveMetadata extends AlicizationProactiveDecision {
-  feedbackWindowMs: number
-}
-
-export type AlicizationDialogueStructuredFormat
-  = | 'subconscious-proactive-v1'
-    | 'subconscious-proactive-llm-v1'
-    | 'subconscious-reminder-v1'
-    | 'mind-turn-v1'
-    | 'epoch1-v1'
-    | 'fallback-v1'
+export type AlicizationProactiveMetadata = SharedAlicizationProactiveMetadata
+export type AlicizationDialogueStructuredFormat = SharedAlicizationDialogueStructuredFormat
 
 export type AlicizationProactiveFeedbackKind = 'positive' | 'dismiss'
 
@@ -2247,207 +2322,26 @@ export interface AlicizationProactiveFeedbackPayload extends AlicizationCardScop
   feedback: AlicizationProactiveFeedbackKind
 }
 
-export interface AlicizationDialoguePerformancePayload {
-  baseEmotion: AlicizationEmotion
-  emotion: AlicizationEmotion
-  facialCue?: string | null
-  actionCue?: string | null
-  delivery: AlicizationPerformanceDelivery
-  emphasis: 0 | 1 | 2
-}
+export type AlicizationDialogueEmbodimentEnvelope = SharedAlicizationDialogueEmbodimentEnvelope
+export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePerformancePayload
+export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
+export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
+export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
+export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
+export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
+export type CharacterFacialCapability = SharedCharacterFacialCapability
+export type CharacterActionCapability = SharedCharacterActionCapability
+export type CharacterPerformanceEmbodimentHints = SharedCharacterPerformanceEmbodimentHints
+export type CharacterPerformanceCapabilitiesManifest = SharedCharacterPerformanceCapabilitiesManifest
+export type AlicizationPerformanceManifestClampResult = SharedAlicizationPerformanceManifestClampResult
 
-export interface CharacterFacialCapability {
-  key: string
-  label: string
-  description: string
-  source: 'preset' | 'custom'
-  affectsMouth: boolean
-}
+export const normalizeAlicizationEmotion = sharedNormalizeAlicizationEmotion
+export const normalizeAlicizationPerformanceDelivery = sharedNormalizeAlicizationPerformanceDelivery
+export const normalizeAlicizationPerformancePayload = sharedNormalizeAlicizationPerformancePayload
+export const clampAlicizationPerformancePayloadToManifest = sharedClampAlicizationPerformancePayloadToManifest
 
-export interface CharacterActionCapability {
-  key: string
-  label: string
-  description: string
-  source: 'builtin' | 'external-vrma' | 'live2d-motion'
-}
-
-export interface CharacterPerformanceCapabilitiesManifest {
-  renderer: 'live2d' | 'vrm'
-  supportedBaseEmotions: AlicizationEmotion[]
-  supportedFacialCues: CharacterFacialCapability[]
-  supportedActions: CharacterActionCapability[]
-  supportsLookAt: boolean
-  supportsVisemeLipSync: boolean
-  supportsMicroDynamics: boolean
-}
-
-const alicizationPerformanceDeliveryWhitelist = [
-  'calm',
-  'gentle',
-  'firm',
-  'energetic',
-  'hesitant',
-  'teasing',
-] as const
-
-export function normalizeAlicizationEmotion(raw: unknown): { emotion: AlicizationEmotion, rawEmotion?: string, downgraded: boolean } {
-  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  if (value === 'processing' || value === 'think') {
-    return {
-      emotion: 'thinking',
-      rawEmotion: value,
-      downgraded: true,
-    }
-  }
-
-  if ((alicizationEmotionWhitelist as readonly string[]).includes(value)) {
-    return {
-      emotion: value as AlicizationEmotion,
-      downgraded: false,
-    }
-  }
-
-  return {
-    emotion: 'neutral',
-    rawEmotion: value || undefined,
-    downgraded: Boolean(value),
-  }
-}
-
-export function normalizeAlicizationPerformanceDelivery(raw: unknown): AlicizationPerformanceDelivery {
-  const value = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  if ((alicizationPerformanceDeliveryWhitelist as readonly string[]).includes(value))
-    return value as AlicizationPerformanceDelivery
-  return 'calm'
-}
-
-function normalizePerformanceCue(raw: unknown) {
-  if (typeof raw !== 'string')
-    return null
-  const normalized = raw.trim()
-  return normalized ? normalized.slice(0, 80) : null
-}
-
-function normalizePerformanceEmphasis(raw: unknown): 0 | 1 | 2 {
-  const parsed = typeof raw === 'number'
-    ? raw
-    : typeof raw === 'string'
-      ? Number.parseInt(raw, 10)
-      : Number.NaN
-
-  if (!Number.isFinite(parsed))
-    return 0
-  if (parsed <= 0)
-    return 0
-  if (parsed >= 2)
-    return 2
-  return 1
-}
-
-export function normalizeAlicizationPerformancePayload(
-  raw: unknown,
-  fallbackEmotion: AlicizationEmotion = 'neutral',
-): AlicizationDialoguePerformancePayload {
-  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {}
-  const normalizedEmotion = normalizeAlicizationEmotion(candidate.baseEmotion ?? candidate.emotion ?? fallbackEmotion)
-
-  return {
-    baseEmotion: normalizedEmotion.emotion,
-    emotion: normalizedEmotion.emotion,
-    facialCue: normalizePerformanceCue(candidate.facialCue),
-    actionCue: normalizePerformanceCue(candidate.actionCue),
-    delivery: normalizeAlicizationPerformanceDelivery(candidate.delivery),
-    emphasis: normalizePerformanceEmphasis(candidate.emphasis),
-  }
-}
-
-export interface AlicizationPerformanceManifestClampResult {
-  performance: AlicizationDialoguePerformancePayload
-  downgradedBaseEmotion?: AlicizationEmotion
-  droppedFacialCue?: string
-  droppedActionCue?: string
-}
-
-function resolveManifestFallbackEmotion(
-  manifest: CharacterPerformanceCapabilitiesManifest,
-  fallbackEmotion: AlicizationEmotion,
-) {
-  if (manifest.supportedBaseEmotions.includes(fallbackEmotion))
-    return fallbackEmotion
-  if (manifest.supportedBaseEmotions.includes('neutral'))
-    return 'neutral'
-  return manifest.supportedBaseEmotions[0] ?? 'neutral'
-}
-
-export function clampAlicizationPerformancePayloadToManifest(
-  payload: AlicizationDialoguePerformancePayload,
-  manifest?: CharacterPerformanceCapabilitiesManifest | null,
-  fallbackEmotion: AlicizationEmotion = 'neutral',
-): AlicizationPerformanceManifestClampResult {
-  const normalized = normalizeAlicizationPerformancePayload(payload, fallbackEmotion)
-  if (!manifest) {
-    return {
-      performance: normalized,
-    }
-  }
-
-  const facialCueKeys = new Set(manifest.supportedFacialCues.map(item => item.key))
-  const actionCueKeys = new Set(manifest.supportedActions.map(item => item.key))
-  const resolvedFallbackEmotion = resolveManifestFallbackEmotion(manifest, fallbackEmotion)
-  const nextBaseEmotion = manifest.supportedBaseEmotions.includes(normalized.baseEmotion)
-    ? normalized.baseEmotion
-    : resolvedFallbackEmotion
-  const nextFacialCue = normalized.facialCue && facialCueKeys.has(normalized.facialCue)
-    ? normalized.facialCue
-    : null
-  const nextActionCue = normalized.actionCue && actionCueKeys.has(normalized.actionCue)
-    ? normalized.actionCue
-    : null
-
-  return {
-    performance: {
-      ...normalized,
-      baseEmotion: nextBaseEmotion,
-      emotion: nextBaseEmotion,
-      facialCue: nextFacialCue,
-      actionCue: nextActionCue,
-    },
-    downgradedBaseEmotion: nextBaseEmotion !== normalized.baseEmotion
-      ? normalized.baseEmotion
-      : undefined,
-    droppedFacialCue: normalized.facialCue && nextFacialCue === null
-      ? normalized.facialCue
-      : undefined,
-    droppedActionCue: normalized.actionCue && nextActionCue === null
-      ? normalized.actionCue
-      : undefined,
-  }
-}
-
-export interface AlicizationDialogueStructuredPayload {
-  thought: string
-  emotion: AlicizationEmotion
-  reply: string
-  performance: AlicizationDialoguePerformancePayload
-  format?: AlicizationDialogueStructuredFormat
-  proactive?: AlicizationProactiveMetadata
-  dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
-  governance?: AlicizationMindTurnGovernance | null
-  policyLocked?: string
-  rawEmotion?: string
-}
-
-export interface AlicizationDialogueRespondedPayload {
-  cardId: string
-  turnId: string
-  sessionId: string
-  origin?: 'user-turn' | 'subconscious-proactive'
-  structured: AlicizationDialogueStructuredPayload
-  isFallback: boolean
-  createdAt: number
-}
+export type AlicizationDialogueStructuredPayload = SharedAlicizationDialogueStructuredPayload
+export type AlicizationDialogueRespondedPayload = SharedAlicizationDialogueRespondedPayload
 
 export interface AlicizationSetActiveSessionPayload extends AlicizationCardScope {
   sessionId: string
@@ -2506,6 +2400,10 @@ export interface AlicizationChatMetaEvent {
   cardId: string
   turnId: string
   governance: AlicizationMindTurnGovernance | null
+  embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  speechTimeline?: AlicizationDialogueSpeechTimeline | null
+  digitalLife?: AlicizationDigitalLifeEnvelope | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
 }
 
 export interface AlicizationChatFinishEvent {
@@ -2557,6 +2455,10 @@ export interface AlicizationChatStartResult {
   state?: 'accepted' | 'duplicate-running' | 'duplicate-finished' | 'missing-config' | 'start-failed'
   reason?: string
   governance?: AlicizationMindTurnGovernance | null
+  embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+  speechTimeline?: AlicizationDialogueSpeechTimeline | null
+  digitalLife?: AlicizationDigitalLifeEnvelope | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
 }
 
 export interface AlicizationChatAbortPayload extends AlicizationCardScope {
@@ -2648,6 +2550,16 @@ export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
+export const electronAlicizationUpsertTaskThread = defineInvokeEventa<AlicizationTaskThreadRecord, AlicizationUpsertTaskThreadPayload>('eventa:invoke:electron:alicization:executor:upsert-task-thread')
+export const electronAlicizationListTaskThreads = defineInvokeEventa<AlicizationTaskThreadRecord[], AlicizationListTaskThreadsPayload>('eventa:invoke:electron:alicization:executor:list-task-threads')
+export const electronAlicizationUpsertChannelCapabilityManifest = defineInvokeEventa<AlicizationChannelCapabilityManifestRecord, AlicizationUpsertChannelCapabilityManifestPayload>('eventa:invoke:electron:alicization:executor:upsert-capability-manifest')
+export const electronAlicizationListChannelCapabilityManifests = defineInvokeEventa<AlicizationChannelCapabilityManifestRecord[], AlicizationListChannelCapabilityManifestsPayload>('eventa:invoke:electron:alicization:executor:list-capability-manifests')
+export const electronAlicizationUpsertExecutorSession = defineInvokeEventa<AlicizationExecutorSessionRecord, AlicizationUpsertExecutorSessionPayload>('eventa:invoke:electron:alicization:executor:upsert-session')
+export const electronAlicizationListExecutorSessions = defineInvokeEventa<AlicizationExecutorSessionRecord[], AlicizationListExecutorSessionsPayload>('eventa:invoke:electron:alicization:executor:list-sessions')
+export const electronAlicizationAppendExecutionEvents = defineInvokeEventa<void, AlicizationAppendExecutionEventsPayload>('eventa:invoke:electron:alicization:executor:append-events')
+export const electronAlicizationListExecutionEvents = defineInvokeEventa<AlicizationExecutionEventRecord[], AlicizationListExecutionEventsPayload>('eventa:invoke:electron:alicization:executor:list-events')
+export const electronAlicizationPlanTaskThread = defineInvokeEventa<AlicizationPlanTaskThreadResult, AlicizationPlanTaskThreadPayload>('eventa:invoke:electron:alicization:executor:plan-task-thread')
+export const electronAlicizationDispatchTaskThread = defineInvokeEventa<AlicizationDispatchTaskThreadResult, AlicizationDispatchTaskThreadPayload>('eventa:invoke:electron:alicization:executor:dispatch-task-thread')
 export const electronAlicizationAckDialogue = defineInvokeEventa<void, AlicizationDialogueAckPayload>('eventa:invoke:electron:alicization:conversation:ack-dialogue')
 export const electronAlicizationReportProactiveFeedback = defineInvokeEventa<void, AlicizationProactiveFeedbackPayload>('eventa:invoke:electron:alicization:conversation:report-proactive-feedback')
 export const electronAlicizationReplayDialogues = defineInvokeEventa<AlicizationDialogueRespondedPayload[], AlicizationReplayDialoguesPayload>('eventa:invoke:electron:alicization:conversation:replay-dialogues')
@@ -2675,6 +2587,7 @@ export const alicizationKillSwitchStateChanged = defineEventa<AlicizationCardSco
 export const alicizationSoulChanged = defineEventa<AlicizationCardScope & AlicizationSoulSnapshot>('eventa:event:electron:alicization:soul:changed')
 export const alicizationDialogueResponded = defineEventa<AlicizationDialogueRespondedPayload>('eventa:event:electron:alicization:dialogue:responded')
 export const electronAlicizationVisualPresenceChanged = defineEventa<AlicizationPresencePulsePayload>('eventa:event:electron:alicization:visual-presence:changed')
+export const electronAlicizationVisualPresenceStateChanged = defineEventa<AlicizationVisualPresenceStateChangedPayload>('eventa:event:electron:alicization:visual-presence:state-changed')
 export const alicizationSafetyPermissionRequested = defineEventa<AlicizationSafetyPermissionRequest>('eventa:event:electron:alicization:safety:permission-requested')
 export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChunkEvent>('eventa:event:electron:alicization:chat:stream-chunk')
 export const alicizationChatStreamMeta = defineEventa<AlicizationChatMetaEvent>('eventa:event:electron:alicization:chat:stream-meta')

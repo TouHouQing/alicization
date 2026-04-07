@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildDialogueActKernel, buildDialogueActKernelSystemBlock, normalizeDialogueActKernel } from './dialogue-act-kernel'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('dialogue-act-kernel', () => {
   it('collapses answer planning and reply motive into one authoritative kernel', () => {
@@ -620,5 +622,224 @@ describe('dialogue-act-kernel', () => {
     expect(kernel?.speechAct).toBe('care')
     expect(kernel?.turnMode).toBe('care')
     expect(kernel?.sourceTrace).toContain('kernel-invariant:dialogue-first-repair-clamped')
+  })
+
+  it('prefers runtimeSurface over conflicting raw inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(5)
+    runtimeBackedState.currentScene = {
+      workloadKind: 'coding',
+      contentKind: 'diff',
+      scenario: 'coding',
+      summary: 'Runtime diff with the missing guard still visible.',
+      source: 'screen-semantic-summary',
+      confidence: 0.92,
+      target: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: 'runtime.diff - Project Alice',
+      },
+      beganAt: 1,
+      lastSeenAt: 5,
+    }
+    runtimeBackedState.appraisal = {
+      inferredHostGoal: 'resolve-problem',
+      currentKnot: 'The runtime branch still dereferences before guarding.',
+      relationshipNeed: 'guidance',
+      confidence: 0.88,
+      surprise: 0.2,
+      carePressure: 0.3,
+      interruptionCost: 0.2,
+      desireToSpeak: 0.76,
+      notes: [],
+    }
+    runtimeBackedState.discourseState = {
+      currentTurnSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      currentTurnSummary: 'Stay with the runtime diff.',
+      currentQuestion: 'Which runtime branch is failing?',
+      owedAction: 'guide-task',
+      relationMove: 'guide',
+      continuityMode: 'task-first',
+      confidence: 0.84,
+      narrative: [],
+      updatedAt: 5,
+    } as any
+    runtimeBackedState.conversationState = {
+      jointThread: 'Explain the runtime diff first.',
+      hostMove: 'Which runtime branch is failing?',
+      activeProject: 'Runtime diff',
+      unansweredQuestion: 'Which runtime branch is failing?',
+      owedRepair: null,
+      activeCommitments: ['Stay on the runtime diff.'],
+      relationFrame: 'guide',
+      continuityPolicy: 'stay-on-thread',
+      memoryMode: 'task-thread',
+      memoryQueryHints: ['Runtime diff'],
+      shouldHoldThread: true,
+      confidence: 0.87,
+      narrative: [],
+      updatedAt: 5,
+    } as any
+    runtimeBackedState.dialogueWorldThread = {
+      activeThread: 'Explain the runtime diff first.',
+      currentQuestion: 'Which runtime branch is failing?',
+      openLoops: ['Which runtime branch is failing?'],
+      recentlyResolvedLoops: [],
+      carriedFacts: ['Runtime broken guard'],
+      relationDrift: 'steady',
+      memoryMode: 'task-thread',
+      recallKeys: ['Runtime diff'],
+      lastUserMove: 'Which runtime branch is failing?',
+      lastAssistantMove: null,
+      lastOutcome: 'pending',
+      pendingValidation: null,
+      confidence: 0.83,
+      narrative: [],
+      updatedAt: 5,
+    }
+    runtimeBackedState.answerCompiler = {
+      answerSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      recommendedAct: 'guide',
+      turnMode: 'guide-current-knot',
+      evidenceMode: 'live-grounded',
+      openingClaim: 'The runtime broken guard is still the live issue.',
+      openingDirective: 'Name the broken guard first.',
+      nextMove: 'Point to the runtime branch first.',
+      mustNotDo: ['Do not drift into raw conflict.'],
+      confidence: 0.86,
+    } as any
+    runtimeBackedState.replyDeliberation = {
+      selectedMotive: 'guide',
+      speakingFrom: 'task-thread',
+      openingBeat: 'Pay off the runtime branch first.',
+      whyThisReplyNow: 'The runtime diff is still visible.',
+      mustAvoid: ['Do not reuse raw conflict.'],
+      confidence: 0.85,
+      updatedAt: 5,
+    } as any
+    runtimeBackedState.answerPlanner = {
+      act: 'guide',
+      evidenceMode: 'live-grounded',
+      confidence: 0.9,
+      governingFocus: 'Localize the runtime branch first.',
+      openingMove: 'Name the runtime branch first.',
+      answerIntent: 'Explain the runtime guard break before edits.',
+      relationshipPosture: 'warm',
+      shouldAskForGrounding: false,
+      shouldAcknowledgeRepair: false,
+      mustDo: ['Stay with the runtime branch.'],
+      mustNotDo: ['Do not switch to raw conflict.'],
+      narrative: [],
+      updatedAt: 5,
+    }
+    runtimeBackedState.privateThought = {
+      stance: 'nudge',
+      confidence: 0.78,
+      rationaleTags: ['runtime'],
+      thoughtText: 'Stay on the runtime diff seam.',
+      shouldSpeak: true,
+      suggestedStyle: 'light-nudge',
+      embodiedPresence: 'attentive',
+      expiresAt: 50,
+      emotionalTension: 'tense-debug',
+    } as any
+    runtimeBackedState.worldModel = {
+      activeThread: {
+        id: 'thread::runtime',
+        kind: 'debugging',
+        status: 'active',
+        source: 'grounded-scene',
+        title: 'Runtime diff',
+        summary: 'A runtime diff still shows the missing guard.',
+        confidence: 0.88,
+        significance: 0.84,
+        unresolved: true,
+        beganAt: 1,
+        lastUpdatedAt: 5,
+        target: null,
+      },
+      lingeringThreads: [],
+      focusTarget: {
+        appName: 'Visual Studio Code',
+        processName: 'Code',
+        title: 'runtime.diff - Project Alice',
+      },
+      epistemicState: {
+        certainty: 'grounded',
+        freshness: 'live',
+        seenNow: [],
+        inferredNow: [],
+        openQuestions: [],
+        staleRisks: [],
+      },
+      continuity: {
+        label: 'staying-with-thread',
+        sceneAgeMs: 5_000,
+        attentionAgeMs: 5_000,
+        sameSceneAsBefore: true,
+        sameAttentionAsBefore: true,
+        afterglowOpen: false,
+      },
+      hostState: {
+        availability: 'focused',
+        burden: 'moderate',
+      },
+      updatedAt: 5,
+    }
+
+    const kernel = buildDialogueActKernel({
+      now: 5,
+      currentScene: {
+        workloadKind: 'unknown',
+        contentKind: 'unknown',
+        scenario: 'general',
+        summary: 'raw conflict',
+        source: 'screen-semantic-summary',
+        confidence: 0.2,
+        target: {
+          appName: 'Finder',
+          processName: 'Finder',
+          title: 'raw conflict',
+        },
+        beganAt: 1,
+        lastSeenAt: 5,
+      },
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'raw conflict',
+        currentQuestion: 'raw conflict',
+        owedAction: 'care-host',
+        relationMove: 'care',
+        continuityMode: 'dialogue-first',
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 5,
+      },
+      conversationState: {
+        jointThread: 'raw conflict',
+        hostMove: 'raw conflict',
+        activeProject: 'raw conflict',
+        unansweredQuestion: 'raw conflict',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['raw conflict'],
+        shouldHoldThread: false,
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 5,
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(kernel?.subject).toBe('task-knot')
+    expect(kernel?.screenReferenceMode).toBe('helpful')
+    expect(kernel?.activeProject).toBe('Runtime diff')
+    expect(kernel?.openingClaim?.toLowerCase()).toContain('runtime diff')
+    expect(kernel?.selectedEvidence[0]?.summary).toContain('Runtime diff')
   })
 })

@@ -75,6 +75,8 @@ describe('buildRecallGovernor', () => {
       mode: 'scene',
       suppressAssociativeRecall: true,
       allowRecalledFragments: false,
+      recalledFragmentCap: 0,
+      recalledFragmentSourceBudget: [],
       carryAsMemory: true,
     }))
   })
@@ -150,7 +152,13 @@ describe('buildRecallGovernor', () => {
       suppressAssociativeRecall: false,
       allowActiveThoughts: true,
       allowRecalledFragments: true,
+      recalledFragmentCap: 3,
     }))
+    expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
+      { sourceKind: 'reflection-ledger', maxItems: 2 },
+      { sourceKind: 'dialogue-turn', maxItems: 1 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+    ]))
     expect(buildRecallGovernorSystemBlock(governor)).toContain('[ALICIZATION_RECALL_GOVERNOR]')
   })
 
@@ -231,9 +239,99 @@ describe('buildRecallGovernor', () => {
     expect(governor).toEqual(expect.objectContaining({
       mode: 'thread',
       suppressAssociativeRecall: true,
+      recalledFragmentCap: 0,
+      recalledFragmentSourceBudget: [],
       carryAsMemory: false,
     }))
     expect(governor?.recallSeed).toContain('你在说什么呢')
     expect(governor?.rationale).toContain('current turn anchor')
+  })
+
+  it('admits self-continuity recall with source budget when dialogue-first carry is eligible', () => {
+    const governor = buildRecallGovernor({
+      now: 40_000,
+      dialogueWorldThread: {
+        activeThread: '你刚才问我在说什么',
+        currentQuestion: '你刚才在说什么？',
+        openLoops: [],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['上轮是关系向澄清'],
+        relationDrift: 'warming',
+        memoryMode: 'dialogue-carry',
+        recallKeys: ['你刚才在说什么', 'reply_motive:attune'],
+        lastUserMove: '你刚才在说什么？',
+        lastAssistantMove: '我在说明上一轮的语义边界。',
+        lastOutcome: 'aligned',
+        pendingValidation: null,
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      conversationState: {
+        jointThread: '你刚才问我在说什么',
+        hostMove: '你刚才在说什么？',
+        activeProject: null,
+        unansweredQuestion: '你刚才在说什么？',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'attune',
+        continuityPolicy: 'answer-then-carry',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['你刚才在说什么'],
+        shouldHoldThread: false,
+        primaryTurnAnchor: '你刚才在说什么？',
+        primaryTurnAnchorSource: 'user-text',
+        carryEligible: true,
+        carryReason: 'self continuity requested by host',
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 40_000,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'answer',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+      } as any,
+      replyDeliberation: {
+        selectedMotive: 'attune',
+        speakingFrom: 'dialogue-bond',
+        memoryMode: 'dialogue-carry',
+        openingBeat: 'Directly explain the immediate context.',
+        whyThisReplyNow: 'The host asks for immediate self continuity.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      dialogueEncounter: {
+        subject: 'relationship',
+        screenReferenceMode: 'avoid',
+        dialogueFirst: true,
+        taskAnchor: '你刚才在说什么？',
+        summary: '你刚才在说什么？',
+        mustAnswerDirectly: true,
+        mustStayTaskBound: true,
+      } as any,
+    })
+
+    expect(governor).toEqual(expect.objectContaining({
+      mode: 'self-continuity',
+      suppressAssociativeRecall: false,
+      allowRecalledFragments: true,
+      recalledFragmentCap: 2,
+      carryAsMemory: true,
+    }))
+    expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
+      { sourceKind: 'dialogue-turn', maxItems: 2 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'reflection-ledger', maxItems: 1 },
+    ]))
   })
 })

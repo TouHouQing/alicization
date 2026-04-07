@@ -15,6 +15,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
@@ -116,10 +117,16 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+interface AlicizationDialogueEncounterAnchor {
+  taskAnchor?: string | null
+  summary?: string | null
+  dialogueFirst?: boolean | null
+}
+
 function resolvePrimaryTurnAnchor(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterAnchor | null
 }) {
   return sanitizeDialogueAnchorText(
     input.conversationState?.primaryTurnAnchor
@@ -187,6 +194,7 @@ function resolveEvidenceMode(input: {
   currentScene?: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   worldOntology?: AlicizationWorldOntologySnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   groundedThisTurn?: boolean
 }) {
@@ -196,11 +204,13 @@ function resolveEvidenceMode(input: {
   if (input.groundedThisTurn === true)
     return 'live-grounded' as const
 
-  const truth = deriveMindTruthContract({
-    currentScene: input.currentScene ?? null,
-    worldModel: input.worldModel ?? null,
-    worldOntology: input.worldOntology ?? null,
-  })
+  const truth = deriveMindTruthContract(
+    input.runtimeSurface ?? {
+      currentScene: input.currentScene ?? null,
+      worldModel: input.worldModel ?? null,
+      worldOntology: input.worldOntology ?? null,
+    },
+  )
 
   if (input.repairLedger?.shouldConstrainPresentTense)
     return 'repair-first' as const
@@ -416,7 +426,7 @@ function resolveOpeningDirective(input: {
 function resolveOpeningClaim(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterAnchor | null
   mindSynthesis: AlicizationMindSynthesisSnapshot
   recommendedAct: AlicizationAnswerAct
   currentScene?: AlicizationVisualSceneSnapshot | null
@@ -593,148 +603,163 @@ export function buildAnswerCompiler(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   groundedThisTurn?: boolean
 }): AlicizationAnswerCompilerSnapshot | null {
-  if (!input.discourseState || !input.mindSynthesis)
+  const runtimeSurface = input.runtimeSurface ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueEncounterAnchor = runtimeSurface?.dialogue.dialogueEncounter ?? dialogueEncounter ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const worldOntology = runtimeSurface?.world.worldOntology ?? input.worldOntology ?? null
+  const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
+  const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+
+  if (!discourseState || !mindSynthesis)
     return null
 
   const evidenceMode = resolveEvidenceMode({
-    discourseState: input.discourseState,
-    currentScene: input.currentScene ?? null,
-    worldModel: input.worldModel ?? null,
-    worldOntology: input.worldOntology ?? null,
-    repairLedger: input.repairLedger ?? null,
+    discourseState,
+    currentScene,
+    worldModel,
+    worldOntology,
+    runtimeSurface,
+    repairLedger,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const recommendedAct = resolveRecommendedAct({
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
+    discourseState,
+    conversationState,
     evidenceMode,
-    repairLedger: input.repairLedger ?? null,
-    privateThought: input.privateThought ?? null,
+    repairLedger,
+    privateThought,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const turnMode = resolveTurnMode({
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
+    discourseState,
+    conversationState,
     recommendedAct,
     evidenceMode,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const openingStyle = resolveOpeningStyle(turnMode)
   const personaKernelMode = resolvePersonaKernelMode({
-    discourseState: input.discourseState,
+    discourseState,
     turnMode,
   })
   const relationshipPosture = resolveRelationshipPosture({
-    discourseState: input.discourseState,
+    discourseState,
     evidenceMode,
-    relationshipModel: input.relationshipModel ?? null,
-    privateThought: input.privateThought ?? null,
+    relationshipModel,
+    privateThought,
   })
   const responseMode = resolveResponseMode({
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
-    privateThought: input.privateThought ?? null,
+    discourseState,
+    conversationState,
+    privateThought,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const openingDirective = resolveOpeningDirective({
-    discourseState: input.discourseState,
+    discourseState,
     recommendedAct,
-    mindSynthesis: input.mindSynthesis,
+    mindSynthesis,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const openingClaim = resolveOpeningClaim({
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
-    dialogueEncounter: input.dialogueEncounter ?? null,
-    mindSynthesis: input.mindSynthesis,
+    discourseState,
+    conversationState,
+    dialogueEncounter: dialogueEncounterAnchor,
+    mindSynthesis,
     recommendedAct,
-    currentScene: input.currentScene ?? null,
+    currentScene,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const primaryTurnAnchor = resolvePrimaryTurnAnchor({
-    discourseState: input.discourseState,
-    conversationState: input.conversationState ?? null,
-    dialogueEncounter: input.dialogueEncounter ?? null,
+    discourseState,
+    conversationState,
+    dialogueEncounter: dialogueEncounterAnchor,
   })
-  const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst
+  const dialogueFirstTurn = dialogueEncounterAnchor?.dialogueFirst
     ?? (
-      input.discourseState.screenReferenceMode === 'avoid'
-      || isDialogueFirstSubject(input.discourseState.currentTurnSubject)
+      discourseState.screenReferenceMode === 'avoid'
+      || isDialogueFirstSubject(discourseState.currentTurnSubject)
     )
   const sceneCue = buildAlicizationScreenSurfaceCue({
     rawCues: [
-      input.currentScene?.summary,
-      input.currentScene?.target?.title,
-      input.worldModel?.activeThread?.title,
-      input.worldModel?.activeThread?.summary,
+      currentScene?.summary,
+      currentScene?.target?.title,
+      worldModel?.activeThread?.title,
+      worldModel?.activeThread?.summary,
     ],
-    target: input.currentScene?.target ?? input.worldModel?.focusTarget ?? null,
-    scenario: input.currentScene?.scenario ?? null,
-    workloadKind: input.currentScene?.workloadKind ?? null,
-    contentKind: input.currentScene?.contentKind ?? null,
+    target: currentScene?.target ?? worldModel?.focusTarget ?? null,
+    scenario: currentScene?.scenario ?? null,
+    workloadKind: currentScene?.workloadKind ?? null,
+    contentKind: currentScene?.contentKind ?? null,
   })
   const dialogueFirstSupportingReality = uniqueList([
     primaryTurnAnchor,
-    sanitizeDialogueSurfaceText(input.dialogueEncounter?.summary, 220) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.jointThread, 220) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.hostMove, 220) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.unansweredQuestion, 180) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.activeCommitments[0], 180) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.owedRepair, 180) || null,
+    sanitizeDialogueSurfaceText(dialogueEncounterAnchor?.summary, 220) || null,
+    sanitizeDialogueSurfaceText(conversationState?.jointThread, 220) || null,
+    sanitizeDialogueSurfaceText(conversationState?.hostMove, 220) || null,
+    sanitizeDialogueSurfaceText(conversationState?.unansweredQuestion, 180) || null,
+    sanitizeDialogueSurfaceText(conversationState?.activeCommitments[0], 180) || null,
+    sanitizeDialogueSurfaceText(conversationState?.owedRepair, 180) || null,
   ], 5)
   const sceneSupportingReality = uniqueList([
     sanitizeDialogueSurfaceText(sceneCue, 220) || null,
-    sanitizeDialogueSurfaceText(input.conversationState?.jointThread, 220) || null,
-    input.conversationState?.hostMove,
-    input.mindSynthesis.beliefs[0]?.summary,
-    input.mindSynthesis.beliefs[1]?.summary,
-    input.mindSynthesis.concerns[0]?.summary,
-    input.mindSynthesis.commitments[0]?.summary,
-    input.discourseState.unresolvedCarry,
-    input.discourseState.ruptureRepair,
-    input.worldModel?.activeThread?.summary,
+    sanitizeDialogueSurfaceText(conversationState?.jointThread, 220) || null,
+    conversationState?.hostMove,
+    mindSynthesis.beliefs[0]?.summary,
+    mindSynthesis.beliefs[1]?.summary,
+    mindSynthesis.concerns[0]?.summary,
+    mindSynthesis.commitments[0]?.summary,
+    discourseState.unresolvedCarry,
+    discourseState.ruptureRepair,
+    worldModel?.activeThread?.summary,
   ], 5)
   const supportingReality = dialogueFirstTurn
     ? dialogueFirstSupportingReality
     : sceneSupportingReality
-  const uncertaintyBoundary = evidenceMode === 'live-grounded' && input.repairLedger?.shouldConstrainPresentTense !== true
+  const uncertaintyBoundary = evidenceMode === 'live-grounded' && repairLedger?.shouldConstrainPresentTense !== true
     ? null
-    : sanitizeText(input.mindSynthesis.uncertainties[0]?.summary ?? input.mindSynthesis.truthBoundary, 220) || null
-  const careVector = input.discourseState.owedAction === 'care-host'
-    || input.discourseState.currentTurnSubject === 'relationship'
-    || input.privateThought?.stance === 'care'
-    || input.privateThought?.stance === 'warn'
+    : sanitizeText(mindSynthesis.uncertainties[0]?.summary ?? mindSynthesis.truthBoundary, 220) || null
+  const careVector = discourseState.owedAction === 'care-host'
+    || discourseState.currentTurnSubject === 'relationship'
+    || privateThought?.stance === 'care'
+    || privateThought?.stance === 'warn'
     ? sanitizeText(
-      input.mindSynthesis.desires[0]?.summary
-      ?? input.mindSynthesis.concerns[0]?.summary
+      mindSynthesis.desires[0]?.summary
+      ?? mindSynthesis.concerns[0]?.summary
       ?? 'Keep warmth present, but let truth and current relevance stay in charge.',
       180,
     ) || 'Keep warmth present, but let truth and current relevance stay in charge.'
     : null
   const nextMove = resolveNextMove({
     recommendedAct,
-    discourseState: input.discourseState,
-    mindSynthesis: input.mindSynthesis,
+    discourseState,
+    mindSynthesis,
   })
-  const suppressAssociativeRecall = input.conversationState?.memoryMode === 'suppress-associative'
-    || input.conversationState?.memoryMode === 'task-thread'
-    || input.conversationState?.memoryMode === 'scene-anchored'
+  const suppressAssociativeRecall = conversationState?.memoryMode === 'suppress-associative'
+    || conversationState?.memoryMode === 'task-thread'
+    || conversationState?.memoryMode === 'scene-anchored'
     || turnMode === 'screen-repair'
     || turnMode === 'guide-current-knot'
     || turnMode === 'grounded-inspection'
     || evidenceMode === 'continuity-carry'
     || evidenceMode === 'repair-first'
-  const labelCarryAsMemory = input.discourseState.screenReferenceMode !== 'avoid'
+  const labelCarryAsMemory = discourseState.screenReferenceMode !== 'avoid'
     && (
-      input.conversationState?.memoryMode === 'dialogue-carry'
-      || input.conversationState?.memoryMode === 'emotional-resonance'
+      conversationState?.memoryMode === 'dialogue-carry'
+      || conversationState?.memoryMode === 'emotional-resonance'
       || evidenceMode === 'continuity-carry'
       || evidenceMode === 'repair-first'
-      || Boolean(input.discourseState.unresolvedCarry)
+      || Boolean(discourseState.unresolvedCarry)
     )
-  const maxSentences = input.conversationState?.shouldHoldThread
+  const maxSentences = conversationState?.shouldHoldThread
     ? 4
     : turnMode === 'care'
       ? 5
@@ -745,9 +770,9 @@ export function buildAnswerCompiler(input: {
   const mustDo = uniqueList([
     'Let the compiled answer spine outrank persona routines, residue, and decorative helpfulness.',
     openingDirective,
-    input.mindSynthesis.openingIntent,
+    mindSynthesis.openingIntent,
     isFreshlyGroundedSceneTurn({
-      discourseState: input.discourseState,
+      discourseState,
       groundedThisTurn: input.groundedThisTurn === true,
     })
       ? 'Treat the fresh grounding from this turn as already satisfying old repair pressure, and answer from the live scene itself.'
@@ -761,7 +786,7 @@ export function buildAnswerCompiler(input: {
     turnMode === 'guide-current-knot'
       ? 'Stay with the current knot and move toward one concrete next step.'
       : null,
-    input.conversationState?.shouldHoldThread
+    conversationState?.shouldHoldThread
       ? 'Keep the answer attached to the shared thread until the owed seam is paid off.'
       : null,
     dialogueFirstTurn && primaryTurnAnchor
@@ -776,18 +801,18 @@ export function buildAnswerCompiler(input: {
     'Do not let pet names, coy prefaces, or roleplay become the reply spine.',
     'Do not reuse stale scene residue as if it is the live present.',
     isFreshlyGroundedSceneTurn({
-      discourseState: input.discourseState,
+      discourseState,
       groundedThisTurn: input.groundedThisTurn === true,
     })
       ? 'Do not expose stale-anchor bookkeeping, apology scaffolding, or repair meta once the live scene is already grounded.'
       : null,
-    input.discourseState.screenReferenceMode === 'avoid'
+    discourseState.screenReferenceMode === 'avoid'
       ? 'Do not drag screen repair or desktop narration into a dialogue-first turn.'
       : null,
     turnMode === 'guide-current-knot'
       ? 'Do not flatten the knot into a generic troubleshooting checklist.'
       : null,
-    input.conversationState?.memoryMode === 'dialogue-carry'
+    conversationState?.memoryMode === 'dialogue-carry'
       ? 'Do not let live-scene evidence hijack a dialogue-first answer.'
       : null,
     evidenceMode === 'continuity-carry' || evidenceMode === 'repair-first'
@@ -796,10 +821,10 @@ export function buildAnswerCompiler(input: {
   ], 8)
 
   return {
-    answerSubject: input.discourseState.currentTurnSubject,
-    screenReferenceMode: input.discourseState.screenReferenceMode,
-    speechObligation: input.discourseState.owedAction,
-    relationMove: input.discourseState.relationMove,
+    answerSubject: discourseState.currentTurnSubject,
+    screenReferenceMode: discourseState.screenReferenceMode,
+    speechObligation: discourseState.owedAction,
+    relationMove: discourseState.relationMove,
     turnMode,
     responseMode,
     recommendedAct,
@@ -819,9 +844,9 @@ export function buildAnswerCompiler(input: {
     mustDo,
     mustNotDo,
     confidence: clamp01(
-      input.discourseState.confidence * 0.38
-      + input.mindSynthesis.confidence * 0.34
-      + (input.privateThought?.confidence ?? 0.3) * 0.12
+      discourseState.confidence * 0.38
+      + mindSynthesis.confidence * 0.34
+      + (privateThought?.confidence ?? 0.3) * 0.12
       + (supportingReality.length > 0 ? 0.08 : 0.02)
       + (evidenceMode === 'live-grounded' ? 0.08 : 0.03),
     ),
@@ -830,8 +855,8 @@ export function buildAnswerCompiler(input: {
       `response-mode:${responseMode}`,
       `recommended-act:${recommendedAct}`,
       `evidence:${evidenceMode}`,
-      `subject:${input.discourseState.currentTurnSubject}`,
-      `screen-reference:${input.discourseState.screenReferenceMode}`,
+      `subject:${discourseState.currentTurnSubject}`,
+      `screen-reference:${discourseState.screenReferenceMode}`,
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       sanitizeDialogueAnchorText(openingClaim, 180) || openingClaim,
     ], 7),

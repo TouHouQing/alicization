@@ -1,0 +1,389 @@
+import type { AlicizationDigitalLifeSpineDigest } from './alicization-bridge'
+
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
+import { installBrowserAlicizationBridge } from './alicization-browser-bridge'
+
+const storageMap = new Map<string, unknown>()
+
+vi.mock('../database/storage', () => ({
+  storage: {
+    getItemRaw: vi.fn(async (key: string) => storageMap.get(key) ?? null),
+    setItemRaw: vi.fn(async (key: string, value: unknown) => {
+      storageMap.set(key, value)
+    }),
+    removeItem: vi.fn(async (key: string) => {
+      storageMap.delete(key)
+    }),
+  },
+}))
+
+vi.mock('../libs/auth', () => ({
+  SERVER_URL: 'https://example.test',
+}))
+
+vi.mock('../utils/i18n', () => ({
+  getStageUiMessageVariants: () => [],
+  translateStageUi: (key: string) => key,
+}))
+
+vi.mock('./character', () => ({
+  useCharacterNotebookStore: () => ({
+    scheduleTask: vi.fn(() => ({
+      id: 'task-1',
+      dueAt: Date.now() + 60_000,
+    })),
+  }),
+}))
+
+vi.mock('./modules/airi-card', () => ({
+  useAiriCardStore: () => ({
+    activeCardId: 'default',
+  }),
+}))
+
+function buildVisualPresenceStorageKey(cardId: string) {
+  return `local:alicization/browser/v1/cards/${cardId}/visual-presence`
+}
+
+function createVisualPresenceState(updatedAt: number) {
+  return {
+    watchMode: 'invited-inspection' as const,
+    currentScene: {
+      workloadKind: 'coding' as const,
+      contentKind: 'diff' as const,
+      scenario: 'coding' as const,
+      source: 'invited-grounding' as const,
+      confidence: 0.84,
+      beganAt: updatedAt - 8_000,
+      lastSeenAt: updatedAt - 300,
+    },
+    attention: null,
+    workingMemoryEpisodes: [],
+    privateThought: {
+      stance: 'observe' as const,
+      confidence: 0.72,
+      rationaleTags: ['inspection'],
+      thoughtText: 'Stay with the current diff.',
+      shouldSpeak: true,
+      suggestedStyle: 'silent-observe' as const,
+      embodiedPresence: 'attentive' as const,
+      expiresAt: updatedAt + 4_000,
+      emotionalTension: 'focused-flow' as const,
+    },
+    captureState: {
+      permission: 'granted' as const,
+      lastGroundedAt: updatedAt - 120,
+      sourceName: 'display-1',
+    },
+    durabilityPulse: null,
+    recentTransition: null,
+    nextSuggestedProbeMs: 1_400,
+    updatedAt,
+  }
+}
+
+function createStreamResponse(lines: unknown[]) {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream({
+    start(controller) {
+      lines.forEach((line) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`))
+      })
+      controller.close()
+    },
+  })
+
+  return {
+    ok: true,
+    status: 200,
+    body: body as Response['body'],
+  } satisfies Partial<Response>
+}
+
+function createDigitalLifeSpineDigest(updatedAt = Date.now()): AlicizationDigitalLifeSpineDigest {
+  return {
+    version: 'digital-life-spine-digest-v1' as const,
+    runtime: {
+      watchMode: 'symbiotic-vision' as const,
+      sceneScenario: 'coding' as const,
+      sceneSummary: 'inspect the current diff',
+      activeThreadId: 'thread-1',
+      activeThreadTitle: 'current diff',
+      dominantMode: 'tracking',
+      dominantDrive: 'understand',
+      answerIntent: 'guide',
+      preferredPresence: 'attentive' as const,
+      selectedAction: 'wait',
+      updatedAt,
+    },
+    architecture: {
+      operatingMode: 'speaking' as const,
+      dominantSystem: 'dialogue' as const,
+      supportingSystems: ['perception'],
+      governingFocus: 'guide the current diff',
+      summary: 'dialogue leads while perception stays warm',
+    },
+    continuitySignal: {
+      label: 'digital-life-line' as const,
+      summary: 'watch=symbiotic-vision | scene=coding | mode=tracking',
+      signature: 'spine-1',
+      createdAt: updatedAt,
+      watchMode: 'symbiotic-vision' as const,
+      sceneScenario: 'coding' as const,
+      activeThreadId: 'thread-1',
+      dominantMode: 'tracking',
+      dominantDrive: 'understand',
+      answerIntent: 'guide',
+      preferredPresence: 'attentive' as const,
+    },
+    proactive: {
+      selectedAction: 'wait',
+      preferredStyle: 'silent-observe' as const,
+      confidence: 0.7,
+      shouldSpeak: false,
+      activeThreadId: 'thread-1',
+      activeThreadTitle: 'current diff',
+      dominantConcernKind: null,
+      dominantConcernSummary: null,
+      leadingGoalId: null,
+      leadingGoalSummary: null,
+      preferredPresence: 'attentive' as const,
+    },
+    memory: {
+      summary: 'recent=current diff | goal=guide the current diff',
+      recentEpisodeSummary: 'current diff',
+      recentEpisodeCount: 1,
+      focusBeliefStatement: 'the current diff needs guidance',
+      focusBeliefConfidence: 0.72,
+      leadingGoalSummary: 'guide the current diff',
+      dominantConcernSummary: null,
+      reflectionSummary: null,
+      reflectionPressure: 0.2,
+      recallMode: 'working',
+      recallSeed: 'current-diff',
+      thoughtThreadSummary: 'current diff',
+    },
+  }
+}
+
+describe('browser alicization bridge visual presence listeners', () => {
+  let disposeBridge: (() => void) | undefined
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    storageMap.clear()
+  })
+
+  afterEach(() => {
+    disposeBridge?.()
+    disposeBridge = undefined
+    storageMap.clear()
+    vi.restoreAllMocks()
+  })
+
+  it('rebuilds persisted visual presence from digital life spine stream meta', async () => {
+    const seededState = createVisualPresenceState(Date.now() - 2_000)
+    storageMap.set(buildVisualPresenceStorageKey('default'), seededState)
+    const digest = createDigitalLifeSpineDigest()
+
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-1' },
+        digitalLifeSpine: digest,
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    expect(hasAlicizationBridge()).toBe(true)
+
+    const bridge = getAlicizationBridge()
+    expect(bridge.onVisualPresenceState).toBeTypeOf('function')
+    expect(bridge.onVisualPresencePulse).toBeTypeOf('function')
+
+    const stateUpdates: Array<ReturnType<typeof createVisualPresenceState> | null> = []
+    const pulseUpdates: any[] = []
+    const stopState = bridge.onVisualPresenceState?.((state) => {
+      stateUpdates.push(state as ReturnType<typeof createVisualPresenceState> | null)
+    })
+    const stopPulse = bridge.onVisualPresencePulse?.((payload) => {
+      pulseUpdates.push(payload)
+    })
+
+    const onStreamEvent = vi.fn()
+    await bridge.streamChat?.({
+      turnId: 'turn-1',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(stateUpdates).toHaveLength(1)
+    expect(stateUpdates[0]).toMatchObject({
+      watchMode: 'symbiotic-vision',
+      currentScene: expect.objectContaining({
+        scenario: 'coding',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        source: 'screen-semantic-summary',
+        summary: expect.stringContaining('inspect the current diff'),
+      }),
+      privateThought: expect.objectContaining({
+        stance: 'accompany',
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'focused-flow',
+        runtimeThreadId: 'thread-1',
+      }),
+      residentPerformance: expect.objectContaining({
+        source: 'browser-fallback',
+        performance: expect.objectContaining({
+          baseEmotion: 'thinking',
+          delivery: 'firm',
+        }),
+        embodiedPresence: 'attentive',
+      }),
+    })
+    expect(stateUpdates[0]?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
+      'memory-carry:carry-thread',
+      'carry:mode:carry-thread',
+    ]))
+    expect(stateUpdates[0]?.currentScene?.beganAt).toBe(seededState.currentScene?.beganAt)
+    expect((stateUpdates[0]?.updatedAt ?? 0)).toBe(digest.runtime.updatedAt)
+
+    expect(pulseUpdates).toHaveLength(1)
+    expect(pulseUpdates[0]).toMatchObject({
+      watchMode: 'symbiotic-vision',
+      embodiedPresence: 'attentive',
+      scenario: 'coding',
+      stance: 'accompany',
+    })
+    expect(onStreamEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'meta',
+      digitalLifeSpine: expect.objectContaining({
+        architecture: expect.objectContaining({
+          operatingMode: 'speaking',
+          dominantSystem: 'dialogue',
+        }),
+        continuitySignal: expect.objectContaining({
+          summary: expect.stringContaining('scene=coding'),
+        }),
+      }),
+    }))
+
+    stopState?.()
+    stopPulse?.()
+    vi.unstubAllGlobals()
+  })
+
+  it('synthesizes visual presence from digital life spine when no prior state exists', async () => {
+    const digest = createDigitalLifeSpineDigest()
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-2' },
+        digitalLifeSpine: digest,
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.streamChat?.({
+      turnId: 'turn-2',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    const persisted = await bridge.getVisualPresenceState?.()
+    expect(persisted).toMatchObject({
+      watchMode: 'symbiotic-vision',
+      currentScene: expect.objectContaining({
+        scenario: 'coding',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+      }),
+      privateThought: expect.objectContaining({
+        thoughtText: expect.stringContaining('goal=guide the current diff'),
+        stance: 'accompany',
+        suggestedStyle: 'silent-observe',
+      }),
+      residentPerformance: expect.objectContaining({
+        source: 'browser-fallback',
+        performance: expect.objectContaining({
+          baseEmotion: 'thinking',
+          delivery: 'firm',
+        }),
+      }),
+    })
+    expect(persisted?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
+      'memory-carry:carry-thread',
+      'carry:mode:carry-thread',
+    ]))
+    expect(persisted?.attention).toBeNull()
+    expect(persisted?.captureState.permission).toBe('unknown')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('escalates visual presence into reflective repair when memory reflection pressure is high', async () => {
+    const digest = createDigitalLifeSpineDigest()
+    digest.memory = {
+      ...digest.memory!,
+      reflectionPressure: 0.82,
+      reflectionSummary: 'repair continuity mismatch from prior mirror',
+      recallMode: 'thread',
+    }
+    digest.proactive = {
+      ...digest.proactive!,
+      preferredStyle: 'silent-observe',
+      shouldSpeak: false,
+    }
+
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-3' },
+        digitalLifeSpine: digest,
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.streamChat?.({
+      turnId: 'turn-3',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    const persisted = await bridge.getVisualPresenceState?.()
+    expect(persisted?.privateThought).toMatchObject({
+      stance: 'care',
+      suggestedStyle: 'gentle-care',
+      shouldSpeak: true,
+    })
+    expect(persisted?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
+      'memory-carry:reflective-repair',
+      'carry:mode:reflective-repair',
+      'carry:reflection:0.82',
+    ]))
+
+    vi.unstubAllGlobals()
+  })
+})

@@ -17,6 +17,7 @@ import { calibrateSentimentConfidence, estimateLexicalSentiment } from '../compo
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import {
   asyncExtractionBatchThreshold,
+  asyncExtractionForcePriorityThreshold,
   asyncExtractionIdleMs,
   asyncExtractionMaxPendingTurns,
   evaluateAsyncExtractionBudget,
@@ -176,6 +177,54 @@ function deriveMindAwareExtractionPriority(input: {
   return clamp(Math.round(priority), 10, 300)
 }
 
+function shouldForceAsyncExtractionTurn(input: {
+  userText: string
+  priority: number
+  thoughtObligation: string | null
+  structuredFormat?: string | null
+  contractFailed?: boolean
+  governance?: AlicizationMindTurnGovernance | null
+}) {
+  if (input.contractFailed)
+    return false
+  if (input.priority < asyncExtractionForcePriorityThreshold)
+    return false
+  if (input.structuredFormat !== 'mind-turn-v1')
+    return false
+
+  switch (input.governance?.answerSubject) {
+    case 'relationship':
+    case 'alicization-self':
+    case 'host-state':
+      return true
+    default:
+      break
+  }
+
+  if (input.thoughtObligation === 'care' || input.thoughtObligation === 'accompany')
+    return true
+
+  return durableMemoryCuePattern.test(input.userText)
+}
+
+function resolvePendingAsyncExtractionTrigger(
+  pending: PendingAsyncExtractionTurn[],
+  now: number,
+  lastQueuedAt: number | null,
+) {
+  const highestPriority = pending.length > 0
+    ? Math.max(...pending.map(item => item.priority))
+    : null
+
+  return evaluateAsyncExtractionTrigger({
+    forceFlush: pending.some(item => item.forceFlush),
+    highestPriority,
+    pendingCount: pending.length,
+    lastQueuedAt,
+    now,
+  })
+}
+
 interface PendingAsyncExtractionTurn {
   turnId: string
   sessionId: string
@@ -189,6 +238,7 @@ interface PendingAsyncExtractionTurn {
   thoughtTruth: string | null
   thoughtFocus: string | null
   structuredFormat: string | null
+  forceFlush: boolean
   queuedAt: number
 }
 
@@ -710,13 +760,13 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
       asyncExtractionInFlight = false
       const pendingCount = pendingAsyncExtractionTurns.value.length
       if (pendingCount > 0) {
-        const nextTrigger = evaluateAsyncExtractionTrigger({
-          pendingCount,
-          lastQueuedAt: asyncExtractionLastQueuedAt,
-          now: Date.now(),
-        })
-        if (nextTrigger === 'batch')
-          void flushPendingAsyncExtraction('batch')
+        const nextTrigger = resolvePendingAsyncExtractionTrigger(
+          pendingAsyncExtractionTurns.value,
+          Date.now(),
+          asyncExtractionLastQueuedAt,
+        )
+        if (nextTrigger === 'force' || nextTrigger === 'batch')
+          void flushPendingAsyncExtraction(nextTrigger)
         else
           scheduleAsyncExtractionFlush()
       }
@@ -739,26 +789,36 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
       return
 
     const assistantText = payload.assistantText.trim()
+    const thoughtObligation = payload.thought ? parseMindSignalField(payload.thought, 'obligation') : null
+    const priority = deriveMindAwareExtractionPriority({
+      userText,
+      assistantText,
+      thought: payload.thought,
+      structuredFormat: payload.structuredFormat ?? null,
+      contractFailed: payload.contractFailed,
+      governance: payload.governance,
+    })
     const nextItem: PendingAsyncExtractionTurn = {
       turnId: payload.turnId,
       sessionId: payload.sessionId,
       userText,
       assistantText,
       dedupeKey: buildAsyncExtractionDedupeKey(userText, assistantText),
-      priority: deriveMindAwareExtractionPriority({
+      priority,
+      decisionTraceId: payload.governance?.decisionTraceId?.trim() || null,
+      origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
+      thoughtObligation,
+      thoughtTruth: payload.thought ? parseMindSignalField(payload.thought, 'truth') : null,
+      thoughtFocus: payload.thought ? parseMindSignalField(payload.thought, 'focus') : null,
+      structuredFormat: payload.structuredFormat ?? null,
+      forceFlush: shouldForceAsyncExtractionTurn({
         userText,
-        assistantText,
-        thought: payload.thought,
+        priority,
+        thoughtObligation,
         structuredFormat: payload.structuredFormat ?? null,
         contractFailed: payload.contractFailed,
         governance: payload.governance,
       }),
-      decisionTraceId: payload.governance?.decisionTraceId?.trim() || null,
-      origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
-      thoughtObligation: payload.thought ? parseMindSignalField(payload.thought, 'obligation') : null,
-      thoughtTruth: payload.thought ? parseMindSignalField(payload.thought, 'truth') : null,
-      thoughtFocus: payload.thought ? parseMindSignalField(payload.thought, 'focus') : null,
-      structuredFormat: payload.structuredFormat ?? null,
       queuedAt: Date.now(),
     }
 
@@ -791,13 +851,13 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
 
     asyncExtractionLastQueuedAt = Date.now()
 
-    const trigger = evaluateAsyncExtractionTrigger({
-      pendingCount: pendingAsyncExtractionTurns.value.length,
-      lastQueuedAt: asyncExtractionLastQueuedAt,
-      now: Date.now(),
-    })
-    if (trigger === 'batch') {
-      void flushPendingAsyncExtraction('batch')
+    const trigger = resolvePendingAsyncExtractionTrigger(
+      pendingAsyncExtractionTurns.value,
+      Date.now(),
+      asyncExtractionLastQueuedAt,
+    )
+    if (trigger === 'force' || trigger === 'batch') {
+      void flushPendingAsyncExtraction(trigger)
       return
     }
 

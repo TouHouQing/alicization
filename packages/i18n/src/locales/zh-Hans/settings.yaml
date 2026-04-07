@@ -121,6 +121,32 @@ live2d:
         label: 描述
         description: 描述该动作的使用时机，便于 Alicization 精准调用。
         placeholder: 用于表示同意、回应或轻柔确认的小幅点头动作。
+  embodiment:
+    title: 情绪动作优先级
+    description: 为当前 Live2D 模型覆写 Alicization 的情绪到 motion alias 优先顺序。使用逗号分隔的 motion 名称或别名；留空会移除模型覆写并回退到共享默认值。
+    defaults: '共享默认值：{aliases}'
+    effective: '当前有效顺序：{aliases}'
+    suggested: '共享建议：{aliases}'
+    emotions:
+      neutral: 平静
+      happy: 开心
+      sad: 难过
+      angry: 生气
+      concerned: 担心
+      tired: 疲惫
+      apologetic: 抱歉
+      surprised: 惊讶
+      thinking: 思考
+      awkward: 尴尬
+      question: 疑问
+      curious: 好奇
+    fields:
+      motion-aliases:
+        label: 首选动作别名
+        description: Alicization 会优先尝试这些别名，再按共享默认值回退。
+      action-cues:
+        label: 首选动作语义键
+        description: 覆写该情绪下更偏好的 `actionCue`，让 planner 更懂这个模型适合怎么动。
   parameters:
     title: 参数
     idle-animation: 待机动画
@@ -319,6 +345,11 @@ pages:
           former_core_incarnation: 旧心意蜕壳
           unforged_shattering_event: 未重铸破碎事件
           attitude_shift: 态度演变
+          mind_continuity: 心智连续体
+          visual_sediment: 视觉沉积
+          reflection_ledger: 反思账本
+          dialogue_turn: 对话回合
+          fact_ledger: 事实账本
       soul_forge:
         eyebrow: 灵魂铸造舱
         title: 灵魂铸造舱
@@ -1680,6 +1711,32 @@ pages:
                       dialogue_emitted: dialogue-emitted
                       takeover_audit: takeover-audit
                       memory_facts_upserted: memory-facts-upserted
+              embodiment:
+                title: 具身实验场
+                description: 在真实 Stage 运行链路里检查凝视、姿态、语音和 presence 状态
+                page:
+                  actions:
+                    follow_pointer: 跟随指针
+                    manual_focus: 拖拽聚焦
+                    show_overlay: 显示浮层
+                    hide_overlay: 隐藏浮层
+                    reset_focus: 重置焦点
+                  preview:
+                    title: Stage 预览
+                    hint_follow: 在预览区内移动指针以驱动凝视。
+                    hint_manual: 在预览区内拖拽以驱动凝视。
+                    focus: '焦点：{x}, {y}'
+                  sections:
+                    summary: 摘要
+                    raw: 原始快照
+                  states:
+                    waiting: 正在等待 Stage 诊断数据...
+                  cards:
+                    presence: 临场
+                    posture: 姿态
+                    gaze: 凝视
+                    speech: 语音
+                    capture: 捕获
               vibrant:
                 title: 颜色提取
                 description: 测试颜色提取
@@ -1975,6 +2032,37 @@ vrm:
         label: 描述
         description: 简要说明动作语义，便于 Alicization 正确选择。
         placeholder: 友好的挥手动作，常用于打招呼或轻度回应。
+  embodiment:
+    title: 情绪基础表情优先级
+    callout:
+      label: VRM 标准表情模型偏好
+      description: 为当前 VRM 模型覆写 Alicization 的情绪到 base expression alias 优先顺序。使用逗号分隔的 expression 名称或别名；留空会移除模型覆写并回退到共享默认值。
+    defaults: '共享默认值：{aliases}'
+    effective: '当前有效顺序：{aliases}'
+    suggested: '共享建议：{aliases}'
+    emotions:
+      neutral: 平静
+      happy: 开心
+      sad: 难过
+      angry: 生气
+      concerned: 担心
+      tired: 疲惫
+      apologetic: 抱歉
+      surprised: 惊讶
+      thinking: 思考
+      awkward: 尴尬
+      question: 疑问
+      curious: 好奇
+    fields:
+      expression-aliases:
+        label: 首选基础表情别名
+        description: 运行时会优先尝试这些别名，再按共享默认值回退。
+      facial-cues:
+        label: 首选面部语义键
+        description: 覆写该情绪下更偏好的 `facialCue`，让 Alicization 更稳定地挑中适合这个模型的表情语义。
+      action-cues:
+        label: 首选动作语义键
+        description: 覆写该情绪下更偏好的 `actionCue`，让动作规划更贴合这个 VRM 模型的表现力。
   custom-expressions:
     title: 自定义表情
     callout:

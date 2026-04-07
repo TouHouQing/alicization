@@ -3,6 +3,7 @@ import type { AsyncExtractionBudgetState } from './alicization-epoch1-scheduler'
 import { describe, expect, it } from 'vitest'
 
 import {
+  asyncExtractionForcePriorityThreshold,
   evaluateAsyncExtractionBudget,
   evaluateAsyncExtractionTrigger,
   hasAsyncExtractionDuplicate,
@@ -22,6 +23,22 @@ describe('alicization epoch1 async extraction scheduler', () => {
     const idleNow = now + 5 * 60 * 1000
     expect(evaluateAsyncExtractionTrigger({ pendingCount: 3, lastQueuedAt: now, now: idleNow })).toBe('idle')
     expect(evaluateAsyncExtractionTrigger({ pendingCount: 3, lastQueuedAt: now, now: idleNow - 1 })).toBe('none')
+  })
+
+  it('forces a flush for mind-critical turns before the batch threshold', () => {
+    const now = Date.now()
+    expect(evaluateAsyncExtractionTrigger({
+      pendingCount: 1,
+      lastQueuedAt: now,
+      now,
+      highestPriority: asyncExtractionForcePriorityThreshold,
+    })).toBe('force')
+    expect(evaluateAsyncExtractionTrigger({
+      pendingCount: 2,
+      lastQueuedAt: now,
+      now,
+      forceFlush: true,
+    })).toBe('force')
   })
 
   it('enforces budget window and degrades when exhausted', () => {

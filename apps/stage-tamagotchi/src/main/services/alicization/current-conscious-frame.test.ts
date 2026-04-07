@@ -4,6 +4,8 @@ import {
   buildCurrentConsciousFrame,
   buildCurrentConsciousFrameSystemBlock,
 } from './current-conscious-frame'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildCurrentConsciousFrame', () => {
   it('treats coarse screen turns as observation-then-hypothesis with specificity restraint', () => {
@@ -154,5 +156,117 @@ describe('buildCurrentConsciousFrame', () => {
       truthDiscipline: 'dialogue-first',
       shouldWithholdSpecificity: false,
     }))
+  })
+
+  it('prefers runtime surface conscious cues over conflicting raw inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(35_000),
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Guess what the host is doing from the current screen.',
+        currentQuestion: '猜猜我在干嘛',
+        owedAction: 'guide-task',
+        relationMove: 'witness',
+        continuityMode: 'task-first',
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 35_000,
+      },
+      conversationState: {
+        jointThread: 'The host wants a present-tense guess from the visible workspace.',
+        hostMove: '猜猜我在干嘛',
+        activeProject: null,
+        unansweredQuestion: '猜猜我在干嘛',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'witness',
+        continuityPolicy: 'scene-before-memory',
+        memoryMode: 'scene-anchored',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 35_000,
+      },
+      dialogueEncounter: {
+        subject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        dialogueFirst: false,
+        summary: 'Git commit diff in Java code editor',
+        taskAnchor: 'Git commit diff in Java code editor',
+        mustRepairFirst: false,
+        confidence: 0.76,
+      },
+      mindSynthesis: {
+        concerns: [{
+          label: 'truth-boundary',
+          summary: 'The visible scene is still coarse and should not be over-specified.',
+          confidence: 0.78,
+          sourceTags: ['subjective-inference'],
+        }],
+        uncertainties: [{
+          label: 'open-question',
+          summary: 'The exact file or class is not yet safely grounded.',
+          confidence: 0.74,
+          sourceTags: ['appraisal'],
+        }],
+        openingIntent: 'Stay close to the live scene without overcommitting.',
+        confidence: 0.8,
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        recommendedAct: 'guide',
+        evidenceMode: 'live-grounded',
+        turnMode: 'guide-current-knot',
+        openingClaim: 'Git commit diff in Java code editor',
+        openingDirective: 'Stay with the visible knot before naming a larger story.',
+        supportingReality: ['Git commit diff in Java code editor'],
+        labelCarryAsMemory: false,
+        confidence: 0.82,
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.7,
+        thoughtText: 'Do not pretend the coarse scene is more specific than it is.',
+      },
+    } as any
+
+    const frame = buildCurrentConsciousFrame({
+      now: 35_000,
+      discourseState: {
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'raw conflict',
+        currentQuestion: 'raw conflict',
+        owedAction: 'answer-relationship',
+        relationMove: 'attune',
+        continuityMode: 'dialogue-first',
+        confidence: 0.3,
+        narrative: [],
+        updatedAt: 35_000,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        turnMode: 'answer',
+        openingClaim: 'raw conflict',
+        openingDirective: 'raw conflict',
+        supportingReality: [],
+        labelCarryAsMemory: false,
+        confidence: 0.2,
+      } as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(frame).toEqual(expect.objectContaining({
+      centerOfGravity: 'guide',
+      truthDiscipline: 'observe-then-hypothesize',
+      shouldWithholdSpecificity: true,
+    }))
+    expect(frame?.focusAnchor).toContain('Git commit diff')
   })
 })

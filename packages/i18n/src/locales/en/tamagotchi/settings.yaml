@@ -231,3 +231,39 @@ screen-capture:
     empty:
       title: No sources in this category
       description: Try another category or refresh the capture source list.
+    diagnostics:
+      title: Capture diagnostics
+      loading: Loading live diagnostics...
+      updated_at: 'updated:'
+      sections:
+        renderer: Renderer session
+        main_probe: Main probe
+        lease: Main lease
+      fields:
+        permission: 'permission:'
+        phase: 'phase:'
+        reason: 'reason:'
+        selected_source: 'selected:'
+        current_source: 'current:'
+        source_preference: 'preference:'
+        last_used_at: 'last used:'
+        last_error: 'last error:'
+        window: 'window:'
+        probe_status: 'probe:'
+        probe_types: 'types:'
+        source_count: 'source count:'
+        requested_at: 'requested:'
+        completed_at: 'completed:'
+        duration: 'duration:'
+        lease_status: 'lease:'
+        lease_handle: 'handle:'
+        lease_source: 'source:'
+        lease_owner: 'owner window:'
+        lease_types: 'lease types:'
+        acquired_at: 'acquired:'
+        expires_at: 'expires:'
+        release_reason: 'released because:'
+      values:
+        none: none
+        idle: idle
+        probing: probing

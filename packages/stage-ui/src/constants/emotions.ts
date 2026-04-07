@@ -1,3 +1,8 @@
+import {
+  resolveStageEmbodimentPreferredLive2DMotionName,
+  resolveStageEmbodimentVrmBaseExpressionName,
+} from '@proj-alicization/stage-shared'
+
 export enum Emotion {
   Happy = 'happy',
   Sad = 'sad',
@@ -23,30 +28,31 @@ export const EmotionNeutralMotionName = 'Idle'
 export const EmotionCuriousMotionName = 'Curious'
 
 export const EMOTION_EmotionMotionName_value = {
-  [Emotion.Happy]: EmotionHappyMotionName,
-  [Emotion.Sad]: EmotionSadMotionName,
-  [Emotion.Angry]: EmotionAngryMotionName,
-  [Emotion.Think]: EmotionThinkMotionName,
-  [Emotion.Surprise]: EmotionSurpriseMotionName,
-  [Emotion.Awkward]: EmotionAwkwardMotionName,
-  [Emotion.Question]: EmotionQuestionMotionName,
-  [Emotion.Neutral]: EmotionNeutralMotionName,
-  [Emotion.Curious]: EmotionCuriousMotionName,
+  [Emotion.Happy]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Happy),
+  [Emotion.Sad]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Sad),
+  [Emotion.Angry]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Angry),
+  [Emotion.Think]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Think),
+  [Emotion.Surprise]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Surprise),
+  [Emotion.Awkward]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Awkward),
+  [Emotion.Question]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Question),
+  [Emotion.Neutral]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Neutral),
+  [Emotion.Curious]: resolveStageEmbodimentPreferredLive2DMotionName(Emotion.Curious),
 }
 
 export const EMOTION_VRMExpressionName_value = {
-  [Emotion.Happy]: 'happy',
-  [Emotion.Sad]: 'sad',
-  [Emotion.Angry]: 'angry',
-  [Emotion.Think]: 'think',
-  [Emotion.Surprise]: 'surprised',
-  [Emotion.Awkward]: 'neutral',
-  [Emotion.Question]: 'think',
-  [Emotion.Neutral]: 'neutral',
-  [Emotion.Curious]: 'think',
-} satisfies Record<Emotion, string | undefined>
+  [Emotion.Happy]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Happy),
+  [Emotion.Sad]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Sad),
+  [Emotion.Angry]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Angry),
+  [Emotion.Think]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Think),
+  [Emotion.Surprise]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Surprise),
+  [Emotion.Awkward]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Awkward),
+  [Emotion.Question]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Question),
+  [Emotion.Neutral]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Neutral),
+  [Emotion.Curious]: resolveStageEmbodimentVrmBaseExpressionName(Emotion.Curious),
+} satisfies Record<Emotion, string>
 
 export interface EmotionPayload {
   name: Emotion
   intensity: number
+  suppressLive2DMotion?: boolean
 }

@@ -10,6 +10,7 @@ import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-govern
 import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationResponseCharter } from './response-charter'
 
 import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
@@ -20,6 +21,7 @@ import {
   isSelfPerceptionTarget,
 } from './attention-anchor'
 import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { deriveMindTruthContract } from './mind-truth-contract'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -103,6 +105,7 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   currentForeground?: AlicizationPerceptionTarget | null
   perceptionState: AlicizationPerceptionState
   visualPresenceState: AlicizationVisualPresenceStateSnapshot
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   responseCharter: AlicizationResponseCharter
   dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   dialogueSemantics?: AlicizationDialogueTurnSemantics | null
@@ -114,29 +117,30 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
 }) {
   const dialogueEncounter = input.dialogueEncounter ?? null
+  const runtimeSurface = input.runtimeSurface ?? buildAlicizationDigitalLifeRuntimeSurface(input.visualPresenceState)
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
   const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
-  const discourseState = input.discourseState ?? input.visualPresenceState.discourseState ?? null
-  const mindSynthesis = input.mindSynthesis ?? input.visualPresenceState.mindSynthesis ?? null
-  const answerCompiler = input.answerCompiler ?? input.visualPresenceState.answerCompiler ?? null
-  const claimEvidenceLedger = input.claimEvidenceLedger ?? input.visualPresenceState.claimEvidenceLedger ?? null
-  const truthContract = deriveMindTruthContract(input.visualPresenceState)
+  const discourseState = runtimeSurface.dialogue.discourseState ?? input.discourseState ?? null
+  const mindSynthesis = runtimeSurface.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const answerCompiler = runtimeSurface.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const claimEvidenceLedger = runtimeSurface.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
+  const truthContract = deriveMindTruthContract(runtimeSurface)
   const preferredScreenReferenceMode = answerCompiler?.screenReferenceMode
     ?? discourseState?.screenReferenceMode
     ?? dialogueFocus?.screenReferenceMode
     ?? null
   const liveSurfaceTarget = input.currentForeground
-    ?? input.visualPresenceState.attention?.target
-    ?? input.visualPresenceState.currentScene?.target
+    ?? runtimeSurface.perception.attention?.target
+    ?? runtimeSurface.perception.currentScene?.target
     ?? null
   const activeAnchor = getActiveAttentionAnchor(input.perceptionState, input.now)
   const residue = getActivePerceptionSceneResidue(input.perceptionState, input.now, 10 * 60_000)
   const carriedThreadCandidates = [
     sanitizeCarryThreadCandidate(residue?.summary ?? '', 220),
-    sanitizeCarryThreadCandidate(input.visualPresenceState.worldModel?.activeThread?.summary ?? '', 220),
-    sanitizeCarryThreadCandidate(input.visualPresenceState.answerPlanner?.governingFocus ?? '', 220),
-    sanitizeCarryThreadCandidate(input.visualPresenceState.currentScene?.summary ?? '', 220),
+    sanitizeCarryThreadCandidate(runtimeSurface.world.worldModel?.activeThread?.summary ?? '', 220),
+    sanitizeCarryThreadCandidate(runtimeSurface.dialogue.answerPlanner?.governingFocus ?? '', 220),
+    sanitizeCarryThreadCandidate(runtimeSurface.perception.currentScene?.summary ?? '', 220),
   ].filter(Boolean)
   const liveSurfaceSignature = targetSignature(liveSurfaceTarget)
   const carryTarget = residue?.focusTarget ?? activeAnchor ?? null
@@ -153,9 +157,9 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
   const separateCarryFromSurface = carryFromNonSelfResidue
     || (
       Boolean(liveSurfaceTarget)
-      && Boolean(input.visualPresenceState.currentScene?.summary)
+      && Boolean(runtimeSurface.perception.currentScene?.summary)
       && Boolean(liveSurfaceSignature)
-      && targetSignature(input.visualPresenceState.currentScene?.target) !== liveSurfaceSignature
+      && targetSignature(runtimeSurface.perception.currentScene?.target) !== liveSurfaceSignature
     )
   const carriedThread = separateCarryFromSurface && preferredScreenReferenceMode !== 'avoid'
     ? carriedThreadCandidates[0] ?? null
@@ -290,10 +294,10 @@ export function buildAlicizationExecutiveAnswerBrief(input: {
     turnMode,
     liveSurface: describeTarget({
       target: liveSurfaceTarget,
-      sceneSummary: input.visualPresenceState.currentScene?.summary ?? null,
-      scenario: input.visualPresenceState.currentScene?.scenario ?? null,
-      workloadKind: input.visualPresenceState.currentScene?.workloadKind ?? null,
-      contentKind: input.visualPresenceState.currentScene?.contentKind ?? null,
+      sceneSummary: runtimeSurface.perception.currentScene?.summary ?? null,
+      scenario: runtimeSurface.perception.currentScene?.scenario ?? null,
+      workloadKind: runtimeSurface.perception.currentScene?.workloadKind ?? null,
+      contentKind: runtimeSurface.perception.currentScene?.contentKind ?? null,
     }),
     carriedThread: carriedThread ?? (sanitizeText(discourseState?.unresolvedCarry ?? mindSynthesis?.commitments[0]?.summary ?? '', 220) || null),
     truthState,

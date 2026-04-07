@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildDialogueObligation } from './dialogue-obligation'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const baseContext = {
   localTime: { hour: 13, minute: 45, isLateNight: false },
@@ -271,5 +273,45 @@ describe('dialogue-obligation', () => {
     expect(obligation.personaKernelMode).toBe('full')
     expect(obligation.mustRepairFirst).toBe(false)
     expect(obligation.mustAnswerDirectly).toBe(true)
+  })
+
+  it('prefers runtimeSurface world state over conflicting raw world inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(45_000)
+    runtimeBackedState.worldModel = baseWorldModel as any
+
+    const obligation = buildDialogueObligation({
+      semantics: {
+        act: 'ask-help',
+        responseNeed: 'guide',
+        truthExpectation: 'strict',
+        affectiveTone: 'neutral',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.72,
+        personaSuppression: 0.64,
+        confidence: 0.8,
+        summary: '',
+        source: 'hybrid',
+        reasonTags: ['coding-question'],
+      },
+      context: baseContext,
+      worldModel: {
+        ...baseWorldModel,
+        activeThread: {
+          ...baseWorldModel.activeThread,
+          title: 'raw conflict',
+          summary: 'raw conflict',
+          confidence: 0.22,
+        },
+        epistemicState: {
+          ...baseWorldModel.epistemicState,
+          certainty: 'uncertain',
+        },
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(obligation.kind).toBe('guide')
+    expect(obligation.summary).toBe('The host is working through a runtime diff.')
+    expect(obligation.narrative).toContain('The host is working through a runtime diff.')
   })
 })

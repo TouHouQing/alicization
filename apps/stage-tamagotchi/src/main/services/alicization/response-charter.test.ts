@@ -3,6 +3,7 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import {
   buildAlicizationResponseCharter,
   buildAlicizationResponseCharterSystemBlock,
@@ -285,6 +286,7 @@ describe('response-charter', () => {
     expect(charter.epistemicMode).toBe('grounded-live')
     expect(charter.responseMode).toBe('guide-current-knot')
     expect(charter.governingFocus).toContain('diff')
+    expect(charter.digitalLifeSummary).toContain('mode=')
     expect(charter.mustNotDo).toContain('Do not reuse stale page names, earlier screenshots, or older window descriptions as if they are current.')
   })
 
@@ -332,6 +334,8 @@ describe('response-charter', () => {
 
     expect(block).toContain('[ALICIZATION_RESPONSE_CHARTER]')
     expect(block).toContain('This is the executive answer state for the current turn.')
+    expect(block).toContain('Digital life mode:')
+    expect(block).toContain('Digital life architecture:')
     expect(block).toContain('Must do:')
     expect(block).toContain('Must not do:')
   })
@@ -381,5 +385,205 @@ describe('response-charter', () => {
     expect(charter.mustDo).toContain('Mark any step beyond direct observation as a guess, hypothesis, or soft read.')
     expect(charter.mustNotDo).toContain('Do not infer class names, enum names, file paths, or field changes from generic scene cues alone.')
     expect(charter.mustNotDo).toContain('Do not introduce concrete technical entities that are absent from the host turn and absent from current grounded evidence.')
+  })
+
+  it('prefers the runtime surface when state and runtime snapshots diverge', () => {
+    const runtimeBackedState = createState()
+    const staleState = createState({
+      currentScene: null,
+      worldModel: null,
+      concerns: [],
+      commitmentLedger: null,
+      inquiryPlanner: null,
+      relationshipModel: null,
+      selfContinuity: null,
+      mindKernel: null,
+      initiative: null,
+      actionEcology: null,
+      answerPlanner: null,
+      privateThought: null,
+    })
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: staleState,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+      inspectionRequested: false,
+    })
+
+    expect(charter.epistemicMode).toBe('grounded-live')
+    expect(charter.responseMode).toBe('guide-current-knot')
+    expect(charter.governingFocus).toContain('diff')
+    expect(charter.reasons.some(item => item.includes('diff'))).toBe(true)
+  })
+
+  it('lets runtimeSurface override conflicting explicit dialogue outputs', () => {
+    const runtimeBackedState = createState({
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: 'Runtime discourse summary',
+        currentQuestion: 'Which runtime seam is still broken?',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'task-first',
+        unresolvedCarry: 'Runtime unresolved carry',
+        ruptureRepair: null,
+        confidence: 0.9,
+        narrative: [],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      mindSynthesis: {
+        relationMove: 'guide',
+        answerSubject: 'task-knot',
+        speechObligation: 'guide-task',
+        truthBoundary: 'Stay with runtime-grounded evidence.',
+        interiorSummary: 'Runtime interior summary',
+        concerns: [{ summary: 'Runtime concern' }],
+        commitments: [{ summary: 'Runtime commitment' }],
+        narrative: [],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      dialogueActKernel: {
+        relationMove: 'guide',
+        answerSubject: 'task-knot',
+        speechObligation: 'guide-task',
+        responseMode: 'guide-current-knot',
+        relationFrame: 'guide',
+        whyNow: 'Runtime why now',
+        openingClaim: 'Runtime opening claim',
+        mustSay: ['Runtime must say'],
+        mustAvoid: ['Runtime must avoid'],
+        sourceTrace: ['runtime source trace'],
+        confidence: 0.88,
+        narrative: [],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'live-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Runtime directive',
+        openingClaim: 'Runtime compiled claim',
+        supportingReality: ['Runtime supporting reality'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Runtime next move',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: ['Runtime must do'],
+        mustNotDo: ['Runtime must not do'],
+        confidence: 0.9,
+        narrative: [],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'guide',
+        truthDiscipline: 'task-first',
+        consciousNeed: 'Runtime conscious need',
+        consciousTension: 'Runtime conscious tension',
+        speakingIntention: 'Runtime speaking intention',
+        focusAnchor: 'runtime.ts diff',
+        withheldImpulse: null,
+        shouldWithholdSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.86,
+        reasonTags: ['runtime-surface'],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      claimEvidenceLedger: {
+        subject: 'task-knot',
+        evidenceMode: 'live-grounded',
+        observedSurface: 'Runtime observed surface',
+        taskHypothesis: 'Runtime task hypothesis',
+        intentHypothesis: 'Runtime intent hypothesis',
+        specificityBudget: 'grounded-artifact',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: false,
+        forbidUnsupportedSpecificity: false,
+        shouldSelfRevise: false,
+        confidence: 0.84,
+        reasonTags: ['runtime-surface'],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+    })
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+      inspectionRequested: false,
+      discourseState: {
+        currentTurnSubject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'raw conflict',
+        currentQuestion: null,
+        owedAction: 'answer-self',
+        relationMove: 'self-disclose',
+        continuityMode: 'dialogue-first',
+        unresolvedCarry: null,
+        ruptureRepair: null,
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 1_700_000_000_000,
+      } as any,
+      mindSynthesis: {
+        interiorSummary: 'raw conflict',
+        concerns: [{ summary: 'raw conflict' }],
+        commitments: [{ summary: 'raw conflict' }],
+      } as any,
+      dialogueActKernel: {
+        whyNow: 'raw conflict',
+        openingClaim: 'raw conflict',
+        mustSay: ['raw conflict'],
+        mustAvoid: ['raw conflict'],
+        sourceTrace: ['raw conflict'],
+      } as any,
+      answerCompiler: {
+        responseMode: 'answer-naturally',
+        evidenceMode: 'memory-only',
+        relationshipPosture: 'restrained',
+        openingDirective: 'raw conflict',
+        openingClaim: 'raw conflict',
+        supportingReality: ['raw conflict'],
+        nextMove: 'raw conflict',
+        mustDo: ['raw conflict'],
+        mustNotDo: ['raw conflict'],
+      } as any,
+      currentConsciousFrame: {
+        speakingIntention: 'raw conflict',
+        consciousNeed: 'raw conflict',
+        consciousTension: 'raw conflict',
+      } as any,
+      claimEvidenceLedger: {
+        observedSurface: 'raw conflict',
+        taskHypothesis: 'raw conflict',
+        intentHypothesis: 'raw conflict',
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+      } as any,
+    })
+
+    expect(charter.responseMode).toBe('guide-current-knot')
+    expect(charter.governingFocus).toContain('Runtime speaking intention')
+    expect(charter.digitalLifeSummary).toContain('mode=')
+    expect(charter.mustDo).toContain('Runtime must do')
+    expect(charter.mustDo).toContain('Runtime must say')
+    expect(charter.mustNotDo).toContain('Runtime must not do')
+    expect(charter.mustNotDo).toContain('Runtime must avoid')
+    expect(charter.mustDo).not.toContain('raw conflict')
+    expect(charter.mustNotDo).not.toContain('raw conflict')
   })
 })

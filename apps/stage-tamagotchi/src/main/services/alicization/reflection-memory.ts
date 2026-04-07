@@ -1,4 +1,5 @@
 import type { AlicizationReflectionEntrySnapshot, AlicizationReflectionLedgerSnapshot } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -25,9 +26,13 @@ function formatConfidenceShift(value: number) {
 export function buildReflectionLedgerFragment(input: {
   previousLedger?: AlicizationReflectionLedgerSnapshot | null
   nextLedger?: AlicizationReflectionLedgerSnapshot | null
+  previousRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  nextRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
-  const previous = latestReflectionEntry(input.previousLedger)
-  const next = latestReflectionEntry(input.nextLedger)
+  const previousLedger = input.previousRuntimeSurface?.memory.reflectionLedger ?? input.previousLedger ?? null
+  const nextLedger = input.nextRuntimeSurface?.memory.reflectionLedger ?? input.nextLedger ?? null
+  const previous = latestReflectionEntry(previousLedger)
+  const next = latestReflectionEntry(nextLedger)
   if (!next)
     return ''
   if (next.id === previous?.id)
@@ -46,7 +51,7 @@ export function buildReflectionLedgerFragment(input: {
     next.targetRepairId ? `reflection_repair:${sanitizeText(next.targetRepairId, 120)}` : '',
     next.targetThreadId ? `reflection_thread:${sanitizeText(next.targetThreadId, 120)}` : '',
     confidenceShift ? `reflection_confidence_shift:${confidenceShift}` : '',
-    input.nextLedger ? `reflection_pressure:${input.nextLedger.revisionPressure.toFixed(2)}` : '',
+    nextLedger ? `reflection_pressure:${nextLedger.revisionPressure.toFixed(2)}` : '',
     summary ? `summary:${summary}` : '',
     revision ? `revision:${revision}` : '',
   ]

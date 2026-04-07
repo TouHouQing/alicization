@@ -1,6 +1,6 @@
 import type { ReaderLike } from 'clustr'
 
-import type { TextSegment, TextToken } from '../types'
+import type { SpeechIntentMetadata, TextSegment, TextToken } from '../types'
 
 import { readGraphemeClusters } from 'clustr'
 
@@ -16,6 +16,7 @@ const softPunctuations = new Set(',，、–—:：;；《》「」')
 export interface TtsInputChunk {
   text: string
   words: number
+  continuityHoldMs: number
   reason: 'boost' | 'limit' | 'hard' | 'flush' | 'special'
 }
 
@@ -23,12 +24,90 @@ export interface TtsInputChunkOptions {
   boost?: number
   minimumWords?: number
   maximumWords?: number
+  bootstrapMinimumWords?: number
+  bootstrapMinimumCharacters?: number
 }
 
 export interface TtsChunkItem {
   chunk: string
   special: string | null
+  continuityHoldMs: number
   reason: 'boost' | 'limit' | 'hard' | 'flush' | 'special'
+}
+
+function countWordLikeSegments(segmenter: Intl.Segmenter, text: string) {
+  return [...segmenter.segment(text)].filter(part => part.isWordLike).length
+}
+
+function countTrimmedCharacters(text: string) {
+  return Array.from(text.trim()).length
+}
+
+function clampRange(value: number, min: number, max: number) {
+  if (!Number.isFinite(value))
+    return min
+
+  return Math.min(max, Math.max(min, value))
+}
+
+// Hold undersized opening clauses a little longer so the first TTS request
+// carries enough linguistic context for smoother bootstrap and lip-sync cadence.
+function shouldHoldBootstrapChunk(input: {
+  yieldCount: number
+  reason: TtsInputChunk['reason']
+  text: string
+  words: number
+  bootstrapMinimumWords: number
+  bootstrapMinimumCharacters: number
+}) {
+  if (input.yieldCount > 0)
+    return false
+
+  if (input.reason === 'flush' || input.reason === 'limit' || input.reason === 'special')
+    return false
+
+  if (!input.text.trim())
+    return false
+
+  return input.words < input.bootstrapMinimumWords
+    && countTrimmedCharacters(input.text) < input.bootstrapMinimumCharacters
+}
+
+// Carry a small cross-segment tail so tiny TTS chunks do not collapse the mouth
+// and expression state between adjacent audio pieces.
+function resolveChunkContinuityHoldMs(input: {
+  reason: TtsInputChunk['reason']
+  text: string
+}) {
+  const trimmedText = input.text.trim()
+  if (!trimmedText)
+    return 0
+
+  const characterCount = countTrimmedCharacters(trimmedText)
+  const endsWithSoftPause = /[，,、:：;；]$/.test(trimmedText)
+  const endsWithHardPause = /[。.!！？?…]$/.test(trimmedText)
+
+  let holdMs = 110
+  if (input.reason === 'boost')
+    holdMs += 70
+  else if (input.reason === 'limit')
+    holdMs += 46
+  else if (input.reason === 'flush')
+    holdMs += 36
+  else if (input.reason === 'hard')
+    holdMs += 18
+
+  if (endsWithSoftPause)
+    holdMs += 36
+  else if (endsWithHardPause)
+    holdMs += 14
+
+  if (characterCount <= 8)
+    holdMs += 32
+  else if (characterCount >= 28)
+    holdMs -= 18
+
+  return Math.round(clampRange(holdMs, 80, 260))
 }
 
 export async function* chunkTtsInput(
@@ -39,6 +118,8 @@ export async function* chunkTtsInput(
     boost = 2,
     minimumWords = 4,
     maximumWords = 12,
+    bootstrapMinimumWords = 2,
+    bootstrapMinimumCharacters = 8,
   } = options ?? {}
 
   const iterator = readGraphemeClusters(
@@ -106,11 +187,12 @@ export async function* chunkTtsInput(
         }
       }
 
-      if (buffer.length === 0) {
+      if (buffer.length === 0 && chunk.length === 0) {
         if (special) {
           yield {
             text: '',
             words: 0,
+            continuityHoldMs: 0,
             reason: 'special',
           }
           yieldCount++
@@ -122,13 +204,14 @@ export async function* chunkTtsInput(
         continue
       }
 
-      const words = [...segmenter.segment(buffer)].filter(w => w.isWordLike)
+      const words = countWordLikeSegments(segmenter, buffer)
 
-      if (chunkWordsCount > minimumWords && chunkWordsCount + words.length > maximumWords) {
+      if (chunkWordsCount > minimumWords && chunkWordsCount + words > maximumWords) {
         const text = kept ? chunk.trim() + value : chunk.trim()
         yield {
           text,
           words: chunkWordsCount,
+          continuityHoldMs: resolveChunkContinuityHoldMs({ reason: 'limit', text }),
           reason: 'limit',
         }
         yieldCount++
@@ -137,7 +220,7 @@ export async function* chunkTtsInput(
       }
 
       chunk += buffer + value
-      chunkWordsCount += words.length
+      chunkWordsCount += words
       buffer = ''
 
       if (special) {
@@ -145,6 +228,7 @@ export async function* chunkTtsInput(
         yield {
           text,
           words: chunkWordsCount,
+          continuityHoldMs: resolveChunkContinuityHoldMs({ reason: 'special', text }),
           reason: 'special',
         }
         yieldCount++
@@ -153,10 +237,39 @@ export async function* chunkTtsInput(
       }
       else if (flush || hard || chunkWordsCount > maximumWords || yieldCount < boost) {
         const text = chunk.trim()
+        const reason = flush ? 'flush' : hard ? 'hard' : chunkWordsCount > maximumWords ? 'limit' : 'boost'
+
+        if (shouldHoldBootstrapChunk({
+          yieldCount,
+          reason,
+          text,
+          words: chunkWordsCount,
+          bootstrapMinimumWords,
+          bootstrapMinimumCharacters,
+        })) {
+          previousValue = value
+          if (next !== undefined) {
+            if (afterNext !== undefined) {
+              current = afterNext
+              next = undefined
+              afterNext = undefined
+            }
+            else {
+              current = next
+              next = undefined
+            }
+          }
+          else {
+            current = await iterator.next()
+          }
+          continue
+        }
+
         yield {
           text,
           words: chunkWordsCount,
-          reason: flush ? 'flush' : hard ? 'hard' : chunkWordsCount > maximumWords ? 'limit' : 'boost',
+          continuityHoldMs: resolveChunkContinuityHoldMs({ reason, text }),
+          reason,
         }
         yieldCount++
         chunk = ''
@@ -187,14 +300,12 @@ export async function* chunkTtsInput(
     current = next
   }
 
-  // TODO: remove later
-  // eslint-disable-next-line no-console
-  console.debug('while loop ends, chunk/buffer:', chunk, buffer)
   if (chunk.length > 0 || buffer.length > 0) {
     const text = (chunk + buffer).trim()
     yield {
       text,
-      words: chunkWordsCount + [...segmenter.segment(buffer)].filter(w => w.isWordLike).length,
+      words: chunkWordsCount + countWordLikeSegments(segmenter, buffer),
+      continuityHoldMs: resolveChunkContinuityHoldMs({ reason: 'flush', text }),
       reason: 'flush',
     }
   }
@@ -219,10 +330,20 @@ export async function chunkEmitter(
       if (chunk.reason === 'special') {
         const specialToken = pendingSpecials.shift()
         // console.debug("special yield:", specialToken)
-        await handler({ chunk: sanitizeChunk(chunk.text), special: specialToken ?? null, reason: chunk.reason })
+        await handler({
+          chunk: sanitizeChunk(chunk.text),
+          special: specialToken ?? null,
+          continuityHoldMs: chunk.continuityHoldMs,
+          reason: chunk.reason,
+        })
       }
       else {
-        await handler({ chunk: sanitizeChunk(chunk.text), special: null, reason: chunk.reason })
+        await handler({
+          chunk: sanitizeChunk(chunk.text),
+          special: null,
+          continuityHoldMs: chunk.continuityHoldMs,
+          reason: chunk.reason,
+        })
       }
     }
   }
@@ -233,7 +354,11 @@ export async function chunkEmitter(
 
 export function createTtsSegmentStream(
   tokens: ReadableStream<TextToken>,
-  meta: { streamId: string, intentId: string },
+  meta: {
+    streamId: string
+    intentId: string
+    metadata?: SpeechIntentMetadata | null
+  },
   options?: TtsInputChunkOptions,
 ) {
   const { stream, write, close, error } = createPushStream<TextSegment>()
@@ -285,7 +410,9 @@ export function createTtsSegmentStream(
           text: chunk.chunk,
           special: chunk.special,
           reason: chunk.reason,
+          continuityHoldMs: chunk.continuityHoldMs,
           createdAt: Date.now(),
+          ...(meta.metadata != null ? { metadata: meta.metadata } : {}),
         })
       })
       close()

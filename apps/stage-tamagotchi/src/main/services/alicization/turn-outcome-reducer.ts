@@ -5,6 +5,7 @@ import type {
   AlicizationDiscourseStateSnapshot,
   AlicizationReplyDeliberationSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -89,12 +90,15 @@ export function settleDialogueWorldThreadOnUserTurn(input: {
   userText?: string
   conversationState?: AlicizationConversationStateSnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueWorldThreadSnapshot | null {
-  const previous = input.previous ?? null
+  const runtimeSurface = input.runtimeSurface ?? null
+  const previous = runtimeSurface?.dialogue.dialogueWorldThread ?? input.previous ?? null
   if (!previous)
     return null
 
-  const conversationState = input.conversationState ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
   const lastUserMove = sanitizeText(
     conversationState?.hostMove
     || input.userText
@@ -119,7 +123,7 @@ export function settleDialogueWorldThreadOnUserTurn(input: {
     || sharesThread(candidate, pending.question)
     || previous.openLoops.some(loop => sharesThread(candidate, loop)))
 
-  const lastOutcome = conversationState.owedRepair || conversationState.relationFrame === 'repair' || input.discourseState?.owedAction === 'repair-truth'
+  const lastOutcome = conversationState.owedRepair || conversationState.relationFrame === 'repair' || discourseState?.owedAction === 'repair-truth'
     ? 'repairing'
     : pending.expectedMode === 'defer'
       ? 'deferred'
@@ -154,13 +158,17 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   assistantText?: string | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueWorldThreadSnapshot | null {
-  const previous = input.previous ?? null
-  const conversationState = input.conversationState ?? null
+  const runtimeSurface = input.runtimeSurface ?? null
+  const previous = runtimeSurface?.dialogue.dialogueWorldThread ?? input.previous ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const activeThread = sanitizeText(
     conversationState?.jointThread
     || previous?.activeThread
-    || input.answerCompiler?.openingClaim
+    || answerCompiler?.openingClaim
     || input.assistantText
     || '',
     220,
@@ -169,8 +177,8 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     return previous
 
   const expectedMode = mapExpectedMode({
-    replyDeliberation: input.replyDeliberation ?? null,
-    answerCompiler: input.answerCompiler ?? null,
+    replyDeliberation,
+    answerCompiler,
   })
   const validationQuestion = sanitizeText(
     conversationState?.unansweredQuestion
@@ -196,7 +204,7 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     recentlyResolvedLoops: previous?.recentlyResolvedLoops ?? [],
     carriedFacts: uniqueList([
       ...(previous?.carriedFacts ?? []),
-      ...(input.answerCompiler?.supportingReality ?? []),
+      ...(answerCompiler?.supportingReality ?? []),
       conversationState?.activeProject,
     ], 6),
     relationDrift: previous?.relationDrift ?? 'steady',
@@ -210,8 +218,8 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     lastUserMove: conversationState?.hostMove ?? previous?.lastUserMove ?? activeThread,
     lastAssistantMove: sanitizeText(
       input.assistantText
-      || input.replyDeliberation?.openingBeat
-      || input.answerCompiler?.openingClaim,
+      || replyDeliberation?.openingBeat
+      || answerCompiler?.openingClaim,
       220,
     ) || previous?.lastAssistantMove || null,
     lastOutcome: shouldTrackValidation
@@ -228,8 +236,8 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
       : null,
     confidence: clamp01(
       (conversationState?.confidence ?? previous?.confidence ?? 0.34) * 0.44
-      + (input.replyDeliberation?.confidence ?? 0.34) * 0.24
-      + (input.answerCompiler?.confidence ?? 0.34) * 0.22
+      + (replyDeliberation?.confidence ?? 0.34) * 0.24
+      + (answerCompiler?.confidence ?? 0.34) * 0.22
       + (previous?.confidence ?? 0.3) * 0.1,
     ),
     narrative: uniqueList([

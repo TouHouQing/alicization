@@ -4,12 +4,26 @@ import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
 import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
-import type { ChatAssistantMessage, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
-import type { AlicizationEmotion, AlicizationMindTurnGovernance, AlicizationPersonalityState } from './alicization-bridge'
+import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
+import type {
+  AlicizationDialogueEmbodimentEnvelope,
+  AlicizationDialogueSpeechTimeline,
+  AlicizationDigitalLifeEnvelope,
+  AlicizationDigitalLifeSpineDigest,
+  AlicizationEmotion,
+  AlicizationMindTurnGovernance,
+  AlicizationPersonalityState,
+} from './alicization-bridge'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import { errorMessageFrom } from '@moeru/std'
-import { inferAlicizationInspectionIntent } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationDialogueSpeechTimeline,
+  detectAlicizationExecutionCapabilityInquiry,
+  detectAlicizationExecutionRoutingIntent,
+  inferAlicizationInspectionIntent,
+  resolveAlicizationDialogueEmbodiment,
+} from '@proj-alicization/stage-shared'
 import { createQueue } from '@proj-alicization/stream-kit'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
@@ -76,7 +90,6 @@ const assistantEpoch1StrictFallbackReply = () => stageChatText('fallbacks.epoch1
 const assistantStructuredContractFallbackReply = () => stageChatText('fallbacks.structured-contract')
 const assistantStreamFailureFallbackReply = () => stageChatText('fallbacks.stream-failure')
 const assistantLocalRuntimeUnavailableFallbackReply = () => stageChatText('fallbacks.local-runtime-unavailable')
-const assistantStreamTimeoutFallbackReply = () => stageChatText('fallbacks.stream-timeout')
 const assistantProviderAuthFallbackReply = () => stageChatText('fallbacks.provider-auth')
 const assistantProviderNetworkFallbackReply = () => stageChatText('fallbacks.provider-network')
 const assistantProviderConfigFallbackReply = () => stageChatText('fallbacks.provider-config')
@@ -131,12 +144,19 @@ const reminderToolCallCriticalRetryDirective = [
   'DO NOT say you set a reminder unless the set_reminder tool call actually succeeded.',
   'If tool call fails, explain failure briefly and ask for a valid reminder duration/message.',
 ].join(' ')
+const executionToolCallCriticalRetryDirective = [
+  '[CRITICAL DIRECTIVE]: User requested real task execution via CLI/Codex/agent channels in this turn.',
+  'You MUST call executor_run_cli or executor_run_codex or executor_run_claude_code for actionable execution requests.',
+  'DO NOT claim execution is done unless an executor tool result confirms completion.',
+  'If required command/prompt details are missing, ask one concise clarification question instead of generic refusal.',
+].join(' ')
 const fileSystemOperationVerbPattern = /读取|读|查看|打开|访问|写入|写|修改|删除|列出|搜索|获取|read|open|access|write|update|delete|list|find|inspect/i
 const fileSystemOperationTargetPattern = /文件夹|目录|路径|桌面|系统状态|磁盘|file|folder|directory|path|desktop|system state|\/|\\|\.(?:txt|md|json|yaml|yml|csv|log)\b|文件(?!夹)/i
 const reminderVerbPattern = /提醒|闹钟|alarm|remind|notify|叫我|喊我|告诉我|通知我|记得|别忘/iu
 const reminderDurationPattern = /\b(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\b|(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?/iu
 const reminderChineseNaturalPattern = /(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?[\s，,。！!]*(?:提醒我|叫我|喊我|告诉我|通知我|记得|别忘)/u
 const reminderEnglishNaturalPattern = /(?:^|\s)(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\s*(?:[,.:;!?-]\s*)?(?:remind|notify|tell)\s+me\b/iu
+const executorToolNames = new Set(['executor_run_cli', 'executor_run_codex', 'executor_run_claude_code'])
 const strictRealtimeRefusalSystemPrompt = [
   '[System Lock]',
   'User request requires realtime external access, but current runtime is locked in Epoch 1 strict mode.',
@@ -156,13 +176,28 @@ function createEmptyStreamingMessage(): StreamingAssistantMessage {
 interface TurnToolEvidence {
   toolCallCount: number
   toolResultCount: number
+  executorToolCallCount: number
   verifiedToolResult: boolean
+  executorToolCallIds: Set<string>
+  latestExecutorResult: ExecutorToolReplyEvidence | null
+  sawTextAfterExecutorResult: boolean
   deniedBySafety: boolean
   deniedReason?: string
   denialSource?: 'host' | 'system' | 'generic'
   reminderToolCallIds: Set<string>
   reminderScheduled: boolean
   reminderMessage?: string
+}
+
+interface ExecutorToolReplyEvidence {
+  channel: string
+  errorCode: string
+  errorMessage: string
+  output: string
+  stage: string
+  status: string
+  summary: string
+  toolName: string
 }
 
 const chineseNumberDigits: Record<string, number> = {
@@ -217,6 +252,85 @@ function normalizeReminderMessageForFallback(raw: string) {
   return raw
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function sanitizeExecutorReplyEvidenceText(raw: unknown, maxChars = 320) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function extractExecutorToolReplyEvidence(result: unknown, toolName: string): ExecutorToolReplyEvidence | null {
+  const normalizedToolName = sanitizeExecutorReplyEvidenceText(toolName, 96) || 'executor'
+
+  if (typeof result === 'string') {
+    const summary = sanitizeExecutorReplyEvidenceText(result)
+    if (!summary)
+      return null
+    return {
+      toolName: normalizedToolName,
+      channel: '',
+      status: 'unknown',
+      stage: '',
+      summary,
+      output: summary,
+      errorCode: '',
+      errorMessage: '',
+    }
+  }
+
+  if (!result || typeof result !== 'object')
+    return null
+
+  const payload = result as Record<string, unknown>
+  const rawOutput = typeof payload.output === 'string'
+    ? payload.output
+    : payload.output != null
+      ? JSON.stringify(payload.output)
+      : ''
+  const summary = sanitizeExecutorReplyEvidenceText(payload.summary)
+    || sanitizeExecutorReplyEvidenceText(payload.errorMessage)
+    || sanitizeExecutorReplyEvidenceText(rawOutput, 420)
+    || sanitizeExecutorReplyEvidenceText(payload.status)
+
+  if (!summary)
+    return null
+
+  const status = sanitizeExecutorReplyEvidenceText(payload.status, 48).toLowerCase()
+    || (payload.ok === true ? 'completed' : payload.ok === false ? 'failed' : 'unknown')
+
+  return {
+    toolName: normalizedToolName,
+    channel: sanitizeExecutorReplyEvidenceText(payload.selectedChannel, 48).toLowerCase(),
+    status,
+    stage: sanitizeExecutorReplyEvidenceText(payload.stage, 48).toLowerCase(),
+    summary,
+    output: sanitizeExecutorReplyEvidenceText(rawOutput, 420),
+    errorCode: sanitizeExecutorReplyEvidenceText(payload.errorCode, 96),
+    errorMessage: sanitizeExecutorReplyEvidenceText(payload.errorMessage, 280),
+  }
+}
+
+function buildExecutorResultPayoffRetryDirective(evidence: ExecutorToolReplyEvidence) {
+  return [
+    '[CRITICAL DIRECTIVE]: This turn already executed an executor tool and received its result.',
+    'Do NOT call executor_run_cli or executor_run_codex or executor_run_claude_code again in this retry.',
+    'Do NOT repeat pre-execution promises like "I will run it now" because execution already happened.',
+    'Write the final user-facing answer now from the existing executor result below.',
+    'The first sentence must directly state the freshest executor outcome.',
+    evidence.toolName ? `Executor tool: ${evidence.toolName}.` : '',
+    evidence.channel ? `Channel: ${evidence.channel}.` : '',
+    evidence.status ? `Status: ${evidence.status}.` : '',
+    evidence.stage ? `Stage: ${evidence.stage}.` : '',
+    evidence.summary ? `Summary: ${evidence.summary}.` : '',
+    evidence.output ? `Output preview: ${evidence.output}.` : '',
+    evidence.errorCode ? `Error code: ${evidence.errorCode}.` : '',
+    evidence.errorMessage ? `Error message: ${evidence.errorMessage}.` : '',
+  ].filter(Boolean).join('\n')
+}
+
+function buildExecutorResultFallbackReply(evidence: ExecutorToolReplyEvidence) {
+  return evidence.summary || evidence.errorMessage || evidence.output
 }
 
 function detectInvitedInspectionLikeTurn(input: {
@@ -306,10 +420,25 @@ function parseReminderIntentPayload(message: string): { minutes: number, message
   }
 }
 
-type StructuredWithContract = StructuredOutputResult & {
-  contractFailed?: boolean
-  policyLocked?: StructuredPolicyLock
-}
+type StructuredWithContract = StructuredOutputResult
+  & Omit<ChatAssistantStructuredPayload, | 'thought'
+  | 'emotion'
+  | 'reply'
+  | 'performance'
+  | 'userSentimentScore'
+  | 'sentimentConfidenceRaw'
+  | 'sentimentConfidence'
+  | 'format'
+  | 'parsePath'
+  | 'repairTimedOut'>
+  & {
+    embodiment?: AlicizationDialogueEmbodimentEnvelope | null
+    speechTimeline?: AlicizationDialogueSpeechTimeline | null
+    digitalLife?: AlicizationDigitalLifeEnvelope | null
+    digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+    governance?: AlicizationMindTurnGovernance | null
+    policyLocked?: StructuredPolicyLock
+  }
 type StructuredPolicyLock = 'epoch1-strict-realtime'
 
 interface StagedAssistantResolution {
@@ -319,6 +448,26 @@ interface StagedAssistantResolution {
     reasoning: string
   }
   reply: string
+}
+
+function mergeStructuredRuntimeMeta(
+  structured: StructuredWithContract,
+  input: {
+    embodiment: AlicizationDialogueEmbodimentEnvelope | null
+    speechTimeline: AlicizationDialogueSpeechTimeline | null
+    digitalLife: AlicizationDigitalLifeEnvelope | null
+    digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
+    governance: AlicizationMindTurnGovernance | null
+  },
+): StructuredWithContract {
+  return {
+    ...structured,
+    embodiment: input.embodiment ?? structured.embodiment ?? null,
+    speechTimeline: input.speechTimeline ?? structured.speechTimeline ?? null,
+    digitalLife: input.digitalLife ?? structured.digitalLife ?? null,
+    digitalLifeSpine: input.digitalLifeSpine ?? structured.digitalLifeSpine ?? null,
+    governance: input.governance ?? structured.governance ?? null,
+  }
 }
 
 function detectFileSystemToolIntent(message: string) {
@@ -337,6 +486,25 @@ function detectReminderToolIntent(message: string) {
   if (reminderVerbPattern.test(normalized))
     return true
   return reminderChineseNaturalPattern.test(normalized) || reminderEnglishNaturalPattern.test(normalized)
+}
+
+function detectExecutionToolIntent(message: string) {
+  const capabilityInquiry = detectAlicizationExecutionCapabilityInquiry(message)
+  return Boolean(detectAlicizationExecutionRoutingIntent({
+    message,
+    capabilityInquiry,
+  }))
+}
+
+function normalizeObservedToolName(event: {
+  toolName?: unknown
+  name?: unknown
+}) {
+  const toolName = typeof event.toolName === 'string' ? event.toolName : ''
+  if (toolName.trim())
+    return toolName.trim()
+  const fallbackName = typeof event.name === 'string' ? event.name : ''
+  return fallbackName.trim()
 }
 
 function insertSystemMessageBeforeLatestUser(messages: Message[], systemText: string): Message[] {
@@ -398,6 +566,53 @@ type StreamFailureKind
     | 'runtime-aborted'
     | 'unknown'
 
+function buildTimeoutDiagnosticReply(error: unknown) {
+  const baseReply = stageChatText('fallbacks.stream-timeout')
+  const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
+  const afterDispatchMeta = message.includes('after-dispatch-meta')
+  const recoveryTimedOut = message.includes('recovery-failed=main-gateway-timeout-recovery')
+  const toolLessRecovery = message.includes('recovery-mode=tools-disabled')
+  const gatewayHealthTimedOut = message.includes('chat_timeout')
+    || message.includes('chat completions timed out before the first event')
+    || (message.includes('main gateway health check failed') && message.includes('first event'))
+
+  if (!afterDispatchMeta && !recoveryTimedOut && !toolLessRecovery && !gatewayHealthTimedOut)
+    return baseReply
+
+  const locale = typeof navigator !== 'undefined' && typeof navigator.language === 'string'
+    ? navigator.language.toLowerCase()
+    : 'en'
+  const isChineseLocale = locale.startsWith('zh')
+  const details: string[] = []
+
+  if (gatewayHealthTimedOut) {
+    details.push(isChineseLocale
+      ? '主网关的聊天生成接口在首段内容前就卡住了。'
+      : 'The main-gateway chat completion endpoint stalled before the first content event.')
+  }
+
+  if (afterDispatchMeta) {
+    details.push(isChineseLocale
+      ? '主网关流已经建立，但模型首段内容一直没有返回。'
+      : 'The main-gateway stream was connected, but the model never produced the first content event.')
+  }
+
+  if (toolLessRecovery && recoveryTimedOut) {
+    details.push(isChineseLocale
+      ? '我已切到无工具恢复，但恢复本身也超时了。'
+      : 'I retried recovery without optional tools, but that recovery timed out too.')
+  }
+  else if (recoveryTimedOut) {
+    details.push(isChineseLocale
+      ? '自动恢复本身也超时了。'
+      : 'The automatic recovery timed out too.')
+  }
+
+  return details.length > 0
+    ? `${baseReply} ${details.join(' ')}`
+    : baseReply
+}
+
 function resolveStreamFailureFallback(error: unknown): { reply: string, kind: StreamFailureKind } {
   const errorCode = typeof error === 'object' && error && 'code' in error
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
@@ -418,10 +633,10 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
   }
   if (
     errorCode.includes('alicization-stream-start-rejected')
-    || message.includes('stream start rejected')
     || message.includes('missing providerid/model')
     || message.includes('missing provider/model')
     || message.includes('state=missing-config')
+    || (message.includes('state=start-failed') && message.includes('invalid url'))
   ) {
     return {
       reply: assistantProviderConfigFallbackReply(),
@@ -431,12 +646,39 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
   if (
     message.includes('localhost:11434')
     || message.includes('localhost:1234')
-    || message.includes('econnrefused')
-    || message.includes('connection refused')
+    || message.includes('127.0.0.1:11434')
+    || message.includes('127.0.0.1:1234')
+    || message.includes('ollama')
+    || message.includes('lm studio')
   ) {
     return {
       reply: assistantLocalRuntimeUnavailableFallbackReply(),
       kind: 'local-runtime-unavailable',
+    }
+  }
+  if (
+    message.includes('chat_timeout')
+    || message.includes('chat completions timed out before the first event')
+    || (message.includes('main gateway health check failed') && message.includes('first event'))
+  ) {
+    return {
+      reply: buildTimeoutDiagnosticReply(error),
+      kind: 'timeout',
+    }
+  }
+  if (
+    message.includes('gateway-unreachable')
+    || message.includes('main gateway connectivity check failed')
+    || message.includes('enotfound')
+    || message.includes('econnreset')
+    || message.includes('econnrefused')
+    || message.includes('network')
+    || message.includes('fetch failed')
+    || message.includes('socket hang up')
+  ) {
+    return {
+      reply: assistantProviderNetworkFallbackReply(),
+      kind: 'provider-network',
     }
   }
   if (
@@ -447,7 +689,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('timed out')
   ) {
     return {
-      reply: assistantStreamTimeoutFallbackReply(),
+      reply: buildTimeoutDiagnosticReply(error),
       kind: 'timeout',
     }
   }
@@ -478,15 +720,12 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     }
   }
   if (
-    message.includes('enotfound')
-    || message.includes('econnreset')
-    || message.includes('network')
-    || message.includes('fetch failed')
-    || message.includes('socket hang up')
+    errorCode.includes('alicization-stream-start-rejected')
+    || message.includes('stream start rejected')
   ) {
     return {
-      reply: assistantProviderNetworkFallbackReply(),
-      kind: 'provider-network',
+      reply: assistantStreamFailureFallbackReply(),
+      kind: 'unknown',
     }
   }
   if (
@@ -918,6 +1157,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
         }
 
+        if (sensorySnapshot.capture && sensorySnapshot.capture.health !== 'healthy') {
+          await appendAlicizationAuditLog({
+            level: 'warning',
+            category: 'alicization.sensory',
+            action: 'capture-degraded',
+            message: 'Screen capture diagnostics indicate degraded or unavailable visual grounding.',
+            details: {
+              health: sensorySnapshot.capture.health,
+              permission: sensorySnapshot.capture.permission,
+              reasons: sensorySnapshot.capture.degradedReasons,
+            },
+          })
+        }
+
         await appendAlicizationAuditLog({
           level: 'notice',
           category: 'alicization.sensory',
@@ -927,6 +1180,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             stale: sensorySnapshot.stale,
             ageMs: sensorySnapshot.ageMs,
             running: sensorySnapshot.running,
+            captureHealth: sensorySnapshot.capture?.health ?? null,
+            capturePermission: sensorySnapshot.capture?.permission ?? null,
           },
         })
       }
@@ -989,6 +1244,26 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
     let turnMindGovernance: AlicizationMindTurnGovernance | null = null
+    let turnEmbodiment: AlicizationDialogueEmbodimentEnvelope | null = null
+    let turnSpeechTimeline: AlicizationDialogueSpeechTimeline | null = null
+    let turnDigitalLife: AlicizationDigitalLifeEnvelope | null = null
+    let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
+
+    const getTurnStructuredRuntimeMeta = () => ({
+      embodiment: turnEmbodiment,
+      speechTimeline: turnSpeechTimeline,
+      digitalLife: turnDigitalLife,
+      digitalLifeSpine: turnDigitalLifeSpine,
+      governance: turnMindGovernance,
+    })
+
+    const ingestTurnStructuredRuntimeMeta = (event: Extract<StreamEvent, { type: 'meta' }>) => {
+      turnMindGovernance = event.governance ?? turnMindGovernance
+      turnEmbodiment = event.embodiment ?? turnEmbodiment
+      turnSpeechTimeline = event.speechTimeline ?? turnSpeechTimeline
+      turnDigitalLife = event.digitalLife ?? turnDigitalLife
+      turnDigitalLifeSpine = event.digitalLifeSpine ?? turnDigitalLifeSpine
+    }
 
     const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
       stagedAssistantResolution = resolution
@@ -1028,10 +1303,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         speech: finalReply,
         reasoning: '',
       }
-      const structuredWithGovernance = {
-        ...structured,
-        governance: turnMindGovernance ?? null,
-      }
+      const structuredWithGovernance = mergeStructuredRuntimeMeta(structured, getTurnStructuredRuntimeMeta())
 
       buildingMessage.categorization = categorization
       buildingMessage.structured = structuredWithGovernance
@@ -1179,6 +1451,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
       const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
       const requiresReminderToolCall = origin === 'ui-user' && detectReminderToolIntent(sendingMessage)
+      const requiresExecutionToolCall = origin === 'ui-user' && detectExecutionToolIntent(sendingMessage)
       const parsedReminderIntent = requiresReminderToolCall
         ? parseReminderIntentPayload(sendingMessage)
         : null
@@ -1186,11 +1459,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const turnToolEvidence: TurnToolEvidence = {
         toolCallCount: 0,
         toolResultCount: 0,
+        executorToolCallCount: 0,
         verifiedToolResult: false,
+        executorToolCallIds: new Set<string>(),
+        latestExecutorResult: null,
+        sawTextAfterExecutorResult: false,
         deniedBySafety: false,
         reminderToolCallIds: new Set<string>(),
         reminderScheduled: false,
       }
+      const observedToolNamesById = new Map<string, string>()
       let bridgeStreamAttemptSeq = 0
       const headers = (options.providerConfig?.headers || {}) as Record<string, string>
       const streamWithRuntimeGateway = async (
@@ -1298,6 +1576,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             bridgeStreamAttemptSeq += 1
             const bridgeAttemptTurnId = `${turnId}:gw${bridgeStreamAttemptSeq}`
             let sawProgress = false
+            let sawMeta = false
+            let lastEventType = ''
+            const startedAt = Date.now()
             try {
               await withStreamWatchdog(async ({ touch }) => {
                 await bridgeStreamChat({
@@ -1311,6 +1592,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 }, {
                   abortSignal: streamOptions.abortSignal,
                   onStreamEvent: async (event) => {
+                    lastEventType = typeof event?.type === 'string' ? event.type : ''
+                    if (event.type === 'meta')
+                      sawMeta = true
                     if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result') {
                       sawProgress = true
                       touch()
@@ -1322,6 +1606,25 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
                 idleTimeoutMs: timeoutOptions.idleTimeoutMs,
                 onTimeout: () => {
+                  void appendAlicizationAuditLog({
+                    level: 'warning',
+                    category: 'alicization.main-gateway',
+                    action: 'renderer-stream-watchdog-timeout',
+                    message: 'Renderer bridge watchdog timed out while waiting for main-process stream progress.',
+                    details: {
+                      sessionId,
+                      turnId,
+                      bridgeAttemptTurnId,
+                      supportsTools: override.supportsTools ?? streamOptions.supportsTools,
+                      waitForTools: override.waitForTools ?? streamOptions.waitForTools,
+                      firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
+                      idleTimeoutMs: timeoutOptions.idleTimeoutMs,
+                      sawProgress,
+                      sawMeta,
+                      lastEventType: lastEventType || null,
+                      elapsedMs: Date.now() - startedAt,
+                    },
+                  })
                   void bridge?.chatAbort?.({
                     turnId: bridgeAttemptTurnId,
                     reason: 'stream-timeout',
@@ -1422,6 +1725,24 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         return previousAssistant && 'structured' in previousAssistant
           ? previousAssistant.structured?.emotion
           : undefined
+      }
+
+      const getPreviousAssistantEmbodiment = () => {
+        const previousAssistant = [...sessionMessagesForSend]
+          .reverse()
+          .find(message => message.role === 'assistant' && 'structured' in message && message.structured)
+        if (!previousAssistant || !('structured' in previousAssistant) || !previousAssistant.structured)
+          return null
+
+        const previousStructured = previousAssistant.structured as StructuredWithContract
+        const previousEmbodimentPerformance = previousStructured.embodiment?.performance
+        return {
+          actionCue: previousEmbodimentPerformance?.actionCue ?? previousStructured.performance?.actionCue ?? null,
+          delivery: previousEmbodimentPerformance?.delivery ?? previousStructured.performance?.delivery ?? null,
+          emotion: previousStructured.embodiment?.emotion ?? previousStructured.emotion ?? null,
+          facialCue: previousEmbodimentPerformance?.facialCue ?? previousStructured.performance?.facialCue ?? null,
+          variationToken: previousStructured.embodiment?.variationToken ?? null,
+        }
       }
 
       const formatTurnPersonalityState = () => {
@@ -1644,6 +1965,59 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
 
+        const candidateReply = candidate.reply?.trim() ?? ''
+        const replyLooksUsable = Boolean(
+          candidateReply
+          && !looksLikeStructuredPayloadText(candidateReply),
+        )
+        if (runtimeAuthoritativeBridge && replyLooksUsable) {
+          const sanitizedCandidateReply = sanitizeStructuredReplySurface(candidateReply) || candidateReply
+          const resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
+            candidateEmotion: candidate.emotion,
+            candidatePerformance: candidate.performance,
+            governance: turnMindGovernance,
+            previous: getPreviousAssistantEmbodiment(),
+            reply: sanitizedCandidateReply,
+            thought: candidate.thought.trim() || payload.reasoning.trim(),
+            turnId,
+          })
+          const bestEffort: StructuredWithContract = {
+            ...candidate,
+            thought: candidate.thought.trim() || payload.reasoning.trim(),
+            emotion: resolvedEmbodiment.emotion,
+            reply: sanitizedCandidateReply,
+            performance: resolvedEmbodiment.performance,
+            embodiment: resolvedEmbodiment,
+            speechTimeline: buildAlicizationDialogueSpeechTimeline({
+              reply: sanitizedCandidateReply,
+              candidateEmotion: resolvedEmbodiment.emotion,
+              candidatePerformance: resolvedEmbodiment.performance,
+              embodiment: resolvedEmbodiment,
+            }),
+            format: 'mind-turn-v1',
+            contractFailed: false,
+          }
+          if (!hasStructuredJsonContract(candidate) || validationIssues.length > 0) {
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.structured',
+              action: 'runtime-authoritative-best-effort',
+              message: 'Renderer preserved runtime-governed structured candidate instead of enforcing local fallback.',
+              details: {
+                parsePath: candidate.parsePath ?? 'fallback',
+                validationIssues: summarizeValidationIssues(validationIssues),
+                embodimentVariationToken: resolvedEmbodiment.variationToken,
+                resolvedEmotion: resolvedEmbodiment.emotion,
+                resolvedDelivery: resolvedEmbodiment.performance.delivery,
+                resolvedEmphasis: resolvedEmbodiment.performance.emphasis,
+                resolvedFacialCue: resolvedEmbodiment.performance.facialCue ?? null,
+                resolvedActionCue: resolvedEmbodiment.performance.actionCue ?? null,
+              },
+            })
+          }
+          return bestEffort
+        }
+
         for (let attempt = 1; attempt <= 2; attempt += 1) {
           await appendAlicizationAuditLog({
             level: 'warning',
@@ -1699,7 +2073,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
         }
 
-        const candidateReply = candidate.reply?.trim() ?? ''
         const fallbackReply = candidateReply && !looksLikeStructuredPayloadText(candidateReply)
           ? candidateReply
           : createContractFallbackReply(turnPersonalityState, {
@@ -1730,7 +2103,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         structured: StructuredWithContract,
         fallbackReply?: string,
       ): Promise<StructuredWithContract> => {
-        const governed = enforceGovernedMindTurn({
+        const governedSurface = enforceGovernedMindTurn({
           structured,
           governance: turnMindGovernance,
           personalityState: turnPersonalityState,
@@ -1739,14 +2112,18 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           userText: sendingMessage,
           translate: stageChatText,
         })
+        const governed = mergeStructuredRuntimeMeta({
+          ...structured,
+          ...governedSurface,
+        }, getTurnStructuredRuntimeMeta())
 
         if (
           turnMindGovernance
           && (
-            governed.format !== structured.format
-            || governed.thought !== structured.thought
-            || governed.reply !== structured.reply
-            || governed.emotion !== structured.emotion
+            governedSurface.format !== structured.format
+            || governedSurface.thought !== structured.thought
+            || governedSurface.reply !== structured.reply
+            || governedSurface.emotion !== structured.emotion
           )
         ) {
           await appendAlicizationAuditLog({
@@ -1758,12 +2135,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               sessionId,
               turnId,
               previousFormat: structured.format ?? 'unknown',
-              nextFormat: governed.format,
+              nextFormat: governedSurface.format,
               turnMode: turnMindGovernance.turnMode,
               repairState: turnMindGovernance.repairState,
-              changedThought: governed.thought !== structured.thought,
-              changedReply: governed.reply !== structured.reply,
-              changedEmotion: governed.emotion !== structured.emotion,
+              changedThought: governedSurface.thought !== structured.thought,
+              changedReply: governedSurface.reply !== structured.reply,
+              changedEmotion: governedSurface.emotion !== structured.emotion,
             },
           })
         }
@@ -2381,11 +2758,30 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         onStreamEvent: async (event: StreamEvent) => {
           switch (event.type) {
             case 'meta':
-              turnMindGovernance = event.governance ?? null
+              ingestTurnStructuredRuntimeMeta(event)
+              if (event.embodiment || event.speechTimeline || event.digitalLife || event.digitalLifeSpine) {
+                await hooks.emitEmbodimentMetaHooks({
+                  governance: event.governance ?? turnMindGovernance,
+                  embodiment: event.embodiment ?? null,
+                  speechTimeline: event.speechTimeline ?? null,
+                  digitalLife: event.digitalLife ?? null,
+                  digitalLifeSpine: event.digitalLifeSpine ?? null,
+                }, streamingMessageContext)
+              }
               break
             case 'tool-call':
               turnToolEvidence.toolCallCount += 1
-              if (event.toolName === 'set_reminder' && event.toolCallId)
+              {
+                const observedToolName = normalizeObservedToolName(event)
+                if (event.toolCallId && observedToolName)
+                  observedToolNamesById.set(event.toolCallId, observedToolName)
+                if (executorToolNames.has(observedToolName)) {
+                  turnToolEvidence.executorToolCallCount += 1
+                  if (event.toolCallId)
+                    turnToolEvidence.executorToolCallIds.add(event.toolCallId)
+                }
+              }
+              if (normalizeObservedToolName(event) === 'set_reminder' && event.toolCallId)
                 turnToolEvidence.reminderToolCallIds.add(event.toolCallId)
               toolCallQueue.enqueue({
                 type: 'tool-call',
@@ -2397,6 +2793,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               turnToolEvidence.toolResultCount += 1
               if (hasVerifiedToolResult(event.result))
                 turnToolEvidence.verifiedToolResult = true
+              if (turnToolEvidence.executorToolCallIds.has(event.toolCallId)) {
+                const executorToolName = observedToolNamesById.get(event.toolCallId) ?? 'executor'
+                const executorResult = extractExecutorToolReplyEvidence(event.result, executorToolName)
+                if (executorResult) {
+                  turnToolEvidence.latestExecutorResult = executorResult
+                  turnToolEvidence.sawTextAfterExecutorResult = false
+                }
+              }
               if (turnToolEvidence.reminderToolCallIds.has(event.toolCallId)) {
                 const reminderPayload = extractScheduledReminderPayload(event.result)
                 if (reminderPayload.scheduled) {
@@ -2419,6 +2823,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
               break
             case 'text-delta':
+              if (turnToolEvidence.latestExecutorResult && event.text.length > 0)
+                turnToolEvidence.sawTextAfterExecutorResult = true
               await parser.consume(event.text)
               break
             case 'finish':
@@ -2443,7 +2849,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         && !abortSignal.aborted
         && !shouldAbort()
 
-      if (shouldForceFileToolRetry || shouldForceReminderToolRetry) {
+      const shouldForceExecutionToolRetry = requiresExecutionToolCall
+        && turnToolEvidence.executorToolCallCount === 0
+        && !policyLockedReason
+        && !abortSignal.aborted
+        && !shouldAbort()
+
+      if (shouldForceFileToolRetry || shouldForceReminderToolRetry || shouldForceExecutionToolRetry) {
         await appendAlicizationAuditLog({
           level: 'warning',
           category: 'alicization.intent-action',
@@ -2453,15 +2865,18 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             sessionId,
             turnId,
             toolCallCount: turnToolEvidence.toolCallCount,
+            executorToolCallCount: turnToolEvidence.executorToolCallCount,
             reminderToolCallCount: turnToolEvidence.reminderToolCallIds.size,
             requiresImmediateFileToolCall,
             requiresReminderToolCall,
+            requiresExecutionToolCall,
           },
         })
 
         const forcedToolDirectives = [
           shouldForceFileToolRetry ? noToolCallCriticalRetryDirective : '',
           shouldForceReminderToolRetry ? reminderToolCallCriticalRetryDirective : '',
+          shouldForceExecutionToolRetry ? executionToolCallCriticalRetryDirective : '',
         ].filter(Boolean).join('\n')
         const forcedRetryMessages = insertSystemMessageBeforeLatestUser(newMessages as Message[], forcedToolDirectives)
         const sanitizedRetry = sanitizeForRemoteModel(forcedRetryMessages, { timeBudgetMs: 50, chunkSize: 2048 })
@@ -2477,7 +2892,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               switch (event.type) {
                 case 'tool-call':
                   turnToolEvidence.toolCallCount += 1
-                  if (event.toolName === 'set_reminder' && event.toolCallId)
+                  {
+                    const observedToolName = normalizeObservedToolName(event)
+                    if (event.toolCallId && observedToolName)
+                      observedToolNamesById.set(event.toolCallId, observedToolName)
+                    if (executorToolNames.has(observedToolName)) {
+                      turnToolEvidence.executorToolCallCount += 1
+                      if (event.toolCallId)
+                        turnToolEvidence.executorToolCallIds.add(event.toolCallId)
+                    }
+                  }
+                  if (normalizeObservedToolName(event) === 'set_reminder' && event.toolCallId)
                     turnToolEvidence.reminderToolCallIds.add(event.toolCallId)
                   toolCallQueue.enqueue({
                     type: 'tool-call',
@@ -2488,6 +2913,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   turnToolEvidence.toolResultCount += 1
                   if (hasVerifiedToolResult(event.result))
                     turnToolEvidence.verifiedToolResult = true
+                  if (turnToolEvidence.executorToolCallIds.has(event.toolCallId)) {
+                    const executorToolName = observedToolNamesById.get(event.toolCallId) ?? 'executor'
+                    const executorResult = extractExecutorToolReplyEvidence(event.result, executorToolName)
+                    if (executorResult) {
+                      turnToolEvidence.latestExecutorResult = executorResult
+                      turnToolEvidence.sawTextAfterExecutorResult = false
+                    }
+                  }
                   if (turnToolEvidence.reminderToolCallIds.has(event.toolCallId)) {
                     const reminderPayload = extractScheduledReminderPayload(event.result)
                     if (reminderPayload.scheduled) {
@@ -2508,6 +2941,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   })
                   break
                 case 'text-delta':
+                  if (turnToolEvidence.latestExecutorResult && event.text.length > 0)
+                    turnToolEvidence.sawTextAfterExecutorResult = true
                   forcedRetryFullText += event.text
                   break
                 case 'finish':
@@ -2529,6 +2964,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 sessionId,
                 turnId,
                 retryToolCallCount: turnToolEvidence.toolCallCount,
+                retryExecutorToolCallCount: turnToolEvidence.executorToolCallCount,
                 retryReminderToolCallCount: turnToolEvidence.reminderToolCallIds.size,
                 reminderScheduled: turnToolEvidence.reminderScheduled,
               },
@@ -2557,6 +2993,133 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               reason: sanitizedRetry.reason,
               requiresImmediateFileToolCall,
               requiresReminderToolCall,
+              requiresExecutionToolCall,
+            },
+          })
+        }
+      }
+
+      const shouldForceExecutionResultPayoffRetry = requiresExecutionToolCall
+        && turnToolEvidence.latestExecutorResult !== null
+        && !turnToolEvidence.sawTextAfterExecutorResult
+        && !policyLockedReason
+        && !abortSignal.aborted
+        && !shouldAbort()
+
+      if (shouldForceExecutionResultPayoffRetry && turnToolEvidence.latestExecutorResult) {
+        const executorResultDirective = buildExecutorResultPayoffRetryDirective(turnToolEvidence.latestExecutorResult)
+        const payoffRetryMessages = insertSystemMessageBeforeLatestUser(newMessages as Message[], executorResultDirective)
+        const sanitizedPayoffRetry = sanitizeForRemoteModel(payoffRetryMessages, { timeBudgetMs: 50, chunkSize: 2048 })
+
+        await appendAlicizationAuditLog({
+          level: 'warning',
+          category: 'alicization.intent-action',
+          action: 'executor-result-payoff-missing',
+          message: 'Executor tool finished without a post-result user-facing answer; forcing a payoff retry without rerunning tools.',
+          details: {
+            sessionId,
+            turnId,
+            executorSummary: turnToolEvidence.latestExecutorResult.summary,
+            executorStatus: turnToolEvidence.latestExecutorResult.status,
+            executorToolName: turnToolEvidence.latestExecutorResult.toolName,
+          },
+        })
+
+        if (!sanitizedPayoffRetry.blocked) {
+          let payoffRetryFullText = ''
+          try {
+            await streamWithRuntimeGateway(sanitizedPayoffRetry.messages as Message[], {
+              headers,
+              tools: options.tools,
+              supportsTools: false,
+              waitForTools: false,
+              abortSignal,
+              onStreamEvent: async (event: StreamEvent) => {
+                switch (event.type) {
+                  case 'text-delta':
+                    if (event.text.length > 0)
+                      turnToolEvidence.sawTextAfterExecutorResult = true
+                    payoffRetryFullText += event.text
+                    break
+                  case 'finish':
+                    break
+                  case 'error':
+                    throw event.error ?? new Error('Executor payoff retry stream error')
+                  default:
+                    break
+                }
+              },
+            })
+          }
+          catch (error) {
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'alicization.intent-action',
+              action: 'executor-result-payoff-retry-failed',
+              message: 'Executor payoff retry failed; falling back to the settled executor summary.',
+              details: {
+                sessionId,
+                turnId,
+                reason: error instanceof Error ? error.message : String(error),
+              },
+            })
+          }
+
+          if (payoffRetryFullText.trim()) {
+            await applyAssistantTextFromModelOutput(payoffRetryFullText)
+            await appendAlicizationAuditLog({
+              level: 'notice',
+              category: 'alicization.intent-action',
+              action: 'executor-result-payoff-retry-completed',
+              message: 'Executor payoff retry produced a grounded final answer without rerunning the tool.',
+              details: {
+                sessionId,
+                turnId,
+                executorToolName: turnToolEvidence.latestExecutorResult.toolName,
+                executorStatus: turnToolEvidence.latestExecutorResult.status,
+              },
+            })
+          }
+          else {
+            const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
+            if (fallbackReply) {
+              stageAssistantFallback(
+                fallbackReply,
+                turnToolEvidence.latestExecutorResult.status === 'failed'
+                || turnToolEvidence.latestExecutorResult.status === 'blocked'
+                || turnToolEvidence.latestExecutorResult.status === 'cancelled'
+                  ? 'concerned'
+                  : 'neutral',
+              )
+            }
+            await appendAlicizationAuditLog({
+              level: 'warning',
+              category: 'alicization.intent-action',
+              action: 'executor-result-payoff-fallback',
+              message: 'Executor payoff retry ended without text; reused the settled executor summary as the safe final answer.',
+              details: {
+                sessionId,
+                turnId,
+                fallbackApplied: Boolean(fallbackReply),
+                executorSummary: turnToolEvidence.latestExecutorResult.summary,
+              },
+            })
+          }
+        }
+        else {
+          const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
+          if (fallbackReply)
+            stageAssistantFallback(fallbackReply)
+          await appendAlicizationAuditLog({
+            level: 'critical',
+            category: 'alicization.intent-action',
+            action: 'executor-result-payoff-retry-blocked',
+            message: 'Executor payoff retry was blocked by sanitize gateway; reused the settled executor summary when available.',
+            details: {
+              sessionId,
+              turnId,
+              fallbackApplied: Boolean(fallbackReply),
+              reason: sanitizedPayoffRetry.reason,
             },
           })
         }
@@ -2932,6 +3495,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     emitTokenLiteralHooks: hooks.emitTokenLiteralHooks,
     emitTokenSpecialHooks: hooks.emitTokenSpecialHooks,
     emitStreamEndHooks: hooks.emitStreamEndHooks,
+    emitEmbodimentMetaHooks: hooks.emitEmbodimentMetaHooks,
     emitAssistantResponseEndHooks: hooks.emitAssistantResponseEndHooks,
     emitAssistantMessageHooks: hooks.emitAssistantMessageHooks,
     emitChatTurnCompleteHooks: hooks.emitChatTurnCompleteHooks,
@@ -2943,6 +3507,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     onTokenLiteral: hooks.onTokenLiteral,
     onTokenSpecial: hooks.onTokenSpecial,
     onStreamEnd: hooks.onStreamEnd,
+    onEmbodimentMeta: hooks.onEmbodimentMeta,
     onAssistantResponseEnd: hooks.onAssistantResponseEnd,
     onAssistantMessage: hooks.onAssistantMessage,
     onChatTurnComplete: hooks.onChatTurnComplete,

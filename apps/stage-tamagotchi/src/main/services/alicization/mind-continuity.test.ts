@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 
 describe('mind continuity', () => {
@@ -310,7 +311,7 @@ describe('mind continuity', () => {
   })
 
   it('builds a recall seed from the current inner line', () => {
-    const seed = buildMindContinuityRecallSeed({
+    const state = {
       watchMode: 'symbiotic-vision',
       currentScene: null,
       attention: null,
@@ -435,7 +436,9 @@ describe('mind continuity', () => {
       recentTransition: null,
       nextSuggestedProbeMs: 10_000,
       updatedAt: 30_000,
-    })
+    }
+    const seed = buildMindContinuityRecallSeed(state as any)
+    const runtimeSeed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(state as any))
 
     expect(seed).toContain('Locate the exact locus of the knot.')
     expect(seed).toContain('mind_need:guidance')
@@ -443,5 +446,90 @@ describe('mind continuity', () => {
     expect(seed).toContain('inquiry_plan:localize-problem')
     expect(seed).toContain('mind_kernel:tracking')
     expect(seed).toContain('action_ecology:surface-nudge')
+    expect(runtimeSeed).toContain('Locate the exact locus of the knot.')
+    expect(runtimeSeed).toContain('mind_need:guidance')
+    expect(runtimeSeed).toContain('commitment:hold-problem')
+    expect(runtimeSeed).toContain('inquiry_plan:localize-problem')
+    expect(runtimeSeed).toContain('mind_kernel:tracking')
+    expect(runtimeSeed).toContain('action_ecology:surface-nudge')
+  })
+
+  it('builds continuity fragments from runtime surfaces', () => {
+    const previousState = {
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      privateThought: null,
+      captureState: {
+        permission: 'unknown',
+        lastGroundedAt: null,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 10_000,
+      updatedAt: 0,
+    }
+    const nextState = {
+      ...previousState,
+      deliberationState: {
+        primaryThreadId: 'thread-runtime-surface',
+        dominantNeed: 'guidance',
+        readiness: 0.72,
+        threads: [{
+          id: 'thread-runtime-surface',
+          kind: 'localize-problem',
+          status: 'ripe',
+          summary: 'Keep the concrete knot alive across loops.',
+          desiredOutcome: 'point at the real locus',
+          focusBeliefId: null,
+          focusInquiryId: null,
+          concernId: null,
+          surfacePressure: 0.68,
+          silencePressure: 0.22,
+          embodiedPresence: 'attentive',
+          startedAt: 0,
+          lastUpdatedAt: 15_000,
+          expiresAt: 120_000,
+        }],
+        narrative: [],
+        updatedAt: 15_000,
+      },
+      actionEcology: {
+        mode: 'surface-nudge',
+        selectedThreadId: 'thread-runtime-surface',
+        readiness: 0.74,
+        surfacePressure: 0.7,
+        silencePressure: 0.2,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        shouldSurface: true,
+        shouldSpeak: true,
+        why: 'The thread is ready to surface.',
+        updatedAt: 15_000,
+      },
+      privateThought: {
+        stance: 'nudge',
+        confidence: 0.8,
+        rationaleTags: [],
+        thoughtText: 'Use the same inner line across runtime surfaces.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 45_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+      },
+      updatedAt: 15_000,
+    }
+
+    const fragment = buildMindContinuityFragment({
+      previousRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(previousState as any),
+      nextRuntimeSurface: buildAlicizationDigitalLifeRuntimeSurface(nextState as any),
+    })
+
+    expect(fragment).toContain('mind_need:guidance')
+    expect(fragment).toContain('action_ecology:surface-nudge')
+    expect(fragment).toContain('summary:The thread is ready to surface.')
   })
 })

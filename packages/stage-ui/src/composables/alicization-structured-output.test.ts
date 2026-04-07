@@ -112,6 +112,21 @@ describe('alicization structured output', () => {
     expect(result.performance.baseEmotion).toBe('neutral')
   })
 
+  it('infers expressive emotion and performance from plain text when json contract is missing', () => {
+    const result = normalizeStructuredOutput({
+      fullText: '太好了！我们开始吧！',
+      thought: '',
+      reply: '太好了！我们开始吧！',
+      previousEmotion: 'neutral',
+    })
+
+    expect(result.parsePath).toBe('fallback')
+    expect(result.emotion).toBe('happy')
+    expect(result.performance.baseEmotion).toBe('happy')
+    expect(result.performance.delivery).toBe('energetic')
+    expect(result.performance.emphasis).toBe(2)
+  })
+
   it('falls back safely for oversized malformed text', () => {
     const oversized = `{${'x'.repeat(40_000)}}`
     const result = normalizeStructuredOutput({
@@ -787,6 +802,66 @@ describe('alicization structured output', () => {
 
     expect(governed.reply).toContain('你不用先把话整理好')
     expect(governed.reply).not.toBe('我先直接接住你这句。')
+  })
+
+  it('keeps existing performance cues when governed reply override is required', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=care; truth=memory; focus=current-user-turn; move=care-host; tone=warm',
+        emotion: 'neutral',
+        reply: '我先直接接住你这句。',
+        parsePath: 'repair-json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'neutral',
+          emotion: 'neutral',
+          delivery: 'firm',
+          emphasis: 2,
+          facialCue: 'brow-furrow',
+          actionCue: 'lean-forward',
+        },
+        userSentimentScore: -0.5,
+        sentimentConfidence: 0.6,
+        repairTimedOut: false,
+      },
+      governance: {
+        turnMode: 'care',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'gentle-care',
+        relationshipPosture: 'tender',
+        answerAct: 'care',
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: 'current-user-turn',
+        answerIntent: 'The host is asking for direct comfort around the present condition.',
+        openingMove: 'Open with care specific to the present condition.',
+        carriedThread: 'old desktop thread',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'concerned',
+        emotionalTension: 'calm-browse',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '我有点伤心，你可以安慰一下我吗',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).toContain('你不用先把话整理好')
+    expect(governed.reply).not.toBe('我先直接接住你这句。')
+    expect(governed.performance.delivery).toBe('firm')
+    expect(governed.performance.emphasis).toBe(2)
+    expect(governed.performance.facialCue).toBe('brow-furrow')
+    expect(governed.performance.actionCue).toBe('lean-forward')
+    expect(governed.performance.baseEmotion).toBe(governed.emotion)
   })
 
   it('keeps dialogue-first visible reply when local repair is deferred', () => {

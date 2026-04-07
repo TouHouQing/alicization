@@ -4,16 +4,19 @@
 
 import type { Format, LogLevelString } from '@guiiai/logg'
 import type { MutexInterface } from 'async-mutex'
-import type { BrowserWindow, DesktopCapturerSource, SourcesOptions } from 'electron'
+import type { DesktopCapturerSource, SourcesOptions } from 'electron'
+
+import process from 'node:process'
 
 import { useLogg } from '@guiiai/logg'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { Mutex, withTimeout } from 'async-mutex'
-import { app, desktopCapturer, ipcMain, session as sessionModule } from 'electron'
+import { app, BrowserWindow, desktopCapturer, ipcMain, session as sessionModule, webContents } from 'electron'
 import { nanoid } from 'nanoid'
 
 import { screenCapture } from '..'
+import { createScreenCaptureDiagnosticsStore } from './diagnostics-store'
 import {
   checkMacOSScreenCapturePermission,
   requestMacOSScreenCapturePermission,
@@ -95,6 +98,7 @@ export interface GetLoopbackAudioMediaStreamOptions {
 let setSourceMutex: MutexInterface
 let screenCaptureSourceMutexHandle: string | undefined
 let setSourceMutexTimeoutHandle: NodeJS.Timeout | undefined
+const diagnosticsStore = createScreenCaptureDiagnosticsStore()
 
 export function initScreenCaptureForMain(options: InitMainOptions = {}): void {
   const {
@@ -138,11 +142,62 @@ export function initScreenCaptureForMain(options: InitMainOptions = {}): void {
   app.commandLine.appendSwitch(featureSwitchKey, currentFeatureFlags)
 }
 
+export function getScreenCaptureDiagnosticsForWindow(window: BrowserWindow) {
+  return diagnosticsStore.getSnapshot({
+    windowId: window.id,
+    windowTitle: tryWindowTitle(window),
+  }, getScreenCapturePermissionStatus())
+}
+
+export function getScreenCaptureDiagnosticsForWebContentsId(webContentsId: number) {
+  const target = webContents.fromId(webContentsId)
+  if (!target)
+    return null
+
+  const window = BrowserWindow.fromWebContents(target)
+  if (!window)
+    return null
+
+  return getScreenCaptureDiagnosticsForWindow(window)
+}
+
 function resetScreenCaptureSource() {
   sessionModule.defaultSession.setDisplayMediaRequestHandler(null)
   clearTimeout(setSourceMutexTimeoutHandle)
   setSourceMutexTimeoutHandle = undefined
   screenCaptureSourceMutexHandle = undefined
+}
+
+function toErrorMessage(error: unknown) {
+  if (error instanceof Error)
+    return error.message
+  if (typeof error === 'string')
+    return error
+  try {
+    return JSON.stringify(error)
+  }
+  catch {
+    return String(error)
+  }
+}
+
+function getScreenCapturePermissionStatus() {
+  return process.platform === 'darwin'
+    ? checkMacOSScreenCapturePermission()
+    : 'granted'
+}
+
+function releaseScreenCaptureSource(reason: 'manual-reset' | 'timeout' | 'window-closed' | 'set-source-error') {
+  const activeHandle = screenCaptureSourceMutexHandle
+  if (!activeHandle)
+    return
+
+  diagnosticsStore.noteLeaseReleased({
+    handle: activeHandle,
+    reason,
+  })
+  resetScreenCaptureSource()
+  setSourceMutex.release()
 }
 
 const initializedWindows = new WeakSet<BrowserWindow>()
@@ -187,18 +242,39 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
 
   const { context } = createContext(ipcMain, window, { onlySameWindow: true })
   const session = sessionModule.defaultSession
+  const getWindowIdentity = () => ({
+    windowId,
+    windowTitle: tryWindowTitle(window, windowTitle),
+  })
 
   defineInvokeHandler(context, screenCapture.checkMacOSPermission, async () => checkMacOSScreenCapturePermission())
   defineInvokeHandler(context, screenCapture.requestMacOSPermission, async () => requestMacOSScreenCapturePermission())
+  defineInvokeHandler(context, screenCapture.reportSessionState, async request => diagnosticsStore.noteRendererSessionState(getWindowIdentity(), request))
+  defineInvokeHandler(context, screenCapture.getDiagnostics, async () => diagnosticsStore.getSnapshot(getWindowIdentity(), getScreenCapturePermissionStatus()))
 
   defineInvokeHandler(context, screenCapture.getSources, async (sourcesOptions) => {
-    // NOTICE(@nekomeowww): In probability of 9/10, the window thumbnail is purely empty or black, sources printed and
-    // nothing is returned from the desktopCapturer API.
-    // NOTICE(@sumimakito): Not only thumbnail is empty, the appIcon could be empty as well with nothing returned.
-    // REVIEW(@sumimakito): This has nothing to do with out side, probably related to Electron Bug, you can
-    // read more here https://github.com/electron/electron/issues/44504
-    const sources = await desktopCapturer.getSources(sourcesOptions)
-    return sources.map(source => toSerializableDesktopCapturerSource(source))
+    diagnosticsStore.noteGetSourcesStarted(getWindowIdentity(), sourcesOptions)
+    try {
+      // NOTICE(@nekomeowww): In probability of 9/10, the window thumbnail is purely empty or black, sources printed and
+      // nothing is returned from the desktopCapturer API.
+      // NOTICE(@sumimakito): Not only thumbnail is empty, the appIcon could be empty as well with nothing returned.
+      // REVIEW(@sumimakito): This has nothing to do with out side, probably related to Electron Bug, you can
+      // read more here https://github.com/electron/electron/issues/44504
+      let sources = await desktopCapturer.getSources(sourcesOptions)
+      if (options?.onAfterGetSources)
+        sources = options.onAfterGetSources(sources)
+
+      diagnosticsStore.noteGetSourcesCompleted(getWindowIdentity(), {
+        sourceCount: sources.length,
+      })
+      return sources.map(source => toSerializableDesktopCapturerSource(source))
+    }
+    catch (error) {
+      diagnosticsStore.noteGetSourcesCompleted(getWindowIdentity(), {
+        error: toErrorMessage(error),
+      })
+      throw error
+    }
   })
 
   defineInvokeHandler(context, screenCapture.setSource, async (request, eventaOptions) => {
@@ -216,8 +292,16 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
 
     clearTimeout(setSourceMutexTimeoutHandle)
     const handle = nanoid()
+    const timeoutMs = request.timeout ?? 5000
     setSourceMutexTimeoutHandle = undefined
     screenCaptureSourceMutexHandle = handle
+    diagnosticsStore.noteLeaseAcquired(getWindowIdentity(), {
+      handle,
+      ownerWebContentsId: eventaOptions?.raw.ipcMainEvent.sender.id,
+      sourceId: request.sourceId,
+      sourcesOptions: request.options,
+      timeoutMs,
+    })
 
     try {
       session.setDisplayMediaRequestHandler(async (_request, callback) => {
@@ -237,8 +321,7 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
         if (screenCaptureSourceMutexHandle !== handle)
           return
 
-        resetScreenCaptureSource()
-        setSourceMutex.release()
+        releaseScreenCaptureSource('timeout')
 
         log
           .withFields({ windowId, windowTitle: tryWindowTitle(window, windowTitle) })
@@ -246,7 +329,7 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
             `setSourceMutex released for window due to timeout. `
             + 'Please make sure to invoke screenCaptureResetSource when getDisplayMedia is completed.',
           )
-      }, timeout ?? 5000)
+      }, timeoutMs)
 
       return handle
     }
@@ -256,8 +339,7 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
         .withError(e)
         .error('screenCaptureSetSourceEx failed for window')
 
-      resetScreenCaptureSource()
-      setSourceMutex.release()
+      releaseScreenCaptureSource('set-source-error')
       throw e
     }
   })
@@ -266,9 +348,16 @@ export function initScreenCaptureForWindow(window: BrowserWindow, options?: Init
     if (screenCaptureSourceMutexHandle !== mutexHandle)
       return
 
-    resetScreenCaptureSource()
-    setSourceMutex.release()
+    releaseScreenCaptureSource('manual-reset')
 
     log.withFields({ windowId, windowTitle: tryWindowTitle(window, windowTitle) }).debug('setSourceMutex released by window')
+  })
+
+  window.once('closed', () => {
+    const identity = getWindowIdentity()
+    if (diagnosticsStore.getLeaseOwnerWindowId() === windowId) {
+      releaseScreenCaptureSource('window-closed')
+    }
+    diagnosticsStore.forgetWindow(identity)
   })
 }

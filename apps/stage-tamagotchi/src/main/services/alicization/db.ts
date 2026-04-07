@@ -1,7 +1,22 @@
 import type {
   AlicizationActiveThought,
   AlicizationAuditLogInput,
+  AlicizationChannelCapabilityManifestRecord,
+  AlicizationChannelCapabilityManifestUpsertInput,
   AlicizationConversationTurnInput,
+  AlicizationExecutionChannel,
+  AlicizationExecutionEventInput,
+  AlicizationExecutionEventKind,
+  AlicizationExecutionEventRecord,
+  AlicizationExecutionTaskKind,
+  AlicizationExecutionTurnOrigin,
+  AlicizationExecutorSessionRecord,
+  AlicizationExecutorSessionStatus,
+  AlicizationExecutorSessionUpsertInput,
+  AlicizationListChannelCapabilityManifestsInput,
+  AlicizationListExecutionEventsInput,
+  AlicizationListExecutorSessionsInput,
+  AlicizationListTaskThreadsInput,
   AlicizationMemoryFact,
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
@@ -13,6 +28,9 @@ import type {
   AlicizationMindTurnEventRecord,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
+  AlicizationTaskThreadRecord,
+  AlicizationTaskThreadStatus,
+  AlicizationTaskThreadUpsertInput,
 } from '../../../shared/eventa'
 
 import { randomUUID } from 'node:crypto'
@@ -74,6 +92,65 @@ interface DbMindTurnEventRow {
   kind: AlicizationMindTurnEventKind
   payload_json: string | null
   created_at: number
+}
+
+interface DbTaskThreadRow {
+  id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  origin: AlicizationExecutionTurnOrigin
+  goal: string
+  kind: AlicizationExecutionTaskKind
+  status: AlicizationTaskThreadStatus
+  selected_channel: AlicizationExecutionChannel | null
+  proposed_channel: AlicizationExecutionChannel | null
+  summary: string | null
+  metadata_json: string | null
+  created_at: number
+  updated_at: number
+  last_event_at: number | null
+  completed_at: number | null
+}
+
+interface DbExecutionEventRow {
+  id: string
+  thread_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  origin: AlicizationExecutionTurnOrigin
+  channel: AlicizationExecutionChannel | null
+  kind: AlicizationExecutionEventKind
+  thread_status: AlicizationTaskThreadStatus | null
+  payload_json: string | null
+  created_at: number
+}
+
+interface DbExecutorSessionRow {
+  id: string
+  channel: AlicizationExecutionChannel
+  affinity_key: string
+  external_session_id: string | null
+  status: AlicizationExecutorSessionStatus
+  summary: string | null
+  metadata_json: string | null
+  created_at: number
+  updated_at: number
+  last_used_at: number | null
+}
+
+interface DbChannelCapabilityManifestRow {
+  channel: AlicizationExecutionChannel
+  available: number
+  enabled: number
+  ready: number
+  session_affinity: number
+  reason: string | null
+  metadata_json: string | null
+  created_at: number
+  updated_at: number
+  last_checked_at: number | null
 }
 
 interface DbActiveThoughtRow {
@@ -146,7 +223,115 @@ interface DbWriteOptions {
   signal?: AbortSignal
 }
 
+const executionChannels = new Set<AlicizationExecutionChannel>([
+  'cli',
+  'codex',
+  'claude-code',
+  'openclaw',
+  'openfang',
+  'browser',
+  'software',
+  'desktop',
+])
+
+const executionChannelSessionAffinity = new Set<AlicizationExecutionChannel>([
+  'codex',
+  'claude-code',
+  'openclaw',
+  'openfang',
+  'browser',
+  'software',
+])
+
+const executionTaskKinds = new Set<AlicizationExecutionTaskKind>([
+  'run-command',
+  'codebase-edit',
+  'codebase-investigation',
+  'browser-automation',
+  'software-automation',
+  'desktop-automation',
+  'agent-delegation',
+  'mixed',
+  'unknown',
+])
+
+const taskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
+  'planned',
+  'needs-affirmation',
+  'running',
+  'paused',
+  'blocked',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const executionEventKinds = new Set<AlicizationExecutionEventKind>([
+  'plan',
+  'dispatch',
+  'step',
+  'result',
+  'cancel',
+  'resume',
+  'takeover',
+])
+
+const executorSessionStatuses = new Set<AlicizationExecutorSessionStatus>([
+  'active',
+  'running',
+  'failed',
+  'suspended',
+])
+
 function parseMindTurnEventPayload(raw: string | null) {
+  if (!raw)
+    return null
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return parsed && typeof parsed === 'object'
+      ? parsed as Record<string, unknown>
+      : null
+  }
+  catch {
+    return null
+  }
+}
+
+function readMindTurnEventObject(raw: unknown) {
+  return raw && typeof raw === 'object'
+    ? raw as Record<string, unknown>
+    : null
+}
+
+function readMindTurnEventText(raw: unknown) {
+  return typeof raw === 'string' && raw.trim()
+    ? raw.trim()
+    : null
+}
+
+function resolveMindTurnEventActiveThreadId(payload: Record<string, unknown> | null) {
+  if (!payload)
+    return null
+
+  const directActiveThreadId = readMindTurnEventText(payload.activeThreadId)
+  if (directActiveThreadId)
+    return directActiveThreadId
+
+  const runtimeCandidate = readMindTurnEventObject(payload.runtime)
+  const runtimeActiveThreadId = readMindTurnEventText(runtimeCandidate?.activeThreadId)
+  if (runtimeActiveThreadId)
+    return runtimeActiveThreadId
+
+  const spineCandidate = readMindTurnEventObject(payload.digitalLifeSpine)
+  const spineRuntimeCandidate = readMindTurnEventObject(spineCandidate?.runtime)
+  const spineRuntimeActiveThreadId = readMindTurnEventText(spineRuntimeCandidate?.activeThreadId)
+  if (spineRuntimeActiveThreadId)
+    return spineRuntimeActiveThreadId
+
+  return null
+}
+
+function parseJsonObject(raw: string | null) {
   if (!raw)
     return null
   try {
@@ -241,6 +426,109 @@ function mapSubconsciousFragmentRow(row: DbSubconsciousFragmentRow): Alicization
     createdAt: row.created_at,
     lastRecalledAt: typeof row.last_recalled_at === 'number' ? row.last_recalled_at : null,
     recallCount: Math.max(0, Math.floor(row.recall_count)),
+  }
+}
+
+function normalizeExecutionOrigin(value: unknown): AlicizationExecutionTurnOrigin {
+  return value === 'subconscious-proactive' || value === 'system'
+    ? value
+    : 'user-turn'
+}
+
+function normalizeExecutionChannel(value: unknown): AlicizationExecutionChannel | null {
+  return typeof value === 'string' && executionChannels.has(value as AlicizationExecutionChannel)
+    ? value as AlicizationExecutionChannel
+    : null
+}
+
+function normalizeExecutionTaskKind(value: unknown): AlicizationExecutionTaskKind {
+  return typeof value === 'string' && executionTaskKinds.has(value as AlicizationExecutionTaskKind)
+    ? value as AlicizationExecutionTaskKind
+    : 'unknown'
+}
+
+function normalizeTaskThreadStatus(value: unknown): AlicizationTaskThreadStatus {
+  return typeof value === 'string' && taskThreadStatuses.has(value as AlicizationTaskThreadStatus)
+    ? value as AlicizationTaskThreadStatus
+    : 'planned'
+}
+
+function normalizeExecutionEventKind(value: unknown) {
+  return typeof value === 'string' && executionEventKinds.has(value as AlicizationExecutionEventKind)
+    ? value as AlicizationExecutionEventKind
+    : null
+}
+
+function normalizeExecutorSessionStatus(value: unknown): AlicizationExecutorSessionStatus {
+  return typeof value === 'string' && executorSessionStatuses.has(value as AlicizationExecutorSessionStatus)
+    ? value as AlicizationExecutorSessionStatus
+    : 'active'
+}
+
+function mapTaskThreadRow(row: DbTaskThreadRow): AlicizationTaskThreadRecord {
+  return {
+    id: row.id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    origin: row.origin,
+    goal: row.goal,
+    kind: row.kind,
+    status: row.status,
+    selectedChannel: row.selected_channel,
+    proposedChannel: row.proposed_channel,
+    summary: row.summary,
+    metadata: parseJsonObject(row.metadata_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastEventAt: row.last_event_at,
+    completedAt: row.completed_at,
+  }
+}
+
+function mapExecutionEventRow(row: DbExecutionEventRow): AlicizationExecutionEventRecord {
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    origin: row.origin,
+    channel: row.channel,
+    kind: row.kind,
+    threadStatus: row.thread_status,
+    payload: parseJsonObject(row.payload_json),
+    createdAt: row.created_at,
+  }
+}
+
+function mapExecutorSessionRow(row: DbExecutorSessionRow): AlicizationExecutorSessionRecord {
+  return {
+    id: row.id,
+    channel: row.channel,
+    affinityKey: row.affinity_key,
+    externalSessionId: row.external_session_id,
+    status: row.status,
+    summary: row.summary,
+    metadata: parseJsonObject(row.metadata_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastUsedAt: row.last_used_at,
+  }
+}
+
+function mapChannelCapabilityManifestRow(row: DbChannelCapabilityManifestRow): AlicizationChannelCapabilityManifestRecord {
+  return {
+    channel: row.channel,
+    available: row.available === 1,
+    enabled: row.enabled === 1,
+    ready: row.ready === 1,
+    sessionAffinity: row.session_affinity === 1,
+    reason: row.reason,
+    metadata: parseJsonObject(row.metadata_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    lastCheckedAt: row.last_checked_at,
   }
 }
 
@@ -403,8 +691,18 @@ export interface AlicizationDbService {
   listMindTurnEvents: (input: {
     decisionTraceId?: string
     turnId?: string
+    activeThreadId?: string
     limit?: number
   }) => Promise<AlicizationMindTurnEventRecord[]>
+  getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
+  upsertTaskThread: (input: AlicizationTaskThreadUpsertInput, options?: DbWriteOptions) => Promise<AlicizationTaskThreadRecord>
+  listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
+  upsertChannelCapabilityManifest: (input: AlicizationChannelCapabilityManifestUpsertInput, options?: DbWriteOptions) => Promise<AlicizationChannelCapabilityManifestRecord>
+  listChannelCapabilityManifests: (input?: AlicizationListChannelCapabilityManifestsInput) => Promise<AlicizationChannelCapabilityManifestRecord[]>
+  upsertExecutorSession: (input: AlicizationExecutorSessionUpsertInput, options?: DbWriteOptions) => Promise<AlicizationExecutorSessionRecord>
+  listExecutorSessions: (input?: AlicizationListExecutorSessionsInput) => Promise<AlicizationExecutorSessionRecord[]>
+  appendExecutionEvents: (events: AlicizationExecutionEventInput[], options?: DbWriteOptions) => Promise<void>
+  listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
   clearConversationData: () => Promise<void>
   appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
   appendConversationTurn: (input: AlicizationConversationTurnInput, options?: DbWriteOptions) => Promise<void>
@@ -589,6 +887,87 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_trace_created_at ON mind_turn_events(decision_trace_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_turn_created_at ON mind_turn_events(turn_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_mind_turn_events_session_created_at ON mind_turn_events(session_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS task_threads (
+        id TEXT PRIMARY KEY,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        origin TEXT NOT NULL,
+        goal TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL,
+        selected_channel TEXT,
+        proposed_channel TEXT,
+        summary TEXT,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_event_at INTEGER,
+        completed_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_trace_updated_at ON task_threads(decision_trace_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_turn_updated_at ON task_threads(turn_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_session_updated_at ON task_threads(session_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_status_updated_at ON task_threads(status, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS capability_manifests (
+        channel TEXT PRIMARY KEY,
+        available INTEGER NOT NULL,
+        enabled INTEGER NOT NULL,
+        ready INTEGER NOT NULL,
+        session_affinity INTEGER NOT NULL,
+        reason TEXT,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_checked_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_capability_manifests_updated_at ON capability_manifests(updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_capability_manifests_available_ready ON capability_manifests(available, ready, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS executor_sessions (
+        id TEXT PRIMARY KEY,
+        channel TEXT NOT NULL,
+        affinity_key TEXT NOT NULL,
+        external_session_id TEXT,
+        status TEXT NOT NULL,
+        summary TEXT,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_used_at INTEGER,
+        UNIQUE(channel, affinity_key)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_sessions_channel_updated_at ON executor_sessions(channel, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_sessions_status_updated_at ON executor_sessions(status, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_sessions_last_used_at ON executor_sessions(last_used_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS executor_events (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        origin TEXT NOT NULL,
+        channel TEXT,
+        kind TEXT NOT NULL,
+        thread_status TEXT,
+        payload_json TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_thread_created_at ON executor_events(thread_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_trace_created_at ON executor_events(decision_trace_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_turn_created_at ON executor_events(turn_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_executor_events_session_created_at ON executor_events(session_id, created_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS audit_logs (
@@ -911,6 +1290,7 @@ export async function setupAlicizationDb(
   async function listMindTurnEvents(input: {
     decisionTraceId?: string
     turnId?: string
+    activeThreadId?: string
     limit?: number
   }) {
     const decisionTraceId = typeof input.decisionTraceId === 'string'
@@ -918,6 +1298,9 @@ export async function setupAlicizationDb(
       : ''
     const turnId = typeof input.turnId === 'string'
       ? input.turnId.trim()
+      : ''
+    const activeThreadId = typeof input.activeThreadId === 'string'
+      ? input.activeThreadId.trim()
       : ''
     if (!decisionTraceId && !turnId)
       return [] as AlicizationMindTurnEventRecord[]
@@ -984,7 +1367,7 @@ export async function setupAlicizationDb(
             [turnId, limit],
           )
 
-    return [...rows]
+    const mappedRows = [...rows]
       .reverse()
       .map((row): AlicizationMindTurnEventRecord => ({
         id: row.id,
@@ -996,12 +1379,785 @@ export async function setupAlicizationDb(
         payload: parseMindTurnEventPayload(row.payload_json),
         createdAt: row.created_at,
       }))
+
+    if (!activeThreadId)
+      return mappedRows
+
+    return mappedRows.filter((row) => {
+      return resolveMindTurnEventActiveThreadId(row.payload) === activeThreadId
+    })
+  }
+
+  async function upsertTaskThread(input: AlicizationTaskThreadUpsertInput, options?: DbWriteOptions) {
+    const goal = input.goal.trim()
+    if (!goal)
+      throw new Error('goal is required')
+
+    const currentTs = now()
+    const id = typeof input.id === 'string' && input.id.trim()
+      ? input.id.trim()
+      : randomUUID()
+    const decisionTraceId = typeof input.decisionTraceId === 'string' && input.decisionTraceId.trim()
+      ? input.decisionTraceId.trim()
+      : null
+    const turnId = typeof input.turnId === 'string' && input.turnId.trim()
+      ? input.turnId.trim()
+      : null
+    const sessionId = typeof input.sessionId === 'string' && input.sessionId.trim()
+      ? input.sessionId.trim()
+      : null
+    const origin = normalizeExecutionOrigin(input.origin)
+    const kind = normalizeExecutionTaskKind(input.kind)
+    const status = normalizeTaskThreadStatus(input.status)
+    const selectedChannel = normalizeExecutionChannel(input.selectedChannel)
+    const proposedChannel = normalizeExecutionChannel(input.proposedChannel)
+    const summary = typeof input.summary === 'string' && input.summary.trim()
+      ? input.summary.trim()
+      : null
+    const metadataJson = input.metadata && typeof input.metadata === 'object'
+      ? JSON.stringify(input.metadata)
+      : null
+    const createdAt = Number.isFinite(input.createdAt)
+      ? Math.max(0, Math.floor(Number(input.createdAt)))
+      : currentTs
+    const updatedAt = Number.isFinite(input.updatedAt)
+      ? Math.max(createdAt, Math.floor(Number(input.updatedAt)))
+      : currentTs
+    const lastEventAt = Number.isFinite(input.lastEventAt)
+      ? Math.max(0, Math.floor(Number(input.lastEventAt)))
+      : null
+    const completedAt = Number.isFinite(input.completedAt)
+      ? Math.max(0, Math.floor(Number(input.completedAt)))
+      : null
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await run(
+        database,
+        `
+        INSERT INTO task_threads (
+          id,
+          decision_trace_id,
+          turn_id,
+          session_id,
+          origin,
+          goal,
+          kind,
+          status,
+          selected_channel,
+          proposed_channel,
+          summary,
+          metadata_json,
+          created_at,
+          updated_at,
+          last_event_at,
+          completed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET
+          decision_trace_id = excluded.decision_trace_id,
+          turn_id = excluded.turn_id,
+          session_id = excluded.session_id,
+          origin = excluded.origin,
+          goal = excluded.goal,
+          kind = excluded.kind,
+          status = excluded.status,
+          selected_channel = excluded.selected_channel,
+          proposed_channel = excluded.proposed_channel,
+          summary = excluded.summary,
+          metadata_json = excluded.metadata_json,
+          updated_at = excluded.updated_at,
+          last_event_at = excluded.last_event_at,
+          completed_at = excluded.completed_at
+        `,
+        [
+          id,
+          decisionTraceId,
+          turnId,
+          sessionId,
+          origin,
+          goal,
+          kind,
+          status,
+          selectedChannel,
+          proposedChannel,
+          summary,
+          metadataJson,
+          createdAt,
+          updatedAt,
+          lastEventAt,
+          completedAt,
+        ],
+      )
+    }, options)
+
+    return {
+      id,
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      goal,
+      kind,
+      status,
+      selectedChannel,
+      proposedChannel,
+      summary,
+      metadata: metadataJson ? parseJsonObject(metadataJson) : null,
+      createdAt,
+      updatedAt,
+      lastEventAt,
+      completedAt,
+    } satisfies AlicizationTaskThreadRecord
+  }
+
+  async function getTaskThread(id: string) {
+    const threadId = typeof id === 'string'
+      ? id.trim()
+      : ''
+    if (!threadId)
+      return undefined
+
+    const row = await get<DbTaskThreadRow>(
+      database,
+      `
+      SELECT
+        id,
+        decision_trace_id,
+        turn_id,
+        session_id,
+        origin,
+        goal,
+        kind,
+        status,
+        selected_channel,
+        proposed_channel,
+        summary,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_event_at,
+        completed_at
+      FROM task_threads
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [threadId],
+    )
+
+    return row ? mapTaskThreadRow(row) : undefined
+  }
+
+  async function listTaskThreads(input?: AlicizationListTaskThreadsInput) {
+    const decisionTraceId = typeof input?.decisionTraceId === 'string'
+      ? input.decisionTraceId.trim()
+      : ''
+    const turnId = typeof input?.turnId === 'string'
+      ? input.turnId.trim()
+      : ''
+    const sessionId = typeof input?.sessionId === 'string'
+      ? input.sessionId.trim()
+      : ''
+    const statuses = Array.isArray(input?.status)
+      ? input.status
+          .map((value: AlicizationTaskThreadStatus) => normalizeTaskThreadStatus(value))
+      : input?.status
+        ? [normalizeTaskThreadStatus(input.status)]
+        : []
+    const limit = Math.max(1, Math.min(5_000, Math.floor(input?.limit ?? 200)))
+    const whereClauses: string[] = []
+    const params: unknown[] = []
+
+    if (decisionTraceId) {
+      whereClauses.push('decision_trace_id = ?')
+      params.push(decisionTraceId)
+    }
+    if (turnId) {
+      whereClauses.push('turn_id = ?')
+      params.push(turnId)
+    }
+    if (sessionId) {
+      whereClauses.push('session_id = ?')
+      params.push(sessionId)
+    }
+    if (statuses.length === 1) {
+      whereClauses.push('status = ?')
+      params.push(statuses[0])
+    }
+    else if (statuses.length > 1) {
+      whereClauses.push(`status IN (${statuses.map(() => '?').join(', ')})`)
+      params.push(...statuses)
+    }
+
+    const rows = await all<DbTaskThreadRow>(
+      database,
+      `
+      SELECT
+        id,
+        decision_trace_id,
+        turn_id,
+        session_id,
+        origin,
+        goal,
+        kind,
+        status,
+        selected_channel,
+        proposed_channel,
+        summary,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_event_at,
+        completed_at
+      FROM task_threads
+      ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+      ORDER BY COALESCE(last_event_at, updated_at) DESC, updated_at DESC
+      LIMIT ?
+      `,
+      [...params, limit],
+    )
+
+    return rows.map(mapTaskThreadRow)
+  }
+
+  async function upsertChannelCapabilityManifest(input: AlicizationChannelCapabilityManifestUpsertInput, options?: DbWriteOptions) {
+    const channel = normalizeExecutionChannel(input.channel)
+    if (!channel)
+      throw new Error('channel is required')
+
+    const available = input.available !== false
+    const enabled = input.enabled !== false
+    const ready = input.ready !== false
+    const sessionAffinity = typeof input.sessionAffinity === 'boolean'
+      ? input.sessionAffinity
+      : executionChannelSessionAffinity.has(channel)
+    const reason = typeof input.reason === 'string' && input.reason.trim()
+      ? input.reason.trim().slice(0, 360)
+      : null
+    const metadataJson = input.metadata && typeof input.metadata === 'object'
+      ? JSON.stringify(input.metadata)
+      : null
+
+    const currentTs = now()
+    const createdAt = Number.isFinite(input.createdAt)
+      ? Math.max(0, Math.floor(Number(input.createdAt)))
+      : currentTs
+    const updatedAt = Number.isFinite(input.updatedAt)
+      ? Math.max(createdAt, Math.floor(Number(input.updatedAt)))
+      : currentTs
+    const lastCheckedAt = Number.isFinite(input.lastCheckedAt)
+      ? Math.max(0, Math.floor(Number(input.lastCheckedAt)))
+      : updatedAt
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await run(
+        database,
+        `
+        INSERT INTO capability_manifests (
+          channel,
+          available,
+          enabled,
+          ready,
+          session_affinity,
+          reason,
+          metadata_json,
+          created_at,
+          updated_at,
+          last_checked_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(channel)
+        DO UPDATE SET
+          available = excluded.available,
+          enabled = excluded.enabled,
+          ready = excluded.ready,
+          session_affinity = excluded.session_affinity,
+          reason = excluded.reason,
+          metadata_json = excluded.metadata_json,
+          updated_at = excluded.updated_at,
+          last_checked_at = excluded.last_checked_at
+        `,
+        [
+          channel,
+          available ? 1 : 0,
+          enabled ? 1 : 0,
+          ready ? 1 : 0,
+          sessionAffinity ? 1 : 0,
+          reason,
+          metadataJson,
+          createdAt,
+          updatedAt,
+          lastCheckedAt,
+        ],
+      )
+    }, options)
+
+    const row = await get<DbChannelCapabilityManifestRow>(
+      database,
+      `
+      SELECT
+        channel,
+        available,
+        enabled,
+        ready,
+        session_affinity,
+        reason,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_checked_at
+      FROM capability_manifests
+      WHERE channel = ?
+      LIMIT 1
+      `,
+      [channel],
+    )
+
+    if (row)
+      return mapChannelCapabilityManifestRow(row)
+
+    return {
+      channel,
+      available,
+      enabled,
+      ready,
+      sessionAffinity,
+      reason,
+      metadata: metadataJson ? parseJsonObject(metadataJson) : null,
+      createdAt,
+      updatedAt,
+      lastCheckedAt,
+    } satisfies AlicizationChannelCapabilityManifestRecord
+  }
+
+  async function listChannelCapabilityManifests(input?: AlicizationListChannelCapabilityManifestsInput) {
+    const channels = Array.isArray(input?.channel)
+      ? input.channel
+          .map(value => normalizeExecutionChannel(value))
+          .filter((value): value is AlicizationExecutionChannel => Boolean(value))
+      : input?.channel
+        ? [normalizeExecutionChannel(input.channel)].filter((value): value is AlicizationExecutionChannel => Boolean(value))
+        : []
+    const available = typeof input?.available === 'boolean'
+      ? input.available
+      : null
+    const enabled = typeof input?.enabled === 'boolean'
+      ? input.enabled
+      : null
+    const ready = typeof input?.ready === 'boolean'
+      ? input.ready
+      : null
+    const limit = Math.max(1, Math.min(5_000, Math.floor(input?.limit ?? 200)))
+    const whereClauses: string[] = []
+    const params: unknown[] = []
+
+    if (channels.length === 1) {
+      whereClauses.push('channel = ?')
+      params.push(channels[0])
+    }
+    else if (channels.length > 1) {
+      whereClauses.push(`channel IN (${channels.map(() => '?').join(', ')})`)
+      params.push(...channels)
+    }
+    if (available !== null) {
+      whereClauses.push('available = ?')
+      params.push(available ? 1 : 0)
+    }
+    if (enabled !== null) {
+      whereClauses.push('enabled = ?')
+      params.push(enabled ? 1 : 0)
+    }
+    if (ready !== null) {
+      whereClauses.push('ready = ?')
+      params.push(ready ? 1 : 0)
+    }
+
+    const rows = await all<DbChannelCapabilityManifestRow>(
+      database,
+      `
+      SELECT
+        channel,
+        available,
+        enabled,
+        ready,
+        session_affinity,
+        reason,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_checked_at
+      FROM capability_manifests
+      ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+      ORDER BY updated_at DESC, COALESCE(last_checked_at, updated_at) DESC
+      LIMIT ?
+      `,
+      [...params, limit],
+    )
+
+    return rows.map(mapChannelCapabilityManifestRow)
+  }
+
+  async function upsertExecutorSession(input: AlicizationExecutorSessionUpsertInput, options?: DbWriteOptions) {
+    const channel = normalizeExecutionChannel(input.channel)
+    if (!channel)
+      throw new Error('channel is required')
+
+    const affinityKey = typeof input.affinityKey === 'string'
+      ? input.affinityKey.trim()
+      : ''
+    if (!affinityKey)
+      throw new Error('affinityKey is required')
+
+    const id = typeof input.id === 'string' && input.id.trim()
+      ? input.id.trim()
+      : randomUUID()
+    const externalSessionId = typeof input.externalSessionId === 'string' && input.externalSessionId.trim()
+      ? input.externalSessionId.trim()
+      : null
+    const status = normalizeExecutorSessionStatus(input.status)
+    const summary = typeof input.summary === 'string' && input.summary.trim()
+      ? input.summary.trim()
+      : null
+    const metadataJson = input.metadata && typeof input.metadata === 'object'
+      ? JSON.stringify(input.metadata)
+      : null
+    const currentTs = now()
+    const createdAt = Number.isFinite(input.createdAt)
+      ? Math.max(0, Math.floor(Number(input.createdAt)))
+      : currentTs
+    const updatedAt = Number.isFinite(input.updatedAt)
+      ? Math.max(createdAt, Math.floor(Number(input.updatedAt)))
+      : currentTs
+    const lastUsedAt = Number.isFinite(input.lastUsedAt)
+      ? Math.max(0, Math.floor(Number(input.lastUsedAt)))
+      : updatedAt
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await run(
+        database,
+        `
+        INSERT INTO executor_sessions (
+          id,
+          channel,
+          affinity_key,
+          external_session_id,
+          status,
+          summary,
+          metadata_json,
+          created_at,
+          updated_at,
+          last_used_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(channel, affinity_key)
+        DO UPDATE SET
+          external_session_id = excluded.external_session_id,
+          status = excluded.status,
+          summary = excluded.summary,
+          metadata_json = excluded.metadata_json,
+          updated_at = excluded.updated_at,
+          last_used_at = excluded.last_used_at
+        `,
+        [
+          id,
+          channel,
+          affinityKey,
+          externalSessionId,
+          status,
+          summary,
+          metadataJson,
+          createdAt,
+          updatedAt,
+          lastUsedAt,
+        ],
+      )
+    }, options)
+
+    const row = await get<DbExecutorSessionRow>(
+      database,
+      `
+      SELECT
+        id,
+        channel,
+        affinity_key,
+        external_session_id,
+        status,
+        summary,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_used_at
+      FROM executor_sessions
+      WHERE channel = ?
+        AND affinity_key = ?
+      LIMIT 1
+      `,
+      [channel, affinityKey],
+    )
+
+    if (row)
+      return mapExecutorSessionRow(row)
+
+    return {
+      id,
+      channel,
+      affinityKey,
+      externalSessionId,
+      status,
+      summary,
+      metadata: metadataJson ? parseJsonObject(metadataJson) : null,
+      createdAt,
+      updatedAt,
+      lastUsedAt,
+    } satisfies AlicizationExecutorSessionRecord
+  }
+
+  async function listExecutorSessions(input?: AlicizationListExecutorSessionsInput) {
+    const channels = Array.isArray(input?.channel)
+      ? input.channel
+          .map(value => normalizeExecutionChannel(value))
+          .filter((value): value is AlicizationExecutionChannel => Boolean(value))
+      : input?.channel
+        ? [normalizeExecutionChannel(input.channel)].filter((value): value is AlicizationExecutionChannel => Boolean(value))
+        : []
+    const affinityKey = typeof input?.affinityKey === 'string'
+      ? input.affinityKey.trim()
+      : ''
+    const statuses = Array.isArray(input?.status)
+      ? input.status.map(value => normalizeExecutorSessionStatus(value))
+      : input?.status
+        ? [normalizeExecutorSessionStatus(input.status)]
+        : []
+    const limit = Math.max(1, Math.min(5_000, Math.floor(input?.limit ?? 200)))
+    const whereClauses: string[] = []
+    const params: unknown[] = []
+
+    if (channels.length === 1) {
+      whereClauses.push('channel = ?')
+      params.push(channels[0])
+    }
+    else if (channels.length > 1) {
+      whereClauses.push(`channel IN (${channels.map(() => '?').join(', ')})`)
+      params.push(...channels)
+    }
+    if (affinityKey) {
+      whereClauses.push('affinity_key = ?')
+      params.push(affinityKey)
+    }
+    if (statuses.length === 1) {
+      whereClauses.push('status = ?')
+      params.push(statuses[0])
+    }
+    else if (statuses.length > 1) {
+      whereClauses.push(`status IN (${statuses.map(() => '?').join(', ')})`)
+      params.push(...statuses)
+    }
+
+    const rows = await all<DbExecutorSessionRow>(
+      database,
+      `
+      SELECT
+        id,
+        channel,
+        affinity_key,
+        external_session_id,
+        status,
+        summary,
+        metadata_json,
+        created_at,
+        updated_at,
+        last_used_at
+      FROM executor_sessions
+      ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+      ORDER BY COALESCE(last_used_at, updated_at) DESC, updated_at DESC
+      LIMIT ?
+      `,
+      [...params, limit],
+    )
+
+    return rows.map(mapExecutorSessionRow)
+  }
+
+  async function appendExecutionEvents(events: AlicizationExecutionEventInput[], options?: DbWriteOptions) {
+    if (events.length === 0)
+      return
+
+    const normalized = events
+      .map((event) => {
+        const threadId = typeof event.threadId === 'string'
+          ? event.threadId.trim()
+          : ''
+        const kind = normalizeExecutionEventKind(event.kind)
+        if (!threadId || !kind)
+          return null
+
+        return {
+          id: randomUUID(),
+          threadId,
+          decisionTraceId: typeof event.decisionTraceId === 'string' && event.decisionTraceId.trim()
+            ? event.decisionTraceId.trim()
+            : null,
+          turnId: typeof event.turnId === 'string' && event.turnId.trim()
+            ? event.turnId.trim()
+            : null,
+          sessionId: typeof event.sessionId === 'string' && event.sessionId.trim()
+            ? event.sessionId.trim()
+            : null,
+          origin: normalizeExecutionOrigin(event.origin),
+          channel: normalizeExecutionChannel(event.channel),
+          kind,
+          threadStatus: event.threadStatus
+            ? normalizeTaskThreadStatus(event.threadStatus)
+            : null,
+          payloadJson: event.payload && typeof event.payload === 'object'
+            ? JSON.stringify(event.payload)
+            : null,
+          createdAt: Number.isFinite(event.createdAt)
+            ? Math.max(0, Math.floor(Number(event.createdAt)))
+            : now(),
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+
+    if (normalized.length === 0)
+      return
+
+    const latestByThread = new Map<string, (typeof normalized)[number]>()
+    for (const event of normalized) {
+      const current = latestByThread.get(event.threadId)
+      if (!current || current.createdAt <= event.createdAt) {
+        latestByThread.set(event.threadId, event)
+      }
+    }
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await runInTransaction(database, async () => {
+        for (const event of normalized) {
+          await run(
+            database,
+            `
+            INSERT INTO executor_events (
+              id,
+              thread_id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              origin,
+              channel,
+              kind,
+              thread_status,
+              payload_json,
+              created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              event.id,
+              event.threadId,
+              event.decisionTraceId,
+              event.turnId,
+              event.sessionId,
+              event.origin,
+              event.channel,
+              event.kind,
+              event.threadStatus,
+              event.payloadJson,
+              event.createdAt,
+            ],
+          )
+        }
+
+        for (const latest of latestByThread.values()) {
+          const completedAt = latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled'
+            ? latest.createdAt
+            : null
+          await run(
+            database,
+            `
+            UPDATE task_threads
+            SET updated_at = ?,
+                last_event_at = ?,
+                status = COALESCE(?, status),
+                completed_at = COALESCE(?, completed_at)
+            WHERE id = ?
+            `,
+            [
+              latest.createdAt,
+              latest.createdAt,
+              latest.threadStatus,
+              completedAt,
+              latest.threadId,
+            ],
+          )
+        }
+      })
+    }, options)
+  }
+
+  async function listExecutionEvents(input?: AlicizationListExecutionEventsInput) {
+    const threadId = typeof input?.threadId === 'string'
+      ? input.threadId.trim()
+      : ''
+    const decisionTraceId = typeof input?.decisionTraceId === 'string'
+      ? input.decisionTraceId.trim()
+      : ''
+    const turnId = typeof input?.turnId === 'string'
+      ? input.turnId.trim()
+      : ''
+    const limit = Math.max(1, Math.min(5_000, Math.floor(input?.limit ?? 300)))
+    const whereClauses: string[] = []
+    const params: unknown[] = []
+
+    if (threadId) {
+      whereClauses.push('thread_id = ?')
+      params.push(threadId)
+    }
+    if (decisionTraceId) {
+      whereClauses.push('decision_trace_id = ?')
+      params.push(decisionTraceId)
+    }
+    if (turnId) {
+      whereClauses.push('turn_id = ?')
+      params.push(turnId)
+    }
+
+    const rows = await all<DbExecutionEventRow>(
+      database,
+      `
+      SELECT
+        id,
+        thread_id,
+        decision_trace_id,
+        turn_id,
+        session_id,
+        origin,
+        channel,
+        kind,
+        thread_status,
+        payload_json,
+        created_at
+      FROM executor_events
+      ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
+      ORDER BY created_at DESC
+      LIMIT ?
+      `,
+      [...params, limit],
+    )
+
+    return [...rows].reverse().map(mapExecutionEventRow)
   }
 
   async function clearConversationData() {
     await enqueueWrite(async () => await runInTransaction(database, async () => {
       await run(database, 'DELETE FROM conversation_turns')
       await run(database, 'DELETE FROM mind_turn_events')
+      await run(database, 'DELETE FROM task_threads')
+      await run(database, 'DELETE FROM executor_sessions')
+      await run(database, 'DELETE FROM executor_events')
       await run(database, 'DELETE FROM scheduled_tasks')
     }))
   }
@@ -1874,6 +3030,15 @@ export async function setupAlicizationDb(
     listConversationTurnsBySession,
     appendMindTurnEvents,
     listMindTurnEvents,
+    getTaskThread,
+    upsertTaskThread,
+    listTaskThreads,
+    upsertChannelCapabilityManifest,
+    listChannelCapabilityManifests,
+    upsertExecutorSession,
+    listExecutorSessions,
+    appendExecutionEvents,
+    listExecutionEvents,
     clearConversationData,
     appendAuditLog,
     appendConversationTurn,

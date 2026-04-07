@@ -1,4 +1,13 @@
 <script setup lang="ts">
+import type {
+  StageEmbodimentIdleMotionPreference,
+  StageEmbodimentPerformanceState,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
+
+import type { Live2DActionPulseBinding } from '../../composables/live2d'
+
 import { Screen } from '@proj-alicization/ui'
 import { ref, watch } from 'vue'
 
@@ -13,7 +22,11 @@ withDefaults(defineProps<{
   modelId?: string
 
   paused?: boolean
-  mouthOpenSize?: number
+  actionBindings?: Live2DActionPulseBinding[]
+  idleMotionPreference?: StageEmbodimentIdleMotionPreference | null
+  performanceState?: StageEmbodimentPerformanceState | null
+  presencePosture?: StageEmbodimentPresencePostureState | null
+  speechRenderState?: StageEmbodimentSpeechRenderState | null
   focusAt?: { x: number, y: number }
   disableFocusAt?: boolean
   xOffset?: number | string
@@ -29,7 +42,6 @@ withDefaults(defineProps<{
 }>(), {
   paused: false,
   focusAt: () => ({ x: 0, y: 0 }),
-  mouthOpenSize: 0,
   xOffset: 0,
   yOffset: 0,
   scale: 1,
@@ -107,7 +119,11 @@ defineExpose({
         :model-src="modelSrc"
         :model-id="modelId"
         :app="app"
-        :mouth-open-size="mouthOpenSize"
+        :action-bindings="actionBindings"
+        :idle-motion-preference="idleMotionPreference"
+        :performance-state="performanceState"
+        :presence-posture="presencePosture"
+        :speech-render-state="speechRenderState"
         :width="width"
         :height="height"
         :paused="paused"

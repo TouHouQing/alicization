@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type { StageEmbodimentCanonicalEmotion } from '@proj-alicization/stage-shared'
+
+import {
+  resolveStageEmbodimentCueCandidates,
+  resolveStageEmbodimentLive2DMotionAliases,
+  stageEmbodimentCanonicalEmotions,
+} from '@proj-alicization/stage-shared'
 import { defaultModelParameters, useLive2d } from '@proj-alicization/stage-ui-live2d'
 import { OPFSCache } from '@proj-alicization/stage-ui-live2d/utils/opfs-loader'
 import { Button, Checkbox, FieldInput, FieldRange, FieldTextArea, SelectTab } from '@proj-alicization/ui'
@@ -51,6 +58,20 @@ const fpsOptions = computed(() => [
 ])
 const currentModelAvailableMotions = computed(() => live2d.getAvailableMotionsForModel(props.modelId))
 const currentModelActionBindings = computed(() => stagePerformanceStore.listLive2DActions(props.modelId ?? ''))
+const embodimentEmotionOptions = computed(() => stageEmbodimentCanonicalEmotions.map(emotion => ({
+  value: emotion,
+  label: t(`settings.live2d.embodiment.emotions.${emotion}`),
+})))
+const currentModelActionCuePreferences = computed(() => (
+  props.modelId
+    ? stagePerformanceStore.listEmotionActionCuePreferences(props.modelId)
+    : {}
+))
+const currentModelEmotionMotionAliases = computed(() => (
+  props.modelId
+    ? stagePerformanceStore.listLive2DEmotionMotionAliases(props.modelId)
+    : {}
+))
 
 function applyRuntimeMotionSelection(
   motion: { name: string, displayPath: string, group: string, index: number },
@@ -209,6 +230,53 @@ function removeActionBinding(fileName: string) {
     return
 
   stagePerformanceStore.removeLive2DAction(props.modelId, fileName)
+}
+
+function formatEmbodimentAliasInput(aliases?: string[]) {
+  return aliases?.join(', ') ?? ''
+}
+
+function parseEmbodimentAliasInput(rawValue?: string) {
+  return (rawValue ?? '')
+    .split(',')
+    .map(alias => alias.trim())
+    .filter(Boolean)
+}
+
+function readEmotionMotionAliasInput(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(currentModelEmotionMotionAliases.value[emotion])
+}
+
+function resolveDefaultEmotionMotionAliasesText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(resolveStageEmbodimentLive2DMotionAliases(emotion))
+}
+
+function resolveEffectiveEmotionMotionAliasesText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(stagePerformanceStore.resolveLive2DEmotionMotionAliases(props.modelId ?? '', emotion))
+}
+
+function readEmotionActionCuePreferenceInput(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(currentModelActionCuePreferences.value[emotion])
+}
+
+function resolveSuggestedEmotionActionCueText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(resolveStageEmbodimentCueCandidates({
+    emotion,
+  }).actionCueCandidates)
+}
+
+function updateEmotionMotionAliases(emotion: StageEmbodimentCanonicalEmotion, rawValue?: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.setLive2DEmotionMotionAliases(props.modelId, emotion, parseEmbodimentAliasInput(rawValue))
+}
+
+function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmotion, rawValue?: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.setEmotionActionCuePreferences(props.modelId, emotion, parseEmbodimentAliasInput(rawValue))
 }
 
 // async function patchMotionMap(source: File, motionMap: Record<string, string>): Promise<File> {
@@ -393,6 +461,66 @@ function removeActionBinding(fileName: string) {
         :placeholder="t('settings.live2d.action-mapping.fields.description.placeholder')"
         @update:model-value="value => updateActionBinding(motion, { description: value })"
       />
+    </div>
+  </Section>
+  <Section
+    :title="t('settings.live2d.embodiment.title')"
+    icon="i-solar:mask-happly-bold-duotone"
+    :class="[
+      'rounded-xl',
+      'bg-white/80  dark:bg-black/75',
+      'backdrop-blur-lg',
+    ]"
+    size="sm"
+    :expand="false"
+  >
+    <div :class="['mb-4 text-sm text-neutral-600 dark:text-neutral-400']">
+      {{ t('settings.live2d.embodiment.description') }}
+    </div>
+    <div
+      v-for="emotion in embodimentEmotionOptions"
+      :key="emotion.value"
+      :class="[
+        'mb-3 rounded-xl border border-neutral-200 bg-white/50 p-4 dark:border-neutral-700 dark:bg-black/25',
+      ]"
+    >
+      <div :class="['mb-3']">
+        <div :class="['text-sm font-medium']">
+          {{ emotion.label }}
+        </div>
+        <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+          {{ emotion.value }}
+        </div>
+      </div>
+      <div :class="['grid gap-3 lg:grid-cols-2']">
+        <FieldInput
+          :model-value="readEmotionMotionAliasInput(emotion.value)"
+          :label="t('settings.live2d.embodiment.fields.motion-aliases.label')"
+          :placeholder="resolveDefaultEmotionMotionAliasesText(emotion.value)"
+          @update:model-value="value => updateEmotionMotionAliases(emotion.value, value)"
+        >
+          <template #description>
+            <div :class="['space-y-1']">
+              <div>{{ t('settings.live2d.embodiment.fields.motion-aliases.description') }}</div>
+              <div>{{ t('settings.live2d.embodiment.defaults', { aliases: resolveDefaultEmotionMotionAliasesText(emotion.value) }) }}</div>
+              <div>{{ t('settings.live2d.embodiment.effective', { aliases: resolveEffectiveEmotionMotionAliasesText(emotion.value) }) }}</div>
+            </div>
+          </template>
+        </FieldInput>
+        <FieldInput
+          :model-value="readEmotionActionCuePreferenceInput(emotion.value)"
+          :label="t('settings.live2d.embodiment.fields.action-cues.label')"
+          :placeholder="resolveSuggestedEmotionActionCueText(emotion.value)"
+          @update:model-value="value => updateEmotionActionCuePreferences(emotion.value, value)"
+        >
+          <template #description>
+            <div :class="['space-y-1']">
+              <div>{{ t('settings.live2d.embodiment.fields.action-cues.description') }}</div>
+              <div>{{ t('settings.live2d.embodiment.suggested', { aliases: resolveSuggestedEmotionActionCueText(emotion.value) }) }}</div>
+            </div>
+          </template>
+        </FieldInput>
+      </div>
     </div>
   </Section>
   <!-- <Section

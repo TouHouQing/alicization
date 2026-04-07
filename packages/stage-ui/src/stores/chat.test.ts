@@ -113,6 +113,7 @@ vi.mock('./chat/hooks', () => ({
       emitTokenLiteralHooks: noopAsync,
       emitTokenSpecialHooks: noopAsync,
       emitStreamEndHooks: noopAsync,
+      emitEmbodimentMetaHooks: noopAsync,
       emitAssistantResponseEndHooks: noopAsync,
       emitAssistantMessageHooks: noopAsync,
       emitChatTurnCompleteHooks: noopAsync,
@@ -123,6 +124,7 @@ vi.mock('./chat/hooks', () => ({
       onTokenLiteral: noopDispose(),
       onTokenSpecial: noopDispose(),
       onStreamEnd: noopDispose(),
+      onEmbodimentMeta: noopDispose(),
       onAssistantResponseEnd: noopDispose(),
       onAssistantMessage: noopDispose(),
       onChatTurnComplete: noopDispose(),
@@ -738,6 +740,230 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).not.toContain('一分钟后我提醒你')
   })
 
+  it('forces executor tool retry when cli/codex/claude-code execution intent has no executor call in first pass', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: unknown, options: any) => {
+      streamInvocation += 1
+      if (streamInvocation === 1) {
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=cli-execution; move=claim-execute; tone=direct","emotion":"neutral","reply":"好，我现在帮你执行。"}',
+        })
+      }
+      else {
+        expect(JSON.stringify(messages)).toContain('You MUST call executor_run_cli or executor_run_codex or executor_run_claude_code')
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-executor-1',
+          toolName: 'executor_run_cli',
+          arguments: {
+            command: 'pnpm',
+            args: ['-F', '@proj-alicization/stage-tamagotchi', 'typecheck'],
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-executor-1',
+          result: {
+            status: 'completed',
+            summary: 'typecheck passed',
+            output: 'ok',
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=cli-execution; move=report-result; tone=direct","emotion":"neutral","reply":"已执行 CLI 任务，typecheck 已通过。"}',
+        })
+      }
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 CLI 执行 pnpm -F @proj-alicization/stage-tamagotchi typecheck', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamMock).toBeCalledTimes(2)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'cross-validation-failed',
+      payload: expect.objectContaining({
+        requiresExecutionToolCall: true,
+      }),
+    }))
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'contract-retry-forced-tool',
+      payload: expect.objectContaining({
+        retryExecutorToolCallCount: 1,
+      }),
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('已执行 CLI 任务')
+    expect(String(payload?.assistantText ?? '')).not.toContain('我现在帮你执行')
+  })
+
+  it('forces an executor payoff retry when execution happened but the first-pass answer never reported the result', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: unknown, options: any) => {
+      streamInvocation += 1
+      if (streamInvocation === 1) {
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=cli-execution; move=claim-execute; tone=direct","emotion":"neutral","reply":"好，我现在帮你执行。"}',
+        })
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-executor-payoff-1',
+          toolName: 'executor_run_cli',
+          arguments: {
+            command: 'pnpm',
+            args: ['-F', '@proj-alicization/stage-tamagotchi', 'typecheck'],
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-executor-payoff-1',
+          result: {
+            status: 'completed',
+            summary: 'typecheck passed',
+            output: 'ok',
+            selectedChannel: 'cli',
+          },
+        })
+      }
+      else {
+        expect(options.supportsTools).toBe(false)
+        expect(options.waitForTools).toBe(false)
+        expect(JSON.stringify(messages)).toContain('This turn already executed an executor tool and received its result')
+        expect(JSON.stringify(messages)).toContain('Do NOT repeat pre-execution promises')
+        expect(JSON.stringify(messages)).toContain('Summary: typecheck passed.')
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=cli-execution; move=report-result; tone=direct","emotion":"neutral","reply":"已经执行完了，CLI 里的 typecheck 已通过。"}',
+        })
+      }
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 CLI 执行 pnpm -F @proj-alicization/stage-tamagotchi typecheck', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamMock).toBeCalledTimes(2)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'executor-result-payoff-missing',
+    }))
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'executor-result-payoff-retry-completed',
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('typecheck 已通过')
+    expect(String(payload?.assistantText ?? '')).not.toContain('我现在帮你执行')
+  })
+
+  it('forces executor tool retry for Claude Code execution intent and accepts executor_run_claude_code evidence', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: unknown, options: any) => {
+      streamInvocation += 1
+      if (streamInvocation === 1) {
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=uncertain; focus=claude-code-execution; move=claim-execute; tone=direct","emotion":"neutral","reply":"好，我这就用 Claude Code 帮你处理。"}',
+        })
+      }
+      else {
+        expect(JSON.stringify(messages)).toContain('executor_run_claude_code')
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-executor-claude-1',
+          toolName: 'executor_run_claude_code',
+          arguments: {
+            prompt: '排查 runtime 回归并给出修复建议',
+            allowTools: false,
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-executor-claude-1',
+          result: {
+            status: 'completed',
+            summary: 'claude analysis ready',
+            output: 'root cause isolated',
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '{"thought":"obligation=answer; truth=grounded; focus=claude-code-execution; move=report-result; tone=direct","emotion":"neutral","reply":"已通过 Claude Code 完成排查，并拿到回归根因摘要。"}',
+        })
+      }
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Claude Code 执行一次 runtime 回归排查', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamMock).toBeCalledTimes(2)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'cross-validation-failed',
+      payload: expect.objectContaining({
+        requiresExecutionToolCall: true,
+      }),
+    }))
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'contract-retry-forced-tool',
+      payload: expect.objectContaining({
+        retryExecutorToolCallCount: 1,
+      }),
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('已通过 Claude Code 完成排查')
+    expect(String(payload?.assistantText ?? '')).not.toContain('我这就用 Claude Code')
+  })
+
+  it('does not force executor tool retry for pure capability questions', async () => {
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=memory; focus=capability-question; move=state-capability; tone=direct","emotion":"neutral","reply":"可以，我现在能使用 CLI 和 Codex。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你能不能用 CLI 和 Codex？', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamMock).toBeCalledTimes(1)
+
+    const hasExecutionCrossValidation = appendAuditLogMock.mock.calls.some((call) => {
+      const entry = call?.[0]
+      return entry?.category === 'alicization.intent-action'
+        && entry?.action === 'cross-validation-failed'
+        && entry?.payload?.requiresExecutionToolCall === true
+    })
+    expect(hasExecutionCrossValidation).toBe(false)
+  })
+
   it('keeps assistant body hidden until final stable reply is committed', async () => {
     streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
       await options.onStreamEvent?.({
@@ -903,6 +1129,192 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).toContain('主进程网关')
   })
 
+  it('persists runtime digital life spine metadata into the final assistant turn', async () => {
+    const digitalLifeSpine = {
+      version: 'digital-life-spine-digest-v1',
+      runtime: {
+        watchMode: 'symbiotic-vision',
+        sceneScenario: 'coding',
+        sceneSummary: 'inspect the current diff',
+        activeThreadId: 'thread-1',
+        activeThreadTitle: 'current diff',
+        dominantMode: 'tracking',
+        dominantDrive: 'understand',
+        answerIntent: 'guide',
+        preferredPresence: 'attentive',
+        selectedAction: 'wait',
+        updatedAt: 1_234,
+      },
+      architecture: {
+        operatingMode: 'speaking',
+        dominantSystem: 'dialogue',
+        supportingSystems: ['perception'],
+        governingFocus: 'guide the current diff',
+        summary: 'dialogue leads while perception stays warm',
+      },
+      continuitySignal: {
+        label: 'digital-life-line',
+        summary: 'watch=symbiotic-vision | scene=coding | mode=tracking',
+        signature: 'spine-1',
+        createdAt: 1_234,
+        watchMode: 'symbiotic-vision',
+        sceneScenario: 'coding',
+        activeThreadId: 'thread-1',
+        dominantMode: 'tracking',
+        dominantDrive: 'understand',
+        answerIntent: 'guide',
+        preferredPresence: 'attentive',
+      },
+      proactive: {
+        selectedAction: 'wait',
+        preferredStyle: 'silent-observe',
+        confidence: 0.7,
+        shouldSpeak: false,
+        activeThreadId: 'thread-1',
+        activeThreadTitle: 'current diff',
+        dominantConcernKind: null,
+        dominantConcernSummary: null,
+        leadingGoalId: null,
+        leadingGoalSummary: null,
+        preferredPresence: 'attentive',
+      },
+      memory: {
+        summary: 'recent=current diff | goal=guide the current diff',
+        recentEpisodeSummary: 'current diff',
+        recentEpisodeCount: 1,
+        focusBeliefStatement: 'the current diff needs guidance',
+        focusBeliefConfidence: 0.72,
+        leadingGoalSummary: 'guide the current diff',
+        dominantConcernSummary: null,
+        reflectionSummary: null,
+        reflectionPressure: 0.2,
+        recallMode: 'working',
+        recallSeed: 'current-diff',
+        thoughtThreadSummary: 'current diff',
+      },
+    }
+    const embodiment = {
+      emotion: 'thinking',
+      speechStyle: 'calm',
+      variationToken: 'turn-runtime-meta',
+      performance: {
+        baseEmotion: 'thinking',
+        emotion: 'thinking',
+        facialCue: 'focused',
+        actionCue: 'lean-in',
+        delivery: 'calm',
+        emphasis: 1,
+      },
+    }
+    const speechTimeline = {
+      version: 'dialogue-speech-timeline-v1',
+      segments: [],
+    }
+    const digitalLife = {
+      version: 'digital-life-v1',
+      frames: [],
+      continuity: {
+        active: true,
+        rhythm: 'steady',
+      },
+    }
+    const governance = {
+      decisionTraceId: 'trace-runtime-meta',
+      turnMode: 'answer',
+    }
+    const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'meta',
+        governance,
+        embodiment,
+        speechTimeline,
+        digitalLife,
+        digitalLifeSpine,
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=grounded; focus=current-user-turn; move=guide; tone=direct","emotion":"thinking","reply":"我在看这个 diff。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你看到了什么', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(payload?.structured).toEqual(expect.objectContaining({
+      governance,
+      embodiment,
+      speechTimeline,
+      digitalLife,
+      digitalLifeSpine,
+    }))
+
+    const persistedMessage = ensureSessionMessages(activeSessionId.value).at(-1)
+    expect(persistedMessage?.structured).toEqual(expect.objectContaining({
+      governance,
+      embodiment,
+      speechTimeline,
+      digitalLife,
+      digitalLifeSpine,
+    }))
+  })
+
+  it('keeps runtime-authoritative plain-text turns expressive and avoids repeated embodiment cues', async () => {
+    const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '我先看一下这个报错，再把最关键的修复点告诉你。',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('第一轮：帮我看报错', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    const firstTurnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+
+    await store.ingest('第二轮：继续看同一个报错', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    const secondTurnPayload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+
+    expect(firstTurnPayload?.structured?.format).toBe('mind-turn-v1')
+    expect(secondTurnPayload?.structured?.format).toBe('mind-turn-v1')
+    expect(firstTurnPayload?.structured?.performance?.facialCue).toBeTruthy()
+    expect(firstTurnPayload?.structured?.performance?.actionCue).toBeTruthy()
+    expect(secondTurnPayload?.structured?.performance?.facialCue).toBeTruthy()
+    expect(secondTurnPayload?.structured?.performance?.actionCue).toBeTruthy()
+
+    const repeatedBothCues
+      = firstTurnPayload?.structured?.performance?.facialCue === secondTurnPayload?.structured?.performance?.facialCue
+        && firstTurnPayload?.structured?.performance?.actionCue === secondTurnPayload?.structured?.performance?.actionCue
+    expect(repeatedBothCues).toBe(false)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.structured',
+      action: 'runtime-authoritative-best-effort',
+      payload: expect.objectContaining({
+        resolvedActionCue: expect.any(String),
+        resolvedFacialCue: expect.any(String),
+      }),
+    }))
+  })
+
   it('emits a visible fallback reply when bridge stream fails before completion', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new Error('connect ECONNREFUSED 127.0.0.1:11434')
@@ -964,6 +1376,50 @@ describe('chat orchestrator', () => {
     }
   })
 
+  it('records renderer watchdog diagnostics when only meta arrives before timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const bridgeChatAbortMock = vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' })
+      const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'meta',
+          governance: null,
+          embodiment: null,
+          speechTimeline: null,
+          digitalLife: null,
+        })
+        return await new Promise<void>(() => {})
+      })
+      installAlicizationBridge({
+        streamChat: bridgeStreamChatMock,
+        chatAbort: bridgeChatAbortMock,
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('你现在在看什么', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(72_500)
+      await expect(pending).resolves.toBeUndefined()
+
+      expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+        category: 'alicization.main-gateway',
+        action: 'renderer-stream-watchdog-timeout',
+        payload: expect.objectContaining({
+          sawMeta: true,
+          sawProgress: false,
+          lastEventType: 'meta',
+        }),
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not misreport provider outage for non-network internal stream failures', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new Error('chat pipeline parser failed unexpectedly')
@@ -1002,6 +1458,48 @@ describe('chat orchestrator', () => {
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
     expect(String(payload?.assistantText ?? '')).toMatch(/配置缺失|configuration is incomplete/i)
     expect(String(payload?.assistantText ?? '')).not.toMatch(/没有连上本地模型服务|local model runtime/i)
+  })
+
+  it('surfaces provider network fallback when stream start is rejected by a dead gateway probe', async () => {
+    const bridgeStreamChatMock = vi.fn(async () => {
+      throw new Error('Alicization stream start rejected (state=start-failed) for turn turn-x. reason=Main gateway connectivity check failed for example.test (econnrefused).')
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toMatch(/网络|network|unstable|模型服务|model service/i)
+    expect(String(payload?.assistantText ?? '')).not.toMatch(/配置缺失|configuration is incomplete/i)
+  })
+
+  it('surfaces timeout fallback when stream start is rejected by cached gateway generation timeout', async () => {
+    const bridgeStreamChatMock = vi.fn(async () => {
+      throw new Error('Alicization stream start rejected (state=start-failed) for turn turn-x. reason=Main gateway health check failed for example.test (chat_timeout). Chat completions timed out before the first event.')
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    const assistantText = String(payload?.assistantText ?? '')
+    expect(assistantText).toMatch(/等待模型响应超时|timed out waiting for the model/i)
+    expect(assistantText).toMatch(/主网关的聊天生成接口在首段内容前就卡住了|chat completion endpoint stalled before the first content event/i)
+    expect(assistantText).not.toMatch(/配置缺失|configuration is incomplete/i)
   })
 
   it('retries bridge stream once with tools disabled when first attempt fails before progress', async () => {
@@ -1066,6 +1564,32 @@ describe('chat orchestrator', () => {
 
     const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
     expect(String(payload?.assistantText ?? '')).toMatch(/等待模型响应超时|timed out waiting for the model/i)
+  })
+
+  it('surfaces main-gateway timeout diagnostics instead of collapsing everything into a generic timeout', async () => {
+    const bridgeStreamChatMock = vi.fn(async () => {
+      throw new DOMException(
+        'Alicization chat stream aborted: chat-first-event-timeout|after-dispatch-meta|recovery-mode=tools-disabled|recovery-failed=main-gateway-timeout-recovery',
+        'AbortError',
+      )
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+      chatAbort: vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' }),
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('为什么刚刚一直转圈', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    const assistantText = String(payload?.assistantText ?? '')
+    expect(assistantText).toMatch(/等待模型响应超时|timed out waiting for the model/i)
+    expect(assistantText).toMatch(/主网关流已经建立|main-gateway stream was connected/i)
+    expect(assistantText).toMatch(/无工具恢复|without optional tools/i)
   })
 
   it('does not misclassify duplicate-finished stream rejection as provider config missing', async () => {

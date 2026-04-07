@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import type { Application } from '@pixi/app'
+import type {
+  StageEmbodimentIdleMotionPreference,
+  StageEmbodimentPerformanceState,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import type { Cubism4InternalModel } from 'pixi-live2d-display/cubism4'
 
-import type { PixiLive2DInternalModel } from '../../../composables/live2d'
+import type { Live2DActionPulseBinding, PixiLive2DInternalModel } from '../../../composables/live2d'
 
 import { listenBeatSyncBeatSignal } from '@proj-alicization/stage-shared/beat-sync'
 import { useTheme } from '@proj-alicization/ui'
@@ -14,15 +20,7 @@ import { DropShadowFilter } from 'pixi-filters'
 import { Live2DFactory, Live2DModel, MotionPriority } from 'pixi-live2d-display/cubism4'
 import { computed, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 'vue'
 
-import {
-  createBeatSyncController,
-
-  useLive2DMotionManagerUpdate,
-  useMotionUpdatePluginAutoEyeBlink,
-  useMotionUpdatePluginBeatSync,
-  useMotionUpdatePluginIdleDisable,
-  useMotionUpdatePluginIdleFocus,
-} from '../../../composables/live2d'
+import { createBeatSyncController, resolveLive2DActionPulseBinding, useLive2DMotionManagerUpdate, useMotionUpdatePluginAutoEyeBlink, useMotionUpdatePluginBeatSync, useMotionUpdatePluginIdleDisable, useMotionUpdatePluginIdleFocus, useMotionUpdatePluginPerformanceLayers } from '../../../composables/live2d'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
 import { useLive2d } from '../../../stores/live2d'
 
@@ -31,7 +29,11 @@ const props = withDefaults(defineProps<{
   modelId?: string
 
   app?: Application
-  mouthOpenSize?: number
+  actionBindings?: Live2DActionPulseBinding[]
+  idleMotionPreference?: StageEmbodimentIdleMotionPreference | null
+  performanceState?: StageEmbodimentPerformanceState | null
+  presencePosture?: StageEmbodimentPresencePostureState | null
+  speechRenderState?: StageEmbodimentSpeechRenderState | null
   width: number
   height: number
   paused?: boolean
@@ -47,7 +49,6 @@ const props = withDefaults(defineProps<{
   live2dForceAutoBlinkEnabled?: boolean
   live2dShadowEnabled?: boolean
 }>(), {
-  mouthOpenSize: 0,
   paused: false,
   focusAt: () => ({ x: 0, y: 0 }),
   disableFocusAt: false,
@@ -101,7 +102,6 @@ const focusAt = toRef(() => props.focusAt)
 const model = ref<Live2DModel<PixiLive2DInternalModel>>()
 const initialModelWidth = ref<number>(0)
 const initialModelHeight = ref<number>(0)
-const mouthOpenSize = computed(() => Math.max(0, Math.min(100, props.mouthOpenSize)))
 const lastUpdateTime = ref(0)
 
 const { isDark: dark } = useTheme()
@@ -114,6 +114,8 @@ const dropShadowFilter = shallowRef(new DropShadowFilter({
   rotation: 45,
 }))
 type Live2DCoreModel = Cubism4InternalModel['coreModel']
+interface MotionSelection { group: string, index: number }
+type MotionManagerLike = NonNullable<PixiLive2DInternalModel['motionManager']>
 
 function getInternalModel() {
   return model.value?.internalModel as (PixiLive2DInternalModel & { coreModel: Live2DCoreModel }) | undefined
@@ -170,9 +172,39 @@ const live2dIdleAnimationEnabled = toRef(() => props.live2dIdleAnimationEnabled)
 const live2dAutoBlinkEnabled = toRef(() => props.live2dAutoBlinkEnabled)
 const live2dForceAutoBlinkEnabled = toRef(() => props.live2dForceAutoBlinkEnabled)
 const live2dShadowEnabled = toRef(() => props.live2dShadowEnabled)
+const live2dPerformanceState = toRef(() => props.performanceState)
+const live2dPresencePosture = toRef(() => props.presencePosture)
+const live2dSpeechRenderState = toRef(() => props.speechRenderState)
 
-const localCurrentMotion = ref<{ group: string, index: number }>({ group: 'Idle', index: 0 })
+const localCurrentMotion = ref<MotionSelection>({ group: 'Idle', index: 0 })
 const characterHovered = ref(false)
+let motionRequestId = 0
+let lastMotionRequestKey = ''
+let inFlightMotionRequestKey = ''
+const lastAppliedActionPulseRevision = ref(0)
+const preferredIdleMotionSelection = computed<MotionSelection | null>(() => {
+  if (props.idleMotionPreference) {
+    return {
+      group: props.idleMotionPreference.motionName,
+      index: props.idleMotionPreference.motionIndex,
+    }
+  }
+
+  const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
+  const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
+  if (selectedMotionGroup === null || !selectedMotionIndex)
+    return null
+
+  const parsedIndex = Number.parseInt(selectedMotionIndex, 10)
+  if (!Number.isFinite(parsedIndex))
+    return null
+
+  return {
+    group: selectedMotionGroup,
+    index: parsedIndex,
+  }
+})
+const preferredIdleMotionKey = computed(() => buildMotionKey(preferredIdleMotionSelection.value))
 const beatSync = createBeatSyncController({
   baseAngles: () => ({
     x: modelParameters.value.angleX,
@@ -181,6 +213,69 @@ const beatSync = createBeatSyncController({
   }),
   initialStyle: 'sway-sine',
 })
+
+function buildMotionKey(selection: { group?: string | null, index?: number | null } | null | undefined) {
+  const group = typeof selection?.group === 'string' ? selection.group.trim() : ''
+  const index = Number.isFinite(selection?.index) ? Math.max(0, Math.floor(Number(selection?.index))) : Number.NaN
+  if (!group || !Number.isFinite(index))
+    return ''
+
+  return `${group}:${index}`
+}
+
+function buildMotionRequestKey(motionName: string, motionIndex?: number) {
+  const group = motionName.trim()
+  if (!group)
+    return ''
+
+  if (!Number.isFinite(motionIndex))
+    return `${group}:*`
+
+  return `${group}:${Math.max(0, Math.floor(Number(motionIndex)))}`
+}
+
+function configureLoopingMotion(motionManager: MotionManagerLike | undefined, selection: MotionSelection | null) {
+  if (!motionManager || !selection)
+    return
+
+  const groupIndex = (motionManager.groups as Record<string, any>)[selection.group]
+  if (groupIndex === undefined || !motionManager.motionGroups[groupIndex])
+    return
+
+  const motion = motionManager.motionGroups[groupIndex][selection.index]
+  if (!motion?._looper)
+    return
+
+  motion._looper.loopDuration = 0
+}
+
+function requestIdleMotionRestart(options: {
+  force?: boolean
+  reason: string
+}) {
+  if (!model.value)
+    return false
+  if (!live2dIdleAnimationEnabled.value)
+    return false
+
+  const target = preferredIdleMotionSelection.value
+  if (!target)
+    return false
+
+  const currentKey = buildMotionKey(localCurrentMotion.value)
+  const targetKey = buildMotionKey(target)
+  if (!options.force && currentKey === targetKey)
+    return false
+
+  configureLoopingMotion(getInternalModel()?.motionManager as MotionManagerLike | undefined, target)
+  requestAnimationFrame(() => {
+    currentMotion.value = {
+      group: target.group,
+      index: target.index,
+    }
+  })
+  return true
+}
 
 // Listen for model reload requests (e.g., when runtime motion is uploaded)
 const disposeShouldUpdateView = live2dStore.onShouldUpdateView(() => {
@@ -194,6 +289,9 @@ async function loadModel() {
   try {
     modelLoading.value = true
     componentState.value = 'loading'
+    motionRequestId += 1
+    lastMotionRequestKey = ''
+    inFlightMotionRequestKey = ''
 
     if (!pixiApp.value || !pixiApp.value.stage) {
       try {
@@ -255,8 +353,6 @@ async function loadModel() {
 
     const coreModel = internalModel.coreModel
     const motionManager = internalModel.motionManager
-    coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenSize.value)
-
     const discoveredMotions = Object
       .entries(motionManager.definitions)
       .flatMap(([motionName, definition]) => (definition?.map((motion: any, index: number) => ({
@@ -275,31 +371,11 @@ async function loadModel() {
       }
     })
 
-    // Check if user has selected a runtime motion to play as idle
-    const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
-    const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
+    configureLoopingMotion(motionManager as MotionManagerLike, preferredIdleMotionSelection.value)
 
-    // Configure the selected motion to loop
-    if (selectedMotionGroup !== null && selectedMotionIndex) {
-      const groupIndex = (motionManager.groups as Record<string, any>)[selectedMotionGroup]
-      if (groupIndex !== undefined && motionManager.motionGroups[groupIndex]) {
-        const motionIndex = Number.parseInt(selectedMotionIndex)
-        const motion = motionManager.motionGroups[groupIndex][motionIndex]
-        if (motion && motion._looper) {
-          // Force the motion to loop
-          motion._looper.loopDuration = 0 // 0 means infinite loop
-          console.info('Configured motion to loop infinitely:', selectedMotionGroup, motionIndex)
-        }
-      }
-    }
-
-    if (selectedMotionGroup !== null && selectedMotionIndex && live2dIdleAnimationEnabled.value) {
+    if (preferredIdleMotionSelection.value && live2dIdleAnimationEnabled.value) {
       setTimeout(() => {
-        console.info('Playing selected runtime motion:', selectedMotionGroup, selectedMotionIndex)
-        currentMotion.value = {
-          group: selectedMotionGroup,
-          index: Number.parseInt(selectedMotionIndex),
-        }
+        requestIdleMotionRestart({ force: true, reason: 'model-load' })
       }, 300)
     }
 
@@ -325,6 +401,9 @@ async function loadModel() {
       live2dIdleAnimationEnabled,
       live2dAutoBlinkEnabled,
       live2dForceAutoBlinkEnabled,
+      performanceState: live2dPerformanceState,
+      presencePosture: live2dPresencePosture,
+      speechRenderState: live2dSpeechRenderState,
       lastUpdateTime,
     })
 
@@ -332,6 +411,7 @@ async function loadModel() {
     motionManagerUpdate.register(useMotionUpdatePluginIdleDisable(), 'pre')
     motionManagerUpdate.register(useMotionUpdatePluginIdleFocus(), 'post')
     motionManagerUpdate.register(useMotionUpdatePluginAutoEyeBlink(), 'post')
+    motionManagerUpdate.register(useMotionUpdatePluginPerformanceLayers(), 'post')
 
     const hookedUpdate = motionManager.update as (model: Live2DCoreModel, now: number) => boolean
     motionManager.update = function (model: Live2DCoreModel, now: number) {
@@ -340,25 +420,15 @@ async function loadModel() {
 
     motionManager.on('motionStart', (group, index) => {
       localCurrentMotion.value = { group, index }
+      lastMotionRequestKey = buildMotionRequestKey(group, index)
     })
 
-    // Listen for motion finish to restart runtime motion for looping
+    // Restart the resolved idle preference after transient motions finish.
     motionManager.on('motionFinish', () => {
-      const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
-      const selectedMotionIndex = localStorage.getItem('selected-runtime-motion-index')
-
-      if (selectedMotionGroup !== null && selectedMotionIndex && live2dIdleAnimationEnabled.value) {
-        // Restart the selected runtime motion immediately for seamless looping
-        console.info('Motion finished, restarting runtime motion:', selectedMotionGroup, selectedMotionIndex)
-        // Use requestAnimationFrame to restart on the next frame for smooth transition
-        requestAnimationFrame(() => {
-          currentMotion.value = {
-            group: selectedMotionGroup,
-            index: Number.parseInt(selectedMotionIndex),
-          }
-        })
-      }
+      requestIdleMotionRestart({ force: true, reason: 'motion-finish' })
     })
+
+    void applyLatestActionPulse()
 
     // Apply all stored parameters to the model
     coreModel.setParameterValueById('ParamAngleX', modelParameters.value.angleX)
@@ -376,12 +446,7 @@ async function loadModel() {
     coreModel.setParameterValueById('ParamBrowLForm', modelParameters.value.leftEyebrowForm)
     coreModel.setParameterValueById('ParamBrowRForm', modelParameters.value.rightEyebrowForm)
     coreModel.setParameterValueById('ParamMouthOpenY', modelParameters.value.mouthOpen)
-    coreModel.setParameterValueById('ParamMouthForm', modelParameters.value.mouthForm)
-    coreModel.setParameterValueById('ParamCheek', modelParameters.value.cheek)
-    coreModel.setParameterValueById('ParamBodyAngleX', modelParameters.value.bodyAngleX)
-    coreModel.setParameterValueById('ParamBodyAngleY', modelParameters.value.bodyAngleY)
     coreModel.setParameterValueById('ParamBodyAngleZ', modelParameters.value.bodyAngleZ)
-    coreModel.setParameterValueById('ParamBreath', modelParameters.value.breath)
 
     emits('modelLoaded')
   }
@@ -522,20 +587,74 @@ function detachCanvasHoverListeners(canvas?: HTMLCanvasElement | null) {
 }
 
 async function setMotion(motionName: string, index?: number) {
-  // TODO: motion? Not every Live2D model has motion, we do need to help users to set motion
-  if (!model.value) {
-    console.warn('Cannot set motion: model not loaded')
+  const activeModel = model.value
+  if (!activeModel)
+    return 'deferred' as const
+
+  const requestKey = buildMotionRequestKey(motionName, index)
+  if (!requestKey)
+    return 'skipped' as const
+  if (requestKey === lastMotionRequestKey || requestKey === inFlightMotionRequestKey)
+    return 'skipped' as const
+
+  inFlightMotionRequestKey = requestKey
+  const requestId = ++motionRequestId
+  const normalizedIndex = Number.isFinite(index)
+    ? Math.max(0, Math.floor(Number(index)))
+    : undefined
+  const preferredIdle = preferredIdleMotionSelection.value
+  const isPreferredIdleMotion = preferredIdle
+    && preferredIdle.group === motionName
+    && preferredIdle.index === normalizedIndex
+  const priority = isPreferredIdleMotion
+    ? MotionPriority.IDLE
+    : MotionPriority.FORCE
+
+  try {
+    await activeModel.motion(motionName, normalizedIndex, priority)
+    if (requestId !== motionRequestId)
+      return 'skipped' as const
+
+    lastMotionRequestKey = requestKey
+    return 'started' as const
+  }
+  catch (error) {
+    if (requestId !== motionRequestId)
+      return 'skipped' as const
+    console.warn(`[Live2D] Failed to start motion ${motionName}`, error)
+    if (lastMotionRequestKey === requestKey)
+      lastMotionRequestKey = ''
+    return 'skipped' as const
+  }
+  finally {
+    if (requestId === motionRequestId && inFlightMotionRequestKey === requestKey)
+      inFlightMotionRequestKey = ''
+  }
+}
+
+async function applyActionPulseRevision(revision: number) {
+  if (!revision || revision === lastAppliedActionPulseRevision.value)
+    return
+
+  const actionCue = live2dPerformanceState.value?.actionPulse.cue?.trim()
+  if (!actionCue) {
+    lastAppliedActionPulseRevision.value = revision
     return
   }
 
-  console.info('Setting motion:', motionName, 'index:', index)
-  try {
-    await model.value.motion(motionName, index, MotionPriority.FORCE)
-    console.info('Motion started successfully:', motionName)
+  const binding = resolveLive2DActionPulseBinding(props.actionBindings ?? [], actionCue)
+  if (!binding) {
+    lastAppliedActionPulseRevision.value = revision
+    return
   }
-  catch (error) {
-    console.error('Failed to start motion:', motionName, error)
-  }
+
+  const result = await setMotion(binding.motionName, binding.motionIndex)
+  if (result !== 'deferred')
+    lastAppliedActionPulseRevision.value = revision
+}
+
+async function applyLatestActionPulse() {
+  await applyActionPulseRevision(live2dPerformanceState.value?.actionPulse.revision ?? 0)
 }
 
 const handleResize = useDebounceFn(setScaleAndPosition, 100)
@@ -589,8 +708,14 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
   }
 }, { immediate: true })
 
-watch(mouthOpenSize, value => updateCoreModelParameter('ParamMouthOpenY', value))
 watch(currentMotion, value => setMotion(value.group, value.index))
+watch(
+  () => live2dPerformanceState.value?.actionPulse.revision ?? 0,
+  async (revision) => {
+    await applyActionPulseRevision(revision)
+  },
+  { immediate: true },
+)
 watch(paused, value => value ? pixiApp.value?.stop() : pixiApp.value?.start())
 watch(() => pixiApp.value?.view, (canvas, previousCanvas) => {
   detachCanvasHoverListeners(previousCanvas)
@@ -606,13 +731,7 @@ watch(() => modelParameters.value.angleZ, value => updateCoreModelParameter('Par
 watch(() => modelParameters.value.leftEyeOpen, value => updateCoreModelParameter('ParamEyeLOpen', value))
 watch(() => modelParameters.value.rightEyeOpen, value => updateCoreModelParameter('ParamEyeROpen', value))
 watch(() => modelParameters.value.mouthOpen, value => updateCoreModelParameter('ParamMouthOpenY', value))
-watch(() => modelParameters.value.mouthForm, value => updateCoreModelParameter('ParamMouthForm', value))
-watch(() => modelParameters.value.cheek, value => updateCoreModelParameter('ParamCheek', value))
-watch(() => modelParameters.value.bodyAngleX, value => updateCoreModelParameter('ParamBodyAngleX', value))
-watch(() => modelParameters.value.bodyAngleY, value => updateCoreModelParameter('ParamBodyAngleY', value))
 watch(() => modelParameters.value.bodyAngleZ, value => updateCoreModelParameter('ParamBodyAngleZ', value))
-watch(() => modelParameters.value.breath, value => updateCoreModelParameter('ParamBreath', value))
-
 // Watch eyebrow parameters
 watch(() => modelParameters.value.leftEyebrowLR, value => updateCoreModelParameter('ParamBrowLX', value))
 watch(() => modelParameters.value.rightEyebrowLR, value => updateCoreModelParameter('ParamBrowRX', value))
@@ -623,13 +742,25 @@ watch(() => modelParameters.value.rightEyebrowAngle, value => updateCoreModelPar
 watch(() => modelParameters.value.leftEyebrowForm, value => updateCoreModelParameter('ParamBrowLForm', value))
 watch(() => modelParameters.value.rightEyebrowForm, value => updateCoreModelParameter('ParamBrowRForm', value))
 
-// Watch for idle animation setting changes and stop motions if disabled
 watch(live2dIdleAnimationEnabled, (enabled) => {
   if (!enabled && model.value) {
     const internalModel = model.value.internalModel
     if (internalModel?.motionManager) {
       internalModel.motionManager.stopAllMotions()
     }
+    return
+  }
+
+  requestIdleMotionRestart({ force: true, reason: 'idle-enabled' })
+})
+
+watch(preferredIdleMotionKey, (nextKey, previousKey) => {
+  if (!nextKey || !live2dIdleAnimationEnabled.value)
+    return
+
+  const currentKey = buildMotionKey(localCurrentMotion.value)
+  if (!currentKey || currentKey === previousKey || currentKey === nextKey) {
+    requestIdleMotionRestart({ force: true, reason: 'idle-preference-change' })
   }
 })
 

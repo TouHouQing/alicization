@@ -4,6 +4,7 @@ import type {
   AlicizationPrivateThoughtSnapshot,
   AlicizationRelationshipModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { describe, expect, it } from 'vitest'
@@ -143,6 +144,76 @@ function createInquiryLoop(overrides: Partial<AlicizationInquiryLoopSnapshot> = 
   }
 }
 
+function createArchitecture(overrides: Partial<AlicizationDigitalLifeArchitectureSnapshot> = {}): AlicizationDigitalLifeArchitectureSnapshot {
+  return {
+    version: 'digital-life-architecture-v1',
+    operatingMode: 'speaking',
+    dominantSystem: 'dialogue',
+    supportingSystems: ['mind', 'proactive'],
+    governingFocus: 'runtime knot',
+    summary: 'dialogue-led runtime line',
+    systems: {
+      dialogue: {
+        id: 'dialogue',
+        state: 'hot',
+        score: 0.9,
+        focus: 'runtime knot',
+        summary: 'dialogue is hot',
+        reasons: ['reply:ready'],
+      },
+      perception: {
+        id: 'perception',
+        state: 'warm',
+        score: 0.52,
+        focus: 'editor',
+        summary: 'perception is stable',
+        reasons: ['scene:coding'],
+      },
+      proactive: {
+        id: 'proactive',
+        state: 'warm',
+        score: 0.76,
+        focus: 'nudge',
+        summary: 'proactive is warm',
+        reasons: ['initiative:speak'],
+      },
+      control: {
+        id: 'control',
+        state: 'warm',
+        score: 0.58,
+        focus: 'guide',
+        summary: 'control is warm',
+        reasons: ['intention:guide'],
+      },
+      mind: {
+        id: 'mind',
+        state: 'hot',
+        score: 0.84,
+        focus: 'repair thread',
+        summary: 'mind is hot',
+        reasons: ['thread:problem'],
+      },
+      memory: {
+        id: 'memory',
+        state: 'warm',
+        score: 0.54,
+        focus: 'recent repair',
+        summary: 'memory is warm',
+        reasons: ['goal:help-host'],
+      },
+      runtime: {
+        id: 'runtime',
+        state: 'warm',
+        score: 0.56,
+        focus: 'symbiotic-vision',
+        summary: 'runtime is warm',
+        reasons: ['watch:symbiotic-vision'],
+      },
+    },
+    ...overrides,
+  }
+}
+
 describe('evaluateProactivePolicy', () => {
   it('allows coding interruption only with strong relevant cues', () => {
     const decision = evaluateProactivePolicy({
@@ -163,6 +234,28 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('coding-focus')
     expect(decision.reasonCodes).toContain('foreground-error')
     expect(decision.reasonCodes).toContain('relationship-attuned')
+  })
+
+  it('treats dialogue-dominant digital-life architecture as a proactive bias input', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.consideredSignals).toContain('architecture.operatingMode')
+    expect(decision.consideredSignals).toContain('architecture.dominantSystem')
+    expect(decision.consideredSignals).toContain('architecture.supportingSystems')
+    expect(decision.whyNow).toContain('转入 speaking')
+    expect(decision.whyNotLater).toContain('dialogue')
   })
 
   it('treats initiative as the primary desire signal while policy remains a safety gate', () => {
@@ -435,6 +528,89 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.shouldInterrupt).toBe(true)
     expect(decision.reasonCodes).toContain('living-world-open-loop')
     expect(decision.reasonCodes).toContain('thought-thread-ripe')
+  })
+
+  it('keeps silence when the digital-life architecture is still observation-heavy', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture({
+        operatingMode: 'observing',
+        dominantSystem: 'perception',
+        supportingSystems: ['runtime', 'mind'],
+        summary: 'perception-led observation line',
+        systems: {
+          dialogue: {
+            id: 'dialogue',
+            state: 'idle',
+            score: 0.22,
+            focus: null,
+            summary: 'dialogue is idle',
+            reasons: ['reply:none'],
+          },
+          perception: {
+            id: 'perception',
+            state: 'hot',
+            score: 0.94,
+            focus: 'editor',
+            summary: 'perception is hot',
+            reasons: ['scene:coding'],
+          },
+          proactive: {
+            id: 'proactive',
+            state: 'idle',
+            score: 0.28,
+            focus: null,
+            summary: 'proactive is cooling',
+            reasons: ['initiative:hold'],
+          },
+          control: {
+            id: 'control',
+            state: 'idle',
+            score: 0.18,
+            focus: null,
+            summary: 'control is idle',
+            reasons: ['intention:none'],
+          },
+          mind: {
+            id: 'mind',
+            state: 'warm',
+            score: 0.48,
+            focus: 'repair thread',
+            summary: 'mind is warm',
+            reasons: ['thread:problem'],
+          },
+          memory: {
+            id: 'memory',
+            state: 'warm',
+            score: 0.44,
+            focus: 'recent repair',
+            summary: 'memory is warm',
+            reasons: ['goal:help-host'],
+          },
+          runtime: {
+            id: 'runtime',
+            state: 'warm',
+            score: 0.58,
+            focus: 'symbiotic-vision',
+            summary: 'runtime is warm',
+            reasons: ['watch:symbiotic-vision'],
+          },
+        },
+      }),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.whyNow).toContain('继续观察')
+    expect(decision.whyNotLater).toContain('perception')
   })
 
   it('respects global cooldown and ignored penalties', () => {

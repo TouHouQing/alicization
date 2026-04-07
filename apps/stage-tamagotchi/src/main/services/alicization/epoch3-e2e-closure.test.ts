@@ -69,6 +69,10 @@ const dbStub = {
   listConversationTurnsBySession: vi.fn().mockResolvedValue([]),
   appendMindTurnEvents: vi.fn().mockResolvedValue(undefined),
   listMindTurnEvents: vi.fn().mockResolvedValue([]),
+  upsertTaskThread: vi.fn().mockResolvedValue(undefined),
+  listTaskThreads: vi.fn().mockResolvedValue([]),
+  appendExecutionEvents: vi.fn().mockResolvedValue(undefined),
+  listExecutionEvents: vi.fn().mockResolvedValue([]),
   clearConversationData: vi.fn().mockResolvedValue(undefined),
   getMetaValue: vi.fn(async (key: string) => metaStore.get(key)),
   setMetaValue: vi.fn(async (key: string, value: string) => {

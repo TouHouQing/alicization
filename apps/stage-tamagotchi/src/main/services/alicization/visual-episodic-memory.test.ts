@@ -46,6 +46,60 @@ describe('visual episodic memory', () => {
     expect(state.workingMemoryEpisodes[0]?.summary).toBe('fresh')
   })
 
+  it('derives resident performance during normalization for older persisted states', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'invited-inspection',
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'Inspect the current diff carefully.',
+        source: 'screen-semantic-summary',
+        confidence: 0.86,
+        beganAt: 9_000,
+        lastSeenAt: 10_000,
+      },
+      attention: {
+        target: null,
+        source: 'foreground-window',
+        confidence: 0.74,
+        engagedAt: 9_000,
+        lastConfirmedAt: 10_000,
+        dwellMs: 1_000,
+      },
+      workingMemoryEpisodes: [],
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.81,
+        rationaleTags: ['inspection'],
+        thoughtText: 'Stay on the diff.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 16_000,
+        emotionalTension: 'focused-flow',
+      },
+      captureState: { permission: 'granted', lastGroundedAt: 10_000 },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 20_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.residentPerformance).toMatchObject({
+      version: 'resident-performance-v1',
+      source: 'main-runtime',
+      embodiedPresence: 'attentive',
+      stance: 'observe',
+      emotionalTension: 'focused-flow',
+      performance: {
+        baseEmotion: 'thinking',
+        delivery: 'firm',
+        emphasis: 2,
+      },
+    })
+  })
+
   it('builds a sediment episode with emotional tension and recall seed', () => {
     const next = updateVisualPresenceState({
       now: 21 * 60_000,
@@ -372,6 +426,11 @@ describe('visual episodic memory', () => {
         suppressAssociativeRecall: true,
         allowActiveThoughts: true,
         allowRecalledFragments: false,
+        recalledFragmentCap: 3,
+        recalledFragmentSourceBudget: [
+          { sourceKind: 'dialogue-turn', maxItems: 2 },
+          { sourceKind: 'fact-ledger', maxItems: 1 },
+        ],
         carryAsMemory: false,
         rationale: 'Carry the current thread without admitting associative recall.',
         narrative: [],
@@ -390,6 +449,8 @@ describe('visual episodic memory', () => {
     expect(state.replyDeliberation?.selectedMotive).toBe('guide')
     expect(state.replyDeliberation?.speakingFrom).toBe('task-thread')
     expect(state.recallGovernor?.mode).toBe('thread')
+    expect(state.recallGovernor?.recalledFragmentCap).toBe(0)
+    expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([])
   })
 
   it('normalizes and carries dialogue act kernel snapshots', () => {
@@ -496,5 +557,47 @@ describe('visual episodic memory', () => {
     expect(state.dialogueEncounter?.taskAnchor).toBe('屏幕相关对话还在串台')
     expect(next.dialogueEncounter?.screenReferenceMode).toBe('avoid')
     expect(next.dialogueEncounter?.mustAnswerDirectly).toBe(true)
+  })
+
+  it('normalizes recall governor fragment cap and source budget when recalled fragments are enabled', () => {
+    const state = normalizeVisualPresenceState({
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      recallGovernor: {
+        mode: 'emotional-resonance',
+        recallSeed: 'late-night debugging',
+        suppressAssociativeRecall: false,
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+        recalledFragmentCap: 99,
+        recalledFragmentSourceBudget: [
+          { sourceKind: 'reflection-ledger', maxItems: 2 },
+          { sourceKind: 'dialogue-turn', maxItems: 1 },
+          { sourceKind: 'dialogue-turn', maxItems: 5 },
+          { sourceKind: 'fact-ledger', maxItems: 1.6 },
+          { sourceKind: 'unknown', maxItems: 4 },
+        ],
+        carryAsMemory: true,
+        rationale: 'Carry resonant memory while staying answer-bound.',
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      privateThought: null,
+      captureState: { permission: 'unknown', lastGroundedAt: null },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 45_000,
+      updatedAt: 10_000,
+    }, 10_000)
+
+    expect(state.recallGovernor?.allowRecalledFragments).toBe(true)
+    expect(state.recallGovernor?.recalledFragmentCap).toBe(8)
+    expect(state.recallGovernor?.recalledFragmentSourceBudget).toEqual([
+      { sourceKind: 'reflection-ledger', maxItems: 2 },
+      { sourceKind: 'dialogue-turn', maxItems: 1 },
+      { sourceKind: 'fact-ledger', maxItems: 1 },
+    ])
   })
 })

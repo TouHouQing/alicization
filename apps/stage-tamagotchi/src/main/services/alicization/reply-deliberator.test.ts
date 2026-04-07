@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import {
   buildReplyDeliberation,
   buildReplyDeliberationSystemBlock,
 } from './reply-deliberator'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const discourseState = {
   currentTurnSubject: 'task-knot' as const,
@@ -340,5 +342,175 @@ describe('buildReplyDeliberation', () => {
     expect(state?.mustAvoid).toContain('Do not name specific technical artifacts unless the host named them or the current evidence explicitly grounds them.')
     expect(state?.narrative).toContain('claim-budget:coarse-scene')
     expect(state?.narrative).toContain('truth-discipline:observe-then-hypothesize')
+  })
+
+  it('prefers runtime surface deliberation cues over conflicting raw inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(45_000),
+      conversationState,
+      discourseState,
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'coarse-held',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'backgrounded',
+        relationshipPosture: 'warm',
+        openingDirective: 'Open from the current knot and narrow to one next step.',
+        openingClaim: 'The risky seam is still inside the current diff.',
+        supportingReality: ['ProjectAtlas diff'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Point to the risky part of the diff first.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: ['Stay with the current knot.'],
+        mustNotDo: ['Do not drift into generic advice.'],
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 45_000,
+      },
+      currentConsciousFrame: {
+        subject: 'task-knot',
+        centerOfGravity: 'guide',
+        truthDiscipline: 'observe-then-hypothesize',
+        consciousNeed: 'Explain the current diff before moving on.',
+        consciousTension: 'The risky diff is still unresolved.',
+        speakingIntention: 'Stay inside the diff knot and move one step closer to resolution.',
+        focusAnchor: 'ProjectAtlas diff',
+        withheldImpulse: 'Do not collapse coarse cues into class certainty.',
+        shouldWithholdSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.8,
+        reasonTags: ['guide'],
+        updatedAt: 45_000,
+      },
+      claimEvidenceLedger: {
+        subject: 'task-knot',
+        evidenceMode: 'coarse-held',
+        observedSurface: 'ProjectAtlas diff',
+        taskHypothesis: 'The host is still asking about the risky diff seam.',
+        intentHypothesis: 'Stay inside the diff knot and move one step closer to resolution.',
+        specificityBudget: 'coarse-scene',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.8,
+        reasonTags: ['budget:coarse-scene'],
+        updatedAt: 45_000,
+      },
+      privateThought: {
+        stance: 'observe',
+        confidence: 0.7,
+        rationaleTags: ['diff'],
+        thoughtText: 'Keep looking at the diff before speaking.',
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        expiresAt: 60_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'tense-debug',
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::project-atlas',
+          kind: 'debugging',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'ProjectAtlas diff',
+          summary: 'The risky diff seam is still unresolved.',
+          confidence: 0.82,
+          significance: 0.8,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 45_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 45_000,
+          attentionAgeMs: 45_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 45_000,
+      },
+    } as any
+
+    const state = buildReplyDeliberation({
+      now: 45_000,
+      conversationState: {
+        ...conversationState,
+        memoryMode: 'dialogue-carry',
+      },
+      discourseState: {
+        ...discourseState,
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+      },
+      mindSynthesis,
+      answerCompiler: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        speechObligation: 'answer-relationship',
+        relationMove: 'attune',
+        turnMode: 'answer',
+        responseMode: 'dialogue-answer',
+        recommendedAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'full',
+        relationshipPosture: 'warm',
+        openingDirective: 'raw conflict',
+        openingClaim: 'raw conflict',
+        supportingReality: [],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'raw conflict',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 45_000,
+      } as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      selectedMotive: 'guide',
+      memoryMode: 'task-thread',
+      speakingFrom: 'live-scene',
+      shouldSpeak: true,
+    }))
+    expect(state?.mustAvoid).toContain('Do not drift into decorative association before the knot is answered.')
+    expect(state?.mustAvoid).toContain('Do not jump from coarse visual cues to file, class, enum, or field-level certainty.')
   })
 })

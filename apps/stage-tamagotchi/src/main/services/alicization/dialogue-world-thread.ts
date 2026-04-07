@@ -8,6 +8,7 @@ import type {
   AlicizationReplyDeliberationSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { sanitizeDialogueSurfaceText } from './dialogue-surface-text'
@@ -138,114 +139,125 @@ export function buildDialogueWorldThread(input: {
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   previous?: AlicizationDialogueWorldThreadSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueWorldThreadSnapshot | null {
-  if (!input.conversationState) {
-    return input.previous
+  const runtimeSurface = input.runtimeSurface ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const previous = runtimeSurface?.dialogue.dialogueWorldThread ?? input.previous ?? null
+
+  if (!conversationState) {
+    return previous
       ? {
-          ...input.previous,
+          ...previous,
           updatedAt: input.now,
         }
       : null
   }
 
-  const dialogueCarry = input.conversationState.memoryMode === 'dialogue-carry'
+  const dialogueCarry = conversationState.memoryMode === 'dialogue-carry'
   const { text: primaryTurnAnchor, source: primaryTurnAnchorSource } = resolvePrimaryTurnAnchor([
-    { source: input.conversationState.primaryTurnAnchorSource ?? 'unknown', text: input.conversationState.primaryTurnAnchor },
-    { source: 'question', text: input.conversationState.unansweredQuestion },
-    { source: 'thread', text: input.conversationState.jointThread },
-    { source: 'user-text', text: dialogueCarry ? input.conversationState.hostMove : null },
-    { source: 'user-text', text: dialogueCarry ? null : input.conversationState.hostMove },
-    { source: 'carry', text: input.previous?.primaryTurnAnchor },
+    { source: conversationState.primaryTurnAnchorSource ?? 'unknown', text: conversationState.primaryTurnAnchor },
+    { source: 'question', text: conversationState.unansweredQuestion },
+    { source: 'thread', text: conversationState.jointThread },
+    { source: 'user-text', text: dialogueCarry ? conversationState.hostMove : null },
+    { source: 'user-text', text: dialogueCarry ? null : conversationState.hostMove },
+    { source: 'carry', text: previous?.primaryTurnAnchor },
   ])
   const activeThread = sanitizeText(
-    (dialogueCarry ? primaryTurnAnchor : input.conversationState.jointThread)
-    || (dialogueCarry ? input.conversationState.jointThread : primaryTurnAnchor)
-    || input.previous?.activeThread
-    || input.worldModel?.activeThread?.summary
-    || input.worldModel?.activeThread?.title
-    || input.mindSynthesis?.interiorSummary
-    || input.answerCompiler?.openingClaim
+    (dialogueCarry ? primaryTurnAnchor : conversationState.jointThread)
+    || (dialogueCarry ? conversationState.jointThread : primaryTurnAnchor)
+    || previous?.activeThread
+    || worldModel?.activeThread?.summary
+    || worldModel?.activeThread?.title
+    || mindSynthesis?.interiorSummary
+    || answerCompiler?.openingClaim
     || 'Stay with the current dialogue seam.',
     220,
   ) || 'Stay with the current dialogue seam.'
-  const conversationCarryEligible = input.conversationState.carryEligible
-    ?? Boolean(primaryTurnAnchor && input.conversationState.shouldHoldThread)
+  const conversationCarryEligible = conversationState.carryEligible
+    ?? Boolean(primaryTurnAnchor && conversationState.shouldHoldThread)
 
   const currentQuestion = sanitizeText(
-    input.conversationState.unansweredQuestion
+    conversationState.unansweredQuestion
     || (
       conversationCarryEligible
-      && input.conversationState.shouldHoldThread
-        ? input.previous?.currentQuestion
+      && conversationState.shouldHoldThread
+        ? previous?.currentQuestion
         : ''
     )
     || '',
     180,
   ) || null
   const carryPreviousDialogueAnchor = shouldCarryPreviousDialogueAnchor({
-    conversationState: input.conversationState,
-    previous: input.previous ?? null,
+    conversationState,
+    previous,
   })
   const dialogueCarryAnchors = uniqueList([
     primaryTurnAnchor,
-    input.conversationState.hostMove,
-    input.conversationState.jointThread,
+    conversationState.hostMove,
+    conversationState.jointThread,
     currentQuestion,
     carryPreviousDialogueAnchor
-      ? input.previous?.activeThread ?? null
+      ? previous?.activeThread ?? null
       : null,
   ], 6)
 
   const openLoops = uniqueList([
     currentQuestion,
-    input.conversationState.owedRepair,
-    ...input.conversationState.activeCommitments,
+    conversationState.owedRepair,
+    ...conversationState.activeCommitments,
     ...(
       dialogueCarry || !carryPreviousDialogueAnchor
         ? []
-        : (input.previous?.pendingValidation?.question ? [input.previous.pendingValidation.question] : [])
+        : (previous?.pendingValidation?.question ? [previous.pendingValidation.question] : [])
     ),
-    ...(dialogueCarry || !carryPreviousDialogueAnchor ? [] : (input.previous?.openLoops ?? [])),
+    ...(dialogueCarry || !carryPreviousDialogueAnchor ? [] : (previous?.openLoops ?? [])),
   ], 6)
   const carriedFacts = dialogueCarry
     ? uniqueList(filterDialogueCarryFacts([
-        ...(input.answerCompiler?.supportingReality ?? []),
-        ...(carryPreviousDialogueAnchor ? (input.previous?.carriedFacts ?? []) : []),
+        ...(answerCompiler?.supportingReality ?? []),
+        ...(carryPreviousDialogueAnchor ? (previous?.carriedFacts ?? []) : []),
       ], dialogueCarryAnchors), 6)
     : uniqueList([
-        ...(input.answerCompiler?.supportingReality ?? []),
-        input.worldModel?.activeThread?.title,
-        input.worldModel?.activeThread?.summary,
-        ...(input.previous?.carriedFacts ?? []),
+        ...(answerCompiler?.supportingReality ?? []),
+        worldModel?.activeThread?.title,
+        worldModel?.activeThread?.summary,
+        ...(previous?.carriedFacts ?? []),
       ], 6)
   const recentlyResolvedLoops = dialogueCarry
     ? uniqueList(filterDialogueCarryFacts(
-        (input.previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
+        (previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
         dialogueCarryAnchors,
       ), 4)
     : uniqueList(
-        (input.previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
+        (previous?.openLoops ?? []).filter(loop => !openLoops.includes(loop)),
         4,
       )
   const relationDrift = resolveRelationDrift({
-    conversationState: input.conversationState,
-    discourseState: input.discourseState ?? null,
-    replyDeliberation: input.replyDeliberation ?? null,
-    answerCompiler: input.answerCompiler ?? null,
-    privateThought: input.privateThought ?? null,
-    previous: input.previous ?? null,
+    conversationState,
+    discourseState,
+    replyDeliberation,
+    answerCompiler,
+    privateThought,
+    previous,
   })
   const recallKeys = uniqueList([
     primaryTurnAnchor,
     activeThread,
     currentQuestion,
-    input.conversationState.hostMove,
-    input.conversationState.activeProject,
+    conversationState.hostMove,
+    conversationState.activeProject,
     ...openLoops,
     ...carriedFacts,
-    ...(input.conversationState.memoryQueryHints ?? []),
-    input.replyDeliberation?.selectedMotive ? `reply_motive:${input.replyDeliberation.selectedMotive}` : null,
-    input.privateThought?.emotionalTension ? `emotional_tension:${input.privateThought.emotionalTension}` : null,
+    ...(conversationState.memoryQueryHints ?? []),
+    replyDeliberation?.selectedMotive ? `reply_motive:${replyDeliberation.selectedMotive}` : null,
+    privateThought?.emotionalTension ? `emotional_tension:${privateThought.emotionalTension}` : null,
     `relation:${relationDrift}`,
   ], 10)
 
@@ -258,30 +270,30 @@ export function buildDialogueWorldThread(input: {
     recentlyResolvedLoops,
     carriedFacts,
     relationDrift,
-    memoryMode: input.conversationState.memoryMode,
+    memoryMode: conversationState.memoryMode,
     recallKeys,
     carryEligible: conversationCarryEligible,
-    carryReason: input.conversationState.carryReason ?? null,
-    lastUserMove: sanitizeText(input.conversationState.hostMove, 220) || input.previous?.lastUserMove || activeThread,
-    lastAssistantMove: input.previous?.lastAssistantMove ?? null,
-    lastOutcome: input.previous?.lastOutcome ?? 'none',
-    pendingValidation: input.previous?.pendingValidation ?? null,
+    carryReason: conversationState.carryReason ?? null,
+    lastUserMove: sanitizeText(conversationState.hostMove, 220) || previous?.lastUserMove || activeThread,
+    lastAssistantMove: previous?.lastAssistantMove ?? null,
+    lastOutcome: previous?.lastOutcome ?? 'none',
+    pendingValidation: previous?.pendingValidation ?? null,
     confidence: clamp01(
-      input.conversationState.confidence * 0.42
-      + (input.replyDeliberation?.confidence ?? 0.34) * 0.18
-      + (input.answerCompiler?.confidence ?? 0.34) * 0.16
-      + (input.privateThought?.confidence ?? 0.32) * 0.12
-      + (input.previous?.confidence ?? 0.3) * 0.12,
+      conversationState.confidence * 0.42
+      + (replyDeliberation?.confidence ?? 0.34) * 0.18
+      + (answerCompiler?.confidence ?? 0.34) * 0.16
+      + (privateThought?.confidence ?? 0.32) * 0.12
+      + (previous?.confidence ?? 0.3) * 0.12,
     ),
     narrative: uniqueList([
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
       `thread:${activeThread}`,
       currentQuestion ? `question:${currentQuestion}` : null,
-      input.conversationState.owedRepair ? `repair:${input.conversationState.owedRepair}` : null,
+      conversationState.owedRepair ? `repair:${conversationState.owedRepair}` : null,
       `relation:${relationDrift}`,
-      `memory:${input.conversationState.memoryMode}`,
-      input.conversationState.carryReason ? `carry:${input.conversationState.carryReason}` : (conversationCarryEligible ? 'carry:hold-thread' : null),
-      input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
+      `memory:${conversationState.memoryMode}`,
+      conversationState.carryReason ? `carry:${conversationState.carryReason}` : (conversationCarryEligible ? 'carry:hold-thread' : null),
+      replyDeliberation?.selectedMotive ? `reply:${replyDeliberation.selectedMotive}` : null,
     ], 8),
     updatedAt: input.now,
   } satisfies AlicizationDialogueWorldThreadSnapshot

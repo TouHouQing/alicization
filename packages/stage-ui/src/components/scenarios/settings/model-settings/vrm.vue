@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type { StageEmbodimentCanonicalEmotion } from '@proj-alicization/stage-shared'
+
+import {
+  resolveStageEmbodimentCueCandidates,
+  resolveStageEmbodimentVrmBaseExpressionCandidates,
+  stageEmbodimentCanonicalEmotions,
+} from '@proj-alicization/stage-shared'
 import { useModelStore } from '@proj-alicization/stage-ui-three'
 import { Button, Callout, Checkbox, FieldInput, FieldTextArea, InputFile, SelectTab } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
@@ -88,6 +95,25 @@ const externalAnimations = computed(() => {
 
   return stagePerformanceStore.listVrmExternalAnimations(props.modelId)
 })
+const embodimentEmotionOptions = computed(() => stageEmbodimentCanonicalEmotions.map(emotion => ({
+  value: emotion,
+  label: t(`settings.vrm.embodiment.emotions.${emotion}`),
+})))
+const currentModelActionCuePreferences = computed(() => (
+  props.modelId
+    ? stagePerformanceStore.listEmotionActionCuePreferences(props.modelId)
+    : {}
+))
+const currentModelEmotionExpressionAliases = computed(() => (
+  props.modelId
+    ? stagePerformanceStore.listVrmEmotionExpressionAliases(props.modelId)
+    : {}
+))
+const currentModelEmotionFacialCuePreferences = computed(() => (
+  props.modelId
+    ? stagePerformanceStore.listVrmEmotionFacialCuePreferences(props.modelId)
+    : {}
+))
 
 const scannedCustomExpressionNames = computed(() => {
   if (!props.modelId)
@@ -145,6 +171,70 @@ function removeExternalAnimation(entryId: string) {
 
 function isExternalAnimationReady(entryId: string) {
   return externalAnimations.value.some(item => item.id === entryId && isVrmExternalAnimationConfigured(item))
+}
+
+function formatEmbodimentAliasInput(aliases?: string[]) {
+  return aliases?.join(', ') ?? ''
+}
+
+function parseEmbodimentAliasInput(rawValue?: string) {
+  return (rawValue ?? '')
+    .split(',')
+    .map(alias => alias.trim())
+    .filter(Boolean)
+}
+
+function readEmotionExpressionAliasInput(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(currentModelEmotionExpressionAliases.value[emotion])
+}
+
+function resolveDefaultEmotionExpressionAliasesText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(resolveStageEmbodimentVrmBaseExpressionCandidates(emotion))
+}
+
+function resolveEffectiveEmotionExpressionAliasesText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(stagePerformanceStore.resolveVrmEmotionExpressionAliases(props.modelId ?? '', emotion))
+}
+
+function readEmotionFacialCuePreferenceInput(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(currentModelEmotionFacialCuePreferences.value[emotion])
+}
+
+function readEmotionActionCuePreferenceInput(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(currentModelActionCuePreferences.value[emotion])
+}
+
+function resolveSuggestedEmotionFacialCueText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(resolveStageEmbodimentCueCandidates({
+    emotion,
+  }).facialCueCandidates)
+}
+
+function resolveSuggestedEmotionActionCueText(emotion: StageEmbodimentCanonicalEmotion) {
+  return formatEmbodimentAliasInput(resolveStageEmbodimentCueCandidates({
+    emotion,
+  }).actionCueCandidates)
+}
+
+function updateEmotionExpressionAliases(emotion: StageEmbodimentCanonicalEmotion, rawValue?: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.setVrmEmotionExpressionAliases(props.modelId, emotion, parseEmbodimentAliasInput(rawValue))
+}
+
+function updateEmotionFacialCuePreferences(emotion: StageEmbodimentCanonicalEmotion, rawValue?: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.setVrmEmotionFacialCuePreferences(props.modelId, emotion, parseEmbodimentAliasInput(rawValue))
+}
+
+function updateEmotionActionCuePreferences(emotion: StageEmbodimentCanonicalEmotion, rawValue?: string) {
+  if (!props.modelId)
+    return
+
+  stagePerformanceStore.setEmotionActionCuePreferences(props.modelId, emotion, parseEmbodimentAliasInput(rawValue))
 }
 
 function readCustomExpressionBinding(expressionName: string) {
@@ -454,6 +544,87 @@ function isCustomExpressionReady(expressionName: string) {
         :placeholder="t('settings.vrm.external-animations.fields.description.placeholder')"
         @update:model-value="value => updateExternalAnimation(item.id, { description: value })"
       />
+    </div>
+  </Container>
+  <Container
+    :title="t('settings.vrm.embodiment.title')"
+    icon="i-solar:mask-happly-bold-duotone"
+    :class="[
+      'rounded-xl',
+      'bg-white/80  dark:bg-black/75',
+      'backdrop-blur-lg',
+    ]"
+  >
+    <Callout :label="t('settings.vrm.embodiment.callout.label')">
+      <div class="text-sm text-neutral-600 dark:text-neutral-400">
+        {{ t('settings.vrm.embodiment.callout.description') }}
+      </div>
+    </Callout>
+    <div
+      v-for="emotion in embodimentEmotionOptions"
+      :key="emotion.value"
+      :class="[
+        'rounded-xl',
+        'border',
+        'border-neutral-200',
+        'bg-white/50',
+        'p-4',
+        'dark:border-neutral-700',
+        'dark:bg-black/25',
+      ]"
+    >
+      <div :class="['mb-3']">
+        <div :class="['text-sm font-medium']">
+          {{ emotion.label }}
+        </div>
+        <div :class="['text-xs text-neutral-500 dark:text-neutral-400']">
+          {{ emotion.value }}
+        </div>
+      </div>
+      <div :class="['grid gap-3 lg:grid-cols-2']">
+        <FieldInput
+          :model-value="readEmotionExpressionAliasInput(emotion.value)"
+          :label="t('settings.vrm.embodiment.fields.expression-aliases.label')"
+          :placeholder="resolveDefaultEmotionExpressionAliasesText(emotion.value)"
+          @update:model-value="value => updateEmotionExpressionAliases(emotion.value, value)"
+        >
+          <template #description>
+            <div :class="['space-y-1']">
+              <div>{{ t('settings.vrm.embodiment.fields.expression-aliases.description') }}</div>
+              <div>{{ t('settings.vrm.embodiment.defaults', { aliases: resolveDefaultEmotionExpressionAliasesText(emotion.value) }) }}</div>
+              <div>{{ t('settings.vrm.embodiment.effective', { aliases: resolveEffectiveEmotionExpressionAliasesText(emotion.value) }) }}</div>
+            </div>
+          </template>
+        </FieldInput>
+        <FieldInput
+          :model-value="readEmotionFacialCuePreferenceInput(emotion.value)"
+          :label="t('settings.vrm.embodiment.fields.facial-cues.label')"
+          :placeholder="resolveSuggestedEmotionFacialCueText(emotion.value)"
+          @update:model-value="value => updateEmotionFacialCuePreferences(emotion.value, value)"
+        >
+          <template #description>
+            <div :class="['space-y-1']">
+              <div>{{ t('settings.vrm.embodiment.fields.facial-cues.description') }}</div>
+              <div>{{ t('settings.vrm.embodiment.suggested', { aliases: resolveSuggestedEmotionFacialCueText(emotion.value) }) }}</div>
+            </div>
+          </template>
+        </FieldInput>
+      </div>
+      <div :class="['mt-3']">
+        <FieldInput
+          :model-value="readEmotionActionCuePreferenceInput(emotion.value)"
+          :label="t('settings.vrm.embodiment.fields.action-cues.label')"
+          :placeholder="resolveSuggestedEmotionActionCueText(emotion.value)"
+          @update:model-value="value => updateEmotionActionCuePreferences(emotion.value, value)"
+        >
+          <template #description>
+            <div :class="['space-y-1']">
+              <div>{{ t('settings.vrm.embodiment.fields.action-cues.description') }}</div>
+              <div>{{ t('settings.vrm.embodiment.suggested', { aliases: resolveSuggestedEmotionActionCueText(emotion.value) }) }}</div>
+            </div>
+          </template>
+        </FieldInput>
+      </div>
     </div>
   </Container>
   <Container

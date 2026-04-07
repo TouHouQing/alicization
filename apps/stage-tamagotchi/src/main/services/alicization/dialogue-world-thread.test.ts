@@ -4,6 +4,8 @@ import {
   buildDialogueWorldThread,
   buildDialogueWorldThreadSystemBlock,
 } from './dialogue-world-thread'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildDialogueWorldThread', () => {
   it('carries the live coding seam across turns instead of flattening it into generic memory', () => {
@@ -290,5 +292,168 @@ describe('buildDialogueWorldThread', () => {
     expect(state?.currentQuestion).toBe('你困了吗')
     expect(state?.carriedFacts).toEqual([])
     expect(state?.recallKeys.join(' | ')).not.toContain('repair the previous answer')
+  })
+
+  it('prefers runtimeSurface over conflicting raw inputs', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(70_000)
+    runtimeBackedState.conversationState = {
+      jointThread: 'Runtime governed diff.',
+      hostMove: 'Show me the failing runtime diff.',
+      activeProject: 'Runtime diff',
+      unansweredQuestion: 'Which runtime branch is failing?',
+      owedRepair: null,
+      activeCommitments: ['Stay on the runtime branch.'],
+      relationFrame: 'guide',
+      continuityPolicy: 'stay-on-thread',
+      memoryMode: 'task-thread',
+      memoryQueryHints: ['Runtime diff'],
+      shouldHoldThread: true,
+      confidence: 0.88,
+      narrative: [],
+      updatedAt: 70_000,
+    } as any
+    runtimeBackedState.discourseState = {
+      currentTurnSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      currentTurnSummary: 'The runtime diff is still the live seam.',
+      currentQuestion: 'Which runtime branch is failing?',
+      owedAction: 'guide-task',
+      relationMove: 'guide',
+      continuityMode: 'task-first',
+      confidence: 0.86,
+      narrative: [],
+      updatedAt: 70_000,
+    } as any
+    runtimeBackedState.mindSynthesis = {
+      relationMove: 'guide',
+      answerSubject: 'task-knot',
+      speechObligation: 'guide-task',
+      truthBoundary: 'Stay with the grounded diff seam.',
+      interiorSummary: 'Runtime governed diff.',
+      narrative: [],
+      updatedAt: 70_000,
+    } as any
+    runtimeBackedState.worldModel = {
+      activeThread: {
+        id: 'thread::runtime',
+        kind: 'debugging',
+        status: 'active',
+        source: 'grounded-scene',
+        title: 'Runtime diff',
+        summary: 'The runtime diff is still unresolved.',
+        confidence: 0.9,
+        significance: 0.82,
+        unresolved: true,
+        beganAt: 1_000,
+        lastUpdatedAt: 70_000,
+        target: null,
+      },
+      lingeringThreads: [],
+      focusTarget: null,
+      epistemicState: {
+        certainty: 'grounded',
+        freshness: 'live',
+        seenNow: [],
+        inferredNow: [],
+        openQuestions: [],
+        staleRisks: [],
+      },
+      continuity: {
+        label: 'staying-with-thread',
+        sceneAgeMs: 10_000,
+        attentionAgeMs: 10_000,
+        sameSceneAsBefore: true,
+        sameAttentionAsBefore: true,
+        afterglowOpen: false,
+      },
+      hostState: {
+        availability: 'focused',
+        burden: 'moderate',
+      },
+      updatedAt: 70_000,
+    }
+    runtimeBackedState.answerCompiler = {
+      answerSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      recommendedAct: 'guide',
+      openingClaim: 'The runtime broken guard is still the live knot.',
+      supportingReality: ['Runtime broken guard'],
+      confidence: 0.84,
+    } as any
+    runtimeBackedState.replyDeliberation = {
+      selectedMotive: 'guide',
+      confidence: 0.82,
+      updatedAt: 70_000,
+    } as any
+    runtimeBackedState.privateThought = {
+      stance: 'observe',
+      confidence: 0.72,
+      thoughtText: 'Stay on the runtime seam.',
+      shouldSpeak: true,
+      suggestedStyle: 'light-nudge',
+      embodiedPresence: 'attentive',
+      expiresAt: 90_000,
+      emotionalTension: 'tense-debug',
+    } as any
+    runtimeBackedState.dialogueWorldThread = {
+      activeThread: 'Runtime previous seam.',
+      currentQuestion: 'Which runtime branch is failing?',
+      openLoops: ['Which runtime branch is failing?'],
+      recentlyResolvedLoops: [],
+      carriedFacts: ['Runtime broken guard'],
+      relationDrift: 'steady',
+      memoryMode: 'task-thread',
+      recallKeys: ['Runtime diff'],
+      lastUserMove: 'Show me the failing runtime diff.',
+      lastAssistantMove: 'The broken guard is still live.',
+      lastOutcome: 'pending',
+      pendingValidation: null,
+      confidence: 0.81,
+      narrative: [],
+      updatedAt: 60_000,
+    }
+
+    const state = buildDialogueWorldThread({
+      now: 70_000,
+      conversationState: {
+        jointThread: 'raw conflict',
+        hostMove: 'raw conflict',
+        activeProject: 'raw conflict',
+        unansweredQuestion: 'raw conflict',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['raw conflict'],
+        shouldHoldThread: false,
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 70_000,
+      },
+      previous: {
+        activeThread: 'raw previous',
+        currentQuestion: 'raw previous',
+        openLoops: ['raw previous'],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['raw previous'],
+        relationDrift: 'warming',
+        memoryMode: 'dialogue-carry',
+        recallKeys: ['raw previous'],
+        lastUserMove: 'raw previous',
+        lastAssistantMove: 'raw previous',
+        lastOutcome: 'missed',
+        pendingValidation: null,
+        confidence: 0.2,
+        narrative: [],
+        updatedAt: 60_000,
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state?.activeThread).toBe('Runtime governed diff.')
+    expect(state?.carriedFacts).toContain('Runtime broken guard')
+    expect(state?.lastUserMove).toBe('Show me the failing runtime diff.')
+    expect(state?.recallKeys.join(' | ')).toContain('reply_motive:guide')
   })
 })

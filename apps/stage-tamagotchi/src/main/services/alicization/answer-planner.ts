@@ -29,6 +29,7 @@ import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
@@ -180,6 +181,7 @@ function evidenceMode(input: {
   currentScene: AlicizationVisualSceneSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   worldOntology?: AlicizationWorldOntologySnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   turnProfile: AlicizationAnswerPlannerTurnProfile
@@ -194,11 +196,13 @@ function evidenceMode(input: {
   if (input.groundedThisTurn === true)
     return 'live-grounded' as const
 
-  const truth = deriveMindTruthContract({
-    currentScene: input.currentScene,
-    worldModel: input.worldModel ?? null,
-    worldOntology: input.worldOntology ?? null,
-  })
+  const truth = deriveMindTruthContract(
+    input.runtimeSurface ?? {
+      currentScene: input.currentScene,
+      worldModel: input.worldModel ?? null,
+      worldOntology: input.worldOntology ?? null,
+    },
+  )
   if (input.repairLedger?.shouldConstrainPresentTense && (input.repairLedger?.repairPressure ?? 0) >= 0.44)
     return 'repair-first' as const
   if (truth.truthState === 'live-grounded')
@@ -640,91 +644,113 @@ export function buildAnswerPlanner(input: {
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   groundedThisTurn?: boolean
 }): AlicizationAnswerPlannerSnapshot {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const worldOntology = runtimeSurface?.world.worldOntology ?? input.worldOntology ?? null
+  const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const mindKernel = runtimeSurface?.cognition.mindKernel ?? input.mindKernel ?? null
+  const concernContinuity = runtimeSurface?.memory.concernContinuity ?? input.concernContinuity ?? null
+  const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
+  const commitmentLedger = runtimeSurface?.memory.commitmentLedger ?? input.commitmentLedger ?? null
+  const inquiryPlanner = runtimeSurface?.memory.inquiryPlanner ?? input.inquiryPlanner ?? null
+  const intentionStream = runtimeSurface?.memory.intentionStream ?? input.intentionStream ?? null
+  const reflectionLedger = runtimeSurface?.memory.reflectionLedger ?? input.reflectionLedger ?? null
+  const executiveCycle = runtimeSurface?.memory.executiveCycle ?? input.executiveCycle ?? null
   const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueEncounterSummary = runtimeSurface?.dialogue.dialogueEncounter?.summary ?? dialogueEncounter?.summary ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
   const ownership = dialogueEncounter?.ownership ?? input.ownership ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
   const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
-  const selectedConcern = governingConcern(input.concernContinuity)
-  const selectedRepair = governingRepair(input.repairLedger)
-  const selectedCommitment = governingCommitment(input.commitmentLedger)
-  const selectedInquiry = activeInquiryPlan(input.inquiryPlanner)
-  const selectedProject = dominantProject(input.intentionStream)
-  const selectedReflection = latestReflection(input.reflectionLedger)
+  const selectedConcern = governingConcern(concernContinuity)
+  const selectedRepair = governingRepair(repairLedger)
+  const selectedCommitment = governingCommitment(commitmentLedger)
+  const selectedInquiry = activeInquiryPlan(inquiryPlanner)
+  const selectedProject = dominantProject(intentionStream)
+  const selectedReflection = latestReflection(reflectionLedger)
   const turnProfile = resolveAnswerPlannerTurnProfile({
     ownership,
-    discourseState: input.discourseState ?? null,
+    discourseState,
     dialogueFocus,
     dialogueSemantics,
   })
 
-  if (input.answerCompiler) {
+  if (answerCompiler) {
     const focus = sanitizeText(
       pickUserFacingAnchor(
-        input.replyDeliberation?.whyThisReplyNow,
-        input.conversationState?.primaryTurnAnchor,
-        input.discourseState?.primaryTurnAnchor,
-        input.conversationState?.hostMove,
-        input.dialogueWorldThread?.currentQuestion,
-        input.answerCompiler.openingClaim,
-        input.conversationState?.activeProject,
-        input.discourseState?.currentTurnSummary,
-        dialogueEncounter?.summary,
+        replyDeliberation?.whyThisReplyNow,
+        conversationState?.primaryTurnAnchor,
+        discourseState?.primaryTurnAnchor,
+        conversationState?.hostMove,
+        dialogueWorldThread?.currentQuestion,
+        answerCompiler.openingClaim,
+        conversationState?.activeProject,
+        discourseState?.currentTurnSummary,
+        dialogueEncounterSummary,
         dialogueFocus?.focusSummary,
         dialogueObligation?.summary,
-        input.mindSynthesis?.openingIntent,
-        input.mindSynthesis?.interiorSummary,
+        mindSynthesis?.openingIntent,
+        mindSynthesis?.interiorSummary,
       ),
       220,
     ) || 'Stay with the current compiled turn spine.'
     const shouldAskForGrounding = input.groundedThisTurn === true
       ? false
-      : input.answerCompiler.recommendedAct === 'ask-reground'
-        || input.answerCompiler.evidenceMode === 'repair-first'
-    const shouldAcknowledgeRepair = input.answerCompiler.turnMode === 'screen-repair'
-      || input.answerCompiler.recommendedAct === 'correct-stale-anchor'
-      || input.answerCompiler.recommendedAct === 'ask-reground'
+      : answerCompiler.recommendedAct === 'ask-reground'
+        || answerCompiler.evidenceMode === 'repair-first'
+    const shouldAcknowledgeRepair = answerCompiler.turnMode === 'screen-repair'
+      || answerCompiler.recommendedAct === 'correct-stale-anchor'
+      || answerCompiler.recommendedAct === 'ask-reground'
 
     return {
-      act: input.answerCompiler.recommendedAct,
-      evidenceMode: input.answerCompiler.evidenceMode,
-      confidence: input.answerCompiler.confidence,
+      act: answerCompiler.recommendedAct,
+      evidenceMode: answerCompiler.evidenceMode,
+      confidence: answerCompiler.confidence,
       governingFocus: focus,
-      openingMove: input.replyDeliberation?.openingBeat ?? input.answerCompiler.openingDirective,
+      openingMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
       answerIntent: sanitizeText(
         pickUserFacingAnchor(
-          input.conversationState?.primaryTurnAnchor,
-          input.discourseState?.primaryTurnAnchor,
-          input.conversationState?.hostMove,
-          input.dialogueWorldThread?.currentQuestion,
-          input.conversationState?.activeProject,
-          input.answerCompiler.openingClaim,
-          input.answerCompiler.nextMove,
-          input.discourseState?.currentTurnSummary,
-          input.mindSynthesis?.openingIntent,
-          input.replyDeliberation?.whyThisReplyNow,
+          conversationState?.primaryTurnAnchor,
+          discourseState?.primaryTurnAnchor,
+          conversationState?.hostMove,
+          dialogueWorldThread?.currentQuestion,
+          conversationState?.activeProject,
+          answerCompiler.openingClaim,
+          answerCompiler.nextMove,
+          discourseState?.currentTurnSummary,
+          mindSynthesis?.openingIntent,
+          replyDeliberation?.whyThisReplyNow,
         ),
         160,
-      ) || input.answerCompiler.openingClaim,
-      relationshipPosture: input.answerCompiler.relationshipPosture,
+      ) || answerCompiler.openingClaim,
+      relationshipPosture: answerCompiler.relationshipPosture,
       shouldAskForGrounding,
       shouldAcknowledgeRepair,
       selectedConcernEntryId: selectedConcern?.id ?? null,
       selectedRepairId: selectedRepair?.id ?? null,
       selectedCommitmentId: selectedCommitment?.id ?? null,
       selectedInquiryPlanId: selectedInquiry?.id ?? null,
-      selectedRuntimeThreadId: input.worldModel?.activeThread?.id ?? null,
+      selectedRuntimeThreadId: worldModel?.activeThread?.id ?? null,
       selectedProjectId: selectedProject?.id ?? null,
       selectedReflectionId: selectedReflection?.id ?? null,
-      executivePhase: input.executiveCycle?.phase ?? null,
-      selectedTruthFrame: input.worldOntology?.dominantFrame ?? null,
-      mustDo: [...input.answerCompiler.mustDo],
-      mustNotDo: [...input.answerCompiler.mustNotDo],
+      executivePhase: executiveCycle?.phase ?? null,
+      selectedTruthFrame: worldOntology?.dominantFrame ?? null,
+      mustDo: [...answerCompiler.mustDo],
+      mustNotDo: [...answerCompiler.mustNotDo],
       narrative: [
-        ...input.answerCompiler.narrative,
-        input.discourseState ? `compiled-subject:${input.discourseState.currentTurnSubject}` : '',
+        ...answerCompiler.narrative,
+        discourseState ? `compiled-subject:${discourseState.currentTurnSubject}` : '',
         focus,
       ].filter(Boolean),
       updatedAt: input.now,
@@ -732,25 +758,26 @@ export function buildAnswerPlanner(input: {
   }
 
   const mode = evidenceMode({
-    currentScene: input.currentScene,
-    worldModel: input.worldModel,
-    worldOntology: input.worldOntology,
-    concernContinuity: input.concernContinuity,
-    repairLedger: input.repairLedger,
+    currentScene,
+    worldModel,
+    worldOntology,
+    runtimeSurface,
+    concernContinuity,
+    repairLedger,
     turnProfile,
     groundedThisTurn: input.groundedThisTurn === true,
   })
   const act = answerAct({
     evidenceMode: mode,
-    worldModel: input.worldModel,
-    concernContinuity: input.concernContinuity,
-    repairLedger: input.repairLedger,
-    commitmentLedger: input.commitmentLedger,
-    inquiryPlanner: input.inquiryPlanner,
-    intentionStream: input.intentionStream,
-    reflectionLedger: input.reflectionLedger,
-    executiveCycle: input.executiveCycle,
-    privateThought: input.privateThought,
+    worldModel,
+    concernContinuity,
+    repairLedger,
+    commitmentLedger,
+    inquiryPlanner,
+    intentionStream,
+    reflectionLedger,
+    executiveCycle,
+    privateThought,
     inspectionRequested: input.inspectionRequested,
     dialogueSemantics,
     dialogueObligation,
@@ -759,11 +786,11 @@ export function buildAnswerPlanner(input: {
   })
   const posture = relationshipPosture({
     act,
-    repairLedger: input.repairLedger,
-    relationshipModel: input.relationshipModel,
-    privateThought: input.privateThought,
-    mindKernel: input.mindKernel,
-    executiveCycle: input.executiveCycle,
+    repairLedger,
+    relationshipModel,
+    privateThought,
+    mindKernel,
+    executiveCycle,
     dialogueObligation,
   })
   const shouldAskForGrounding
@@ -778,32 +805,32 @@ export function buildAnswerPlanner(input: {
         || act === 'ask-reground'
         || Boolean(selectedRepair && selectedRepair.kind !== 'present-tense-boundary')
   const focus = governingFocus({
-    worldModel: input.worldModel,
-    concernContinuity: input.concernContinuity,
-    repairLedger: input.repairLedger,
-    commitmentLedger: input.commitmentLedger,
-    inquiryPlanner: input.inquiryPlanner,
-    intentionStream: input.intentionStream,
-    reflectionLedger: input.reflectionLedger,
-    executiveCycle: input.executiveCycle,
-    privateThought: input.privateThought,
+    worldModel,
+    concernContinuity,
+    repairLedger,
+    commitmentLedger,
+    inquiryPlanner,
+    intentionStream,
+    reflectionLedger,
+    executiveCycle,
+    privateThought,
     dialogueObligation,
     dialogueSemantics,
     dialogueFocus,
-    discourseState: input.discourseState,
-    conversationState: input.conversationState,
-    dialogueWorldThread: input.dialogueWorldThread,
-    replyDeliberation: input.replyDeliberation,
+    discourseState,
+    conversationState,
+    dialogueWorldThread,
+    replyDeliberation,
   })
 
   return {
     act,
     evidenceMode: mode,
     confidence: clamp01(
-      (input.privateThought?.confidence ?? 0.36) * 0.28
+      (privateThought?.confidence ?? 0.36) * 0.28
       + (selectedConcern?.confidence ?? 0.34) * 0.18
       + (selectedRepair?.confidence ?? 0.32) * 0.16
-      + (input.worldModel?.activeThread?.confidence ?? 0.34) * 0.14
+      + (worldModel?.activeThread?.confidence ?? 0.34) * 0.14
       + (selectedCommitment?.confidence ?? 0.32) * 0.1
       + (selectedProject?.confidence ?? 0.34) * 0.1
       + Math.max(0, selectedReflection?.confidenceShift ?? 0) * 0.08
@@ -818,17 +845,17 @@ export function buildAnswerPlanner(input: {
     }),
     answerIntent: answerIntent({
       act,
-      worldModel: input.worldModel,
-      concernContinuity: input.concernContinuity,
-      repairLedger: input.repairLedger,
+      worldModel,
+      concernContinuity,
+      repairLedger,
       dialogueObligation,
       dialogueSemantics,
       dialogueFocus,
-      discourseState: input.discourseState,
-      conversationState: input.conversationState,
+      discourseState,
+      conversationState,
       turnProfile,
-      dialogueWorldThread: input.dialogueWorldThread,
-      replyDeliberation: input.replyDeliberation,
+      dialogueWorldThread,
+      replyDeliberation,
     }),
     relationshipPosture: posture,
     shouldAskForGrounding,
@@ -837,11 +864,11 @@ export function buildAnswerPlanner(input: {
     selectedRepairId: selectedRepair?.id ?? null,
     selectedCommitmentId: selectedCommitment?.id ?? null,
     selectedInquiryPlanId: selectedInquiry?.id ?? null,
-    selectedRuntimeThreadId: input.worldModel?.activeThread?.id ?? null,
+    selectedRuntimeThreadId: worldModel?.activeThread?.id ?? null,
     selectedProjectId: selectedProject?.id ?? null,
     selectedReflectionId: selectedReflection?.id ?? null,
-    executivePhase: input.executiveCycle?.phase ?? null,
-    selectedTruthFrame: input.worldOntology?.dominantFrame ?? null,
+    executivePhase: executiveCycle?.phase ?? null,
+    selectedTruthFrame: worldOntology?.dominantFrame ?? null,
     mustDo: buildMustDo({
       act,
       evidenceMode: mode,
@@ -865,7 +892,7 @@ export function buildAnswerPlanner(input: {
       `screen_reference:${turnProfile.screenReferenceMode}`,
       dialogueSemantics?.act ? `dialogue_act:${dialogueSemantics.act}` : '',
       dialogueObligation?.kind ? `dialogue_obligation:${dialogueObligation.kind}` : '',
-      input.executiveCycle?.phase ? `executive_phase:${input.executiveCycle.phase}` : '',
+      executiveCycle?.phase ? `executive_phase:${executiveCycle.phase}` : '',
       selectedProject ? `mind_project:${selectedProject.kind}` : '',
       selectedReflection ? `reflection:${selectedReflection.outcome}` : '',
       focus,

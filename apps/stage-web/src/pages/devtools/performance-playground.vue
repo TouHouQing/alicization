@@ -1,13 +1,21 @@
 <script setup lang="ts">
+import type { StageEmbodimentSpeechRenderState } from '@proj-alicization/stage-shared'
 import type { EmotionPayload } from '@proj-alicization/stage-ui/constants/emotions'
+import type { BrowserSpeechAudioSource } from '@proj-alicization/stage-ui/libs/speech-audio-playback'
 import type { ChatProvider, SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 
-import { createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
+import { createBufferedSpeechAudioSource, createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
+import {
+  createIdleStageEmbodimentSpeechDynamicsState,
+  deriveStageEmbodimentSpeechDynamicsState,
+  deriveStageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
 import { ThreeScene } from '@proj-alicization/stage-ui-three'
 import { animations } from '@proj-alicization/stage-ui-three/assets/vrm'
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '@proj-alicization/stage-ui/composables/queues'
 import { llmInferenceEndToken } from '@proj-alicization/stage-ui/constants'
 import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '@proj-alicization/stage-ui/constants/emotions'
+import { playBrowserSpeechAudio } from '@proj-alicization/stage-ui/libs/speech-audio-playback'
 import { useAudioContext, useSpeakingStore } from '@proj-alicization/stage-ui/stores/audio'
 import { useChatOrchestratorStore } from '@proj-alicization/stage-ui/stores/chat'
 import { useChatMaintenanceStore } from '@proj-alicization/stage-ui/stores/chat/maintenance'
@@ -23,7 +31,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 const sceneRef = ref<InstanceType<typeof ThreeScene>>()
-const currentAudioSource = ref<AudioBufferSourceNode>()
+const currentAudioSource = ref<AudioNode>()
 const { t } = useI18n()
 
 const { audioContext } = useAudioContext()
@@ -77,6 +85,29 @@ emotionMessageQueue.on('dequeue', (token) => {
 
 const { mouthOpenSize } = storeToRefs(useSpeakingStore())
 const nowSpeaking = ref(false)
+const speechRenderState = computed<StageEmbodimentSpeechRenderState>(() => deriveStageEmbodimentSpeechRenderState({
+  lastEventType: nowSpeaking.value ? 'mouth-update' : 'playback-stop',
+  revision: nowSpeaking.value ? 1 : 0,
+  state: {
+    phase: nowSpeaking.value ? 'playing' : 'idle',
+    item: null,
+    currentAudioSource: currentAudioSource.value ?? null,
+    mouthOpenSize: mouthOpenSize.value,
+    dynamics: nowSpeaking.value
+      ? deriveStageEmbodimentSpeechDynamicsState({
+          phase: 'playing',
+          item: null,
+          mouthOpenSize: mouthOpenSize.value,
+          now: performance.now(),
+          speechEnergy: Math.max(0, Math.min(1, mouthOpenSize.value / 100)),
+          startedAt: null,
+        })
+      : createIdleStageEmbodimentSpeechDynamicsState(),
+    startedAt: null,
+    endedAt: null,
+    stopReason: null,
+  },
+}))
 const logLines = ref<string[]>([])
 const chatInput = ref('')
 const chatOrchestrator = useChatOrchestratorStore()
@@ -99,39 +130,21 @@ function log(line: string) {
   logLines.value = [line, ...logLines.value].slice(0, 50)
 }
 
-const playbackManager = createPlaybackManager<AudioBuffer>({
-  play: (item, signal) => {
-    return new Promise((resolve) => {
-      const source = audioContext.createBufferSource()
-      source.buffer = item.audio
-      source.connect(audioContext.destination)
-      if (audioAnalyser.value)
-        source.connect(audioAnalyser.value)
-      currentAudioSource.value = source
-
-      const stopPlayback = () => {
-        try {
-          source.stop()
-          source.disconnect()
-        }
-        catch {}
-        if (currentAudioSource.value === source)
-          currentAudioSource.value = undefined
-        resolve()
-      }
-
-      if (signal.aborted) {
-        stopPlayback()
-        return
-      }
-
-      signal.addEventListener('abort', stopPlayback, { once: true })
-      source.onended = () => {
-        signal.removeEventListener('abort', stopPlayback)
-        stopPlayback()
-      }
-      source.start(0)
+const playbackManager = createPlaybackManager<BrowserSpeechAudioSource>({
+  play: async (item, signal) => {
+    let boundNode: AudioNode | undefined
+    await playBrowserSpeechAudio({
+      audio: item.audio,
+      audioContext,
+      signal,
+      analyserNode: audioAnalyser.value,
+      onAudioNodeBound(node) {
+        boundNode = node
+        currentAudioSource.value = node
+      },
     })
+    if (currentAudioSource.value === boundNode)
+      currentAudioSource.value = undefined
   },
   maxVoices: 1,
   maxVoicesPerOwner: 1,
@@ -139,7 +152,8 @@ const playbackManager = createPlaybackManager<AudioBuffer>({
   ownerOverflowPolicy: 'steal-oldest',
 })
 
-const speechPipeline = createSpeechPipeline<AudioBuffer>({
+const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
+  ttsConcurrency: 2,
   tts: async (request, signal) => {
     if (signal.aborted)
       return null
@@ -173,7 +187,7 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
       return null
 
     log(t('settings.pages.system.sections.section.developer.sections.section.performance-playground.logs.queue', { text: request.text, special: request.special ?? '' }))
-    return audioContext.decodeAudioData(res)
+    return createBufferedSpeechAudioSource(await audioContext.decodeAudioData(res))
   },
   playback: playbackManager,
 })
@@ -279,7 +293,7 @@ onUnmounted(() => {
           ref="sceneRef"
           :model-src="stageModelSelectedUrl"
           :idle-animation="animations.idleLoop.toString()"
-          :current-audio-source="currentAudioSource"
+          :speech-render-state="speechRenderState"
           :show-axes="stageViewControlsEnabled"
           :paused="false"
           @error="console.error"

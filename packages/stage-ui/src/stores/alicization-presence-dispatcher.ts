@@ -1,18 +1,35 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationPresencePulsePayload,
 } from './alicization-bridge'
 
+import {
+  buildAlicizationDialogueSpeechTimeline,
+  buildAlicizationDigitalLifeEnvelope,
+  normalizeAlicizationDialogueEmbodimentEnvelope,
+  normalizeAlicizationDialogueSpeechTimeline,
+  normalizeAlicizationDigitalLifeEnvelope,
+  resolveAlicizationDialogueEmbodiment,
+} from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-import { normalizeAlicizationEmotion } from './alicization-bridge'
+import { normalizeAlicizationEmotion, normalizeAlicizationPerformancePayload } from './alicization-bridge'
 
 type DialogueListener = (payload: AlicizationDialogueRespondedPayload) => void
 type PresenceAuditLogger = (input: AlicizationAuditLogInput) => Promise<void> | void
 type AlicizationPresenceChannel = 'live2d' | 'vrm' | 'tts' | string
+
+interface DialogueEmbodimentRoutingState {
+  previousActionCue: string | null
+  previousDelivery: string | null
+  previousEmotion: string | null
+  previousFacialCue: string | null
+  previousVariationToken: string | null
+}
 
 export interface AlicizationPresenceVisualController {
   applyPerformance: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
@@ -43,6 +60,13 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
   const turnIdOrder: string[] = []
   const embodimentControllers = new Set<AlicizationPresenceEmbodimentController>()
   const auditLogger = ref<PresenceAuditLogger | null>(null)
+  const dialogueEmbodimentRoutingState: DialogueEmbodimentRoutingState = {
+    previousActionCue: null,
+    previousDelivery: null,
+    previousEmotion: null,
+    previousFacialCue: null,
+    previousVariationToken: null,
+  }
 
   async function appendWarning(action: string, message: string, payload?: Record<string, unknown>) {
     const logger = auditLogger.value
@@ -118,6 +142,21 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     return active
   }
 
+  function shouldRouteSparseDialoguePerformance(performance: AlicizationDialoguePerformancePayload) {
+    return !performance.actionCue || !performance.facialCue
+  }
+
+  function updateDialogueEmbodimentRoutingState(input: {
+    performance: AlicizationDialoguePerformancePayload
+    variationToken?: string | null
+  }) {
+    dialogueEmbodimentRoutingState.previousActionCue = input.performance.actionCue ?? null
+    dialogueEmbodimentRoutingState.previousFacialCue = input.performance.facialCue ?? null
+    dialogueEmbodimentRoutingState.previousEmotion = input.performance.baseEmotion
+    dialogueEmbodimentRoutingState.previousDelivery = input.performance.delivery
+    dialogueEmbodimentRoutingState.previousVariationToken = input.variationToken ?? null
+  }
+
   async function dispatchDialogueResponded(payload: AlicizationDialogueRespondedPayload) {
     if (!payload?.turnId)
       return
@@ -126,16 +165,89 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       return
 
     const normalizedEmotion = normalizeAlicizationEmotion(payload.structured?.emotion)
+    const normalizedPerformance = normalizeAlicizationPerformancePayload(
+      payload.structured?.performance,
+      normalizedEmotion.emotion,
+    )
+    let resolvedEmotion = normalizedEmotion.emotion
+    let resolvedPerformance: AlicizationDialoguePerformancePayload = {
+      ...normalizedPerformance,
+      baseEmotion: normalizedEmotion.emotion,
+      emotion: normalizedEmotion.emotion,
+    }
+    let resolvedEmbodiment: AlicizationDialogueEmbodimentEnvelope | null = normalizeAlicizationDialogueEmbodimentEnvelope(
+      payload.structured?.embodiment,
+      normalizedEmotion.emotion,
+    )
+    let resolvedSpeechTimeline = normalizeAlicizationDialogueSpeechTimeline(
+      payload.structured?.speechTimeline,
+    )
+    let resolvedDigitalLife = normalizeAlicizationDigitalLifeEnvelope(
+      payload.structured?.digitalLife,
+      normalizedEmotion.emotion,
+    )
+    if (resolvedEmbodiment) {
+      resolvedEmotion = resolvedEmbodiment.emotion
+      resolvedPerformance = {
+        ...resolvedEmbodiment.performance,
+        baseEmotion: resolvedEmbodiment.emotion,
+        emotion: resolvedEmbodiment.emotion,
+      }
+    }
+
+    if (!resolvedEmbodiment || shouldRouteSparseDialoguePerformance(resolvedPerformance)) {
+      resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
+        candidateEmotion: resolvedEmotion,
+        candidatePerformance: resolvedPerformance,
+        governance: payload.structured?.governance,
+        previous: {
+          actionCue: dialogueEmbodimentRoutingState.previousActionCue,
+          delivery: dialogueEmbodimentRoutingState.previousDelivery,
+          emotion: dialogueEmbodimentRoutingState.previousEmotion,
+          facialCue: dialogueEmbodimentRoutingState.previousFacialCue,
+          variationToken: dialogueEmbodimentRoutingState.previousVariationToken,
+        },
+        reply: payload.structured?.reply ?? '',
+        thought: payload.structured?.thought,
+        turnId: payload.turnId,
+      })
+      resolvedEmotion = resolvedEmbodiment.emotion
+      resolvedPerformance = {
+        ...resolvedEmbodiment.performance,
+        baseEmotion: resolvedEmbodiment.emotion,
+        emotion: resolvedEmbodiment.emotion,
+      }
+    }
+
+    if (!resolvedSpeechTimeline) {
+      resolvedSpeechTimeline = buildAlicizationDialogueSpeechTimeline({
+        reply: payload.structured?.reply ?? '',
+        candidateEmotion: resolvedEmotion,
+        candidatePerformance: resolvedPerformance,
+        embodiment: resolvedEmbodiment,
+      })
+    }
+    if (!resolvedDigitalLife) {
+      resolvedDigitalLife = buildAlicizationDigitalLifeEnvelope({
+        embodiment: resolvedEmbodiment,
+        speechTimeline: resolvedSpeechTimeline,
+      })
+    }
+
+    updateDialogueEmbodimentRoutingState({
+      performance: resolvedPerformance,
+      variationToken: resolvedEmbodiment?.variationToken ?? null,
+    })
+
     const normalizedPayload: AlicizationDialogueRespondedPayload = {
       ...payload,
       structured: {
         ...payload.structured,
-        emotion: normalizedEmotion.emotion,
-        performance: {
-          ...payload.structured.performance,
-          baseEmotion: normalizedEmotion.emotion,
-          emotion: normalizedEmotion.emotion,
-        },
+        emotion: resolvedEmotion,
+        performance: resolvedPerformance,
+        embodiment: resolvedEmbodiment,
+        speechTimeline: resolvedSpeechTimeline,
+        digitalLife: resolvedDigitalLife,
         rawEmotion: normalizedEmotion.downgraded
           ? normalizedEmotion.rawEmotion
           : payload.structured.rawEmotion,
@@ -295,6 +407,11 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     turnIdOrder.splice(0, turnIdOrder.length)
     embodimentControllers.clear()
     auditLogger.value = null
+    dialogueEmbodimentRoutingState.previousActionCue = null
+    dialogueEmbodimentRoutingState.previousFacialCue = null
+    dialogueEmbodimentRoutingState.previousEmotion = null
+    dialogueEmbodimentRoutingState.previousDelivery = null
+    dialogueEmbodimentRoutingState.previousVariationToken = null
   }
 
   return {

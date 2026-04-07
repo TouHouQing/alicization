@@ -1,5 +1,9 @@
 import type { VRMAnimation } from '@pixiv/three-vrm-animation'
 import type { VRMCore } from '@pixiv/three-vrm-core'
+import type {
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechDynamicsState,
+} from '@proj-alicization/stage-shared'
 import type { AnimationClip } from 'three'
 import type { Ref } from 'vue'
 
@@ -11,15 +15,77 @@ import { ref } from 'vue'
 import { useVRMLoader } from './loader'
 import { randomSaccadeInterval } from './utils/eye-motions'
 
+function clampUnit(value: number, fallback: number = 0) {
+  if (!Number.isFinite(value))
+    return fallback
+
+  return Math.min(1, Math.max(0, value))
+}
+
 export interface GLTFUserdata extends Record<string, any> {
   vrmAnimations: VRMAnimation[]
 }
 
+const vrmAnimationPromiseCache = new Map<string, Promise<VRMAnimation | undefined>>()
+const maxCachedAnimationEntries = 24
+
+function normalizeAnimationCacheKey(source: string) {
+  return source.trim()
+}
+
+function touchAnimationPromiseCache(key: string, promise: Promise<VRMAnimation | undefined>) {
+  if (vrmAnimationPromiseCache.has(key))
+    vrmAnimationPromiseCache.delete(key)
+
+  vrmAnimationPromiseCache.set(key, promise)
+  while (vrmAnimationPromiseCache.size > maxCachedAnimationEntries) {
+    const oldestKey = vrmAnimationPromiseCache.keys().next().value
+    if (!oldestKey)
+      break
+    vrmAnimationPromiseCache.delete(oldestKey)
+  }
+}
+
 export async function loadVRMAnimation(source: string | File) {
+  if (typeof source === 'string') {
+    const cacheKey = normalizeAnimationCacheKey(source)
+    if (!cacheKey)
+      return
+
+    const cached = vrmAnimationPromiseCache.get(cacheKey)
+    if (cached)
+      return await cached
+
+    const loadingPromise = (async () => {
+      const loader = useVRMLoader()
+      // load VRM Animation .vrma file
+      const gltf = await loader.loadAsync(cacheKey)
+
+      const userData = gltf.userData as GLTFUserdata
+      if (!userData.vrmAnimations) {
+        console.warn('No VRM animations found in the .vrma file')
+        return
+      }
+      if (userData.vrmAnimations.length === 0) {
+        console.warn('No VRM animations found in the .vrma file')
+        return
+      }
+
+      return userData.vrmAnimations[0]
+    })()
+
+    touchAnimationPromiseCache(cacheKey, loadingPromise)
+    try {
+      return await loadingPromise
+    }
+    catch (error) {
+      vrmAnimationPromiseCache.delete(cacheKey)
+      throw error
+    }
+  }
+
   const loader = useVRMLoader()
-  const url = typeof source === 'string'
-    ? source
-    : URL.createObjectURL(source)
+  const url = URL.createObjectURL(source)
 
   try {
     // load VRM Animation .vrma file
@@ -38,8 +104,7 @@ export async function loadVRMAnimation(source: string | File) {
     return userData.vrmAnimations[0]
   }
   finally {
-    if (typeof source !== 'string')
-      URL.revokeObjectURL(url)
+    URL.revokeObjectURL(url)
   }
 }
 
@@ -109,8 +174,12 @@ export function useBlink() {
   const nextBlinkTime = ref(Math.random() * (MAX_BLINK_INTERVAL - MIN_BLINK_INTERVAL) + MIN_BLINK_INTERVAL)
 
   // Function to handle blinking animation
-  function update(delta: number) {
-    timeSinceLastBlink.value += delta
+  function update(delta: number, speechDynamics?: StageEmbodimentSpeechDynamicsState | null) {
+    const speechEnergy = clampUnit(speechDynamics?.speechEnergy ?? 0)
+    const prosodyIntensity = clampUnit(speechDynamics?.prosodyIntensity ?? 0)
+    const speechActive = speechEnergy > 0.04 || clampUnit(speechDynamics?.cadencePulse ?? 0) > 0.08
+
+    timeSinceLastBlink.value += delta * (speechActive ? 0.68 : 1)
 
     // Check if it's time for next blink
     if (!isBlinking.value && timeSinceLastBlink.value >= nextBlinkTime.value) {
@@ -123,7 +192,7 @@ export function useBlink() {
       blinkProgress.value += delta / BLINK_DURATION
 
       // Calculate blink value using sine curve for smooth animation
-      const blinkValue = Math.sin(Math.PI * blinkProgress.value)
+      const blinkValue = Math.sin(Math.PI * blinkProgress.value) * (speechActive ? 1 - prosodyIntensity * 0.22 : 1)
 
       // Reset blink when animation is complete
       if (blinkProgress.value >= 1) {
@@ -158,26 +227,38 @@ export function useIdleEyeSaccades() {
   let timeSinceLastSaccade = 0
 
   // Just a naive vector generator - Simulating random content on a 27in monitor at 65cm distance
-  function updateFixationTarget(lookAtTarget: Ref<{ x: number, y: number, z: number }>) {
+  function updateFixationTarget(lookAtTarget: Ref<{ x: number, y: number, z: number }>, amplitude: number) {
     fixationTarget.set(
-      lookAtTarget.value.x + randFloat(-0.25, 0.25),
-      lookAtTarget.value.y + randFloat(-0.25, 0.25),
+      lookAtTarget.value.x + randFloat(-amplitude, amplitude),
+      lookAtTarget.value.y + randFloat(-amplitude, amplitude),
       lookAtTarget.value.z,
     )
   }
 
   // Function to handle idle eye saccades
-  function update(vrm: VRMCore | undefined, lookAtTarget: Ref<{ x: number, y: number, z: number }>, delta: number) {
+  function update(
+    vrm: VRMCore | undefined,
+    lookAtTarget: Ref<{ x: number, y: number, z: number }>,
+    delta: number,
+    speechDynamics?: StageEmbodimentSpeechDynamicsState | null,
+    posture?: StageEmbodimentPresencePostureState | null,
+  ) {
     if (!vrm?.expressionManager || !vrm.lookAt)
       return
 
-    if (timeSinceLastSaccade >= nextSaccadeAfter) {
-      updateFixationTarget(lookAtTarget)
+    const prosodyIntensity = clampUnit(speechDynamics?.prosodyIntensity ?? 0)
+    const speechEnergy = clampUnit(speechDynamics?.speechEnergy ?? 0)
+    const gazeStability = clampUnit(posture?.gazeStability ?? 0)
+    const amplitude = Math.max(0.12, 0.25 + prosodyIntensity * 0.08 + speechEnergy * 0.04 - gazeStability * 0.1)
+    const intervalScale = Math.max(0.7, 1 - prosodyIntensity * 0.22 + gazeStability * 0.08)
+
+    if (timeSinceLastSaccade >= nextSaccadeAfter * intervalScale) {
+      updateFixationTarget(lookAtTarget, amplitude)
       timeSinceLastSaccade = 0
       nextSaccadeAfter = randomSaccadeInterval() / 1000
     }
     else if (!fixationTarget) {
-      updateFixationTarget(lookAtTarget)
+      updateFixationTarget(lookAtTarget, amplitude)
     }
 
     if (!vrm.lookAt.target) {

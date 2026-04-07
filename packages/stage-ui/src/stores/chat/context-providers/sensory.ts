@@ -12,6 +12,7 @@ function roundPercent(value: number) {
 
 export function createSensoryContext(snapshot: AlicizationSensoryCacheSnapshot): ContextMessage {
   const sample = snapshot.sample
+  const capture = snapshot.capture
   const batteryText = sample.battery
     ? `${roundPercent(sample.battery.percent)}%(charging=${sample.battery.charging ? 'true' : 'false'})`
     : 'unavailable'
@@ -23,6 +24,16 @@ export function createSensoryContext(snapshot: AlicizationSensoryCacheSnapshot):
   const degradedText = sample.degraded?.length
     ? sample.degraded.join('|')
     : 'none'
+  const captureText = capture
+    ? [
+        capture.health,
+        `permission=${capture.permission}`,
+        `phase=${capture.sessionPhase ?? 'none'}`,
+        `sources=${capture.sourceCount ?? 'unknown'}`,
+        `lease=${capture.leaseStatus}`,
+        `reasons=${capture.degradedReasons.length > 0 ? capture.degradedReasons.join('|') : 'none'}`,
+      ].join(' ')
+    : 'unknown'
 
   const sensoryText = [
     '[System Context: Sensory]',
@@ -32,6 +43,7 @@ export function createSensoryContext(snapshot: AlicizationSensoryCacheSnapshot):
     `memory=${roundPercent(sample.memory.usagePercent)}%`,
     `foreground=${foregroundText}`,
     `degraded=${degradedText}`,
+    `capture=${captureText}`,
   ].join(', ')
 
   return {

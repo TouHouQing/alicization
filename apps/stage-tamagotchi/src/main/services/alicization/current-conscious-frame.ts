@@ -3,6 +3,7 @@ import type {
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDesireMemorySnapshot,
+  AlicizationDialogueTurnEncounterSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationInitiativeSnapshot,
   AlicizationMindStatementSnapshot,
@@ -11,6 +12,7 @@ import type {
   AlicizationReplyMotive,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 
@@ -65,6 +67,11 @@ function pickAnchorText(...values: unknown[]) {
   return ''
 }
 
+interface AlicizationDialogueEncounterSurface extends Pick<
+  AlicizationDialogueTurnEncounterSnapshot,
+  'subject' | 'screenReferenceMode' | 'dialogueFirst' | 'summary' | 'taskAnchor' | 'mustRepairFirst' | 'confidence'
+> {}
+
 function looksSpecificArtifact(text: string) {
   return /(?:[/\\][\w.-]+)+|[A-Z][A-Za-z0-9]+(?:Controller|Service|Enum|Component|ViewModel|Manager|RespVO|Request|DTO)\b|\b[\w.-]+\.(?:ts|tsx|js|jsx|java|kt|swift|go|rs|py|vue)\b/u.test(text)
 }
@@ -76,7 +83,7 @@ function looksGenericTechnicalSurface(text: string) {
 function resolveCenterOfGravity(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   answerCompiler: AlicizationAnswerCompilerSnapshot
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
 }) {
@@ -112,7 +119,7 @@ function resolveCenterOfGravity(input: {
 function resolveTruthDiscipline(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   answerCompiler: AlicizationAnswerCompilerSnapshot
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   evidencePhrases: string[]
 }) {
   const subject = input.dialogueEncounter?.subject ?? input.discourseState.currentTurnSubject
@@ -153,7 +160,7 @@ function resolveConsciousNeed(input: {
   conversationState?: AlicizationConversationStateSnapshot | null
   answerCompiler: AlicizationAnswerCompilerSnapshot
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   primaryAnchor: string | null
 }) {
   switch (input.centerOfGravity) {
@@ -229,75 +236,86 @@ export function buildCurrentConsciousFrame(input: {
   now: number
   discourseState?: AlicizationDiscourseStateSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | AlicizationDialogueEncounterSurface | null
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationCurrentConsciousFrameSnapshot | null {
-  if (!input.discourseState || !input.answerCompiler)
+  const runtimeSurface = input.runtimeSurface ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueEncounter = runtimeSurface?.dialogue.dialogueEncounter ?? input.dialogueEncounter ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const initiative = runtimeSurface?.agency.initiative ?? input.initiative ?? null
+  const desireMemory = runtimeSurface?.memory.desireMemory ?? input.desireMemory ?? null
+
+  if (!discourseState || !answerCompiler)
     return null
 
   const primaryAnchor = pickAnchorText(
-    input.conversationState?.primaryTurnAnchor,
-    input.discourseState.primaryTurnAnchor,
-    input.dialogueEncounter?.taskAnchor,
-    input.answerCompiler.openingClaim,
-    input.conversationState?.hostMove,
+    conversationState?.primaryTurnAnchor,
+    discourseState.primaryTurnAnchor,
+    dialogueEncounter?.taskAnchor,
+    answerCompiler.openingClaim,
+    conversationState?.hostMove,
   ) || null
   const evidencePhrases = uniqueList([
-    input.answerCompiler.supportingReality?.[0],
-    input.answerCompiler.supportingReality?.[1],
-    input.dialogueEncounter?.summary,
-    input.conversationState?.jointThread,
-    input.answerCompiler.openingClaim,
+    answerCompiler.supportingReality?.[0],
+    answerCompiler.supportingReality?.[1],
+    dialogueEncounter?.summary,
+    conversationState?.jointThread,
+    answerCompiler.openingClaim,
     primaryAnchor,
   ], 6)
   const centerOfGravity = resolveCenterOfGravity({
-    discourseState: input.discourseState,
-    answerCompiler: input.answerCompiler,
-    dialogueEncounter: input.dialogueEncounter ?? null,
-    privateThought: input.privateThought ?? null,
-    initiative: input.initiative ?? null,
+    discourseState,
+    answerCompiler,
+    dialogueEncounter,
+    privateThought,
+    initiative,
   })
   const truthDiscipline = resolveTruthDiscipline({
-    discourseState: input.discourseState,
-    answerCompiler: input.answerCompiler,
-    dialogueEncounter: input.dialogueEncounter ?? null,
+    discourseState,
+    answerCompiler,
+    dialogueEncounter,
     evidencePhrases,
   })
-  const screenTurn = input.discourseState.currentTurnSubject === 'task-knot'
-    || input.discourseState.currentTurnSubject === 'visible-scene'
+  const screenTurn = discourseState.currentTurnSubject === 'task-knot'
+    || discourseState.currentTurnSubject === 'visible-scene'
   const shouldWithholdSpecificity = truthDiscipline === 'observe-then-hypothesize'
     || truthDiscipline === 'memory-labeled'
     || (truthDiscipline === 'repair-first' && screenTurn)
   const shouldSelfRevise = truthDiscipline === 'repair-first'
-    || input.answerCompiler.turnMode === 'screen-repair'
-    || input.dialogueEncounter?.mustRepairFirst === true
+    || answerCompiler.turnMode === 'screen-repair'
+    || dialogueEncounter?.mustRepairFirst === true
 
   const consciousNeed = resolveConsciousNeed({
     centerOfGravity,
-    conversationState: input.conversationState ?? null,
-    answerCompiler: input.answerCompiler,
-    mindSynthesis: input.mindSynthesis ?? null,
-    dialogueEncounter: input.dialogueEncounter ?? null,
+    conversationState,
+    answerCompiler,
+    mindSynthesis,
+    dialogueEncounter,
     primaryAnchor,
   })
   const consciousTension = pickSurfaceText(
-    strongestMindStatement(input.mindSynthesis?.concerns)?.summary,
-    strongestMindStatement(input.mindSynthesis?.uncertainties)?.summary,
-    input.privateThought?.thoughtText,
-    input.initiative?.why,
-    input.desireMemory?.activeDesires?.[0]?.reason,
+    strongestMindStatement(mindSynthesis?.concerns)?.summary,
+    strongestMindStatement(mindSynthesis?.uncertainties)?.summary,
+    privateThought?.thoughtText,
+    initiative?.why,
+    desireMemory?.activeDesires?.[0]?.reason,
   ) || 'Keep the visible answer aligned with the real inner pressure of this turn.'
   const speakingIntention = resolveSpeakingIntention({
     truthDiscipline,
     centerOfGravity,
-    answerCompiler: input.answerCompiler,
-    mindSynthesis: input.mindSynthesis ?? null,
-    privateThought: input.privateThought ?? null,
-    initiative: input.initiative ?? null,
+    answerCompiler,
+    mindSynthesis,
+    privateThought,
+    initiative,
   })
   const withheldImpulse = shouldWithholdSpecificity
     ? 'Do not collapse coarse visual evidence into file, class, or field certainty.'
@@ -306,7 +324,7 @@ export function buildCurrentConsciousFrame(input: {
       : null
 
   return {
-    subject: input.dialogueEncounter?.subject ?? input.discourseState.currentTurnSubject,
+    subject: dialogueEncounter?.subject ?? discourseState.currentTurnSubject,
     centerOfGravity,
     truthDiscipline,
     consciousNeed,
@@ -317,18 +335,18 @@ export function buildCurrentConsciousFrame(input: {
     shouldWithholdSpecificity,
     shouldSelfRevise,
     confidence: clamp01(
-      input.answerCompiler.confidence * 0.38
-      + (input.mindSynthesis?.confidence ?? 0.42) * 0.24
-      + (input.dialogueEncounter?.confidence ?? input.discourseState.confidence) * 0.22
-      + (input.privateThought?.confidence ?? 0.34) * 0.16,
+      answerCompiler.confidence * 0.38
+      + (mindSynthesis?.confidence ?? 0.42) * 0.24
+      + (dialogueEncounter?.confidence ?? discourseState.confidence) * 0.22
+      + (privateThought?.confidence ?? 0.34) * 0.16,
     ),
     reasonTags: uniqueList([
-      `subject:${input.dialogueEncounter?.subject ?? input.discourseState.currentTurnSubject}`,
+      `subject:${dialogueEncounter?.subject ?? discourseState.currentTurnSubject}`,
       `center:${centerOfGravity}`,
       `discipline:${truthDiscipline}`,
-      input.privateThought?.stance ? `stance:${input.privateThought.stance}` : null,
-      input.initiative?.selectedAction ? `initiative:${input.initiative.selectedAction}` : null,
-      input.answerCompiler.recommendedAct ? `act:${input.answerCompiler.recommendedAct}` : null,
+      privateThought?.stance ? `stance:${privateThought.stance}` : null,
+      initiative?.selectedAction ? `initiative:${initiative.selectedAction}` : null,
+      answerCompiler.recommendedAct ? `act:${answerCompiler.recommendedAct}` : null,
       shouldWithholdSpecificity ? 'withhold-specificity' : null,
       shouldSelfRevise ? 'self-revise' : null,
     ], 8),

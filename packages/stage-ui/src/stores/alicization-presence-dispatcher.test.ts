@@ -82,11 +82,23 @@ describe('alicization presence dispatcher', () => {
     expect(applyPerformance).toBeCalledWith(expect.objectContaining({
       baseEmotion: 'neutral',
       emotion: 'neutral',
-      facialCue: 'smile',
-      actionCue: 'wave',
+      facialCue: expect.any(String),
+      actionCue: expect.any(String),
     }), expect.objectContaining({
       turnId: 'turn-unknown-emotion',
       structured: expect.objectContaining({
+        embodiment: expect.objectContaining({
+          variationToken: expect.stringContaining('turn-unknown-emotion'),
+        }),
+        speechTimeline: expect.objectContaining({
+          version: 'speech-timeline-v1',
+          segments: expect.arrayContaining([
+            expect.objectContaining({
+              actionWindow: expect.any(String),
+              beatWeight: expect.any(Number),
+            }),
+          ]),
+        }),
         emotion: 'neutral',
         rawEmotion: 'super-excited',
       }),
@@ -137,6 +149,55 @@ describe('alicization presence dispatcher', () => {
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'live2d-dispatch-failed',
     }))
+  })
+
+  it('routes sparse dialogue performance and avoids cue stagnation across turns', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPerformance = vi.fn()
+
+    store.registerLive2DController({ applyPerformance })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-sparse-1',
+      structured: {
+        thought: 'obligation=care; truth=grounded; focus=host-state; move=soothe; tone=warm',
+        emotion: 'concerned',
+        reply: '别急，我们先慢慢来，我陪着你。',
+        performance: {
+          baseEmotion: 'concerned',
+          emotion: 'concerned',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+    }))
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-sparse-2',
+      structured: {
+        thought: 'obligation=care; truth=grounded; focus=host-state; move=guide; tone=warm',
+        emotion: 'concerned',
+        reply: '我在，你可以先说最卡的一步，我们一起拆开看。',
+        performance: {
+          baseEmotion: 'concerned',
+          emotion: 'concerned',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+      },
+    }))
+
+    expect(applyPerformance).toBeCalledTimes(2)
+    const firstPerformance = applyPerformance.mock.calls[0]?.[0]
+    const secondPerformance = applyPerformance.mock.calls[1]?.[0]
+    expect(firstPerformance?.facialCue).toBeTruthy()
+    expect(firstPerformance?.actionCue).toBeTruthy()
+    expect(secondPerformance?.facialCue).toBeTruthy()
+    expect(secondPerformance?.actionCue).toBeTruthy()
+    expect(secondPerformance?.actionCue).not.toBe(firstPerformance?.actionCue)
   })
 
   it('supports multi-channel embodiment routing with active channel guard', async () => {

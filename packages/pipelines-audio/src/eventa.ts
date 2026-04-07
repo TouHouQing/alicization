@@ -6,6 +6,7 @@ import type {
   TextSegment,
   TtsRequest,
   TtsResult,
+  TtsSkipped,
 } from './types'
 
 import { defineEventa } from '@moeru/eventa'
@@ -14,6 +15,7 @@ export const speechSegmentEvent = defineEventa<TextSegment>('proj-alicization:pi
 export const speechSpecialEvent = defineEventa<TextSegment>('proj-alicization:pipelines:output:speech:special')
 export const speechTtsRequestEvent = defineEventa<TtsRequest>('proj-alicization:pipelines:output:speech:tts-request')
 export const speechTtsResultEvent = defineEventa<TtsResult<any>>('proj-alicization:pipelines:output:speech:tts-result')
+export const speechTtsSkippedEvent = defineEventa<TtsSkipped>('proj-alicization:pipelines:output:speech:tts-skipped')
 export const speechPlaybackStartEvent = defineEventa<PlaybackStartEvent<any>>('proj-alicization:pipelines:output:speech:playback-start')
 export const speechPlaybackEndEvent = defineEventa<PlaybackEndEvent<any>>('proj-alicization:pipelines:output:speech:playback-end')
 export const speechPlaybackInterruptEvent = defineEventa<PlaybackInterruptEvent<any>>('proj-alicization:pipelines:output:speech:playback-interrupt')
@@ -27,6 +29,7 @@ export const speechPipelineEventMap = {
   onSpecial: speechSpecialEvent,
   onTtsRequest: speechTtsRequestEvent,
   onTtsResult: speechTtsResultEvent,
+  onTtsSkipped: speechTtsSkippedEvent,
   onPlaybackStart: speechPlaybackStartEvent,
   onPlaybackEnd: speechPlaybackEndEvent,
   onPlaybackInterrupt: speechPlaybackInterruptEvent,

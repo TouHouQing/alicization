@@ -8,6 +8,11 @@
 
 import type { VRM } from '@pixiv/three-vrm'
 import type {
+  StageEmbodimentPerformanceState,
+  StageEmbodimentPresencePostureState,
+  StageEmbodimentSpeechRenderState,
+} from '@proj-alicization/stage-shared'
+import type {
   AnimationAction,
   Group,
   Object3D,
@@ -24,6 +29,7 @@ import type { VrmLifecycleReason } from '../../trace'
 import type {
   VrmActionBinding,
   VrmCustomExpressionBinding,
+  VrmIdleActionPreference,
   VrmRuntimeCapabilitySnapshot,
 } from '../../types/performance'
 import type { ManagedVrmInstance } from './vrm-instance-cache'
@@ -83,6 +89,7 @@ import {
 import { loadVrm } from '../../composables/vrm/core'
 import { useVRMEmote } from '../../composables/vrm/expression'
 import { useVRMLipSync } from '../../composables/vrm/lip-sync'
+import { applyStageEmbodimentVrmPosture } from '../../composables/vrm/posture'
 import {
   createThreeRendererMemorySnapshot,
   createVrmSceneSummarySnapshot,
@@ -113,9 +120,10 @@ import {
   * - modelRotationY: The rotation of the model (y-axis)
 */
 const props = withDefaults(defineProps<{
-  currentAudioSource?: AudioBufferSourceNode
+  baseExpressionOverrides?: Record<string, string[]> | null
   customExpressionBindings?: VrmCustomExpressionBinding[]
   actionBindings?: VrmActionBinding[]
+  externalLookAtScreenPoint?: { x: number, y: number } | null
   modelSrc?: string
   modelId?: string
   idleAnimation: string
@@ -134,6 +142,10 @@ const props = withDefaults(defineProps<{
   cameraPosition: Vec3
 
   camera: PerspectiveCamera
+  idleActionPreference?: VrmIdleActionPreference | null
+  performanceState?: StageEmbodimentPerformanceState | null
+  presencePosture?: StageEmbodimentPresencePostureState | null
+  speechRenderState?: StageEmbodimentSpeechRenderState | null
 }>(), {
   paused: false,
 })
@@ -157,9 +169,10 @@ const emit = defineEmits<{
 }>()
 
 const {
-  currentAudioSource,
   customExpressionBindings,
   actionBindings,
+  baseExpressionOverrides,
+  externalLookAtScreenPoint,
   modelSrc,
   idleAnimation,
   // loadAnimations, // TBC
@@ -177,6 +190,10 @@ const {
   cameraPosition,
 
   camera,
+  idleActionPreference,
+  performanceState,
+  presencePosture,
+  speechRenderState,
 } = toRefs(props)
 
 // Model and scene ref
@@ -198,13 +215,20 @@ const vrmAnimationMixer = ref<AnimationMixer>()
 const idleClipAction = ref<AnimationAction>()
 const transientClipAction = ref<AnimationAction>()
 const transientCleanup = ref<(() => void) | undefined>()
+let transientActionRequestId = 0
+let lastTransientActionKey = ''
+let lastTransientActionIssuedAt = 0
+const transientActionDedupWindowMs = 220
 const customExpressionNames = ref<string[]>([])
 const { onBeforeRender, stop, start } = useLoop()
+const lastAppliedIdleActionKey = ref('')
+const lastAppliedIdleActionAt = ref(0)
 
 type VrmFrameHook = (vrm: VRM, delta: number) => void
 const vrmFrameHook = shallowRef<VrmFrameHook>()
 let disposeBeforeRenderLoop: (() => void | undefined) | undefined
 const lastDialoguePerformance = shallowRef<DialoguePerformanceInput | null>(null)
+const lastAppliedActionPulseRevision = ref(0)
 
 const internalMouthShadowPrefix = '__airi_internal_mouth__'
 
@@ -219,7 +243,8 @@ interface DialoguePerformanceInput {
 const blink = useBlink()
 const idleEyeSaccades = useIdleEyeSaccades()
 const vrmEmote = ref<ReturnType<typeof useVRMEmote>>()
-const vrmLipSync = useVRMLipSync(currentAudioSource)
+const vrmLipSync = useVRMLipSync(speechRenderState)
+const speechDynamics = computed(() => speechRenderState.value?.active === true ? speechRenderState.value.dynamics : null)
 
 // For sky box update
 const nprProgramVersion = ref(0)
@@ -394,9 +419,16 @@ function bindManagedVrmInstanceRenderLoop() {
       activeVrm?.lookAt?.update?.(delta)
     })
     const blinkAndSaccadeMs = measureFrameStep(tracingEnabled, () => {
-      const blinkResult = blink.update(delta)
+      const blinkResult = blink.update(delta, speechDynamics.value)
       vrmEmote.value?.setBlinkWeights(blinkResult.weights)
-      idleEyeSaccades.update(activeVrm, lookAtTarget, delta)
+      idleEyeSaccades.update(activeVrm, lookAtTarget, delta, speechDynamics.value, presencePosture.value)
+    })
+    const postureMs = measureFrameStep(tracingEnabled, () => {
+      applyStageEmbodimentVrmPosture({
+        delta,
+        posture: presencePosture.value,
+        vrm: activeVrm,
+      })
     })
     const lipSyncMs = measureFrameStep(tracingEnabled, () => {
       const result = vrmLipSync.update(delta)
@@ -423,6 +455,7 @@ function bindManagedVrmInstanceRenderLoop() {
         humanoidMs,
         lipSyncMs,
         lookAtMs,
+        postureMs,
         springBoneMs,
         ts: traceStart,
         vrmFrameHookMs,
@@ -470,6 +503,7 @@ function componentCleanUp(
 
   disposeBeforeRenderLoop?.()
   disposeBeforeRenderLoop = undefined
+  clearTransientAnimation()
 
   if (activeInstance)
     detachVrmGroup(activeInstance.group)
@@ -533,7 +567,7 @@ function buildRuntimeCapabilitySnapshot(activeVrm?: VRM): VrmRuntimeCapabilitySn
     supportedExpressionNames,
     supportsLookAt: Boolean(activeVrm?.lookAt),
     supportsVisemeLipSync: supportsVrmVisemeLipSync(supportedExpressionNames),
-    supportsMicroDynamics: false,
+    supportsMicroDynamics: true,
   }
 }
 
@@ -552,6 +586,61 @@ function resolvePerformanceIntensity(input: DialoguePerformanceInput) {
   if (emphasis >= 1)
     return 0.85
   return 0.7
+}
+
+function clamp01(value: number, fallback: number = 0) {
+  if (!Number.isFinite(value))
+    return fallback
+
+  return Math.min(1, Math.max(0, value))
+}
+
+function clampBlendDurationSeconds(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return undefined
+
+  return Math.min(1.2, Math.max(0.05, Number(value) / 1000))
+}
+
+function clampActionFadeSeconds(value: number | null | undefined) {
+  if (!Number.isFinite(value))
+    return 0.18
+
+  return Math.min(1.2, Math.max(0.08, Number(value) / 1000))
+}
+
+function resolveExpressionIntensityFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
+  if (!state || state.phase === 'idle')
+    return 0.62
+
+  return clamp01(state.expressionIntensity, 0.72)
+}
+
+function resolveFacialCueIntensityFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
+  if (!state || state.phase === 'idle')
+    return 0
+
+  return clamp01(state.facialCueIntensity, resolveExpressionIntensityFromPerformanceState(state))
+}
+
+function resolveDialoguePerformanceFromState(state?: StageEmbodimentPerformanceState | null): DialoguePerformanceInput | null {
+  if (!state || state.phase === 'idle')
+    return null
+
+  return {
+    actionCue: state.performance.actionCue ?? null,
+    baseEmotion: state.performance.baseEmotion,
+    emphasis: state.performance.emphasis,
+    facialCue: state.performance.facialCue ?? null,
+  }
+}
+
+function resolveRendererSettleBlendDurationFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
+  return clampBlendDurationSeconds(state?.activeCue?.rendererSettle?.vrmExpressionBlendMs)
+}
+
+function resolveRendererSettleActionFadeFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
+  return clampActionFadeSeconds(state?.activeCue?.rendererSettle?.vrmActionFadeMs)
 }
 
 function hasConfiguredCapabilityText(value: unknown) {
@@ -578,58 +667,121 @@ function resolveConfiguredCustomExpressionBinding(facialCue?: string | null) {
 }
 
 function clearTransientAnimation() {
+  transientActionRequestId += 1
   transientCleanup.value?.()
   transientCleanup.value = undefined
   transientClipAction.value?.stop()
   transientClipAction.value = undefined
 }
 
-function replayIdleAnimation() {
+function buildTransientActionKey(binding: VrmActionBinding) {
+  const source = binding.source || 'unknown'
+  const identity = binding.id || binding.actionKey || binding.fileName || 'anonymous-action'
+  return `${source}:${identity}`.trim()
+}
+
+function replayIdleAnimation(fadeDuration: number = 0.18) {
   clearTransientAnimation()
   idleClipAction.value?.reset()
-  idleClipAction.value?.fadeIn(0.18)
+  idleClipAction.value?.fadeIn(fadeDuration)
   idleClipAction.value?.play()
 }
 
-async function playActionBinding(binding: VrmActionBinding) {
+function buildIdleActionPreferenceKey(preference: typeof idleActionPreference.value) {
+  if (!preference)
+    return 'idle:none'
+
+  const bindingId = preference.binding?.id ?? preference.binding?.actionKey ?? 'settle_idle'
+  return `${preference.mode}:${bindingId}`
+}
+
+function resolveIdleActionCooldownMs(preference: typeof idleActionPreference.value) {
+  if (!preference)
+    return 1200
+  if (preference.mode === 'inspection')
+    return 2400
+  if (preference.mode === 'hesitant' || preference.mode === 'concerned')
+    return 2800
+  return 1800
+}
+
+async function playActionBinding(
+  binding: VrmActionBinding,
+  options?: {
+    fadeDuration?: number
+  },
+) {
+  const actionKey = buildTransientActionKey(binding)
+  const now = performance.now()
+  if (actionKey && actionKey === lastTransientActionKey && now - lastTransientActionIssuedAt < transientActionDedupWindowMs)
+    return
+  lastTransientActionKey = actionKey
+  lastTransientActionIssuedAt = now
+  const fadeDuration = clampActionFadeSeconds(options?.fadeDuration)
+
+  const requestId = transientActionRequestId + 1
+  transientActionRequestId = requestId
+
   const activeVrm = vrm.value
   const mixer = vrmAnimationMixer.value
   if (!activeVrm || !mixer)
     return
 
   if (binding.source === 'builtin' && binding.actionKey === 'settle_idle') {
-    replayIdleAnimation()
+    replayIdleAnimation(fadeDuration)
     return
   }
 
   if (!binding.file)
     return
 
-  clearTransientAnimation()
+  transientCleanup.value?.()
+  transientCleanup.value = undefined
+  transientClipAction.value?.stop()
+  transientClipAction.value = undefined
 
   const animation = await loadVRMAnimation(binding.file)
+  if (requestId !== transientActionRequestId)
+    return
+
   const clip = await clipFromVRMAnimation(activeVrm, animation)
+  if (requestId !== transientActionRequestId) {
+    if (clip)
+      mixer.uncacheClip(clip)
+    return
+  }
   if (!clip)
     return
 
   reAnchorRootPositionTrack(clip, activeVrm)
   const action = mixer.clipAction(clip)
+  if (requestId !== transientActionRequestId) {
+    try {
+      action.stop()
+    }
+    catch {}
+    mixer.uncacheClip(clip)
+    return
+  }
+
   transientClipAction.value = action
   action.reset()
   action.setLoop(LoopOnce, 1)
   action.clampWhenFinished = false
   action.play()
-  idleClipAction.value?.crossFadeTo(action, 0.18, false)
+  idleClipAction.value?.crossFadeTo(action, fadeDuration, false)
   let cleanup: (() => void) | undefined
 
   const handleFinished = (event: { action: AnimationAction, direction: number }) => {
     if (event.action !== action)
       return
+    if (requestId !== transientActionRequestId)
+      return
 
     mixer.removeEventListener('finished', handleFinished)
-    action.fadeOut(0.18)
+    action.fadeOut(fadeDuration)
     idleClipAction.value?.reset()
-    idleClipAction.value?.fadeIn(0.18)
+    idleClipAction.value?.fadeIn(fadeDuration)
     idleClipAction.value?.play()
     action.stop()
     mixer.uncacheClip(clip)
@@ -648,26 +800,102 @@ async function playActionBinding(binding: VrmActionBinding) {
     mixer.uncacheClip(clip)
   }
 
+  if (requestId !== transientActionRequestId) {
+    cleanup()
+    return
+  }
+
   transientCleanup.value = cleanup
   mixer.addEventListener('finished', handleFinished)
 }
 
-function applyDialogueExpression(input: DialoguePerformanceInput) {
+async function applyIdleActionPreference(
+  preference: typeof idleActionPreference.value,
+  options: {
+    force?: boolean
+  } = {},
+) {
+  if (speechRenderState.value?.active)
+    return
+
+  const key = buildIdleActionPreferenceKey(preference)
+  const now = performance.now()
+  if (!options.force) {
+    const elapsedMs = now - lastAppliedIdleActionAt.value
+    if (key === lastAppliedIdleActionKey.value && elapsedMs < resolveIdleActionCooldownMs(preference))
+      return
+  }
+
+  lastAppliedIdleActionKey.value = key
+  lastAppliedIdleActionAt.value = now
+
+  if (!preference?.binding || preference.binding.actionKey === 'settle_idle') {
+    replayIdleAnimation()
+    return
+  }
+
+  await playActionBinding(preference.binding)
+}
+
+function applyDialogueExpression(
+  input: DialoguePerformanceInput,
+  options?: {
+    blendDuration?: number
+    emotionIntensity?: number
+    facialCueIntensity?: number
+  },
+) {
   const emote = vrmEmote.value
   if (!emote)
     return
 
-  const intensity = resolvePerformanceIntensity(input)
-  emote.setEmotion(resolveVrmBaseExpressionName(input.baseEmotion), intensity)
+  const emotionIntensity = clamp01(options?.emotionIntensity ?? resolvePerformanceIntensity(input), 0.7)
+  const facialCueIntensity = clamp01(options?.facialCueIntensity ?? emotionIntensity, emotionIntensity)
+  emote.setEmotion(
+    resolveVrmBaseExpressionName(
+      input.baseEmotion,
+      baseExpressionOverrides.value?.[input.baseEmotion],
+    ),
+    emotionIntensity,
+    { blendDuration: options?.blendDuration },
+  )
 
   const customBinding = resolveConfiguredCustomExpressionBinding(input.facialCue)
   if (customBinding) {
-    emote.setFacialCue(customBinding.expressionName, intensity, { affectsMouth: customBinding.affectsMouth })
+    emote.setFacialCue(customBinding.expressionName, facialCueIntensity, {
+      affectsMouth: customBinding.affectsMouth,
+      blendDuration: options?.blendDuration,
+    })
   }
   else {
     const presetBinding = resolveVrmPresetFacialCapability(input.facialCue)
-    emote.setFacialCue(presetBinding?.expressionName ?? null, intensity, { affectsMouth: presetBinding?.affectsMouth === true })
+    emote.setFacialCue(presetBinding?.expressionName ?? null, facialCueIntensity, {
+      affectsMouth: presetBinding?.affectsMouth === true,
+      blendDuration: options?.blendDuration,
+    })
   }
+}
+
+function applyDialogueExpressionFromState(state?: StageEmbodimentPerformanceState | null) {
+  const performanceInput = resolveDialoguePerformanceFromState(state)
+  if (!performanceInput) {
+    applyDialogueExpression({
+      actionCue: null,
+      baseEmotion: 'neutral',
+      emphasis: 0,
+      facialCue: null,
+    }, {
+      emotionIntensity: 0.62,
+      facialCueIntensity: 0,
+    })
+    return
+  }
+
+  applyDialogueExpression(performanceInput, {
+    blendDuration: resolveRendererSettleBlendDurationFromPerformanceState(state),
+    emotionIntensity: resolveExpressionIntensityFromPerformanceState(state),
+    facialCueIntensity: resolveFacialCueIntensityFromPerformanceState(state),
+  })
 }
 
 async function applyDialoguePerformance(input: DialoguePerformanceInput) {
@@ -1110,13 +1338,88 @@ onMounted(async () => {
   watch(lookAtTarget, (newTarget) => {
     idleEyeSaccades.instantUpdate(vrm.value, newTarget)
   }, { deep: true })
-
-  watch(customExpressionBindings, () => {
-    if (!lastDialoguePerformance.value)
+  watch([externalLookAtScreenPoint, trackingMode], ([screenPoint, mode]) => {
+    if (!screenPoint || mode !== 'none')
       return
 
-    applyDialogueExpression(lastDialoguePerformance.value)
+    idleEyeSaccades.instantUpdate(vrm.value, lookAtMouse(screenPoint.x, screenPoint.y, camera))
+  }, { deep: true, immediate: true })
+
+  watch(customExpressionBindings, () => {
+    const activePerformanceState = performanceState.value
+    if (activePerformanceState && activePerformanceState.phase !== 'idle') {
+      applyDialogueExpressionFromState(activePerformanceState)
+      return
+    }
+
+    if (lastDialoguePerformance.value)
+      applyDialogueExpression(lastDialoguePerformance.value)
   }, { deep: true })
+  watch(
+    [
+      () => performanceState.value?.phase ?? 'idle',
+      () => performanceState.value?.performance.baseEmotion ?? 'neutral',
+      () => performanceState.value?.performance.facialCue ?? null,
+      () => performanceState.value?.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
+      () => Math.round((performanceState.value?.expressionIntensity ?? 0) * 10),
+      () => Math.round((performanceState.value?.facialCueIntensity ?? 0) * 10),
+    ],
+    () => {
+      applyDialogueExpressionFromState(performanceState.value)
+    },
+    { immediate: true },
+  )
+  watch(
+    () => performanceState.value?.actionPulse.revision ?? 0,
+    async (revision) => {
+      if (!revision || revision === lastAppliedActionPulseRevision.value)
+        return
+
+      lastAppliedActionPulseRevision.value = revision
+      const actionCue = performanceState.value?.actionPulse.cue?.trim()
+      if (!actionCue)
+        return
+
+      const actionBinding = (actionBindings.value ?? [])
+        .find(item => item.actionKey === actionCue)
+      if (actionBinding) {
+        await playActionBinding(actionBinding, {
+          fadeDuration: resolveRendererSettleActionFadeFromPerformanceState(performanceState.value),
+        })
+      }
+    },
+    { immediate: true },
+  )
+  watch(idleActionPreference, async (preference, previousPreference) => {
+    const nextKey = buildIdleActionPreferenceKey(preference)
+    const previousKey = buildIdleActionPreferenceKey(previousPreference)
+    if (nextKey === previousKey)
+      return
+
+    if (transientClipAction.value || speechRenderState.value?.active)
+      return
+
+    await applyIdleActionPreference(preference, { force: true })
+  }, { deep: true })
+  watch([
+    () => transientClipAction.value,
+    () => speechRenderState.value?.active === true,
+  ], async ([activeTransient, speechActive], [previousTransient, previousSpeechActive]) => {
+    if (activeTransient || speechActive)
+      return
+
+    if (!previousTransient && !previousSpeechActive)
+      return
+
+    await applyIdleActionPreference(idleActionPreference.value)
+  })
+  watch(modelLoaded, async (loaded) => {
+    if (!loaded)
+      return
+
+    applyDialogueExpressionFromState(performanceState.value)
+    await applyIdleActionPreference(idleActionPreference.value, { force: true })
+  }, { immediate: true })
 })
 
 onUnmounted(() => {

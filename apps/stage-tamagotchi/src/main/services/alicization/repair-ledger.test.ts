@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildRepairLedger } from './repair-ledger'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const baseContext = {
   localTime: { hour: 14, minute: 10, isLateNight: false },
@@ -268,6 +270,188 @@ describe('buildRepairLedger', () => {
       previous: null,
     })
 
+    expect(ledger.entries.some(entry => entry.kind === 'stale-scene-anchor')).toBe(true)
+    expect(ledger.shouldConstrainPresentTense).toBe(true)
+  })
+
+  it('prefers runtime surface truth cues over conflicting raw repair inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(54_000),
+      currentScene: {
+        workloadKind: 'browser',
+        contentKind: 'unknown',
+        scenario: 'general',
+        summary: 'Desktop browser',
+        source: 'foreground-window-heuristic',
+        confidence: 0.42,
+        target: null,
+        beganAt: 44_000,
+        lastSeenAt: 54_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-diff',
+          kind: 'change-review',
+          status: 'lingering',
+          source: 'continuity',
+          title: 'runtime.ts diff',
+          summary: 'The diff knot is still being carried even though the live scene softened.',
+          confidence: 0.66,
+          significance: 0.72,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 54_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: ['what is actually visible now?'],
+          staleRisks: ['old anchor may be stale'],
+        },
+        continuity: {
+          label: 'afterglow',
+          sceneAgeMs: 10_000,
+          attentionAgeMs: 10_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 54_000,
+      },
+      worldOntology: {
+        dominantFrame: 'remembered',
+        truthPriority: ['live', 'remembered', 'imagined'],
+        live: null,
+        remembered: {
+          kind: 'remembered',
+          summary: 'The current thread is being carried more than directly seen.',
+          confidence: 0.62,
+          stability: 0.56,
+          focusThreadId: 'thread::runtime-diff',
+          evidence: ['continuity'],
+        },
+        imagined: null,
+        updatedAt: 54_000,
+      },
+      beliefRevision: {
+        dominantBeliefId: null,
+        stability: 'fluid',
+        revisionPressure: 0.52,
+        groundingNeed: 0.74,
+        contradictionPressure: 0.36,
+        hostCorrectionWeight: 0.26,
+        narrative: [],
+        updatedAt: 54_000,
+      },
+      commitmentLedger: {
+        governingCommitmentId: 'commitment::recheck-scene::runtime',
+        commitments: [{
+          id: 'commitment::recheck-scene::runtime',
+          kind: 'recheck-scene',
+          status: 'active',
+          title: 'Recheck Scene',
+          summary: 'She still wants a cleaner grounding pass.',
+          source: 'continuity',
+          priority: 0.76,
+          confidence: 0.7,
+          createdAt: 0,
+          lastRenewedAt: 54_000,
+          patienceUntil: 60_000,
+          expiresAt: 120_000,
+        }],
+        carryPressure: 0.58,
+        narrative: [],
+        updatedAt: 54_000,
+      },
+      inquiryPlanner: {
+        activePlanId: 'plan::reground',
+        plans: [{
+          id: 'plan::reground',
+          kind: 'reground-scene',
+          status: 'tracking',
+          priority: 'high',
+          question: 'What is actually on screen right now?',
+          askForGrounding: true,
+          suggestedProbeMs: 8_000,
+          evidenceWanted: ['fresh-scene-summary'],
+          createdAt: 0,
+          lastUpdatedAt: 54_000,
+          expiresAt: 120_000,
+        }],
+        epistemicPressure: 0.7,
+        groundingUrgency: 0.8,
+        narrative: [],
+        updatedAt: 54_000,
+      },
+    } as any
+
+    const ledger = buildRepairLedger({
+      now: 54_000,
+      context: baseContext,
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'fresh grounded diff',
+        source: 'screen-semantic-summary',
+        confidence: 0.92,
+        target: null,
+        beganAt: 53_000,
+        lastSeenAt: 54_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::raw-conflict',
+          kind: 'change-review',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'fresh grounded diff',
+          summary: 'This raw path should be ignored.',
+          confidence: 0.88,
+          significance: 0.82,
+          unresolved: false,
+          beganAt: 53_000,
+          lastUpdatedAt: 54_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-scene',
+          sceneAgeMs: 1_000,
+          attentionAgeMs: 1_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'light',
+        },
+        updatedAt: 54_000,
+      } as any,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+      previous: null,
+    })
+
+    expect(ledger.entries.some(entry => entry.kind === 'reground-scene')).toBe(true)
     expect(ledger.entries.some(entry => entry.kind === 'stale-scene-anchor')).toBe(true)
     expect(ledger.shouldConstrainPresentTense).toBe(true)
   })

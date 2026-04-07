@@ -4,6 +4,8 @@ export interface PriorityResolver {
   resolve: (priority?: PriorityLevel | number) => number
 }
 
+export type SpeechIntentMetadata = Record<string, unknown>
+
 export interface TextToken {
   type: 'literal' | 'special' | 'flush'
   value?: string
@@ -11,6 +13,7 @@ export interface TextToken {
   intentId: string
   sequence: number
   createdAt: number
+  metadata?: SpeechIntentMetadata | null
 }
 
 export interface TextSegment {
@@ -20,7 +23,9 @@ export interface TextSegment {
   text: string
   special: string | null
   reason: 'boost' | 'limit' | 'hard' | 'flush' | 'special'
+  continuityHoldMs: number
   createdAt: number
+  metadata?: SpeechIntentMetadata | null
 }
 
 export interface TtsRequest {
@@ -29,8 +34,71 @@ export interface TtsRequest {
   segmentId: string
   text: string
   special: string | null
+  continuityHoldMs: number
   priority: number
   createdAt: number
+  metadata?: SpeechIntentMetadata | null
+}
+
+export interface SpeechAudioChunk<TAudio> {
+  audio: TAudio
+  createdAt?: number
+  sequence?: number
+}
+
+// `SpeechAudioSource` keeps the pipeline transport-agnostic: providers can return
+// a ready buffer today or a lazy chunk stream later without changing queueing APIs.
+export interface BufferedSpeechAudioSource<TAudio> {
+  kind: 'buffer'
+  audio: TAudio
+}
+
+export interface StreamingSpeechAudioSource<TAudio> {
+  kind: 'stream'
+  stream: ReadableStream<SpeechAudioChunk<TAudio>>
+}
+
+export type SpeechAudioSource<TAudio>
+  = | BufferedSpeechAudioSource<TAudio>
+    | StreamingSpeechAudioSource<TAudio>
+
+export function createSpeechAudioChunk<TAudio>(
+  audio: TAudio,
+  options?: Omit<SpeechAudioChunk<TAudio>, 'audio'>,
+): SpeechAudioChunk<TAudio> {
+  return {
+    audio,
+    createdAt: options?.createdAt,
+    sequence: options?.sequence,
+  }
+}
+
+export function createBufferedSpeechAudioSource<TAudio>(audio: TAudio): BufferedSpeechAudioSource<TAudio> {
+  return {
+    kind: 'buffer',
+    audio,
+  }
+}
+
+export function createStreamingSpeechAudioSource<TAudio>(
+  stream: ReadableStream<SpeechAudioChunk<TAudio>>,
+): StreamingSpeechAudioSource<TAudio> {
+  return {
+    kind: 'stream',
+    stream,
+  }
+}
+
+export function isBufferedSpeechAudioSource<TAudio>(
+  value: SpeechAudioSource<TAudio>,
+): value is BufferedSpeechAudioSource<TAudio> {
+  return value.kind === 'buffer'
+}
+
+export function isStreamingSpeechAudioSource<TAudio>(
+  value: SpeechAudioSource<TAudio>,
+): value is StreamingSpeechAudioSource<TAudio> {
+  return value.kind === 'stream'
 }
 
 export interface TtsResult<TAudio> {
@@ -39,7 +107,17 @@ export interface TtsResult<TAudio> {
   segmentId: string
   text: string
   special: string | null
+  continuityHoldMs: number
   audio: TAudio
+  createdAt: number
+  metadata?: SpeechIntentMetadata | null
+}
+
+export type TtsSkipReason = 'empty-audio' | 'tts-error'
+
+export interface TtsSkipped {
+  request: TtsRequest
+  reason: TtsSkipReason
   createdAt: number
 }
 
@@ -52,8 +130,10 @@ export interface PlaybackItem<TAudio> {
   priority: number
   text: string
   special: string | null
+  continuityHoldMs: number
   audio: TAudio
   createdAt: number
+  metadata?: SpeechIntentMetadata | null
 }
 
 export interface PlaybackStartEvent<TAudio> {
@@ -85,6 +165,7 @@ export interface IntentOptions {
   priority?: PriorityLevel | number
   ownerId?: string
   behavior?: IntentBehavior
+  metadata?: SpeechIntentMetadata | null
 }
 
 export interface IntentHandle {
@@ -105,6 +186,7 @@ export interface SpeechPipelineEvents<TAudio> {
   onSpecial: (segment: TextSegment) => void
   onTtsRequest: (request: TtsRequest) => void
   onTtsResult: (result: TtsResult<TAudio>) => void
+  onTtsSkipped: (event: TtsSkipped) => void
   onPlaybackStart: (event: PlaybackStartEvent<TAudio>) => void
   onPlaybackEnd: (event: PlaybackEndEvent<TAudio>) => void
   onPlaybackInterrupt: (event: PlaybackInterruptEvent<TAudio>) => void

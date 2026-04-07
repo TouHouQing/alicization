@@ -2,14 +2,19 @@ import type {
   AlicizationAnswerCompilerSnapshot,
   AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationDialogueActKernelSnapshot,
+  AlicizationDialogueTurnEncounterSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueFocusGovernance } from './dialogue-focus-governor'
 import type { AlicizationDialogueObligation, AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
+import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type { AlicizationResponseCharter } from './response-charter'
 
+import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
+import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 export interface AlicizationResponseSurfaceContract {
@@ -35,6 +40,11 @@ function pushUnique(target: string[], value: string) {
   target.push(normalized)
 }
 
+interface AlicizationDialogueEncounterSurface extends Pick<
+  AlicizationDialogueTurnEncounterSnapshot,
+  'subject' | 'screenReferenceMode'
+> {}
+
 export function buildAlicizationResponseSurfaceContract(input: {
   brief: AlicizationExecutiveAnswerBrief
   charter: AlicizationResponseCharter
@@ -45,17 +55,23 @@ export function buildAlicizationResponseSurfaceContract(input: {
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
+  executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }) {
+  const runtimeSurface = input.runtimeSurface ?? null
+  const digitalLifeArchitecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
   const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueEncounterSurface: AlicizationDialogueEncounterSurface | null = runtimeSurface?.dialogue.dialogueEncounter ?? dialogueEncounter ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
   const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
-  const answerCompiler = input.answerCompiler ?? null
-  const claimEvidenceLedger = input.claimEvidenceLedger ?? null
+  const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({
-    answerSubject: dialogueEncounter?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
-    screenReferenceMode: dialogueEncounter?.screenReferenceMode ?? dialogueFocus?.screenReferenceMode ?? answerCompiler?.screenReferenceMode ?? null,
+    answerSubject: dialogueEncounterSurface?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
+    screenReferenceMode: dialogueEncounterSurface?.screenReferenceMode ?? dialogueFocus?.screenReferenceMode ?? answerCompiler?.screenReferenceMode ?? null,
     truthState: brief.truthState,
     turnMode: answerCompiler?.turnMode ?? brief.turnMode,
     repairState: brief.turnMode === 'screen-repair' ? 'stale-anchor' : 'none',
@@ -66,17 +82,19 @@ export function buildAlicizationResponseSurfaceContract(input: {
     currentConsciousFrame: null,
   })
 
-  const openingStyle = answerCompiler?.openingStyle ?? (() => {
-    if (brief.turnMode === 'grounded-inspection')
-      return 'direct-observation' as const
-    if (brief.turnMode === 'screen-repair')
-      return 'direct-correction' as const
-    if (brief.turnMode === 'care')
-      return 'gentle-care' as const
-    if (brief.turnMode === 'accompany')
-      return 'light-accompaniment' as const
-    return 'direct-answer' as const
-  })()
+  const openingStyle = input.executionReplyObligation
+    ? 'direct-answer' as const
+    : answerCompiler?.openingStyle ?? (() => {
+      if (brief.turnMode === 'grounded-inspection')
+        return 'direct-observation' as const
+      if (brief.turnMode === 'screen-repair')
+        return 'direct-correction' as const
+      if (brief.turnMode === 'care')
+        return 'gentle-care' as const
+      if (brief.turnMode === 'accompany')
+        return 'light-accompaniment' as const
+      return 'direct-answer' as const
+    })()
 
   const personaKernelMode: AlicizationPersonaKernelMode = answerCompiler?.personaKernelMode
     ?? dialogueObligation?.personaKernelMode
@@ -99,7 +117,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     && charter.relationshipPosture !== 'restrained'
   const allowStageDirections = false
   const allowBodyNarration = false
-  const explicitDialogueFirstSurfaceAvoid = dialogueEncounter?.screenReferenceMode === 'avoid'
+  const explicitDialogueFirstSurfaceAvoid = dialogueEncounterSurface?.screenReferenceMode === 'avoid'
     || dialogueFocus?.screenReferenceMode === 'avoid'
     || answerCompiler?.screenReferenceMode === 'avoid'
   const labelCarryAsMemory = truthDiscipline.shouldBlockScreenCarry
@@ -139,6 +157,13 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (dialogueObligation?.mustStayTaskBound) {
     pushUnique(mustDo, 'Keep the reply inside the active knot until the knot is answered.')
   }
+  if (input.executionReplyObligation) {
+    const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(input.executionReplyObligation)
+    for (const item of visibleSurfaceRules.mustDo)
+      pushUnique(mustDo, item)
+    for (const item of visibleSurfaceRules.mustNotDo)
+      pushUnique(mustNotDo, item)
+  }
   if (personaKernelMode !== 'full') {
     pushUnique(mustNotDo, 'Do not use persona flourishes, pet names, or coy prefaces as the reply spine.')
   }
@@ -154,6 +179,22 @@ export function buildAlicizationResponseSurfaceContract(input: {
   }
   if (truthDiscipline.forbidUnsupportedSpecificity) {
     pushUnique(mustNotDo, 'Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'speaking' || digitalLifeArchitecture?.dominantSystem === 'dialogue') {
+    pushUnique(mustDo, 'Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'observing' || digitalLifeArchitecture?.dominantSystem === 'perception') {
+    pushUnique(mustDo, 'Keep the visible answer anchored to current observation before interpretation.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'acting' || digitalLifeArchitecture?.dominantSystem === 'control') {
+    pushUnique(mustDo, 'When the turn is task-shaped, land on one concrete next move or decision boundary.')
+  }
+  if (digitalLifeArchitecture?.operatingMode === 'remembering' || digitalLifeArchitecture?.dominantSystem === 'memory') {
+    pushUnique(mustDo, 'If continuity comes from memory, mark it as memory, carry, or residue in the visible answer.')
+    pushUnique(mustNotDo, 'Do not present remembered continuity as a fresh live read.')
+  }
+  if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
+    pushUnique(mustNotDo, 'Do not let internal urge-to-speak or unsolicited initiative outrank the host’s current ask.')
   }
   if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
     pushUnique(mustDo, 'If warmth appears, keep it brief and subordinate to the actual issue.')
@@ -176,9 +217,9 @@ export function buildAlicizationResponseSurfaceContract(input: {
     for (const item of answerCompiler.mustNotDo)
       pushUnique(mustNotDo, item)
   }
-  for (const item of input.dialogueActKernel?.mustSay ?? [])
+  for (const item of dialogueActKernel?.mustSay ?? [])
     pushUnique(mustDo, item)
-  for (const item of input.dialogueActKernel?.mustAvoid ?? [])
+  for (const item of dialogueActKernel?.mustAvoid ?? [])
     pushUnique(mustNotDo, item)
 
   const contract: AlicizationResponseSurfaceContract = {
@@ -209,10 +250,19 @@ export function buildAlicizationResponseSurfaceContract(input: {
       `Body narration allowed: ${contract.allowBodyNarration ? 'yes' : 'no'}.`,
       `Label carried continuity explicitly: ${contract.labelCarryAsMemory ? 'yes' : 'no'}.`,
       `Suppress associative recall noise for this turn: ${contract.suppressAssociativeRecall ? 'yes' : 'no'}.`,
+      digitalLifeArchitecture
+        ? `Digital life mode: ${digitalLifeArchitecture.operatingMode}.`
+        : '',
+      digitalLifeArchitecture
+        ? `Digital life dominant system: ${digitalLifeArchitecture.dominantSystem}.`
+        : '',
+      digitalLifeArchitecture
+        ? `Digital life architecture: ${digitalLifeArchitecture.summary}.`
+        : '',
       'Must do:',
       ...contract.mustDo.map(item => `- ${item}`),
       'Must not do:',
       ...contract.mustNotDo.map(item => `- ${item}`),
-    ].join('\n'),
+    ].filter(Boolean).join('\n'),
   }
 }

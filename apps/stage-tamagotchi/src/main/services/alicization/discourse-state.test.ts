@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import {
   buildDiscourseState,
   buildDiscourseStateSystemBlock,
 } from './discourse-state'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildDiscourseState', () => {
   it('keeps detached self turns dialogue-first and screen-avoidant', () => {
@@ -308,5 +310,118 @@ describe('buildDiscourseState', () => {
       continuityMode: 'dialogue-first',
     }))
     expect(state?.narrative).toContain('ownership-ssot')
+  })
+
+  it('prefers runtimeSurface encounter authority over conflicting raw semantics and focus', () => {
+    const runtimeBackedState = createDefaultVisualPresenceState(16_000)
+    runtimeBackedState.dialogueEncounter = {
+      act: 'verify-grounding',
+      responseNeed: 'guide',
+      truthExpectation: 'strict',
+      subject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      continuityMode: 'task-first',
+      inspectionRequested: true,
+      inspectionState: 'inspection-live',
+      releaseInspectionCarry: false,
+      taskAnchor: 'runtime.ts diff',
+      summary: 'The runtime diff is still the live seam.',
+      dialogueFirst: false,
+      shouldBypassScreenRepair: false,
+      mustRepairFirst: false,
+      mustAnswerDirectly: true,
+      mustStayTaskBound: true,
+      shouldAskClarifyingQuestion: false,
+      personaKernelMode: 'backgrounded',
+      confidence: 0.9,
+      reasonTags: ['subject:task-knot', 'screen:helpful'],
+    } as any
+    runtimeBackedState.worldModel = {
+      activeThread: {
+        id: 'thread::runtime',
+        kind: 'change-review',
+        status: 'active',
+        source: 'grounded-scene',
+        title: 'runtime.ts diff',
+        summary: 'The runtime diff is still unresolved.',
+        confidence: 0.9,
+        significance: 0.84,
+        unresolved: true,
+        beganAt: 0,
+        lastUpdatedAt: 16_000,
+        target: null,
+      },
+      lingeringThreads: [],
+      focusTarget: null,
+      epistemicState: {
+        certainty: 'grounded',
+        freshness: 'live',
+        seenNow: [],
+        inferredNow: [],
+        openQuestions: [],
+        staleRisks: [],
+      },
+      continuity: {
+        label: 'staying-with-thread',
+        sceneAgeMs: 16_000,
+        attentionAgeMs: 16_000,
+        sameSceneAsBefore: true,
+        sameAttentionAsBefore: true,
+        afterglowOpen: false,
+      },
+      hostState: {
+        availability: 'focused',
+        burden: 'moderate',
+      },
+      updatedAt: 16_000,
+    } as any
+
+    const state = buildDiscourseState({
+      now: 16_000,
+      userText: '这个 runtime diff 到底卡在哪？',
+      dialogueSemantics: {
+        act: 'challenge',
+        responseNeed: 'answer',
+        truthExpectation: 'normal',
+        affectiveTone: 'frustrated',
+        subjectPreference: 'alicization-self',
+        taskAnchor: null,
+        sharedAttentionDemand: 0.24,
+        personaSuppression: 0.54,
+        confidence: 0.82,
+        summary: 'The host is challenging Alicization directly.',
+        source: 'hybrid',
+        reasonTags: ['scene-detached-turn', 'dialogue-first-turn'],
+      },
+      dialogueObligation: {
+        kind: 'answer',
+        summary: 'legacy answer summary',
+        confidence: 0.76,
+        mustRepairFirst: false,
+        mustAnswerDirectly: true,
+        mustStayTaskBound: false,
+        shouldAskClarifyingQuestion: false,
+        personaKernelMode: 'backgrounded',
+        narrative: [],
+      },
+      dialogueFocus: {
+        subject: 'alicization-self',
+        screenReferenceMode: 'avoid',
+        shouldBypassScreenRepair: true,
+        weakLiveScene: true,
+        focusSummary: 'legacy self-focused carry',
+        confidence: 0.74,
+        reasonTags: [],
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(state).toEqual(expect.objectContaining({
+      currentTurnSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      owedAction: 'guide-task',
+      continuityMode: 'task-first',
+    }))
+    expect(state?.narrative).toContain('subject:task-knot')
   })
 })

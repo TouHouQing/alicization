@@ -57,6 +57,11 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
       return
 
     if (!model) {
+      if (selectedModelId !== defaultAlicizationStageModelId) {
+        stageModelSelectedState.value = defaultAlicizationStageModelId
+        return
+      }
+
       replaceStageModelUrl(undefined)
       stageModelSelectedDisplayModel.value = undefined
       stageModelRenderer.value = 'disabled'

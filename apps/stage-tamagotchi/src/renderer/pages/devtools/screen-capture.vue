@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SerializableDesktopCapturerSource } from '@proj-alicization/electron-screen-capture'
+import type { ScreenCaptureDiagnosticsSnapshot, SerializableDesktopCapturerSource } from '@proj-alicization/electron-screen-capture'
 import type { SourcesOptions } from 'electron'
 
 import { sortScreenCaptureSources } from '@proj-alicization/electron-screen-capture/source-policy'
@@ -9,6 +9,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import WithScreenCapture from '../../components/WithScreenCapture.vue'
+import ScreenCaptureDiagnosticsPanel from './components/screen-capture-diagnostics-panel.vue'
 
 interface ScreenCaptureSource extends SerializableDesktopCapturerSource {
   appIconURL?: string
@@ -22,6 +23,10 @@ const isRefetching = ref(false)
 const activeStreams = ref<MediaStream[]>([])
 const sourceCategory = ref<SourceCategory>('applications')
 const hasFetchedOnce = ref(false)
+const diagnostics = ref<ScreenCaptureDiagnosticsSnapshot | null>(null)
+const diagnosticsError = ref<string | null>(null)
+const diagnosticsRefreshing = ref(false)
+let diagnosticsPollTimer: number | undefined
 
 const sourcesOptions = ref<SourcesOptions>({
   types: ['screen', 'window'],
@@ -29,10 +34,19 @@ const sourcesOptions = ref<SourcesOptions>({
 })
 
 const { t } = useI18n()
-const {
-  getSources,
-  selectWithSource,
-} = useElectronScreenCapture(window.electron.ipcRenderer, sourcesOptions)
+const { createSession, getDiagnostics } = useElectronScreenCapture(
+  window.electron.ipcRenderer,
+  sourcesOptions,
+)
+const session = createSession(
+  {
+    selectedSourceStorageKey: 'devtools/screen-capture/selected-source',
+    sourceSelection: {
+      preferredKinds: ['display', 'window', 'device'],
+      preferredNameKeywords: ['entire', 'screen', 'display'],
+    },
+  },
+)
 
 const categoryOptions = computed(() => [
   { label: t('screen-capture.devtools.categories.applications'), value: 'applications', icon: 'i-solar:window-frame-line-duotone' },
@@ -91,13 +105,31 @@ function toObjectUrl(bytes: Uint8Array, mime: string) {
 
 async function startCapture(source: SerializableDesktopCapturerSource) {
   try {
-    await selectWithSource(() => source.id, async () => {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+    session.selectSource(source.id)
+    const stream = await session.acquireStream({
+      allowPrompt: true,
+      mediaStreamOptions: {
         video: true,
         audio: true,
-      })
-      activeStreams.value.push(stream)
+      },
     })
+    if (!stream)
+      return
+
+    const mediaStream = stream as unknown as MediaStream
+
+    if (!activeStreams.value.some(item => item.id === mediaStream.id))
+      activeStreams.value.push(mediaStream)
+
+    mediaStream.getTracks().forEach((track) => {
+      track.addEventListener('ended', () => {
+        const index = activeStreams.value.indexOf(mediaStream)
+        if (index !== -1)
+          activeStreams.value.splice(index, 1)
+        void refreshDiagnostics()
+      })
+    })
+    await refreshDiagnostics()
   }
   catch (err) {
     console.error('Error selecting source:', err)
@@ -105,18 +137,25 @@ async function startCapture(source: SerializableDesktopCapturerSource) {
 }
 
 function stopStream(stream: MediaStream) {
-  stream.getTracks().forEach(track => track.stop())
+  const currentStream = session.getCurrentStream() as unknown as MediaStream | null
+  if (currentStream?.id === stream.id)
+    session.stop()
+  else
+    stream.getTracks().forEach(track => track.stop())
+
   const index = activeStreams.value.indexOf(stream)
   if (index !== -1) {
     activeStreams.value.splice(index, 1)
   }
+
+  void refreshDiagnostics()
 }
 
 async function refetchSources() {
   try {
     isRefetching.value = true
 
-    const nextSources = sortScreenCaptureSources(await getSources(), {
+    const nextSources = sortScreenCaptureSources(await session.listSources(), {
       preferredKinds: ['display', 'window', 'device'],
       preferredNameKeywords: ['entire', 'screen', 'display'],
     })
@@ -145,14 +184,44 @@ async function refetchSources() {
   finally {
     isRefetching.value = false
     hasFetchedOnce.value = true
+    void refreshDiagnostics()
+  }
+}
+
+async function refreshDiagnostics() {
+  if (diagnosticsRefreshing.value)
+    return
+
+  try {
+    diagnosticsRefreshing.value = true
+    diagnostics.value = await getDiagnostics()
+    diagnosticsError.value = null
+  }
+  catch (err) {
+    diagnosticsError.value = err instanceof Error ? err.message : String(err)
+  }
+  finally {
+    diagnosticsRefreshing.value = false
   }
 }
 
 onMounted(async () => {
-  refetchSources()
+  await Promise.all([
+    refetchSources(),
+    refreshDiagnostics(),
+  ])
+  diagnosticsPollTimer = window.setInterval(() => {
+    void refreshDiagnostics()
+  }, 1_000)
 })
 
 onBeforeUnmount(() => {
+  if (diagnosticsPollTimer) {
+    window.clearInterval(diagnosticsPollTimer)
+    diagnosticsPollTimer = undefined
+  }
+  session.dispose()
+  activeStreams.value.splice(0, activeStreams.value.length)
   sources.value.forEach((source) => {
     if (source.appIconURL)
       URL.revokeObjectURL(source.appIconURL)
@@ -220,6 +289,12 @@ onBeforeUnmount(() => {
             'flex', 'w-full', 'flex-col', 'gap-3', 'pb-6',
           ]"
         >
+          <ScreenCaptureDiagnosticsPanel
+            :diagnostics="diagnostics"
+            :error="diagnosticsError"
+            :refreshing="diagnosticsRefreshing"
+          />
+
           <div :class="['flex', 'w-full', 'items-center', 'gap-3']">
             <SelectTab
               v-model="sourceCategory"

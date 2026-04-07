@@ -3,6 +3,7 @@ import type {
   AlicizationClaimEvidenceLedgerSnapshot,
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
+  AlicizationDialogueTurnEncounterSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindSynthesisSnapshot,
   AlicizationPrivateThoughtSnapshot,
@@ -12,6 +13,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { pickDialogueSurfaceText, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 
@@ -49,11 +51,16 @@ function pickDialogueAnchorText(...values: unknown[]) {
   return ''
 }
 
+interface AlicizationDialogueEncounterSurface extends Pick<
+  AlicizationDialogueTurnEncounterSnapshot,
+  'subject' | 'screenReferenceMode' | 'dialogueFirst' | 'summary' | 'taskAnchor'
+> {}
+
 function resolvePrimaryReplyAnchor(input: {
   conversationState: AlicizationConversationStateSnapshot
   discourseState: AlicizationDiscourseStateSnapshot
   answerCompiler: AlicizationAnswerCompilerSnapshot
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
 }) {
   return pickDialogueAnchorText(
     input.conversationState.primaryTurnAnchor,
@@ -68,7 +75,7 @@ function resolvePrimaryReplyAnchor(input: {
 function isDialogueFirstReplyTurn(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   answerCompiler: AlicizationAnswerCompilerSnapshot
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
 }) {
   const subject = input.dialogueEncounter?.subject
     ?? input.answerCompiler.answerSubject
@@ -240,41 +247,52 @@ export function buildReplyDeliberation(input: {
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
-  dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  dialogueEncounter?: AlicizationDialogueTurnEncounter | AlicizationDialogueEncounterSurface | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationReplyDeliberationSnapshot | null {
-  if (!input.conversationState || !input.discourseState || !input.mindSynthesis || !input.answerCompiler)
+  const runtimeSurface = input.runtimeSurface ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? input.currentConsciousFrame ?? null
+  const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const dialogueEncounter = runtimeSurface?.dialogue.dialogueEncounter ?? input.dialogueEncounter ?? null
+
+  if (!conversationState || !discourseState || !mindSynthesis || !answerCompiler)
     return null
 
   const primaryTurnAnchor = resolvePrimaryReplyAnchor({
-    conversationState: input.conversationState,
-    discourseState: input.discourseState,
-    answerCompiler: input.answerCompiler,
-    dialogueEncounter: input.dialogueEncounter ?? null,
+    conversationState,
+    discourseState,
+    answerCompiler,
+    dialogueEncounter,
   }) || null
   const dialogueFirstTurn = isDialogueFirstReplyTurn({
-    discourseState: input.discourseState,
-    answerCompiler: input.answerCompiler,
-    dialogueEncounter: input.dialogueEncounter ?? null,
+    discourseState,
+    answerCompiler,
+    dialogueEncounter,
   })
   const groundedRepairResolved = repairIsAlreadySettledByFreshGrounding({
-    answerCompiler: input.answerCompiler,
-    discourseState: input.discourseState,
+    answerCompiler,
+    discourseState,
   })
-  const frameCenter = input.currentConsciousFrame?.centerOfGravity ?? null
-  const shouldWithholdSpecificity = input.currentConsciousFrame?.shouldWithholdSpecificity === true
-  const shouldSelfRevise = input.currentConsciousFrame?.shouldSelfRevise === true
-  const truthDiscipline = input.currentConsciousFrame?.truthDiscipline ?? null
-  const claimEvidenceLedger = input.claimEvidenceLedger ?? null
+  const frameCenter = currentConsciousFrame?.centerOfGravity ?? null
+  const shouldWithholdSpecificity = currentConsciousFrame?.shouldWithholdSpecificity === true
+  const shouldSelfRevise = currentConsciousFrame?.shouldSelfRevise === true
+  const truthDiscipline = currentConsciousFrame?.truthDiscipline ?? null
   const coarseSceneBudget = claimEvidenceLedger?.specificityBudget === 'coarse-scene'
   const shouldLabelHypothesis = claimEvidenceLedger?.shouldLabelHypothesis === true
 
   const candidates = [
     makeMotive({
       kind: 'repair',
-      summary: input.conversationState.owedRepair ?? input.answerCompiler.uncertaintyBoundary,
+      summary: conversationState.owedRepair ?? answerCompiler.uncertaintyBoundary,
       weight: groundedRepairResolved
         ? 0.08
-        : input.discourseState.owedAction === 'repair-truth' || input.answerCompiler.recommendedAct === 'ask-reground' || input.answerCompiler.recommendedAct === 'correct-stale-anchor'
+        : discourseState.owedAction === 'repair-truth' || answerCompiler.recommendedAct === 'ask-reground' || answerCompiler.recommendedAct === 'correct-stale-anchor'
           ? 0.96
           : 0.12
             + (frameCenter === 'repair' ? 0.12 : 0)
@@ -284,16 +302,16 @@ export function buildReplyDeliberation(input: {
     makeMotive({
       kind: 'guide',
       summary: primaryTurnAnchor
-        ?? input.conversationState.unansweredQuestion
-        ?? input.conversationState.activeProject
-        ?? input.conversationState.activeCommitments[0]
-        ?? input.mindSynthesis.commitments[0]?.summary,
+        ?? conversationState.unansweredQuestion
+        ?? conversationState.activeProject
+        ?? conversationState.activeCommitments[0]
+        ?? mindSynthesis.commitments[0]?.summary,
       weight: (
-        groundedRepairResolved && input.answerCompiler.answerSubject === 'task-knot'
+        groundedRepairResolved && answerCompiler.answerSubject === 'task-knot'
           ? 0.92
-          : input.discourseState.owedAction === 'guide-task' || input.answerCompiler.recommendedAct === 'guide'
+          : discourseState.owedAction === 'guide-task' || answerCompiler.recommendedAct === 'guide'
             ? 0.88
-            : input.conversationState.shouldHoldThread ? 0.52 : 0.18
+            : conversationState.shouldHoldThread ? 0.52 : 0.18
       )
       + (frameCenter === 'guide' ? 0.12 : 0)
       - (coarseSceneBudget ? 0.12 : 0)
@@ -303,10 +321,10 @@ export function buildReplyDeliberation(input: {
     makeMotive({
       kind: 'care',
       summary: primaryTurnAnchor
-        ?? input.answerCompiler.careVector
-        ?? input.mindSynthesis.concerns[0]?.summary
-        ?? input.conversationState.hostMove,
-      weight: input.discourseState.owedAction === 'care-host' || input.answerCompiler.recommendedAct === 'care' || input.privateThought?.stance === 'care' || input.privateThought?.stance === 'warn'
+        ?? answerCompiler.careVector
+        ?? mindSynthesis.concerns[0]?.summary
+        ?? conversationState.hostMove,
+      weight: discourseState.owedAction === 'care-host' || answerCompiler.recommendedAct === 'care' || privateThought?.stance === 'care' || privateThought?.stance === 'warn'
         ? 0.84
         : 0.18
           + (frameCenter === 'care' ? 0.12 : 0),
@@ -314,10 +332,10 @@ export function buildReplyDeliberation(input: {
     }),
     makeMotive({
       kind: 'attune',
-      summary: primaryTurnAnchor ?? input.conversationState.hostMove,
-      weight: input.discourseState.currentTurnSubject === 'relationship'
+      summary: primaryTurnAnchor ?? conversationState.hostMove,
+      weight: discourseState.currentTurnSubject === 'relationship'
         ? 0.82
-        : input.discourseState.currentTurnSubject === 'alicization-self'
+        : discourseState.currentTurnSubject === 'alicization-self'
           ? 0.74
           : dialogueFirstTurn
             ? 0.44
@@ -328,14 +346,14 @@ export function buildReplyDeliberation(input: {
     makeMotive({
       kind: 'witness',
       summary: dialogueFirstTurn
-        ? primaryTurnAnchor ?? input.conversationState.jointThread
-        : input.answerCompiler.openingClaim ?? input.conversationState.jointThread,
+        ? primaryTurnAnchor ?? conversationState.jointThread
+        : answerCompiler.openingClaim ?? conversationState.jointThread,
       weight: (
-        groundedRepairResolved && input.answerCompiler.answerSubject === 'visible-scene'
+        groundedRepairResolved && answerCompiler.answerSubject === 'visible-scene'
           ? 0.92
-          : input.discourseState.currentTurnSubject === 'visible-scene'
+          : discourseState.currentTurnSubject === 'visible-scene'
             ? 0.8
-            : input.answerCompiler.evidenceMode === 'live-grounded' || input.answerCompiler.evidenceMode === 'live-observed'
+            : answerCompiler.evidenceMode === 'live-grounded' || answerCompiler.evidenceMode === 'live-observed'
               ? (dialogueFirstTurn ? 0.22 : 0.64)
               : 0.16
       )
@@ -346,8 +364,8 @@ export function buildReplyDeliberation(input: {
     }),
     makeMotive({
       kind: 'answer',
-      summary: primaryTurnAnchor ?? input.answerCompiler.openingClaim ?? input.conversationState.hostMove,
-      weight: input.answerCompiler.recommendedAct === 'answer'
+      summary: primaryTurnAnchor ?? answerCompiler.openingClaim ?? conversationState.hostMove,
+      weight: answerCompiler.recommendedAct === 'answer'
         ? (dialogueFirstTurn ? 0.8 : 0.72) - (coarseSceneBudget ? 0.08 : 0)
         : dialogueFirstTurn
           ? 0.42
@@ -359,7 +377,7 @@ export function buildReplyDeliberation(input: {
     makeMotive({
       kind: 'defer',
       summary: 'Keep the reply light enough that it does not overwhelm the turn.',
-      weight: input.answerCompiler.recommendedAct === 'defer' || input.privateThought?.shouldSpeak === false
+      weight: answerCompiler.recommendedAct === 'defer' || privateThought?.shouldSpeak === false
         ? 0.58
         : 0.08
           + (frameCenter === 'defer' ? 0.12 : 0),
@@ -372,52 +390,52 @@ export function buildReplyDeliberation(input: {
     return null
 
   const speakingSource = truthDiscipline === 'dialogue-first'
-    ? (input.discourseState.currentTurnSubject === 'alicization-self' ? 'self-continuity' : 'dialogue-bond')
+    ? (discourseState.currentTurnSubject === 'alicization-self' ? 'self-continuity' : 'dialogue-bond')
     : truthDiscipline === 'memory-labeled' || shouldSelfRevise
       ? 'held-memory'
       : shouldWithholdSpecificity
         ? 'live-scene'
         : speakingFrom({
-            answerCompiler: input.answerCompiler,
-            discourseState: input.discourseState,
+            answerCompiler,
+            discourseState,
           })
   const whyNow = whyThisReplyNow({
     selectedMotive: selected.kind,
-    conversationState: input.conversationState,
-    answerCompiler: input.answerCompiler,
-    worldModel: input.worldModel ?? null,
+    conversationState,
+    answerCompiler,
+    worldModel,
     primaryTurnAnchor,
-    currentConsciousFrame: input.currentConsciousFrame ?? null,
+    currentConsciousFrame,
     claimEvidenceLedger,
   })
   const mustInclude = uniqueList([
     openingBeat({
       selectedMotive: selected.kind,
-      answerCompiler: input.answerCompiler,
-      conversationState: input.conversationState,
+      answerCompiler,
+      conversationState,
     }),
     primaryTurnAnchor,
     shouldLabelHypothesis
       ? 'Keep direct observation and any task guess in separate clauses.'
       : null,
     claimEvidenceLedger?.observedSurface ?? null,
-    input.currentConsciousFrame?.speakingIntention ?? null,
+    currentConsciousFrame?.speakingIntention ?? null,
     whyNow,
-    dialogueFirstTurn ? null : input.answerCompiler.openingDirective,
-    input.answerCompiler.nextMove,
+    dialogueFirstTurn ? null : answerCompiler.openingDirective,
+    answerCompiler.nextMove,
   ], 5)
   const mustAvoid = uniqueList([
-    input.answerCompiler.mustNotDo[0],
+    answerCompiler.mustNotDo[0],
     dialogueFirstTurn && primaryTurnAnchor
       ? 'Do not let control directives outrank the current turn anchor.'
       : null,
-    input.conversationState.memoryMode === 'dialogue-carry'
+    conversationState.memoryMode === 'dialogue-carry'
       ? 'Do not let live-screen repair hijack a dialogue-first turn.'
       : null,
-    input.conversationState.memoryMode === 'scene-anchored'
+    conversationState.memoryMode === 'scene-anchored'
       ? 'Do not let old memory outrank the live scene.'
       : null,
-    input.conversationState.memoryMode === 'task-thread'
+    conversationState.memoryMode === 'task-thread'
       ? 'Do not drift into decorative association before the knot is answered.'
       : null,
     shouldWithholdSpecificity
@@ -434,29 +452,29 @@ export function buildReplyDeliberation(input: {
   return {
     selectedMotive: selected.kind,
     speakingFrom: speakingSource,
-    memoryMode: input.conversationState.memoryMode,
-    openingBeat: mustInclude[0] ?? input.answerCompiler.openingDirective,
+    memoryMode: conversationState.memoryMode,
+    openingBeat: mustInclude[0] ?? answerCompiler.openingDirective,
     whyThisReplyNow: whyNow,
     whyNotOtherCandidates: candidates.slice(1, 4).map(candidate => `${candidate.kind}:${candidate.summary}`),
     withheldImpulses: uniqueList([
-      input.answerCompiler.labelCarryAsMemory ? 'withhold-presenting-carried-memory-as-live' : null,
-      input.answerCompiler.suppressAssociativeRecall ? 'withhold-associative-recall-noise' : null,
-      input.privateThought?.shouldSpeak === false ? 'withhold-overeager-presence' : null,
+      answerCompiler.labelCarryAsMemory ? 'withhold-presenting-carried-memory-as-live' : null,
+      answerCompiler.suppressAssociativeRecall ? 'withhold-associative-recall-noise' : null,
+      privateThought?.shouldSpeak === false ? 'withhold-overeager-presence' : null,
     ], 4),
     candidateMotives: candidates.slice(0, 5),
-    shouldSpeak: input.answerCompiler.recommendedAct !== 'defer',
+    shouldSpeak: answerCompiler.recommendedAct !== 'defer',
     mustInclude,
     mustAvoid,
     confidence: clamp01(
       selected.weight * 0.42
-      + input.answerCompiler.confidence * 0.28
-      + input.conversationState.confidence * 0.18
-      + (input.privateThought?.confidence ?? 0.34) * 0.12,
+      + answerCompiler.confidence * 0.28
+      + conversationState.confidence * 0.18
+      + (privateThought?.confidence ?? 0.34) * 0.12,
     ),
     narrative: uniqueList([
       `selected:${selected.kind}`,
       `speaking-from:${speakingSource}`,
-      `memory:${input.conversationState.memoryMode}`,
+      `memory:${conversationState.memoryMode}`,
       frameCenter ? `conscious-center:${frameCenter}` : null,
       truthDiscipline ? `truth-discipline:${truthDiscipline}` : null,
       claimEvidenceLedger?.specificityBudget ? `claim-budget:${claimEvidenceLedger.specificityBudget}` : null,

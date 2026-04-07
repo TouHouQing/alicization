@@ -1,6 +1,7 @@
 import type {
   AlicizationDialogueAnswerSubject,
   AlicizationDialogueScreenReferenceMode,
+  AlicizationDialogueTurnEncounterSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindSpeechObligation,
   AlicizationReflectionLedgerSnapshot,
@@ -13,9 +14,15 @@ import type { AlicizationDialogueObligation } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDialogueTurnOwnership } from './dialogue-turn-ownership'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { resolvePrimaryTurnAnchor } from './dialogue-turn-anchor'
+
+interface AlicizationDialogueEncounterSurface extends Pick<
+  AlicizationDialogueTurnEncounterSnapshot,
+  'summary' | 'subject' | 'screenReferenceMode' | 'continuityMode' | 'shouldBypassScreenRepair'
+> {}
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -186,24 +193,31 @@ export function buildDiscourseState(input: {
   repairLedger?: AlicizationRepairLedgerSnapshot | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   previous?: AlicizationDiscourseStateSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDiscourseStateSnapshot | null {
+  const runtimeSurface = input.runtimeSurface ?? null
   const dialogueEncounter = input.dialogueEncounter ?? null
+  const dialogueEncounterSurface: AlicizationDialogueEncounterSurface | null = runtimeSurface?.dialogue.dialogueEncounter ?? dialogueEncounter ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
   const dialogueFocus = dialogueEncounter?.focus ?? input.dialogueFocus ?? null
   const ownership = dialogueEncounter?.ownership ?? input.ownership ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+  const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
+  const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
+  const reflectionLedger = runtimeSurface?.memory.reflectionLedger ?? input.reflectionLedger ?? null
 
   if (!dialogueSemantics && !dialogueObligation && !dialogueFocus)
     return null
 
-  const subject = ownership?.subject ?? dialogueEncounter?.subject ?? resolveSubject({
+  const subject = ownership?.subject ?? dialogueEncounterSurface?.subject ?? resolveSubject({
     dialogueSemantics,
     dialogueFocus,
     dialogueObligation,
     inspectionRequested: input.inspectionRequested,
-    worldModel: input.worldModel ?? null,
+    worldModel,
   })
-  const screenReferenceMode = ownership?.screenReferenceMode ?? dialogueEncounter?.screenReferenceMode ?? resolveScreenReferenceMode({
+  const screenReferenceMode = ownership?.screenReferenceMode ?? dialogueEncounterSurface?.screenReferenceMode ?? resolveScreenReferenceMode({
     subject,
     inspectionRequested: input.inspectionRequested,
     dialogueFocus,
@@ -215,21 +229,21 @@ export function buildDiscourseState(input: {
   const relationMove = resolveRelationMove({
     subject,
     owedAction,
-    relationshipModel: input.relationshipModel ?? null,
+    relationshipModel,
   })
-  const continuityMode = ownership?.continuityMode ?? dialogueEncounter?.continuityMode ?? resolveContinuityMode(subject)
+  const continuityMode = ownership?.continuityMode ?? dialogueEncounterSurface?.continuityMode ?? resolveContinuityMode(subject)
   const dialogueFirst = isDialogueFirstSubject(subject)
   const unresolvedCarry = subject === 'task-knot' || subject === 'visible-scene'
     ? null
     : sanitizeText(
-      input.worldModel?.activeThread?.unresolved
-        ? input.worldModel.activeThread.summary
+      worldModel?.activeThread?.unresolved
+        ? worldModel.activeThread.summary
         : input.previous?.unresolvedCarry,
       180,
     ) || null
   const ruptureRepair = sanitizeText(
-    governingRepairSummary(input.repairLedger)
-    ?? latestReflectionRevision(input.reflectionLedger)
+    governingRepairSummary(repairLedger)
+    ?? latestReflectionRevision(reflectionLedger)
     ?? '',
     180,
   ) || null
@@ -246,10 +260,10 @@ export function buildDiscourseState(input: {
   const { text: primaryTurnAnchor, source: primaryTurnAnchorSource } = resolvePrimaryTurnAnchor([
     { source: 'user-text', text: dialogueFirst ? input.userText : null },
     { source: 'question', text: currentQuestion },
-    { source: 'dialogue-summary', text: dialogueFirst ? dialogueEncounter?.summary ?? dialogueSemantics?.summary : null },
+    { source: 'dialogue-summary', text: dialogueFirst ? dialogueEncounterSurface?.summary ?? dialogueSemantics?.summary : null },
     { source: 'focus-summary', text: dialogueFocus?.focusSummary },
     { source: 'obligation', text: dialogueObligation?.summary },
-    { source: 'thread', text: input.worldModel?.activeThread?.summary },
+    { source: 'thread', text: worldModel?.activeThread?.summary },
     { source: 'carry', text: dialogueFirst ? null : input.previous?.primaryTurnAnchor },
   ])
   const currentTurnSummary = sanitizeText(
@@ -257,16 +271,16 @@ export function buildDiscourseState(input: {
       ? primaryTurnAnchor
       : '')
     || (dialogueFirst
-      ? dialogueEncounter?.summary ?? dialogueSemantics?.summary
+      ? dialogueEncounterSurface?.summary ?? dialogueSemantics?.summary
       : '')
     || (dialogueFirst
       ? input.userText
       : '')
     || dialogueFocus?.focusSummary
     || dialogueObligation?.summary
-    || dialogueEncounter?.summary
+    || dialogueEncounterSurface?.summary
     || dialogueSemantics?.summary
-    || input.worldModel?.activeThread?.summary
+    || worldModel?.activeThread?.summary
     || input.previous?.currentTurnSummary
     || 'Stay with the current turn.',
     200,
@@ -296,7 +310,7 @@ export function buildDiscourseState(input: {
       `relation:${relationMove}`,
       `continuity:${continuityMode}`,
       ownership ? 'ownership-ssot' : '',
-      dialogueEncounter?.shouldBypassScreenRepair || dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
+      dialogueEncounterSurface?.shouldBypassScreenRepair || dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
       unresolvedCarry ? `carry:${sanitizeDialogueSurfaceText(unresolvedCarry, 72) || sanitizeText(unresolvedCarry, 72)}` : '',
       ruptureRepair ? `repair:${sanitizeDialogueSurfaceText(ruptureRepair, 72) || sanitizeText(ruptureRepair, 72)}` : '',
       sanitizeDialogueSurfaceText(currentTurnSummary, 120) || currentTurnSummary,

@@ -19,6 +19,7 @@ import type {
   AlicizationVisualSceneSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
@@ -387,30 +388,43 @@ export function buildDialogueActKernel(input: {
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
+  runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
 }): AlicizationDialogueActKernelSnapshot | null {
-  const subject = input.answerCompiler?.answerSubject
-    ?? input.discourseState?.currentTurnSubject
-    ?? (input.currentScene ? 'visible-scene' : 'general')
-  const screenReferenceMode: AlicizationDialogueScreenReferenceMode = input.answerCompiler?.screenReferenceMode
-    ?? input.discourseState?.screenReferenceMode
+  const runtimeSurface = input.runtimeSurface ?? null
+  const currentScene = runtimeSurface?.perception.currentScene ?? input.currentScene ?? null
+  const appraisal = runtimeSurface?.cognition.appraisal ?? input.appraisal ?? null
+  const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
+  const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
+  const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
+  const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const answerPlanner = runtimeSurface?.dialogue.answerPlanner ?? input.answerPlanner ?? null
+  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
+
+  const subject = answerCompiler?.answerSubject
+    ?? discourseState?.currentTurnSubject
+    ?? (currentScene ? 'visible-scene' : 'general')
+  const screenReferenceMode: AlicizationDialogueScreenReferenceMode = answerCompiler?.screenReferenceMode
+    ?? discourseState?.screenReferenceMode
     ?? (subject === 'visible-scene' ? 'required' : 'avoid')
   const truthMode = resolveTruthMode({
-    answerPlanner: input.answerPlanner ?? null,
-    answerCompiler: input.answerCompiler ?? null,
-    worldModel: input.worldModel ?? null,
+    answerPlanner,
+    answerCompiler,
+    worldModel,
   })
   let speechAct = resolveSpeechAct({
-    answerPlanner: input.answerPlanner ?? null,
-    answerCompiler: input.answerCompiler ?? null,
-    replyDeliberation: input.replyDeliberation ?? null,
-    discourseState: input.discourseState ?? null,
-    privateThought: input.privateThought ?? null,
+    answerPlanner,
+    answerCompiler,
+    replyDeliberation,
+    discourseState,
+    privateThought,
   })
   const dialogueFirstBoundary = isDialogueFirstSubject(subject) || screenReferenceMode === 'avoid'
   const dialogueFirstRepairClamp = dialogueFirstBoundary
     && (speechAct === 'ask-reground' || speechAct === 'correct-stale-anchor')
   if (dialogueFirstRepairClamp) {
-    speechAct = input.discourseState?.owedAction === 'care-host'
+    speechAct = discourseState?.owedAction === 'care-host'
       ? 'care'
       : 'answer'
   }
@@ -423,38 +437,38 @@ export function buildDialogueActKernel(input: {
     speechAct = subject === 'task-knot' ? 'guide' : 'answer'
   }
   const turnMode = resolveTurnMode({
-    answerCompiler: input.answerCompiler ?? null,
+    answerCompiler,
     speechAct,
     subject,
     truthMode,
     enforceDialogueFirstBoundary: dialogueFirstBoundary,
   })
   const hostGoal = resolveHostGoal({
-    appraisal: input.appraisal ?? null,
-    answerCompiler: input.answerCompiler ?? null,
-    worldModel: input.worldModel ?? null,
-    currentScene: input.currentScene ?? null,
+    appraisal,
+    answerCompiler,
+    worldModel,
+    currentScene,
   })
   const relationNeed = resolveRelationNeed({
-    appraisal: input.appraisal ?? null,
-    answerCompiler: input.answerCompiler ?? null,
-    privateThought: input.privateThought ?? null,
+    appraisal,
+    answerCompiler,
+    privateThought,
     subject,
   })
   const dialogueFirstTurn = isDialogueFirstSubject(subject) || screenReferenceMode === 'avoid'
   const sceneCue = buildAlicizationScreenSurfaceCue({
     rawCues: [
-      input.currentScene?.summary,
-      input.answerCompiler?.openingClaim,
-      input.answerPlanner?.answerIntent,
-      input.conversationState?.activeProject,
-      input.dialogueWorldThread?.activeThread,
-      input.dialogueWorldThread?.currentQuestion,
+      currentScene?.summary,
+      answerCompiler?.openingClaim,
+      answerPlanner?.answerIntent,
+      conversationState?.activeProject,
+      dialogueWorldThread?.activeThread,
+      dialogueWorldThread?.currentQuestion,
     ],
-    target: input.currentScene?.target ?? input.worldModel?.focusTarget ?? null,
-    scenario: input.currentScene?.scenario ?? null,
-    workloadKind: input.currentScene?.workloadKind ?? null,
-    contentKind: input.currentScene?.contentKind ?? null,
+    target: currentScene?.target ?? worldModel?.focusTarget ?? null,
+    scenario: currentScene?.scenario ?? null,
+    workloadKind: currentScene?.workloadKind ?? null,
+    contentKind: currentScene?.contentKind ?? null,
   })
   const anchorCoherence = resolveDialogueAnchorCoherence({
     subject,
@@ -466,17 +480,17 @@ export function buildDialogueActKernel(input: {
         : truthMode === 'dialogue-grounded' || truthMode === 'continuity-carry' || truthMode === 'memory-only'
           ? 'remembered'
           : 'uncertain',
-    hostMove: input.conversationState?.hostMove ?? input.dialogueWorldThread?.lastUserMove ?? null,
+    hostMove: conversationState?.hostMove ?? dialogueWorldThread?.lastUserMove ?? null,
     candidates: [
-      { role: 'focus', text: dialogueFirstTurn ? input.conversationState?.primaryTurnAnchor ?? input.discourseState?.primaryTurnAnchor : null },
+      { role: 'focus', text: dialogueFirstTurn ? conversationState?.primaryTurnAnchor ?? discourseState?.primaryTurnAnchor : null },
       { role: 'scene', text: dialogueFirstTurn ? null : sceneCue || null },
-      { role: 'opening-claim', text: dialogueFirstTurn ? null : input.answerCompiler?.openingClaim ?? null },
-      { role: 'answer-intent', text: dialogueFirstTurn ? null : input.answerPlanner?.answerIntent ?? null },
-      { role: 'project', text: dialogueFirstTurn ? null : input.conversationState?.activeProject ?? null },
-      { role: 'thread', text: dialogueFirstTurn ? null : input.dialogueWorldThread?.activeThread ?? null },
-      { role: 'question', text: dialogueFirstTurn ? null : input.dialogueWorldThread?.currentQuestion ?? null },
-      { role: 'focus', text: dialogueFirstTurn ? null : input.worldModel?.activeThread?.summary ?? null },
-      { role: 'visible-surface', text: dialogueFirstTurn ? null : input.currentScene?.target?.title ?? null },
+      { role: 'opening-claim', text: dialogueFirstTurn ? null : answerCompiler?.openingClaim ?? null },
+      { role: 'answer-intent', text: dialogueFirstTurn ? null : answerPlanner?.answerIntent ?? null },
+      { role: 'project', text: dialogueFirstTurn ? null : conversationState?.activeProject ?? null },
+      { role: 'thread', text: dialogueFirstTurn ? null : dialogueWorldThread?.activeThread ?? null },
+      { role: 'question', text: dialogueFirstTurn ? null : dialogueWorldThread?.currentQuestion ?? null },
+      { role: 'focus', text: dialogueFirstTurn ? null : worldModel?.activeThread?.summary ?? null },
+      { role: 'visible-surface', text: dialogueFirstTurn ? null : currentScene?.target?.title ?? null },
     ],
   })
   const dominantAnchor = anchorCoherence.dominant
@@ -489,9 +503,9 @@ export function buildDialogueActKernel(input: {
     return anchorsMateriallyConflict(normalized, dominantAnchor) ? null : normalized
   }
   const activeProject = sanitizeKernelAnchor(
-    keepCoherent(dialogueFirstTurn ? '' : input.conversationState?.activeProject)
-    ?? keepCoherent(dialogueFirstTurn ? '' : input.worldModel?.activeThread?.title)
-    ?? keepCoherent(dialogueFirstTurn ? '' : input.worldModel?.activeThread?.summary)
+    keepCoherent(dialogueFirstTurn ? '' : conversationState?.activeProject)
+    ?? keepCoherent(dialogueFirstTurn ? '' : worldModel?.activeThread?.title)
+    ?? keepCoherent(dialogueFirstTurn ? '' : worldModel?.activeThread?.summary)
     ?? keepCoherent(dialogueFirstTurn ? '' : sceneCue)
     ?? dominantAnchor
     ?? '',
@@ -499,32 +513,32 @@ export function buildDialogueActKernel(input: {
   ) || null
   const openingClaim = sanitizeKernelAnchor(
     (anchorCoherence.sceneAuthority ? dominantAnchor : null)
-    ?? keepCoherent(input.answerCompiler?.openingClaim)
+    ?? keepCoherent(answerCompiler?.openingClaim)
     ?? keepCoherent(sceneCue)
-    ?? keepCoherent(input.dialogueWorldThread?.currentQuestion)
-    ?? keepCoherent(input.conversationState?.unansweredQuestion)
-    ?? keepCoherent(input.discourseState?.currentTurnSummary)
+    ?? keepCoherent(dialogueWorldThread?.currentQuestion)
+    ?? keepCoherent(conversationState?.unansweredQuestion)
+    ?? keepCoherent(discourseState?.currentTurnSummary)
     ?? dominantAnchor
     ?? '',
     220,
   )
   const openingMove = sanitizeText(
-    input.answerPlanner?.openingMove
-    ?? input.replyDeliberation?.openingBeat
-    ?? input.answerCompiler?.openingDirective
-    ?? input.answerCompiler?.nextMove
+    answerPlanner?.openingMove
+    ?? replyDeliberation?.openingBeat
+    ?? answerCompiler?.openingDirective
+    ?? answerCompiler?.nextMove
     ?? '',
     220,
   )
   const whyNow = sanitizeText(
     keepCoherent(sceneCue)
-    ?? keepCoherent(input.answerCompiler?.openingClaim)
-    ?? keepCoherent(input.replyDeliberation?.whyThisReplyNow)
-    ?? keepCoherent(input.answerPlanner?.answerIntent)
+    ?? keepCoherent(answerCompiler?.openingClaim)
+    ?? keepCoherent(replyDeliberation?.whyThisReplyNow)
+    ?? keepCoherent(answerPlanner?.answerIntent)
     ?? dominantAnchor
-    ?? keepCoherent(input.dialogueWorldThread?.currentQuestion)
-    ?? keepCoherent(input.conversationState?.jointThread)
-    ?? keepCoherent(input.privateThought?.thoughtText)
+    ?? keepCoherent(dialogueWorldThread?.currentQuestion)
+    ?? keepCoherent(conversationState?.jointThread)
+    ?? keepCoherent(privateThought?.thoughtText)
     ?? sceneCue
     ?? '',
     220,
@@ -534,56 +548,56 @@ export function buildDialogueActKernel(input: {
 
   const selectedEvidence = [
     createEvidence({
-      kind: input.currentScene ? 'scene' : 'memory',
+      kind: currentScene ? 'scene' : 'memory',
       source: 'current-scene',
       summary: dialogueFirstTurn
         ? null
         : sceneCue || null,
-      confidence: dialogueFirstTurn ? 0 : input.currentScene?.confidence ?? 0.5,
+      confidence: dialogueFirstTurn ? 0 : currentScene?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: 'thread',
       source: 'dialogue-world-thread',
-      summary: input.dialogueWorldThread?.currentQuestion
-        ?? input.dialogueWorldThread?.activeThread
-        ?? input.conversationState?.jointThread
+      summary: dialogueWorldThread?.currentQuestion
+        ?? dialogueWorldThread?.activeThread
+        ?? conversationState?.jointThread
         ?? null,
-      confidence: input.dialogueWorldThread?.confidence ?? 0.5,
+      confidence: dialogueWorldThread?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: 'project',
       source: 'conversation-state',
-      summary: dialogueFirstTurn ? null : input.conversationState?.activeProject ?? null,
-      confidence: input.conversationState?.confidence ?? 0.5,
+      summary: dialogueFirstTurn ? null : conversationState?.activeProject ?? null,
+      confidence: conversationState?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: speechAct === 'ask-reground' || speechAct === 'correct-stale-anchor' ? 'repair' : 'reply-motive',
       source: 'reply-deliberation',
-      summary: input.replyDeliberation?.whyThisReplyNow ?? input.replyDeliberation?.openingBeat ?? null,
-      confidence: input.replyDeliberation?.confidence ?? 0.5,
+      summary: replyDeliberation?.whyThisReplyNow ?? replyDeliberation?.openingBeat ?? null,
+      confidence: replyDeliberation?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: 'private-thought',
       source: 'private-thought',
-      summary: input.privateThought?.thoughtText ?? null,
-      confidence: input.privateThought?.confidence ?? 0.5,
+      summary: privateThought?.thoughtText ?? null,
+      confidence: privateThought?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: 'host-goal',
       source: 'appraisal',
       summary: dialogueFirstTurn
         ? null
-        : input.appraisal?.currentKnot
-          ?? input.appraisal?.situatedMeaning
-          ?? input.appraisal?.whatChanged
+        : appraisal?.currentKnot
+          ?? appraisal?.situatedMeaning
+          ?? appraisal?.whatChanged
           ?? null,
-      confidence: dialogueFirstTurn ? 0 : input.appraisal?.confidence ?? 0.5,
+      confidence: dialogueFirstTurn ? 0 : appraisal?.confidence ?? 0.5,
     }),
     createEvidence({
       kind: speechAct === 'ask-reground' || speechAct === 'correct-stale-anchor' ? 'repair' : 'thread',
       source: 'answer-compiler',
-      summary: input.answerCompiler?.openingClaim ?? input.answerCompiler?.uncertaintyBoundary ?? null,
-      confidence: input.answerCompiler?.confidence ?? 0.5,
+      summary: answerCompiler?.openingClaim ?? answerCompiler?.uncertaintyBoundary ?? null,
+      confidence: answerCompiler?.confidence ?? 0.5,
     }),
   ]
     .filter((item): item is AlicizationDialogueActKernelEvidence => Boolean(item))
@@ -617,22 +631,22 @@ export function buildDialogueActKernel(input: {
     speechAct,
     turnMode,
     screenReferenceMode,
-    speakingFrom: input.replyDeliberation?.speakingFrom ?? 'task-thread',
+    speakingFrom: replyDeliberation?.speakingFrom ?? 'task-thread',
     selectedEvidence,
     openingClaim,
     openingMove,
     whyNow,
     mustSay: uniqueSurfaceList([
       openingClaim,
-      input.answerPlanner?.answerIntent,
-      input.replyDeliberation?.whyThisReplyNow,
+      answerPlanner?.answerIntent,
+      replyDeliberation?.whyThisReplyNow,
       selectedEvidence[0]?.summary,
-      input.conversationState?.activeProject,
+      conversationState?.activeProject,
     ], 6),
     mustAvoid: uniqueList([
-      ...(input.answerCompiler?.mustNotDo ?? []),
-      ...(input.replyDeliberation?.mustAvoid ?? []),
-      ...(input.answerPlanner?.mustNotDo ?? []),
+      ...(answerCompiler?.mustNotDo ?? []),
+      ...(replyDeliberation?.mustAvoid ?? []),
+      ...(answerPlanner?.mustNotDo ?? []),
     ], 10),
     sourceTrace: uniqueList([
       `subject:${subject}`,
@@ -644,14 +658,14 @@ export function buildDialogueActKernel(input: {
       `screen-reference:${screenReferenceMode}`,
       dialogueFirstRepairClamp ? 'kernel-invariant:dialogue-first-repair-clamped' : null,
       ...anchorCoherence.reasonTags,
-      input.privateThought ? `presence:${input.privateThought.embodiedPresence}` : null,
+      privateThought ? `presence:${privateThought.embodiedPresence}` : null,
       activeProject ? `project:${activeProject}` : null,
     ], 10),
     confidence: clamp01(
-      (input.answerPlanner?.confidence ?? 0.35) * 0.3
-      + (input.replyDeliberation?.confidence ?? 0.35) * 0.28
-      + (input.answerCompiler?.confidence ?? 0.35) * 0.22
-      + (input.privateThought?.confidence ?? 0.35) * 0.12
+      (answerPlanner?.confidence ?? 0.35) * 0.3
+      + (replyDeliberation?.confidence ?? 0.35) * 0.28
+      + (answerCompiler?.confidence ?? 0.35) * 0.22
+      + (privateThought?.confidence ?? 0.35) * 0.12
       + (selectedEvidence.length > 0 ? 0.08 : 0.02),
     ),
     updatedAt: input.now,

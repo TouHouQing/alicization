@@ -1,4 +1,5 @@
 import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 export interface AlicizationMindTruthContract {
   truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
@@ -7,7 +8,24 @@ export interface AlicizationMindTruthContract {
   rationale: string
 }
 
-export function deriveMindTruthContract(state: Pick<AlicizationVisualPresenceStateSnapshot, 'currentScene' | 'worldModel' | 'worldOntology'>): AlicizationMindTruthContract {
+type AlicizationMindTruthSource
+  = | Pick<AlicizationVisualPresenceStateSnapshot, 'currentScene' | 'worldModel' | 'worldOntology'>
+    | AlicizationDigitalLifeRuntimeSurface
+
+function resolveMindTruthSource(input: AlicizationMindTruthSource) {
+  if ('version' in input) {
+    return {
+      currentScene: input.perception.currentScene ?? null,
+      worldModel: input.world.worldModel ?? null,
+      worldOntology: input.world.worldOntology ?? null,
+    }
+  }
+
+  return input
+}
+
+export function deriveMindTruthContract(input: AlicizationMindTruthSource): AlicizationMindTruthContract {
+  const state = resolveMindTruthSource(input)
   const dominantFrame = state.worldOntology?.dominantFrame ?? null
   const certainty = state.worldModel?.epistemicState.certainty ?? 'uncertain'
   const freshness = state.worldModel?.epistemicState.freshness ?? 'stale'
@@ -63,8 +81,8 @@ export function deriveMindTruthContract(state: Pick<AlicizationVisualPresenceSta
   }
 }
 
-export function buildMindTruthContractLines(state: Pick<AlicizationVisualPresenceStateSnapshot, 'currentScene' | 'worldModel' | 'worldOntology'>) {
-  const contract = deriveMindTruthContract(state)
+export function buildMindTruthContractLines(input: AlicizationMindTruthSource) {
+  const contract = deriveMindTruthContract(input)
   return {
     contract,
     lines: [

@@ -4,6 +4,8 @@ import {
   buildAlicizationAnswerPlannerSystemBlock,
   buildAnswerPlanner,
 } from './answer-planner'
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 const baseContext = {
   localTime: { hour: 14, minute: 0, isLateNight: false },
@@ -241,6 +243,215 @@ describe('buildAnswerPlanner', () => {
     expect(planner.evidenceMode).toBe('live-grounded')
     expect(planner.shouldAskForGrounding).toBe(false)
     expect(planner.act).not.toBe('ask-reground')
+  })
+
+  it('prefers runtime surface answer-planning cues over conflicting raw inputs', () => {
+    const runtimeBackedState = {
+      ...createDefaultVisualPresenceState(33_000),
+      currentScene: {
+        workloadKind: 'coding',
+        contentKind: 'diff',
+        scenario: 'coding',
+        summary: 'runtime.ts diff',
+        source: 'screen-semantic-summary',
+        confidence: 0.9,
+        target: null,
+        beganAt: 0,
+        lastSeenAt: 33_000,
+      },
+      discourseState: {
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        currentTurnSummary: '继续沿着 runtime diff 的 knot 往下拆。',
+        currentQuestion: '这个 runtime diff 下一步先看哪里？',
+        owedAction: 'guide-task',
+        relationMove: 'guide',
+        continuityMode: 'scene-first',
+        unresolvedCarry: '',
+        ruptureRepair: '',
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 33_000,
+      },
+      conversationState: {
+        jointThread: '继续沿着 runtime diff 的 knot 往下拆',
+        hostMove: '这个 runtime diff 下一步先看哪里？',
+        primaryTurnAnchor: 'runtime diff',
+        primaryTurnAnchorSource: 'user-text',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'task',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        carryForward: true,
+        shouldHoldThread: true,
+        turnOwnership: 'shared',
+        hostNeed: 'guidance',
+        relationDrift: 'steady',
+        confidence: 0.76,
+        narrative: [],
+        updatedAt: 33_000,
+      },
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-surface',
+          kind: 'change-review',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'runtime.ts diff',
+          summary: 'The host is checking the runtime diff knot.',
+          confidence: 0.84,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 33_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 33_000,
+          attentionAgeMs: 33_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 33_000,
+      },
+      worldOntology: {
+        dominantFrame: 'live',
+        truthPriority: ['live', 'remembered', 'imagined'],
+        live: {
+          kind: 'live',
+          summary: 'The diff is live and grounded.',
+          confidence: 0.9,
+          stability: 0.82,
+          focusThreadId: 'thread::runtime-surface',
+          evidence: ['grounded-scene'],
+        },
+        remembered: null,
+        imagined: null,
+        updatedAt: 33_000,
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        speechObligation: 'guide-task',
+        relationMove: 'guide',
+        turnMode: 'guide-current-knot',
+        responseMode: 'guide-current-knot',
+        recommendedAct: 'guide',
+        evidenceMode: 'live-grounded',
+        openingStyle: 'direct-answer',
+        personaKernelMode: 'focused-guide',
+        relationshipPosture: 'warm',
+        openingDirective: 'Stay with the runtime diff knot.',
+        openingClaim: 'The runtime diff knot is still the governing thread.',
+        supportingReality: ['runtime.ts diff'],
+        uncertaintyBoundary: null,
+        careVector: null,
+        nextMove: 'Offer one concrete next step.',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        maxSentences: 4,
+        mustDo: ['Stay with the runtime diff knot.'],
+        mustNotDo: ['Do not drift into generic advice.'],
+        confidence: 0.82,
+        narrative: ['turn-mode:guide-current-knot'],
+        updatedAt: 33_000,
+      },
+      replyDeliberation: {
+        shouldSpeak: true,
+        openingBeat: '先沿着 runtime diff 的 knot 往下拆。',
+        whyThisReplyNow: 'The runtime diff knot is still the host’s living focus.',
+        truthBoundaryLine: null,
+        emotionalThrottle: 'steady',
+        relationshipSignal: 'stay-near',
+        narrative: [],
+        updatedAt: 33_000,
+      },
+    } as any
+
+    const planner = buildAnswerPlanner({
+      now: 33_000,
+      context: baseContext,
+      currentScene: null,
+      worldModel: {
+        activeThread: {
+          id: 'thread::raw-conflict',
+          kind: 'small-talk',
+          status: 'active',
+          source: 'working-memory',
+          title: 'raw conflict',
+          summary: 'This should be ignored.',
+          confidence: 0.3,
+          significance: 0.2,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 33_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'afterglow',
+          sceneAgeMs: 33_000,
+          attentionAgeMs: 33_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 33_000,
+      } as any,
+      answerCompiler: {
+        recommendedAct: 'defer',
+        evidenceMode: 'dialogue-grounded',
+        confidence: 0.12,
+        openingDirective: 'raw conflict',
+        openingClaim: 'raw conflict',
+        nextMove: 'raw conflict',
+        relationshipPosture: 'restrained',
+        mustDo: [],
+        mustNotDo: [],
+        narrative: [],
+        turnMode: 'accompany',
+      } as any,
+      inspectionRequested: false,
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(runtimeBackedState),
+    })
+
+    expect(planner.act).toBe('guide')
+    expect(planner.evidenceMode).toBe('live-grounded')
+    expect(planner.selectedRuntimeThreadId).toBe('thread::runtime-surface')
+    expect(planner.selectedTruthFrame).toBe('live')
+    expect(planner.openingMove).toContain('runtime diff')
   })
 
   it('keeps the current dialogue anchor ahead of an older carried question', () => {

@@ -57,6 +57,33 @@ function createMockVrm() {
   }
 }
 
+function createAliasMockVrm() {
+  const manager = new VRMExpressionManager()
+  const expressions = {
+    A: createExpression('A', [createMockBind('mouthOpen', 0)]),
+    E: createExpression('E', [createMockBind('mouthWide', 2)]),
+    I: createExpression('I', [createMockBind('mouthNarrow', 4)]),
+    O: createExpression('O', [createMockBind('mouthRound', 5)]),
+    U: createExpression('U', [createMockBind('mouthPucker', 6)]),
+    blinkLeft: createExpression('blinkLeft', [createMockBind('blinkLeft', 9)]),
+    blinkRight: createExpression('blinkRight', [createMockBind('blinkRight', 10)]),
+    joy: createExpression('joy'),
+    neutral: createExpression('neutral'),
+    sorrow: createExpression('sorrow'),
+    surprise: createExpression('surprise'),
+  }
+
+  Object.values(expressions).forEach(expression => manager.registerExpression(expression))
+
+  return {
+    expressions,
+    manager,
+    vrm: {
+      expressionManager: manager,
+    },
+  }
+}
+
 function findInternalMouthShadow(manager: VRMExpressionManager, logicalName: string) {
   return manager.expressions.find(expression =>
     expression.expressionName.startsWith('__airi_internal_mouth__')
@@ -153,5 +180,38 @@ describe('vrm expression mux', () => {
 
     expect(shadowBeforeSpeech).toBeGreaterThan(0.25)
     expect(shadowDuringSpeech).toBeLessThan(shadowBeforeSpeech)
+  })
+
+  it('maps aliases so non-standard VRM expression names still animate', () => {
+    const { manager, vrm } = createAliasMockVrm()
+    const emote = useVRMEmote(vrm as never)
+
+    emote.setEmotion('happy', 1)
+    emote.setVisemeWeights({ aa: 0.85, ee: 0.6 }, true)
+    emote.setBlinkWeights({ blink: 0.7 })
+    stepFrames(emote, 10, 0.05)
+
+    const blinkLeft = (manager.getValue('blinkLeft') ?? manager.getValue('blinkleft') ?? 0)
+    const blinkRight = (manager.getValue('blinkRight') ?? manager.getValue('blinkright') ?? 0)
+
+    expect(manager.getValue('joy') ?? 0).toBeGreaterThan(0.4)
+    expect(manager.getValue('A') ?? 0).toBeGreaterThan(0.25)
+    expect(manager.getValue('E') ?? 0).toBeGreaterThan(0.15)
+    expect(blinkLeft).toBeGreaterThan(0.1)
+    expect(blinkLeft + blinkRight).toBeGreaterThan(0.1)
+  })
+
+  it('accepts runtime-authored blend durations for emotion transitions', () => {
+    const fast = createMockVrm()
+    const slow = createMockVrm()
+    const fastEmote = useVRMEmote(fast.vrm as never)
+    const slowEmote = useVRMEmote(slow.vrm as never)
+
+    fastEmote.setEmotion('happy', 1, { blendDuration: 0.08 })
+    slowEmote.setEmotion('happy', 1, { blendDuration: 0.8 })
+    fastEmote.update(0.05)
+    slowEmote.update(0.05)
+
+    expect((fast.manager.getValue('happy') ?? 0)).toBeGreaterThan(slow.manager.getValue('happy') ?? 0)
   })
 })

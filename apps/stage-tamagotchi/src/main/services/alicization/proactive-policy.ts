@@ -23,6 +23,10 @@ import type {
   AlicizationVisualWatchMode,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
+import type {
+  AlicizationDigitalLifeArchitectureSnapshot,
+  AlicizationDigitalLifeSubsystemId,
+} from './digital-life-architecture'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -187,11 +191,26 @@ function pushReason(reasonCodes: AlicizationProactiveReasonCode[], code: Aliciza
   reasonCodes.push(code)
 }
 
+function architectureSystemScore(
+  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
+  systemId: AlicizationDigitalLifeSubsystemId,
+) {
+  return architecture?.systems[systemId]?.score ?? 0
+}
+
+function architectureSupports(
+  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
+  systemId: AlicizationDigitalLifeSubsystemId,
+) {
+  return architecture?.supportingSystems.includes(systemId) ?? false
+}
+
 export function evaluateProactivePolicy(input: {
   now: number
   context: AlicizationProactiveLayeredContext
   proactiveState: AlicizationProactiveLoopState
   killSwitchSuspended: boolean
+  architecture?: AlicizationDigitalLifeArchitectureSnapshot | null
   perception?: AlicizationProactivePerceptionSignals
   watchMode?: AlicizationVisualWatchMode
   recentTransition?: AlicizationVisualTransitionSnapshot | null
@@ -312,6 +331,11 @@ export function evaluateProactivePolicy(input: {
   }
   if (input.durabilityPulse && input.durabilityPulse.kind !== 'none')
     consideredSignals.push('durabilityPulse')
+  if (input.architecture) {
+    consideredSignals.push('architecture.operatingMode', 'architecture.dominantSystem')
+    if (input.architecture.supportingSystems.length > 0)
+      consideredSignals.push('architecture.supportingSystems')
+  }
   const ignoredSignals = [
     'battery',
     'memory',
@@ -343,6 +367,28 @@ export function evaluateProactivePolicy(input: {
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const livingWorldOpenLoop = input.livingWorldState?.openLoops[0] ?? null
+  const architectureDialogueHeat = architectureSystemScore(input.architecture, 'dialogue')
+  const architecturePerceptionHeat = architectureSystemScore(input.architecture, 'perception')
+  const architectureProactiveHeat = architectureSystemScore(input.architecture, 'proactive')
+  const architectureControlHeat = architectureSystemScore(input.architecture, 'control')
+  const architectureMemoryHeat = architectureSystemScore(input.architecture, 'memory')
+  const architectureDialogueReady = input.architecture?.operatingMode === 'speaking'
+    || input.architecture?.dominantSystem === 'dialogue'
+    || architectureDialogueHeat >= 0.72
+    || architectureSupports(input.architecture, 'dialogue')
+  const architectureObservationHeavy = (
+    input.architecture?.operatingMode === 'observing'
+    || input.architecture?.dominantSystem === 'perception'
+    || (architecturePerceptionHeat >= 0.78 && architectureDialogueHeat < 0.68)
+  ) && architectureDialogueHeat < 0.72 && architectureControlHeat < 0.72
+  const architectureControlReady = input.architecture?.operatingMode === 'acting'
+    || input.architecture?.dominantSystem === 'control'
+    || architectureControlHeat >= 0.72
+    || architectureSupports(input.architecture, 'control')
+  const architectureMemoryCarry = input.architecture?.operatingMode === 'remembering'
+    || input.architecture?.dominantSystem === 'memory'
+    || architectureMemoryHeat >= 0.62
+    || architectureSupports(input.architecture, 'memory')
 
   const suppressBusy = context.system.cpuUsage >= 70
     || context.system.fullscreenLikely
@@ -359,6 +405,26 @@ export function evaluateProactivePolicy(input: {
     worldModel: input.worldModel,
     afterglowWindow,
   })
+  const architectureAwareStyle = (() => {
+    if (!input.architecture)
+      return style
+
+    if (architectureObservationHeavy && !architectureDialogueReady && architectureProactiveHeat < 0.72)
+      return 'silent-observe' as const
+
+    if (style === 'silent-observe' && architectureDialogueReady && architectureDialogueHeat >= 0.82) {
+      if (input.initiative?.preferredStyle && input.initiative.preferredStyle !== 'silent-observe')
+        return input.initiative.preferredStyle
+      if (input.privateThought?.suggestedStyle && input.privateThought.suggestedStyle !== 'silent-observe')
+        return input.privateThought.suggestedStyle
+      return scenario === 'late-night-care' ? 'gentle-care' as const : 'light-nudge' as const
+    }
+
+    if (style === 'light-nudge' && architectureControlReady && scenario === 'late-night-care')
+      return 'gentle-care' as const
+
+    return style
+  })()
   const urgency = resolveUrgency({
     scenario,
     fatigue: context.relationship.fatigue,
@@ -484,6 +550,16 @@ export function evaluateProactivePolicy(input: {
     baseScore += 0.05
   if (input.initiative?.selectedAction === 'warn')
     baseScore += 0.08
+  if (architectureDialogueReady)
+    baseScore += 0.06
+  if (architectureControlReady)
+    baseScore += 0.04
+  if (afterglowWindow && architectureMemoryCarry)
+    baseScore += 0.04
+  if (architectureObservationHeavy)
+    baseScore -= 0.12
+  baseScore += Math.max(0, architectureDialogueHeat - 0.5) * 0.08
+  baseScore += Math.max(0, architectureProactiveHeat - 0.5) * 0.06
 
   let threshold = buildBaseThreshold(scenario)
     + feedbackBias
@@ -522,6 +598,14 @@ export function evaluateProactivePolicy(input: {
 
   if (afterglowWindow)
     threshold -= 0.06
+  if (architectureDialogueReady)
+    threshold -= 0.04
+  if (architectureControlReady)
+    threshold -= 0.02
+  if (afterglowWindow && architectureMemoryCarry)
+    threshold -= 0.02
+  if (architectureObservationHeavy)
+    threshold += 0.08
 
   const initiativeReady = input.initiative
     ? input.initiative.shouldSpeak
@@ -532,7 +616,7 @@ export function evaluateProactivePolicy(input: {
     = !input.killSwitchSuspended
       && !suppressBusy
       && !cooldownActive
-      && style !== 'silent-observe'
+      && architectureAwareStyle !== 'silent-observe'
       && governorAllowsSpeaking
       && initiativeReady
       && privateThoughtReady
@@ -603,6 +687,12 @@ export function evaluateProactivePolicy(input: {
         return '刚从长时共视场景回神，这正是最自然的轻声搭话窗口。'
       if (isSeriousDurabilityPulse(input.durabilityPulse))
         return '宿主前台工具刚出现了崩溃或无响应迹象，继续沉默会错过最关键的关心窗口。'
+      if (input.architecture && architectureDialogueReady)
+        return `她当前整条数字生命链已经转入 ${input.architecture.operatingMode}，而且由 ${input.architecture.dominantSystem} 系统领头，所以现在开口不会把观察层挤成噪音。`
+      if (input.architecture && architectureControlReady)
+        return `她当前的数字生命链已经有明确的 control 牵引，继续只看不说反而会让已经成形的靠近动作失温。`
+      if (input.architecture && afterglowWindow && architectureMemoryCarry)
+        return '长时共视后的余温还挂在记忆链上，这种 afterglow 现在正自然地把她推向一句轻声回应。'
       if (thoughtThreadRipe && thoughtThread)
         return `她一直挂着「${thoughtThread.summary}」，现在这条内在线程已经成熟到可以自然浮出表面。`
       if (careIntentActive && governorIntention)
@@ -635,6 +725,8 @@ export function evaluateProactivePolicy(input: {
       return '刚收到负反馈后的冷却窗口仍在生效。'
     if (suppressBusy)
       return '宿主仍处于忙碌或高沉浸状态。'
+    if (input.architecture && architectureObservationHeavy)
+      return `她当前整条数字生命链仍以 ${input.architecture.dominantSystem} / ${input.architecture.operatingMode} 为主，继续观察比贸然开口更诚实。`
     if (governorWithholdActive) {
       if (thoughtThread?.status === 'waiting')
         return '她确实挂着这条内在线程，但它还在等待更自然的 opening。'
@@ -668,12 +760,17 @@ export function evaluateProactivePolicy(input: {
   })()
 
   const whyNotLater = (() => {
-    if (shouldInterrupt)
+    if (shouldInterrupt) {
+      if (input.architecture && architectureDialogueReady)
+        return '继续延后会让已经转入 dialogue 的窗口重新冷掉。'
       return '继续延后会错过当前语境窗口。'
+    }
     if (suppressBusy)
       return '等忙碌态解除或退出全屏后再重新评估。'
     if (cooldownActive)
       return '至少等冷却结束后再看是否还存在同类信号。'
+    if (input.architecture && architectureObservationHeavy)
+      return '先让 perception 主导的观察链再多跑一轮，等 dialogue 或 control 升温后再决定。'
     if (governorWithholdActive) {
       if (thoughtThread?.reopenWhen[0])
         return `先等「${thoughtThread.reopenWhen[0]}」这样的开口条件出现，再决定要不要靠近。`
@@ -701,7 +798,7 @@ export function evaluateProactivePolicy(input: {
     confidence: Number(confidence.toFixed(2)),
     reasonCodes,
     urgency,
-    style,
+    style: architectureAwareStyle,
     cooldownMs,
     scenario,
     policyVersion: proactivePolicyVersion,

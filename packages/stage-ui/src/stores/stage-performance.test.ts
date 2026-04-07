@@ -156,4 +156,58 @@ describe('stage performance helpers', () => {
       description: expect.stringContaining('嘴硬'),
     }))
   })
+
+  it('merges model-specific live2d motion aliases ahead of shared defaults', () => {
+    const store = useStagePerformanceStore()
+
+    expect(store.resolveLive2DEmotionMotionAliases('live2d-model', 'happy')).toContain('Happy')
+
+    store.setLive2DEmotionMotionAliases('live2d-model', 'happy', ['Joy', 'CheerSmile'])
+
+    expect(store.resolveLive2DEmotionMotionAliases('live2d-model', 'happy')).toEqual([
+      'Joy',
+      'CheerSmile',
+      'Happy',
+      'Cheer',
+      'Smile',
+    ])
+  })
+
+  it('merges model-specific vrm expression aliases ahead of shared defaults', () => {
+    const store = useStagePerformanceStore()
+
+    expect(store.resolveVrmEmotionExpressionAliases('vrm-model', 'thinking')).toEqual([
+      'relaxed',
+      'neutral',
+    ])
+
+    store.setVrmEmotionExpressionAliases('vrm-model', 'thinking', ['CalmLook', 'FocusSoft'])
+
+    expect(store.resolveVrmEmotionExpressionAliases('vrm-model', 'thinking')).toEqual([
+      'CalmLook',
+      'FocusSoft',
+      'relaxed',
+      'neutral',
+    ])
+  })
+
+  it('stores model-specific action cue preferences by emotion', () => {
+    const store = useStagePerformanceStore()
+
+    store.setEmotionActionCuePreferences('stage-model', 'concerned', ['comfort_sway', 'idle_gentle_nod', 'comfort_sway'])
+
+    expect(store.listEmotionActionCuePreferences('stage-model')).toEqual({
+      concerned: ['comfort_sway', 'idle_gentle_nod'],
+    })
+  })
+
+  it('stores model-specific vrm facial cue preferences by emotion', () => {
+    const store = useStagePerformanceStore()
+
+    store.setVrmEmotionFacialCuePreferences('vrm-model', 'thinking', ['relaxed', 'frown', 'relaxed'])
+
+    expect(store.listVrmEmotionFacialCuePreferences('vrm-model')).toEqual({
+      thinking: ['relaxed', 'frown'],
+    })
+  })
 })

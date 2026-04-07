@@ -8,7 +8,7 @@ import analyserWorklet from '@nekopaw/tempora/worklet?url'
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { startAnalyser as startTemporaAnalyser } from '@nekopaw/tempora'
 import { setupElectronScreenCapture } from '@proj-alicization/electron-screen-capture/renderer'
-import { choosePreferredScreenCaptureSource } from '@proj-alicization/electron-screen-capture/source-policy'
+import { createScreenCaptureSession } from '@proj-alicization/electron-screen-capture/session'
 
 import { isStageTamagotchi, isStageWeb, StageEnvironment } from '../environment'
 import { isElectronWindow } from '../window'
@@ -161,27 +161,24 @@ export function createBeatSyncDetector(options: CreateBeatSyncDetectorOptions): 
           throw new Error(`Electron window is required for this environment: ${options.env}`)
         }
 
-        // FIXME(Makito): Will refactor later
         const { createContext } = await import('@moeru/eventa/adapters/electron/renderer')
-        const { selectWithSource } = setupElectronScreenCapture(createContext(window.electron.ipcRenderer).context)
-
-        const stream = await selectWithSource(
-          (sources) => {
-            const preferredSource = choosePreferredScreenCaptureSource(sources, {
-              preferredKinds: ['display', 'window'],
-              preferredNameKeywords: ['entire', 'screen', 'display'],
-            })
-            if (!preferredSource)
-              throw new Error('No screen source available')
-
-            return preferredSource.id
+        const screenCapture = setupElectronScreenCapture(createContext(window.electron.ipcRenderer).context)
+          .bind({ types: ['screen'] })
+        const session = createScreenCaptureSession(screenCapture, {
+          sourceSelection: {
+            preferredKinds: ['display', 'window'],
+            preferredNameKeywords: ['entire', 'screen', 'display'],
           },
-          async () => await navigator.mediaDevices.getDisplayMedia({
+        })
+        const stream = await session.acquireStream({
+          allowPrompt: false,
+          mediaStreamOptions: {
             video: true,
             audio: true,
-          }),
-          { sourcesOptions: { types: ['screen'] } },
-        )
+          },
+        })
+        if (!stream)
+          throw new Error('No screen source available')
 
         const videoTracks = stream.getVideoTracks()
 
@@ -190,9 +187,9 @@ export function createBeatSyncDetector(options: CreateBeatSyncDetectorOptions): 
           stream.removeTrack(track)
         })
 
-        const node = ctx.createMediaStreamSource(stream)
+        const node = ctx.createMediaStreamSource(stream as unknown as MediaStream)
         stopSource = () => {
-          stream.getTracks().forEach(track => track.stop())
+          session.stop()
         }
 
         return node

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildMindTruthContractLines, deriveMindTruthContract } from './mind-truth-contract'
 
 describe('deriveMindTruthContract', () => {
@@ -190,5 +191,73 @@ describe('deriveMindTruthContract', () => {
     expect(contract.truthState).toBe('imagined')
     expect(contract.canDescribeCurrentSceneAsFact).toBe(false)
     expect(contract.rationale).toContain('hypothesis')
+  })
+
+  it('accepts the digital-life runtime surface as truth input', () => {
+    const contract = deriveMindTruthContract(buildAlicizationDigitalLifeRuntimeSurface({
+      watchMode: 'symbiotic-vision',
+      currentScene: null,
+      attention: null,
+      workingMemoryEpisodes: [],
+      worldModel: {
+        activeThread: {
+          id: 'thread-surface',
+          kind: 'debugging',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'Runtime surface thread',
+          summary: 'The truth contract should read from the runtime surface.',
+          confidence: 0.9,
+          significance: 0.7,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 12_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 12_000,
+      },
+      worldOntology: {
+        dominantFrame: 'grounded',
+        truthPriority: ['grounded'],
+        live: null,
+        remembered: null,
+        imagined: null,
+        updatedAt: 12_000,
+      },
+      privateThought: null,
+      captureState: {
+        permission: 'granted',
+        lastGroundedAt: 12_000,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 15_000,
+      updatedAt: 12_000,
+    } as any))
+
+    expect(contract.truthState).toBe('live-grounded')
+    expect(contract.canDescribeCurrentSceneAsFact).toBe(true)
   })
 })

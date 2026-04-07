@@ -1,3 +1,5 @@
+import { resolveStageEmbodimentVrmBaseExpressionName } from '@proj-alicization/stage-shared'
+
 export interface VrmPresetFacialCapabilityDefinition {
   key: string
   label: string
@@ -7,6 +9,37 @@ export interface VrmPresetFacialCapabilityDefinition {
 }
 
 export const vrmVisemeExpressionNames = ['aa', 'ee', 'ih', 'oh', 'ou'] as const
+
+const vrmExpressionAliasGroups = {
+  aa: ['aa', 'a', 'viseme_aa', 'viseme_a', 'mouth_a', 'phoneme_a'],
+  angry: ['angry', 'anger', 'mad'],
+  blink: ['blink', 'blinkleft', 'blinkright'],
+  ee: ['ee', 'e', 'viseme_ee', 'viseme_e', 'mouth_e', 'phoneme_e'],
+  happy: ['happy', 'joy', 'fun', 'smile', 'warau', 'cheerful'],
+  ih: ['ih', 'i', 'viseme_ih', 'viseme_i', 'mouth_i', 'phoneme_i'],
+  neutral: ['neutral', 'default', 'idle'],
+  oh: ['oh', 'o', 'viseme_oh', 'viseme_o', 'mouth_o', 'phoneme_o'],
+  ou: ['ou', 'u', 'viseme_ou', 'viseme_u', 'mouth_u', 'phoneme_u'],
+  relaxed: ['relaxed', 'calm', 'content'],
+  sad: ['sad', 'sorrow', 'grief', 'cry'],
+  surprised: ['surprised', 'surprise', 'shock', 'amazed'],
+} as const
+
+type VrmExpressionAliasCanonical = keyof typeof vrmExpressionAliasGroups
+
+const vrmExpressionAliasToCanonical = new Map<string, VrmExpressionAliasCanonical>()
+
+Object.entries(vrmExpressionAliasGroups).forEach(([canonicalName, aliases]) => {
+  const canonical = canonicalName as VrmExpressionAliasCanonical
+  aliases.forEach((alias) => {
+    vrmExpressionAliasToCanonical.set(alias, canonical)
+  })
+})
+
+function hasAnySupportedAlias(supportedExpressionNames: Set<string>, expressionName: string) {
+  return resolveVrmExpressionAliasCandidates(expressionName)
+    .some(candidate => supportedExpressionNames.has(candidate))
+}
 
 export const vrmStandardExpressionNames = new Set([
   'neutral',
@@ -71,6 +104,21 @@ export function normalizeVrmExpressionName(raw: unknown) {
   return typeof raw === 'string' ? raw.trim().toLowerCase() : ''
 }
 
+export function resolveVrmExpressionAliasCandidates(expressionName: string) {
+  const normalizedExpressionName = normalizeVrmExpressionName(expressionName)
+  if (!normalizedExpressionName)
+    return []
+
+  const canonical = vrmExpressionAliasToCanonical.get(normalizedExpressionName)
+  if (!canonical)
+    return [normalizedExpressionName]
+
+  return [...new Set([
+    canonical,
+    ...vrmExpressionAliasGroups[canonical],
+  ].map(name => normalizeVrmExpressionName(name)).filter(Boolean))]
+}
+
 export function createVrmSupportedExpressionSet(expressionNames: Iterable<string>) {
   return new Set(
     [...expressionNames]
@@ -79,26 +127,27 @@ export function createVrmSupportedExpressionSet(expressionNames: Iterable<string
   )
 }
 
-export function resolveVrmBaseExpressionName(baseEmotion: string) {
-  switch (baseEmotion) {
-    case 'happy':
-      return 'happy'
-    case 'sad':
-      return 'sad'
-    case 'angry':
-      return 'angry'
-    case 'surprised':
-      return 'surprised'
-    case 'concerned':
-      return 'sad'
-    case 'tired':
-    case 'apologetic':
-    case 'thinking':
-      return 'relaxed'
-    case 'neutral':
-    default:
-      return 'neutral'
-  }
+export function resolveVrmBaseExpressionCandidates(
+  baseEmotion: string,
+  preferredExpressionCandidates?: Iterable<string>,
+) {
+  const preferredCandidates = preferredExpressionCandidates == null
+    ? []
+    : [...preferredExpressionCandidates]
+        .map(name => normalizeVrmExpressionName(name))
+        .filter(Boolean)
+
+  return [...new Set([
+    ...preferredCandidates,
+    resolveStageEmbodimentVrmBaseExpressionName(baseEmotion),
+  ])]
+}
+
+export function resolveVrmBaseExpressionName(
+  baseEmotion: string,
+  preferredExpressionCandidates?: Iterable<string>,
+) {
+  return resolveVrmBaseExpressionCandidates(baseEmotion, preferredExpressionCandidates)[0] ?? 'neutral'
 }
 
 export function resolveVrmPresetFacialCapability(key?: string | null) {
@@ -108,19 +157,24 @@ export function resolveVrmPresetFacialCapability(key?: string | null) {
   return vrmPresetFacialCapabilities.find(item => item.key === key)
 }
 
-export function supportsVrmBaseEmotion(expressionNames: Iterable<string>, baseEmotion: string) {
+export function supportsVrmBaseEmotion(
+  expressionNames: Iterable<string>,
+  baseEmotion: string,
+  preferredExpressionCandidates?: Iterable<string>,
+) {
   const supportedExpressionNames = createVrmSupportedExpressionSet(expressionNames)
-  return supportedExpressionNames.has(resolveVrmBaseExpressionName(baseEmotion))
+  return resolveVrmBaseExpressionCandidates(baseEmotion, preferredExpressionCandidates)
+    .some(candidate => hasAnySupportedAlias(supportedExpressionNames, candidate))
 }
 
 export function listVrmPresetFacialCapabilities(expressionNames: Iterable<string>) {
   const supportedExpressionNames = createVrmSupportedExpressionSet(expressionNames)
   return vrmPresetFacialCapabilities.filter(item =>
-    supportedExpressionNames.has(normalizeVrmExpressionName(item.expressionName)),
+    hasAnySupportedAlias(supportedExpressionNames, item.expressionName),
   )
 }
 
 export function supportsVrmVisemeLipSync(expressionNames: Iterable<string>) {
   const supportedExpressionNames = createVrmSupportedExpressionSet(expressionNames)
-  return vrmVisemeExpressionNames.every(name => supportedExpressionNames.has(name))
+  return vrmVisemeExpressionNames.every(name => hasAnySupportedAlias(supportedExpressionNames, name))
 }

@@ -1,3 +1,4 @@
+import type { StageEmbodimentCanonicalEmotion } from '@proj-alicization/stage-shared'
 import type {
   VrmActionBinding,
   VrmCustomExpressionBinding,
@@ -6,6 +7,12 @@ import type {
 
 import localforage from 'localforage'
 
+import {
+  normalizeStageEmbodimentEmotion,
+  resolveStageEmbodimentLive2DMotionAliases,
+  resolveStageEmbodimentVrmBaseExpressionCandidates,
+  stageEmbodimentCanonicalEmotions,
+} from '@proj-alicization/stage-shared'
 import { useLocalStorageManualReset } from '@proj-alicization/stage-shared/composables'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
@@ -23,6 +30,7 @@ export interface Live2DActionBinding {
 type StoredVrmExternalAnimationBinding = Omit<VrmExternalAnimationBinding, 'file'>
 type Live2DActionBindingDefaults = Pick<Live2DActionBinding, 'actionKey' | 'label' | 'description'>
 type Live2DMotionIdentity = Pick<Live2DActionBinding, 'fileName' | 'motionName' | 'motionIndex'>
+export type StageEmbodimentEmotionAliasOverrideMap = Partial<Record<StageEmbodimentCanonicalEmotion, string[]>>
 
 const vrmExternalAnimationStoragePrefix = 'stage-performance:vrm-animation'
 const defaultAlicizationLive2DActionBindingSeeds: Record<string, Live2DActionBindingDefaults> = {
@@ -102,6 +110,74 @@ function normalizeDescription(raw: unknown) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().slice(0, 240)
+}
+
+function normalizeEmbodimentAlias(raw: unknown) {
+  if (typeof raw !== 'string')
+    return ''
+
+  return raw.trim().slice(0, 80)
+}
+
+function normalizeEmbodimentAliasList(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+
+  const aliases = raw
+    .map(alias => normalizeEmbodimentAlias(alias))
+    .filter(Boolean)
+
+  return [...new Set(aliases)]
+}
+
+function cloneEmotionAliasOverrideMap(raw?: StageEmbodimentEmotionAliasOverrideMap | null): StageEmbodimentEmotionAliasOverrideMap {
+  const next: StageEmbodimentEmotionAliasOverrideMap = {}
+
+  for (const emotion of stageEmbodimentCanonicalEmotions) {
+    const aliases = normalizeEmbodimentAliasList(raw?.[emotion])
+    if (aliases.length > 0)
+      next[emotion] = aliases
+  }
+
+  return next
+}
+
+function updateEmotionAliasOverrideMap(
+  current: Record<string, StageEmbodimentEmotionAliasOverrideMap>,
+  modelId: string,
+  emotion: StageEmbodimentCanonicalEmotion,
+  aliases: string[],
+) {
+  const normalizedModelId = normalizeModelId(modelId)
+  if (!normalizedModelId)
+    return current
+
+  const currentModelOverrides = cloneEmotionAliasOverrideMap(current[normalizedModelId])
+  const nextAliases = normalizeEmbodimentAliasList(aliases)
+  if (nextAliases.length > 0)
+    currentModelOverrides[emotion] = nextAliases
+  else
+    delete currentModelOverrides[emotion]
+
+  return {
+    ...current,
+    [normalizedModelId]: currentModelOverrides,
+  }
+}
+
+function resolveMergedEmotionAliases(
+  overrides: StageEmbodimentEmotionAliasOverrideMap | undefined,
+  emotion: unknown,
+  defaults: (emotion: StageEmbodimentCanonicalEmotion) => string[],
+) {
+  const normalizedEmotion = normalizeStageEmbodimentEmotion(emotion)
+  const preferredAliases = normalizeEmbodimentAliasList(overrides?.[normalizedEmotion])
+  return [
+    ...new Set([
+      ...preferredAliases,
+      ...defaults(normalizedEmotion).map(alias => normalizeEmbodimentAlias(alias)).filter(Boolean),
+    ]),
+  ]
 }
 
 function buildLive2DMotionCapabilityKey(motionName: string, motionIndex: number) {
@@ -223,8 +299,12 @@ export function isVrmCustomExpressionConfigured(binding?: Pick<VrmCustomExpressi
 
 export const useStagePerformanceStore = defineStore('stage-performance', () => {
   const live2dActionsByModel = useLocalStorageManualReset<Record<string, Live2DActionBinding[]>>('settings/stage-performance/live2d-actions-by-model', {})
+  const live2dEmotionMotionAliasesByModel = useLocalStorageManualReset<Record<string, StageEmbodimentEmotionAliasOverrideMap>>('settings/stage-performance/live2d-emotion-motion-aliases-by-model', {})
+  const emotionActionCuePreferencesByModel = useLocalStorageManualReset<Record<string, StageEmbodimentEmotionAliasOverrideMap>>('settings/stage-performance/emotion-action-cue-preferences-by-model', {})
   const vrmCustomExpressionNamesByModel = useLocalStorageManualReset<Record<string, string[]>>('settings/stage-performance/vrm-custom-expression-names-by-model', {})
   const vrmCustomExpressionsByModel = useLocalStorageManualReset<Record<string, VrmCustomExpressionBinding[]>>('settings/stage-performance/vrm-custom-expressions-by-model', {})
+  const vrmEmotionExpressionAliasesByModel = useLocalStorageManualReset<Record<string, StageEmbodimentEmotionAliasOverrideMap>>('settings/stage-performance/vrm-emotion-expression-aliases-by-model', {})
+  const vrmEmotionFacialCuePreferencesByModel = useLocalStorageManualReset<Record<string, StageEmbodimentEmotionAliasOverrideMap>>('settings/stage-performance/vrm-emotion-facial-cue-preferences-by-model', {})
   const vrmExternalAnimationsByModel = useLocalStorageManualReset<Record<string, StoredVrmExternalAnimationBinding[]>>('settings/stage-performance/vrm-external-animations-by-model', {})
 
   function listLive2DActions(modelId: string) {
@@ -268,6 +348,42 @@ export const useStagePerformanceStore = defineStore('stage-performance', () => {
     if (!cue)
       return undefined
     return listLive2DActions(modelId).find(item => item.actionKey === cue)
+  }
+
+  function listLive2DEmotionMotionAliases(modelId: string) {
+    return cloneEmotionAliasOverrideMap(live2dEmotionMotionAliasesByModel.value[normalizeModelId(modelId)])
+  }
+
+  function setLive2DEmotionMotionAliases(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string, aliases: string[]) {
+    const normalizedEmotion = normalizeStageEmbodimentEmotion(emotion)
+    live2dEmotionMotionAliasesByModel.value = updateEmotionAliasOverrideMap(
+      live2dEmotionMotionAliasesByModel.value,
+      modelId,
+      normalizedEmotion,
+      aliases,
+    )
+  }
+
+  function resolveLive2DEmotionMotionAliases(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string) {
+    return resolveMergedEmotionAliases(
+      listLive2DEmotionMotionAliases(modelId),
+      emotion,
+      normalizedEmotion => resolveStageEmbodimentLive2DMotionAliases(normalizedEmotion),
+    )
+  }
+
+  function listEmotionActionCuePreferences(modelId: string) {
+    return cloneEmotionAliasOverrideMap(emotionActionCuePreferencesByModel.value[normalizeModelId(modelId)])
+  }
+
+  function setEmotionActionCuePreferences(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string, cues: string[]) {
+    const normalizedEmotion = normalizeStageEmbodimentEmotion(emotion)
+    emotionActionCuePreferencesByModel.value = updateEmotionAliasOverrideMap(
+      emotionActionCuePreferencesByModel.value,
+      modelId,
+      normalizedEmotion,
+      cues,
+    )
   }
 
   function listVrmCustomExpressionNames(modelId: string) {
@@ -332,6 +448,42 @@ export const useStagePerformanceStore = defineStore('stage-performance', () => {
     if (!cue)
       return undefined
     return listVrmCustomExpressions(modelId).find(item => item.facialKey === cue && isVrmCustomExpressionConfigured(item))
+  }
+
+  function listVrmEmotionExpressionAliases(modelId: string) {
+    return cloneEmotionAliasOverrideMap(vrmEmotionExpressionAliasesByModel.value[normalizeModelId(modelId)])
+  }
+
+  function setVrmEmotionExpressionAliases(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string, aliases: string[]) {
+    const normalizedEmotion = normalizeStageEmbodimentEmotion(emotion)
+    vrmEmotionExpressionAliasesByModel.value = updateEmotionAliasOverrideMap(
+      vrmEmotionExpressionAliasesByModel.value,
+      modelId,
+      normalizedEmotion,
+      aliases,
+    )
+  }
+
+  function resolveVrmEmotionExpressionAliases(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string) {
+    return resolveMergedEmotionAliases(
+      listVrmEmotionExpressionAliases(modelId),
+      emotion,
+      normalizedEmotion => resolveStageEmbodimentVrmBaseExpressionCandidates(normalizedEmotion),
+    )
+  }
+
+  function listVrmEmotionFacialCuePreferences(modelId: string) {
+    return cloneEmotionAliasOverrideMap(vrmEmotionFacialCuePreferencesByModel.value[normalizeModelId(modelId)])
+  }
+
+  function setVrmEmotionFacialCuePreferences(modelId: string, emotion: StageEmbodimentCanonicalEmotion | string, cues: string[]) {
+    const normalizedEmotion = normalizeStageEmbodimentEmotion(emotion)
+    vrmEmotionFacialCuePreferencesByModel.value = updateEmotionAliasOverrideMap(
+      vrmEmotionFacialCuePreferencesByModel.value,
+      modelId,
+      normalizedEmotion,
+      cues,
+    )
   }
 
   function listVrmExternalAnimations(modelId: string) {
@@ -450,19 +602,33 @@ export const useStagePerformanceStore = defineStore('stage-performance', () => {
 
   return {
     live2dActionsByModel,
+    live2dEmotionMotionAliasesByModel,
+    emotionActionCuePreferencesByModel,
     vrmCustomExpressionNamesByModel,
     vrmCustomExpressionsByModel,
+    vrmEmotionExpressionAliasesByModel,
+    vrmEmotionFacialCuePreferencesByModel,
     vrmExternalAnimationsByModel,
     listLive2DActions,
     upsertLive2DAction,
     removeLive2DAction,
     resolveLive2DActionByCue,
+    listLive2DEmotionMotionAliases,
+    setLive2DEmotionMotionAliases,
+    resolveLive2DEmotionMotionAliases,
+    listEmotionActionCuePreferences,
+    setEmotionActionCuePreferences,
     listVrmCustomExpressionNames,
     setVrmCustomExpressionNames,
     listVrmCustomExpressions,
     upsertVrmCustomExpression,
     removeVrmCustomExpression,
     resolveVrmCustomExpressionByCue,
+    listVrmEmotionExpressionAliases,
+    setVrmEmotionExpressionAliases,
+    resolveVrmEmotionExpressionAliases,
+    listVrmEmotionFacialCuePreferences,
+    setVrmEmotionFacialCuePreferences,
     listVrmExternalAnimations,
     importVrmExternalAnimation,
     updateVrmExternalAnimation,
