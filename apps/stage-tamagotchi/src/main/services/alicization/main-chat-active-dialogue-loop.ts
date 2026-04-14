@@ -1107,8 +1107,10 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
     case 'greeting': {
       const greeting = buildGreetingMove(decision).salutation
       if (/在吗|在嘛/u.test(decision.latestUserText))
-        return localeIsZh ? '我在。' : `I'm here.`
-      return localeIsZh ? `${greeting}。` : `${greeting}.`
+        return localeIsZh ? '先接住对方确认我是否在场的招呼，再把这轮对话稳稳接住。' : `Answer that I'm here, then hold the turn as a live conversation.`
+      return localeIsZh
+        ? `先接住 ${greeting} 这句问候，再把这一轮开口成真正的对话。`
+        : `Receive the greeting ${greeting}, then turn the opening into a live conversation.`
     }
     case 'identity':
       if (identityReconfirmation) {
@@ -1125,12 +1127,12 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         : `I can ${fastPathCapabilityList.join(', ')}.`
     case 'utility-time':
       return localeIsZh
-        ? '直接给出当前本地时间。'
-        : 'Give the current local time directly.'
+        ? '按当前生效时区给出本地时间，不让时间依据漂移。'
+        : 'Give the local time from the active timezone without letting the time basis drift.'
     case 'utility-date':
       return localeIsZh
-        ? '直接给出今天的日期。'
-        : 'Give today\'s date directly.'
+        ? '按当前生效时区给出今天的日期，不让日期依据漂移。'
+        : 'Give today\'s date from the active timezone without letting the calendar basis drift.'
     case 'presence-critique':
       return localeIsZh
         ? '承认刚才像流程播报，把说话方式拉回真实对话。'
@@ -1232,6 +1234,7 @@ function buildLocalClockSnapshot(text: string, preferredTimeZone?: string): Alic
   if (prefersChinese) {
     return {
       language: 'zh' as const,
+      timeZone,
       timeText: new Intl.DateTimeFormat('zh-CN', {
         hour: '2-digit',
         minute: '2-digit',
@@ -1253,6 +1256,7 @@ function buildLocalClockSnapshot(text: string, preferredTimeZone?: string): Alic
 
   return {
     language: 'en' as const,
+    timeZone,
     timeText: new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -1654,6 +1658,7 @@ export function buildAlicizationActiveDialogueFallbackReply(
     hasVisualGrounding: false,
     governance: input.governance ?? null,
     personaKernel: input.personaKernel ?? null,
+    messages: normalizedConversationMessages,
     sessionMirror: input.sessionMirror ?? null,
     runtimeSurface: {
       action: input.actionKind ? { kind: input.actionKind } : null,

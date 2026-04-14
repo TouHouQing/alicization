@@ -116,6 +116,7 @@ describe('main chat active dialogue loop', () => {
 
     const payload = JSON.parse(reply) as { reply: string }
     expect(payload.reply).toContain('下午好')
+    expect(payload.reply).not.toBe('下午好。')
     expect(payload.reply).not.toContain('要是还是')
     expect(payload.reply).not.toContain('你现在这个点直接说')
     expect(payload.reply).not.toContain('我贴着这一轮往下接')
@@ -172,7 +173,8 @@ describe('main chat active dialogue loop', () => {
     })
 
     const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toBe('你好。')
+    expect(payload.reply).toContain('你好')
+    expect(payload.reply).not.toBe('你好。')
     expect(payload.reply).not.toContain('真的吗')
     expect(payload.reply).not.toContain('要是还是')
   })
@@ -360,6 +362,45 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.strategy).toBe('local-only')
     expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
     expect(decision?.resolvedTimeZoneSource).toBe('user-explicit')
+  })
+
+  it('surfaces the active timezone inside deterministic local time replies', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('东京时间')
+    expect(payload.reply).toContain('现在是')
+    expect(payload.reply).not.toContain('北京时间')
+  })
+
+  it('keeps explicit timezone time replies stable across confirmation turns', () => {
+    const firstReply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+    })
+    const firstPayload = JSON.parse(firstReply) as { reply: string }
+
+    const secondReply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+        { role: 'assistant', content: firstPayload.reply },
+        { role: 'user', content: '你确定吗？' },
+      ] as Message[],
+    })
+    const secondPayload = JSON.parse(secondReply) as { reply: string }
+
+    expect(secondPayload.reply).toContain('东京时间')
+    expect(secondPayload.reply).toContain('现在是')
+    expect(secondPayload.reply).not.toContain('北京时间')
+    expect(secondPayload.reply).not.toContain('Asia/Shanghai')
   })
 
   it('does not enter active dialogue fast path for realtime weather queries', () => {

@@ -122,9 +122,36 @@ const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的
 const utilityTimeReplyPattern = /(?:现在是\s*\d{1,2}:\d{2}|it's\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}[^。]*(?:星期|today|right now))/iu
 const utilityDateReplyPattern = /(?:今天是|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/iu
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
+const knownTimeZoneLabels = {
+  'America/Los_Angeles': {
+    en: 'Pacific Time (America/Los_Angeles)',
+    zh: '洛杉矶时间（America/Los_Angeles）',
+  },
+  'America/New_York': {
+    en: 'Eastern Time (America/New_York)',
+    zh: '纽约时间（America/New_York）',
+  },
+  'Asia/Shanghai': {
+    en: 'local China time (Asia/Shanghai)',
+    zh: '北京时间（Asia/Shanghai）',
+  },
+  'Asia/Tokyo': {
+    en: 'Tokyo time (Asia/Tokyo)',
+    zh: '东京时间（Asia/Tokyo）',
+  },
+  'Europe/London': {
+    en: 'London time (Europe/London)',
+    zh: '伦敦时间（Europe/London）',
+  },
+  'UTC': {
+    en: 'UTC',
+    zh: 'UTC',
+  },
+} as const
 
 export interface AlicizationMindSurfaceClockSnapshot {
   language: 'zh' | 'en'
+  timeZone: string
   timeText: string
   dateText: string
   weekdayText: string
@@ -303,25 +330,42 @@ function resolveClockTimeZone(preferredTimeZone?: string | null) {
   return resolveAlicizationTimeZoneCandidate(Intl.DateTimeFormat().resolvedOptions().timeZone || '') || 'UTC'
 }
 
+function formatClockTimeZoneLabel(timeZone: string, locale: 'zh' | 'en') {
+  const known = knownTimeZoneLabels[timeZone as keyof typeof knownTimeZoneLabels]
+  if (known)
+    return known[locale]
+  return locale === 'zh' ? `当前时区（${timeZone}）` : `the current timezone (${timeZone})`
+}
+
 function buildSyntheticClockSnapshot(locale: 'zh' | 'en', preferredTimeZone?: string | null): AlicizationMindSurfaceClockSnapshot {
   const now = new Date()
   const timeZone = resolveClockTimeZone(preferredTimeZone)
   if (locale === 'zh') {
     return {
       language: 'zh',
+      timeZone,
       timeText: new Intl.DateTimeFormat('zh-CN', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
         timeZone,
       }).format(now),
-      dateText: `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`,
-      weekdayText: zhWeekdayLabels[now.getDay()]!,
+      dateText: new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone,
+      }).format(now),
+      weekdayText: new Intl.DateTimeFormat('zh-CN', {
+        weekday: 'long',
+        timeZone,
+      }).format(now) || zhWeekdayLabels[now.getDay()]!,
     }
   }
 
   return {
     language: 'en',
+    timeZone,
     timeText: new Intl.DateTimeFormat('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -482,7 +526,7 @@ function resolveGovernedDelivery(governance: AlicizationMindTurnGovernance) {
   return governance.answerSubject === 'relationship' ? 'gentle' : 'calm'
 }
 
-function renderLocalTime(clock: AlicizationMindSurfaceClockSnapshot, includeDate = false) {
+function renderLocalTimeFact(clock: AlicizationMindSurfaceClockSnapshot, includeDate = false) {
   if (clock.language === 'zh') {
     return includeDate
       ? `现在是 ${clock.timeText}，今天是 ${clock.dateText}，${clock.weekdayText}。`
@@ -494,7 +538,7 @@ function renderLocalTime(clock: AlicizationMindSurfaceClockSnapshot, includeDate
     : `It's ${clock.timeText} right now (${clock.weekdayText}).`
 }
 
-function renderLocalDate(clock: AlicizationMindSurfaceClockSnapshot, includeTime = false) {
+function renderLocalDateFact(clock: AlicizationMindSurfaceClockSnapshot, includeTime = false) {
   if (clock.language === 'zh') {
     return includeTime
       ? `今天是 ${clock.dateText}，${clock.weekdayText}，现在是 ${clock.timeText}。`
@@ -506,17 +550,66 @@ function renderLocalDate(clock: AlicizationMindSurfaceClockSnapshot, includeTime
     : `Today is ${clock.dateText} (${clock.weekdayText}).`
 }
 
-function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, locale: 'zh' | 'en', seed: string) {
+interface AlicizationMindSurfaceReplyContext {
+  governance: AlicizationMindTurnGovernance
+  locale: 'zh' | 'en'
+  previousAssistantText: string
+  seed: string
+  userText: string
+}
+
+function isTimeZoneFocusedTurn(text: string) {
+  const normalized = normalizeTurnText(text, 180)
+  return zhUtilityTimeZonePattern.test(normalized) || enUtilityTimeZonePattern.test(normalized)
+}
+
+function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, context: AlicizationMindSurfaceReplyContext) {
+  const { locale, previousAssistantText, seed } = context
+  const salutationRepeated = sanitizeText(previousAssistantText, 240).includes(move.salutation)
+
   if (locale === 'zh') {
-    if (move.presenceCheck)
-      return [pickVariant(seed, ['我在。', '我在，你直接说。'])]
-    return [`${move.salutation}。`]
+    if (move.presenceCheck) {
+      return [
+        pickVariant(seed, [
+          '我在，这句我直接接住。',
+          '我在，你这句我听到了。',
+        ]),
+        pickVariant(seed, [
+          '你要继续聊，还是要我马上做点什么，都直接往下放。',
+          '你现在想顺着聊下去，还是想让我立刻动手，都直接说。',
+        ]),
+      ]
+    }
+
+    return [
+      salutationRepeated
+        ? pickVariant(seed, [
+            '这句问候我接到了。',
+            '我先把你这声招呼接住。',
+          ])
+        : pickVariant(seed, [
+            `${move.salutation}，这句问候我接到了。`,
+            `${move.salutation}，我先把你这声招呼接住。`,
+          ]),
+      pickVariant(seed, [
+        '你是想继续聊，还是想把一件事直接交给我，现在都可以往下接。',
+        '你这会儿无论想说感受，还是想让我做事，都可以直接往下放。',
+      ]),
+    ]
   }
 
-  if (move.presenceCheck)
-    return [`I'm here. Say it directly.`]
+  if (move.presenceCheck) {
+    return [
+      `I'm here, and I'm taking this turn directly.`,
+      `If you want to keep talking or want me to act, put it down plainly and I'll meet it.`,
+    ]
+  }
+
   return [
-    `${move.salutation}. Say it directly and I will meet this turn.`,
+    salutationRepeated
+      ? `I caught the greeting you're giving me here.`
+      : `${move.salutation}. I caught the greeting you're giving me here.`,
+    `If you want to keep talking or hand me something concrete to do, go straight on from here.`,
   ]
 }
 
@@ -600,6 +693,10 @@ function renderPresenceRepairMove(locale: 'zh' | 'en', seed: string) {
         '你说得对，我刚才那句像系统口气，不像真正的对话。',
         '是，刚才那样说太像机器在报状态，不像我在接你这句。',
       ]),
+      pickVariant(seed, [
+        '这次我把说话的人放回来，直接按我们这句继续。',
+        '这次我不再端着状态播报的壳，我就把这句当作真正的对话来接。',
+      ]),
     ]
   }
 
@@ -607,6 +704,10 @@ function renderPresenceRepairMove(locale: 'zh' | 'en', seed: string) {
     pickVariant(seed, [
       'You are right. That sounded like process narration, not like me talking to you.',
       'Fair. That line sounded robotic, not like a living reply.',
+    ]),
+    pickVariant(seed, [
+      'This turn I am pulling the speaker back into the reply instead of hiding behind status narration.',
+      'This time I am answering as part of the conversation, not as a detached status feed.',
     ]),
   ]
 }
@@ -633,35 +734,71 @@ function renderFollowUpMove(move: AlicizationMindSurfaceFollowUpMove, locale: 'z
 function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' | 'en', seed: string) {
   if (move.target === 'time' && move.clock)
     return locale === 'zh'
-      ? [pickVariant(seed, [
-          `刚才那句没贴住你的问题。你问的是时间，${renderLocalTime(move.clock, true)}`,
-          `上一句我接偏了。你要的是时间，${renderLocalTime(move.clock, true)}`,
-        ])]
-      : [pickVariant(seed, [
-          `That missed your question. You were asking for the time, and ${renderLocalTime(move.clock, true)}`,
-          `I answered the wrong thing. You wanted the time, and ${renderLocalTime(move.clock, true)}`,
-        ])]
+      ? [
+          pickVariant(seed, [
+            '刚才那句没贴住你的问题。',
+            '上一句我接偏了。',
+          ]),
+          pickVariant(seed, [
+            `你问的是时间，我现在按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 对齐后直接回你：${renderLocalTimeFact(move.clock, true)}`,
+            `你要的是时间，我按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 重看一遍后直接说：${renderLocalTimeFact(move.clock, true)}`,
+          ]),
+        ]
+      : [
+          pickVariant(seed, [
+            'That missed your question.',
+            'I answered the wrong thing.',
+          ]),
+          pickVariant(seed, [
+            `You were asking for the time, so I'm answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} now: ${renderLocalTimeFact(move.clock, true)}`,
+            `You wanted the time, so I checked again against ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}: ${renderLocalTimeFact(move.clock, true)}`,
+          ]),
+        ]
   if (move.target === 'date' && move.clock)
     return locale === 'zh'
-      ? [pickVariant(seed, [
-          `刚才那句没贴住你的问题。你问的是日期，${renderLocalDate(move.clock, true)}`,
-          `上一句我接偏了。你要的是日期，${renderLocalDate(move.clock, true)}`,
-        ])]
-      : [pickVariant(seed, [
-          `That missed your question. You were asking for the date, and ${renderLocalDate(move.clock, true)}`,
-          `I answered the wrong thing. You wanted the date, and ${renderLocalDate(move.clock, true)}`,
-        ])]
+      ? [
+          pickVariant(seed, [
+            '刚才那句没贴住你的问题。',
+            '上一句我接偏了。',
+          ]),
+          pickVariant(seed, [
+            `你问的是日期，我现在按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 对齐后直接回你：${renderLocalDateFact(move.clock, true)}`,
+            `你要的是日期，我按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 重看一遍后直接说：${renderLocalDateFact(move.clock, true)}`,
+          ]),
+        ]
+      : [
+          pickVariant(seed, [
+            'That missed your question.',
+            'I answered the wrong thing.',
+          ]),
+          pickVariant(seed, [
+            `You were asking for the date, so I'm answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} now: ${renderLocalDateFact(move.clock, true)}`,
+            `You wanted the date, so I checked again against ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}: ${renderLocalDateFact(move.clock, true)}`,
+          ]),
+        ]
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
     return locale === 'zh'
-      ? [pickVariant(seed, [
-          `刚才那句没贴住你的重点。你真正问的是我能做什么：我能 ${capabilityText}。`,
-          `上一句我答偏了。你问的是能力面：我能 ${capabilityText}。`,
-        ])]
-      : [pickVariant(seed, [
-          `That missed your actual point. What you were asking was what I can do: I can ${capabilityText}.`,
-          `I answered the wrong layer. You were asking about capability: I can ${capabilityText}.`,
-        ])]
+      ? [
+          pickVariant(seed, [
+            '刚才那句没贴住你的重点。',
+            '上一句我答偏了。',
+          ]),
+          pickVariant(seed, [
+            `你真正问的是我能做什么：我能 ${capabilityText}。`,
+            `你问的是能力面，我能 ${capabilityText}。`,
+          ]),
+        ]
+      : [
+          pickVariant(seed, [
+            'That missed your actual point.',
+            'I answered the wrong layer.',
+          ]),
+          pickVariant(seed, [
+            `What you were asking was what I can do: I can ${capabilityText}.`,
+            `You were asking about capability, and I can ${capabilityText}.`,
+          ]),
+        ]
   }
 
   const anchor = quoteCue(move.anchor ?? '', locale)
@@ -705,6 +842,10 @@ function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'z
               '我就在这句上继续，不绕别处。',
               '我贴着这句继续回你，不把话题滑开。',
             ]),
+      pickVariant(seed, [
+        '这一轮我会把注意力留在这里，不拿别的壳盖住它。',
+        '我就沿着这句往下，不把它说成别的东西。',
+      ]),
     ]
   }
 
@@ -723,6 +864,10 @@ function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'z
             `I'll stay with this turn and continue from here.`,
             `I'll keep the reply on this turn instead of drifting away.`,
           ]),
+    pickVariant(seed, [
+      `I'll keep my attention here instead of covering it with some other shell.`,
+      `I'll keep the answer on this line instead of turning it into something else.`,
+    ]),
   ]
 }
 
@@ -735,6 +880,10 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
           `我现在就在接 ${summary} 这条线，也在看你这句。`,
           `我这会儿主要盯着 ${summary} 这条线，同时在接你现在这句。`,
         ]),
+        pickVariant(seed, [
+          '所以我没有飘去别处，也没有把焦点扔掉。',
+          '这会儿我的注意力还扣在这里，没有滑开。',
+        ]),
       ]
     }
 
@@ -742,6 +891,10 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
       pickVariant(seed, [
         '我现在就在这轮里，正看着你这句，也准备直接接下去。',
         '我这会儿就在接这轮对话，没有飘去别处。',
+      ]),
+      pickVariant(seed, [
+        '所以你现在问我在做什么，我的答案就是我正停在这里接你。',
+        '这会儿我的注意力就落在这轮对话本身。',
       ]),
     ]
   }
@@ -752,6 +905,10 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
         `Right now I'm staying with ${summary} while answering this turn.`,
         `I'm currently holding ${summary} and meeting this turn at the same time.`,
       ]),
+      pickVariant(seed, [
+        `So I haven't drifted somewhere else.`,
+        `My attention is still anchored here.`,
+      ]),
     ]
   }
 
@@ -760,6 +917,78 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
       `Right now I'm here in this turn, watching what you're saying and ready to keep going.`,
       `I'm currently staying with this conversation instead of drifting somewhere else.`,
     ]),
+    pickVariant(seed, [
+      `So if you ask what I'm doing, the answer is that I'm staying here with this conversation.`,
+      `My attention is on this exchange itself right now.`,
+    ]),
+  ]
+}
+
+function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: AlicizationMindSurfaceReplyContext) {
+  const askTimeZone = isTimeZoneFocusedTurn(context.userText)
+  const confirmation = continuityCheckPattern.test(normalizeTurnText(context.userText, 180))
+  const locale = context.locale
+  const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
+  const timeFact = renderLocalTimeFact(move.clock, move.includeDate === true || askTimeZone || confirmation)
+
+  if (locale === 'zh') {
+    return [
+      askTimeZone
+        ? `我这轮按 ${timeZoneLabel} 对时。`
+        : confirmation
+          ? `我再按 ${timeZoneLabel} 对一遍。`
+          : pickVariant(context.seed, [
+              `我按 ${timeZoneLabel} 看了一眼。`,
+              `我就按 ${timeZoneLabel} 这边的时钟回你。`,
+            ]),
+      timeFact,
+    ]
+  }
+
+  return [
+    askTimeZone
+      ? `I'm checking this against ${timeZoneLabel}.`
+      : confirmation
+        ? `I'm checking it again against ${timeZoneLabel}.`
+        : pickVariant(context.seed, [
+            `I'm answering from ${timeZoneLabel}.`,
+            `I'm checking the clock on ${timeZoneLabel}.`,
+          ]),
+    timeFact,
+  ]
+}
+
+function renderDateMove(move: AlicizationMindSurfaceDateMove, context: AlicizationMindSurfaceReplyContext) {
+  const askTimeZone = isTimeZoneFocusedTurn(context.userText)
+  const confirmation = continuityCheckPattern.test(normalizeTurnText(context.userText, 180))
+  const locale = context.locale
+  const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
+  const dateFact = renderLocalDateFact(move.clock, move.includeTime === true || askTimeZone || confirmation)
+
+  if (locale === 'zh') {
+    return [
+      askTimeZone
+        ? `我这轮按 ${timeZoneLabel} 看日期。`
+        : confirmation
+          ? `我再按 ${timeZoneLabel} 对一遍日期。`
+          : pickVariant(context.seed, [
+              `我按 ${timeZoneLabel} 看了一眼日期。`,
+              `我就按 ${timeZoneLabel} 这边的日历回你。`,
+            ]),
+      dateFact,
+    ]
+  }
+
+  return [
+    askTimeZone
+      ? `I'm reading the date against ${timeZoneLabel}.`
+      : confirmation
+        ? `I'm checking the date again against ${timeZoneLabel}.`
+        : pickVariant(context.seed, [
+            `I'm answering from the calendar on ${timeZoneLabel}.`,
+            `I'm checking the date on ${timeZoneLabel}.`,
+          ]),
+    dateFact,
   ]
 }
 
@@ -859,32 +1088,32 @@ function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMo
   }
 }
 
-function renderMove(move: AlicizationMindSurfaceMove, locale: 'zh' | 'en', seed: string) {
+function renderMove(move: AlicizationMindSurfaceMove, context: AlicizationMindSurfaceReplyContext) {
   switch (move.kind) {
     case 'greeting':
-      return renderGreetingMove(move, locale, seed)
+      return renderGreetingMove(move, context)
     case 'identity':
-      return renderIdentityMove(move, locale, seed)
+      return renderIdentityMove(move, context.locale, context.seed)
     case 'capability':
-      return renderCapabilityMove(move, locale)
+      return renderCapabilityMove(move, context.locale)
     case 'presence-repair':
-      return renderPresenceRepairMove(locale, seed)
+      return renderPresenceRepairMove(context.locale, context.seed)
     case 'local-time':
-      return [renderLocalTime(move.clock, move.includeDate === true)]
+      return renderTimeMove(move, context)
     case 'local-date':
-      return [renderLocalDate(move.clock, move.includeTime === true)]
+      return renderDateMove(move, context)
     case 'follow-up':
-      return renderFollowUpMove(move, locale)
+      return renderFollowUpMove(move, context.locale)
     case 'repair':
-      return renderRepairMove(move, locale, seed)
+      return renderRepairMove(move, context.locale, context.seed)
     case 'dialogue':
-      return renderDialogueMove(move, locale, seed)
+      return renderDialogueMove(move, context.locale, context.seed)
     case 'present-state':
-      return renderPresentStateMove(move, locale, seed)
+      return renderPresentStateMove(move, context.locale, context.seed)
     case 'execution-listing':
-      return renderExecutionListingMove(move, locale)
+      return renderExecutionListingMove(move, context.locale)
     case 'execution-detail':
-      return renderExecutionDetailMove(move, locale)
+      return renderExecutionDetailMove(move, context.locale)
     case 'direct-reply':
       return [sanitizeText(move.text, 320)]
   }
@@ -1100,8 +1329,15 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     previousAssistantText,
     resolvedMoves.map(move => move.kind).join('|'),
   ].join('|')
+  const replyContext: AlicizationMindSurfaceReplyContext = {
+    governance,
+    locale,
+    previousAssistantText,
+    seed,
+    userText,
+  }
   const moveSentences = resolvedMoves
-    .flatMap(move => renderMove(move, locale, seed))
+    .flatMap(move => renderMove(move, replyContext))
     .map(sentence => normalizeTemplatePhrasing(sentence, locale))
   const maxSentences = Math.max(1, Math.min(3, governance.maxSentences || 2))
   const governedReply = governedSurface?.reply ?? ''
