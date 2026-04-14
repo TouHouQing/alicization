@@ -41,11 +41,31 @@ export interface AlicizationRealtimeExecutePayload {
   now?: number
 }
 
+export interface AlicizationRealtimeSurfaceField {
+  label: string
+  value: string
+}
+
+export interface AlicizationRealtimeSurfaceItem {
+  title: string
+  meta?: string | null
+  url?: string | null
+}
+
+export interface AlicizationRealtimeSurface {
+  kind: AlicizationRealtimeCategory | 'generic'
+  title?: string | null
+  lead?: string | null
+  fields?: AlicizationRealtimeSurfaceField[] | null
+  items?: AlicizationRealtimeSurfaceItem[] | null
+}
+
 export interface AlicizationRealtimeExecuteResult {
   category: AlicizationRealtimeCategory
   source: 'builtin'
   ok: boolean
   summary?: string
+  surface?: AlicizationRealtimeSurface | null
   data?: Record<string, unknown>
   errorCode?: string
   errorMessage?: string

@@ -4,7 +4,14 @@ import type {
   AlicizationRealtimeExecuteResult,
 } from '../../../shared/eventa'
 
-import { extractAlicizationLocationFromQuery } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationFinanceSurface,
+  buildAlicizationNewsSurface,
+  buildAlicizationSportsSurface,
+  buildAlicizationWeatherSurface,
+  extractAlicizationLocationFromQuery,
+  formatAlicizationRealtimeSurfaceSummary,
+} from '@proj-alicization/stage-shared'
 
 export const realtimeRequestTimeoutMsec = 8000
 
@@ -387,17 +394,21 @@ export async function executeBuiltinWeather(category: AlicizationRealtimeCategor
     const resolvedLocation = [resolvedGeocode.name, resolvedGeocode.admin1, resolvedGeocode.country]
       .filter((item: unknown) => typeof item === 'string' && item.trim().length > 0)
       .join(', ')
-    const summary = [
-      `${resolvedLocation || location} 当前天气：${describeWeatherCode(Number(current.weather_code))}`,
-      `温度 ${Number(current.temperature_2m).toFixed(1)}°C，体感 ${Number(current.apparent_temperature).toFixed(1)}°C`,
-      `湿度 ${Number(current.relative_humidity_2m).toFixed(0)}%，风速 ${Number(current.wind_speed_10m).toFixed(1)} km/h`,
-    ].join('；')
+    const surface = buildAlicizationWeatherSurface({
+      location: resolvedLocation || location,
+      condition: describeWeatherCode(Number(current.weather_code)),
+      temperatureC: Number(current.temperature_2m),
+      apparentTemperatureC: Number(current.apparent_temperature),
+      humidity: Number(current.relative_humidity_2m),
+      windSpeedKmH: Number(current.wind_speed_10m),
+    })
 
     return {
       category,
       source: 'builtin',
       ok: true,
-      summary,
+      summary: formatAlicizationRealtimeSurfaceSummary(surface),
+      surface,
       durationMs: Date.now() - startedAt,
       data: {
         location: resolvedLocation || location,
@@ -456,16 +467,17 @@ export async function executeBuiltinNews(category: AlicizationRealtimeCategory, 
       publishedAt: String(article.seendate ?? ''),
     }))
 
-    const summary = [
-      `${term} 的最新事件（按时间倒序）：`,
-      ...items.map((item, index) => `${index + 1}. ${item.title}${item.source ? `（${item.source}）` : ''}`),
-    ].join('\n')
+    const surface = buildAlicizationNewsSurface({
+      query: term,
+      items,
+    })
 
     return {
       category,
       source: 'builtin',
       ok: true,
-      summary,
+      summary: formatAlicizationRealtimeSurfaceSummary(surface),
+      surface,
       durationMs: Date.now() - startedAt,
       data: {
         query: term,
@@ -525,13 +537,19 @@ export async function executeBuiltinFinance(category: AlicizationRealtimeCategor
 
       const price = Number(node.usd)
       const change = Number(node.usd_24h_change ?? 0)
-      const summary = `${upperTicker} 当前价格约为 $${price.toFixed(2)}，24h 变动 ${change.toFixed(2)}%。`
+      const surface = buildAlicizationFinanceSurface({
+        ticker: upperTicker,
+        market: 'crypto',
+        priceUsd: price,
+        change24h: change,
+      })
 
       return {
         category,
         source: 'builtin',
         ok: true,
-        summary,
+        summary: formatAlicizationRealtimeSurfaceSummary(surface),
+        surface,
         durationMs: Date.now() - startedAt,
         data: {
           ticker: upperTicker,
@@ -556,13 +574,19 @@ export async function executeBuiltinFinance(category: AlicizationRealtimeCategor
       throw createRealtimeError('NO_DATA', `行情源返回了无效价格（${upperTicker}）。`)
     }
 
-    const summary = `${upperTicker} 最近收盘价约为 $${closePrice.toFixed(2)}（日期 ${record.Date || '未知'}）。`
+    const surface = buildAlicizationFinanceSurface({
+      ticker: upperTicker,
+      market: 'equity',
+      closePriceUsd: closePrice,
+      date: String(record.Date ?? ''),
+    })
 
     return {
       category,
       source: 'builtin',
       ok: true,
-      summary,
+      summary: formatAlicizationRealtimeSurfaceSummary(surface),
+      surface,
       durationMs: Date.now() - startedAt,
       data: {
         ticker: upperTicker,
@@ -649,16 +673,17 @@ export async function executeBuiltinSports(category: AlicizationRealtimeCategory
       }
     })
 
-    const summary = [
-      `${leagueInfo.label} 最近比赛：`,
-      ...selected.map((item, index) => `${index + 1}. ${item.name} ${item.score}（${item.status}）`),
-    ].join('\n')
+    const surface = buildAlicizationSportsSurface({
+      leagueLabel: leagueInfo.label,
+      items: selected,
+    })
 
     return {
       category,
       source: 'builtin',
       ok: true,
-      summary,
+      summary: formatAlicizationRealtimeSurfaceSummary(surface),
+      surface,
       durationMs: Date.now() - startedAt,
       data: {
         league,

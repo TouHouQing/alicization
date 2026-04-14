@@ -62,6 +62,10 @@ function quoteCue(text: string, locale: 'zh' | 'en') {
   return locale === 'zh' ? `「${normalized}」` : `"${normalized}"`
 }
 
+function normalizeTemplatePhrasing(sentence: string) {
+  return sentence
+}
+
 function normalizeSentenceFingerprint(raw: string) {
   return sanitizeText(raw, 260)
     .toLowerCase()
@@ -79,17 +83,6 @@ function shouldSuppressRepeatedSentence(candidate: string, previousAssistantText
 
   const overlapNeedle = candidateFingerprint.slice(0, Math.min(16, candidateFingerprint.length))
   return overlapNeedle.length >= 8 && previousFingerprint.includes(overlapNeedle)
-}
-
-function normalizeTemplatePhrasing(sentence: string, locale: 'zh' | 'en') {
-  if (locale !== 'zh')
-    return sentence
-
-  return sentence
-    .replace(/你现在追问的是([^。]+)这一层。那我就直接说：/u, '你问的是$1。直接回答：')
-    .replace(/那我就从/gu, '我会从')
-    .replace(/那我就/gu, '我会')
-    .replace(/我就贴着/gu, '我会沿着')
 }
 
 const allowedEmotions = new Set([
@@ -611,13 +604,12 @@ function createMindSurfaceReplyPart(
 
 function orderMindSurfaceReplyParts(
   parts: AlicizationMindSurfaceReplyPart[],
-  locale: 'zh' | 'en',
 ) {
   return parts
     .map((part, index) => ({
       ...part,
       index,
-      text: normalizeTemplatePhrasing(part.text, locale),
+      text: normalizeTemplatePhrasing(part.text),
     }))
     .sort((left, right) =>
       mindSurfaceReplyPartPriority[left.kind] - mindSurfaceReplyPartPriority[right.kind]
@@ -823,13 +815,22 @@ function renderFollowUpMove(move: AlicizationMindSurfaceFollowUpMove, locale: 'z
 }
 
 function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' | 'en', seed: string) {
+  const renderRepairAcknowledgement = (variantsZh: string[], variantsEn: string[]) => {
+    return createMindSurfaceReplyPart('repair', pickVariant(seed, locale === 'zh' ? variantsZh : variantsEn))
+  }
+
   if (move.target === 'time' && move.clock)
     return locale === 'zh'
       ? [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-            '刚才那句没贴住你的问题。',
-            '上一句我接偏了。',
-          ])),
+          ...renderRepairAcknowledgement([
+            '刚才那句没贴住你问的这点。',
+            '上一句我的着力点偏了。',
+            '刚才那句没落在你真正要的地方。',
+          ], [
+            'That missed the point you asked for.',
+            'I leaned on the wrong layer there.',
+            'That landed on the wrong part of your question.',
+          ]),
           ...createMindSurfaceReplyPart(
             move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
             move.resolvedTimeZoneSource === 'user-explicit'
@@ -841,10 +842,15 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
             : []),
         ]
       : [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-            'That missed your question.',
-            'I answered the wrong thing.',
-          ])),
+          ...renderRepairAcknowledgement([
+            '刚才那句没贴住你问的这点。',
+            '上一句我的着力点偏了。',
+            '刚才那句没落在你真正要的地方。',
+          ], [
+            'That missed the point you asked for.',
+            'I leaned on the wrong layer there.',
+            'That landed on the wrong part of your question.',
+          ]),
           ...createMindSurfaceReplyPart(
             move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
             move.resolvedTimeZoneSource === 'user-explicit'
@@ -858,34 +864,54 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
   if (move.target === 'date' && move.clock)
     return locale === 'zh'
       ? [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-            '刚才那句没贴住你的问题。',
-            '上一句我接偏了。',
-          ])),
+          ...renderRepairAcknowledgement([
+            '刚才那句没贴住你问的这点。',
+            '上一句我的着力点偏了。',
+            '刚才那句落点不对。',
+          ], [
+            'That missed the point you asked for.',
+            'I leaned on the wrong layer there.',
+            'That landed off the real point.',
+          ]),
           ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
         ]
       : [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
-            'That missed your question.',
-            'I answered the wrong thing.',
-          ])),
+          ...renderRepairAcknowledgement([
+            '刚才那句没贴住你问的这点。',
+            '上一句我的着力点偏了。',
+            '刚才那句落点不对。',
+          ], [
+            'That missed the point you asked for.',
+            'I leaned on the wrong layer there.',
+            'That landed off the real point.',
+          ]),
           ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
         ]
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
     return locale === 'zh'
       ? [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
+          ...renderRepairAcknowledgement([
             '刚才那句没贴住你的重点。',
-            '上一句我答偏了。',
-          ])),
+            '上一句我答偏到别的层了。',
+            '刚才那句没有落在你真正要问的能力面上。',
+          ], [
+            'That missed your actual point.',
+            'I answered a different layer there.',
+            'That did not land on the capability question you meant.',
+          ]),
           ...createMindSurfaceReplyPart('fact', `我能 ${capabilityText}。`),
         ]
       : [
-          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
+          ...renderRepairAcknowledgement([
+            '刚才那句没贴住你的重点。',
+            '上一句我答偏到别的层了。',
+            '刚才那句没有落在你真正要问的能力面上。',
+          ], [
             'That missed your actual point.',
-            'I answered the wrong layer.',
-          ])),
+            'I answered a different layer there.',
+            'That did not land on the capability question you meant.',
+          ]),
           ...createMindSurfaceReplyPart('fact', `I can ${capabilityText}.`),
         ]
   }
@@ -893,12 +919,48 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
   const anchor = quoteCue(move.anchor ?? '', locale)
   return locale === 'zh'
     ? [
-        ...createMindSurfaceReplyPart('repair', anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。'),
-        ...createMindSurfaceReplyPart('continuity', anchor ? `我现在就回到 ${anchor} 这点。` : '我现在把焦点收回这句，直接答你。'),
+        ...renderRepairAcknowledgement([
+          anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。',
+          anchor ? '刚才那句从你要的落点旁边滑开了。' : '刚才那句的落点偏了。',
+          anchor ? '刚才那句没有压住你真正追的这一点。' : '刚才那句没有贴住这轮的重心。',
+        ], [
+          anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.',
+          anchor ? 'That slid off the point you were actually pressing on.' : 'That answer drifted off the real point.',
+          anchor ? 'That did not hold the point you were actually after.' : 'That did not stay on the real center of this turn.',
+        ]),
+        ...createMindSurfaceReplyPart('continuity', anchor
+          ? pickVariant(seed, [
+              `我现在就回到 ${anchor} 这点。`,
+              `我把焦点收回 ${anchor} 这点。`,
+              `我现在沿 ${anchor} 这点正面接回去。`,
+            ])
+          : pickVariant(seed, [
+              '我现在把焦点收回这句。',
+              '我现在把回答拉回这轮正面接上。',
+              '我现在把这句的重心重新收回来。',
+            ])),
       ]
     : [
-        ...createMindSurfaceReplyPart('repair', anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.'),
-        ...createMindSurfaceReplyPart('continuity', anchor ? `I'll come straight back to ${anchor}.` : 'I am pulling the focus back to this turn now.'),
+        ...renderRepairAcknowledgement([
+          anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。',
+          anchor ? '刚才那句从你要的落点旁边滑开了。' : '刚才那句的落点偏了。',
+          anchor ? '刚才那句没有压住你真正追的这一点。' : '刚才那句没有贴住这轮的重心。',
+        ], [
+          anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.',
+          anchor ? 'That slid off the point you were actually pressing on.' : 'That answer drifted off the real point.',
+          anchor ? 'That did not hold the point you were actually after.' : 'That did not stay on the real center of this turn.',
+        ]),
+        ...createMindSurfaceReplyPart('continuity', anchor
+          ? pickVariant(seed, [
+              `I'll come straight back to ${anchor}.`,
+              `I'll pull the focus back to ${anchor}.`,
+              `I'll rejoin the reply on ${anchor} directly.`,
+            ])
+          : pickVariant(seed, [
+              'I am pulling the focus back to this turn now.',
+              'I am bringing the answer back onto this turn now.',
+              'I am settling the reply back onto this line now.',
+            ])),
       ]
 }
 
@@ -1492,25 +1554,23 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
   }
   const moveSentences = orderMindSurfaceReplyParts(
     resolvedMoves.flatMap(move => renderMove(move, replyContext)),
-    locale,
   )
   const maxSentences = Math.max(1, Math.min(3, governance.maxSentences || 2))
   const governedReply = governedSurface?.reply ?? ''
-  const normalizedGovernedReply = normalizeTemplatePhrasing(governedReply, locale)
   const governedVisibleReplyMode = governedSurface?.visibleReplyMode ?? 'bubble'
   const useGovernedLead = shouldUseGovernedLead({
     moves: resolvedMoves,
-    governedReply: normalizedGovernedReply,
+    governedReply,
     previousAssistantText,
     suppressGovernedLead: input.suppressGovernedLead || !hasExplicitMoves,
   })
   const replySentences = uniqueSentences([
     useGovernedLead && governedVisibleReplyMode !== 'dispatch-only'
-      ? normalizedGovernedReply
+      ? governedReply
       : '',
     ...moveSentences,
     !useGovernedLead && moveSentences.length === 0 && governedVisibleReplyMode !== 'dispatch-only'
-      ? normalizedGovernedReply
+      ? governedReply
       : '',
   ], maxSentences)
   const filteredSentences = replySentences.filter((sentence, index) => {

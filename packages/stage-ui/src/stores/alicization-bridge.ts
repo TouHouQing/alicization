@@ -48,6 +48,7 @@ import type {
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
+  AlicizationRealtimeSurface as SharedAlicizationRealtimeSurface,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -334,6 +335,7 @@ export interface AlicizationAuditLogInput {
 }
 
 export type AlicizationRealtimeCategory = SharedAlicizationRealtimeCategory
+export type AlicizationRealtimeSurface = SharedAlicizationRealtimeSurface
 
 export type AlicizationRealtimeExecutePayload = SharedAlicizationRealtimeExecutePayload
 

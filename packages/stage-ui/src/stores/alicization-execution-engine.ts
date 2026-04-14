@@ -1,8 +1,16 @@
 import type { RealtimeQueryCategory, RealtimeQueryIntent } from '../composables/alicization-realtime-query'
-import type { AlicizationRealtimeCategory, AlicizationRealtimeExecuteResult } from './alicization-bridge'
+import type {
+  AlicizationRealtimeCategory,
+  AlicizationRealtimeExecuteResult,
+  AlicizationRealtimeSurface,
+} from './alicization-bridge'
 import type { McpCallToolResult, McpCapabilitiesSnapshot, McpToolDescriptor } from './mcp-tool-bridge'
 
-import { extractAlicizationLocationFromQuery } from '@proj-alicization/stage-shared'
+import {
+  composeAlicizationRealtimeReply,
+  extractAlicizationLocationFromQuery,
+  inferAlicizationRealtimeSurfaceLocale,
+} from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -67,6 +75,7 @@ interface RealtimeEvidenceItem {
   category: RealtimeQueryCategory
   source: 'builtin' | 'mcp'
   summary: string
+  surface?: AlicizationRealtimeSurface | null
 }
 
 const capabilitySnapshotTtlMs = 30_000
@@ -263,37 +272,16 @@ function buildMcpArgumentCandidates(category: RealtimeQueryCategory, message: st
   return normalized.map(item => JSON.parse(item) as Record<string, unknown>)
 }
 
-function realtimeFailureReplyFromCategory(category: RealtimeQueryCategory) {
-  if (category === 'finance')
-    return '当前无法获取可靠的财经实时数据。请补充 ticker（例如 AAPL、TSLA、BTC）后重试。'
-  if (category === 'sports')
-    return '当前无法获取可靠的体育实时数据。请补充联赛（例如 NBA/NFL/MLB/NHL/EPL）或球队后重试。'
-  if (category === 'weather')
-    return '当前无法获取可靠的实时天气数据。请补充城市或国家后重试。'
-  return '当前无法获取可靠的实时新闻数据。请稍后重试，或检查 MCP 实时工具状态。'
-}
-
 function composeRealtimeReply(input: {
   evidences: RealtimeEvidenceItem[]
   failed: RealtimeQueryCategory[]
+  message: string
 }) {
-  if (input.evidences.length === 0) {
-    if (input.failed.length > 0) {
-      return realtimeFailureReplyFromCategory(input.failed[0]!)
-    }
-    return '当前无法获取可靠的实时外部数据。请稍后重试，或在设置里检查 MCP 实时工具是否可用。'
-  }
-
-  const sections = input.evidences.map((item) => {
-    const prefix = `${categoryLabelMap[item.category]}（${item.source === 'builtin' ? '内置源' : 'MCP'}）`
-    return `${prefix}：${item.summary}`
+  return composeAlicizationRealtimeReply({
+    evidences: input.evidences,
+    failed: input.failed.map(category => category as AlicizationRealtimeCategory),
+    locale: inferAlicizationRealtimeSurfaceLocale(input.message),
   })
-
-  const failedHints = input.failed.length > 0
-    ? `\n\n未完成类别：${input.failed.map(category => categoryLabelMap[category]).join('、')}（当前数据源不可用）`
-    : ''
-
-  return `${sections.join('\n\n')}${failedHints}`
 }
 
 async function safeAudit(
@@ -426,11 +414,12 @@ export const useAlicizationExecutionEngineStore = defineStore('alicization-execu
       })
       throwIfAborted(input.abortSignal)
 
-      if (builtinResult.ok && normalizeText(builtinResult.summary ?? '')) {
+      if (builtinResult.ok && (builtinResult.surface || normalizeText(builtinResult.summary ?? ''))) {
         evidences.push({
           category,
           source: 'builtin',
           summary: normalizeText(builtinResult.summary ?? ''),
+          surface: builtinResult.surface ?? null,
         })
         trace.toolEvidence.successCount += 1
         trace.toolEvidence.verifiedToolResult = true
@@ -553,6 +542,7 @@ export const useAlicizationExecutionEngineStore = defineStore('alicization-execu
     const reply = composeRealtimeReply({
       evidences,
       failed: failedCategories,
+      message: input.message,
     })
     trace.fallbackApplied = evidences.length === 0
     trace.planCompletedAt = Date.now()

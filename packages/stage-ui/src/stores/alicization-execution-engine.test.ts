@@ -57,7 +57,18 @@ describe('alicization execution engine', () => {
       category: 'weather',
       source: 'builtin',
       ok: true,
-      summary: 'United States 当前天气：晴朗；温度 22.0°C。',
+      summary: 'weather ; title=United States ; lead=United States 现在 晴朗 ; fields=温度=22.0°C, 体感=21.0°C, 湿度=48%, 风速=11.0 km/h',
+      surface: {
+        kind: 'weather',
+        title: 'United States',
+        lead: 'United States 现在 晴朗',
+        fields: [
+          { label: '温度', value: '22.0°C' },
+          { label: '体感', value: '21.0°C' },
+          { label: '湿度', value: '48%' },
+          { label: '风速', value: '11.0 km/h' },
+        ],
+      },
       durationMs: 120,
     })
     setAlicizationBridge(createAlicizationBridgeStub({ realtimeExecute }))
@@ -81,7 +92,8 @@ describe('alicization execution engine', () => {
     })
 
     expect(output.handled).toBe(true)
-    expect(output.reply).toContain('天气（内置源）')
+    expect(output.reply).toContain('United States 现在 晴朗')
+    expect(output.reply).not.toContain('内置源')
     expect(output.trace.toolEvidence.verifiedToolResult).toBe(true)
     expect(realtimeExecute).toHaveBeenCalledTimes(1)
   })
@@ -121,7 +133,7 @@ describe('alicization execution engine', () => {
 
     expect(output.handled).toBe(true)
     expect(output.trace.fallbackApplied).toBe(true)
-    expect(output.reply).toContain('当前无法获取可靠的实时')
+    expect(output.reply).toContain('这轮没拿到可靠的实时新闻结果')
     expect(audits).toContain('unverified-fallback')
   })
 

@@ -49,6 +49,10 @@ describe('runtime realtime weather', () => {
 
     expect(result.ok).toBe(true)
     expect(result.summary).toContain('天津')
+    expect(result.surface).toEqual(expect.objectContaining({
+      kind: 'weather',
+      title: '天津, 天津市, 中国',
+    }))
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(String(fetchMock.mock.calls[0]?.[0] ?? '')).toContain(encodeURIComponent('天津'))
     expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain(encodeURIComponent('天津市'))

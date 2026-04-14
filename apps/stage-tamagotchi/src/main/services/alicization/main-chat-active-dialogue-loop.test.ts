@@ -744,7 +744,7 @@ describe('main chat active dialogue loop', () => {
       }
     }
 
-    expect(payload.reply).toMatch(/没贴住|接偏了/u)
+    expect(payload.reply).toMatch(/没贴住|接偏了|着力点偏了/u)
     expect(payload.reply).toContain('现在是')
     expect(payload.reply).not.toContain('旧锚点')
     expect(payload.reply).not.toContain('我就正面回你')
@@ -835,7 +835,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toMatch(/接偏了|没贴住/u)
+    expect(payload.reply).toMatch(/接偏了|没贴住|滑开了/u)
     expect(payload.reply).toContain('你好呀')
     expect(payload.reply).not.toContain('我就正面回你')
     expect(payload.reply).not.toContain('我听见你了')
