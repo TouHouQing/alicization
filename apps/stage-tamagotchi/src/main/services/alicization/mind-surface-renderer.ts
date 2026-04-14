@@ -577,6 +577,55 @@ interface AlicizationMindSurfaceReplyContext {
   userText: string
 }
 
+type AlicizationMindSurfaceReplyPartKind
+  = | 'repair'
+    | 'reason'
+    | 'basis'
+    | 'presence'
+    | 'fact'
+    | 'continuity'
+    | 'offer'
+
+interface AlicizationMindSurfaceReplyPart {
+  kind: AlicizationMindSurfaceReplyPartKind
+  text: string
+}
+
+const mindSurfaceReplyPartPriority: Record<AlicizationMindSurfaceReplyPartKind, number> = {
+  repair: 0,
+  reason: 1,
+  basis: 2,
+  presence: 3,
+  fact: 4,
+  continuity: 5,
+  offer: 6,
+}
+
+function createMindSurfaceReplyPart(
+  kind: AlicizationMindSurfaceReplyPartKind,
+  text: string | null | undefined,
+): AlicizationMindSurfaceReplyPart[] {
+  const normalized = sanitizeText(text, 320)
+  return normalized ? [{ kind, text: normalized }] : []
+}
+
+function orderMindSurfaceReplyParts(
+  parts: AlicizationMindSurfaceReplyPart[],
+  locale: 'zh' | 'en',
+) {
+  return parts
+    .map((part, index) => ({
+      ...part,
+      index,
+      text: normalizeTemplatePhrasing(part.text, locale),
+    }))
+    .sort((left, right) =>
+      mindSurfaceReplyPartPriority[left.kind] - mindSurfaceReplyPartPriority[right.kind]
+      || left.index - right.index,
+    )
+    .map(part => part.text)
+}
+
 function isTimeZoneFocusedTurn(text: string) {
   const normalized = normalizeTurnText(text, 180)
   return zhUtilityTimeZonePattern.test(normalized) || enUtilityTimeZonePattern.test(normalized)
@@ -589,46 +638,49 @@ function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, context: A
   if (locale === 'zh') {
     if (move.presenceCheck) {
       return [
-        pickVariant(seed, [
-          '我在，这句我直接接住。',
-          '我在，你这句我听到了。',
-        ]),
-        pickVariant(seed, [
-          '你要继续聊，还是要我马上做点什么，都直接往下放。',
-          '你现在想顺着聊下去，还是想让我立刻动手，都直接说。',
-        ]),
+        ...createMindSurfaceReplyPart('presence', pickVariant(seed, [
+          '我在。',
+          '我在这里。',
+        ])),
+        ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
+          '你接着说，或者直接给我事做都可以。',
+          '你想继续聊，还是想让我立刻动手，都直接说。',
+        ])),
       ]
     }
 
     return [
-      salutationRepeated
-        ? pickVariant(seed, [
-            '这句问候我接到了。',
-            '我先把你这声招呼接住。',
-          ])
-        : pickVariant(seed, [
-            `${move.salutation}，这句问候我接到了。`,
-            `${move.salutation}，我先把你这声招呼接住。`,
-          ]),
-      pickVariant(seed, [
-        '你是想继续聊，还是想把一件事直接交给我，现在都可以往下接。',
-        '你这会儿无论想说感受，还是想让我做事，都可以直接往下放。',
-      ]),
+      ...createMindSurfaceReplyPart(
+        salutationRepeated ? 'presence' : 'fact',
+        salutationRepeated
+          ? pickVariant(seed, [
+              '这声招呼我接到了。',
+              '你这声招呼我收到了。',
+            ])
+          : `${move.salutation}。`,
+      ),
+      ...createMindSurfaceReplyPart('offer', pickVariant(seed, [
+        '你想继续聊，还是想让我做点什么，都直接说。',
+        '你这会儿想说感受，还是想让我办事，都可以往下接。',
+      ])),
     ]
   }
 
   if (move.presenceCheck) {
     return [
-      `I'm here, and I'm taking this turn directly.`,
-      `If you want to keep talking or want me to act, put it down plainly and I'll meet it.`,
+      ...createMindSurfaceReplyPart('presence', `I'm here.`),
+      ...createMindSurfaceReplyPart('offer', `Keep talking if you want, or hand me something concrete to do.`),
     ]
   }
 
   return [
-    salutationRepeated
-      ? `I caught the greeting you're giving me here.`
-      : `${move.salutation}. I caught the greeting you're giving me here.`,
-    `If you want to keep talking or hand me something concrete to do, go straight on from here.`,
+    ...createMindSurfaceReplyPart(
+      salutationRepeated ? 'presence' : 'fact',
+      salutationRepeated
+        ? `I caught the greeting.`
+        : `${move.salutation}.`,
+    ),
+    ...createMindSurfaceReplyPart('offer', `If you want to keep talking or hand me something concrete to do, go straight on from here.`),
   ]
 }
 
@@ -636,58 +688,70 @@ function renderIdentityMove(move: AlicizationMindSurfaceIdentityMove, locale: 'z
   const askedLabel = quoteCue(move.askedLabel ?? '', locale)
   const continuityAnchor = quoteCue(move.continuityAnchor ?? '', locale)
   if (locale === 'zh') {
+    const parts: AlicizationMindSurfaceReplyPart[] = []
     if (move.repeated) {
-      return [
+      parts.push(...createMindSurfaceReplyPart(
+        'reason',
         continuityAnchor
           ? pickVariant(seed, [
-              `这条确认我继续按 ${continuityAnchor} 说清：我是${move.name}，现在和你对话的还是我。`,
-              `你连着追问到 ${continuityAnchor}，我把结论钉住：我是${move.name}，这句仍然由我来回。`,
+              `你还是在确认 ${continuityAnchor} 这一点。`,
+              `你这句还在追问 ${continuityAnchor} 这一层。`,
             ])
           : pickVariant(seed, [
-              `你在继续确认这一点，我直接给同一个结论：我是${move.name}，现在回你这句的还是我。`,
-              `这次我不换说法也不绕：我是${move.name}，此刻和你说话的还是我。`,
+              '你是在继续确认这一点。',
+              '你这句还是在确认我是谁。',
             ]),
-      ]
+      ))
+      parts.push(...createMindSurfaceReplyPart('fact', `我是${move.name}。`))
+      parts.push(...createMindSurfaceReplyPart('continuity', '现在回你这句的还是我。'))
+      return parts
     }
 
-    return [
+    parts.push(...createMindSurfaceReplyPart(
+      'reason',
       askedLabel
         ? pickVariant(seed, [
-            `你问的是 ${askedLabel}。直接说结论：我是${move.name}，现在回你这句的就是我。`,
-            `${askedLabel} 这层我不绕，答案是：我是${move.name}，此刻在和你对话的是我。`,
+            `你问的是 ${askedLabel}。`,
+            `${askedLabel} 这一层我直接答。`,
           ])
-        : pickVariant(seed, [
-            `我是${move.name}，现在和你说话的是我本人。`,
-            `直接回答：我是${move.name}，此刻在回你的是我。`,
-          ]),
-    ]
+        : '',
+    ))
+    parts.push(...createMindSurfaceReplyPart('fact', `我是${move.name}。`))
+    parts.push(...createMindSurfaceReplyPart('continuity', '现在回你这句的是我。'))
+    return parts
   }
 
+  const parts: AlicizationMindSurfaceReplyPart[] = []
   if (move.repeated) {
-    return [
+    parts.push(...createMindSurfaceReplyPart(
+      'reason',
       continuityAnchor
         ? pickVariant(seed, [
-            `I'll keep this confirmation pinned on ${continuityAnchor}: I am ${move.name}, and this turn is still from me.`,
-            `You are rechecking ${continuityAnchor}, so I'll keep it plain: I am ${move.name}, and I'm still the one speaking to you.`,
+            `You're still checking ${continuityAnchor}.`,
+            `This turn is rechecking ${continuityAnchor}.`,
           ])
         : pickVariant(seed, [
-            `You're confirming this again, so I'll keep the same answer: I am ${move.name}, and this reply is still from me.`,
-            `No detour and no relabeling: I am ${move.name}, and I'm still the one speaking with you.`,
+            `You're confirming this again.`,
+            `You're still checking who I am.`,
           ]),
-    ]
+    ))
+    parts.push(...createMindSurfaceReplyPart('fact', `I am ${move.name}.`))
+    parts.push(...createMindSurfaceReplyPart('continuity', `I'm still the one answering you.`))
+    return parts
   }
 
-  return [
+  parts.push(...createMindSurfaceReplyPart(
+    'reason',
     askedLabel
       ? pickVariant(seed, [
-          `You asked about ${askedLabel}. Plain answer: I am ${move.name}, and I'm the one speaking with you now.`,
-          `No detour on ${askedLabel}: I am ${move.name}, and this reply is from me.`,
+          `You asked about ${askedLabel}.`,
+          `I'll answer ${askedLabel} directly.`,
         ])
-      : pickVariant(seed, [
-          `I am ${move.name}, and I'm the one speaking with you now.`,
-          `Direct answer: I am ${move.name}, and this turn is from me.`,
-        ]),
-  ]
+      : '',
+  ))
+  parts.push(...createMindSurfaceReplyPart('fact', `I am ${move.name}.`))
+  parts.push(...createMindSurfaceReplyPart('continuity', `I'm the one speaking with you now.`))
+  return parts
 }
 
 function renderCapabilityMove(move: AlicizationMindSurfaceCapabilityMove, locale: 'zh' | 'en') {
@@ -695,39 +759,41 @@ function renderCapabilityMove(move: AlicizationMindSurfaceCapabilityMove, locale
   const capabilityText = capabilities.join(locale === 'zh' ? '、' : ', ')
   if (locale === 'zh') {
     return [
-      `我能 ${capabilityText}。你给我一个具体目标，我就直接开始。`,
+      ...createMindSurfaceReplyPart('fact', `我能 ${capabilityText}。`),
+      ...createMindSurfaceReplyPart('offer', '你给我一个具体目标，我就直接开始。'),
     ]
   }
 
   return [
-    `I can ${capabilityText}. Give me one concrete goal and I will start.`,
+    ...createMindSurfaceReplyPart('fact', `I can ${capabilityText}.`),
+    ...createMindSurfaceReplyPart('offer', `Give me one concrete goal and I will start.`),
   ]
 }
 
 function renderPresenceRepairMove(locale: 'zh' | 'en', seed: string) {
   if (locale === 'zh') {
     return [
-      pickVariant(seed, [
-        '对，刚才那句更像流程播报，不像我在跟你说话。',
-        '你说得对，我刚才那句像系统口气，不像真正的对话。',
-        '是，刚才那样说太像机器在报状态，不像我在接你这句。',
-      ]),
-      pickVariant(seed, [
-        '这次我把说话的人放回来，直接按我们这句继续。',
-        '这次我不再端着状态播报的壳，我就把这句当作真正的对话来接。',
-      ]),
+      ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
+        '对，刚才那句更像流程播报。',
+        '你说得对，我刚才那句像系统口气。',
+        '是，刚才那样说太像机器在报状态。',
+      ])),
+      ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+        '这句我直接按我们现在这轮来接。',
+        '这句我把说话的人放回来，直接接你现在这一句。',
+      ])),
     ]
   }
 
   return [
-    pickVariant(seed, [
-      'You are right. That sounded like process narration, not like me talking to you.',
-      'Fair. That line sounded robotic, not like a living reply.',
-    ]),
-    pickVariant(seed, [
-      'This turn I am pulling the speaker back into the reply instead of hiding behind status narration.',
-      'This time I am answering as part of the conversation, not as a detached status feed.',
-    ]),
+    ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
+      'You are right. That sounded like process narration.',
+      'Fair. That line sounded robotic.',
+    ])),
+    ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+      'This turn I am answering from inside the conversation.',
+      'This turn I am speaking directly to this line instead of hiding behind status narration.',
+    ])),
   ]
 }
 
@@ -735,111 +801,105 @@ function renderFollowUpMove(move: AlicizationMindSurfaceFollowUpMove, locale: 'z
   const anchor = quoteCue(move.anchor ?? '', locale)
   if (move.variant === 'identity-confirm') {
     return locale === 'zh'
-      ? ['确定。我刚才不是在报一个标签，我是在直接回答：现在在这里和你说话、以 Alicization 回应你的，就是我。']
-      : ['Yes. I was not naming a label; I was answering directly that Alicization is the one speaking with you here.']
+      ? [
+          ...createMindSurfaceReplyPart('reason', '确定。'),
+          ...createMindSurfaceReplyPart('fact', '现在在这里和你说话、以 Alicization 回应你的，就是我。'),
+        ]
+      : [
+          ...createMindSurfaceReplyPart('reason', 'Yes.'),
+          ...createMindSurfaceReplyPart('fact', 'Alicization is the one speaking with you here.'),
+        ]
   }
 
   if (move.variant === 'remaining') {
     return locale === 'zh'
-      ? [anchor ? `前半段我不复述，直接把 ${anchor} 后面还欠的那部分补上。` : '前半段我不复述，直接把后面还欠的那部分补上。']
-      : [anchor ? `I won't restate the first half. I'll fill in the missing part after ${anchor}.` : `I won't restate the first half. I'll fill in what is still missing.`]
+      ? createMindSurfaceReplyPart('continuity', anchor ? `我直接把 ${anchor} 后面还欠的那部分补上。` : '我直接把后面还欠的那部分补上。')
+      : createMindSurfaceReplyPart('continuity', anchor ? `I'll fill in the missing part after ${anchor}.` : `I'll fill in what is still missing.`)
   }
 
   return locale === 'zh'
-    ? [anchor ? `好，我会从 ${anchor} 这点继续往下。` : '好，我会把后面缺的那段直接接上。']
-    : [anchor ? `Alright, I'll continue from ${anchor}.` : `Alright, I'll continue from the missing part directly.`]
+    ? createMindSurfaceReplyPart('continuity', anchor ? `我就从 ${anchor} 这点继续往下。` : '我把后面缺的那段直接接上。')
+    : createMindSurfaceReplyPart('continuity', anchor ? `I'll continue from ${anchor}.` : `I'll continue from the missing part directly.`)
 }
 
 function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' | 'en', seed: string) {
   if (move.target === 'time' && move.clock)
     return locale === 'zh'
       ? [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             '刚才那句没贴住你的问题。',
             '上一句我接偏了。',
-          ]),
-          pickVariant(seed, [
-            `你问的是时间，我现在按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 对齐后直接回你：${renderLocalTimeFact(move.clock, true)}`,
-            `你要的是时间，我按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 重看一遍后直接说：${renderLocalTimeFact(move.clock, true)}`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart(
+            move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
+            move.resolvedTimeZoneSource === 'user-explicit'
+              ? `这轮我还是按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}。`
+              : renderLocalTimeFact(move.clock, true),
+          ),
+          ...(move.resolvedTimeZoneSource === 'user-explicit'
+            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true))
+            : []),
         ]
       : [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             'That missed your question.',
             'I answered the wrong thing.',
-          ]),
-          pickVariant(seed, [
-            `You were asking for the time, so I'm answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} now: ${renderLocalTimeFact(move.clock, true)}`,
-            `You wanted the time, so I checked again against ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}: ${renderLocalTimeFact(move.clock, true)}`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart(
+            move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
+            move.resolvedTimeZoneSource === 'user-explicit'
+              ? `I'm still answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}.`
+              : renderLocalTimeFact(move.clock, true),
+          ),
+          ...(move.resolvedTimeZoneSource === 'user-explicit'
+            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true))
+            : []),
         ]
   if (move.target === 'date' && move.clock)
     return locale === 'zh'
       ? [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             '刚才那句没贴住你的问题。',
             '上一句我接偏了。',
-          ]),
-          pickVariant(seed, [
-            `你问的是日期，我现在按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 对齐后直接回你：${renderLocalDateFact(move.clock, true)}`,
-            `你要的是日期，我按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} 重看一遍后直接说：${renderLocalDateFact(move.clock, true)}`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
         ]
       : [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             'That missed your question.',
             'I answered the wrong thing.',
-          ]),
-          pickVariant(seed, [
-            `You were asking for the date, so I'm answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)} now: ${renderLocalDateFact(move.clock, true)}`,
-            `You wanted the date, so I checked again against ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}: ${renderLocalDateFact(move.clock, true)}`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
         ]
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
     return locale === 'zh'
       ? [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             '刚才那句没贴住你的重点。',
             '上一句我答偏了。',
-          ]),
-          pickVariant(seed, [
-            `你真正问的是我能做什么：我能 ${capabilityText}。`,
-            `你问的是能力面，我能 ${capabilityText}。`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart('fact', `我能 ${capabilityText}。`),
         ]
       : [
-          pickVariant(seed, [
+          ...createMindSurfaceReplyPart('repair', pickVariant(seed, [
             'That missed your actual point.',
             'I answered the wrong layer.',
-          ]),
-          pickVariant(seed, [
-            `What you were asking was what I can do: I can ${capabilityText}.`,
-            `You were asking about capability, and I can ${capabilityText}.`,
-          ]),
+          ])),
+          ...createMindSurfaceReplyPart('fact', `I can ${capabilityText}.`),
         ]
   }
 
   const anchor = quoteCue(move.anchor ?? '', locale)
   return locale === 'zh'
-    ? [anchor
-        ? pickVariant(seed, [
-            `刚才那句没有贴住你真正想问的点。我现在就按 ${anchor} 直接回你。`,
-            `上一句我接偏了。你真正要的是 ${anchor} 这点，我现在直接回到这里。`,
-          ])
-        : pickVariant(seed, [
-            '刚才那句没有贴住你真正想问的点。我现在直接回这句。',
-            '上一句我接偏了。我现在把焦点收回这句，直接答你。',
-          ])]
-    : [anchor
-        ? pickVariant(seed, [
-            `I missed the point you were actually asking for. I'll answer directly from ${anchor}.`,
-            `I drifted off the real question. I'll come straight back to ${anchor}.`,
-          ])
-        : pickVariant(seed, [
-            `I missed the point you were actually asking for. I'll answer this turn directly now.`,
-            `I drifted off the real question. I'm pulling the focus back to this turn now.`,
-          ])]
+    ? [
+        ...createMindSurfaceReplyPart('repair', anchor ? '刚才那句没贴住你真正想问的点。' : '上一句我接偏了。'),
+        ...createMindSurfaceReplyPart('continuity', anchor ? `我现在就回到 ${anchor} 这点。` : '我现在把焦点收回这句，直接答你。'),
+      ]
+    : [
+        ...createMindSurfaceReplyPart('repair', anchor ? 'I missed the point you were actually asking for.' : 'I drifted off the real question.'),
+        ...createMindSurfaceReplyPart('continuity', anchor ? `I'll come straight back to ${anchor}.` : 'I am pulling the focus back to this turn now.'),
+      ]
 }
 
 function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'zh' | 'en', seed: string) {
@@ -847,46 +907,52 @@ function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'z
   const focus = quoteCue(move.focus ?? '', locale)
   if (locale === 'zh') {
     return [
-      anchor
-        ? pickVariant(seed, [
-            `我们就沿 ${anchor} 往下，不把话题滑开。`,
-            `这轮就贴着 ${anchor} 往下说，我不把它扯去别处。`,
-          ])
-        : focus
+      ...createMindSurfaceReplyPart(
+        anchor ? 'continuity' : 'fact',
+        anchor
           ? pickVariant(seed, [
-              `焦点就在 ${focus}，我直接接这点回你。`,
-              `这句的重点就是 ${focus}，我现在就贴着它回。`,
+              `我就沿 ${anchor} 往下。`,
+              `这轮我贴着 ${anchor} 往下说。`,
             ])
-          : pickVariant(seed, [
-              '我就在这句上继续，不绕别处。',
-              '我贴着这句继续回你，不把话题滑开。',
-            ]),
-      pickVariant(seed, [
-        '这一轮我会把注意力留在这里，不拿别的壳盖住它。',
-        '我就沿着这句往下，不把它说成别的东西。',
-      ]),
+          : focus
+            ? pickVariant(seed, [
+                `焦点就在 ${focus}。`,
+                `这句的重点就是 ${focus}。`,
+              ])
+            : pickVariant(seed, [
+                '我就在这句上继续。',
+                '我贴着这句往下回。',
+              ]),
+      ),
+      ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+        '我不把话题滑开。',
+        '我不拿别的壳盖住它。',
+      ])),
     ]
   }
 
   return [
-    anchor
-      ? pickVariant(seed, [
-          `I'll stay with ${anchor} and keep going from there.`,
-          `I'll hold to ${anchor} and keep the reply on that line.`,
-        ])
-      : focus
+    ...createMindSurfaceReplyPart(
+      anchor ? 'continuity' : 'fact',
+      anchor
         ? pickVariant(seed, [
-            `I'll answer right on ${focus}, without drifting away from it.`,
-            `The focus is ${focus}, so I'll answer directly on that point.`,
+            `I'll stay with ${anchor} and keep going from there.`,
+            `I'll hold to ${anchor} and keep the reply on that line.`,
           ])
-        : pickVariant(seed, [
-            `I'll stay with this turn and continue from here.`,
-            `I'll keep the reply on this turn instead of drifting away.`,
-          ]),
-    pickVariant(seed, [
-      `I'll keep my attention here instead of covering it with some other shell.`,
-      `I'll keep the answer on this line instead of turning it into something else.`,
-    ]),
+        : focus
+          ? pickVariant(seed, [
+              `The focus is ${focus}.`,
+              `I'll answer right on ${focus}.`,
+            ])
+          : pickVariant(seed, [
+              `I'll stay with this turn and continue from here.`,
+              `I'll keep the reply on this turn.`,
+            ]),
+    ),
+    ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+      `I won't drift away from it.`,
+      `I won't turn it into something else.`,
+    ])),
   ]
 }
 
@@ -895,51 +961,51 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
   if (locale === 'zh') {
     if (summary) {
       return [
-        pickVariant(seed, [
-          `我现在就在接 ${summary} 这条线，也在看你这句。`,
-          `我这会儿主要盯着 ${summary} 这条线，同时在接你现在这句。`,
-        ]),
-        pickVariant(seed, [
-          '所以我没有飘去别处，也没有把焦点扔掉。',
-          '这会儿我的注意力还扣在这里，没有滑开。',
-        ]),
+        ...createMindSurfaceReplyPart('fact', pickVariant(seed, [
+          `我现在就在接 ${summary} 这条线。`,
+          `我这会儿主要盯着 ${summary} 这条线。`,
+        ])),
+        ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+          '我也在看你现在这句。',
+          '我的注意力还扣在这里，没有滑开。',
+        ])),
       ]
     }
 
     return [
-      pickVariant(seed, [
-        '我现在就在这轮里，正看着你这句，也准备直接接下去。',
-        '我这会儿就在接这轮对话，没有飘去别处。',
-      ]),
-      pickVariant(seed, [
-        '所以你现在问我在做什么，我的答案就是我正停在这里接你。',
-        '这会儿我的注意力就落在这轮对话本身。',
-      ]),
+      ...createMindSurfaceReplyPart('fact', pickVariant(seed, [
+        '我现在就在这轮里。',
+        '我这会儿就在接这轮对话。',
+      ])),
+      ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+        '我正看着你这句，也准备直接接下去。',
+        '我的注意力就落在这轮对话本身。',
+      ])),
     ]
   }
 
   if (summary) {
     return [
-      pickVariant(seed, [
-        `Right now I'm staying with ${summary} while answering this turn.`,
-        `I'm currently holding ${summary} and meeting this turn at the same time.`,
-      ]),
-      pickVariant(seed, [
-        `So I haven't drifted somewhere else.`,
+      ...createMindSurfaceReplyPart('fact', pickVariant(seed, [
+        `Right now I'm staying with ${summary}.`,
+        `I'm currently holding ${summary}.`,
+      ])),
+      ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+        `I'm also meeting this turn at the same time.`,
         `My attention is still anchored here.`,
-      ]),
+      ])),
     ]
   }
 
   return [
-    pickVariant(seed, [
-      `Right now I'm here in this turn, watching what you're saying and ready to keep going.`,
-      `I'm currently staying with this conversation instead of drifting somewhere else.`,
-    ]),
-    pickVariant(seed, [
-      `So if you ask what I'm doing, the answer is that I'm staying here with this conversation.`,
+    ...createMindSurfaceReplyPart('fact', pickVariant(seed, [
+      `Right now I'm here in this turn.`,
+      `I'm currently staying with this conversation.`,
+    ])),
+    ...createMindSurfaceReplyPart('continuity', pickVariant(seed, [
+      `I'm watching what you're saying and ready to keep going.`,
       `My attention is on this exchange itself right now.`,
-    ]),
+    ])),
   ]
 }
 
@@ -955,83 +1021,89 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
   const source = move.resolvedTimeZoneSource ?? null
 
   if (locale === 'zh') {
+    const parts: AlicizationMindSurfaceReplyPart[] = []
     switch (queryMode) {
       case 'timezone':
-        return [
+        parts.push(...createMindSurfaceReplyPart(
+          'reason',
           source === 'user-explicit'
-            ? `你这轮自己把时间基准指定到了 ${timeZoneLabel}。`
+            ? '这轮的时间基准是你刚才指定的。'
             : source === 'context-hint'
-              ? `这轮上下文里已经带着 ${timeZoneLabel} 这条时间线索。`
-              : `你没有另指定时区，所以我先沿当前环境里的 ${timeZoneLabel} 来回你。`,
-          `我现在采用的就是 ${timeZoneLabel}。`,
-        ]
+              ? '这轮上下文已经带着一条时间基准。'
+              : '你没有另指定时区。',
+        ))
+        parts.push(...createMindSurfaceReplyPart('fact', `我当前按 ${timeZoneLabel}。`))
+        return parts
       case 'timezone-why':
-        return [
+        parts.push(...createMindSurfaceReplyPart(
+          'reason',
           source === 'user-explicit'
-            ? `因为你刚才已经把回答基准指定到了 ${timeZoneLabel}，所以我沿着它继续回。`
+            ? `因为你刚才已经把回答基准指定到了 ${timeZoneLabel}。`
             : source === 'context-hint'
-              ? `因为这轮上下文里已经带着 ${timeZoneLabel} 这条时间线索，而你没有把它改掉，所以我沿着它回答。`
-              : `因为你没有另指定时区，我就默认按当前环境的本地时间基准来回；在这里它是 ${timeZoneLabel}。`,
-          `如果你要我改成别的时区，直接点名就行。`,
-        ]
+              ? `因为这轮上下文已经把时间基准带到了 ${timeZoneLabel}。`
+              : '因为你没有另指定时区，所以我默认沿当前环境的本地时间来回。',
+        ))
+        parts.push(...createMindSurfaceReplyPart('basis', `在这里就是 ${timeZoneLabel}。`))
+        parts.push(...createMindSurfaceReplyPart('offer', '你要我改成别的时区，直接点名就行。'))
+        return parts
       case 'time-confirmation':
-        return [
+        parts.push(...createMindSurfaceReplyPart(
+          source === 'user-explicit' ? 'basis' : 'reason',
           source === 'user-explicit'
             ? `我又按 ${timeZoneLabel} 核对了一遍。`
-            : '我又核对了一遍现在这一刻。',
-          timeFact,
-        ]
+            : '我又核了一遍。',
+        ))
+        parts.push(...createMindSurfaceReplyPart('fact', timeFact))
+        return parts
       case 'time':
       default:
-        return [
-          source === 'user-explicit'
-            ? `你刚才把这一轮的时间基准指定到了 ${timeZoneLabel}。`
-            : pickVariant(context.seed, [
-                '我看了下现在这一刻。',
-                '我把现在这一下对了对。',
-              ]),
-          timeFact,
-        ]
+        if (source === 'user-explicit')
+          parts.push(...createMindSurfaceReplyPart('basis', `这轮我按 ${timeZoneLabel}。`))
+        parts.push(...createMindSurfaceReplyPart('fact', timeFact))
+        return parts
     }
   }
 
+  const parts: AlicizationMindSurfaceReplyPart[] = []
   switch (queryMode) {
     case 'timezone':
-      return [
+      parts.push(...createMindSurfaceReplyPart(
+        'reason',
         source === 'user-explicit'
-          ? `You explicitly set this turn to ${timeZoneLabel}.`
+          ? `You explicitly set the time basis for this turn.`
           : source === 'context-hint'
-            ? `This turn already carries ${timeZoneLabel} in its context.`
-            : `You did not name another timezone, so I'm following the current local basis here: ${timeZoneLabel}.`,
-        `The active time basis right now is ${timeZoneLabel}.`,
-      ]
+            ? `This turn already carries a time basis in context.`
+            : `You did not name another timezone.`,
+      ))
+      parts.push(...createMindSurfaceReplyPart('fact', `The active time basis right now is ${timeZoneLabel}.`))
+      return parts
     case 'timezone-why':
-      return [
+      parts.push(...createMindSurfaceReplyPart(
+        'reason',
         source === 'user-explicit'
-          ? `Because you explicitly told me to answer on ${timeZoneLabel}, I kept following that basis.`
+          ? `Because you explicitly told me to answer on ${timeZoneLabel}.`
           : source === 'context-hint'
-            ? `Because this turn already carried ${timeZoneLabel} in context and you did not replace it, I followed that basis.`
-            : `Because you did not name another timezone, I defaulted to the local runtime basis here, which is ${timeZoneLabel}.`,
-        `If you want another timezone, name it directly and I'll switch.`,
-      ]
+            ? `Because this turn already carried ${timeZoneLabel} in context.`
+            : `Because you did not name another timezone, I defaulted to the local runtime basis here.`,
+      ))
+      parts.push(...createMindSurfaceReplyPart('basis', `Here that means ${timeZoneLabel}.`))
+      parts.push(...createMindSurfaceReplyPart('offer', `If you want another timezone, name it directly and I'll switch.`))
+      return parts
     case 'time-confirmation':
-      return [
+      parts.push(...createMindSurfaceReplyPart(
+        source === 'user-explicit' ? 'basis' : 'reason',
         source === 'user-explicit'
           ? `I checked it again against ${timeZoneLabel}.`
-          : `I checked the moment again.`,
-        timeFact,
-      ]
+          : `I checked again.`,
+      ))
+      parts.push(...createMindSurfaceReplyPart('fact', timeFact))
+      return parts
     case 'time':
     default:
-      return [
-        source === 'user-explicit'
-          ? `You set the time basis for this turn to ${timeZoneLabel}.`
-          : pickVariant(context.seed, [
-              `I checked the current moment.`,
-              `I took another look at the clock just now.`,
-            ]),
-        timeFact,
-      ]
+      if (source === 'user-explicit')
+        parts.push(...createMindSurfaceReplyPart('basis', `This turn is aligned to ${timeZoneLabel}.`))
+      parts.push(...createMindSurfaceReplyPart('fact', timeFact))
+      return parts
   }
 }
 
@@ -1044,28 +1116,28 @@ function renderDateMove(move: AlicizationMindSurfaceDateMove, context: Alicizati
 
   if (locale === 'zh') {
     return [
-      askTimeZone
-        ? `我这轮按 ${timeZoneLabel} 看日期。`
-        : confirmation
-          ? `我再按 ${timeZoneLabel} 对一遍日期。`
-          : pickVariant(context.seed, [
-              `我按 ${timeZoneLabel} 看了一眼日期。`,
-              `我就按 ${timeZoneLabel} 这边的日历回你。`,
-            ]),
-      dateFact,
+      ...createMindSurfaceReplyPart(
+        askTimeZone || confirmation ? 'basis' : 'fact',
+        askTimeZone
+          ? `这轮我按 ${timeZoneLabel} 看日期。`
+          : confirmation
+            ? `我再按 ${timeZoneLabel} 对一遍日期。`
+            : dateFact,
+      ),
+      ...(askTimeZone || confirmation ? createMindSurfaceReplyPart('fact', dateFact) : []),
     ]
   }
 
   return [
-    askTimeZone
-      ? `I'm reading the date against ${timeZoneLabel}.`
-      : confirmation
-        ? `I'm checking the date again against ${timeZoneLabel}.`
-        : pickVariant(context.seed, [
-            `I'm answering from the calendar on ${timeZoneLabel}.`,
-            `I'm checking the date on ${timeZoneLabel}.`,
-          ]),
-    dateFact,
+    ...createMindSurfaceReplyPart(
+      askTimeZone || confirmation ? 'basis' : 'fact',
+      askTimeZone
+        ? `I'm reading the date against ${timeZoneLabel}.`
+        : confirmation
+          ? `I'm checking the date again against ${timeZoneLabel}.`
+          : dateFact,
+    ),
+    ...(askTimeZone || confirmation ? createMindSurfaceReplyPart('fact', dateFact) : []),
   ]
 }
 
@@ -1078,35 +1150,39 @@ function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListing
 
   if (move.mode === 'follow-up') {
     if (!previewText)
-      return [locale === 'zh' ? `${scopeLabel}这边没有新的剩余项了。` : `There are no remaining ${scopeLabel} items to add.`]
+      return createMindSurfaceReplyPart('fact', locale === 'zh' ? `${scopeLabel}这边没有新的剩余项了。` : `There are no remaining ${scopeLabel} items to add.`)
     if (locale === 'zh') {
       return [
-        move.requestedCount && move.requestedCount > 0
-          ? `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`
-          : `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+        ...createMindSurfaceReplyPart('fact',
+          move.requestedCount && move.requestedCount > 0
+            ? `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`
+            : `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+        ),
       ]
     }
     return [
-      move.requestedCount && move.requestedCount > 0
-        ? `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`
-        : `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+      ...createMindSurfaceReplyPart('fact',
+        move.requestedCount && move.requestedCount > 0
+          ? `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`
+          : `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+      ),
     ]
   }
 
   if (!previewText) {
     return locale === 'zh'
-      ? [`${scopeLabel}里现在一共是 ${move.count} 项。`]
-      : [`There are ${move.count} items in the ${scopeLabel} right now.`]
+      ? createMindSurfaceReplyPart('fact', `${scopeLabel}里现在一共是 ${move.count} 项。`)
+      : createMindSurfaceReplyPart('fact', `There are ${move.count} items in the ${scopeLabel} right now.`)
   }
 
   if (locale === 'zh') {
     return [
-      `${scopeLabel}里现在一共 ${move.count} 项，先能点出来的是：${previewText}${extraCount > 0 ? `，另外还有 ${extraCount} 项` : ''}。`,
+      ...createMindSurfaceReplyPart('fact', `${scopeLabel}里现在一共 ${move.count} 项，先能点出来的是：${previewText}${extraCount > 0 ? `，另外还有 ${extraCount} 项` : ''}。`),
     ]
   }
 
   return [
-    `There are ${move.count} items in the ${scopeLabel} right now. The ones I can name first are: ${previewText}${extraCount > 0 ? `, plus ${extraCount} more` : ''}.`,
+    ...createMindSurfaceReplyPart('fact', `There are ${move.count} items in the ${scopeLabel} right now. The ones I can name first are: ${previewText}${extraCount > 0 ? `, plus ${extraCount} more` : ''}.`),
   ]
 }
 
@@ -1119,49 +1195,49 @@ function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMo
     if (move.mode === 'follow-up') {
       if (move.status === 'completed') {
         return [
-          `${channelLabel} 那条任务已经跑完了${detail ? `，现在拿到的是：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`,
+          ...createMindSurfaceReplyPart('fact', `${channelLabel} 那条任务已经跑完了${detail ? `，现在拿到的是：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`),
         ]
       }
       if (move.status === 'failed' || move.status === 'blocked' || move.status === 'cancelled' || move.status === 'not-routed') {
         return [
-          `${channelLabel} 那条任务这次没跑通${detail ? `：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`,
+          ...createMindSurfaceReplyPart('fact', `${channelLabel} 那条任务这次没跑通${detail ? `：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`),
         ]
       }
     }
 
     switch (move.status) {
       case 'completed':
-        return [detail ? `这件事已经有结果了：${detail}。` : '这件事已经有结果了。']
+        return createMindSurfaceReplyPart('fact', detail ? `这件事已经有结果了：${detail}。` : '这件事已经有结果了。')
       case 'running':
-        return [`这件事已经交给 ${channelLabel} 在跑了。`]
+        return createMindSurfaceReplyPart('fact', `这件事已经交给 ${channelLabel} 在跑了。`)
       case 'queued':
-        return [`这件事已经排进 ${channelLabel} 了。`]
+        return createMindSurfaceReplyPart('fact', `这件事已经排进 ${channelLabel} 了。`)
       case 'cancelled':
-        return [detail ? `这次执行中断了：${detail}。` : '这次执行中断了。']
+        return createMindSurfaceReplyPart('fact', detail ? `这次执行中断了：${detail}。` : '这次执行中断了。')
       case 'blocked':
       case 'not-routed':
-        return [detail ? `这件事没能真正跑出去：${detail}。` : '这件事没能真正跑出去。']
+        return createMindSurfaceReplyPart('fact', detail ? `这件事没能真正跑出去：${detail}。` : '这件事没能真正跑出去。')
       case 'failed':
       default:
-        return [detail ? `这件事没跑通：${detail}。` : summary ? `这件事没跑通：${summary}。` : '这件事没跑通。']
+        return createMindSurfaceReplyPart('fact', detail ? `这件事没跑通：${detail}。` : summary ? `这件事没跑通：${summary}。` : '这件事没跑通。')
     }
   }
 
   switch (move.status) {
     case 'completed':
-      return [detail ? `The task has a result now: ${detail}.` : 'The task has a result now.']
+      return createMindSurfaceReplyPart('fact', detail ? `The task has a result now: ${detail}.` : 'The task has a result now.')
     case 'running':
-      return [`The task is already running in ${channelLabel}.`]
+      return createMindSurfaceReplyPart('fact', `The task is already running in ${channelLabel}.`)
     case 'queued':
-      return [`The task is already queued in ${channelLabel}.`]
+      return createMindSurfaceReplyPart('fact', `The task is already queued in ${channelLabel}.`)
     case 'cancelled':
-      return [detail ? `The execution stopped partway through: ${detail}.` : 'The execution stopped partway through.']
+      return createMindSurfaceReplyPart('fact', detail ? `The execution stopped partway through: ${detail}.` : 'The execution stopped partway through.')
     case 'blocked':
     case 'not-routed':
-      return [detail ? `The task did not actually get out: ${detail}.` : 'The task did not actually get out.']
+      return createMindSurfaceReplyPart('fact', detail ? `The task did not actually get out: ${detail}.` : 'The task did not actually get out.')
     case 'failed':
     default:
-      return [detail ? `The task failed: ${detail}.` : summary ? `The task failed: ${summary}.` : 'The task failed.']
+      return createMindSurfaceReplyPart('fact', detail ? `The task failed: ${detail}.` : summary ? `The task failed: ${summary}.` : 'The task failed.')
   }
 }
 
@@ -1192,7 +1268,7 @@ function renderMove(move: AlicizationMindSurfaceMove, context: AlicizationMindSu
     case 'execution-detail':
       return renderExecutionDetailMove(move, context.locale)
     case 'direct-reply':
-      return [sanitizeText(move.text, 320)]
+      return createMindSurfaceReplyPart('fact', sanitizeText(move.text, 320))
   }
 }
 
@@ -1414,9 +1490,10 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     seed,
     userText,
   }
-  const moveSentences = resolvedMoves
-    .flatMap(move => renderMove(move, replyContext))
-    .map(sentence => normalizeTemplatePhrasing(sentence, locale))
+  const moveSentences = orderMindSurfaceReplyParts(
+    resolvedMoves.flatMap(move => renderMove(move, replyContext)),
+    locale,
+  )
   const maxSentences = Math.max(1, Math.min(3, governance.maxSentences || 2))
   const governedReply = governedSurface?.reply ?? ''
   const normalizedGovernedReply = normalizeTemplatePhrasing(governedReply, locale)

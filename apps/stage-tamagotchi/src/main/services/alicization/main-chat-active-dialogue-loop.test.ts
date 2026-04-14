@@ -376,6 +376,8 @@ describe('main chat active dialogue loop', () => {
     expect(payload.reply).toContain('现在是')
     expect(payload.reply).not.toContain('北京时间')
     expect(payload.reply).not.toContain('Asia/Shanghai')
+    expect(payload.reply).not.toContain('我看了下现在这一刻')
+    expect(payload.reply).not.toContain('我把现在这一下对了对')
   })
 
   it('surfaces the active timezone inside deterministic local time replies', () => {
@@ -390,6 +392,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.reply).toContain('东京时间')
     expect(payload.reply).toContain('现在是')
     expect(payload.reply).not.toContain('北京时间')
+    expect(payload.reply).not.toContain('你刚才把这一轮的时间基准指定到了')
   })
 
   it('keeps explicit timezone time replies stable across confirmation turns', () => {

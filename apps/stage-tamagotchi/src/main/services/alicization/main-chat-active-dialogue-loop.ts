@@ -652,7 +652,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '接住这句问候，把这轮对话自然打开。',
-        openingMove: '用自然的回应接住问候。',
+        openingMove: 'receive-greeting',
         relationNeed: '把这轮气氛稳稳接住。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
@@ -676,7 +676,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '直接回答我是谁，让这一轮先落到自我连续性上。',
-        openingMove: '先按我自己来回答。',
+        openingMove: 'state-self-continuity',
         relationNeed: '把自我连续性说清。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
@@ -700,7 +700,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '把现在能接的对话、CLI、代码和工具能力说清。',
-        openingMove: '直接把能力面摊开。',
+        openingMove: 'state-capability-surface',
         relationNeed: '给出一条可马上推进的能力面。',
         continuityPolicy: 'answer-then-carry' as const,
         memoryMode: 'task-thread' as const,
@@ -733,10 +733,10 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
             ? '解释为什么这一轮采用这个时间基准，而不是只重复报时。'
             : '沿当前生效的时间基准把现在这一刻说准确。',
         openingMove: timeQueryMode === 'timezone'
-          ? '先把当前时间基准交代清楚。'
+          ? 'state-time-basis'
           : timeQueryMode === 'timezone-why'
-            ? '先解释为什么会采用这个时间基准。'
-            : '先按当前时钟把这一刻钉住。',
+            ? 'explain-time-basis'
+            : 'state-current-time',
         relationNeed: timeQueryMode === 'timezone'
           ? '让对方知道我当前按什么时间基准在回。'
           : timeQueryMode === 'timezone-why'
@@ -768,7 +768,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'live-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '直接给出今天的日期。',
-        openingMove: '用当前日历直接回答。',
+        openingMove: 'state-current-date',
         relationNeed: '把日期说准确。',
         continuityPolicy: 'answer-then-carry' as const,
         memoryMode: 'task-thread' as const,
@@ -792,7 +792,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '正面回应你对我说话方式的感受，不再躲进线程或系统话术里。',
-        openingMove: '先承认刚才那句哪里不像在和人说话。',
+        openingMove: 'repair-speaking-presence',
         relationNeed: '把说话方式重新拉回真实的对话感。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
@@ -816,7 +816,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: carryAnchor ? 'continuity-carry' as const : 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '直接回答我此刻在接什么，不把这句误判成纠错或旧锚点修复。',
-        openingMove: '先把我此刻的状态说清。',
+        openingMove: 'state-current-attention',
         relationNeed: '让对方知道我现在正把注意力放在哪条线上。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: carryAnchor ? 'dialogue-carry' as const : 'task-thread' as const,
@@ -862,7 +862,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
           : 'repair-first' as const,
         repairState: 'stale-anchor' as const,
         answerIntent: '先把上一句接偏的地方纠正回来，再正面答这一轮真正的问题。',
-        openingMove: '先纠偏，再把真正的问题答清。',
+        openingMove: 'repair-turn-seam',
         relationNeed: '把这一轮从错误线程上收回来。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
@@ -886,7 +886,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: 'continuity-carry' as const,
         repairState: 'none' as const,
         answerIntent: '沿同一条任务线继续，把还欠着的结果补全。',
-        openingMove: '顺着同一条线程往下接。',
+        openingMove: 'continue-thread-payoff',
         relationNeed: '让同一条线程连续收束。',
         continuityPolicy: 'stay-on-thread' as const,
         memoryMode: 'task-thread' as const,
@@ -910,7 +910,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         evidenceMode: carryAnchor ? 'continuity-carry' as const : 'dialogue-grounded' as const,
         repairState: 'none' as const,
         answerIntent: '贴着这一句继续，不把话题扯回别的线程。',
-        openingMove: '先把这句稳稳接住。',
+        openingMove: 'stay-on-current-turn',
         relationNeed: '保持这轮的对话连续性。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
@@ -1131,24 +1131,24 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
     case 'greeting': {
       const greeting = buildGreetingMove(decision).salutation
       if (/在吗|在嘛/u.test(decision.latestUserText))
-        return localeIsZh ? '先接住对方确认我是否在场的招呼，再把这轮对话稳稳接住。' : `Answer that I'm here, then hold the turn as a live conversation.`
+        return localeIsZh ? '问候意图：确认我是否在场，并把这轮对话接住。' : `Greeting intent: confirm presence and keep the dialogue live.`
       return localeIsZh
-        ? `先接住 ${greeting} 这句问候，再把这一轮开口成真正的对话。`
-        : `Receive the greeting ${greeting}, then turn the opening into a live conversation.`
+        ? `问候意图：回应 ${greeting}，把当前对话打开。`
+        : `Greeting intent: answer ${greeting} and open the current dialogue.`
     }
     case 'identity':
       if (identityReconfirmation) {
         return localeIsZh
-          ? `你在继续确认我是谁：我是${personaName}，这句仍然是我在回你。`
-          : `You are reconfirming who I am: I am ${personaName}, and this turn is still from me.`
+          ? `自我连续性：仍然是我在回你，我是${personaName}。`
+          : `Self continuity: I am still the one answering, and I am ${personaName}.`
       }
       return localeIsZh
-        ? `我是${personaName}，现在在和你说话的是我。`
-        : `I am ${personaName}, and I am the one speaking with you now.`
+        ? `自我连续性：我是${personaName}。`
+        : `Self continuity: I am ${personaName}.`
     case 'capability':
       return localeIsZh
-        ? `我能 ${fastPathCapabilityList.join('、')}。`
-        : `I can ${fastPathCapabilityList.join(', ')}.`
+        ? `能力面：${fastPathCapabilityList.join('、')}。`
+        : `Capability surface: ${fastPathCapabilityList.join(', ')}.`
     case 'utility-time':
       if (timeQueryMode === 'timezone') {
         return localeIsZh
@@ -1173,28 +1173,28 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         : 'Acknowledge the robotic phrasing and pull the reply back into a real conversation.'
     case 'present-state':
       return localeIsZh
-        ? '直接回答我这会儿在接什么，不把这句扯成修复旧锚点。'
-        : 'Answer what I am currently staying with, without turning this into a stale-anchor repair.'
+        ? '当前注意力：直接说明我这会儿在接什么。'
+        : 'Current attention: state what I am staying with right now.'
     case 'repair-clarify':
       if (previousFreshEncounter === 'utility-time')
-        return localeIsZh ? '先承认刚才答偏了，再直接给出时间。' : 'Acknowledge the miss first, then give the time directly.'
+        return localeIsZh ? '修正误接：承认偏题，然后把时间说清。' : 'Repair the miss: acknowledge the drift, then state the time clearly.'
       if (previousFreshEncounter === 'utility-date')
-        return localeIsZh ? '先承认刚才答偏了，再直接给出日期。' : 'Acknowledge the miss first, then give the date directly.'
+        return localeIsZh ? '修正误接：承认偏题，然后把日期说清。' : 'Repair the miss: acknowledge the drift, then state the date clearly.'
       if (previousFreshEncounter === 'capability')
-        return localeIsZh ? '先纠偏，再把我能做什么直接说清。' : 'Correct the drift, then state the capability surface directly.'
+        return localeIsZh ? '修正误接：纠偏后把能力面说清。' : 'Repair the miss: correct the drift, then state the capability surface.'
       if (previousFreshEncounter === 'identity')
-        return localeIsZh ? '先纠偏，再直接回答我是谁。' : 'Correct the drift, then answer who I am directly.'
+        return localeIsZh ? '修正误接：纠偏后回答我是谁。' : 'Repair the miss: correct the drift, then answer who I am.'
       return localeIsZh
-        ? '先承认刚才没贴住你，再直接回到这一句。'
-        : 'Acknowledge the drift first, then come straight back to this turn.'
+        ? '修正误接：承认刚才没贴住，然后回到这一句。'
+        : 'Repair the miss: acknowledge the drift, then come straight back to this turn.'
     case 'follow-up':
       return localeIsZh
-        ? '沿同一条线程继续，把还欠着的那部分补上。'
-        : 'Stay on the same thread and fill in the missing part.'
+        ? '线程延续：沿同一条线把欠着的那部分补上。'
+        : 'Thread continuation: stay on the same line and fill in what is still missing.'
     case 'dialogue':
       return localeIsZh
-        ? '贴着这一句直接回应，不把话题扯开。'
-        : 'Reply right on this turn without drifting away from it.'
+        ? '当前句面：贴着这一句直接回应。'
+        : 'Current turn surface: reply directly on this turn.'
   }
 }
 
