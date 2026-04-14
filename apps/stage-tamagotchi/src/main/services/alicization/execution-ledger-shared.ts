@@ -7,11 +7,11 @@ import type {
 const executionOutcomePayloadKeys = [
   'reply',
   'assistant',
+  'summary',
   'stdout',
   'stderr',
   'errorMessage',
   'errorCode',
-  'summary',
 ] as const
 
 export const alicizationTerminalTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([

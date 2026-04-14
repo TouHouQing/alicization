@@ -13,22 +13,57 @@ import VueMacros from 'vue-macros/vite'
 
 import { Download } from '@proj-airi/unplugin-fetch'
 import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk'
-import { templateCompilerOptions } from '@tresjs/core'
 import { defineConfig } from 'electron-vite'
 
+const appNodeModulesDir = resolve(join(import.meta.dirname, 'node_modules'))
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
+const shouldEnableVueI18nPlugin = process.env.ALICIZATION_SKIP_VUE_I18N_PLUGIN !== '1'
+const onnxruntimeCommonPackageDir = resolve(join(appNodeModulesDir, 'onnxruntime-common'))
+const onnxruntimeCommonEntry = resolve(join(onnxruntimeCommonPackageDir, 'dist', 'esm', 'index.js'))
+const threePackageDir = resolve(join(appNodeModulesDir, 'three'))
+const threeModuleEntry = resolve(join(threePackageDir, 'build', 'three.module.js'))
+const tresTemplateCompilerWhitelist = new Set([
+  'TresCanvas',
+  'TresCanvasContext',
+  'TresLeches',
+  'TresScene',
+])
+const templateCompilerOptions = {
+  template: {
+    compilerOptions: {
+      isCustomElement: (tag: string) => {
+        return (
+          (((/^Tres[A-Z]/.test(tag) || tag.startsWith('tres-')) && !tresTemplateCompilerWhitelist.has(tag))
+            || tag === 'primitive')
+        )
+      },
+    },
+  },
+}
 
 export default defineConfig({
   main: {
     build: {
-      externalizeDeps: {
-        include: [
+      // NOTICE: electron-builder packs this app from pnpm's strict workspace layout, where the
+      // app-local `node_modules` only contains direct dependency symlinks. When electron-vite
+      // externalizes every production dependency, the packaged main process later resolves those
+      // packages from `app.asar/node_modules`, but their transitive runtime deps can be missing
+      // (`zod-to-json-schema`, `stackframe`, etc.). Bundle JS dependencies into main so packaged
+      // runtime code no longer depends on pnpm's transitive symlink graph. Keep native/special
+      // modules external so Electron can load them from disk.
+      externalizeDeps: false,
+      rollupOptions: {
+        external: [
+          'electron',
           'electron-click-drag-plugin',
+          'sqlite3',
         ],
       },
     },
     plugins: [
+      Yaml(),
+
       {
         // To replace `build.rolldownOptions`, as electron-vite still uses the deprecated
         // `rollupOptions`, using `rollupOptions` and `rolldownOptions` at the same
@@ -130,13 +165,36 @@ export default defineConfig({
     },
 
     resolve: {
-      alias: {
-        '@proj-alicization/server-sdk': resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
-        '@proj-alicization/i18n': resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
-        '@proj-alicization/stage-ui': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
-        '@proj-alicization/stage-pages': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
-        '@proj-alicization/stage-shared': resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
-      },
+      alias: [
+        {
+          find: '@proj-alicization/server-sdk',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),
+        },
+        {
+          find: '@proj-alicization/i18n',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'i18n', 'src')),
+        },
+        {
+          find: '@proj-alicization/stage-ui',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src')),
+        },
+        {
+          find: '@proj-alicization/stage-pages',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-pages', 'src')),
+        },
+        {
+          find: '@proj-alicization/stage-shared',
+          replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-shared', 'src')),
+        },
+        {
+          find: /^onnxruntime-common$/,
+          replacement: onnxruntimeCommonEntry,
+        },
+        {
+          find: /^three$/,
+          replacement: threeModuleEntry,
+        },
+      ],
     },
 
     server: {
@@ -222,12 +280,16 @@ export default defineConfig({
 
       UnoCss(),
 
-      // https://github.com/intlify/bundle-tools/tree/main/packages/unplugin-vue-i18n
-      VueI18n({
-        runtimeOnly: true,
-        compositionOnly: true,
-        fullInstall: true,
-      }),
+      ...(shouldEnableVueI18nPlugin
+        ? [
+            // https://github.com/intlify/bundle-tools/tree/main/packages/unplugin-vue-i18n
+            VueI18n({
+              runtimeOnly: true,
+              compositionOnly: true,
+              fullInstall: true,
+            }),
+          ]
+        : []),
 
       DownloadLive2DSDK(),
       Download('https://dist.ayaka.moe/live2d-models/hiyori_free_zh.zip', 'hiyori_free_zh.zip', 'live2d/models', { parentDir: stageUIAssetsRoot, cacheDir: sharedCacheDir }),

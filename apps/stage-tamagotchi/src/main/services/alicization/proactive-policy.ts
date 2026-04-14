@@ -24,12 +24,16 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type {
+  AlicizationRuntimeChannelId,
+  AlicizationRuntimeSnapshot,
+} from './alicization-runtime-architecture'
+import type {
   AlicizationDigitalLifeArchitectureSnapshot,
-  AlicizationDigitalLifeSubsystemId,
 } from './digital-life-architecture'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { deriveAlicizationRuntimeProactiveSignals } from './alicization-active-loop'
 import { inferScenarioFromContext } from './proactive-layered-context'
 
 export const proactivePolicyVersion = 'epoch4.1-v1'
@@ -191,18 +195,77 @@ function pushReason(reasonCodes: AlicizationProactiveReasonCode[], code: Aliciza
   reasonCodes.push(code)
 }
 
-function architectureSystemScore(
-  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
-  systemId: AlicizationDigitalLifeSubsystemId,
-) {
-  return architecture?.systems[systemId]?.score ?? 0
+function isRuntimeDialogueDominantChannel(channel: AlicizationRuntimeChannelId | null) {
+  return channel === 'dialogue' || channel === 'active-dialogue'
 }
 
-function architectureSupports(
-  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
-  systemId: AlicizationDigitalLifeSubsystemId,
-) {
-  return architecture?.supportingSystems.includes(systemId) ?? false
+function isRuntimeCompanionshipDominantChannel(channel: AlicizationRuntimeChannelId | null) {
+  return channel === 'active-dialogue' || channel === 'anthropomorphic-mind'
+}
+
+function isRuntimeMemoryDominantChannel(channel: AlicizationRuntimeChannelId | null) {
+  return channel === 'active-memory'
+}
+
+function resolveRuntimeDominantChannelStyleBias(input: {
+  dominantChannel: AlicizationRuntimeChannelId | null
+  scenario: AlicizationProactiveScenario
+  runtimeDialogueReady: boolean
+  runtimeControlReady: boolean
+  runtimeObservationHeavy: boolean
+  afterglowWindow: boolean
+  continuityPressure: number
+  companionshipPressure: number
+}): AlicizationProactiveDecision['style'] | null {
+  if (input.runtimeObservationHeavy && !input.runtimeDialogueReady && !input.runtimeControlReady)
+    return 'silent-observe'
+
+  const softStyle = input.scenario === 'late-night-care'
+    ? 'gentle-care' as const
+    : 'light-nudge' as const
+  switch (input.dominantChannel) {
+    case 'active-perception':
+      return input.runtimeDialogueReady || input.runtimeControlReady ? null : 'silent-observe'
+    case 'dialogue':
+    case 'active-dialogue':
+      return input.runtimeDialogueReady ? softStyle : null
+    case 'active-control':
+      return input.runtimeControlReady ? softStyle : null
+    case 'active-memory':
+      return (input.afterglowWindow || input.continuityPressure >= 0.62) ? softStyle : null
+    case 'anthropomorphic-mind':
+      return (input.companionshipPressure >= 0.68 || input.runtimeDialogueReady) ? softStyle : null
+    case 'active-mind':
+      return (input.runtimeDialogueReady || input.runtimeControlReady) ? softStyle : null
+    case 'agent-runtime':
+      return input.runtimeControlReady ? softStyle : null
+    default:
+      return null
+  }
+}
+
+function isActiveLoopExpressionReady(input: {
+  phase: 'observe' | 'dialogue' | 'control' | 'integrate'
+  handoffTarget: AlicizationRuntimeChannelId | null
+  initiativeBudget: number
+  coherence: number
+  runtimeDialogueReady: boolean
+  runtimeControlReady: boolean
+}) {
+  const phaseGuidesExpression = input.phase === 'dialogue'
+    || input.phase === 'control'
+    || input.handoffTarget === 'dialogue'
+    || input.handoffTarget === 'active-dialogue'
+    || input.handoffTarget === 'active-control'
+    || input.handoffTarget === 'anthropomorphic-mind'
+
+  if (!phaseGuidesExpression)
+    return false
+
+  if (input.runtimeDialogueReady || input.runtimeControlReady)
+    return input.coherence >= 0.5
+
+  return input.initiativeBudget >= 0.58 && input.coherence >= 0.56
 }
 
 export function evaluateProactivePolicy(input: {
@@ -232,6 +295,7 @@ export function evaluateProactivePolicy(input: {
   actionEcology?: AlicizationActionEcologySnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+  runtimeDigest?: AlicizationRuntimeSnapshot | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
   const contextScenario = inferScenarioFromContext({
@@ -336,6 +400,23 @@ export function evaluateProactivePolicy(input: {
     if (input.architecture.supportingSystems.length > 0)
       consideredSignals.push('architecture.supportingSystems')
   }
+  if (input.runtimeDigest) {
+    consideredSignals.push(
+      'runtimeDigest.dominantChannel',
+      'runtimeDigest.shouldProactivelySpeak',
+      'runtimeDigest.shouldProactivelyAct',
+      'runtimeDigest.continuityPressure',
+      'runtimeDigest.companionshipPressure',
+    )
+    if (input.runtimeDigest.activeLoop) {
+      consideredSignals.push(
+        'runtimeDigest.activeLoop.phase',
+        'runtimeDigest.activeLoop.handoffTarget',
+        'runtimeDigest.activeLoop.initiativeBudget',
+        'runtimeDigest.activeLoop.coherence',
+      )
+    }
+  }
   const ignoredSignals = [
     'battery',
     'memory',
@@ -367,28 +448,52 @@ export function evaluateProactivePolicy(input: {
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const livingWorldOpenLoop = input.livingWorldState?.openLoops[0] ?? null
-  const architectureDialogueHeat = architectureSystemScore(input.architecture, 'dialogue')
-  const architecturePerceptionHeat = architectureSystemScore(input.architecture, 'perception')
-  const architectureProactiveHeat = architectureSystemScore(input.architecture, 'proactive')
-  const architectureControlHeat = architectureSystemScore(input.architecture, 'control')
-  const architectureMemoryHeat = architectureSystemScore(input.architecture, 'memory')
-  const architectureDialogueReady = input.architecture?.operatingMode === 'speaking'
-    || input.architecture?.dominantSystem === 'dialogue'
-    || architectureDialogueHeat >= 0.72
-    || architectureSupports(input.architecture, 'dialogue')
-  const architectureObservationHeavy = (
-    input.architecture?.operatingMode === 'observing'
-    || input.architecture?.dominantSystem === 'perception'
-    || (architecturePerceptionHeat >= 0.78 && architectureDialogueHeat < 0.68)
-  ) && architectureDialogueHeat < 0.72 && architectureControlHeat < 0.72
-  const architectureControlReady = input.architecture?.operatingMode === 'acting'
-    || input.architecture?.dominantSystem === 'control'
-    || architectureControlHeat >= 0.72
-    || architectureSupports(input.architecture, 'control')
-  const architectureMemoryCarry = input.architecture?.operatingMode === 'remembering'
-    || input.architecture?.dominantSystem === 'memory'
-    || architectureMemoryHeat >= 0.62
-    || architectureSupports(input.architecture, 'memory')
+  const runtimeSignals = deriveAlicizationRuntimeProactiveSignals({
+    architecture: input.architecture,
+    runtime: input.runtimeDigest,
+  })
+  const {
+    activeLoop,
+    architectureDialogueHeat,
+    architectureProactiveHeat,
+    architectureDialogueReady,
+    architectureObservationHeavy,
+    architectureControlReady,
+    architectureMemoryCarry,
+    runtimeDominantChannel,
+    runtimeDialogueHeat,
+    runtimeActiveDialogueHeat,
+    continuityPressure,
+    companionshipPressure,
+    runtimeDialogueReady,
+    runtimeObservationHeavy,
+    runtimeControlReady,
+    runtimeMemoryCarry,
+  } = runtimeSignals
+  const activeLoopPhase = activeLoop?.phase ?? null
+  const activeLoopHandoffTarget = activeLoop?.handoffTarget ?? null
+  const activeLoopInitiativeBudget = clamp01(activeLoop?.initiativeBudget ?? 0)
+  const activeLoopCoherence = clamp01(activeLoop?.coherence ?? 0)
+  const activeLoopObservePhase = activeLoopPhase === 'observe'
+  const activeLoopExpressionReady = activeLoop
+    ? isActiveLoopExpressionReady({
+        phase: activeLoop.phase,
+        handoffTarget: activeLoopHandoffTarget,
+        initiativeBudget: activeLoopInitiativeBudget,
+        coherence: activeLoopCoherence,
+        runtimeDialogueReady,
+        runtimeControlReady,
+      })
+    : false
+  if (activeLoop) {
+    consideredSignals.push(
+      'runtimeDigest.activeLoop.phase.resolved',
+      'runtimeDigest.activeLoop.handoff.resolved',
+      'runtimeDigest.activeLoop.observation.resolved',
+      'runtimeDigest.activeLoop.initiativeBudget.gating',
+      'runtimeDigest.activeLoop.coherence.gating',
+    )
+  }
 
   const suppressBusy = context.system.cpuUsage >= 70
     || context.system.fullscreenLikely
@@ -405,23 +510,95 @@ export function evaluateProactivePolicy(input: {
     worldModel: input.worldModel,
     afterglowWindow,
   })
-  const architectureAwareStyle = (() => {
-    if (!input.architecture)
+  const preferredInteractiveStyle = input.initiative?.preferredStyle && input.initiative.preferredStyle !== 'silent-observe'
+    ? input.initiative.preferredStyle
+    : input.privateThought?.suggestedStyle && input.privateThought.suggestedStyle !== 'silent-observe'
+      ? input.privateThought.suggestedStyle
+      : null
+  const runtimeDominantChannelStyle = resolveRuntimeDominantChannelStyleBias({
+    dominantChannel: runtimeDominantChannel,
+    scenario,
+    runtimeDialogueReady,
+    runtimeControlReady,
+    runtimeObservationHeavy,
+    afterglowWindow,
+    continuityPressure,
+    companionshipPressure,
+  })
+  const runtimeAwareStyle = (() => {
+    if (!input.architecture && !input.runtimeDigest)
       return style
 
-    if (architectureObservationHeavy && !architectureDialogueReady && architectureProactiveHeat < 0.72)
+    if (runtimeDominantChannelStyle === 'silent-observe')
       return 'silent-observe' as const
 
-    if (style === 'silent-observe' && architectureDialogueReady && architectureDialogueHeat >= 0.82) {
-      if (input.initiative?.preferredStyle && input.initiative.preferredStyle !== 'silent-observe')
-        return input.initiative.preferredStyle
-      if (input.privateThought?.suggestedStyle && input.privateThought.suggestedStyle !== 'silent-observe')
-        return input.privateThought.suggestedStyle
-      return scenario === 'late-night-care' ? 'gentle-care' as const : 'light-nudge' as const
+    if (
+      activeLoop
+      && activeLoopObservePhase
+      && activeLoopCoherence < 0.5
+      && activeLoopInitiativeBudget < 0.62
+      && !runtimeDialogueReady
+      && !runtimeControlReady
+    ) {
+      return 'silent-observe' as const
     }
 
-    if (style === 'light-nudge' && architectureControlReady && scenario === 'late-night-care')
+    if (
+      style === 'silent-observe'
+      && activeLoopExpressionReady
+    ) {
+      const defaultInteractiveStyle = scenario === 'late-night-care'
+        ? 'gentle-care' as const
+        : 'light-nudge' as const
+      if (activeLoopHandoffTarget === 'active-memory' && scenario === 'late-night-care')
+        return preferredInteractiveStyle ?? 'gentle-care' as const
+      return preferredInteractiveStyle
+        ?? runtimeDominantChannelStyle
+        ?? defaultInteractiveStyle
+    }
+
+    if (
+      runtimeObservationHeavy
+      && !runtimeDialogueReady
+      && architectureProactiveHeat < 0.72
+      && runtimeActiveDialogueHeat < 0.72
+    ) {
+      return 'silent-observe' as const
+    }
+
+    if (
+      style === 'silent-observe'
+      && runtimeDialogueReady
+      && (architectureDialogueHeat >= 0.82 || runtimeDialogueHeat >= 0.74 || runtimeActiveDialogueHeat >= 0.72)
+    ) {
+      return preferredInteractiveStyle
+        ?? runtimeDominantChannelStyle
+        ?? (scenario === 'late-night-care' ? 'gentle-care' as const : 'light-nudge' as const)
+    }
+
+    if (
+      style === 'silent-observe'
+      && runtimeDominantChannelStyle
+    ) {
+      return preferredInteractiveStyle ?? runtimeDominantChannelStyle
+    }
+
+    if (style === 'light-nudge' && runtimeControlReady && scenario === 'late-night-care')
       return 'gentle-care' as const
+
+    if (style === 'light-nudge' && runtimeDominantChannelStyle === 'gentle-care')
+      return 'gentle-care' as const
+
+    if (
+      style === 'silent-observe'
+      && scenario !== 'media'
+      && companionshipPressure >= 0.74
+      && isRuntimeCompanionshipDominantChannel(runtimeDominantChannel)
+    ) {
+      return preferredInteractiveStyle
+        ?? runtimeDominantChannelStyle
+        ?? (scenario === 'late-night-care' ? 'gentle-care' as const : 'light-nudge' as const)
+    }
 
     return style
   })()
@@ -449,7 +626,7 @@ export function evaluateProactivePolicy(input: {
     )
   const initiativeSilenceDrive = input.initiative?.silenceDrive
     ?? clamp01(
-      (style === 'silent-observe' ? 0.5 : 0.18)
+      (runtimeAwareStyle === 'silent-observe' ? 0.5 : 0.18)
       + (input.privateThought?.stance === 'uncertain' ? 0.22 : 0)
       + (context.system.inputActivity === 'active' ? 0.1 : 0),
     )
@@ -560,6 +737,34 @@ export function evaluateProactivePolicy(input: {
     baseScore -= 0.12
   baseScore += Math.max(0, architectureDialogueHeat - 0.5) * 0.08
   baseScore += Math.max(0, architectureProactiveHeat - 0.5) * 0.06
+  if (runtimeDialogueReady)
+    baseScore += 0.05
+  if (runtimeControlReady)
+    baseScore += 0.03
+  if (afterglowWindow && runtimeMemoryCarry)
+    baseScore += 0.03
+  if (runtimeObservationHeavy)
+    baseScore -= 0.1
+  if (input.runtimeDigest?.shouldProactivelySpeak)
+    baseScore += 0.04
+  if (input.runtimeDigest?.shouldProactivelyAct)
+    baseScore += 0.02
+  if (isRuntimeDialogueDominantChannel(runtimeDominantChannel))
+    baseScore += 0.04
+  if (runtimeDominantChannel === 'anthropomorphic-mind' && companionshipPressure >= 0.66)
+    baseScore += 0.04
+  if (isRuntimeMemoryDominantChannel(runtimeDominantChannel) && continuityPressure >= 0.62)
+    baseScore += 0.03
+  baseScore += Math.max(0, continuityPressure - 0.5) * 0.08
+  baseScore += Math.max(0, companionshipPressure - 0.5) * 0.08
+  if (activeLoop) {
+    baseScore += Math.max(0, activeLoopInitiativeBudget - 0.5) * 0.16
+    baseScore += Math.max(0, activeLoopCoherence - 0.5) * 0.12
+    if (activeLoopPhase === 'dialogue' || activeLoopPhase === 'control')
+      baseScore += 0.04
+    if (activeLoopObservePhase && !runtimeDialogueReady && !runtimeControlReady)
+      baseScore -= 0.1
+  }
 
   let threshold = buildBaseThreshold(scenario)
     + feedbackBias
@@ -606,17 +811,40 @@ export function evaluateProactivePolicy(input: {
     threshold -= 0.02
   if (architectureObservationHeavy)
     threshold += 0.08
+  if (runtimeDialogueReady)
+    threshold -= 0.03
+  if (runtimeControlReady)
+    threshold -= 0.02
+  if (afterglowWindow && runtimeMemoryCarry)
+    threshold -= 0.02
+  if (runtimeObservationHeavy)
+    threshold += 0.08
+  threshold -= Math.max(0, continuityPressure - 0.62) * 0.04
+  threshold -= Math.max(0, companionshipPressure - 0.68) * 0.05
+  if (activeLoop) {
+    threshold += Math.max(0, 0.5 - activeLoopCoherence) * 0.14
+    threshold -= Math.max(0, activeLoopCoherence - 0.6) * 0.08
+    threshold -= Math.max(0, activeLoopInitiativeBudget - 0.62) * 0.08
+    if (activeLoopObservePhase && !runtimeDialogueReady && !runtimeControlReady)
+      threshold += 0.04
+  }
 
   const initiativeReady = input.initiative
     ? input.initiative.shouldSpeak
-    : input.actionEcology?.shouldSpeak ?? privateThoughtReady
+    : input.actionEcology?.shouldSpeak ?? input.runtimeDigest?.shouldProactivelySpeak ?? privateThoughtReady
   const governorAllowsSpeaking = !governorWithholdActive
     && (!repairIntentActive || input.worldModel?.epistemicState.certainty === 'grounded')
+  const activeLoopAllowsSpeaking = !activeLoop
+    || activeLoopCoherence >= 0.34
+    || activeLoopInitiativeBudget >= 0.74
+    || runtimeDialogueReady
+    || runtimeControlReady
   const shouldInterrupt
     = !input.killSwitchSuspended
       && !suppressBusy
       && !cooldownActive
-      && architectureAwareStyle !== 'silent-observe'
+      && runtimeAwareStyle !== 'silent-observe'
+      && activeLoopAllowsSpeaking
       && governorAllowsSpeaking
       && initiativeReady
       && privateThoughtReady
@@ -647,6 +875,11 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'watch-mode-symbiotic', input.watchMode === 'symbiotic-vision')
   pushReason(reasonCodes, 'watch-mode-invited-inspection', input.watchMode === 'invited-inspection')
   pushReason(reasonCodes, 'watch-mode-recovering', input.watchMode === 'recovering')
+  pushReason(reasonCodes, 'runtime-dialogue-ready', Boolean(input.runtimeDigest && runtimeDialogueReady))
+  pushReason(reasonCodes, 'runtime-observe-dominant', Boolean(input.runtimeDigest && runtimeObservationHeavy))
+  pushReason(reasonCodes, 'runtime-control-ready', Boolean(input.runtimeDigest && runtimeControlReady))
+  pushReason(reasonCodes, 'runtime-continuity-pressure', Boolean(input.runtimeDigest && continuityPressure >= 0.62))
+  pushReason(reasonCodes, 'runtime-companionship-pressure', Boolean(input.runtimeDigest && companionshipPressure >= 0.68))
   pushReason(reasonCodes, 'durability-pulse', Boolean(input.durabilityPulse && input.durabilityPulse.kind !== 'none'))
   pushReason(reasonCodes, 'durability-process-gone', input.durabilityPulse?.kind === 'process-gone')
   pushReason(reasonCodes, 'durability-anr-likely', input.durabilityPulse?.kind === 'anr-likely')
@@ -683,6 +916,21 @@ export function evaluateProactivePolicy(input: {
 
   const whyNow = (() => {
     if (shouldInterrupt) {
+      if (
+        activeLoop
+        && activeLoopExpressionReady
+        && (activeLoopPhase === 'dialogue' || activeLoopPhase === 'control')
+      ) {
+        return `她当前的活性循环已经进入 ${activeLoopPhase} 阶段，initiative=${activeLoopInitiativeBudget.toFixed(2)}、coherence=${activeLoopCoherence.toFixed(2)}，现在开口最连贯。`
+      }
+      if (
+        activeLoop
+        && afterglowWindow
+        && activeLoopHandoffTarget === 'active-memory'
+        && activeLoopCoherence >= 0.5
+      ) {
+        return '她的活性循环正在把余温交接给主动记忆通道，这个时机最适合轻声回应。'
+      }
       if (afterglowWindow)
         return '刚从长时共视场景回神，这正是最自然的轻声搭话窗口。'
       if (isSeriousDurabilityPulse(input.durabilityPulse))
@@ -693,6 +941,19 @@ export function evaluateProactivePolicy(input: {
         return `她当前的数字生命链已经有明确的 control 牵引，继续只看不说反而会让已经成形的靠近动作失温。`
       if (input.architecture && afterglowWindow && architectureMemoryCarry)
         return '长时共视后的余温还挂在记忆链上，这种 afterglow 现在正自然地把她推向一句轻声回应。'
+      if (input.runtimeDigest && runtimeDialogueReady)
+        return `她当前的 Alicization 运行时主通道已经靠近 ${input.runtimeDigest.dominantChannel}，并且对话通路已升温，现在开口不会挤压真实观察。`
+      if (input.runtimeDigest && runtimeControlReady)
+        return '她当前的主动控制通道已进入可执行态，继续只观察会让已经成形的靠近动作失去时机。'
+      if (input.runtimeDigest && afterglowWindow && runtimeMemoryCarry)
+        return '共视余温还挂在主动记忆链上，现在回应最容易保持连续性与温度。'
+      if (
+        input.runtimeDigest
+        && companionshipPressure >= 0.74
+        && isRuntimeCompanionshipDominantChannel(runtimeDominantChannel)
+      ) {
+        return '她当前的拟人心智通道已经把陪伴张力推高，现在轻声靠近比继续沉默更连贯。'
+      }
       if (thoughtThreadRipe && thoughtThread)
         return `她一直挂着「${thoughtThread.summary}」，现在这条内在线程已经成熟到可以自然浮出表面。`
       if (careIntentActive && governorIntention)
@@ -725,8 +986,21 @@ export function evaluateProactivePolicy(input: {
       return '刚收到负反馈后的冷却窗口仍在生效。'
     if (suppressBusy)
       return '宿主仍处于忙碌或高沉浸状态。'
+    if (
+      activeLoop
+      && activeLoopObservePhase
+      && activeLoopCoherence < 0.5
+      && !runtimeDialogueReady
+      && !runtimeControlReady
+    ) {
+      return '她的活性循环仍停在 observe，coherence 还不够稳，现在更应该继续观察。'
+    }
+    if (activeLoop && activeLoopCoherence < 0.34)
+      return '她的活性循环还不够连贯，贸然开口会把内部链路拆散。'
     if (input.architecture && architectureObservationHeavy)
       return `她当前整条数字生命链仍以 ${input.architecture.dominantSystem} / ${input.architecture.operatingMode} 为主，继续观察比贸然开口更诚实。`
+    if (input.runtimeDigest && runtimeObservationHeavy)
+      return '她当前的主动感知通道仍在主导运行时循环，继续观察比贸然开口更诚实。'
     if (governorWithholdActive) {
       if (thoughtThread?.status === 'waiting')
         return '她确实挂着这条内在线程，但它还在等待更自然的 opening。'
@@ -752,7 +1026,7 @@ export function evaluateProactivePolicy(input: {
       return '她内心还挂着一个没解开的确认问题，所以现在更该继续看，而不是急着评论。'
     if (input.initiative && !input.initiative.shouldSpeak)
       return input.initiative.why
-    if (style === 'silent-observe')
+    if (runtimeAwareStyle === 'silent-observe')
       return '当前场景只适合静默观察，不适合打断。'
     if (input.perception?.activeAttentionAnchor)
       return '虽然短时知觉还记得宿主刚才的工作对象，但现在还没强到值得立刻插话。'
@@ -761,7 +1035,7 @@ export function evaluateProactivePolicy(input: {
 
   const whyNotLater = (() => {
     if (shouldInterrupt) {
-      if (input.architecture && architectureDialogueReady)
+      if ((input.architecture && architectureDialogueReady) || (input.runtimeDigest && runtimeDialogueReady))
         return '继续延后会让已经转入 dialogue 的窗口重新冷掉。'
       return '继续延后会错过当前语境窗口。'
     }
@@ -769,8 +1043,21 @@ export function evaluateProactivePolicy(input: {
       return '等忙碌态解除或退出全屏后再重新评估。'
     if (cooldownActive)
       return '至少等冷却结束后再看是否还存在同类信号。'
+    if (
+      activeLoop
+      && activeLoopObservePhase
+      && activeLoopCoherence < 0.5
+      && !runtimeDialogueReady
+      && !runtimeControlReady
+    ) {
+      return '先让活性循环从 observe 走到 dialogue/control，再评估是否主动靠近。'
+    }
+    if (activeLoop && activeLoopCoherence < 0.34)
+      return '先把活性循环重新拉回连贯，再决定要不要主动插话。'
     if (input.architecture && architectureObservationHeavy)
       return '先让 perception 主导的观察链再多跑一轮，等 dialogue 或 control 升温后再决定。'
+    if (input.runtimeDigest && runtimeObservationHeavy)
+      return '先让 active-perception 主导的观察链再多跑一轮，等 active-dialogue 或 active-control 升温后再决定。'
     if (governorWithholdActive) {
       if (thoughtThread?.reopenWhen[0])
         return `先等「${thoughtThread.reopenWhen[0]}」这样的开口条件出现，再决定要不要靠近。`
@@ -798,7 +1085,7 @@ export function evaluateProactivePolicy(input: {
     confidence: Number(confidence.toFixed(2)),
     reasonCodes,
     urgency,
-    style: architectureAwareStyle,
+    style: runtimeAwareStyle,
     cooldownMs,
     scenario,
     policyVersion: proactivePolicyVersion,

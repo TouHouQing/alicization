@@ -147,6 +147,68 @@ describe('openclaw executor adapter', () => {
     }))
   })
 
+  it('forwards structured payload and custom channel/meta fields to openclaw bridge', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        content_parts: [
+          {
+            type: 'text',
+            text: 'structured channel reply',
+          },
+        ],
+        session_id: 'openclaw-session-structured-1',
+      }),
+    })
+
+    const result = await executeOpenClawTaskThread({
+      thread: createThread({
+        sessionId: 'session-openclaw-structured-1',
+      }),
+      command: {
+        instruction: '',
+        channelId: 'custom-openclaw',
+        conversationId: 'conversation-openclaw-1',
+        contentParts: [
+          {
+            type: 'text',
+            text: 'Inspect the focused app and explain what blocks interaction.',
+          },
+        ],
+        images: ['https://example.com/frame-1.png'],
+        meta: {
+          source: 'alicization-test',
+        },
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.output).toContain('structured channel reply')
+    const sentBody = JSON.parse(fetchMock.mock.calls[0]?.[1]?.body as string)
+    expect(sentBody).toEqual(expect.objectContaining({
+      channel_id: 'custom-openclaw',
+      content_parts: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'text',
+        }),
+      ]),
+      images: expect.arrayContaining(['https://example.com/frame-1.png']),
+    }))
+    expect(typeof sentBody.session_id).toBe('string')
+    expect(sentBody.session_id).not.toHaveLength(0)
+    expect(sentBody.meta).toEqual(expect.objectContaining({
+      source: 'alicization-test',
+      conversation_id: 'conversation-openclaw-1',
+    }))
+    expect(result.events[0]?.payload).toEqual(expect.objectContaining({
+      channelId: 'custom-openclaw',
+      conversationId: 'conversation-openclaw-1',
+      hasStructuredPayload: true,
+      contentPartCount: 1,
+    }))
+  })
+
   it('preserves facade execution channels in emitted events while using openclaw transport', async () => {
     fetchMock.mockResolvedValue({
       ok: true,

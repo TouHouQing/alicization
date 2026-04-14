@@ -392,6 +392,54 @@ describe('alicization structured output', () => {
     expect(repaired?.format).toBe('mind-turn-v1')
   })
 
+  it('normalizes explicit execution-bound repair turns into an execution-first local surface', () => {
+    const repaired = repairStructuredContractLocally({
+      structured: normalizeStructuredOutput({
+        fullText: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
+        thought: '',
+        reply: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
+      }),
+      validationIssues: [{
+        code: 'json-contract-missing',
+        message: 'missing',
+      }],
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'uncertain',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'ask-reground',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'required',
+        evidenceMode: 'repair-first',
+        repairState: 'need-reground',
+        liveSurface: 'unknown',
+        focusAnchor: 'Desktop files',
+        answerIntent: 'Run CLI listing for desktop files now.',
+        openingMove: 'Execute now.',
+        carriedThread: 'old screen residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '用cli命令帮我查一下桌面有什么文件',
+      translate: translateMindFallback,
+    })
+
+    expect(repaired?.reply).toBe('')
+    expect(repaired?.reply).not.toContain('旧锚点')
+    expect(repaired?.reply).not.toContain('重新落地')
+    expect(repaired?.thought).toContain('obligation=guide')
+  })
+
   it('defers dialogue-first json misses to model retry instead of surfacing governance prose locally', () => {
     const repaired = repairStructuredContractLocally({
       structured: normalizeStructuredOutput({
@@ -536,6 +584,61 @@ describe('alicization structured output', () => {
     expect(governed.thought).not.toContain('obligation=accompany')
   })
 
+  it('replaces execution-bound repair prose with an execution-first governed reply surface', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=repair; truth=uncertain; focus=desktop-files; move=ask-reground; tone=direct',
+        emotion: 'thinking',
+        reply: '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。 如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'hesitant',
+          emphasis: 0,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.4,
+        repairTimedOut: false,
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'uncertain',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'ask-reground',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'required',
+        evidenceMode: 'repair-first',
+        repairState: 'need-reground',
+        liveSurface: 'unknown',
+        focusAnchor: 'Desktop files',
+        answerIntent: 'Run CLI listing for desktop files now.',
+        openingMove: 'Execute now.',
+        carriedThread: 'old screen residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '用cli命令帮我查一下桌面有什么文件',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).toBe('')
+    expect(governed.reply).not.toContain('旧锚点')
+    expect(governed.reply).not.toContain('重新落地')
+    expect(governed.thought).toContain('obligation=guide')
+  })
+
   it('preserves coherent scene repair replies on strict repair turns', () => {
     const reply = '我现在看到是 Cursor 的 runtime.ts diff，空值分支缺了 guard，先补这个分支再跑一次测试。'
     const governed = enforceGovernedMindTurn({
@@ -587,6 +690,62 @@ describe('alicization structured output', () => {
     })
 
     expect(governed.reply).toBe(reply)
+    expect(governed.reply).not.toContain('旧锚点')
+    expect(governed.format).toBe('mind-turn-v1')
+  })
+
+  it('preserves organic direct repair replies instead of forcing the generic governed opener', () => {
+    const reply = '不是刚才那页了，我按这张新画面重新说。'
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=repair; truth=coarse; focus=current-screen; move=answer-directly; tone=direct',
+        emotion: 'thinking',
+        reply,
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.5,
+        repairTimedOut: false,
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'live-observed',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'correct-stale-anchor',
+        answerSubject: 'visible-scene',
+        screenReferenceMode: 'required',
+        evidenceMode: 'repair-first',
+        repairState: 'stale-anchor',
+        liveSurface: 'Code current window',
+        focusAnchor: 'Code current window',
+        answerIntent: 'Correct the stale anchor and answer from the current window.',
+        openingMove: 'Correct the stale anchor directly.',
+        carriedThread: 'old browser residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 4,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '你再看一眼现在屏幕',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).toBe(reply)
+    expect(governed.reply).not.toContain('先按你眼前这件事说')
     expect(governed.reply).not.toContain('旧锚点')
     expect(governed.format).toBe('mind-turn-v1')
   })
@@ -1005,5 +1164,61 @@ describe('alicization structured output', () => {
     expect(hello.reply).not.toBe(capability.reply)
     expect(hello.reply).not.toContain('刚才那句我说偏了')
     expect(capability.reply).not.toContain('刚才那句我说偏了')
+  })
+
+  it('suppresses stale-anchor repair prose on ordinary greeting turns even if repair governance residue remains', () => {
+    const governed = enforceGovernedMindTurn({
+      structured: {
+        thought: 'obligation=repair; truth=uncertain; focus=current-user-turn; move=ask-reground; tone=direct',
+        emotion: 'thinking',
+        reply: '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          delivery: 'hesitant',
+          emphasis: 0,
+        },
+        userSentimentScore: 0,
+        sentimentConfidence: 0.4,
+        repairTimedOut: false,
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'uncertain',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'ask-reground',
+        answerSubject: 'alicization-self',
+        screenReferenceMode: 'required',
+        evidenceMode: 'repair-first',
+        repairState: 'need-reground',
+        liveSurface: 'Code current window',
+        focusAnchor: 'current-user-turn',
+        answerIntent: 'Answer the host greeting directly.',
+        openingMove: 'Answer the host question directly.',
+        carriedThread: 'old screen residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mindMode: 'repairing',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'tense-debug',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      userText: '你好',
+      fallbackReply: '你好，我在。',
+      translate: translateMindFallback,
+    })
+
+    expect(governed.reply).toBe('你好，我在。')
+    expect(governed.reply).not.toContain('真实边界')
+    expect(governed.reply).not.toContain('旧记忆')
+    expect(governed.reply).not.toContain('重新落地')
   })
 })

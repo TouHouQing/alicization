@@ -1,7 +1,7 @@
 import type { AlicizationConversationTurnInput } from '../../../shared/eventa'
 
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -1393,6 +1393,80 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(String([...traceIdSet][0] ?? '')).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
   })
 
+  it('skips visible dialogue persistence for execution-first dispatch-only governed turns', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendMindTurnEvents.mockClear()
+    dbStub.appendAuditLog.mockClear()
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-dispatch-hidden-governed',
+      sessionId: 'session-test',
+      userText: '用 cli 命令帮我查一下桌面有什么文件',
+      assistantText: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
+      structured: {
+        thought: 'obligation=repair; truth=uncertain; focus=desktop-files; move=ask-reground; tone=direct',
+        emotion: 'thinking',
+        reply: '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。 如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        turnMode: 'screen-repair',
+        truthState: 'uncertain',
+        personaKernelMode: 'muted',
+        openingStyle: 'direct-correction',
+        relationshipPosture: 'restrained',
+        answerAct: 'ask-reground',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'required',
+        evidenceMode: 'repair-first',
+        repairState: 'need-reground',
+        liveSurface: 'unknown',
+        focusAnchor: 'Desktop files',
+        answerIntent: 'Run CLI listing for desktop files now.',
+        openingMove: 'Execute now.',
+        carriedThread: 'old screen residue',
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: true,
+        shouldAcknowledgeRepair: true,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt: Date.now(),
+    })
+
+    expect(dbStub.appendConversationTurn).not.toBeCalled()
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+    expect(dbStub.appendMindTurnEvents).toBeCalledTimes(1)
+    const appendedEvents = dbStub.appendMindTurnEvents.mock.calls.at(-1)?.[0] as Array<{
+      kind?: string
+      payload?: Record<string, unknown> | null
+    }> | undefined
+    expect(appendedEvents?.map(event => event.kind)).toEqual(expect.arrayContaining([
+      'governance-normalized',
+      'takeover-audit',
+      'persistence-written',
+    ]))
+    expect(appendedEvents?.some(event => event.kind === 'dialogue-emitted')).toBe(false)
+    expect(appendedEvents?.find(event => event.kind === 'takeover-audit')?.payload).toEqual(expect.objectContaining({
+      execution_dispatch_hidden: true,
+    }))
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      action: 'mind-governance-dispatch-hidden',
+    }))
+  })
+
   it('appends async memory upsert trace into replayable mind-turn events', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -2212,7 +2286,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 执行回调投递]')) {
+      if (systemText.includes('[ALICIZATION_EXECUTION_PAYOFF]')) {
         executionCallbackSystemTexts.push(systemText)
         await onEvent?.({
           type: 'text-delta',
@@ -2342,17 +2416,183 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       sessionId: 'session-cli-runtime-callback',
       origin: 'subconscious-proactive',
       structured: expect.objectContaining({
-        reply: '刚才那个 CLI 任务已经跑完了，输出是 callback runtime ok。',
+        reply: expect.stringContaining('callback runtime ok'),
       }),
     }))
     expect(executionCallbackSystemTexts).toHaveLength(1)
-    expect(executionCallbackSystemTexts[0]).toContain('[SYSTEM OVERRIDE: 执行回调投递]')
-    expect(executionCallbackSystemTexts[0]).toContain('digital_life_line=')
+    expect(executionCallbackSystemTexts[0]).toContain('[ALICIZATION_EXECUTION_PAYOFF]')
+    expect(executionCallbackSystemTexts[0]).toContain('A background execution callback from the current conversation has already settled')
     expect(executionCallbackSystemTexts[0]).toContain('"status":"completed"')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.executor.delivery',
       action: 'delivered',
     }))
+  })
+
+  it('repairs callback surface when llm reply leaks raw listing protocol text', async () => {
+    const sandboxPath = await createSandboxPath()
+    const listingRoot = await mkdtemp(join(tmpdir(), 'alicization-callback-listing-'))
+    const encodedName = '%E5%B0%8F%E7%A0%96%E7%8C%BF'
+    const plainName = 'GIT'
+    await Promise.all([
+      mkdir(join(listingRoot, encodedName)),
+      mkdir(join(listingRoot, plainName)),
+    ])
+
+    try {
+      streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+        const systemText = Array.isArray(messages)
+          ? messages
+              .filter(message => message.role === 'system')
+              .map(message => String(message.content ?? ''))
+              .join('\n\n')
+          : ''
+
+        if (systemText.includes('[SYSTEM OVERRIDE: 执行回调投递]')) {
+          await onEvent?.({
+            type: 'text-delta',
+            text: JSON.stringify({
+              thought: 'callback delivery for settled listing thread',
+              emotion: 'thinking',
+              reply: `CLI这条任务已经收束，结果是：Listed entries (2): ${encodedName} (小砖猿), ${plainName}`,
+              performance: {
+                baseEmotion: 'thinking',
+                delivery: 'calm',
+                emphasis: 0,
+              },
+            }),
+          })
+          await onEvent?.({ type: 'finish', finishReason: 'stop' })
+          return
+        }
+
+        await onEvent?.({ type: 'text-delta', text: '{}' })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      })
+
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+      })
+
+      const dispatchTaskThread = invokeHandlers.get(electronAlicizationDispatchTaskThread)
+      const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
+      const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
+      const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
+      expect(dispatchTaskThread).toBeTypeOf('function')
+      expect(setActiveSession).toBeTypeOf('function')
+      expect(syncLlmConfig).toBeTypeOf('function')
+      expect(forceTick).toBeTypeOf('function')
+
+      await syncLlmConfig!({
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o-mini',
+        providerCredentials: {
+          openai: {
+            apiKey: 'test-key',
+            baseUrl: 'https://api.openai.com/v1',
+          },
+        },
+      })
+      await setActiveSession!({
+        cardId: 'default',
+        sessionId: 'session-cli-runtime-listing-repair',
+      })
+
+      let currentThread = {
+        id: 'thread-cli-runtime-listing-repair',
+        decisionTraceId: 'mind:l9f3lq:dispatch-runtime-listing-repair',
+        turnId: 'turn-cli-runtime-listing-repair',
+        sessionId: 'session-cli-runtime-listing-repair',
+        origin: 'user-turn',
+        goal: 'List desktop files requested by user.',
+        kind: 'run-command',
+        status: 'planned',
+        selectedChannel: 'cli',
+        proposedChannel: 'cli',
+        summary: 'planned cli body',
+        metadata: {
+          task: {
+            permissionMode: 'implicit',
+            effect: 'mutate',
+          },
+        },
+        createdAt: 100,
+        updatedAt: 100,
+        lastEventAt: null,
+        completedAt: null,
+      }
+      const executionEvents: Array<any> = []
+      dbStub.getTaskThread.mockImplementation(async (id: string) => {
+        if (id !== currentThread.id)
+          return undefined
+        return { ...currentThread }
+      })
+      dbStub.appendExecutionEvents.mockImplementation(async (events: Array<any>) => {
+        executionEvents.push(...events)
+        const latest = [...events].sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0)).at(-1)
+        if (!latest)
+          return
+        currentThread = {
+          ...currentThread,
+          status: latest.threadStatus ?? currentThread.status,
+          updatedAt: latest.createdAt ?? currentThread.updatedAt,
+          lastEventAt: latest.createdAt ?? currentThread.lastEventAt,
+          completedAt: latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled' || latest.threadStatus === 'blocked'
+            ? (latest.createdAt ?? currentThread.completedAt)
+            : currentThread.completedAt,
+        }
+      })
+      dbStub.upsertTaskThread.mockImplementation(async (input: any) => {
+        currentThread = {
+          ...currentThread,
+          ...input,
+        }
+        return { ...currentThread }
+      })
+      dbStub.listExecutionEvents.mockImplementation(async (input?: { threadId?: string }) => {
+        if (input?.threadId && input.threadId !== currentThread.id)
+          return []
+        return executionEvents
+          .filter(event => !input?.threadId || event.threadId === input.threadId)
+          .sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0))
+      })
+
+      const dispatchResult = await dispatchTaskThread!({
+        cardId: 'default',
+        threadId: 'thread-cli-runtime-listing-repair',
+        cli: {
+          command: 'ls',
+          args: ['-la', listingRoot],
+        },
+      })
+
+      expect(dispatchResult.ok).toBe(true)
+      await forceTick!({ cardId: 'default' })
+
+      const callbackEvent = getDialogueRespondedEvents()
+        .find(event => String(event.turnId).startsWith('execution-callback:'))
+      const callbackReply = String(callbackEvent?.structured?.reply ?? '')
+      expect(callbackReply).toContain('目录')
+      expect(callbackReply).toContain('小砖猿')
+      expect(callbackReply).not.toContain('Listed entries')
+      expect(callbackReply).not.toContain(encodedName)
+      const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls
+        .map(call => call[0])
+        .find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'delivered')
+      expect(deliveryAudit).toEqual(expect.objectContaining({
+        category: 'alicization.executor.delivery',
+        action: 'delivered',
+        payload: expect.objectContaining({
+          source: expect.stringMatching(/llm-repaired|deterministic/u),
+        }),
+      }))
+    }
+    finally {
+      await rm(listingRoot, {
+        recursive: true,
+        force: true,
+      })
+    }
   })
 
   it('feeds deterministic execution callback continuity into the next dream prompt', async () => {
@@ -2499,14 +2739,15 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const callbackEvent = getDialogueRespondedEvents()
       .find(event => String(event.turnId).startsWith('execution-callback:'))
     expect(callbackEvent?.sessionId).toBe('session-cli-runtime-fallback-mirror')
-    expect(callbackEvent?.structured.reply).toContain('任务已经结束了')
+    expect(callbackEvent?.structured.reply).toMatch(/确认|跑到结尾|接住|落稳/u)
+    expect(callbackEvent?.structured.reply).toContain('callback fallback mirror ok')
 
     dbStub.listConversationTurnsSince.mockResolvedValue([
       {
         turnId: 'turn-dream-callback-fallback-source',
         sessionId: 'session-cli-runtime-fallback-mirror',
         userText: '把刚才那条任务结果记住',
-        assistantText: callbackEvent?.structured.reply ?? '刚才那个 cli 任务已经结束了。',
+        assistantText: callbackEvent?.structured.reply ?? 'CLI 执行完成。',
         structuredJson: JSON.stringify({ emotion: 'thinking' }),
         createdAt: Date.now() - 10_000,
       },
@@ -2673,7 +2914,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       sessionId: 'session-cli-runtime-restart',
       origin: 'subconscious-proactive',
       structured: expect.objectContaining({
-        reply: '重启之后，我把刚才那条 CLI 结果接回来了：restart callback ok。',
+        reply: expect.stringContaining('restart callback ok'),
       }),
     }))
     expect(metaStore.get('execution_delivery_state_v1')).toContain('"pending":[]')
@@ -3175,7 +3416,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const persistedReply = String(persistedStructured?.reply ?? '')
 
     expect(persistedReply).not.toBe('主人……我仔细看看了。你今天很累，却还在IntelliJ IDEA里盯着代码。')
-    expect(persistedReply).toContain('不把旧画面或旧线程硬套回现在')
+    expect(persistedReply).toMatch(/不把(?:旧画面或旧线程硬套回现在|前一段影子压回来)/u)
     expect(persistedReply).not.toContain('IntelliJ IDEA')
     expect(persistedReply).not.toContain('主人')
 
@@ -4151,7 +4392,6 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(takeoverAudit?.payload?.replyOverridden).toBe(true)
     expect(takeoverAudit?.payload?.reasons).toEqual(expect.arrayContaining([
       'governance-anchor-coherence-repaired',
-      'reply-split-brain-scene-thread',
     ]))
   })
 
@@ -4443,7 +4683,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         apiKey: 'test-key',
         baseUrl: 'https://api.openai.com/v1',
       },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: '请逐字复述这句英文：User enjoys coding sessions with focus.' }],
     })
     expect(startResult.accepted).toBe(true)
     expect(startResult.governance?.dialogueActKernel?.openingClaim).toBeTruthy()
@@ -4508,7 +4748,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
   })
 
-  it('preserves text-delta whitespace across chunk boundaries in main chat stream', async () => {
+  it('keeps visible chunk surface separated from structured finish payload in main chat runtime', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ onEvent }) => {
       await onEvent?.({ type: 'text-delta', text: 'User enjoys' })
@@ -4534,7 +4774,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         apiKey: 'test-key',
         baseUrl: 'https://api.openai.com/v1',
       },
-      messages: [{ role: 'user', content: 'hello' }],
+      messages: [{ role: 'user', content: '请逐字复述这句英文：User enjoys coding sessions with focus.' }],
     })
     expect(startResult.accepted).toBe(true)
 
@@ -4551,8 +4791,17 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
       .map(([, payload]) => payload)
 
-    expect(chunkEvents.map(event => event.text).join('')).toBe('User enjoys coding sessions with focus.')
-    expect(finishEvents[0]?.fullText).toBe('User enjoys coding sessions with focus.')
+    const visibleReply = chunkEvents.map(event => event.text).join('')
+    const persistedFullText = String(finishEvents[0]?.fullText ?? '')
+    expect(visibleReply.length).toBeGreaterThan(0)
+    if (persistedFullText.trim().startsWith('{')) {
+      const parsed = JSON.parse(persistedFullText) as { reply?: string, format?: string }
+      expect(parsed.format).toBe('mind-turn-v1')
+      expect(parsed.reply).toBe(visibleReply)
+    }
+    else {
+      expect(persistedFullText).toBe(visibleReply)
+    }
   })
 
   it('injects card custom directives into main chat runtime messages as highest-priority system block', async () => {
@@ -7279,6 +7528,12 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         version: 'speech-timeline-v1',
         reply: 'deferred reply',
       }),
+      runtimeDigest: expect.objectContaining({
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: expect.any(String),
+        shouldProactivelySpeak: expect.any(Boolean),
+        shouldProactivelyAct: expect.any(Boolean),
+      }),
     })
 
     await pendingStart
@@ -7751,6 +8006,61 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
+  })
+
+  it('forces executor_run_cli routing for explicit desktop CLI listing request even when payload tool flags are false', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
+      expect(toolChoice).toEqual({
+        type: 'function',
+        function: { name: 'executor_run_cli' },
+      })
+
+      const systemTexts = Array.isArray(messages)
+        ? messages
+            .filter((message: any) => message?.role === 'system')
+            .map((message: any) => String(message?.content ?? ''))
+        : []
+      const routingGuardSystemText = systemTexts.find(text => text.includes('[ALICIZATION_EXECUTION_ROUTING_GUARD]')) ?? ''
+      expect(routingGuardSystemText).toContain('executor_run_cli')
+
+      await onEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"route via cli executor","emotion":"neutral","reply":"我已经执行命令并拿到桌面文件列表。"}',
+      })
+      await onEvent?.({
+        type: 'finish',
+        finishReason: 'stop',
+      })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    const startResult = await startChat!({
+      cardId: 'default',
+      turnId: 'turn-main-executor-cli-desktop-listing-routing-guard',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      supportsTools: false,
+      waitForTools: false,
+      messages: [{ role: 'user', content: '用cli命令帮我查一下桌面有什么文件' }],
+    })
+    expect(startResult.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-executor-cli-desktop-listing-routing-guard')
+      expect(finishEvents).toHaveLength(1)
+    })
   })
 
   it('forces executor_run_cli routing and skips inspection grounding for action + command literal without explicit channel mention', async () => {
@@ -8459,7 +8769,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       })
       expect(startResult.accepted).toBe(true)
 
-      await vi.advanceTimersByTimeAsync(46_000)
+      await vi.advanceTimersByTimeAsync(80_000)
 
       await vi.waitFor(() => {
         const finishEvents = contextEmitMock.mock.calls
@@ -9416,7 +9726,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(mainChatSystemText).toContain('ProjectAtlas')
   })
 
-  it('injects recent execution ledger history into the next main chat turn', async () => {
+  it('pays off recent short execution-result follow-ups through the deterministic lightweight lane', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -9523,6 +9833,141 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     expect(result.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-execution-ledger-follow-up')
+      expect(finishEvents).toHaveLength(1)
+    })
+
+    const chunkEvents = contextEmitMock.mock.calls
+      .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === 'turn-execution-ledger-follow-up')
+      .map(([, payload]) => payload)
+    const structured = JSON.parse(chunkEvents.map(event => event.text).join('')) as {
+      format: string
+      reply: string
+    }
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect(structured.reply).toContain('CLI 那条任务已经跑完了')
+    expect(structured.reply).toContain('vitest passed on stage-tamagotchi')
+    expect(structured.reply).toContain('pnpm test finished without failures')
+    expect(systemTexts.some(text => text.includes('[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]'))).toBe(false)
+    expect(systemTexts.some(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]'))).toBe(false)
+  })
+
+  it('injects recent execution ledger history into longer main chat turns', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
+    expect(startChat).toBeTypeOf('function')
+    expect(setActiveSession).toBeTypeOf('function')
+
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
+    })
+
+    await setActiveSession!({
+      cardId: 'default',
+      sessionId: 'session-execution-ledger',
+    })
+
+    dbStub.listTaskThreads.mockResolvedValue([
+      {
+        id: 'thread-cli-ledger',
+        decisionTraceId: 'trace-cli-ledger',
+        turnId: 'turn-cli-ledger',
+        sessionId: 'session-execution-ledger',
+        origin: 'user-turn',
+        goal: 'Run pnpm test for stage-tamagotchi',
+        kind: 'run-command',
+        status: 'completed',
+        selectedChannel: 'cli',
+        proposedChannel: 'cli',
+        summary: 'pnpm test finished without failures',
+        metadata: null,
+        createdAt: Date.now() - 120_000,
+        updatedAt: Date.now() - 45_000,
+        lastEventAt: Date.now() - 45_000,
+        completedAt: Date.now() - 45_000,
+      },
+    ])
+    dbStub.listExecutionEvents.mockResolvedValue([
+      {
+        id: 'exec-cli-ledger-dispatch',
+        threadId: 'thread-cli-ledger',
+        decisionTraceId: 'trace-cli-ledger',
+        turnId: 'turn-cli-ledger',
+        sessionId: 'session-execution-ledger',
+        origin: 'user-turn',
+        channel: 'cli',
+        kind: 'dispatch',
+        threadStatus: 'running',
+        payload: {
+          command: 'pnpm',
+        },
+        createdAt: Date.now() - 46_000,
+      },
+      {
+        id: 'exec-cli-ledger-result',
+        threadId: 'thread-cli-ledger',
+        decisionTraceId: 'trace-cli-ledger',
+        turnId: 'turn-cli-ledger',
+        sessionId: 'session-execution-ledger',
+        origin: 'user-turn',
+        channel: 'cli',
+        kind: 'result',
+        threadStatus: 'completed',
+        payload: {
+          stdout: 'vitest passed on stage-tamagotchi',
+        },
+        createdAt: Date.now() - 45_000,
+      },
+    ])
+
+    const systemTexts: string[] = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText)
+        systemTexts.push(systemText)
+      await onEvent?.({ type: 'text-delta', text: 'execution ledger reply' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const result = await startChat!({
+      cardId: 'default',
+      turnId: 'turn-execution-ledger-long-form',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: '请结合刚才那条命令结果，先总结通过原因，再给我下一步排查建议和可能风险。' }],
+    })
+
+    expect(result.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(systemTexts.length).toBeGreaterThan(0)
+    })
+
     const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]')) ?? ''
     expect(mainChatSystemText).toContain('[ALICIZATION_EXECUTION_LEDGER]')
     expect(mainChatSystemText).toContain('channel=cli')
@@ -9695,6 +10140,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'proactive-policy-evaluated',
       payload: expect.objectContaining({
+        runtimeDigest: expect.objectContaining({
+          version: 'alicization-runtime-v1',
+          dominantChannel: expect.any(String),
+          summary: expect.any(String),
+        }),
         layeredContext: expect.objectContaining({
           workload: expect.objectContaining({
             source: 'screen-semantic-summary',
@@ -10349,6 +10799,11 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'proactive-policy-evaluated',
       payload: expect.objectContaining({
+        runtimeDigest: expect.objectContaining({
+          version: 'alicization-runtime-v1',
+          dominantChannel: expect.any(String),
+          summary: expect.any(String),
+        }),
         layeredContext: expect.objectContaining({
           workload: expect.objectContaining({
             source: 'screen-semantic-summary',

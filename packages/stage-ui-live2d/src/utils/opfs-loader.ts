@@ -153,6 +153,23 @@ export class OPFSCache {
     }
   }
 
+  static shouldHandleSourceUrl(sourceUrl?: string): boolean {
+    if (!sourceUrl)
+      return false
+
+    if (sourceUrl.startsWith('blob:'))
+      return true
+
+    // NOTICE: Packaged Electron stage presets resolve to file:// asset URLs.
+    // pixi-live2d-display's upstream XHR loader accepts file:// responses with status 0,
+    // but fetch(file://...) fails in the renderer and prevents the model from mounting.
+    // Skip OPFS interception here so packaged desktop builds can load preset Live2D zips.
+    if (sourceUrl.startsWith('file:'))
+      return false
+
+    return sourceUrl.endsWith('.zip')
+  }
+
   // Runs before ZipLoader to check if the file is already cached
   static checkMiddleware: Middleware<OPFSContext> = async (context, next) => {
     const source = context.source
@@ -174,7 +191,7 @@ export class OPFSCache {
     }
 
     // check if url is blob or zip, pass through if not
-    if (!key || !blobUrl || (!blobUrl.startsWith('blob:') && !blobUrl.endsWith('.zip'))) {
+    if (!key || !blobUrl || !OPFSCache.shouldHandleSourceUrl(blobUrl)) {
       context.source = blobUrl
       return next()
     }

@@ -13,6 +13,11 @@ import { randomUUID } from 'node:crypto'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import {
+  buildAlicizationRuntimeSystemBlock,
+  deriveAlicizationAgentRuntimeTelemetryFromSession,
+  deriveAlicizationRuntimeSnapshot,
+} from './alicization-runtime-architecture'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import {
   buildAlicizationDigitalLifeArchitectureSystemBlock,
@@ -566,6 +571,16 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
       const architectureBlock = buildAlicizationDigitalLifeArchitectureSystemBlock(
         session.digitalLifeSpine?.architecture ?? session.digitalLifeArchitecture,
       )
+      const runtimeDigestBlock = buildAlicizationRuntimeSystemBlock(
+        deriveAlicizationRuntimeSnapshot({
+          spine: session.digitalLifeSpine,
+          agentRuntime: deriveAlicizationAgentRuntimeTelemetryFromSession({
+            tasks: session.tasks,
+            continuitySignals: session.continuitySignals,
+            lastSensorySnapshot: session.lastSensorySnapshot,
+          }),
+        }),
+      )
       return [
         '[ALICIZATION_AGENT_SESSION]',
         `agent_session_id=${session.id}`,
@@ -578,6 +593,7 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
         `memory_fabric=${sanitizeSummary(digitalLifeDigest?.memory?.summary ?? '', 220) || 'none'}`,
         `memory_carry=${sanitizeSummary(memoryCarryPolicy.summary, 220) || 'none'}`,
         architectureBlock,
+        runtimeDigestBlock,
         recentContinuitySignals.length > 0
           ? 'session_continuity_inbox:'
           : 'session_continuity_inbox=empty',

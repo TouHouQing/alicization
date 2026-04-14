@@ -1,5 +1,6 @@
 import type {
   AlicizationClawFabricPlan,
+  AlicizationClawTaskIntent,
   AlicizationExecutionChannel,
   AlicizationExecutionEventInput,
   AlicizationExecutionEventKind,
@@ -12,6 +13,10 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
+import type {
+  AlicizationClawFabricChannelOutcomeSummary,
+  AlicizationClawFabricExperience,
+} from './claw-fabric'
 import type { AlicizationTaskThreadPlanningDraft, AlicizationTaskThreadPlanningInput } from './task-thread-governor'
 
 import { alicizationExecutionChannels } from './claw-fabric'
@@ -40,7 +45,19 @@ export interface AlicizationGovernedTaskThreadPlanningResult extends Alicization
   governor: AlicizationTaskExecutionGovernorSnapshot
 }
 
+export interface AlicizationTaskRoutingAssessment {
+  channel: AlicizationExecutionChannel
+  confidence?: number | null
+  reason?: string | null
+}
+
 interface AlicizationTaskExecutionGovernorOptions {
+  assessTaskRouting?: (input: {
+    task: AlicizationTaskThreadPlanningInput['task']
+    capabilities: AlicizationTaskThreadPlanningInput['capabilities']
+    activeThreads: AlicizationTaskThreadRecord[]
+    settledThreads: AlicizationTaskThreadRecord[]
+  }) => AlicizationTaskRoutingAssessment | null | Promise<AlicizationTaskRoutingAssessment | null>
   dedupeWindowMs?: number
   getNow?: () => number
   maxActiveThreadsPerSession?: number
@@ -75,6 +92,12 @@ const activeTaskThreadStatuses: AlicizationTaskThreadStatus[] = [
   'blocked',
 ]
 
+const settledTaskThreadStatuses: AlicizationTaskThreadStatus[] = [
+  'completed',
+  'failed',
+  'cancelled',
+]
+
 const dispatchableTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
   'planned',
   'needs-affirmation',
@@ -83,6 +106,17 @@ const dispatchableTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
 ])
 
 const executionChannelSet = new Set<AlicizationExecutionChannel>(alicizationExecutionChannels)
+const goalTokenPattern = /[\p{L}\p{N}_-]+/gu
+const goalAffinityStatusWeight: Record<AlicizationTaskThreadStatus, number> = {
+  'planned': 0.55,
+  'needs-affirmation': 0.2,
+  'running': 1.1,
+  'paused': 0.35,
+  'blocked': 0.1,
+  'completed': 1.4,
+  'failed': -1.15,
+  'cancelled': -0.6,
+}
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -116,6 +150,224 @@ function asExecutionChannelArray(raw: unknown) {
         .map(value => sanitizeText(value, 120))
         .filter((value): value is AlicizationExecutionChannel => executionChannelSet.has(value as AlicizationExecutionChannel))
     : []
+}
+
+function normalizeRoutingAssessment(raw: AlicizationTaskRoutingAssessment | null | undefined) {
+  if (!raw)
+    return null
+
+  const channel = sanitizeText(raw.channel, 80)
+  if (!channel || !executionChannelSet.has(channel as AlicizationExecutionChannel))
+    return null
+
+  const numericConfidence = Number(raw.confidence)
+  const confidence = Number.isFinite(numericConfidence)
+    ? Math.max(0, Math.min(1, numericConfidence))
+    : null
+
+  return {
+    channel: channel as AlicizationExecutionChannel,
+    confidence,
+    reason: sanitizeText(raw.reason, 220) || null,
+  } as const
+}
+
+function tokenizeGoal(raw: unknown) {
+  const normalized = normalizeSignatureText(raw, 360)
+  if (!normalized)
+    return []
+  const matches = normalized.match(goalTokenPattern)
+  if (!Array.isArray(matches))
+    return []
+  return [...new Set(matches.filter(token => token.length > 1))]
+}
+
+function computeGoalSimilarity(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0)
+    return 0
+  const rightSet = new Set(right)
+  let overlap = 0
+  for (const token of left) {
+    if (rightSet.has(token))
+      overlap += 1
+  }
+  if (overlap === 0)
+    return 0
+  const union = new Set([...left, ...right]).size
+  if (union <= 0)
+    return 0
+  return overlap / union
+}
+
+function deriveGoalAffinityChannel(input: {
+  activeThreads: AlicizationTaskThreadRecord[]
+  settledThreads: AlicizationTaskThreadRecord[]
+  task: Pick<AlicizationClawTaskIntent, 'goal' | 'kind'>
+}) {
+  const taskTokens = tokenizeGoal(input.task.goal)
+  if (taskTokens.length === 0)
+    return null
+
+  const scoreByChannel = new Map<AlicizationExecutionChannel, {
+    evidenceCount: number
+    score: number
+  }>()
+  for (const thread of [...input.activeThreads, ...input.settledThreads]) {
+    const channel = resolveThreadChannel(thread)
+    if (!channel)
+      continue
+    const statusWeight = goalAffinityStatusWeight[thread.status]
+    if (!Number.isFinite(statusWeight) || statusWeight === 0)
+      continue
+
+    const similarity = computeGoalSimilarity(taskTokens, tokenizeGoal(thread.goal))
+    if (similarity <= 0)
+      continue
+
+    const kindWeight = thread.kind === input.task.kind ? 1.25 : 0.9
+    const contribution = similarity * statusWeight * kindWeight
+    if (!Number.isFinite(contribution) || contribution === 0)
+      continue
+
+    const current = scoreByChannel.get(channel) ?? {
+      evidenceCount: 0,
+      score: 0,
+    }
+    current.score += contribution
+    current.evidenceCount += 1
+    scoreByChannel.set(channel, current)
+  }
+
+  const ranked = [...scoreByChannel.entries()]
+    .map(([channel, value]) => ({
+      channel,
+      evidenceCount: value.evidenceCount,
+      score: value.score,
+    }))
+    .sort((left, right) => right.score - left.score)
+  const best = ranked[0]
+  if (!best || best.score <= 0.18)
+    return null
+
+  const confidenceRaw = best.score / Math.max(0.75, best.evidenceCount * 0.9)
+  const confidence = Math.max(0, Math.min(1, confidenceRaw))
+  if (confidence <= 0.25)
+    return null
+
+  return {
+    channel: best.channel,
+    score: Number(confidence.toFixed(3)),
+    reason: `similar-goal-history:${best.channel}:${best.evidenceCount}`,
+  } as const
+}
+
+function resolveThreadChannel(
+  thread: Pick<AlicizationTaskThreadRecord, 'selectedChannel' | 'proposedChannel'>,
+): AlicizationExecutionChannel | null {
+  const selected = sanitizeText(thread.selectedChannel, 80)
+  if (selected && executionChannelSet.has(selected as AlicizationExecutionChannel))
+    return selected as AlicizationExecutionChannel
+
+  const proposed = sanitizeText(thread.proposedChannel, 80)
+  if (proposed && executionChannelSet.has(proposed as AlicizationExecutionChannel))
+    return proposed as AlicizationExecutionChannel
+  return null
+}
+
+function addChannelOutcome(
+  bucket: Partial<Record<AlicizationExecutionChannel, AlicizationClawFabricChannelOutcomeSummary>>,
+  channel: AlicizationExecutionChannel,
+  status: AlicizationTaskThreadStatus,
+) {
+  const current = bucket[channel] ?? {}
+  if (status === 'completed') {
+    current.completed = (current.completed ?? 0) + 1
+  }
+  else if (status === 'failed') {
+    current.failed = (current.failed ?? 0) + 1
+  }
+  else if (status === 'cancelled') {
+    current.cancelled = (current.cancelled ?? 0) + 1
+  }
+  else if (status === 'running') {
+    current.running = (current.running ?? 0) + 1
+  }
+  else {
+    current.planned = (current.planned ?? 0) + 1
+  }
+  bucket[channel] = current
+}
+
+function buildClawFabricExperience(input: {
+  activeThreads: AlicizationTaskThreadRecord[]
+  settledThreads: AlicizationTaskThreadRecord[]
+  task: Pick<AlicizationClawTaskIntent, 'goal' | 'kind'>
+  routingAssessment?: AlicizationTaskRoutingAssessment | null
+}): AlicizationClawFabricExperience | null {
+  const channelOutcomes: Partial<Record<AlicizationExecutionChannel, AlicizationClawFabricChannelOutcomeSummary>> = {}
+  const activeChannels: AlicizationExecutionChannel[] = []
+  const routingAssessment = normalizeRoutingAssessment(input.routingAssessment)
+
+  for (const thread of [...input.activeThreads, ...input.settledThreads]) {
+    const channel = resolveThreadChannel(thread)
+    if (!channel)
+      continue
+    addChannelOutcome(channelOutcomes, channel, thread.status)
+  }
+
+  for (const thread of input.activeThreads) {
+    const channel = resolveThreadChannel(thread)
+    if (!channel)
+      continue
+    if (!activeChannels.includes(channel))
+      activeChannels.push(channel)
+  }
+
+  const runningChannel = input.activeThreads
+    .find(thread => thread.status === 'running')
+  const hotChannel = runningChannel
+    ? resolveThreadChannel(runningChannel)
+    : activeChannels[0] ?? null
+  const rankedHistoryChannels = Object.entries(channelOutcomes)
+    .map(([channel, outcome]) => {
+      const completed = Math.max(0, Number(outcome.completed ?? 0))
+      const running = Math.max(0, Number(outcome.running ?? 0))
+      const planned = Math.max(0, Number(outcome.planned ?? 0))
+      const failed = Math.max(0, Number(outcome.failed ?? 0))
+      const cancelled = Math.max(0, Number(outcome.cancelled ?? 0))
+      const score = completed * 3 + running * 2 + planned - failed * 2 - cancelled
+      return {
+        channel,
+        score,
+      }
+    })
+    .filter(item => item.score > 0 && executionChannelSet.has(item.channel as AlicizationExecutionChannel))
+    .sort((left, right) => right.score - left.score)
+  const goalAffinity = deriveGoalAffinityChannel(input)
+  const historyResumeChannel = rankedHistoryChannels[0]?.channel
+  const advisorResumeChannel = (routingAssessment?.confidence ?? 0) >= 0.55
+    ? routingAssessment?.channel ?? null
+    : null
+  const sessionResumeChannel = hotChannel
+    ?? advisorResumeChannel
+    ?? goalAffinity?.channel
+    ?? (historyResumeChannel as AlicizationExecutionChannel | undefined)
+    ?? null
+
+  if (activeChannels.length === 0 && Object.keys(channelOutcomes).length === 0 && !sessionResumeChannel && !goalAffinity && !routingAssessment)
+    return null
+
+  return {
+    sessionResumeChannel,
+    activeChannels,
+    channelOutcomes,
+    goalAffinityChannel: goalAffinity?.channel ?? null,
+    goalAffinityScore: goalAffinity?.score ?? null,
+    goalAffinityReason: goalAffinity?.reason ?? null,
+    advisorChannel: routingAssessment?.channel ?? null,
+    advisorConfidence: routingAssessment?.confidence ?? null,
+    advisorReason: routingAssessment?.reason ?? null,
+  }
 }
 
 function buildThreadGoalSignature(thread: Pick<AlicizationTaskThreadRecord, 'goal' | 'kind' | 'proposedChannel' | 'selectedChannel'>) {
@@ -440,6 +692,7 @@ function createGovernorSnapshot(input: {
 }
 
 export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGovernorOptions = {}) {
+  const assessTaskRouting = options.assessTaskRouting
   const getNow = options.getNow ?? Date.now
   const dedupeWindowMs = Math.max(30_000, Math.floor(options.dedupeWindowMs ?? 10 * 60_000))
   const maxInspectableThreads = Math.max(4, Math.floor(options.maxInspectableThreads ?? 24))
@@ -453,12 +706,8 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
     const now = Number.isFinite(input.now)
       ? Math.max(0, Math.floor(Number(input.now)))
       : getNow()
-    const draft = buildTaskThreadPlanningDraft({
-      ...input,
-      now,
-    })
-    const lookupSessionId = sanitizeText(draft.thread.sessionId, 160)
-    const lookupDecisionTraceId = sanitizeText(draft.thread.decisionTraceId, 160)
+    const lookupSessionId = sanitizeText(input.trace?.sessionId, 160)
+    const lookupDecisionTraceId = sanitizeText(input.trace?.decisionTraceId, 160)
     const comparableThreads = lookupSessionId
       ? await port.listTaskThreads({
           sessionId: lookupSessionId,
@@ -472,6 +721,39 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
             limit: maxInspectableThreads,
           })
         : []
+    const settledComparableThreads = lookupSessionId
+      ? await port.listTaskThreads({
+          sessionId: lookupSessionId,
+          status: settledTaskThreadStatuses,
+          limit: maxInspectableThreads,
+        })
+      : lookupDecisionTraceId
+        ? await port.listTaskThreads({
+            decisionTraceId: lookupDecisionTraceId,
+            status: settledTaskThreadStatuses,
+            limit: maxInspectableThreads,
+          })
+        : []
+    let routingAssessment: AlicizationTaskRoutingAssessment | null = null
+    if (assessTaskRouting && !input.task.requestedChannel) {
+      routingAssessment = await Promise.resolve(assessTaskRouting({
+        task: input.task,
+        capabilities: input.capabilities,
+        activeThreads: comparableThreads,
+        settledThreads: settledComparableThreads,
+      })).catch(() => null)
+    }
+    const experience = buildClawFabricExperience({
+      activeThreads: comparableThreads,
+      settledThreads: settledComparableThreads,
+      task: input.task,
+      routingAssessment,
+    })
+    const draft = buildTaskThreadPlanningDraft({
+      ...input,
+      now,
+      experience,
+    })
 
     const duplicateMatch = matchDuplicateThread({
       draft,

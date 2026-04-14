@@ -194,6 +194,22 @@ describe('browser alicization bridge visual presence listeners', () => {
         type: 'meta',
         governance: { decisionTraceId: 'trace-1' },
         digitalLifeSpine: digest,
+        runtimeDigest: {
+          version: 'alicization-runtime-digest-v1',
+          dominantChannel: 'active-dialogue',
+          shouldProactivelySpeak: true,
+          shouldProactivelyAct: false,
+          continuityPressure: 0.7,
+          companionshipPressure: 0.74,
+          channels: [{
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.86,
+            focus: 'nudge',
+            summary: 'active dialogue hot',
+          }],
+          summary: 'dominant=active-dialogue',
+        },
       },
       { type: 'finish' },
     ]))
@@ -275,6 +291,10 @@ describe('browser alicization bridge visual presence listeners', () => {
         continuitySignal: expect.objectContaining({
           summary: expect.stringContaining('scene=coding'),
         }),
+      }),
+      runtimeDigest: expect.objectContaining({
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
       }),
     }))
 

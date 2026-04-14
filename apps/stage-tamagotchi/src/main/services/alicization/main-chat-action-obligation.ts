@@ -5,6 +5,12 @@ import type {
 
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import {
+  analyzeAlicizationExecutionSemanticSignals,
+  analyzeAlicizationExecutionTurnAuthority,
+  hasExplicitAlicizationExecutionDemand,
+} from '@proj-alicization/stage-shared'
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -21,10 +27,6 @@ function unique<T>(values: T[]) {
   return [...new Set(values)]
 }
 
-const terminalActionCuePattern = /\b(?:typecheck|lint|build|test|vitest|eslint|prettier|pnpm|npm|yarn|bun|git|node|python|tsc|vue-tsc)\b|命令|终端|控制台|shell|cli|跑一下|跑个|执行下|执行一下|编译|构建|测试/iu
-const taskExecutionCuePattern = /\b(?:run|execute|fix|patch|implement|edit|modify|refactor|trace|investigate|debug|review|continue|resume|finish|check)\b|帮我(?:[跑修改查看]|执行|排查|定位|处理|完成|继续)|修一下|改一下|补一下|跑一下|查一下|看下|看一下|排查|定位|调查|重构|继续|接着|处理一下|搞一下/iu
-const visualActionCuePattern = /\b(?:click|close|open|drag|scroll|dismiss|move)\b|点击|关闭|打开|拖动|滚动|关掉|点掉|移动|弹窗/iu
-
 type AlicizationDispatchChannel = AlicizationExecutionRoutingIntent['requestedChannels'][number]
 type AlicizationExecutorToolName = AlicizationExecutionRoutingIntent['requiredToolNames'][number]
 
@@ -34,6 +36,7 @@ const executionRoutingToolMap: Record<AlicizationDispatchChannel, AlicizationExe
   'claude-code': 'executor_run_claude_code',
   'openclaw': 'executor_run_openclaw',
 }
+const continuationCuePattern = /继续|接着|接下来|续上|接上|沿着刚才|按刚才|照刚才|continue|keep\s+going|go\s+on|resume|carry\s+on|pick\s+up\s+where\s+we\s+left\s+off/iu
 
 export type AlicizationMainChatActionObligationKind
   = | 'answer'
@@ -71,20 +74,23 @@ function buildRoutingIntent(input: {
 function inferTaskExecutionChannels(input: {
   dialogueFirst: boolean
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  userText: string
+  userSemanticSignals: ReturnType<typeof analyzeAlicizationExecutionSemanticSignals>
 }) {
   const runtimeSurface = input.runtimeSurface ?? null
   const dialogueEncounter = runtimeSurface?.dialogue.dialogueEncounter ?? null
   const discourseState = runtimeSurface?.dialogue.discourseState ?? null
   const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? null
   const activeThread = runtimeSurface?.world.worldModel?.activeThread ?? null
-  const userText = sanitizeText(input.userText, 320)
   const taskAnchor = sanitizeText(dialogueEncounter?.taskAnchor, 180)
   const threadAnchor = sanitizeText(activeThread?.title ?? activeThread?.summary, 180)
   const combinedAnchor = `${taskAnchor} ${threadAnchor}`.trim()
-  const terminalLike = terminalActionCuePattern.test(userText)
+  const terminalLike = input.userSemanticSignals.hasCommandLiteral
+    || input.userSemanticSignals.hasCommandToken
+    || input.userSemanticSignals.hasShellLikeStructure
+    || input.userSemanticSignals.hasToolReference
+    || (input.userSemanticSignals.hasFilesystemPathReference && input.userSemanticSignals.hasExecutionSignal)
     || /\b(?:terminal|shell|cli)\b/iu.test(combinedAnchor)
-  const visualLike = visualActionCuePattern.test(userText)
+  const visualLike = (input.userSemanticSignals.hasBrowserArtifact || input.userSemanticSignals.hasSoftwareArtifact)
     && (
       dialogueEncounter?.subject === 'visible-scene'
       || dialogueEncounter?.screenReferenceMode === 'required'
@@ -96,10 +102,14 @@ function inferTaskExecutionChannels(input: {
     || activeThread?.kind === 'recovery'
   const codingIntentLike = discourseState?.owedAction === 'guide-task'
     || currentConsciousFrame?.centerOfGravity === 'guide'
+    || input.userSemanticSignals.hasCodeArtifact
     || /\b(?:diff|patch|refactor|trace|review|debug|code|bug|regression)\b/iu.test(combinedAnchor)
     || /代码|报错|回归|改动|补丁|重构|调试/u.test(combinedAnchor)
+  const explicitExecutionDemand = hasExplicitAlicizationExecutionDemand(input.userSemanticSignals)
 
-  if (input.dialogueFirst)
+  if (input.userSemanticSignals.mentionedDispatchChannels.length > 0)
+    return input.userSemanticSignals.mentionedDispatchChannels
+  if (input.dialogueFirst && !explicitExecutionDemand)
     return [] as AlicizationDispatchChannel[]
   if (visualLike)
     return ['openclaw'] as AlicizationDispatchChannel[]
@@ -108,6 +118,12 @@ function inferTaskExecutionChannels(input: {
   if (codingThreadLike || codingIntentLike)
     return ['codex', 'claude-code'] as AlicizationDispatchChannel[]
   return [] as AlicizationDispatchChannel[]
+}
+
+function hasContinuationCue(userText: string) {
+  if (!userText)
+    return false
+  return continuationCuePattern.test(userText)
 }
 
 export function deriveMainChatActionObligation(input: {
@@ -124,14 +140,21 @@ export function deriveMainChatActionObligation(input: {
   const activeThread = runtimeSurface?.world.worldModel?.activeThread ?? null
   const explicitRoutingIntent = input.explicitRoutingIntent ?? null
   const userText = sanitizeText(input.userText, 320)
+  const executionTurnAuthority = analyzeAlicizationExecutionTurnAuthority(userText)
+  const userSemanticSignals = executionTurnAuthority.semanticSignals
   const dialogueFirst = dialogueEncounter?.dialogueFirst === true || discourseState?.screenReferenceMode === 'avoid'
-  const continuationRequested = dialogueEncounter?.act === 'continue-thread'
-    || (
-      conversationState?.shouldHoldThread === true
-      && conversationState?.continuityPolicy === 'stay-on-thread'
-      && activeThread?.unresolved === true
-    )
-  const wantsTaskExecution = taskExecutionCuePattern.test(userText)
+  const wantsTaskExecution = executionTurnAuthority.executionBound || Boolean(explicitRoutingIntent)
+  const explicitExecutionDemand = executionTurnAuthority.explicitExecutionDemand
+  const continuationCueActive = hasContinuationCue(userText)
+  const continuityPolicyHoldsTaskThread = Boolean(
+    conversationState?.shouldHoldThread === true
+    && conversationState?.continuityPolicy === 'stay-on-thread'
+    && activeThread?.unresolved === true
+  )
+  const continuationRequested = (
+    dialogueEncounter?.act === 'continue-thread'
+    || continuityPolicyHoldsTaskThread
+  ) && (continuationCueActive || wantsTaskExecution)
 
   if (input.capabilityInquiry.capabilityQuestion) {
     return {
@@ -190,6 +213,7 @@ export function deriveMainChatActionObligation(input: {
       reasonCodes: unique([
         continuationRequested ? 'continue-thread' : 'execute-now',
         'explicit-routing-intent',
+        continuationCueActive ? 'continuation-cue' : '',
         ...explicitRoutingIntent.reasonCodes,
       ]),
     }
@@ -222,7 +246,7 @@ export function deriveMainChatActionObligation(input: {
   const inferredChannels = inferTaskExecutionChannels({
     dialogueFirst,
     runtimeSurface,
-    userText,
+    userSemanticSignals,
   })
   const taskBoundTurn = dialogueEncounter?.mustStayTaskBound === true
     || discourseState?.owedAction === 'guide-task'
@@ -231,9 +255,13 @@ export function deriveMainChatActionObligation(input: {
     channels: inferredChannels,
     reasonCodes: [
       continuationRequested ? 'continue-thread' : 'execute-now',
+      continuationCueActive ? 'continuation-cue' : '',
       wantsTaskExecution ? 'task-execution-cue' : '',
+      userSemanticSignals.hasExecutionSignal ? 'semantic-execution-signal' : '',
+      dialogueFirst && explicitExecutionDemand ? 'dialogue-first-explicit-execution-demand' : '',
       taskBoundTurn ? 'task-bound-turn' : '',
       activeThread?.unresolved ? 'unresolved-active-thread' : '',
+      ...userSemanticSignals.mentionedDispatchChannels.map(channel => `mentioned-dispatch:${channel}`),
       discourseState?.owedAction ? `owed-action:${discourseState.owedAction}` : '',
       currentConsciousFrame?.centerOfGravity ? `center-of-gravity:${currentConsciousFrame.centerOfGravity}` : '',
     ].filter(Boolean),
@@ -243,7 +271,7 @@ export function deriveMainChatActionObligation(input: {
     inferredRoutingIntent
     && (
       continuationRequested
-      || (wantsTaskExecution && (terminalActionCuePattern.test(userText) || taskBoundTurn))
+      || (wantsTaskExecution && (inferredChannels.length > 0 || taskBoundTurn))
     )
   ) {
     return {

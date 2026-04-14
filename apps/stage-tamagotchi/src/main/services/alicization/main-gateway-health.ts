@@ -2,6 +2,7 @@ export const mainGatewayReachabilityProbeTimeoutMs = 3_500
 export const mainGatewayReachabilitySuccessTtlMs = 60_000
 export const mainGatewayReachabilityFailureTtlMs = 60_000
 export const mainGatewayChatTimeoutFailureCode = 'CHAT_TIMEOUT'
+export const mainGatewayChatTimeoutFailureTtlMs = 8_000
 
 export interface AlicizationMainGatewayHealthCacheEntry {
   reachable: boolean

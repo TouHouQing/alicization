@@ -19,17 +19,21 @@ import type {
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 
-import messages from '@proj-alicization/i18n/locales'
-
-import { resolveLocalePreference } from '@proj-alicization/i18n'
 import {
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
   buildMindGovernedFallbackSurface,
+  formatGovernedMindMessage,
+  governedMindFallbackLocale,
+  governedMindFallbackMessageFallbacks,
+  inferGovernedMindFallbackLocaleForUserText,
   isWeakAlicizationScreenSurfaceCue,
+  normalizeExecutionFirstGovernance,
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeSpineDigest,
+  replyViolatesExecutionFirstSurface,
   replyLeaksGovernedMindSurface,
+  replyLooksOrganicDirectAnswer,
   replyLooksCoherentSceneAnswer,
   replyLooksThinGovernedShell,
   resolveAlicizationDialogueEmbodiment,
@@ -37,9 +41,8 @@ import {
   shouldDeferGovernedMindLocalRepair,
   shouldForceGovernedMindSurface,
   shouldPreserveDialogueFirstVisibleReply,
+  translateGovernedMindFallback as translateGovernedMindFallbackShared,
 } from '@proj-alicization/stage-shared'
-import { app } from 'electron'
-
 import {
   clampAlicizationPerformancePayloadToManifest,
   normalizeAlicizationEmotion,
@@ -54,6 +57,7 @@ import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { anchorsMateriallyConflict, resolveDialogueAnchorCoherence } from './dialogue-anchor-coherence'
 import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
+import { renderAlicizationMindSurface } from './mind-surface-renderer'
 import { ensureMindGovernanceDecisionTraceId, sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 import { sanitizeBriefText, uniqueCarryAnchors } from './runtime-realtime'
@@ -389,6 +393,11 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
         'watch-mode-symbiotic',
         'watch-mode-invited-inspection',
         'watch-mode-recovering',
+        'runtime-dialogue-ready',
+        'runtime-observe-dominant',
+        'runtime-control-ready',
+        'runtime-continuity-pressure',
+        'runtime-companionship-pressure',
       ].includes(reasonCode)
     })
 
@@ -709,121 +718,14 @@ export function thoughtConflictsWithMindGovernance(thought: string, governance: 
     )
 }
 
-export type LocalizedMessageTree = Record<string, unknown>
-
-export const governedMindFallbackLocale = resolveLocalePreference(
-  typeof app.getLocale === 'function' ? app.getLocale() : undefined,
-  'en',
-)
-export const governedMindLocalizedMessages = messages as Record<string, LocalizedMessageTree>
-export const governedMindFallbackMessageFallbacks = {
-  'en': {
-    'mind-fallback.focus-default': 'the current thing',
-    'mind-fallback.repair-stale-anchor': 'Let me correct that first: what I used before was a stale anchor, so I should not keep treating it as your current screen.',
-    'mind-fallback.repair-need-reground': 'Let me hold the truth boundary first: I do not have a stable enough live view this turn, so I will not treat older memory as your current screen.',
-    'mind-fallback.dialogue-boundary-memory': 'This turn I will stay with what you just said instead of forcing an old screen or thread back over it.',
-    'mind-fallback.care-body': 'You do not have to sort it out first. I am here with you, and if you want, you can tell me what hit you this way.',
-    'mind-fallback.accompany-body': 'I heard this clearly. If you want, stay here with me a little, or tell me the part that is catching on you.',
-    'mind-fallback.answer-repair-body': 'What I meant is this: I should answer your current turn plainly, not keep dragging an old screen thread forward as if it were now.',
-    'mind-fallback.answer-dialogue-body': 'So I will answer your current turn plainly and keep the reply on this line.',
-    'mind-fallback.guide-opening': 'Let me lock onto the current point first: {focus}.',
-    'mind-fallback.guide-opening-plain': 'Let me lock onto the current point first.',
-    'mind-fallback.care-opening': 'Let me answer from your current state first: {focus}.',
-    'mind-fallback.care-opening-plain': 'Let me answer your current state directly first.',
-    'mind-fallback.accompany-opening': 'Let me hold this line with you first: {focus}.',
-    'mind-fallback.accompany-opening-plain': 'Let me stay with this line directly first.',
-    'mind-fallback.observation-opening': 'I can see this now: {focus}.',
-    'mind-fallback.observation-opening-plain': 'I can see it clearly now.',
-    'mind-fallback.answer-opening': 'Let me answer from what is in front of you first: {focus}.',
-    'mind-fallback.answer-opening-plain': 'Let me answer directly.',
-    'mind-fallback.carry-memory': 'I am still holding the previous line, {carry}, but that is carried continuity, not a claim about what is literally on your screen right now.',
-    'mind-fallback.reground-note': 'If you want me to get specific about the current screen, I will reground on the fresh view from this turn.',
-  },
-  'zh-Hans': {
-    'mind-fallback.focus-default': '当前这件事',
-    'mind-fallback.repair-stale-anchor': '我先纠正一下：刚才那是旧锚点，不该继续当成你现在的画面。',
-    'mind-fallback.repair-need-reground': '我先守住真实边界：这轮没有足够稳的实时画面根据，我不把旧记忆当成当前屏幕。',
-    'mind-fallback.dialogue-boundary-memory': '这轮我先留在你刚才这句话里，不把旧画面或旧线程硬套回现在。',
-    'mind-fallback.care-body': '你不用先把话整理好，我先陪你把这一下接住；如果你愿意，就把让你难受的那件事慢慢告诉我。',
-    'mind-fallback.accompany-body': '我听见你这句了。你想让我安静陪着你一会儿，还是把卡住你的那一点慢慢说给我？',
-    'mind-fallback.answer-repair-body': '我刚才那句真正的意思是：这轮我该先正面回答你，不该把旧画面或旧线程继续当成现在。',
-    'mind-fallback.answer-dialogue-body': '那我就把这句正面说清，不把话题再滑回别的线。',
-    'mind-fallback.guide-opening': '先抓当前这个点：{focus}。',
-    'mind-fallback.guide-opening-plain': '先抓住当前这个点。',
-    'mind-fallback.care-opening': '我先按你现在的状态说：{focus}。',
-    'mind-fallback.care-opening-plain': '我先直接接住你这句。',
-    'mind-fallback.accompany-opening': '我先陪你把这条线稳住：{focus}。',
-    'mind-fallback.accompany-opening-plain': '我先直接接你这句。',
-    'mind-fallback.observation-opening': '我现在看到的是：{focus}。',
-    'mind-fallback.observation-opening-plain': '我现在能看清这一幕。',
-    'mind-fallback.answer-opening': '先按你眼前这件事说：{focus}。',
-    'mind-fallback.answer-opening-plain': '我直接说。',
-    'mind-fallback.carry-memory': '我还记着上一条线是 {carry}，但那是我还在续持的线程，不是我断定你现在屏幕上的内容。',
-    'mind-fallback.reground-note': '如果你要我具体到当前屏幕细节，我会按这次的新画面重新落地。',
-  },
-} as const
-
-export function readGovernedMindMessage(path: string, locale: string) {
-  const readFromTree = (tree: LocalizedMessageTree | undefined) => path
-    .split('.')
-    .reduce<unknown>((current, segment) => {
-      if (!current || typeof current !== 'object' || Array.isArray(current))
-        return undefined
-      return (current as LocalizedMessageTree)[segment]
-    }, tree)
-
-  const localized = readFromTree(governedMindLocalizedMessages[locale])
-  if (typeof localized === 'string')
-    return localized
-
-  const fallback = readFromTree(governedMindLocalizedMessages.en)
-  return typeof fallback === 'string' ? fallback : null
+export {
+  formatGovernedMindMessage,
+  governedMindFallbackLocale,
+  governedMindFallbackMessageFallbacks,
+  inferGovernedMindFallbackLocaleForUserText,
 }
 
-export function formatGovernedMindMessage(template: string, params?: Record<string, unknown>) {
-  if (!params)
-    return template
-
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => {
-    if (!(key in params))
-      return `{${key}}`
-    const value = params[key]
-    return value == null ? '' : String(value)
-  })
-}
-
-export function inferGovernedMindFallbackLocaleForUserText(userText?: string) {
-  const normalized = sanitizeBriefText(userText ?? '', 240)
-  if (!normalized)
-    return governedMindFallbackLocale
-  if (/[\u4E00-\u9FFF]/u.test(normalized))
-    return 'zh-Hans'
-  if (/[\u3040-\u30FF]/u.test(normalized))
-    return 'ja'
-  if (/[\uAC00-\uD7AF]/u.test(normalized))
-    return 'ko'
-  if (/[\u0400-\u04FF]/u.test(normalized))
-    return 'ru'
-  return governedMindFallbackLocale
-}
-
-export function translateGovernedMindFallback(path: string, params?: Record<string, unknown>, userText?: string) {
-  const candidatePaths = [path, `chat.${path}`]
-  const preferredLocale = inferGovernedMindFallbackLocaleForUserText(userText)
-  for (const candidatePath of candidatePaths) {
-    const localized = readGovernedMindMessage(candidatePath, preferredLocale)
-    if (localized)
-      return formatGovernedMindMessage(localized, params)
-  }
-
-  const localizedFallback
-    = governedMindFallbackMessageFallbacks[preferredLocale as keyof typeof governedMindFallbackMessageFallbacks]?.[path as keyof typeof governedMindFallbackMessageFallbacks.en]
-      ?? governedMindFallbackMessageFallbacks.en[path as keyof typeof governedMindFallbackMessageFallbacks.en]
-  if (localizedFallback)
-    return formatGovernedMindMessage(localizedFallback, params)
-
-  return candidatePaths.at(-1) ?? path
-}
+export const translateGovernedMindFallback = translateGovernedMindFallbackShared
 
 export type DialogueScriptFamily = 'none' | 'mixed' | 'cjk' | 'cyrillic' | 'latin'
 
@@ -1597,10 +1499,15 @@ export function coerceConversationTurnToMindGovernedPayload(
     decisionTraceId: ensureMindGovernanceDecisionTraceId(resolvedGovernance.decisionTraceId),
   } satisfies AlicizationMindTurnGovernance
   const governedAnchorRepair = reconcileMindGovernanceAnchors(tracedGovernance, input.userText)
-  const coherentGovernance = {
+  const anchorCoherentGovernance = {
     ...governedAnchorRepair.governance,
     decisionTraceId: ensureMindGovernanceDecisionTraceId(governedAnchorRepair.governance.decisionTraceId),
   } satisfies AlicizationMindTurnGovernance
+  const executionFirstGovernance = normalizeExecutionFirstGovernance({
+    governance: anchorCoherentGovernance,
+    userText: input.userText,
+  })
+  const coherentGovernance = (executionFirstGovernance.governance ?? anchorCoherentGovernance) as AlicizationMindTurnGovernance
   const normalizedEmotion = resolveMindGovernanceEmotion(
     coherentGovernance,
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
@@ -1611,7 +1518,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     userText: input.userText,
     translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
   })
-  const strictGovernance = shouldForceGovernedMindSurface(coherentGovernance)
+  const strictGovernance = shouldForceGovernedMindSurface(coherentGovernance, input.userText)
   const initialDialogueFirstVisibleReply = analyzeDialogueFirstVisibleReply({
     reply,
     userText: input.userText,
@@ -1633,7 +1540,12 @@ export function coerceConversationTurnToMindGovernedPayload(
         droppedClauses: [] as string[],
       }
   const candidateReply = dialogueFirstSoftRepair.applied ? dialogueFirstSoftRepair.reply : reply
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(candidateReply, coherentGovernance)
+  const leakedGovernedSurface = replyLeaksGovernedMindSurface(candidateReply, coherentGovernance, input.userText)
+  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
+    reply: candidateReply,
+    governance: coherentGovernance,
+    userText: input.userText,
+  })
   const weakGroundedSceneCue = replyUsesWeakGroundedSceneCue(candidateReply, coherentGovernance)
   const unsupportedTechnicalSpecificity = analyzeUnsupportedTechnicalSpecificity({
     reply: candidateReply,
@@ -1642,7 +1554,7 @@ export function coerceConversationTurnToMindGovernedPayload(
   })
   const conflictingAnchors = detectReplyConflictingAnchors(
     candidateReply,
-    resolvedGovernance,
+    coherentGovernance,
     governedAnchorRepair.coherence.dominant ?? coherentGovernance.focusAnchor,
   )
   const scriptMismatch = replyScriptMismatchesUserTurn({
@@ -1662,6 +1574,7 @@ export function coerceConversationTurnToMindGovernedPayload(
         forceDialogueAnswerFallback: true,
       })
     : initialGovernedSurface
+  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
   const thinGovernedShell = governedSurface
     ? replyLooksThinGovernedShell(candidateReply, governedSurface.reply, coherentGovernance, governedSurface.thinShellCue)
     : false
@@ -1669,6 +1582,12 @@ export function coerceConversationTurnToMindGovernedPayload(
     reply: candidateReply,
     governance: coherentGovernance,
     userText: input.userText,
+  })
+  const organicDirectReply = replyLooksOrganicDirectAnswer({
+    reply: candidateReply,
+    governance: coherentGovernance,
+    userText: input.userText,
+    thinShellCue: governedSurface?.thinShellCue,
   })
   const hasMindThought = hasMindTurnSpine(thought)
   const missingMindThought = !hasMindThought
@@ -1682,8 +1601,11 @@ export function coerceConversationTurnToMindGovernedPayload(
     missingMindThought ? 'thought-missing-mind-spine' : '',
     thoughtConflict ? 'thought-governance-mismatch' : '',
     governedAnchorRepair.changed ? 'governance-anchor-coherence-repaired' : '',
+    executionFirstGovernance.applied ? 'execution-first-governance-override' : '',
+    dispatchOnlyVisibleOverride ? 'execution-first-dispatch-hidden' : '',
     dialogueFirstSoftRepair.applied ? 'dialogue-first-visible-reply-soft-repaired' : '',
     strictGovernance ? 'strict-governance-surface' : '',
+    executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
     leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
     weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
     unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
@@ -1696,14 +1618,20 @@ export function coerceConversationTurnToMindGovernedPayload(
   ].filter(Boolean)
 
   const hardOverrideRequired = Boolean(
-    leakedGovernedSurface
-    || weakGroundedSceneCue
-    || unsupportedTechnicalSpecificity.shouldOverride
-    || scriptMismatch
-    || conflictingAnchors.hasConflict
-    || dialogueFirstOverrideRequired,
+    executionSurfaceViolation
+    || leakedGovernedSurface
+    || (
+      weakGroundedSceneCue
+      || unsupportedTechnicalSpecificity.shouldOverride
+      || scriptMismatch
+      || conflictingAnchors.hasConflict
+      || dialogueFirstOverrideRequired
+    ),
   )
-  const thinShellOverrideRequired = Boolean(thinGovernedShell && !preserveDialogueFirstVisibleReply)
+  const thinShellOverrideRequired = Boolean(
+    thinGovernedShell
+    && !preserveDialogueFirstVisibleReply,
+  )
   const strictOverrideRequired = strictGovernance
   const explicitRepairTurn = isExplicitGovernanceRepairTurn(coherentGovernance)
   const strictRepairReplySuppressed = Boolean(
@@ -1711,7 +1639,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     && !hardOverrideRequired
     && !thinShellOverrideRequired
     && explicitRepairTurn
-    && coherentSceneReply,
+    && (coherentSceneReply || organicDirectReply),
   )
   const softStrictOverrideSuppressed = Boolean(
     strictOverrideRequired
@@ -1721,9 +1649,11 @@ export function coerceConversationTurnToMindGovernedPayload(
   if (softStrictOverrideSuppressed)
     reasons.push('soft-strict-governance-suppressed')
   if (strictRepairReplySuppressed)
-    reasons.push('strict-repair-scene-reply-preserved')
+    reasons.push(coherentSceneReply
+      ? 'strict-repair-scene-reply-preserved'
+      : 'strict-repair-organic-reply-preserved')
   const shouldOverrideVisibleReply = Boolean(
-    governedSurface?.reply
+    governedSurface && (dispatchOnlyVisibleOverride || governedSurface.reply)
     && (
       hardOverrideRequired
       || thinShellOverrideRequired
@@ -1748,6 +1678,7 @@ export function coerceConversationTurnToMindGovernedPayload(
   const fallbackPatternId = resolveGovernedFallbackPatternId(coherentGovernance, shouldOverrideVisibleReply)
   const hardFallbackReason = shouldOverrideVisibleReply && hardOverrideRequired
     ? [
+        executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
         leakedGovernedSurface ? 'reply-leaked-internal-governance' : '',
         weakGroundedSceneCue ? 'reply-used-weak-grounded-scene-cue' : '',
         unsupportedTechnicalSpecificity.unsupportedCues.length > 0 ? 'reply-introduced-unsupported-technical-specificity' : '',
@@ -1756,17 +1687,33 @@ export function coerceConversationTurnToMindGovernedPayload(
         dialogueFirstOverrideRequired ? 'dialogue-first-visible-reply-contaminated' : '',
       ].find(Boolean) ?? 'hard-governance-fallback'
     : null
-  const finalReply = shouldOverrideVisibleReply && governedSurface?.reply
-    ? governedSurface.reply
+  const renderedOverrideSurface = shouldOverrideVisibleReply
+    ? renderAlicizationMindSurface({
+        governance: coherentGovernance,
+        userText: input.userText,
+        moves: [],
+        forceDialogueAnswerFallback: dialogueFirstOverrideRequired && !initialGovernedSurface?.reply,
+      })
+    : null
+  const finalReply = shouldOverrideVisibleReply
+    ? (dispatchOnlyVisibleOverride ? '' : (renderedOverrideSurface?.reply ?? candidateReply))
     : candidateReply
-  const finalThought = (missingMindThought || thoughtConflict)
-    ? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
-    : thought
+  const finalThought = shouldOverrideVisibleReply
+    ? renderedOverrideSurface?.thought ?? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
+    : (missingMindThought || thoughtConflict)
+        ? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
+        : thought
   const finalEmotion = normalizeAlicizationEmotion(
-    shouldOverrideVisibleReply && governedSurface
-      ? governedSurface.emotion
+    shouldOverrideVisibleReply && renderedOverrideSurface
+      ? renderedOverrideSurface.emotion
       : normalizedEmotion,
   ).emotion
+  const finalPerformance = shouldOverrideVisibleReply && renderedOverrideSurface
+    ? alignDialoguePerformanceEmotion(
+        structuredPayload.performance ?? renderedOverrideSurface.performance,
+        finalEmotion,
+      )
+    : alignDialoguePerformanceEmotion(structuredPayload.performance, finalEmotion)
   const finalParsePath = (
     shouldOverrideVisibleReply
     || contractFailed
@@ -1777,7 +1724,9 @@ export function coerceConversationTurnToMindGovernedPayload(
   )
     ? 'repair-json'
     : parsePath
-  const normalizedAssistantText = finalReply || sanitizeBriefText(readStringValue(input.assistantText), 2_000)
+  const normalizedAssistantText = dispatchOnlyVisibleOverride && shouldOverrideVisibleReply
+    ? ''
+    : (finalReply || sanitizeBriefText(readStringValue(input.assistantText), 2_000))
   const tookOver = Boolean(
     shouldOverrideVisibleReply
     || structuredPayload.governance == null
@@ -1786,9 +1735,9 @@ export function coerceConversationTurnToMindGovernedPayload(
     || finalParsePath !== parsePath
     || invalidFormat
     || contractFailed
-    || readStringValue(input.assistantText).trim() !== normalizedAssistantText,
+    || readStringValue(input.assistantText).trim() !== normalizedAssistantText
+    || JSON.stringify(structuredPayload.performance ?? null) !== JSON.stringify(finalPerformance)
   )
-  const finalPerformance = alignDialoguePerformanceEmotion(structuredPayload.performance, finalEmotion)
   const finalEmbodiment = resolveAlicizationDialogueEmbodiment({
     candidateEmotion: finalEmotion,
     candidatePerformance: finalPerformance,
@@ -1859,6 +1808,19 @@ export function coerceConversationTurnToMindGovernedPayload(
       answer_intent_after: coherentGovernance.answerIntent ?? null,
       carried_thread_before: governance.carriedThread ?? null,
       carried_thread_after: coherentGovernance.carriedThread ?? null,
+      execution_bound_turn: executionFirstGovernance.executionBound,
+      execution_first_override_applied: executionFirstGovernance.applied,
+      execution_explicit_demand: executionFirstGovernance.explicitExecutionDemand,
+      execution_signal_score: executionFirstGovernance.signalScore,
+      execution_dispatch_channels: executionFirstGovernance.mentionedDispatchChannels,
+      execution_dispatch_hidden: dispatchOnlyVisibleOverride && shouldOverrideVisibleReply,
+      execution_reason_codes: executionFirstGovernance.reasonCodes,
+      execution_turn_mode_before: anchorCoherentGovernance.turnMode,
+      execution_turn_mode_after: coherentGovernance.turnMode,
+      execution_answer_act_before: anchorCoherentGovernance.answerAct ?? null,
+      execution_answer_act_after: coherentGovernance.answerAct ?? null,
+      execution_screen_mode_before: anchorCoherentGovernance.screenReferenceMode ?? null,
+      execution_screen_mode_after: coherentGovernance.screenReferenceMode ?? null,
       anchor_candidates_before: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesBefore),
       anchor_candidates_after: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesAfter),
       dominant_anchor: conflictingAnchors.dominantAnchor ?? null,
@@ -1870,6 +1832,7 @@ export function coerceConversationTurnToMindGovernedPayload(
       scene_cue_mentions: dialogueFirstVisibleReply.sceneCueMentions,
       foreign_technical_cues: dialogueFirstVisibleReply.foreignTechnicalCues,
       dialogue_truth_discipline_mode: dialogueFirstVisibleReply.truthDisciplineMode,
+      execution_surface_violation: executionSurfaceViolation,
       reply_specificity_cues: unsupportedTechnicalSpecificity.replyCues,
       allowed_specificity_cues: unsupportedTechnicalSpecificity.allowedCues,
       unsupported_specificity_cues: unsupportedTechnicalSpecificity.unsupportedCues,
@@ -1887,7 +1850,9 @@ export function coerceConversationTurnToMindGovernedPayload(
       soft_repair_dropped_clauses: dialogueFirstSoftRepair.droppedClauses,
       hard_fallback_reason: hardFallbackReason,
       fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
+      visible_reply_authority: shouldOverrideVisibleReply ? 'mind-surface-renderer' : 'assistant-structured',
       reply_kept_despite_mismatch: replyKeptDespiteMismatch,
+      organic_direct_reply: organicDirectReply,
     },
   }
 }

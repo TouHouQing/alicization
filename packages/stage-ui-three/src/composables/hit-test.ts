@@ -6,6 +6,7 @@ import { toRef } from '@vueuse/core'
 import { computed } from 'vue'
 
 interface HitTestTarget {
+  hitTestClientPoint?: (clientX: number, clientY: number) => boolean
   readRenderTargetRegionAtClientPoint?: (clientX: number, clientY: number, radius: number) => RenderTargetRegionRead | null
 }
 
@@ -28,43 +29,47 @@ export function useThreeSceneIsTransparentAtPoint(
 
   return computed(() => {
     const instance = sceneRef.value
-    if (!instance || !instance.readRenderTargetRegionAtClientPoint)
+    if (!instance)
       return true
 
-    const result = instance.readRenderTargetRegionAtClientPoint(xRef.value, yRef.value, radius)
-    if (!result)
-      return true
+    const result = instance.readRenderTargetRegionAtClientPoint?.(xRef.value, yRef.value, radius)
+    if (result) {
+      const {
+        data,
+        readWidth,
+        readHeight,
+        startX,
+        startY,
+        centerX,
+        centerY,
+        scaleX,
+        scaleY,
+      } = result
 
-    const {
-      data,
-      readWidth,
-      readHeight,
-      startX,
-      startY,
-      centerX,
-      centerY,
-      scaleX,
-      scaleY,
-    } = result
+      const radiusSq = radius * radius
+      for (let y = 0; y < readHeight; y += 1) {
+        const gy = startY + y
+        const dy = (gy - centerY) / scaleY
+        const dySq = dy * dy
 
-    const radiusSq = radius * radius
-    for (let y = 0; y < readHeight; y += 1) {
-      const gy = startY + y
-      const dy = (gy - centerY) / scaleY
-      const dySq = dy * dy
+        for (let x = 0; x < readWidth; x += 1) {
+          const gx = startX + x
+          const dx = (gx - centerX) / scaleX
+          if (dx * dx + dySq > radiusSq)
+            continue
 
-      for (let x = 0; x < readWidth; x += 1) {
-        const gx = startX + x
-        const dx = (gx - centerX) / scaleX
-        if (dx * dx + dySq > radiusSq)
-          continue
-
-        const index = (y * readWidth + x) * 4
-        const alpha = data[index + 3]
-        if (alpha >= threshold)
-          return false
+          const index = (y * readWidth + x) * 4
+          const alpha = data[index + 3]
+          if (alpha >= threshold)
+            return false
+        }
       }
+
+      return true
     }
+
+    if (instance.hitTestClientPoint)
+      return !instance.hitTestClientPoint(xRef.value, yRef.value)
 
     return true
   })

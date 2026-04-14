@@ -7,6 +7,7 @@ import type {
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
   AlicizationMindTurnGovernance,
+  AlicizationRuntimeDigest,
 } from '../alicization-bridge'
 
 export interface ChatEmbodimentMetaHookPayload {
@@ -15,6 +16,7 @@ export interface ChatEmbodimentMetaHookPayload {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
 export interface ChatHookRegistry {

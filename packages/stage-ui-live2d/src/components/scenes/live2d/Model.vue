@@ -18,7 +18,7 @@ import { Mutex } from 'es-toolkit'
 import { storeToRefs } from 'pinia'
 import { DropShadowFilter } from 'pixi-filters'
 import { Live2DFactory, Live2DModel, MotionPriority } from 'pixi-live2d-display/cubism4'
-import { computed, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 'vue'
+import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 'vue'
 
 import { createBeatSyncController, resolveLive2DActionPulseBinding, useLive2DMotionManagerUpdate, useMotionUpdatePluginAutoEyeBlink, useMotionUpdatePluginBeatSync, useMotionUpdatePluginIdleDisable, useMotionUpdatePluginIdleFocus, useMotionUpdatePluginPerformanceLayers } from '../../../composables/live2d'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
@@ -68,6 +68,16 @@ const emits = defineEmits<{
 }>()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
+
+console.info('[stage-startup-trace][live2d-model] setup-start')
+
+onErrorCaptured((error, instance, info) => {
+  console.error('[stage-startup-trace][live2d-model] captured-error', {
+    info,
+    component: instance?.$?.type,
+    error,
+  })
+})
 
 function parsePropsOffset() {
   let xOffset = Number.parseFloat(String(props.xOffset)) || 0
@@ -286,6 +296,7 @@ async function loadModel() {
   await until(modelLoading).not.toBeTruthy()
 
   await modelLoadMutex.acquire()
+  let modelLoadSucceeded = false
   try {
     modelLoading.value = true
     componentState.value = 'loading'
@@ -449,6 +460,7 @@ async function loadModel() {
     coreModel.setParameterValueById('ParamBodyAngleZ', modelParameters.value.bodyAngleZ)
 
     emits('modelLoaded')
+    modelLoadSucceeded = true
   }
   catch (error) {
     console.error('[Live2D] Failed to load model:', error)
@@ -456,7 +468,10 @@ async function loadModel() {
   }
   finally {
     modelLoading.value = false
-    componentState.value = 'mounted'
+    // NOTICE: A failed model load must keep the desktop stage in recovery mode.
+    // Marking it as mounted makes the transparent desktop window look healthy while
+    // the character surface is actually blank and no recovery panel is shown.
+    componentState.value = modelLoadSucceeded ? 'mounted' : 'loading'
     modelLoadMutex.release()
   }
 }
@@ -773,7 +788,14 @@ watch(focusAt, (value) => {
   model.value.focus(value.x, value.y)
 })
 
+watch(componentState, (state) => {
+  console.info(
+    `[stage-startup-trace][live2d-model] component-state state=${state} modelId=${props.modelId || '<empty>'} modelSrc=${props.modelSrc || '<empty>'}`,
+  )
+}, { immediate: true })
+
 onMounted(() => {
+  console.info('[stage-startup-trace][live2d-model] onMounted-beat-sync')
   const removeListener = listenBeatSyncBeatSignal(() => beatSync.scheduleBeat())
   onUnmounted(() => removeListener())
 })
@@ -784,7 +806,13 @@ onUnmounted(() => {
 })
 
 onMounted(async () => {
+  console.info('[stage-startup-trace][live2d-model] onMounted-shadow-enter')
   updateDropShadowFilter()
+  console.info('[stage-startup-trace][live2d-model] onMounted-shadow-exit')
+})
+
+onBeforeMount(() => {
+  console.info('[stage-startup-trace][live2d-model] onBeforeMount')
 })
 
 onUnmounted(() => {

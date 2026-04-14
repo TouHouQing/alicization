@@ -401,3 +401,32 @@ P3 的目标不是再加一层“更聪明”文案，而是让每个心智决�
    - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
+
+## 14. Alicization P4 强约束（可重放心智事件账本）
+
+P4 的目标是把“可追溯”升级为“可重放”：不仅知道发生过什么，还能按治理链路还原每一步决策。
+
+1. **Mind-turn 事件账本落盘**
+   - 受治理 user-turn 必须写入 `mind_turn_events`，至少包含：
+     `decision_trace_id`、`turn_id`、`session_id`、`origin`、`kind`、`payload_json`、`created_at`。
+   - 该账本是 conversation turn 的治理证据层，不是可选调试日志。
+
+2. **事件链完整性**
+   - 对已持久化的受治理轮次，至少必须有：
+     - `governance-normalized`
+     - `persistence-written`
+   - 如发生接管，必须追加：
+     - `takeover-audit`
+   - 如成功发出对话事件，必须追加：
+     - `dialogue-emitted`
+
+3. **按 trace/turn 可查询**
+   - Runtime 必须提供按 `decisionTraceId` 或 `turnId` 查询事件链的接口，用于 deterministic replay 与事故复盘。
+   - 查询结果应保留时序语义，支持“从治理归一化到可见回复发出”的链路检查。
+
+4. **会话清理一致性**
+   - `clearConversationData` 必须与 `conversation_turns`、`scheduled_tasks` 一起清理 `mind_turn_events`，避免跨会话残留误导 replay。
+
+5. **P4 验收测试锚点**
+   - `apps/stage-tamagotchi/src/main/services/alicization/db.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`

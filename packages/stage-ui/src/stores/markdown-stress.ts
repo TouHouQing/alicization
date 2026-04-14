@@ -310,8 +310,10 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
       const timer = setTimeout(async () => {
         try {
           await chatStore.ingest(message.text, {
+            providerId: activeProvider.value,
             model: activeModel.value!,
             chatProvider: provider,
+            providerConfig: providersStore.getProviderConfig(activeProvider.value),
             origin: 'system',
           })
         }

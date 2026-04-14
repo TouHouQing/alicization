@@ -3,7 +3,10 @@ export interface DesktopMouseCaptureStateInput {
   hearingDialogOpen: boolean
   insideControls: boolean
   insideDialogueOverlay: boolean
+  insideStageRecoveryPanel: boolean
+  emergencyPanelHovered: boolean
   isOutsideWindow: boolean
+  stageCharacterHovered: boolean
   stageInteractionActive: boolean
   stageCapturePixel: boolean
   stagePaused: boolean
@@ -31,6 +34,8 @@ export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateI
     || input.stageInteractionActive
     || input.insideControls
     || input.insideDialogueOverlay
+    || input.insideStageRecoveryPanel
+    || input.emergencyPanelHovered
     || shouldCaptureStagePixels
 
   if (input.stagePaused || input.hearingDialogOpen) {
@@ -46,8 +51,9 @@ export function resolveDesktopMouseCaptureState(input: DesktopMouseCaptureStateI
       && !input.stageInteractionActive
       && !input.insideControls
       && !input.insideDialogueOverlay
+      && !input.insideStageRecoveryPanel
       && !input.isOutsideWindow
-      && input.stageCapturePixel,
+      && input.stageCharacterHovered,
   }
 }
 

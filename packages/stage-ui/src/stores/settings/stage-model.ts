@@ -13,6 +13,7 @@ export type StageModelRenderer = 'live2d' | 'vrm' | 'disabled' | undefined
 export const useSettingsStageModel = defineStore('settings-stage-model', () => {
   const displayModelsStore = useDisplayModelsStore()
   let stageModelUpdateSequence = 0
+  let skipNextStageModelSelectedWatcher = 0
   const stageModelStorageKey = 'settings/stage/model'
 
   const stageModelSelectedState = useLocalStorageManualReset<string>(stageModelStorageKey, defaultAlicizationStageModelId)
@@ -52,13 +53,25 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
       return
     }
 
-    const model = await displayModelsStore.getDisplayModel(selectedModelId)
+    let model: DisplayModel | undefined
+    try {
+      model = await displayModelsStore.getDisplayModel(selectedModelId)
+    }
+    catch (error) {
+      console.warn('[settings-stage-model] failed to resolve selected model, fallback to defaults:', error)
+      model = undefined
+    }
+
     if (requestId !== stageModelUpdateSequence)
       return
 
     if (!model) {
       if (selectedModelId !== defaultAlicizationStageModelId) {
+        skipNextStageModelSelectedWatcher += 1
         stageModelSelectedState.value = defaultAlicizationStageModelId
+        // NOTICE: Resolve fallback model in the same call stack so the stage does not
+        // stay in an undefined renderer state waiting for a secondary storage watcher tick.
+        await updateStageModel()
         return
       }
 
@@ -105,6 +118,11 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
   })
 
   watch(stageModelSelectedState, (_newValue, _oldValue) => {
+    if (skipNextStageModelSelectedWatcher > 0) {
+      skipNextStageModelSelectedWatcher -= 1
+      return
+    }
+
     void updateStageModel()
   })
 

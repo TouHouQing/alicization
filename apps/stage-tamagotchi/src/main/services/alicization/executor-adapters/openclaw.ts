@@ -3,6 +3,7 @@ import type {
   AlicizationExecutionEventInput,
   AlicizationExecutionRuntimeContext,
   AlicizationOpenClawCommandInput,
+  AlicizationOpenClawContentPart,
   AlicizationTaskThreadRecord,
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
@@ -44,8 +45,15 @@ interface AlicizationOpenClawCommandSpec {
   timeoutMs: number
   senderId: string
   roleName: string
+  channelId: string
+  conversationId: string
   sessionId: string
   sessionAffinityKey: string
+  contentParts: AlicizationOpenClawContentPart[]
+  images: Array<string | Record<string, unknown>>
+  audios: Array<string | Record<string, unknown>>
+  files: Array<string | Record<string, unknown>>
+  meta: Record<string, unknown> | null
   runtimeContext: AlicizationExecutionRuntimeContext | null
 }
 
@@ -100,6 +108,108 @@ function normalizeOptionalText(raw: unknown, maxChars = 160) {
     return null
   const normalized = raw.trim().slice(0, maxChars)
   return normalized || null
+}
+
+function normalizeFlexiblePayloadItems(raw: unknown) {
+  if (!Array.isArray(raw))
+    return [] as Array<string | Record<string, unknown>>
+
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') {
+        const text = normalizeText(item, 2_000)
+        return text || null
+      }
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const entries = Object.entries(item).filter(([, value]) => value !== undefined)
+        if (entries.length === 0)
+          return null
+        return Object.fromEntries(entries)
+      }
+      return null
+    })
+    .filter((item): item is string | Record<string, unknown> => item !== null)
+}
+
+function normalizeOpenClawContentParts(raw: unknown): AlicizationOpenClawContentPart[] {
+  if (!Array.isArray(raw))
+    return []
+
+  const parts: AlicizationOpenClawContentPart[] = []
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      continue
+    const item = entry as Record<string, unknown>
+    const type = normalizeText(item.type, 32).toLowerCase()
+    if (type !== 'text' && type !== 'image' && type !== 'audio' && type !== 'file' && type !== 'video')
+      continue
+
+    const part: AlicizationOpenClawContentPart = {
+      type: type as AlicizationOpenClawContentPart['type'],
+    }
+    const text = normalizeOptionalText(item.text, 10_000)
+    const imageUrl = normalizeOptionalText(item.image_url, 10_000)
+    const videoUrl = normalizeOptionalText(item.video_url, 10_000)
+    const data = normalizeOptionalText(item.data, 120_000)
+    const format = normalizeOptionalText(item.format, 48)
+    const fileUrl = normalizeOptionalText(item.file_url, 10_000)
+    const filename = normalizeOptionalText(item.filename, 256)
+    const fileId = normalizeOptionalText(item.file_id, 256)
+    if (text)
+      part.text = text
+    if (imageUrl)
+      part.image_url = imageUrl
+    if (videoUrl)
+      part.video_url = videoUrl
+    if (data)
+      part.data = data
+    if (format)
+      part.format = format
+    if (fileUrl)
+      part.file_url = fileUrl
+    if (filename)
+      part.filename = filename
+    if (fileId)
+      part.file_id = fileId
+    parts.push(part)
+  }
+
+  return parts
+}
+
+function normalizeOpenClawMeta(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .filter(([, value]) => value !== undefined)
+  if (entries.length === 0)
+    return null
+  return Object.fromEntries(entries)
+}
+
+function extractOpenClawReply(payload: Record<string, unknown>) {
+  const directReply = normalizeText(payload.reply, openClawMaxPreviewChars)
+  if (directReply)
+    return directReply
+
+  const contentParts = Array.isArray(payload.content_parts)
+    ? payload.content_parts
+    : []
+  const textParts = contentParts
+    .map((part) => {
+      if (!part || typeof part !== 'object' || Array.isArray(part))
+        return ''
+      const partRecord = part as Record<string, unknown>
+      const partType = normalizeText(partRecord.type, 24).toLowerCase()
+      if (partType !== 'text')
+        return ''
+      return normalizeText(partRecord.text, openClawMaxPreviewChars)
+    })
+    .filter(Boolean)
+  if (textParts.length === 0)
+    return ''
+  return normalizeText(textParts.join('\n'), openClawMaxPreviewChars)
 }
 
 function normalizeTimeoutMs(raw: unknown, fallback = openClawDefaultTimeoutMs) {
@@ -328,11 +438,16 @@ function buildOpenClawCommandSpec(input: AlicizationOpenClawAdapterInput) {
   const rawInstruction = typeof input.command.instruction === 'string'
     ? input.command.instruction.trim()
     : ''
-  if (!rawInstruction) {
+  const contentParts = normalizeOpenClawContentParts(input.command.contentParts)
+  const images = normalizeFlexiblePayloadItems(input.command.images)
+  const audios = normalizeFlexiblePayloadItems(input.command.audios)
+  const files = normalizeFlexiblePayloadItems(input.command.files)
+  const hasStructuredPayload = contentParts.length > 0 || images.length > 0 || audios.length > 0 || files.length > 0
+  if (!rawInstruction && !hasStructuredPayload) {
     return {
       ok: false as const,
       errorCode: 'OPENCLAW_INSTRUCTION_REQUIRED',
-      errorMessage: 'OpenClaw dispatch requires a non-empty instruction.',
+      errorMessage: 'OpenClaw dispatch requires a non-empty instruction or structured payload.',
     }
   }
 
@@ -371,13 +486,14 @@ function buildOpenClawCommandSpec(input: AlicizationOpenClawAdapterInput) {
     ?? input.thread.id
   const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.command.runtimeContext)
   const runtimeContextBlock = buildAlicizationExecutionRuntimeContextBlock(runtimeContext)
-  const instruction = runtimeContextBlock
+  const instructionBody = rawInstruction
     ? [
-        runtimeContextBlock,
-        '',
         '[ALICIZATION_EXECUTION_TASK]',
         rawInstruction,
       ].join('\n')
+    : ''
+  const instruction = runtimeContextBlock
+    ? [runtimeContextBlock, instructionBody].filter(Boolean).join('\n\n')
     : rawInstruction
   const sessionId = buildOpenClawSessionId({
     explicitSessionId: input.command.sessionId ?? normalizeOptionalText(governorSessionResume?.externalSessionId, 160),
@@ -385,20 +501,34 @@ function buildOpenClawCommandSpec(input: AlicizationOpenClawAdapterInput) {
     senderId,
     roleName,
   })
+  const channelId = normalizeOptionalText(input.command.channelId, 120) ?? 'neko'
+  const conversationId = normalizeOptionalText(input.command.conversationId, 160)
+    ?? normalizeOptionalText(input.thread.sessionId, 160)
+    ?? sessionId
+  const instructionPreview = normalizeText(rawInstruction, 260)
+    || normalizeText(contentParts.find(part => part.type === 'text')?.text, 260)
+    || '[structured-openclaw-payload]'
 
   return {
     ok: true as const,
     spec: {
       rawInstruction,
       instruction,
-      instructionPreview: normalizeText(rawInstruction, 260),
+      instructionPreview,
       baseUrl: config.baseUrl,
       authToken: config.authToken,
       timeoutMs: normalizeTimeoutMs(input.command.timeoutMs, config.timeoutMs),
       senderId,
       roleName,
+      channelId,
+      conversationId,
       sessionId,
       sessionAffinityKey,
+      contentParts,
+      images,
+      audios,
+      files,
+      meta: normalizeOpenClawMeta(input.command.meta),
       runtimeContext,
     } satisfies AlicizationOpenClawCommandSpec,
   }
@@ -406,7 +536,6 @@ function buildOpenClawCommandSpec(input: AlicizationOpenClawAdapterInput) {
 
 async function runOpenClawCommand(
   spec: AlicizationOpenClawCommandSpec,
-  thread: AlicizationTaskThreadRecord,
   abortSignal?: AbortSignal,
   now: () => number = Date.now,
 ): Promise<AlicizationOpenClawExecutionRuntimeResult> {
@@ -419,13 +548,18 @@ async function runOpenClawCommand(
       timeoutMs: spec.timeoutMs,
       signal: abortSignal,
       body: {
-        channel_id: 'neko',
+        channel_id: spec.channelId,
         sender_id: spec.senderId,
         session_id: spec.sessionId,
-        text: spec.instruction,
+        text: spec.instruction || undefined,
+        content_parts: spec.contentParts.length > 0 ? spec.contentParts : undefined,
+        images: spec.images.length > 0 ? spec.images : undefined,
+        audios: spec.audios.length > 0 ? spec.audios : undefined,
+        files: spec.files.length > 0 ? spec.files : undefined,
         meta: {
+          ...spec.meta,
           reply_timeout: Math.max(1, Math.ceil(spec.timeoutMs / 1000)),
-          conversation_id: normalizeOptionalText(thread.sessionId, 160) ?? spec.sessionId,
+          conversation_id: spec.conversationId,
           role_name: spec.roleName,
           alicization_runtime_context: spec.runtimeContext,
         },
@@ -461,7 +595,7 @@ async function runOpenClawCommand(
     }
 
     const payload = response.json as Record<string, unknown>
-    const reply = normalizeText(payload.reply, openClawMaxPreviewChars)
+    const reply = extractOpenClawReply(payload)
     const sessionId = normalizeOptionalText(payload.session_id, 160) ?? spec.sessionId
     if (!reply) {
       return {
@@ -531,6 +665,8 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
         payload: {
           instruction: input.command.instruction,
           transportChannel: 'openclaw',
+          channelId: normalizeOptionalText(input.command.channelId, 120) ?? 'neko',
+          conversationId: normalizeOptionalText(input.command.conversationId, 160) ?? normalizeOptionalText(thread.sessionId, 160) ?? null,
           errorCode: normalized.errorCode,
           errorMessage: normalized.errorMessage,
         },
@@ -556,15 +692,22 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
       timeoutMs: spec.timeoutMs,
       senderId: spec.senderId,
       roleName: spec.roleName,
+      channelId: spec.channelId,
+      conversationId: spec.conversationId,
       sessionId: spec.sessionId,
       sessionAffinityKey: spec.sessionAffinityKey,
+      hasStructuredPayload: spec.contentParts.length > 0 || spec.images.length > 0 || spec.audios.length > 0 || spec.files.length > 0,
+      contentPartCount: spec.contentParts.length,
+      imageCount: spec.images.length,
+      audioCount: spec.audios.length,
+      fileCount: spec.files.length,
       hasRuntimeContext: spec.runtimeContext !== null,
       runtimeContext: spec.runtimeContext,
     },
     createdAt: dispatchCreatedAt,
   }
 
-  const runtimeResult = await runOpenClawCommand(spec, thread, input.abortSignal, now)
+  const runtimeResult = await runOpenClawCommand(spec, input.abortSignal, now)
   const stepBaseAt = Math.max(dispatchCreatedAt + 1, now())
   const replySegments = segmentOutput(runtimeResult.reply)
   const stepEvents = replySegments.map((segment, index): AlicizationExecutionEventInput => ({
@@ -612,6 +755,8 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
             instruction: spec.instructionPreview,
             transportChannel: 'openclaw',
             durationMs: runtimeResult.durationMs,
+            channelId: spec.channelId,
+            conversationId: spec.conversationId,
             sessionId: runtimeResult.sessionId,
             errorCode: runtimeResult.errorCode,
             errorMessage: runtimeResult.errorMessage,
@@ -650,6 +795,8 @@ export async function executeOpenClawTaskThread(input: AlicizationOpenClawAdapte
           instruction: spec.instructionPreview,
           transportChannel: 'openclaw',
           durationMs: runtimeResult.durationMs,
+          channelId: spec.channelId,
+          conversationId: spec.conversationId,
           sessionId: runtimeResult.sessionId,
           senderId: spec.senderId,
           roleName: spec.roleName,

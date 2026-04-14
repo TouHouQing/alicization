@@ -83,6 +83,19 @@ function formatPoint(value: { x: number, y: number }) {
           degrade: {{ diagnostics.visualPresence.degradedReason ?? 'none' }}
         </div>
       </div>
+
+      <div :class="['rounded-2 border border-white/10 bg-white/6 px-2 py-2']">
+        <div :class="['mb-1 text-white/45']">
+          Alicization
+        </div>
+        <div>{{ diagnostics.visualPresence.runtimeDominantChannel ?? 'none' }}</div>
+        <div :class="['text-white/62']">
+          speak/act: {{ diagnostics.visualPresence.runtimeShouldSpeak ?? 'none' }} / {{ diagnostics.visualPresence.runtimeShouldAct ?? 'none' }}
+        </div>
+        <div :class="['text-white/62']">
+          pressure: {{ diagnostics.visualPresence.runtimeContinuityPressure != null ? formatUnit(diagnostics.visualPresence.runtimeContinuityPressure) : 'none' }} / {{ diagnostics.visualPresence.runtimeCompanionshipPressure != null ? formatUnit(diagnostics.visualPresence.runtimeCompanionshipPressure) : 'none' }}
+        </div>
+      </div>
     </div>
 
     <div :class="['mt-2 rounded-2 border border-white/10 bg-white/6 px-2 py-2 text-white/68']">

@@ -14,7 +14,7 @@ import type {
   StageEmbodimentSpeechRenderState,
 } from '@proj-alicization/stage-shared'
 import type { TresContext } from '@tresjs/core'
-import type { DirectionalLight, SphericalHarmonics3, Texture, WebGLRenderer, WebGLRenderTarget } from 'three'
+import type { DirectionalLight, Scene, SphericalHarmonics3, Texture, WebGLRenderer, WebGLRenderTarget } from 'three'
 
 import type { SceneBootstrap, ScenePhase, Vec3 } from '../stores/model-store'
 import type {
@@ -281,7 +281,7 @@ function applySceneBootstrap(value: SceneBootstrap) {
 
 const { readRenderTargetRegionAtClientPoint, disposeRenderTarget } = useRenderTargetRegionAtClientPoint({
   getRenderer: () => tresCanvasRef.value?.renderer.instance as WebGLRenderer | undefined,
-  getScene: () => tresCanvasRef.value?.scene.value,
+  getScene: () => tresCanvasRef.value?.scene.value as unknown as Scene | undefined,
   getCamera: () => camera.value,
   getCanvas: () => tresCanvasRef.value?.renderer.instance.domElement,
 })

@@ -42,6 +42,7 @@ function createInput(overrides?: Partial<Parameters<typeof acceptAlicizationMain
       },
       provider: {} as never,
     })),
+    rememberMainGatewayRoute: vi.fn(),
     syncMainGatewayConfigFromChatStart: vi.fn(async () => ({
       activeProviderId: 'openai',
       activeModelId: 'gpt-test',
@@ -110,7 +111,7 @@ describe('main chat start acceptance', () => {
     })
   })
 
-  it('rejects unreachable gateways before registering a run', async () => {
+  it('keeps start accepted when gateway probe is unreachable and logs advisory diagnostics', async () => {
     const input = createInput({
       ensureMainGatewayReachable: vi.fn(async () => ({
         reachable: false,
@@ -122,23 +123,25 @@ describe('main chat start acceptance', () => {
 
     const result = await acceptAlicizationMainChatStart(input)
 
-    expect(result).toEqual({
-      accepted: false,
-      result: {
-        accepted: false,
-        turnId: 'turn-1',
-        state: 'start-failed',
-        reason: 'Main gateway connectivity check failed for example.test (econnrefused).',
-      },
-    })
-    expect(input.registerRun).not.toHaveBeenCalled()
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.gateway-unreachable', {
+    expect(result.accepted).toBe(true)
+    expect(input.registerRun).toHaveBeenCalledWith('card-1::turn-1', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      state: 'running',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.gateway-unreachable-advisory', {
       cardId: 'card-1',
       turnId: 'turn-1',
       cached: true,
       code: 'ECONNREFUSED',
       reason: 'Main gateway connectivity check failed for example.test (econnrefused).',
     })
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-start.accepted', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      gatewayReachable: false,
+      gatewayReachabilityCode: 'ECONNREFUSED',
+    }))
   })
 
   it('accepts a run and syncs llm config before registering state', async () => {
@@ -170,6 +173,14 @@ describe('main chat start acceptance', () => {
       turnId: 'turn-1',
       state: 'running',
     }))
+    expect(input.rememberMainGatewayRoute).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      mainGateway: expect.objectContaining({
+        providerId: 'openai',
+        model: 'gpt-test',
+      }),
+      providerConfig: {},
+    })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('llm-config.updated-from-chat-start', {
       cardId: 'card-1',
       turnId: 'turn-1',
@@ -184,6 +195,8 @@ describe('main chat start acceptance', () => {
       model: 'gpt-test',
       senderId: 7,
       preparationDeferred: true,
+      gatewayReachable: true,
+      gatewayReachabilityCode: null,
     })
   })
 })

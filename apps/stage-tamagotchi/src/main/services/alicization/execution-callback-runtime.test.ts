@@ -166,4 +166,25 @@ describe('execution callback runtime', () => {
       sessionId: 'session-1',
     })).resolves.toEqual(emptyAlicizationExecutionCallbackContext)
   })
+
+  it('prefers event summary over raw stdout when building callback outcome', async () => {
+    const runtime = createAlicizationExecutionCallbackRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => [createThread()]),
+      listExecutionEvents: vi.fn(async () => [createEvent({
+        payload: {
+          stdout: 'total 12 drwxr-xr-x ...',
+          summary: 'Listed desktop entries (2): 小砖猿, GIT',
+        },
+      })]),
+    })
+
+    const context = await runtime.buildPendingExecutionCallbackContext({
+      sessionId: 'session-1',
+    })
+
+    expect(context.callbacks[0]?.outcome).toBe('Listed desktop entries (2): 小砖猿, GIT')
+    expect(context.recallText).toContain('execution_callback_outcome:Listed desktop entries (2): 小砖猿, GIT')
+    expect(context.recallText).not.toContain('drwxr-xr-x')
+  })
 })

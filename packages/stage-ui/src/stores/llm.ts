@@ -7,6 +7,7 @@ import type {
   AlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest,
   AlicizationMindTurnGovernance,
+  AlicizationRuntimeDigest,
 } from './alicization-bridge'
 
 import { listModels } from '@xsai/model'
@@ -26,6 +27,7 @@ export type StreamEvent
       speechTimeline?: AlicizationDialogueSpeechTimeline | null
       digitalLife?: AlicizationDigitalLifeEnvelope | null
       digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+      runtimeDigest?: AlicizationRuntimeDigest | null
     }
     | ({ type: 'finish' } & any)
     | ({ type: 'tool-call' } & CompletionToolCall)

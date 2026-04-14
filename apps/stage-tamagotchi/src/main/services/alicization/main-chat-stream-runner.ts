@@ -1,12 +1,16 @@
 import type { AlicizationChatStartPayload, AlicizationChatStreamChunkEvent, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 
+import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
 import { errorMessageFrom } from '@moeru/std'
 import { streamText } from '@xsai/stream-text'
 
+import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
+import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
+import { parseJsonObjectFromText } from './runtime-transport-content'
 
 type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 
@@ -63,6 +67,12 @@ export async function runAlicizationMainChatStream(
   input: RunAlicizationMainChatStreamOptions,
 ): Promise<AlicizationMainChatStreamRunnerResult> {
   const reminderToolCallIds = new Set<string>()
+  const requiredToolNames = new Set(
+    input.prepared.waitForTools
+      ? extractAllowedToolNamesFromToolChoice(input.prepared.toolChoice, input.prepared.tools)
+      : [],
+  )
+  const observedRequiredToolCalls = new Set<string>()
   const startedAt = Date.now()
   let lastEventType = ''
 
@@ -105,39 +115,111 @@ export async function runAlicizationMainChatStream(
   const invokeStreamText = input.streamTextImpl ?? (streamText as StreamTextInvoker)
   let finishReason = 'stop'
   let fullText = ''
+  let visibleText = ''
+  let bufferingStructuredPrelude = false
+  let releasedStructuredReply = false
   let sawProgressEvent = false
+  let sawAnyEvent = false
+  let firstEventGraceApplied = false
+  const firstEventGraceTimeoutMs = Math.max(
+    1_000,
+    Math.min(30_000, Math.floor(input.firstEventTimeoutMs * 0.65)),
+  )
   appendStreamDebugLine('chat-stream.invoke-stream-text', {
     elapsedMs: 0,
     firstEventTimeoutMs: input.firstEventTimeoutMs,
+    firstEventGraceTimeoutMs,
     hasVisualGrounding: input.prepared.hasVisualGrounding,
     messageCount: input.prepared.messages.length,
     toolCount: Array.isArray(input.prepared.tools) ? input.prepared.tools.length : 0,
     waitForTools: input.prepared.waitForTools,
   })
 
+  const emitVisibleDelta = (delta: string) => {
+    if (!delta)
+      return
+    visibleText += delta
+    input.incrementChunkStats(delta)
+    input.emitChunk({
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      text: delta,
+    })
+    if (shouldEmitAlicizationChatMetaUpdate({
+      delta,
+      reply: visibleText,
+      previousReply: input.streamMeta.getLastReply(),
+    })) {
+      input.streamMeta.emit(visibleText)
+    }
+  }
+
+  const flushStructuredVisibleReply = () => {
+    const parsed = parseJsonObjectFromText(fullText)
+    const parsedReply = typeof parsed?.reply === 'string'
+      ? parsed.reply.trim()
+      : ''
+    if (!parsedReply)
+      return false
+
+    const delta = parsedReply.startsWith(visibleText)
+      ? parsedReply.slice(visibleText.length)
+      : visibleText
+        ? ''
+        : parsedReply
+    if (delta)
+      emitVisibleDelta(delta)
+    return true
+  }
+
   await new Promise<void>((resolve, reject) => {
-    const firstEventTimeout = setTimeout(() => {
-      if (!sawProgressEvent && input.isRunActive()) {
+    let firstEventTimeout: ReturnType<typeof setTimeout> | null = null
+    const armFirstEventTimeout = (delayMs: number, reason: 'initial' | 'grace') => {
+      if (firstEventTimeout)
+        clearTimeout(firstEventTimeout)
+      firstEventTimeout = setTimeout(() => {
+        if (sawProgressEvent || !input.isRunActive())
+          return
+
+        if (reason === 'initial' && sawAnyEvent && !firstEventGraceApplied) {
+          firstEventGraceApplied = true
+          appendStreamDebugLine('chat-stream.first-event-timeout-grace-armed', {
+            elapsedMs: Date.now() - startedAt,
+            graceTimeoutMs: firstEventGraceTimeoutMs,
+            lastEventType: lastEventType || null,
+            nonProgressEventTypes: [...input.nonProgressEventTypes],
+          })
+          armFirstEventTimeout(firstEventGraceTimeoutMs, 'grace')
+          return
+        }
+
         appendStreamDebugLine('chat-stream.first-event-timeout-fired', {
           elapsedMs: Date.now() - startedAt,
+          timeoutPhase: reason,
+          sawAnyEvent,
+          firstEventGraceApplied,
           lastEventType: lastEventType || null,
           nonProgressEventTypes: [...input.nonProgressEventTypes],
         })
         reject(createAbortError('chat-first-event-timeout'))
-      }
-    }, input.firstEventTimeoutMs)
+      }, delayMs)
+    }
+    armFirstEventTimeout(input.firstEventTimeoutMs, 'initial')
     const abortHandler = () => {
-      clearTimeout(firstEventTimeout)
+      if (firstEventTimeout)
+        clearTimeout(firstEventTimeout)
       reject(input.controller.signal.reason ?? createAbortError('chat-abort'))
     }
     input.controller.signal.addEventListener('abort', abortHandler, { once: true })
     const resolveOnce = () => {
-      clearTimeout(firstEventTimeout)
+      if (firstEventTimeout)
+        clearTimeout(firstEventTimeout)
       input.controller.signal.removeEventListener('abort', abortHandler)
       resolve()
     }
     const rejectOnce = (nextError: unknown) => {
-      clearTimeout(firstEventTimeout)
+      if (firstEventTimeout)
+        clearTimeout(firstEventTimeout)
       input.controller.signal.removeEventListener('abort', abortHandler)
       reject(nextError)
     }
@@ -152,6 +234,8 @@ export async function runAlicizationMainChatStream(
       toolChoice: input.prepared.toolChoice,
       onEvent: async (event: any) => {
         const eventType = sanitizeText(event?.type)
+        if (eventType)
+          sawAnyEvent = true
         lastEventType = eventType
         if (isMainGatewayProgressEventType(eventType)) {
           if (!sawProgressEvent) {
@@ -179,19 +263,27 @@ export async function runAlicizationMainChatStream(
             return
           const rawDelta = readRawTextDelta(event.text)
           fullText += rawDelta
-          input.incrementChunkStats(rawDelta)
-          input.emitChunk({
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            text: rawDelta,
-          })
-          if (shouldEmitAlicizationChatMetaUpdate({
-            delta: rawDelta,
-            reply: fullText,
-            previousReply: input.streamMeta.getLastReply(),
-          })) {
-            input.streamMeta.emit(fullText)
+          const shouldBufferStructured = bufferingStructuredPrelude
+            || shouldBufferAlicizationStructuredSpeechPrelude(fullText)
+          if (shouldBufferStructured) {
+            if (!bufferingStructuredPrelude) {
+              bufferingStructuredPrelude = true
+              appendStreamDebugLine('chat-stream.structured-prelude-buffering', {
+                elapsedMs: Date.now() - startedAt,
+                bufferedChars: fullText.length,
+              })
+            }
+            if (flushStructuredVisibleReply() && !releasedStructuredReply) {
+              releasedStructuredReply = true
+              appendStreamDebugLine('chat-stream.structured-prelude-released', {
+                elapsedMs: Date.now() - startedAt,
+                visibleChars: visibleText.length,
+              })
+            }
+            return
           }
+
+          emitVisibleDelta(rawDelta)
           return
         }
 
@@ -199,6 +291,8 @@ export async function runAlicizationMainChatStream(
           if (!input.isRunActive())
             return
           const observedToolName = sanitizeText(event.toolName ?? event.name)
+          if (requiredToolNames.has(observedToolName))
+            observedRequiredToolCalls.add(observedToolName)
           if (observedToolName === 'set_reminder') {
             const toolCallId = sanitizeText(event.toolCallId)
             if (toolCallId)
@@ -243,6 +337,14 @@ export async function runAlicizationMainChatStream(
         if (event?.type === 'finish') {
           if (!input.isRunActive())
             return
+          if (bufferingStructuredPrelude && flushStructuredVisibleReply() && !releasedStructuredReply) {
+            releasedStructuredReply = true
+            appendStreamDebugLine('chat-stream.structured-prelude-released', {
+              elapsedMs: Date.now() - startedAt,
+              visibleChars: visibleText.length,
+              atFinish: true,
+            })
+          }
           finishReason = sanitizeText(event.finishReason, 'stop')
           appendStreamDebugLine('chat-stream.finish-event', {
             elapsedMs: Date.now() - startedAt,
@@ -251,6 +353,23 @@ export async function runAlicizationMainChatStream(
           })
           if (input.prepared.waitForTools && (finishReason === 'tool_calls' || finishReason === 'tool-calls'))
             return
+          // NOTICE: Some provider/model pairs can ignore a forced executor tool choice
+          // and still terminate with `finishReason=stop`. Failing hard here prevents
+          // those turns from being persisted as fake natural-language "successes".
+          if (requiredToolNames.size > 0 && observedRequiredToolCalls.size === 0) {
+            appendStreamDebugLine('chat-stream.required-tool-missing', {
+              elapsedMs: Date.now() - startedAt,
+              finishReason,
+              requiredToolNames: [...requiredToolNames],
+            })
+            rejectOnce(new AlicizationRequiredToolMissingError({
+              stage: 'stream',
+              finishReason,
+              requiredToolNames: [...requiredToolNames],
+              observedToolNames: [...observedRequiredToolCalls],
+            }))
+            return
+          }
           resolveOnce()
           return
         }
@@ -280,6 +399,8 @@ export async function runAlicizationMainChatStream(
   if (!sawProgressEvent && input.isRunActive()) {
     appendStreamDebugLine('chat-stream.completed-without-progress', {
       elapsedMs: Date.now() - startedAt,
+      sawAnyEvent,
+      firstEventGraceApplied,
       lastEventType: lastEventType || null,
       nonProgressEventTypes: [...input.nonProgressEventTypes],
     })

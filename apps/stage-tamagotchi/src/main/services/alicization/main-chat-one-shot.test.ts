@@ -87,6 +87,11 @@ describe('main chat one-shot', () => {
       return {
         text: 'ok',
         finishReason: 'stop',
+        toolCalls: [{
+          function: {
+            name: 'executor_run_cli',
+          },
+        }],
       }
     })
 
@@ -97,6 +102,31 @@ describe('main chat one-shot', () => {
     }))
 
     expect(result).toBe('ok')
+  })
+
+  it('fails when required tool choice is enforced but one-shot generation does not call the tool', async () => {
+    const toolChoice = {
+      type: 'function',
+      function: { name: 'executor_run_cli' },
+    } as const
+    const tools = [{
+      type: 'function',
+      function: {
+        name: 'executor_run_cli',
+        parameters: {},
+      },
+    }] as any
+    const generateTextImpl = vi.fn(async () => ({
+      text: '我先守住真实边界。',
+      finishReason: 'stop',
+      toolCalls: [],
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools,
+      toolChoice,
+      generateTextImpl,
+    }))).rejects.toThrow('Model finished without calling required tool: executor_run_cli')
   })
 
   it('aborts one-shot generation after the enforced minimum timeout window', async () => {

@@ -10,6 +10,8 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
+import type { AlicizationClawFabricExperience } from './claw-fabric'
+
 import { randomUUID } from 'node:crypto'
 
 import { buildClawFabricPlan } from './claw-fabric'
@@ -20,6 +22,7 @@ type TaskThreadPersistencePort = Pick<{
 }, 'upsertTaskThread' | 'appendExecutionEvents'>
 
 export interface AlicizationTaskThreadPlanningInput extends AlicizationPlanTaskThreadInput {
+  experience?: AlicizationClawFabricExperience | null
   killSwitchSuspended?: boolean
   now?: number
 }
@@ -69,6 +72,51 @@ function buildThreadSummary(input: {
   return `Execution planned ${input.plan.proposedChannel ?? 'a structured channel'} for ${goal}.`
 }
 
+function normalizeChannelExperienceMetadata(
+  experience: AlicizationClawFabricExperience | null | undefined,
+) {
+  if (!experience)
+    return null
+
+  const channelOutcomes = Object.entries(experience.channelOutcomes ?? {})
+    .map(([channel, outcome]) => {
+      if (!outcome)
+        return null
+      return [channel, {
+        planned: Number.isFinite(outcome.planned) ? Math.max(0, Math.floor(Number(outcome.planned))) : 0,
+        running: Number.isFinite(outcome.running) ? Math.max(0, Math.floor(Number(outcome.running))) : 0,
+        completed: Number.isFinite(outcome.completed) ? Math.max(0, Math.floor(Number(outcome.completed))) : 0,
+        failed: Number.isFinite(outcome.failed) ? Math.max(0, Math.floor(Number(outcome.failed))) : 0,
+        cancelled: Number.isFinite(outcome.cancelled) ? Math.max(0, Math.floor(Number(outcome.cancelled))) : 0,
+      }] as const
+    })
+    .filter((entry): entry is readonly [string, {
+      planned: number
+      running: number
+      completed: number
+      failed: number
+      cancelled: number
+    }] => Boolean(entry))
+
+  return {
+    sessionResumeChannel: normalizeText(experience.sessionResumeChannel, 80) || null,
+    activeChannels: Array.isArray(experience.activeChannels)
+      ? [...new Set(experience.activeChannels.map(channel => normalizeText(channel, 80)).filter(Boolean))]
+      : [],
+    goalAffinityChannel: normalizeText(experience.goalAffinityChannel, 80) || null,
+    goalAffinityScore: Number.isFinite(experience.goalAffinityScore)
+      ? Math.max(0, Math.min(1, Number(experience.goalAffinityScore)))
+      : null,
+    goalAffinityReason: normalizeText(experience.goalAffinityReason, 200) || null,
+    advisorChannel: normalizeText(experience.advisorChannel, 80) || null,
+    advisorConfidence: Number.isFinite(experience.advisorConfidence)
+      ? Math.max(0, Math.min(1, Number(experience.advisorConfidence)))
+      : null,
+    advisorReason: normalizeText(experience.advisorReason, 200) || null,
+    channelOutcomes: Object.fromEntries(channelOutcomes),
+  }
+}
+
 export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlanningInput): AlicizationTaskThreadPlanningDraft {
   const now = Number.isFinite(input.now)
     ? Math.max(0, Math.floor(Number(input.now)))
@@ -79,6 +127,7 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
   const plan = buildClawFabricPlan({
     task: input.task,
     capabilities,
+    experience: input.experience,
     killSwitchSuspended: input.killSwitchSuspended,
   })
   const threadId = normalizeText(input.threadId, 80) || randomUUID()
@@ -120,6 +169,7 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
         reasonTags: plan.reasonTags,
         affirmationReasonCodes: plan.affirmationReasonCodes,
         blockedReasonCodes: plan.blockedReasonCodes,
+        experience: normalizeChannelExperienceMetadata(input.experience),
       },
     },
     createdAt: now,
@@ -148,6 +198,7 @@ export function buildTaskThreadPlanningDraft(input: AlicizationTaskThreadPlannin
       narrative: plan.narrative,
       affirmationReasonCodes: plan.affirmationReasonCodes,
       blockedReasonCodes: plan.blockedReasonCodes,
+      experience: normalizeChannelExperienceMetadata(input.experience),
       candidateCount: plan.candidates.length,
     },
     createdAt: now,

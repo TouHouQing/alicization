@@ -1,0 +1,1 @@
+Key commands: pnpm -F @proj-alicization/stage-tamagotchi typecheck ; pnpm exec vitest run <path/to/test> ; pnpm -F @proj-alicization/stage-tamagotchi exec vitest run ; pnpm lint ; pnpm lint:fix ; pnpm -F <workspace-name> build . Use rg / rg --files for search. Desktop app work is usually validated with targeted Vitest plus the stage-tamagotchi typecheck command.

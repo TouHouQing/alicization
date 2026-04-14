@@ -1,5 +1,6 @@
-import type { Rectangle } from 'electron'
+import type { IpcMainEvent, Rectangle } from 'electron'
 
+import type { ElectronMainStageStartupStatusPayload } from '../../../shared/eventa'
 import type { I18n } from '../../libs/i18n'
 import type { ServerChannel } from '../../services/airi/channel-server'
 import type { McpStdioManager } from '../../services/airi/mcp-servers'
@@ -25,7 +26,7 @@ import { array, object, optional, string } from 'valibot'
 
 import icon from '../../../../resources/icon.png?asset'
 
-import { electronStartDraggingWindow } from '../../../shared/eventa'
+import { electronMainStageStartupStatusChannel, electronStartDraggingWindow } from '../../../shared/eventa'
 import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
 import { transparentWindowConfig } from '../shared'
@@ -90,6 +91,121 @@ export async function setupMainWindow(params: {
     ...transparentWindowConfig(),
   })
 
+  const forceShowFallbackDelayMs = 3500
+  const rendererStartupWatchdogDelayMs = 9000
+  const stageStartupWatchdogDelayMs = 15000
+  const stageStartupWatchdogEnabled = false
+  let forceShowFallbackTimer: ReturnType<typeof setTimeout> | undefined
+  let rendererStartupWatchdogTimer: ReturnType<typeof setTimeout> | undefined
+  let stageStartupWatchdogTimer: ReturnType<typeof setTimeout> | undefined
+  let rendererDidFinishLoad = false
+  let rendererStageMounted = false
+  let lastStageStartupStatus: ElectronMainStageStartupStatusPayload | undefined
+
+  function clearForceShowFallbackTimer() {
+    if (!forceShowFallbackTimer)
+      return
+
+    clearTimeout(forceShowFallbackTimer)
+    forceShowFallbackTimer = undefined
+  }
+
+  function clearRendererStartupWatchdogTimer() {
+    if (!rendererStartupWatchdogTimer)
+      return
+
+    clearTimeout(rendererStartupWatchdogTimer)
+    rendererStartupWatchdogTimer = undefined
+  }
+
+  function clearStageStartupWatchdogTimer() {
+    if (!stageStartupWatchdogTimer)
+      return
+
+    clearTimeout(stageStartupWatchdogTimer)
+    stageStartupWatchdogTimer = undefined
+  }
+
+  function scheduleStageStartupWatchdogTimer() {
+    if (!stageStartupWatchdogEnabled || !rendererDidFinishLoad || rendererStageMounted || window.isDestroyed())
+      return
+
+    clearStageStartupWatchdogTimer()
+    stageStartupWatchdogTimer = setTimeout(() => {
+      if (window.isDestroyed() || rendererStageMounted)
+        return
+
+      void window.webContents.executeJavaScript(`(() => {
+        const appRoot = document.querySelector('#app')
+        return {
+          readyState: document.readyState,
+          hash: window.location.hash || '',
+          appChildElementCount: appRoot?.childElementCount ?? -1,
+          appTextSample: appRoot?.textContent?.slice(0, 120) ?? '',
+          stagePageReady: document.documentElement.dataset.alicizationStagePageReady ?? null,
+          stageMounted: document.documentElement.dataset.alicizationStageMounted ?? null,
+        }
+      })()`, true).then((snapshot) => {
+        console.info('[main-window] stage startup watchdog dom-snapshot', snapshot)
+      }).catch((error) => {
+        console.warn('[main-window] stage startup watchdog dom-snapshot failed', error)
+      })
+
+      const details = [
+        `url: ${window.webContents.getURL() || '<empty>'}`,
+        `isLoading: ${String(window.webContents.isLoading())}`,
+        `lastStageStartupStatus: ${lastStageStartupStatus ? JSON.stringify(lastStageStartupStatus) : '<none>'}`,
+      ].join('\n')
+      // NOTICE: Do not replace the live transparent desktop window with a fallback page here.
+      // Replacing the whole renderer can force mouse capture and block desktop interaction.
+      console.error('[main-window] stage startup watchdog timeout (no renderer takeover)', details)
+    }, stageStartupWatchdogDelayMs)
+  }
+
+  function normalizeStageStartupStatusPayload(raw: unknown): ElectronMainStageStartupStatusPayload | undefined {
+    if (!raw || typeof raw !== 'object')
+      return undefined
+
+    const input = raw as Partial<ElectronMainStageStartupStatusPayload>
+    if (input.state !== 'stage-page-mounted' && input.state !== 'stage-mounted' && input.state !== 'stage-unmounted')
+      return undefined
+
+    return {
+      state: input.state,
+      route: typeof input.route === 'string' ? input.route : '/',
+      timestamp: typeof input.timestamp === 'number' ? input.timestamp : Date.now(),
+    }
+  }
+
+  function handleMainWindowStageStartupStatus(event: IpcMainEvent, rawPayload?: unknown) {
+    if (window.isDestroyed() || event.sender.id !== window.webContents.id)
+      return
+
+    const payload = normalizeStageStartupStatusPayload(rawPayload)
+    if (!payload)
+      return
+
+    lastStageStartupStatus = payload
+    console.info('[main-window] renderer stage startup status', payload)
+    switch (payload.state) {
+      case 'stage-mounted':
+        rendererStageMounted = true
+        clearStageStartupWatchdogTimer()
+        console.info('[main-window] renderer stage mounted', payload)
+        return
+      case 'stage-unmounted':
+        rendererStageMounted = false
+        if (payload.route === '/')
+          scheduleStageStartupWatchdogTimer()
+        else
+          clearStageStartupWatchdogTimer()
+        return
+      case 'stage-page-mounted':
+        if (payload.route === '/')
+          scheduleStageStartupWatchdogTimer()
+    }
+  }
+
   if (params.onWindowCreated) {
     params.onWindowCreated(window)
   }
@@ -136,20 +252,89 @@ export async function setupMainWindow(params: {
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setFullScreenable(false)
   window.setVisibleOnAllWorkspaces(true)
+  // NOTICE: start in click-through mode to avoid desktop hard-blocking if renderer-side
+  // mouse-capture sync has not been initialized yet.
+  window.setIgnoreMouseEvents(true, { forward: true })
   if (isMacOS) {
     window.setWindowButtonVisibility(false)
   }
 
   window.on('ready-to-show', () => {
+    clearForceShowFallbackTimer()
     syncWindowToDesktopBounds()
     window.show()
+  })
+  ipcMain.on(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
+  window.webContents.on('did-finish-load', () => {
+    rendererDidFinishLoad = true
+    clearRendererStartupWatchdogTimer()
+    clearForceShowFallbackTimer()
+    scheduleStageStartupWatchdogTimer()
+    console.info('[main-window] did-finish-load', {
+      url: window.webContents.getURL(),
+    })
+  })
+  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level < 2 && !/\b(?:error|failed|exception)\b/i.test(message) && !message.includes('[stage-startup-trace]'))
+      return
+
+    console.error('[main-window] renderer-console', {
+      level,
+      line,
+      sourceId,
+      message,
+    })
+  })
+  window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+    if (!isMainFrame || rendererDidFinishLoad || window.isDestroyed())
+      return
+
+    const details = [
+      `errorCode: ${String(errorCode)}`,
+      `errorDescription: ${String(errorDescription)}`,
+      `validatedURL: ${String(validatedURL)}`,
+    ].join('\n')
+    console.error('[main-window] did-fail-load', details)
+  })
+  window.webContents.on('render-process-gone', (_event, details) => {
+    if (window.isDestroyed())
+      return
+
+    console.error('[main-window] render-process-gone', details)
   })
   window.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  await load(window, baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')))
+  // NOTICE: Transparent windows can appear as "completely missing" when ready-to-show
+  // does not fire in time. Force-show as a safety net so startup failures remain debuggable.
+  forceShowFallbackTimer = setTimeout(() => {
+    if (window.isDestroyed() || window.isVisible())
+      return
+
+    syncWindowToDesktopBounds()
+    window.show()
+  }, forceShowFallbackDelayMs)
+
+  rendererStartupWatchdogTimer = setTimeout(() => {
+    if (window.isDestroyed() || rendererDidFinishLoad)
+      return
+
+    const details = [
+      `url: ${window.webContents.getURL() || '<empty>'}`,
+      `isLoading: ${String(window.webContents.isLoading())}`,
+      `isDestroyed: ${String(window.webContents.isDestroyed())}`,
+    ].join('\n')
+    console.error('[main-window] renderer startup watchdog timeout (no renderer takeover)', details)
+  }, rendererStartupWatchdogDelayMs)
+
+  try {
+    await load(window, baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')))
+  }
+  catch (error) {
+    console.error('[main-window] Failed to load renderer entry:', error)
+  }
 
   await setupMainWindowElectronInvokes({
     window,
@@ -191,6 +376,10 @@ export async function setupMainWindow(params: {
     const cleanUpWindowDraggingInvokeHandler = defineInvokeHandler(context, electronStartDraggingWindow, handleStartDraggingWindow)
 
     window.on('closed', () => {
+      clearForceShowFallbackTimer()
+      clearRendererStartupWatchdogTimer()
+      clearStageStartupWatchdogTimer()
+      ipcMain.off(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
       cleanUpWindowDraggingInvokeHandler()
       screen.off('display-added', handleDisplayMetricsChanged)
       screen.off('display-removed', handleDisplayMetricsChanged)
@@ -199,6 +388,10 @@ export async function setupMainWindow(params: {
   }
   else {
     window.on('closed', () => {
+      clearForceShowFallbackTimer()
+      clearRendererStartupWatchdogTimer()
+      clearStageStartupWatchdogTimer()
+      ipcMain.off(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
       screen.off('display-added', handleDisplayMetricsChanged)
       screen.off('display-removed', handleDisplayMetricsChanged)
       screen.off('display-metrics-changed', handleDisplayMetricsChanged)

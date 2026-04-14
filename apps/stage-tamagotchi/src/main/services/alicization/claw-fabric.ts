@@ -14,6 +14,8 @@ import type {
   AlicizationExecutionTaskKind as SharedAlicizationExecutionTaskKind,
 } from '@proj-alicization/stage-shared'
 
+import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
+
 export const alicizationExecutionChannels = [
   'cli',
   'codex',
@@ -45,6 +47,26 @@ export type AlicizationClawFabricCandidateAssessment = SharedAlicizationClawFabr
 
 export type AlicizationClawFabricPlan = SharedAlicizationClawFabricPlan
 
+export interface AlicizationClawFabricChannelOutcomeSummary {
+  planned?: number | null
+  running?: number | null
+  completed?: number | null
+  failed?: number | null
+  cancelled?: number | null
+}
+
+export interface AlicizationClawFabricExperience {
+  sessionResumeChannel?: AlicizationExecutionChannel | null
+  activeChannels?: AlicizationExecutionChannel[] | null
+  channelOutcomes?: Partial<Record<AlicizationExecutionChannel, AlicizationClawFabricChannelOutcomeSummary>> | null
+  goalAffinityChannel?: AlicizationExecutionChannel | null
+  goalAffinityScore?: number | null
+  goalAffinityReason?: string | null
+  advisorChannel?: AlicizationExecutionChannel | null
+  advisorConfidence?: number | null
+  advisorReason?: string | null
+}
+
 interface AlicizationChannelTraits {
   structured: boolean
   sessionAffinity: boolean
@@ -57,6 +79,14 @@ interface AlicizationResolvedChannelCapability extends AlicizationChannelCapabil
   enabled: boolean
   ready: boolean
   sessionAffinity: boolean
+}
+
+interface AlicizationGoalSemanticSignals {
+  mentionedChannels: AlicizationExecutionChannel[]
+  hasCommandLiteral: boolean
+  hasCodeIntent: boolean
+  hasBrowserIntent: boolean
+  hasSoftwareIntent: boolean
 }
 
 const channelTraits = {
@@ -156,6 +186,53 @@ function unique(values: Array<string | undefined | null>) {
   return Array.from(new Set(values.map(value => normalizeText(value, 120)).filter(Boolean)))
 }
 
+function clamp01(raw: unknown) {
+  if (!Number.isFinite(raw))
+    return 0
+  return Math.max(0, Math.min(1, Number(raw)))
+}
+
+function deriveGoalSemanticSignals(task: AlicizationClawTaskIntent): AlicizationGoalSemanticSignals {
+  const goalText = normalizeText(task.goal, 600)
+  const semanticSignals = analyzeAlicizationExecutionSemanticSignals(goalText)
+  const mentionedChannels = semanticSignals.mentionedChannels
+    .filter((channel): channel is AlicizationExecutionChannel => alicizationExecutionChannels.includes(channel))
+  return {
+    mentionedChannels,
+    hasCommandLiteral: semanticSignals.hasCommandLiteral || semanticSignals.hasShellLikeStructure,
+    hasCodeIntent: semanticSignals.hasCodeArtifact,
+    hasBrowserIntent: semanticSignals.hasBrowserArtifact,
+    hasSoftwareIntent: semanticSignals.hasSoftwareArtifact,
+  }
+}
+
+function normalizeCount(raw: unknown) {
+  if (!Number.isFinite(raw))
+    return 0
+  return Math.max(0, Math.floor(Number(raw)))
+}
+
+function normalizeOutcomeSummary(
+  raw: AlicizationClawFabricChannelOutcomeSummary | null | undefined,
+) {
+  return {
+    planned: normalizeCount(raw?.planned),
+    running: normalizeCount(raw?.running),
+    completed: normalizeCount(raw?.completed),
+    failed: normalizeCount(raw?.failed),
+    cancelled: normalizeCount(raw?.cancelled),
+  }
+}
+
+function hasChannelInExperienceList(
+  channels: AlicizationExecutionChannel[] | null | undefined,
+  channel: AlicizationExecutionChannel,
+) {
+  if (!Array.isArray(channels))
+    return false
+  return channels.includes(channel)
+}
+
 function resolveCapabilityMap(capabilities: AlicizationChannelCapability[]) {
   return new Map<AlicizationExecutionChannel, AlicizationResolvedChannelCapability>(
     capabilities.map((capability) => {
@@ -195,6 +272,8 @@ function isChannelSupportedForTask(
 function buildCandidateAssessment(input: {
   capability: AlicizationResolvedChannelCapability
   task: AlicizationClawTaskIntent
+  goalSignals: AlicizationGoalSemanticSignals
+  experience?: AlicizationClawFabricExperience | null
 }) {
   const { capability, task } = input
   const channel = capability.channel
@@ -262,6 +341,86 @@ function buildCandidateAssessment(input: {
   if (channel === 'software' && task.kind === 'software-automation')
     reasons.push('app-specific-body')
 
+  if (!task.requestedChannel && input.goalSignals.mentionedChannels.length > 0) {
+    const mentionedIndex = input.goalSignals.mentionedChannels.indexOf(channel)
+    if (mentionedIndex >= 0) {
+      score += Math.max(72, 118 - mentionedIndex * 8)
+      reasons.push('goal-mentioned-channel')
+    }
+    else {
+      score -= 14
+      reasons.push('goal-mentioned-other-channel')
+    }
+  }
+
+  if (input.goalSignals.hasCommandLiteral && channel === 'cli') {
+    score += 34
+    reasons.push('goal-command-literal')
+  }
+
+  if (input.goalSignals.hasCodeIntent && (channel === 'codex' || channel === 'claude-code')) {
+    score += 16
+    reasons.push('goal-code-intent')
+  }
+
+  if (input.goalSignals.hasBrowserIntent && (channel === 'browser' || channel === 'openclaw' || channel === 'software')) {
+    score += 14
+    reasons.push('goal-browser-intent')
+  }
+
+  if (input.goalSignals.hasSoftwareIntent && (channel === 'software' || channel === 'openclaw' || channel === 'desktop')) {
+    score += 12
+    reasons.push('goal-software-intent')
+  }
+
+  const channelOutcome = normalizeOutcomeSummary(input.experience?.channelOutcomes?.[channel])
+  if (channelOutcome.completed > 0) {
+    score += Math.min(24, channelOutcome.completed * 7)
+    reasons.push('history-completed')
+  }
+
+  if (channelOutcome.running > 0 && prefersPersistentSession && capability.sessionAffinity) {
+    score += Math.min(18, channelOutcome.running * 8)
+    reasons.push('running-session-continuity')
+  }
+
+  if (channelOutcome.failed > channelOutcome.completed) {
+    score -= Math.min(30, (channelOutcome.failed - channelOutcome.completed) * 9)
+    reasons.push('history-failure-pressure')
+  }
+
+  if (input.experience?.sessionResumeChannel === channel && capability.sessionAffinity) {
+    score += prefersPersistentSession ? 34 : 18
+    reasons.push('session-resume-channel')
+  }
+
+  if (hasChannelInExperienceList(input.experience?.activeChannels, channel) && capability.sessionAffinity) {
+    score += 6
+    reasons.push('active-channel-continuity')
+  }
+
+  const goalAffinityChannel = input.experience?.goalAffinityChannel ?? null
+  const goalAffinityScore = clamp01(input.experience?.goalAffinityScore)
+  if (goalAffinityChannel === channel) {
+    score += 12 + Math.round(goalAffinityScore * 18)
+    reasons.push('goal-affinity-channel')
+  }
+  else if (goalAffinityChannel && goalAffinityScore >= 0.45) {
+    score -= Math.round(goalAffinityScore * 10)
+    reasons.push('goal-affinity-other-channel-pressure')
+  }
+
+  const advisorChannel = input.experience?.advisorChannel ?? null
+  const advisorConfidence = clamp01(input.experience?.advisorConfidence)
+  if (advisorChannel === channel) {
+    score += 20 + Math.round(advisorConfidence * 28)
+    reasons.push('advisor-channel')
+  }
+  else if (advisorChannel && advisorConfidence >= 0.66) {
+    score -= 8 + Math.round(advisorConfidence * 10)
+    reasons.push('advisor-other-channel-pressure')
+  }
+
   return {
     channel,
     available: capability.available,
@@ -316,6 +475,7 @@ function requiresAffirmation(input: {
 export function buildClawFabricPlan(input: {
   task: AlicizationClawTaskIntent
   capabilities: AlicizationChannelCapability[]
+  experience?: AlicizationClawFabricExperience | null
   killSwitchSuspended?: boolean
 }): AlicizationClawFabricPlan {
   if (input.killSwitchSuspended) {
@@ -334,6 +494,7 @@ export function buildClawFabricPlan(input: {
   }
 
   const capabilityMap = resolveCapabilityMap(input.capabilities)
+  const goalSignals = deriveGoalSemanticSignals(input.task)
   const candidates = alicizationExecutionChannels.map((channel) => {
     const capability = capabilityMap.get(channel) ?? {
       channel,
@@ -346,6 +507,8 @@ export function buildClawFabricPlan(input: {
     return buildCandidateAssessment({
       capability,
       task: input.task,
+      goalSignals,
+      experience: input.experience,
     })
   }).sort((left, right) => {
     if (left.eligible !== right.eligible)
@@ -367,6 +530,9 @@ export function buildClawFabricPlan(input: {
       reasonTags: unique([
         `task:${input.task.kind}`,
         input.task.requestedChannel ? `requested:${input.task.requestedChannel}` : '',
+        input.experience?.sessionResumeChannel ? `session-resume:${input.experience.sessionResumeChannel}` : '',
+        input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
+        input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
         'no-eligible-channel',
       ]),
       narrative: [
@@ -398,6 +564,9 @@ export function buildClawFabricPlan(input: {
       input.task.requestedChannel ? `requested:${input.task.requestedChannel}` : '',
       input.task.origin ? `origin:${input.task.origin}` : '',
       input.task.effect ? `effect:${input.task.effect}` : '',
+      input.experience?.sessionResumeChannel ? `session-resume:${input.experience.sessionResumeChannel}` : '',
+      input.experience?.goalAffinityChannel ? `goal-affinity:${input.experience.goalAffinityChannel}` : '',
+      input.experience?.advisorChannel ? `advisor:${input.experience.advisorChannel}` : '',
       ...affirmationReasonCodes,
       ...eligibleCandidates[0].reasons,
     ]),
@@ -416,6 +585,24 @@ export function buildClawFabricPlan(input: {
         : '',
       input.task.kind === 'software-automation' && proposedChannel === 'software'
         ? 'App-specific software control won before generic desktop claw.'
+        : '',
+      eligibleCandidates[0].reasons.includes('session-resume-channel')
+        ? 'Routing stayed on the currently attached executor body to preserve embodied continuity and avoid a cold start.'
+        : '',
+      eligibleCandidates[0].reasons.includes('history-completed')
+        ? 'Recent successful traces on this channel increased confidence for this turn.'
+        : '',
+      eligibleCandidates[0].reasons.includes('history-failure-pressure')
+        ? 'Failure pressure reduced this channel priority unless no safer candidate existed.'
+        : '',
+      eligibleCandidates[0].reasons.includes('goal-mentioned-channel')
+        ? 'Routing followed explicit channel cues present in the task goal.'
+        : '',
+      eligibleCandidates[0].reasons.includes('goal-affinity-channel')
+        ? 'Routing aligned with similar historical task outcomes to preserve continuity.'
+        : '',
+      eligibleCandidates[0].reasons.includes('advisor-channel')
+        ? 'Routing adopted the external channel assessor recommendation with confidence weighting.'
         : '',
       affirmationReasonCodes.includes('proactive-side-effects-require-explicit-consent')
         ? 'The route was held for affirmation because proactive side effects should not quietly seize a stronger body.'

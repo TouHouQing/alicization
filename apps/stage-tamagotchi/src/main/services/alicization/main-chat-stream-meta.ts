@@ -2,13 +2,14 @@ import type {
   AlicizationChatMetaEvent,
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
+  AlicizationRuntimeDigest,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { buildAlicizationChatStreamEmbodimentMeta, readStringValue } from './runtime-governance'
 
-export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'embodiment' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine'>) {
+export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'embodiment' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
   const lastSegment = body.speechTimeline?.segments.at(-1)
   const lastFrame = body.digitalLife?.frames.at(-1)
   return JSON.stringify({
@@ -49,6 +50,17 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     digitalLifeRecallMode: body.digitalLifeSpine?.memory?.recallMode ?? null,
     digitalLifeRecentEpisodeCount: body.digitalLifeSpine?.memory?.recentEpisodeCount ?? 0,
     digitalLifeReflectionPressure: body.digitalLifeSpine?.memory?.reflectionPressure ?? null,
+    runtimeDigestDominantChannel: body.runtimeDigest?.dominantChannel ?? null,
+    runtimeDigestShouldSpeak: body.runtimeDigest?.shouldProactivelySpeak ?? null,
+    runtimeDigestShouldAct: body.runtimeDigest?.shouldProactivelyAct ?? null,
+    runtimeDigestContinuityPressure: body.runtimeDigest?.continuityPressure ?? null,
+    runtimeDigestCompanionshipPressure: body.runtimeDigest?.companionshipPressure ?? null,
+    runtimeDigestActiveLoopPhase: body.runtimeDigest?.activeLoop?.phase ?? null,
+    runtimeDigestActiveLoopHandoff: body.runtimeDigest?.activeLoop?.handoffTarget ?? null,
+    runtimeDigestActiveLoopInitiativeBudget: body.runtimeDigest?.activeLoop?.initiativeBudget ?? null,
+    runtimeDigestActiveLoopCoherence: body.runtimeDigest?.activeLoop?.coherence ?? null,
+    runtimeDigestActiveLoopObservationHeavy: body.runtimeDigest?.activeLoop?.observationHeavy ?? null,
+    runtimeDigestSummary: body.runtimeDigest?.summary ?? null,
   })
 }
 
@@ -59,6 +71,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
   turnId: string
   getGovernance: () => AlicizationMindTurnGovernance | null | undefined
   getDigitalLifeSpine?: () => AlicizationChatMetaEvent['digitalLifeSpine']
+  getRuntimeDigest?: () => AlicizationRuntimeDigest | null | undefined
   getResidentPerformance?: () => AlicizationResidentPerformanceSnapshot | null | undefined
   getPerformanceManifest?: () => CharacterPerformanceCapabilitiesManifest | null | undefined
   emit: (payload: AlicizationChatMetaEvent) => void
@@ -75,6 +88,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       turnId: input.turnId,
     })
     const digitalLifeSpine = input.getDigitalLifeSpine?.() ?? null
+    const runtimeDigest = input.getRuntimeDigest?.() ?? null
     const emittedMeta = {
       cardId: input.cardId,
       turnId: input.turnId,
@@ -83,6 +97,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       speechTimeline: meta.speechTimeline,
       digitalLife: meta.digitalLife,
       digitalLifeSpine,
+      runtimeDigest,
     } satisfies AlicizationChatMetaEvent
     const signature = buildAlicizationChatMetaSignature(emittedMeta)
     if (!options?.force && signature === lastSignature)

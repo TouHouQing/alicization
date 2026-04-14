@@ -68,6 +68,116 @@ describe('buildClawFabricPlan', () => {
     expect(plan.fallbackChannels.slice(0, 2)).toEqual(['cli', 'desktop'])
   })
 
+  it('adapts routing using channel outcomes and session continuity hints', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the current task-thread runtime regression.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        sessionResumeChannel: 'claude-code',
+        activeChannels: ['claude-code'],
+        channelOutcomes: {
+          'codex': {
+            completed: 1,
+            failed: 4,
+          },
+          'claude-code': {
+            completed: 2,
+            running: 1,
+          },
+        },
+      },
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('claude-code')
+    expect(plan.reasonTags).toEqual(expect.arrayContaining([
+      'session-resume:claude-code',
+      'session-resume-channel',
+      'history-completed',
+    ]))
+    expect(plan.narrative.join(' ')).toContain('Routing stayed on the currently attached executor body')
+  })
+
+  it('follows explicit channel cues from the task goal when no channel pin exists', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'browser-automation',
+        goal: 'Use OpenClaw to click the login button in the current web page.',
+        origin: 'user',
+        effect: 'mutate',
+        requiresVisualGrounding: true,
+      },
+      capabilities: createCapabilities(['browser', 'openclaw', 'software']),
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('openclaw')
+    expect(plan.reasonTags).toContain('goal-mentioned-channel')
+    expect(plan.narrative.join(' ')).toContain('Routing followed explicit channel cues')
+  })
+
+  it('uses goal-affinity continuity hints from similar historical tasks', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Fix the mind-turn continuity regression around thread routing.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        goalAffinityChannel: 'claude-code',
+        goalAffinityScore: 0.92,
+        goalAffinityReason: 'similar-goal-history:claude-code:3',
+        channelOutcomes: {
+          'codex': {
+            completed: 2,
+          },
+          'claude-code': {
+            completed: 2,
+          },
+        },
+      },
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('claude-code')
+    expect(plan.reasonTags).toEqual(expect.arrayContaining([
+      'goal-affinity:claude-code',
+      'goal-affinity-channel',
+    ]))
+  })
+
+  it('respects external advisor channel hints when confidence is high', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Refactor the runtime event orchestrator.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code']),
+      experience: {
+        advisorChannel: 'claude-code',
+        advisorConfidence: 0.91,
+        advisorReason: 'llm-assessor:prefers-claude-code-for-this-task',
+      },
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('claude-code')
+    expect(plan.reasonTags).toEqual(expect.arrayContaining([
+      'advisor:claude-code',
+      'advisor-channel',
+    ]))
+  })
+
   it('does not silently fall back when the caller explicitly pinned a requested channel', () => {
     const plan = buildClawFabricPlan({
       task: {

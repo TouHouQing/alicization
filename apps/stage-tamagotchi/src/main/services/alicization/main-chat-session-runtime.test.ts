@@ -381,6 +381,7 @@ describe('main chat session runtime', () => {
         source: 'card-soul' as const,
       })),
       resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext: vi.fn(async () => ({
         hostAttitude: '礼貌而克制，保持观察',
@@ -438,6 +439,7 @@ describe('main chat session runtime', () => {
       'performance-manifest',
       'card-directives',
       'host-name',
+      'persona-kernel',
       'tool-registry',
       'execution-capabilities',
       'runtime-surface',
@@ -492,6 +494,95 @@ describe('main chat session runtime', () => {
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
   })
 
+  it('enforces tools and waitForTools for execution-routing turns even when payload flags disable tools', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: context => [`[ORGANIC:${context.hostAttitude}]`],
+      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => ({
+        rigVersion: 1,
+      } as any)),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '优先观察，不要臆测。',
+        source: 'card-soul' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-routing-enforced-tool-flags',
+        messages: [{
+          role: 'user',
+          content: '用cli命令帮我查一下桌面有什么文件',
+        }],
+        supportsTools: false,
+        waitForTools: false,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: '用cli命令帮我查一下桌面有什么文件',
+        } as Message],
+      }),
+    })
+
+    expect(result.runtimeSurface.tooling.allowTools).toBe(true)
+    expect(result.runtimeSurface.tooling.waitForTools).toBe(true)
+    expect(result.runtimeSurface.tooling.routingRequired).toBe(true)
+    expect(result.waitForTools).toBe(true)
+    expect(result.toolChoice).toEqual({
+      type: 'function',
+      function: { name: 'executor_run_cli' },
+    })
+    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(['executor_run_cli'])
+  })
+
   it('skips tool registry work when the chat payload disables tools', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -532,6 +623,7 @@ describe('main chat session runtime', () => {
         source: 'none' as const,
       })),
       resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext: vi.fn(async () => ({
         hostAttitude: '',
@@ -646,6 +738,7 @@ describe('main chat session runtime', () => {
         source: 'card-soul' as const,
       })),
       resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext: vi.fn(async () => ({
         hostAttitude: '礼貌而克制，保持观察',
@@ -779,6 +872,7 @@ describe('main chat session runtime', () => {
         source: 'none' as const,
       })),
       resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext: vi.fn(async () => ({
         hostAttitude: '',
@@ -898,6 +992,7 @@ describe('main chat session runtime', () => {
         source: 'none' as const,
       })),
       resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext,
       resolveSessionContinuitySignals: vi.fn(async () => []),
@@ -1005,6 +1100,7 @@ describe('main chat session runtime', () => {
         source: 'none' as const,
       })),
       resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
       resolveOrganicMemoryPromptContext: vi.fn(async () => ({
         hostAttitude: '',

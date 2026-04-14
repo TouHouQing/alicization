@@ -3,7 +3,7 @@ import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
 import { useTheme } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ControlButtonTooltip from './control-button-tooltip.vue'
@@ -23,6 +23,13 @@ import {
 const emit = defineEmits<{
   (e: 'resetDesktopLayout'): void
 }>()
+console.info('[stage-startup-trace][controls-island] setup-start')
+onBeforeMount(() => {
+  console.info('[stage-startup-trace][controls-island] onBeforeMount')
+})
+onMounted(() => {
+  console.info('[stage-startup-trace][controls-island] onMounted')
+})
 const { isDark, toggleDark } = useTheme()
 const { t } = useI18n()
 
@@ -42,7 +49,16 @@ defineExpose({ hearingDialogOpen })
 
 // Apply alwaysOnTop on mount and when it changes
 watch(alwaysOnTop, (val: boolean) => {
-  setAlwaysOnTop(val)
+  console.info(`[stage-startup-trace][controls-island] alwaysOnTop-watch-enter value=${String(val)}`)
+  try {
+    const maybePromise = setAlwaysOnTop(val)
+    void Promise.resolve(maybePromise).catch((error) => {
+      console.warn('[stage-startup-trace][controls-island] alwaysOnTop-watch-error', error)
+    })
+  }
+  finally {
+    console.info(`[stage-startup-trace][controls-island] alwaysOnTop-watch-exit value=${String(val)}`)
+  }
 }, { immediate: true })
 
 function toggleAlwaysOnTop() {
@@ -94,7 +110,7 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
 </script>
 
 <template>
-  <div fixed bottom-2 right-2>
+  <div fixed bottom-2 right-2 z-140>
     <div flex flex-col items-end gap-1>
       <!-- iOS Style Drawer Panel -->
       <Transition
@@ -199,6 +215,15 @@ async function runMenuAction(action: () => unknown | Promise<unknown>) {
 
       <!-- Main Controls -->
       <div flex flex-col gap-1>
+        <ControlButtonTooltip side="left">
+          <ControlButton :button-style="adjustStyleClasses.button" @click="runMenuAction(() => openSettings({ route: '/settings' }))">
+            <div i-solar:settings-minimalistic-outline :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
+          </ControlButton>
+          <template #tooltip>
+            {{ t('tamagotchi.stage.controls-island.open-settings') }}
+          </template>
+        </ControlButtonTooltip>
+
         <ControlButtonTooltip side="left">
           <ControlButton :button-style="adjustStyleClasses.button" @click="expanded = !expanded">
             <div

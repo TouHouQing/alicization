@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationVisualPresenceStateChangedPayload, AlicizationVisualPresenceStateSnapshot } from '../shared/eventa'
+import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationKillSwitchSnapshot, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationSoulSnapshot, AlicizationVisualPresenceStateChangedPayload, AlicizationVisualPresenceStateSnapshot } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
@@ -149,9 +149,6 @@ const alicizationPresenceDispatcherStore = useAlicizationPresenceDispatcherStore
 const pluginHostInspectorStore = usePluginHostInspectorStore()
 const stageWindowLifecycleStore = useStageWindowLifecycleStore()
 const context = useElectronEventaContext()
-usePerfTracerBridgeStore()
-initializeStageThreeRuntimeTraceBridge()
-void stageWindowLifecycleStore.initializeWindowLifecycleBridge()
 const getServerChannelConfig = useElectronEventaInvoke(electronGetServerChannelConfig)
 const listPlugins = useElectronEventaInvoke(electronPluginList)
 const setPluginEnabled = useElectronEventaInvoke(electronPluginSetEnabled)
@@ -344,7 +341,7 @@ async function upsertProactiveAssistantTurn(payload: {
     existingAssistant.structured = normalizedStructured
     existingAssistant.categorization = {
       speech: assistantText,
-      reasoning: normalizedStructured.thought,
+      reasoning: resolveVisibleReasoning(normalizedStructured, 'subconscious-proactive'),
     }
   }
   else {
@@ -359,7 +356,7 @@ async function upsertProactiveAssistantTurn(payload: {
       structured: normalizedStructured,
       categorization: {
         speech: assistantText,
-        reasoning: normalizedStructured.thought,
+        reasoning: resolveVisibleReasoning(normalizedStructured, 'subconscious-proactive'),
       },
     })
   }
@@ -388,6 +385,17 @@ function normalizeChatStructuredRecord(raw: unknown, fallbackReply: string) {
     proactive: normalizeProactiveMetadata(structured.proactive),
     digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
   }
+}
+
+function resolveVisibleReasoning(
+  structured: ReturnType<typeof normalizeChatStructuredRecord>,
+  origin: 'subconscious-proactive' | 'user-turn',
+) {
+  if (origin === 'subconscious-proactive')
+    return ''
+  if (structured.format.startsWith('subconscious-'))
+    return ''
+  return structured.thought
 }
 
 function getMessageText(message: any) {
@@ -550,7 +558,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
           existing.structured = structured
           existing.categorization = {
             speech: assistantText,
-            reasoning: structured.thought,
+            reasoning: resolveVisibleReasoning(structured, inferredOrigin),
           }
           const afterSignature = JSON.stringify({
             id: existing.id,
@@ -573,7 +581,7 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             structured,
             categorization: {
               speech: assistantText,
-              reasoning: structured.thought,
+              reasoning: resolveVisibleReasoning(structured, inferredOrigin),
             },
           } as any)
           changed = true
@@ -1159,7 +1167,9 @@ setAlicizationBridge({
   deleteAllData: async () => await alicizationDeleteAllData(),
 })
 
-context.value.on(alicizationSoulChanged, (event) => {
+type EventEnvelope<T> = { body?: T }
+
+context.value.on(alicizationSoulChanged, (event: EventEnvelope<AlicizationCardScope & AlicizationSoulSnapshot>) => {
   const payload = event?.body
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
@@ -1168,7 +1178,7 @@ context.value.on(alicizationSoulChanged, (event) => {
   void alicizationEpoch1Store.refreshOrganicMemorySnapshot()
 })
 
-context.value.on(alicizationKillSwitchStateChanged, (event) => {
+context.value.on(alicizationKillSwitchStateChanged, (event: EventEnvelope<AlicizationCardScope & AlicizationKillSwitchSnapshot>) => {
   const payload = event?.body
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
@@ -1176,11 +1186,11 @@ context.value.on(alicizationKillSwitchStateChanged, (event) => {
   alicizationEpoch1Store.setKillSwitchSnapshot(snapshot)
 })
 
-context.value.on(alicizationDialogueResponded, event => handleAlicizationDialogueRespondedPayload(event?.body))
-context.value.on(electronAlicizationVisualPresenceChanged, event => handleAlicizationVisualPresencePayload(event?.body))
-context.value.on(electronAlicizationVisualPresenceStateChanged, event => handleAlicizationVisualPresenceStatePayload(event?.body))
+context.value.on(alicizationDialogueResponded, (event: EventEnvelope<AlicizationDialogueRespondedPayload>) => handleAlicizationDialogueRespondedPayload(event?.body))
+context.value.on(electronAlicizationVisualPresenceChanged, (event: EventEnvelope<AlicizationPresencePulsePayload>) => handleAlicizationVisualPresencePayload(event?.body))
+context.value.on(electronAlicizationVisualPresenceStateChanged, (event: EventEnvelope<AlicizationVisualPresenceStateChangedPayload>) => handleAlicizationVisualPresenceStatePayload(event?.body))
 
-context.value.on(alicizationSafetyPermissionRequested, (event) => {
+context.value.on(alicizationSafetyPermissionRequested, (event: EventEnvelope<AlicizationSafetyPermissionRequest>) => {
   const payload = event?.body
   if (!payload || !isCurrentAlicizationCard(payload.cardId))
     return
@@ -1188,27 +1198,27 @@ context.value.on(alicizationSafetyPermissionRequested, (event) => {
   popNextHitlRequest()
 })
 
-context.value.on(alicizationChatStreamChunk, (event) => {
+context.value.on(alicizationChatStreamChunk, (event: EventEnvelope<AlicizationChatStreamChunkEvent>) => {
   handleAlicizationChatStreamChunk(event?.body)
 })
 
-context.value.on(alicizationChatStreamMeta, (event) => {
+context.value.on(alicizationChatStreamMeta, (event: EventEnvelope<AlicizationChatMetaEvent>) => {
   handleAlicizationChatStreamMeta(event?.body)
 })
 
-context.value.on(alicizationChatStreamToolCall, (event) => {
+context.value.on(alicizationChatStreamToolCall, (event: EventEnvelope<AlicizationChatToolCallEvent>) => {
   handleAlicizationChatStreamToolCall(event?.body)
 })
 
-context.value.on(alicizationChatStreamToolResult, (event) => {
+context.value.on(alicizationChatStreamToolResult, (event: EventEnvelope<AlicizationChatToolResultEvent>) => {
   handleAlicizationChatStreamToolResult(event?.body)
 })
 
-context.value.on(alicizationChatStreamError, (event) => {
+context.value.on(alicizationChatStreamError, (event: EventEnvelope<AlicizationChatErrorEvent>) => {
   handleAlicizationChatStreamError(event?.body)
 })
 
-context.value.on(alicizationChatStreamFinish, (event) => {
+context.value.on(alicizationChatStreamFinish, (event: EventEnvelope<AlicizationChatFinishEvent>) => {
   handleAlicizationChatStreamFinish(event?.body)
 })
 
@@ -1274,7 +1284,7 @@ watch(dark, () => updateThemeColor(), { immediate: true })
 watch(route, () => updateThemeColor(), { immediate: true })
 onMounted(() => updateThemeColor())
 
-context.value.on(electronSettingsNavigate, (event) => {
+context.value.on(electronSettingsNavigate, (event: EventEnvelope<{ route: string }>) => {
   const targetRoute = event?.body?.route
   if (!targetRoute || route.fullPath === targetRoute) {
     return
@@ -1286,6 +1296,12 @@ context.value.on(electronSettingsNavigate, (event) => {
 })
 
 onMounted(async () => {
+  window.setTimeout(() => {
+    usePerfTracerBridgeStore()
+    initializeStageThreeRuntimeTraceBridge()
+    void stageWindowLifecycleStore.initializeWindowLifecycleBridge()
+  }, 0)
+
   analyticsStore.initialize()
   cardStore.initialize()
   await alicizationEpoch1Store.initialize()

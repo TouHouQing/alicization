@@ -2,7 +2,6 @@ import localforage from 'localforage'
 
 import { loadLive2DModelPreview as generateLive2DPreview } from '@proj-alicization/stage-ui-live2d/utils/live2d-preview'
 import { loadVrmModelPreview as generateVrmPreview } from '@proj-alicization/stage-ui-three/utils/vrm-preview'
-import { until } from '@vueuse/core'
 import { nanoid } from 'nanoid'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -57,36 +56,98 @@ const displayModelsPresets: DisplayModel[] = [
   { id: 'preset-vrm-1', format: DisplayModelFormat.VRM, type: 'url', url: presetVrmAvatarAUrl, name: 'AvatarSample_A', previewImage: presetVrmAvatarAPreview, importedAt: 1733113886840 },
   { id: 'preset-vrm-2', format: DisplayModelFormat.VRM, type: 'url', url: presetVrmAvatarBUrl, name: 'AvatarSample_B', previewImage: presetVrmAvatarBPreview, importedAt: 1733113886840 },
 ]
+const displayModelsLoadingWaitTimeoutMs = 4_000
+const displayModelsOperationTimeoutMs = 4_000
+const displayModelsLoadingPollIntervalMs = 40
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
 
 export const useDisplayModelsStore = defineStore('display-models', () => {
   const displayModels = ref<DisplayModel[]>([])
 
   const displayModelsFromIndexedDBLoading = ref(false)
 
+  async function waitForDisplayModelsIdle(operation: string) {
+    const startedAt = Date.now()
+    while (displayModelsFromIndexedDBLoading.value) {
+      const elapsed = Date.now() - startedAt
+      if (elapsed >= displayModelsLoadingWaitTimeoutMs) {
+        // NOTICE: IndexedDB iterate/get can stall indefinitely in damaged browser storage states.
+        // Force-unblocking prevents stage boot from being permanently stuck on "loading".
+        console.warn('[display-models] loading flag stuck, force reset to unblock stage boot', {
+          elapsed,
+          operation,
+        })
+        displayModelsFromIndexedDBLoading.value = false
+        return
+      }
+
+      await sleep(displayModelsLoadingPollIntervalMs)
+    }
+  }
+
+  async function withTimeout<T>(operation: string, task: Promise<T>, timeoutMs = displayModelsOperationTimeoutMs) {
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+
+    try {
+      return await Promise.race<T>([
+        task,
+        new Promise<T>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(new Error(`[display-models] ${operation} timed out after ${timeoutMs}ms`))
+          }, timeoutMs)
+        }),
+      ])
+    }
+    finally {
+      if (timeoutHandle)
+        clearTimeout(timeoutHandle)
+    }
+  }
+
   async function loadDisplayModelsFromIndexedDB() {
-    await until(displayModelsFromIndexedDBLoading).toBe(false)
+    await waitForDisplayModelsIdle('loadDisplayModelsFromIndexedDB')
 
     displayModelsFromIndexedDBLoading.value = true
     const models = [...displayModelsPresets]
+    let ignoreIterateResults = false
 
     try {
-      await localforage.iterate<{ format: DisplayModelFormat, file: File, importedAt: number, previewImage?: string }, void>((val, key) => {
+      await withTimeout('localforage.iterate', localforage.iterate<{ format: DisplayModelFormat, file: File, importedAt: number, previewImage?: string }, void>((val, key) => {
+        if (ignoreIterateResults)
+          return
+
         if (key.startsWith('display-model-')) {
           models.push({ id: key, format: val.format, type: 'file', file: val.file, name: val.file.name, importedAt: val.importedAt, previewImage: val.previewImage })
         }
-      })
+      }))
     }
     catch (err) {
-      console.error(err)
+      ignoreIterateResults = true
+      console.error('[display-models] failed to load models from indexeddb, fallback to presets for this cycle:', err)
+    }
+    finally {
+      displayModelsFromIndexedDBLoading.value = false
     }
 
     displayModels.value = models.sort((a, b) => b.importedAt - a.importedAt)
-    displayModelsFromIndexedDBLoading.value = false
   }
 
   async function getDisplayModel(id: string) {
-    await until(displayModelsFromIndexedDBLoading).toBe(false)
-    const modelFromFile = await localforage.getItem<DisplayModelFile>(id)
+    await waitForDisplayModelsIdle('getDisplayModel')
+
+    let modelFromFile: DisplayModelFile | null = null
+    try {
+      modelFromFile = await withTimeout('localforage.getItem', localforage.getItem<DisplayModelFile>(id))
+    }
+    catch (error) {
+      console.warn('[display-models] failed to read model from indexeddb, fallback to presets:', error)
+    }
+
     if (modelFromFile) {
       return modelFromFile
     }
@@ -102,7 +163,7 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
   }
 
   async function addDisplayModel(format: DisplayModelFormat, file: File) {
-    await until(displayModelsFromIndexedDBLoading).toBe(false)
+    await waitForDisplayModelsIdle('addDisplayModel')
     const newDisplayModel: DisplayModelFile = { id: `display-model-${nanoid()}`, format, type: 'file', file, name: file.name, importedAt: Date.now() }
 
     if (format === DisplayModelFormat.Live2dZip) {
@@ -121,17 +182,27 @@ export const useDisplayModelsStore = defineStore('display-models', () => {
   }
 
   async function renameDisplayModel(id: string, name: string) {
-    await until(displayModelsFromIndexedDBLoading).toBe(false)
-    const displayModel = await localforage.getItem<DisplayModelFile>(id)
+    await waitForDisplayModelsIdle('renameDisplayModel')
+    const displayModel = await withTimeout('localforage.getItem(rename)', localforage.getItem<DisplayModelFile>(id))
     if (!displayModel)
       return
 
     displayModel.name = name
+    await withTimeout('localforage.setItem(rename)', localforage.setItem<DisplayModelFile>(id, displayModel))
+    displayModels.value = displayModels.value.map((model) => {
+      if (model.id !== id)
+        return model
+
+      if (model.type === 'file')
+        return { ...model, name }
+
+      return model
+    })
   }
 
   async function removeDisplayModel(id: string) {
-    await until(displayModelsFromIndexedDBLoading).toBe(false)
-    await localforage.removeItem(id)
+    await waitForDisplayModelsIdle('removeDisplayModel')
+    await withTimeout('localforage.removeItem', localforage.removeItem(id))
     displayModels.value = displayModels.value.filter(model => model.id !== id)
   }
 

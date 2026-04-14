@@ -54,6 +54,7 @@ import type {
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
   AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
@@ -99,6 +100,12 @@ export const electronSettingsNavigate = defineEventa<{ route: string }>('eventa:
 export const electronOpenChat = defineInvokeEventa('eventa:invoke:electron:windows:chat:open')
 export const electronOpenSettingsDevtools = defineInvokeEventa('eventa:invoke:electron:windows:settings:devtools:open')
 export const electronOpenDevtoolsWindow = defineInvokeEventa<void, { route?: string }>('eventa:invoke:electron:windows:devtools:open')
+export const electronMainStageStartupStatusChannel = 'eventa:event:electron:windows:main:stage-startup-status'
+export interface ElectronMainStageStartupStatusPayload {
+  state: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted'
+  route: string
+  timestamp: number
+}
 
 export interface ElectronServerChannelConfig {
   tlsConfig?: ServerOptions['tlsConfig'] | null
@@ -730,6 +737,11 @@ export type AlicizationProactiveReasonCode
     | 'watch-mode-symbiotic'
     | 'watch-mode-invited-inspection'
     | 'watch-mode-recovering'
+    | 'runtime-dialogue-ready'
+    | 'runtime-observe-dominant'
+    | 'runtime-control-ready'
+    | 'runtime-continuity-pressure'
+    | 'runtime-companionship-pressure'
 
 export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
@@ -2327,6 +2339,7 @@ export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePer
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
+export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
@@ -2404,6 +2417,7 @@ export interface AlicizationChatMetaEvent {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
 export interface AlicizationChatFinishEvent {

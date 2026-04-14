@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { DuckDBWasmDrizzleDatabase } from '@proj-airi/drizzle-duckdb-wasm'
 import type {
   VrmActionBinding,
   VrmRuntimeCapabilitySnapshot,
@@ -13,12 +12,11 @@ import type {
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationPresencePulsePayload,
+  AlicizationRuntimeDigest,
 } from '../../stores/alicization-bridge'
 
-import { drizzle } from '@proj-airi/drizzle-duckdb-wasm'
-import { getImportUrlBundles } from '@proj-airi/drizzle-duckdb-wasm/bundles/import-url-browser'
 import { createBufferedSpeechAudioSource, createPlaybackManager, createSpeechPipeline } from '@proj-alicization/pipelines-audio'
-import { listStageEmbodimentLive2DFacialCapabilities } from '@proj-alicization/stage-shared'
+import { createLazyBroadcastPoster, listStageEmbodimentLive2DFacialCapabilities } from '@proj-alicization/stage-shared'
 import { Live2DScene, useLive2d } from '@proj-alicization/stage-ui-live2d'
 import { ThreeScene, useModelStore } from '@proj-alicization/stage-ui-three'
 import { animations, builtinActionBindings } from '@proj-alicization/stage-ui-three/assets/vrm'
@@ -28,13 +26,13 @@ import {
   supportsVrmBaseEmotion,
 } from '@proj-alicization/stage-ui-three/composables/vrm'
 import { createQueue } from '@proj-alicization/stream-kit'
-import { useBroadcastChannel, useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
+import { useLocalStorage, useMediaQuery, useNow, useResizeObserver } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import StageDialoguePanel from './stage-dialogue-panel.vue'
@@ -84,13 +82,27 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
-
-const db = ref<DuckDBWasmDrizzleDatabase>()
 // const transformersProvider = createTransformers({ embedWorkerURL })
 
 const stageRootRef = ref<HTMLDivElement | null>(null)
 const vrmViewerRef = ref<InstanceType<typeof ThreeScene>>()
 const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
+
+console.info('[stage-startup-trace][stage] setup-start')
+queueMicrotask(() => {
+  console.info('[stage-startup-trace][stage] setup-microtask')
+})
+setTimeout(() => {
+  console.info('[stage-startup-trace][stage] setup-timeout-1000ms')
+}, 1_000)
+
+onErrorCaptured((error, instance, info) => {
+  console.error('[stage-startup-trace][stage] captured-error', {
+    info,
+    component: instance?.$?.type,
+    error,
+  })
+})
 
 const settingsStore = useSettings()
 const {
@@ -108,7 +120,9 @@ const {
   live2dMaxFps,
 } = storeToRefs(settingsStore)
 const { mouthOpenSize } = storeToRefs(useSpeakingStore())
+console.info('[stage-startup-trace][stage] before-audio-context')
 const { audioContext } = useAudioContext()
+console.info('[stage-startup-trace][stage] after-audio-context')
 
 const chatOrchestrator = useChatOrchestratorStore()
 const {
@@ -197,6 +211,7 @@ const desktopInteractions = useStageDesktopInteractions({
     directDesktopInteractionActive.value = active
   },
 })
+console.info('[stage-startup-trace][stage] after-desktop-interactions')
 
 watch(
   () => directDesktopInteractionActive.value || dialoguePanelInteractionActive.value,
@@ -210,7 +225,7 @@ watch(
 type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
-const { post: postCaption } = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
+const captionPoster = createLazyBroadcastPoster<CaptionChannelEvent>('airi-caption-overlay')
 const assistantCaption = ref('')
 const hoverCapable = useMediaQuery('(hover: hover) and (pointer: fine)')
 const stageCharacterHovered = ref(false)
@@ -220,14 +235,21 @@ const dialoguePanelFocused = ref(false)
 type PresentEvent
   = | { type: 'assistant-reset' }
     | { type: 'assistant-append', text: string }
-const { post: postPresent } = useBroadcastChannel<PresentEvent, PresentEvent>({ name: 'airi-chat-present' })
+const presentPoster = createLazyBroadcastPoster<PresentEvent>('airi-chat-present')
 
 viewUpdateCleanups.push(live2dStore.onShouldUpdateView(async () => {
   showStage.value = false
-  await settingsStore.updateStageModel()
-  setTimeout(() => {
-    showStage.value = true
-  }, 100)
+  try {
+    await settingsStore.updateStageModel()
+  }
+  catch (error) {
+    console.warn('[stage-ui] failed to refresh live2d stage view:', error)
+  }
+  finally {
+    setTimeout(() => {
+      showStage.value = true
+    }, 100)
+  }
 }))
 
 const { activeCard } = storeToRefs(useAiriCardStore())
@@ -250,6 +272,7 @@ const runtimeSegmentMotionAliasesByEmotion = ref<Partial<Record<string, string[]
 const runtimeSegmentMotionActive = ref(false)
 let runtimeSegmentMotionFollowThroughMs = 0
 const runtimeResidentEmotion = ref('')
+const runtimeDigest = ref<AlicizationRuntimeDigest | null>(null)
 let runtimeSegmentMotionFollowThroughTimer: ReturnType<typeof setTimeout> | undefined
 
 function normalizeRuntimeAliasList(rawAliases: readonly string[] | null | undefined) {
@@ -283,6 +306,7 @@ function clearRuntimeSegmentMotionFollowThroughTimer() {
 function clearRuntimeEmbodimentEnvelope() {
   runtimeTurnExpressionAliasesByEmotion.value = {}
   runtimeTurnMotionAliasesByEmotion.value = {}
+  runtimeDigest.value = null
   clearRuntimeSegmentEmbodimentCue()
   runtimeSegmentMotionActive.value = false
   runtimeSegmentMotionFollowThroughMs = 0
@@ -332,6 +356,16 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
           }
         : null,
     },
+    runtimeDigest: runtimeDigest.value
+      ? {
+          dominantChannel: runtimeDigest.value.dominantChannel,
+          shouldProactivelySpeak: runtimeDigest.value.shouldProactivelySpeak,
+          shouldProactivelyAct: runtimeDigest.value.shouldProactivelyAct,
+          continuityPressure: runtimeDigest.value.continuityPressure,
+          companionshipPressure: runtimeDigest.value.companionshipPressure,
+          summary: runtimeDigest.value.summary,
+        }
+      : null,
   }
 }
 
@@ -641,8 +675,7 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
   },
   playback: playbackManager,
 })
-
-void speechRuntimeStore.registerHost(speechPipeline)
+console.info('[stage-startup-trace][stage] after-speech-pipeline')
 
 function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensity: number) {
   const normalizedEmphasis = typeof emphasis === 'number' && Number.isFinite(emphasis)
@@ -963,6 +996,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   performanceManifest: currentPerformanceManifest,
   pitch,
   rate,
+  runtimeDigest,
   resolveClampedPresencePulsePerformance,
   resolvePresenceIntensity,
   speakFallback: async (reply) => {
@@ -987,6 +1021,7 @@ embodimentRuntime = useStageEmbodimentRuntime({
   stageModelRenderer,
   vrmActionBindings: currentVrmActionBindings,
 })
+console.info('[stage-startup-trace][stage] after-embodiment-runtime')
 const {
   bindPlaybackManager,
   diagnostics: embodimentDiagnostics,
@@ -1000,7 +1035,17 @@ const {
   vrmIdleActionPreference,
   vrmLookAtScreenPoint,
 } = embodimentRuntime
+console.info('[stage-startup-trace][stage] after-embodiment-destructure')
 
+console.info('[stage-startup-trace][stage] before-watch-component-state')
+watch(componentState, (state) => {
+  console.info(
+    `[stage-startup-trace][stage] component-state state=${state} renderer=${stageModelRenderer.value || '<empty>'} modelId=${stageModelSelected.value || '<empty>'} modelUrl=${stageModelSelectedUrl.value ? 'available' : 'missing'}`,
+  )
+}, { immediate: true })
+console.info('[stage-startup-trace][stage] after-watch-component-state')
+
+console.info('[stage-startup-trace][stage] before-watch-resident-emotion')
 watch(
   () => performanceState.value?.performance.baseEmotion ?? '',
   (emotion) => {
@@ -1008,7 +1053,9 @@ watch(
   },
   { immediate: true },
 )
+console.info('[stage-startup-trace][stage] after-watch-resident-emotion')
 
+console.info('[stage-startup-trace][stage] before-watch-active-cue')
 watch(
   [
     () => performanceState.value?.activeCue?.id ?? '',
@@ -1032,7 +1079,9 @@ watch(
   },
   { immediate: true },
 )
+console.info('[stage-startup-trace][stage] after-watch-active-cue')
 
+console.info('[stage-startup-trace][stage] before-speech-pipeline-hooks')
 speechPipeline.on('onSpecial', (segment) => {
   if (segment.special)
     playSpecialToken(segment.special)
@@ -1091,8 +1140,13 @@ speechPipeline.on('onSegment', (segment) => {
   })
   embodimentRuntime?.applySyntheticSpeechSegment(segment)
 })
+console.info('[stage-startup-trace][stage] after-speech-pipeline-hooks')
 
+console.info('[stage-startup-trace][stage] before-bind-playback-manager')
 bindPlaybackManager(playbackManager)
+console.info('[stage-startup-trace][stage] after-bind-playback-manager')
+
+console.info('[stage-startup-trace][stage] before-chat-hook-register')
 
 chatHookCleanups.push(onPlaybackEvent((event) => {
   if (event.type === 'playback-start') {
@@ -1104,18 +1158,8 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     // (e.g., when navigating away from the page). We wrap these in try-catch to prevent
     // breaking playback when the channel is unavailable.
     assistantCaption.value += ` ${item.text}`
-    try {
-      postCaption({ type: 'caption-assistant', text: assistantCaption.value })
-    }
-    catch {
-      // BroadcastChannel may be closed - don't break playback
-    }
-    try {
-      postPresent({ type: 'assistant-append', text: item.text })
-    }
-    catch {
-      // BroadcastChannel may be closed - don't break playback
-    }
+    captionPoster.post({ type: 'caption-assistant', text: assistantCaption.value })
+    presentPoster.post({ type: 'assistant-append', text: item.text })
     return
   }
 
@@ -1130,20 +1174,8 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
   await prepareForNextMessage()
   // Reset assistant caption for a new message
   assistantCaption.value = ''
-  try {
-    postCaption({ type: 'caption-assistant', text: '' })
-  }
-  catch (error) {
-    // BroadcastChannel may be closed if user navigated away - don't break flow
-    console.warn('[Stage] Failed to post caption reset (channel may be closed)', { error })
-  }
-  try {
-    postPresent({ type: 'assistant-reset' })
-  }
-  catch (error) {
-    // BroadcastChannel may be closed if user navigated away - don't break flow
-    console.warn('[Stage] Failed to post present reset (channel may be closed)', { error })
-  }
+  captionPoster.post({ type: 'caption-assistant', text: '' })
+  presentPoster.post({ type: 'assistant-reset' })
 
   currentChatIntent.value = null
 
@@ -1156,6 +1188,8 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
 }))
 
 chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
+  runtimeDigest.value = meta.runtimeDigest ?? null
+
   if (meta.digitalLifeSpine)
     embodimentRuntime?.applyTransientDigitalLifeSpine(meta.digitalLifeSpine)
 
@@ -1200,6 +1234,8 @@ chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
   // await db.value?.execute(`INSERT INTO memory_test (vec) VALUES (${JSON.stringify(res.embedding)});`)
 }))
 
+console.info('[stage-startup-trace][stage] after-chat-hook-register')
+
 // Resume audio context on first user interaction (browser requirement)
 let audioContextResumed = false
 function resumeAudioContextOnInteraction() {
@@ -1220,8 +1256,18 @@ if (typeof window !== 'undefined') {
 }
 
 onMounted(async () => {
-  db.value = drizzle({ connection: { bundles: getImportUrlBundles() } })
-  await db.value.execute(`CREATE TABLE memory_test (vec FLOAT[768]);`)
+  console.info('[stage-startup-trace][stage] onMounted-enter')
+  // NOTICE: Speech runtime bus setup is non-critical for first paint.
+  // Deferring host registration keeps the stage mount path free from cross-window
+  // transport initialization on packaged Electron `file://` startup.
+  void speechRuntimeStore.registerHost(speechPipeline).catch((error) => {
+    console.warn('[Stage] Failed to register speech runtime host.', error)
+  })
+  console.info('[stage-startup-trace][stage] onMounted-exit')
+})
+
+onBeforeMount(() => {
+  console.info('[stage-startup-trace][stage] onBeforeMount')
 })
 
 function canvasElement() {
@@ -1342,6 +1388,13 @@ const showDialogueOverlay = computed(() => {
     || bubbleStreaming.value
     || dialogueHoverVisibility.visible.value
 })
+const shouldRenderDialogueOverlay = computed(() => {
+  // NOTICE: Keep the first stage commit free from dialogue-panel layout/composer work.
+  // The desktop shell depends on the visual stage reaching mounted state before
+  // overlay chrome is introduced, otherwise packaged mac builds can miss the
+  // initial mount deadline and fall into recovery.
+  return componentState.value === 'mounted' && showDialogueOverlay.value
+})
 
 async function handleProactiveFeedback(kind: 'dismiss' | 'positive') {
   const target = visibleProactiveFeedbackTarget.value
@@ -1371,9 +1424,24 @@ function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, r
   return vrmViewerRef.value?.readRenderTargetRegionAtClientPoint?.(clientX, clientY, radius) ?? null
 }
 
+function hitTestClientPoint(clientX: number, clientY: number) {
+  if (stageModelRenderer.value === 'vrm')
+    return vrmViewerRef.value?.hitTestClientPoint?.(clientX, clientY) ?? false
+
+  if (stageModelRenderer.value === 'live2d')
+    return live2dSceneRef.value?.hitTestClientPoint?.(clientX, clientY) ?? false
+
+  return false
+}
+
 onUnmounted(() => {
   clearRuntimeSegmentMotionFollowThroughTimer()
   embodimentRuntime.dispose()
+  captionPoster.close()
+  presentPoster.close()
+  void speechRuntimeStore.dispose().catch((error) => {
+    console.warn('[Stage] Failed to dispose speech runtime.', error)
+  })
   chatHookCleanups.forEach(dispose => dispose?.())
   viewUpdateCleanups.forEach(dispose => dispose?.())
 })
@@ -1381,6 +1449,7 @@ onUnmounted(() => {
 defineExpose({
   canvasElement,
   dialogueOverlayElement,
+  hitTestClientPoint,
   readRenderTargetRegionAtClientPoint,
   embodimentDiagnostics,
 })
@@ -1450,7 +1519,7 @@ defineExpose({
       :diagnostics="embodimentDiagnostics"
     />
     <div
-      v-if="showDialogueOverlay"
+      v-if="shouldRenderDialogueOverlay"
       class="stage-dialogue-layer"
     >
       <StageDialoguePanel
@@ -1462,7 +1531,7 @@ defineExpose({
         :placement="dialoguePlacement"
         :quick-reply-enabled="props.quickReplyEnabled"
         :proactive-feedback-actions="proactiveFeedbackActions"
-        :visible="showDialogueOverlay"
+        :visible="shouldRenderDialogueOverlay"
         @hover-change="handleDialoguePanelHoverChange"
         @focus-change="handleDialoguePanelFocusChange"
         @interaction-change="dialoguePanelInteractionActive = $event"

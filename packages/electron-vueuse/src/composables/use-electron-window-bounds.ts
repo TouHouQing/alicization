@@ -1,5 +1,6 @@
 import { defineInvoke } from '@moeru/eventa'
 import { bounds, startLoopGetBounds } from '@proj-alicization/electron-eventa'
+import { tryOnMounted } from '@vueuse/core'
 import { ref } from 'vue'
 
 import { getElectronEventaContext } from './use-electron-eventa-context'
@@ -29,7 +30,9 @@ function initializeWindowBoundsTracking() {
     windowBoundsHeight.value = event.body.height
   })
 
-  void defineInvoke(context, startLoopGetBounds)()
+  tryOnMounted(() => {
+    void defineInvoke(context, startLoopGetBounds)()
+  })
 }
 
 export function useElectronWindowBounds() {

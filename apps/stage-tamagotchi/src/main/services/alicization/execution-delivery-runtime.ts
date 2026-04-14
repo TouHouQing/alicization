@@ -23,12 +23,22 @@ export interface AlicizationPendingExecutionDelivery {
 }
 
 export interface AlicizationExecutionDeliveryStateSnapshot {
-  version: 1
+  version: 2
   pending: AlicizationPendingExecutionDelivery[]
   delivered: Array<{
     key: string
     deliveredAt: number
   }>
+  surfaced: Array<{
+    deliveredAt: number
+    identity: string
+  }>
+}
+
+export function hasAlicizationExecutionDeliveryRetainedState(
+  state: Pick<AlicizationExecutionDeliveryStateSnapshot, 'pending' | 'delivered' | 'surfaced'>,
+) {
+  return state.pending.length > 0 || state.delivered.length > 0 || state.surfaced.length > 0
 }
 
 interface AlicizationExecutionDeliveryRuntimeOptions {
@@ -78,6 +88,26 @@ function buildExecutionDeliveryKeyPrefix(cardId: string, sessionId?: string) {
   return `${cardId}::${sessionId}::`
 }
 
+function buildExecutionDeliveryIdentity(input: {
+  cardId: string
+  sessionId: string
+  threadId: string
+  completedAt: number
+}) {
+  return [
+    input.cardId,
+    input.sessionId,
+    input.threadId,
+    input.completedAt,
+  ].join('::')
+}
+
+function buildExecutionDeliveryIdentityPrefix(cardId: string, sessionId?: string) {
+  if (!sessionId)
+    return `${cardId}::`
+  return `${cardId}::${sessionId}::`
+}
+
 export function createAlicizationExecutionDeliveryRuntime(
   options: AlicizationExecutionDeliveryRuntimeOptions = {},
 ) {
@@ -88,6 +118,7 @@ export function createAlicizationExecutionDeliveryRuntime(
   ))
   const pendingByCard = new Map<string, AlicizationPendingExecutionDelivery[]>()
   const deliveredAtByKey = new Map<string, number>()
+  const surfacedAtByIdentity = new Map<string, number>()
 
   function prune(now = getNow()) {
     for (const [cardId, queue] of pendingByCard.entries()) {
@@ -102,6 +133,70 @@ export function createAlicizationExecutionDeliveryRuntime(
       if (now - deliveredAt > maxAgeMs)
         deliveredAtByKey.delete(key)
     }
+
+    for (const [identity, deliveredAt] of surfacedAtByIdentity.entries()) {
+      if (now - deliveredAt > maxAgeMs)
+        surfacedAtByIdentity.delete(identity)
+    }
+  }
+
+  function normalizeExecutionDeliveryIdentity(input: {
+    cardId: string
+    sessionId: string
+    threadId: string
+    completedAt: number
+  }) {
+    const cardId = sanitizeCardId(input.cardId)
+    const sessionId = sanitizeSessionId(input.sessionId)
+    const threadId = sanitizeThreadId(input.threadId)
+    const completedAt = Number.isFinite(input.completedAt)
+      ? Math.max(0, Math.floor(Number(input.completedAt)))
+      : 0
+    if (!cardId || !sessionId || !threadId || completedAt <= 0)
+      return null
+    return {
+      cardId,
+      sessionId,
+      threadId,
+      completedAt,
+      identity: buildExecutionDeliveryIdentity({
+        cardId,
+        sessionId,
+        threadId,
+        completedAt,
+      }),
+    }
+  }
+
+  function markInlineSurfaced(input: {
+    cardId: string
+    sessionId: string
+    threadId: string
+    completedAt: number
+  }) {
+    prune()
+
+    const normalized = normalizeExecutionDeliveryIdentity(input)
+    if (!normalized)
+      return false
+
+    const previous = surfacedAtByIdentity.get(normalized.identity) ?? 0
+    surfacedAtByIdentity.set(normalized.identity, Math.max(previous, getNow()))
+    return previous === 0
+  }
+
+  function isInlineSurfaced(input: {
+    cardId: string
+    sessionId: string
+    threadId: string
+    completedAt: number
+  }) {
+    prune()
+
+    const normalized = normalizeExecutionDeliveryIdentity(input)
+    if (!normalized)
+      return false
+    return surfacedAtByIdentity.has(normalized.identity)
   }
 
   function enqueue(input: {
@@ -131,6 +226,15 @@ export function createAlicizationExecutionDeliveryRuntime(
     if (!cardId || !sessionId || !threadId || completedAt <= 0)
       return null
     if (!alicizationTerminalTaskThreadStatuses.has(input.status))
+      return null
+
+    const identity = buildExecutionDeliveryIdentity({
+      cardId,
+      sessionId,
+      threadId,
+      completedAt,
+    })
+    if (surfacedAtByIdentity.has(identity))
       return null
 
     const key = buildExecutionDeliveryKey({
@@ -195,7 +299,16 @@ export function createAlicizationExecutionDeliveryRuntime(
     if (!cardId)
       return null
 
-    const queue = [...(pendingByCard.get(cardId) ?? [])]
+    const queue = [...(pendingByCard.get(cardId) ?? [])].filter(entry => !isInlineSurfaced({
+      cardId: entry.cardId,
+      sessionId: entry.sessionId,
+      threadId: entry.threadId,
+      completedAt: entry.completedAt,
+    }))
+    if (queue.length > 0)
+      pendingByCard.set(cardId, queue)
+    else
+      pendingByCard.delete(cardId)
     if (queue.length === 0)
       return null
 
@@ -222,7 +335,7 @@ export function createAlicizationExecutionDeliveryRuntime(
     prune()
 
     const cardId = sanitizeCardId(entry.cardId)
-    if (!cardId || deliveredAtByKey.has(entry.key))
+    if (!cardId || deliveredAtByKey.has(entry.key) || isInlineSurfaced(entry))
       return false
 
     const queue = [...(pendingByCard.get(cardId) ?? [])]
@@ -235,11 +348,77 @@ export function createAlicizationExecutionDeliveryRuntime(
     return true
   }
 
-  function markDelivered(entry: Pick<AlicizationPendingExecutionDelivery, 'key'>) {
+  function markDelivered(entry: Pick<AlicizationPendingExecutionDelivery, 'cardId' | 'completedAt' | 'key' | 'sessionId' | 'threadId'>) {
     const key = sanitizeExecutionLedgerText(entry.key, 320)
     if (!key)
       return
     deliveredAtByKey.set(key, getNow())
+    markInlineSurfaced({
+      cardId: entry.cardId,
+      sessionId: entry.sessionId,
+      threadId: entry.threadId,
+      completedAt: entry.completedAt,
+    })
+  }
+
+  function suppressMatching(input: {
+    cardId: string
+    sessionId?: string | null
+    threadId: string
+    completedAt?: number | null
+  }) {
+    prune()
+
+    const cardId = sanitizeCardId(input.cardId)
+    const threadId = sanitizeThreadId(input.threadId)
+    const sessionId = sanitizeSessionId(input.sessionId)
+    const completedAt = Number.isFinite(input.completedAt)
+      ? Math.max(0, Math.floor(Number(input.completedAt)))
+      : 0
+    if (!cardId || !threadId)
+      return 0
+
+    const queue = pendingByCard.get(cardId) ?? []
+    if (queue.length === 0)
+      return markInlineSurfaced({
+        cardId,
+        sessionId: sessionId || '',
+        threadId,
+        completedAt,
+      })
+        ? 1
+        : 0
+
+    const matched = queue.filter((entry) => {
+      if (entry.threadId !== threadId)
+        return false
+      if (sessionId && entry.sessionId !== sessionId)
+        return false
+      if (completedAt > 0 && entry.completedAt !== completedAt)
+        return false
+      return true
+    })
+    if (matched.length === 0)
+      return 0
+
+    const nextQueue = queue.filter(entry => !matched.some(candidate => candidate.key === entry.key))
+    if (nextQueue.length > 0)
+      pendingByCard.set(cardId, nextQueue)
+    else
+      pendingByCard.delete(cardId)
+
+    const deliveredAt = getNow()
+    for (const entry of matched)
+      deliveredAtByKey.set(entry.key, deliveredAt)
+
+    markInlineSurfaced({
+      cardId,
+      sessionId: sessionId || matched[0]?.sessionId || '',
+      threadId,
+      completedAt: completedAt || matched[0]?.completedAt || 0,
+    })
+
+    return matched.length
   }
 
   function snapshot(cardIdRaw?: string | null, sessionIdRaw?: string | null): AlicizationExecutionDeliveryStateSnapshot {
@@ -261,11 +440,20 @@ export function createAlicizationExecutionDeliveryRuntime(
         deliveredAt,
       }))
       .sort((left, right) => left.deliveredAt - right.deliveredAt)
+    const surfacedPrefix = cardId ? buildExecutionDeliveryIdentityPrefix(cardId, sessionId || undefined) : ''
+    const surfaced = [...surfacedAtByIdentity.entries()]
+      .filter(([identity]) => !surfacedPrefix || identity.startsWith(surfacedPrefix))
+      .map(([identity, deliveredAt]) => ({
+        identity,
+        deliveredAt,
+      }))
+      .sort((left, right) => left.deliveredAt - right.deliveredAt)
 
     return {
-      version: 1,
+      version: 2,
       pending: filteredPending.map(entry => ({ ...entry })),
       delivered,
+      surfaced,
     }
   }
 
@@ -283,7 +471,11 @@ export function createAlicizationExecutionDeliveryRuntime(
       : {}
     const deliveredEntries = Array.isArray(state.delivered) ? state.delivered : []
     const pendingEntries = Array.isArray(state.pending) ? state.pending : []
+    const surfacedEntries = Array.isArray((state as { surfaced?: unknown[] }).surfaced)
+      ? (state as { surfaced?: unknown[] }).surfaced ?? []
+      : []
     const keyPrefix = buildExecutionDeliveryKeyPrefix(cardId)
+    const identityPrefix = buildExecutionDeliveryIdentityPrefix(cardId)
 
     for (const item of deliveredEntries) {
       if (!item || typeof item !== 'object')
@@ -298,6 +490,21 @@ export function createAlicizationExecutionDeliveryRuntime(
       if (getNow() - deliveredAt > maxAgeMs)
         continue
       deliveredAtByKey.set(key, deliveredAt)
+    }
+
+    for (const item of surfacedEntries) {
+      if (!item || typeof item !== 'object')
+        continue
+      const identity = sanitizeExecutionLedgerText((item as { identity?: unknown }).identity, 320)
+      const deliveredAtRaw = (item as { deliveredAt?: unknown }).deliveredAt
+      const deliveredAt = Number.isFinite(deliveredAtRaw)
+        ? Math.max(0, Math.floor(Number(deliveredAtRaw)))
+        : 0
+      if (!identity || deliveredAt <= 0 || !identity.startsWith(identityPrefix))
+        continue
+      if (getNow() - deliveredAt > maxAgeMs)
+        continue
+      surfacedAtByIdentity.set(identity, deliveredAt)
     }
 
     const sortedPendingEntries = [...pendingEntries].sort((left, right) => {
@@ -364,6 +571,7 @@ export function createAlicizationExecutionDeliveryRuntime(
     if (!cardId) {
       pendingByCard.clear()
       deliveredAtByKey.clear()
+      surfacedAtByIdentity.clear()
       return
     }
 
@@ -372,6 +580,10 @@ export function createAlicizationExecutionDeliveryRuntime(
       for (const key of deliveredAtByKey.keys()) {
         if (key.startsWith(`${cardId}::`))
           deliveredAtByKey.delete(key)
+      }
+      for (const identity of surfacedAtByIdentity.keys()) {
+        if (identity.startsWith(`${cardId}::`))
+          surfacedAtByIdentity.delete(identity)
       }
       return
     }
@@ -388,16 +600,23 @@ export function createAlicizationExecutionDeliveryRuntime(
       if (key.startsWith(deliveredPrefix))
         deliveredAtByKey.delete(key)
     }
+    for (const identity of surfacedAtByIdentity.keys()) {
+      if (identity.startsWith(deliveredPrefix))
+        surfacedAtByIdentity.delete(identity)
+    }
   }
 
   return {
     clear,
     enqueue,
     hasPending,
+    isInlineSurfaced,
+    markInlineSurfaced,
     markDelivered,
     requeue,
     restore,
     snapshot,
+    suppressMatching,
     takeNext,
   }
 }

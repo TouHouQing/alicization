@@ -2,7 +2,7 @@ import type { UseMouseOptions } from '@vueuse/core'
 
 import { defineInvoke } from '@moeru/eventa'
 import { cursorScreenPoint, startLoopGetCursorScreenPoint } from '@proj-alicization/electron-eventa'
-import { useMouse } from '@vueuse/core'
+import { tryOnMounted, useMouse } from '@vueuse/core'
 import { ref } from 'vue'
 
 import { getElectronEventaContext } from './use-electron-eventa-context'
@@ -22,10 +22,13 @@ export function useElectronMouseEventTarget() {
     })
   }
 
-  if (!startedTracking) {
+  tryOnMounted(() => {
+    if (startedTracking)
+      return
+
     startedTracking = true
     void defineInvoke(context, startLoopGetCursorScreenPoint)()
-  }
+  })
 
   return ref(sharedEventTarget)
 }

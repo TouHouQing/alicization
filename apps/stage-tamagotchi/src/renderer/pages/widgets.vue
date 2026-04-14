@@ -16,6 +16,7 @@ interface WidgetItem {
   size: SizePreset
   ttlMs: number
 }
+type EventEnvelope<T> = { body?: T }
 
 const route = useRoute()
 
@@ -100,7 +101,7 @@ watch(widgetId, (id) => {
 
 onMounted(() => {
   try {
-    context.value.on(widgetsRenderEvent, (evt) => {
+    context.value.on(widgetsRenderEvent, (evt: EventEnvelope<WidgetSnapshot>) => {
       const body = evt?.body
       if (!body || body.id !== widgetId.value)
         return
@@ -110,7 +111,7 @@ onMounted(() => {
   catch {}
 
   try {
-    context.value.on(widgetsUpdateEvent, (evt) => {
+    context.value.on(widgetsUpdateEvent, (evt: EventEnvelope<{ id: string, componentProps?: Record<string, any> }>) => {
       const body = evt?.body
       if (!body || body.id !== widgetId.value)
         return
@@ -129,7 +130,7 @@ onMounted(() => {
   catch {}
 
   try {
-    context.value.on(widgetsRemoveEvent, (evt) => {
+    context.value.on(widgetsRemoveEvent, (evt: EventEnvelope<{ id: string }>) => {
       const body = evt?.body
       if (!body || body.id !== widgetId.value)
         return

@@ -4,9 +4,11 @@ import type {
   AlicizationChannelCapabilityManifestRecord,
   AlicizationClawTaskIntent,
   AlicizationDispatchTaskThreadPayload,
+  AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type { AlicizationDbService } from './db'
 import type { MainGatewayExecutionTaskThreadResult, MainGatewayExecutionToolContext } from './main-chat-execution-surface'
+import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
 import type { AlicizationTaskThreadPlanningInput } from './task-thread-governor'
 import type { AlicizationTaskThreadDispatchInvocation } from './task-thread-orchestrator'
 
@@ -47,6 +49,12 @@ interface AlicizationExecutorRuntimeOptions {
   getCardKillSwitchState: (cardId: string) => 'ACTIVE' | 'SUSPENDED'
   getGlobalKillSwitchState: () => 'ACTIVE' | 'SUSPENDED'
   normalizeSessionId: (raw: unknown) => string
+  assessTaskRouting?: (input: {
+    task: AlicizationTaskThreadPlanningInput['task']
+    capabilities: AlicizationTaskThreadPlanningInput['capabilities']
+    activeThreads: AlicizationTaskThreadRecord[]
+    settledThreads: AlicizationTaskThreadRecord[]
+  }) => AlicizationTaskRoutingAssessment | null | Promise<AlicizationTaskRoutingAssessment | null>
   sanitizeText: (raw: unknown, fallback?: string) => string
 }
 
@@ -81,7 +89,9 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     checkedAt: number
     ready: boolean
   }>()
-  const taskExecutionGovernor = createTaskExecutionGovernor()
+  const taskExecutionGovernor = createTaskExecutionGovernor({
+    assessTaskRouting: options.assessTaskRouting,
+  })
 
   async function probeBinaryReady(binary: string) {
     const cached = executionCapabilityProbeCache.get(binary)

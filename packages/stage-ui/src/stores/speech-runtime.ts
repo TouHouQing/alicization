@@ -1,28 +1,39 @@
 import { defineStore } from 'pinia'
 
+import type { SpeechPipelineRuntime } from '../services/speech/pipeline-runtime'
+
 import { createSpeechPipelineRuntime } from '../services/speech/pipeline-runtime'
 
 export const useSpeechRuntimeStore = defineStore('speech-runtime', () => {
-  const runtime = createSpeechPipelineRuntime()
+  let runtime: SpeechPipelineRuntime | null = null
 
-  function openIntent(options?: Parameters<typeof runtime.openIntent>[0]) {
-    return runtime.openIntent(options)
+  function getRuntime() {
+    runtime ??= createSpeechPipelineRuntime()
+    return runtime
+  }
+
+  function openIntent(options?: Parameters<SpeechPipelineRuntime['openIntent']>[0]) {
+    return getRuntime().openIntent(options)
   }
 
   function cancelOwner(ownerId: string, reason?: string) {
-    runtime.cancelOwner(ownerId, reason)
+    getRuntime().cancelOwner(ownerId, reason)
   }
 
-  async function registerHost(pipeline: Parameters<typeof runtime.registerHost>[0]) {
-    await runtime.registerHost(pipeline)
+  async function registerHost(pipeline: Parameters<SpeechPipelineRuntime['registerHost']>[0]) {
+    await getRuntime().registerHost(pipeline)
   }
 
   function isHost() {
-    return runtime.isHost()
+    return getRuntime().isHost()
   }
 
   async function dispose() {
+    if (!runtime)
+      return
+
     await runtime.dispose()
+    runtime = null
   }
 
   return {

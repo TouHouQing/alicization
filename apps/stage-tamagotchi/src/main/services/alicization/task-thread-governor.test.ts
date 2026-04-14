@@ -101,6 +101,63 @@ describe('task-thread governor', () => {
     ])
   })
 
+  it('keeps channel experience hints in metadata and uses them for route choice', () => {
+    const draft = buildTaskThreadPlanningDraft({
+      threadId: 'thread-experience-1',
+      now: 1_710_000_000_010,
+      trace: {
+        decisionTraceId: 'mind:trace:experience',
+        turnId: 'turn-experience-1',
+        sessionId: 'session-experience-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Fix the task-thread planner regressions.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        sessionResumeChannel: 'claude-code',
+        activeChannels: ['claude-code'],
+        goalAffinityChannel: 'claude-code',
+        goalAffinityScore: 0.82,
+        goalAffinityReason: 'similar-goal-history:claude-code:2',
+        advisorChannel: 'claude-code',
+        advisorConfidence: 0.94,
+        advisorReason: 'llm-assessor:prefers-claude-code',
+        channelOutcomes: {
+          'codex': { completed: 1, failed: 3 },
+          'claude-code': { completed: 2, running: 1 },
+        },
+      },
+    })
+
+    expect(draft.plan.state).toBe('routed')
+    expect(draft.plan.selectedChannel).toBe('claude-code')
+    expect(draft.thread.metadata).toEqual(expect.objectContaining({
+      fabric: expect.objectContaining({
+        experience: expect.objectContaining({
+          sessionResumeChannel: 'claude-code',
+          activeChannels: ['claude-code'],
+          goalAffinityChannel: 'claude-code',
+          goalAffinityScore: 0.82,
+          goalAffinityReason: 'similar-goal-history:claude-code:2',
+          advisorChannel: 'claude-code',
+          advisorConfidence: 0.94,
+          advisorReason: 'llm-assessor:prefers-claude-code',
+        }),
+      }),
+    }))
+    expect(draft.events[0]?.payload).toEqual(expect.objectContaining({
+      experience: expect.objectContaining({
+        advisorChannel: 'claude-code',
+      }),
+    }))
+  })
+
   it('keeps planning blocked while the kill switch is suspended', () => {
     const draft = buildTaskThreadPlanningDraft({
       threadId: 'thread-blocked-1',

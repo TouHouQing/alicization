@@ -7,6 +7,7 @@ import type {
   AlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload,
   AlicizationPresencePulsePayload,
+  AlicizationRuntimeDigest,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../stores/alicization-bridge'
 import type { useAlicizationPresenceDispatcherStore } from '../../stores/alicization-presence-dispatcher'
@@ -53,6 +54,7 @@ export interface UseStageEmbodimentRuntimeOptions {
   focusAt: Readonly<Ref<Point2D>>
   live2dActionCapabilities: ComputedRef<Live2DActionCapability[]>
   mouthOpenSize: Ref<number>
+  runtimeDigest?: Readonly<Ref<AlicizationRuntimeDigest | null>>
   paused: Readonly<Ref<boolean>>
   performanceManifest: ComputedRef<CharacterPerformanceCapabilitiesManifest | null>
   pitch: Ref<number>
@@ -112,6 +114,7 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   })
   const diagnostics = useStageEmbodimentDiagnostics({
     activePresence: attention.activePresence,
+    runtimeDigest: options.runtimeDigest,
     presencePosture: posture.presencePosture,
     speechRenderState: speech.speechRenderState,
     stageBounds: options.stageBounds,
@@ -176,16 +179,38 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   watch(
     [
       () => performance.state.value.phase,
-      () => visualPresence.state.value,
-      () => visualPresence.digitalLifeSpineDigest.value,
-      () => attention.activePresence.value,
-      () => posture.presencePosture.value,
-      () => options.performanceManifest.value,
+      () => visualPresence.state.value?.updatedAt ?? 0,
+      () => visualPresence.state.value?.watchMode ?? 'mnemonic-passive',
+      () => visualPresence.state.value?.residentPerformance?.signature ?? '',
+      () => visualPresence.state.value?.privateThought?.expiresAt ?? 0,
+      () => visualPresence.state.value?.currentScene?.lastSeenAt ?? 0,
+      () => visualPresence.digitalLifeSpineDigest.value?.runtime.updatedAt ?? 0,
+      () => visualPresence.digitalLifeSpineDigest.value?.runtime.watchMode ?? 'mnemonic-passive',
+      () => attention.activePresence.value?.source ?? 'none',
+      () => attention.activePresence.value?.embodiedPresence ?? 'none',
+      () => attention.activePresence.value?.confidence ?? 0,
+      () => attention.activePresence.value?.expiresAt ?? 0,
+      () => posture.presencePosture.value.engaged,
+      () => posture.presencePosture.value.mode,
+      () => posture.presencePosture.value.confidence,
+      () => options.performanceManifest.value?.renderer ?? 'live2d',
+      () => options.performanceManifest.value?.supportedActions.length ?? 0,
+      () => options.performanceManifest.value?.supportedFacialCues.length ?? 0,
     ],
     () => {
+      const hasResidentInput = Boolean(
+        visualPresence.state.value
+        || visualPresence.digitalLifeSpineDigest.value
+        || attention.activePresence.value
+        || posture.presencePosture.value.engaged,
+      )
+
+      if (!hasResidentInput && performance.state.value.phase === 'idle')
+        return
+
       syncResidentPerformanceFromVisualPresence()
     },
-    { deep: true, immediate: true },
+    { immediate: true },
   )
 
   function dispose() {

@@ -1,3 +1,5 @@
+import type { ElectronServerChannelConfig } from '../../../shared/eventa'
+
 import { useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { useAsyncState, useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
@@ -8,10 +10,13 @@ import { electronApplyServerChannelConfig, electronGetServerChannelConfig } from
 export const useServerChannelSettingsStore = defineStore('tamagotchi-server-channel-settings', () => {
   const websocketTlsConfig = useLocalStorage<{ cert?: string, key?: string, passphrase?: string } | null | undefined>('settings/server-channel/websocket-tls-config', null)
 
-  const getServerChannelConfig = useElectronEventaInvoke(electronGetServerChannelConfig)
-  const applyServerChannelConfig = useElectronEventaInvoke(electronApplyServerChannelConfig)
+  const getServerChannelConfig = useElectronEventaInvoke(electronGetServerChannelConfig) as () => Promise<ElectronServerChannelConfig>
+  const applyServerChannelConfig = useElectronEventaInvoke(electronApplyServerChannelConfig) as (config: Partial<ElectronServerChannelConfig>) => Promise<ElectronServerChannelConfig>
 
-  const serverChannelConfig = useAsyncState(getServerChannelConfig, null)
+  const serverChannelConfig = useAsyncState<ElectronServerChannelConfig>(
+    async () => await getServerChannelConfig(),
+    { tlsConfig: null },
+  )
 
   watch(websocketTlsConfig, async (newValue) => {
     websocketTlsConfig.value = newValue
@@ -19,7 +24,7 @@ export const useServerChannelSettingsStore = defineStore('tamagotchi-server-chan
   })
 
   watch(serverChannelConfig.state, (newConfig) => {
-    websocketTlsConfig.value = newConfig?.tlsConfig
+    websocketTlsConfig.value = newConfig.tlsConfig ?? null
   })
 
   return {

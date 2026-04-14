@@ -155,6 +155,24 @@ describe('main chat stream meta', () => {
           thoughtThreadSummary: 'current line',
         },
       }),
+      getRuntimeDigest: () => ({
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.7,
+        companionshipPressure: 0.76,
+        channels: [
+          {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.84,
+            focus: 'nudge',
+            summary: 'active dialogue is hot',
+          },
+        ],
+        summary: 'dominant=active-dialogue | speak=true',
+      }),
       emit,
     })
 
@@ -173,6 +191,10 @@ describe('main chat stream meta', () => {
         continuitySignal: expect.objectContaining({
           summary: expect.stringContaining('scene=coding'),
         }),
+      }),
+      runtimeDigest: expect.objectContaining({
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
       }),
     }))
     expect(emit).toHaveBeenNthCalledWith(2, expect.objectContaining({
@@ -612,6 +634,57 @@ describe('main chat stream meta', () => {
           interruptMode: 'soft-interrupt',
         }],
       } as any,
+    })
+
+    expect(signatureA).not.toBe(signatureB)
+  })
+
+  it('changes the signature when Alicization runtime projection changes', () => {
+    const signatureA = buildAlicizationChatMetaSignature({
+      governance: {
+        decisionTraceId: 'trace-runtime-1',
+      } as any,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.72,
+        companionshipPressure: 0.78,
+        channels: [
+          {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.86,
+            focus: 'nudge',
+            summary: 'active dialogue hot',
+          },
+        ],
+        summary: 'dominant=active-dialogue',
+      },
+    })
+    const signatureB = buildAlicizationChatMetaSignature({
+      governance: {
+        decisionTraceId: 'trace-runtime-1',
+      } as any,
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-perception',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.44,
+        companionshipPressure: 0.38,
+        channels: [
+          {
+            id: 'active-perception',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'editor',
+            summary: 'active perception hot',
+          },
+        ],
+        summary: 'dominant=active-perception',
+      },
     })
 
     expect(signatureA).not.toBe(signatureB)

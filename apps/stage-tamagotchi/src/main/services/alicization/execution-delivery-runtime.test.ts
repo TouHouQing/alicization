@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-runtime'
+import {
+  createAlicizationExecutionDeliveryRuntime,
+  hasAlicizationExecutionDeliveryRetainedState,
+} from './execution-delivery-runtime'
 
 describe('execution delivery runtime', () => {
   it('queues each terminal task-thread delivery once and consumes it in chronological order', () => {
@@ -178,12 +181,72 @@ describe('execution delivery runtime', () => {
       sessionId: 'session-1',
     })?.threadId).toBe('thread-pending')
     expect(restored.snapshot('default')).toEqual({
-      version: 1,
+      version: 2,
       pending: [],
       delivered: [{
         key: 'default::session-1::thread-delivered::20000::completed',
         deliveredAt: now,
       }],
+      surfaced: [{
+        identity: 'default::session-1::thread-delivered::20000',
+        deliveredAt: now,
+      }],
     })
+  })
+
+  it('blocks in-flight delivery requeue once the same execution result was already surfaced inline', () => {
+    const now = 50_000
+    const runtime = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => now,
+    })
+
+    runtime.enqueue({
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-inline',
+      channel: 'cli',
+      status: 'completed',
+      goal: 'List desktop files requested by user.',
+      summary: 'Listed desktop entries (8): 小砖猿, GIT, +6 more',
+      signature: 'thread-inline:event',
+      completedAt: 20_000,
+    })
+
+    const claimed = runtime.takeNext({
+      cardId: 'default',
+      sessionId: 'session-1',
+    })
+    expect(claimed?.threadId).toBe('thread-inline')
+
+    expect(runtime.markInlineSurfaced({
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-inline',
+      completedAt: 20_000,
+    })).toBe(true)
+    expect(runtime.isInlineSurfaced({
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-inline',
+      completedAt: 20_000,
+    })).toBe(true)
+    expect(runtime.requeue(claimed!)).toBe(false)
+  })
+
+  it('treats surfaced-only state as retained execution-delivery state', () => {
+    expect(hasAlicizationExecutionDeliveryRetainedState({
+      pending: [],
+      delivered: [],
+      surfaced: [{
+        identity: 'default::session-1::thread-inline::20000',
+        deliveredAt: 50_000,
+      }],
+    })).toBe(true)
+
+    expect(hasAlicizationExecutionDeliveryRetainedState({
+      pending: [],
+      delivered: [],
+      surfaced: [],
+    })).toBe(false)
   })
 })

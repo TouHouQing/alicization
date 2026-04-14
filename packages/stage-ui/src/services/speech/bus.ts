@@ -1,7 +1,7 @@
 import type { SpeechIntentMetadata } from '@proj-alicization/pipelines-audio'
 
 import { defineEventa } from '@moeru/eventa'
-import { createContext as createBroadcastChannelContext } from '@moeru/eventa/adapters/broadcast-channel'
+import { createSafeBroadcastChannelContext } from '@proj-alicization/stage-shared'
 
 export interface SpeechIntentStartPayload {
   originId: string
@@ -50,17 +50,9 @@ export const speechOwnerCancelEvent = defineEventa<SpeechOwnerCancelPayload>('ev
 
 const BUS_CHANNEL_NAME = 'proj-alicization:pipelines:outputs:speech'
 
-let context: ReturnType<typeof createBroadcastChannelContext>['context'] | undefined
-let channel: BroadcastChannel | undefined
-
-function getChannel() {
-  if (!channel)
-    channel = new BroadcastChannel(BUS_CHANNEL_NAME)
-  return channel
-}
+let context: ReturnType<typeof createSafeBroadcastChannelContext>['context'] | undefined
 
 export function getSpeechBusContext() {
-  if (!context)
-    context = createBroadcastChannelContext(getChannel()).context
+  context ??= createSafeBroadcastChannelContext(BUS_CHANNEL_NAME).context
   return context
 }

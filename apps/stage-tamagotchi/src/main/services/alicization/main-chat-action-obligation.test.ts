@@ -184,6 +184,32 @@ function createTaskRuntimeSurface() {
   } as any
 }
 
+function createDialogueFirstRuntimeSurface() {
+  const base = createTaskRuntimeSurface()
+  return {
+    ...base,
+    dialogue: {
+      ...base.dialogue,
+      discourseState: {
+        ...base.dialogue.discourseState,
+        screenReferenceMode: 'avoid',
+      },
+      dialogueEncounter: {
+        ...base.dialogue.dialogueEncounter,
+        act: 'answer',
+        subject: 'relationship',
+        screenReferenceMode: 'avoid',
+        dialogueFirst: true,
+        mustStayTaskBound: false,
+      },
+      conversationState: {
+        ...base.dialogue.conversationState,
+        shouldHoldThread: false,
+      },
+    },
+  } as any
+}
+
 describe('main chat action obligation', () => {
   it('preserves explicit executor routing as execution authority', () => {
     const result = deriveMainChatActionObligation({
@@ -216,6 +242,17 @@ describe('main chat action obligation', () => {
     expect(result.reasonCodes).toContain('task-bound-turn')
   })
 
+  it('keeps plain greeting turns out of execution routing even when an unresolved thread is held', () => {
+    const result = deriveMainChatActionObligation({
+      userText: '你好',
+      capabilityInquiry: createCapabilityInquiry(),
+      runtimeSurface: createTaskRuntimeSurface(),
+    })
+
+    expect(result.kind).toBe('answer')
+    expect(result.routingIntent).toBeNull()
+  })
+
   it('upgrades natural-language terminal requests into execution even without command literals', () => {
     const result = deriveMainChatActionObligation({
       userText: '帮我跑一下 typecheck',
@@ -227,6 +264,30 @@ describe('main chat action obligation', () => {
     expect(result.kind).toBe('execute')
     expect(result.routingIntent?.requestedChannels).toEqual(['cli'])
     expect(result.routingIntent?.requiredToolNames).toEqual(['executor_run_cli'])
+  })
+
+  it('keeps explicit CLI execution routing active even in dialogue-first mode', () => {
+    const result = deriveMainChatActionObligation({
+      userText: '用cli帮我查一下桌面有什么文件',
+      capabilityInquiry: createCapabilityInquiry(),
+      runtimeSurface: createDialogueFirstRuntimeSurface(),
+    })
+
+    expect(result.kind).toBe('execute')
+    expect(result.routingIntent?.requestedChannels).toEqual(['cli'])
+    expect(result.routingIntent?.requiredToolNames).toEqual(['executor_run_cli'])
+    expect(result.reasonCodes).toEqual(expect.arrayContaining(['dialogue-first-explicit-execution-demand']))
+  })
+
+  it('does not infer execution for dialogue-first small-talk turns', () => {
+    const result = deriveMainChatActionObligation({
+      userText: '你在吗',
+      capabilityInquiry: createCapabilityInquiry(),
+      runtimeSurface: createDialogueFirstRuntimeSurface(),
+    })
+
+    expect(result.kind).toBe('answer')
+    expect(result.routingIntent).toBeNull()
   })
 
   it('keeps capability questions and clarification turns out of executor routing', () => {

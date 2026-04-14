@@ -7,6 +7,8 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
+import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { alicizationExecutionChannels } from './claw-fabric'
@@ -82,7 +84,18 @@ function createPort(input?: {
   taskThreads?: AlicizationTaskThreadRecord[]
 }) {
   let persistedThread: AlicizationTaskThreadRecord | null = null
-  const listTaskThreads = vi.fn(async () => [...(input?.taskThreads ?? [])])
+  const listTaskThreads = vi.fn(async (query?: { status?: string | string[] }) => {
+    const threads = [...(input?.taskThreads ?? [])]
+    const statuses = Array.isArray(query?.status)
+      ? query.status
+      : typeof query?.status === 'string'
+        ? [query.status]
+        : []
+    if (statuses.length === 0)
+      return threads
+    const statusSet = new Set(statuses)
+    return threads.filter(thread => statusSet.has(thread.status))
+  })
   const listExecutorSessions = vi.fn(async () => [...(input?.executorSessions ?? [])])
   const upsertTaskThread = vi.fn(async (thread: AlicizationTaskThreadUpsertInput) => {
     persistedThread = {
@@ -206,6 +219,124 @@ describe('task execution governor', () => {
         }),
       }),
     ])
+  })
+
+  it('injects historical channel outcomes into the planning experience hints', async () => {
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 460,
+    })
+    const settledCodexFailure = createThread({
+      id: 'thread-failed-codex-1',
+      kind: 'codebase-edit',
+      goal: 'Fix runtime drift.',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      summary: 'Codex run failed due transient transport issue.',
+      completedAt: 430,
+      updatedAt: 430,
+    })
+    const settledClaudeSuccess = createThread({
+      id: 'thread-completed-claude-1',
+      kind: 'codebase-edit',
+      goal: 'Fix runtime drift.',
+      status: 'completed',
+      selectedChannel: 'claude-code',
+      proposedChannel: 'claude-code',
+      summary: 'Claude Code finished the runtime patch successfully.',
+      completedAt: 450,
+      updatedAt: 450,
+    })
+    const port = createPort({
+      taskThreads: [
+        settledCodexFailure,
+        settledClaudeSuccess,
+      ],
+    })
+
+    const result = await governor.plan(port, {
+      threadId: 'thread-governor-experience-1',
+      now: 460,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-experience',
+        turnId: 'turn-governor-experience',
+        sessionId: 'session-governor-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Fix runtime drift.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+    })
+
+    expect(result.plan.state).toBe('routed')
+    expect(result.thread.selectedChannel).toBe('claude-code')
+    expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
+      fabric: expect.objectContaining({
+        experience: expect.objectContaining({
+          sessionResumeChannel: 'claude-code',
+          goalAffinityChannel: 'claude-code',
+          goalAffinityScore: expect.any(Number),
+          goalAffinityReason: expect.stringContaining('similar-goal-history:claude-code'),
+          channelOutcomes: expect.objectContaining({
+            'codex': expect.objectContaining({
+              failed: 1,
+            }),
+            'claude-code': expect.objectContaining({
+              completed: 1,
+            }),
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('accepts optional assessor channel hints and feeds them into routing experience', async () => {
+    const assessTaskRouting = vi.fn(async (): Promise<AlicizationTaskRoutingAssessment> => ({
+      channel: 'claude-code',
+      confidence: 0.93,
+      reason: 'llm-assessor:claude-code-best-fit',
+    }))
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 700,
+      assessTaskRouting,
+    })
+    const port = createPort()
+
+    const result = await governor.plan(port, {
+      threadId: 'thread-governor-assessor-1',
+      now: 700,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-assessor',
+        turnId: 'turn-governor-assessor',
+        sessionId: 'session-governor-assessor',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Refactor the runtime session mirror pipeline.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code']),
+    })
+
+    expect(assessTaskRouting).toBeCalledTimes(1)
+    expect(result.plan.state).toBe('routed')
+    expect(result.thread.selectedChannel).toBe('claude-code')
+    expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
+      fabric: expect.objectContaining({
+        experience: expect.objectContaining({
+          advisorChannel: 'claude-code',
+          advisorConfidence: 0.93,
+          advisorReason: 'llm-assessor:claude-code-best-fit',
+        }),
+      }),
+    }))
   })
 
   it('attaches session-resume hints for openclaw-backed bodies', async () => {

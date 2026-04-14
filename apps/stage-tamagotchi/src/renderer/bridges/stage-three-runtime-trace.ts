@@ -2,7 +2,7 @@ import type { Eventa } from '@moeru/eventa'
 
 import type { StageThreeRuntimeTraceEnvelope } from '../../shared/eventa'
 
-import { createContext as createBroadcastChannelContext } from '@moeru/eventa/adapters/broadcast-channel'
+import { createSafeBroadcastChannelContext } from '@proj-alicization/stage-shared'
 import {
   acquireStageThreeRuntimeTrace,
   getStageThreeRuntimeTraceContext,
@@ -38,19 +38,13 @@ const replayOrder: Array<StageThreeRuntimeTraceEnvelope['type']> = [
 ]
 
 let initialized = false
-let broadcastContext: ReturnType<typeof createBroadcastChannelContext>['context'] | undefined
-let channel: BroadcastChannel | undefined
+let broadcastContext: ReturnType<typeof createSafeBroadcastChannelContext>['context'] | undefined
 let releaseRelayTrace: (() => void) | undefined
 const remoteSubscribers = new Set<string>()
 const latestEnvelopes = new Map<StageThreeRuntimeTraceEnvelope['type'], StageThreeRuntimeTraceEnvelope>()
 
-function getChannel() {
-  channel ??= new BroadcastChannel(STAGE_THREE_RUNTIME_TRACE_CHANNEL)
-  return channel
-}
-
 export function getStageThreeRuntimeTraceBroadcastContext() {
-  broadcastContext ??= createBroadcastChannelContext(getChannel()).context
+  broadcastContext ??= createSafeBroadcastChannelContext(STAGE_THREE_RUNTIME_TRACE_CHANNEL).context
   return broadcastContext
 }
 

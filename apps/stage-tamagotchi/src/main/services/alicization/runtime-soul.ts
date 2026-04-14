@@ -23,9 +23,11 @@ import type { AlicizationScreenSemanticSummary } from './proactive-screen-semant
 import { createHash } from 'node:crypto'
 
 import {
+  hasAlicizationPersonaIdentity,
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 
 export const currentSoulSchemaVersion = 2
@@ -332,6 +334,21 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
   ].join('\n')
 }
 
+export function resolveAlicizationSoulPersonaKernel(
+  frontmatter: AlicizationSoulFrontmatter,
+  options?: {
+    placeholderHostAttitudes?: string[]
+  },
+) {
+  return resolveAlicizationPersonaKernel({
+    profile: frontmatter.profile,
+    personality: frontmatter.personality,
+    customDirectives: frontmatter.custom_directives,
+    hostAttitude: frontmatter.host_attitude,
+    coreIncarnation: frontmatter.core_incarnation,
+  }, options)
+}
+
 export function syncPersonalityBaselineInBody(body: string, personality: AlicizationPersonalityState) {
   const lines = body.split('\n')
   const sectionIndex = lines.findIndex(line => line.trim() === '## Personality Baseline')
@@ -421,7 +438,7 @@ export function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFron
 
 export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | undefined): AlicizationSoulFrontmatter {
   const frontmatter = raw ?? {}
-  return {
+  const normalizedFrontmatter = {
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
     custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
@@ -445,6 +462,18 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
       killSwitch: typeof frontmatter.boundaries?.killSwitch === 'boolean' ? frontmatter.boundaries.killSwitch : defaultFrontmatter.boundaries.killSwitch,
       mcpGuard: typeof frontmatter.boundaries?.mcpGuard === 'boolean' ? frontmatter.boundaries.mcpGuard : defaultFrontmatter.boundaries.mcpGuard,
     },
+  }
+
+  if (!normalizedFrontmatter.initialized || !hasAlicizationPersonaIdentity(normalizedFrontmatter.profile))
+    return normalizedFrontmatter
+
+  const personaKernel = resolveAlicizationSoulPersonaKernel(normalizedFrontmatter, {
+    placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
+  })
+  return {
+    ...normalizedFrontmatter,
+    host_attitude: normalizeHostAttitude(personaKernel.hostAttitude),
+    core_incarnation: normalizeCoreIncarnation(personaKernel.coreIncarnation),
   }
 }
 

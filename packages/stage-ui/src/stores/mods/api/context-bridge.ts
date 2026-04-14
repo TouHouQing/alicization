@@ -130,8 +130,10 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           navigator.locks.request('context-bridge:event:input:text', async () => {
             try {
               await chatOrchestrator.ingest(messageText, {
+                providerId: activeProvider.value,
                 model: activeModel.value,
                 chatProvider,
+                providerConfig: providersStore.getProviderConfig(activeProvider.value),
                 input: {
                   type: 'input:text',
                   data: {

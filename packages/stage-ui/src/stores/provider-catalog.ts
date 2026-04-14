@@ -8,18 +8,91 @@ import { client } from '../composables/api'
 import { useLocalFirstRequest } from '../composables/use-local-first'
 import { providersRepo } from '../database/repos/providers.repo'
 import { getDefinedProvider, listProviders } from '../libs/providers/providers'
+import { useProvidersStore } from './providers'
 
 export const useProviderCatalogStore = defineStore('provider-catalog', () => {
   const defs = computed(() => listProviders())
   const configs = ref<Record<string, ProviderCatalogProvider>>({})
+  const providersStore = useProvidersStore()
+  const syncedDefinitionIds = new Set<string>()
+
+  function isSyncableDefinitionId(definitionId: string) {
+    return !!providersStore.providerMetadata[definitionId]
+  }
+
+  function listDefinitionEntries(definitionId: string) {
+    return Object.values(configs.value).filter(entry => entry.definitionId === definitionId)
+  }
+
+  function getRuntimeSyncScore(entry: ProviderCatalogProvider) {
+    let score = 0
+    if (entry.validated)
+      score += 4
+    if (entry.validationBypassed)
+      score += 2
+    if (Object.keys(entry.config ?? {}).length > 0)
+      score += 1
+    return score
+  }
+
+  function pickDefinitionRuntimeEntry(definitionId: string) {
+    let picked: ProviderCatalogProvider | null = null
+    let bestScore = -1
+
+    for (const entry of listDefinitionEntries(definitionId)) {
+      const score = getRuntimeSyncScore(entry)
+      // NOTICE: Use >= to let the latest record win when scores are the same.
+      if (score >= bestScore) {
+        bestScore = score
+        picked = entry
+      }
+    }
+
+    return picked
+  }
+
+  async function syncRuntimeProviderForDefinition(definitionId: string) {
+    if (!isSyncableDefinitionId(definitionId))
+      return
+
+    const picked = pickDefinitionRuntimeEntry(definitionId)
+    if (!picked) {
+      if (syncedDefinitionIds.has(definitionId)) {
+        providersStore.deleteProvider(definitionId)
+        syncedDefinitionIds.delete(definitionId)
+      }
+      return
+    }
+
+    providersStore.providers[definitionId] = { ...picked.config }
+    providersStore.markProviderAdded(definitionId)
+    syncedDefinitionIds.add(definitionId)
+
+    if (picked.validationBypassed) {
+      providersStore.forceProviderConfigured(definitionId)
+      return
+    }
+
+    await providersStore.validateProvider(definitionId, { force: true }).catch(() => {})
+  }
+
+  async function syncRuntimeProvidersFromCatalog() {
+    const candidateDefinitionIds = new Set<string>([
+      ...syncedDefinitionIds,
+      ...Object.values(configs.value).map(entry => entry.definitionId),
+    ])
+
+    for (const definitionId of candidateDefinitionIds) {
+      await syncRuntimeProviderForDefinition(definitionId)
+    }
+  }
 
   async function fetchList() {
     return useLocalFirstRequest({
       local: async () => {
         const cached = await providersRepo.getAll()
-        if (Object.keys(cached).length > 0) {
-          configs.value = cached
-        }
+        configs.value = cached
+        await syncRuntimeProvidersFromCatalog()
       },
       remote: async () => {
         const res = await client.api.providers.$get()
@@ -41,6 +114,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
         }
         configs.value = newConfigs
         await providersRepo.saveAll(newConfigs)
+        await syncRuntimeProvidersFromCatalog()
       },
     })
   }
@@ -65,6 +139,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
       local: async () => {
         configs.value[id] = provider
         await providersRepo.upsert(provider)
+        await syncRuntimeProviderForDefinition(definitionId)
         return provider
       },
       remote: async () => {
@@ -93,13 +168,15 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
 
         configs.value[item.id] = finalProvider
         await providersRepo.upsert(finalProvider)
+        await syncRuntimeProviderForDefinition(finalProvider.definitionId)
         return item
       },
     })
   }
 
   async function removeProvider(providerId: string) {
-    if (!configs.value[providerId]) {
+    const removed = configs.value[providerId]
+    if (!removed) {
       return
     }
 
@@ -107,6 +184,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
       local: async () => {
         delete configs.value[providerId]
         await providersRepo.remove(providerId)
+        await syncRuntimeProviderForDefinition(removed.definitionId)
       },
       remote: async () => {
         const res = await client.api.providers[':id'].$delete({
@@ -115,6 +193,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
         if (!res.ok) {
           throw new Error('Failed to remove provider')
         }
+        await syncRuntimeProviderForDefinition(removed.definitionId)
       },
     })
   }
@@ -131,6 +210,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
         provider.validated = options.validated
         provider.validationBypassed = options.validationBypassed
         await providersRepo.upsert(provider)
+        await syncRuntimeProviderForDefinition(provider.definitionId)
         return provider
       },
       remote: async () => {
@@ -152,6 +232,7 @@ export const useProviderCatalogStore = defineStore('provider-catalog', () => {
         provider.validated = item.validated
         provider.validationBypassed = item.validationBypassed
         await providersRepo.upsert(provider)
+        await syncRuntimeProviderForDefinition(provider.definitionId)
         return provider
       },
     })

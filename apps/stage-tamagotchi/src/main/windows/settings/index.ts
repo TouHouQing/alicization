@@ -93,6 +93,15 @@ export function setupSettingsWindowReusableFunc(params: {
     }
 
     toggleWindowShow(window)
+    if (window.isMinimized())
+      window.restore()
+    window.show()
+    window.focus()
+    console.info('[settings-window] openWindow', {
+      route: route ?? currentRoute,
+      visible: window.isVisible(),
+      destroyed: window.isDestroyed(),
+    })
   }
 
   return {

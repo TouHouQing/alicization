@@ -3,7 +3,7 @@ import { Application } from '@pixi/app'
 import { extensions } from '@pixi/extensions'
 import { Ticker, TickerPlugin } from '@pixi/ticker'
 import { Live2DModel } from 'pixi-live2d-display/cubism4'
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   width: number
@@ -21,6 +21,16 @@ const containerRef = ref<HTMLDivElement>()
 const isPixiCanvasReady = ref(false)
 const pixiApp = ref<Application>()
 const pixiAppCanvas = ref<HTMLCanvasElement>()
+
+console.info('[stage-startup-trace][live2d-canvas] setup-start')
+
+onErrorCaptured((error, instance, info) => {
+  console.error('[stage-startup-trace][live2d-canvas] captured-error', {
+    info,
+    component: instance?.$?.type,
+    error,
+  })
+})
 
 function resolveMaxFps(limit?: number) {
   if (!limit || limit <= 0)
@@ -97,7 +107,22 @@ watch(() => props.maxFps, (limit) => {
     pixiApp.value.ticker.maxFPS = resolveMaxFps(limit)
 })
 
-onMounted(async () => containerRef.value && await initLive2DPixiStage(containerRef.value))
+watch(componentState, (state) => {
+  console.info(
+    `[stage-startup-trace][live2d-canvas] component-state state=${state} width=${props.width} height=${props.height}`,
+  )
+}, { immediate: true })
+
+onMounted(async () => {
+  console.info('[stage-startup-trace][live2d-canvas] onMounted-enter')
+  if (containerRef.value)
+    await initLive2DPixiStage(containerRef.value)
+  console.info('[stage-startup-trace][live2d-canvas] onMounted-exit')
+})
+
+onBeforeMount(() => {
+  console.info('[stage-startup-trace][live2d-canvas] onBeforeMount')
+})
 onUnmounted(() => pixiApp.value?.destroy())
 
 async function captureFrame() {

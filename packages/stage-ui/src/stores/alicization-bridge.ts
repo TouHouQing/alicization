@@ -49,6 +49,7 @@ import type {
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
   AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
@@ -73,6 +74,7 @@ import {
   normalizeAlicizationEmotion as sharedNormalizeAlicizationEmotion,
   normalizeAlicizationPerformanceDelivery as sharedNormalizeAlicizationPerformanceDelivery,
   normalizeAlicizationPerformancePayload as sharedNormalizeAlicizationPerformancePayload,
+  normalizeAlicizationRuntimeDigest as sharedNormalizeAlicizationRuntimeDigest,
 } from '@proj-alicization/stage-shared'
 
 export type AlicizationKillSwitchState = 'ACTIVE' | 'SUSPENDED'
@@ -397,6 +399,11 @@ export type AlicizationProactiveReasonCode
     | 'watch-mode-symbiotic'
     | 'watch-mode-invited-inspection'
     | 'watch-mode-recovering'
+    | 'runtime-dialogue-ready'
+    | 'runtime-observe-dominant'
+    | 'runtime-control-ready'
+    | 'runtime-continuity-pressure'
+    | 'runtime-companionship-pressure'
 
 export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
@@ -1684,6 +1691,7 @@ export type AlicizationDialoguePerformancePayload = SharedAlicizationDialoguePer
 export type AlicizationDialogueEmbodimentEnvelope = SharedAlicizationDialogueEmbodimentEnvelope
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
+export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
 export type CharacterFacialCapability = SharedCharacterFacialCapability
@@ -1697,6 +1705,7 @@ export const normalizeAlicizationPerformanceDelivery = sharedNormalizeAlicizatio
 export const normalizeAlicizationPerformancePayload = sharedNormalizeAlicizationPerformancePayload
 export const clampAlicizationPerformancePayloadToManifest = sharedClampAlicizationPerformancePayloadToManifest
 export const normalizeAlicizationDigitalLifeSpineDigest = sharedNormalizeAlicizationDigitalLifeSpineDigest
+export const normalizeAlicizationRuntimeDigest = sharedNormalizeAlicizationRuntimeDigest
 
 export type AlicizationDialogueStructuredPayload = SharedAlicizationDialogueStructuredPayload
 export type AlicizationDialogueRespondedPayload = SharedAlicizationDialogueRespondedPayload

@@ -7,7 +7,10 @@ import {
 import {
   buildGovernedMindThought,
   buildMindGovernedFallbackSurface,
+  normalizeExecutionFirstGovernance,
+  replyViolatesExecutionFirstSurface,
   replyLeaksGovernedMindSurface,
+  replyLooksOrganicDirectAnswer,
   replyLooksCoherentSceneAnswer,
   replyLooksThinGovernedShell,
   resolveGovernedMindEmotion,
@@ -893,9 +896,13 @@ export function repairStructuredContractLocally(input: {
   if (input.validationIssues.length === 0)
     return null
 
+  const effectiveGovernance = normalizeExecutionFirstGovernance({
+    governance: input.governance,
+    userText: input.userText,
+  }).governance ?? input.governance ?? null
   if (
     input.validationIssues.some(issue => issue.code === 'json-contract-missing')
-    && shouldDeferGovernedMindLocalRepair(input.governance)
+    && shouldDeferGovernedMindLocalRepair(effectiveGovernance)
   ) {
     return null
   }
@@ -910,29 +917,53 @@ export function repairStructuredContractLocally(input: {
 
   const governedSurface = input.translate
     ? buildMindGovernedFallbackSurface({
-        governance: input.governance,
+        governance: effectiveGovernance,
         userText: input.userText,
         translate: input.translate,
       })
     : null
   const normalizedVisibleReply = sanitizeStructuredReplySurface(input.structured.reply.trim() || input.fallbackReply?.trim() || '')
-  const strictSurface = shouldForceGovernedMindSurface(input.governance)
-  const leakedGovernedSurface = replyLeaksGovernedMindSurface(normalizedVisibleReply, input.governance)
-  const preserveSceneReply = replyLooksCoherentSceneAnswer({
+  const strictSurface = shouldForceGovernedMindSurface(effectiveGovernance, input.userText)
+  const leakedGovernedSurface = replyLeaksGovernedMindSurface(normalizedVisibleReply, effectiveGovernance, input.userText)
+  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
     reply: normalizedVisibleReply,
-    governance: input.governance,
+    governance: effectiveGovernance,
     userText: input.userText,
   })
+  const preserveSceneReply = replyLooksCoherentSceneAnswer({
+    reply: normalizedVisibleReply,
+    governance: effectiveGovernance,
+    userText: input.userText,
+  })
+  const preserveOrganicReply = replyLooksOrganicDirectAnswer({
+    reply: normalizedVisibleReply,
+    governance: effectiveGovernance,
+    userText: input.userText,
+    thinShellCue: governedSurface?.thinShellCue,
+  })
+  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
   const preserveVisibleReply = Boolean(
     normalizedVisibleReply
     && !leakedGovernedSurface
-    && (!strictSurface || preserveSceneReply),
+    && !executionSurfaceViolation
+    && (!strictSurface || preserveSceneReply || preserveOrganicReply),
   )
   const reply = preserveVisibleReply
     ? normalizedVisibleReply
-    : governedSurface?.reply
-      || normalizedVisibleReply
-  if (!reply)
+    : dispatchOnlyVisibleOverride
+      ? ''
+      : strictSurface
+        ? (
+            governedSurface?.reply
+            || input.fallbackReply?.trim()
+            || normalizedVisibleReply
+          )
+        : (
+            input.fallbackReply?.trim()
+            || governedSurface?.reply
+            || normalizedVisibleReply
+          )
+  if (!reply && !dispatchOnlyVisibleOverride)
     return null
 
   const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? input.structured.emotion).emotion
@@ -974,27 +1005,37 @@ export function enforceGovernedMindTurn(input: {
   if (!input.governance)
     return normalizedStructured
 
-  const governedThought = buildGovernedMindThought({
+  const effectiveGovernance = normalizeExecutionFirstGovernance({
     governance: input.governance,
+    userText: input.userText,
+  }).governance ?? input.governance
+  const governedThought = buildGovernedMindThought({
+    governance: effectiveGovernance,
     userText: input.userText,
   })
   const governedEmotion = normalizeAlicizationEmotion(
-    resolveGovernedMindEmotion(input.governance),
+    resolveGovernedMindEmotion(effectiveGovernance),
   ).emotion
   const needsThoughtRepair = thoughtConflictsWithGovernance(
     normalizedStructured.thought,
-    input.governance,
+    effectiveGovernance,
   )
-  const deferVisibleRepair = shouldDeferGovernedMindLocalRepair(input.governance)
-  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(input.governance)
-  const shouldForceSurface = shouldForceGovernedMindSurface(input.governance)
+  const deferVisibleRepair = shouldDeferGovernedMindLocalRepair(effectiveGovernance)
+  const preserveDialogueFirstVisibleReply = shouldPreserveDialogueFirstVisibleReply(effectiveGovernance)
+  const shouldForceSurface = shouldForceGovernedMindSurface(effectiveGovernance, input.userText)
   const leakedGovernedSurface = replyLeaksGovernedMindSurface(
     normalizedStructured.reply,
-    input.governance,
+    effectiveGovernance,
+    input.userText,
   )
+  const executionSurfaceViolation = replyViolatesExecutionFirstSurface({
+    reply: normalizedStructured.reply,
+    governance: effectiveGovernance,
+    userText: input.userText,
+  })
   const governedSurface = input.translate
     ? buildMindGovernedFallbackSurface({
-        governance: input.governance,
+        governance: effectiveGovernance,
         userText: input.userText,
         translate: input.translate,
       })
@@ -1003,28 +1044,48 @@ export function enforceGovernedMindTurn(input: {
     ? replyLooksThinGovernedShell(
         normalizedStructured.reply,
         governedSurface.reply,
-        input.governance,
+        effectiveGovernance,
         governedSurface.thinShellCue,
       )
     : false
   const coherentSceneReply = replyLooksCoherentSceneAnswer({
     reply: normalizedStructured.reply,
-    governance: input.governance,
+    governance: effectiveGovernance,
     userText: input.userText,
   })
+  const organicDirectReply = replyLooksOrganicDirectAnswer({
+    reply: normalizedStructured.reply,
+    governance: effectiveGovernance,
+    userText: input.userText,
+    thinShellCue: governedSurface?.thinShellCue,
+  })
+  const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
 
   const shouldOverrideVisibleReply = shouldForceSurface
-    ? leakedGovernedSurface
+    ? executionSurfaceViolation
+    || leakedGovernedSurface
     || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
-    || !coherentSceneReply
-    : leakedGovernedSurface
+    || (!coherentSceneReply && !organicDirectReply)
+    : executionSurfaceViolation
+      || leakedGovernedSurface
       || (thinGovernedShell && !preserveDialogueFirstVisibleReply)
 
   if (shouldOverrideVisibleReply) {
-    const reply = governedSurface?.reply
-      || normalizedStructured.reply
-      || input.fallbackReply?.trim()
-      || ''
+    const reply = dispatchOnlyVisibleOverride
+      ? ''
+      : shouldForceSurface
+        ? (
+            governedSurface?.reply
+            || normalizedStructured.reply
+            || input.fallbackReply?.trim()
+            || ''
+          )
+        : (
+            input.fallbackReply?.trim()
+            || governedSurface?.reply
+            || normalizedStructured.reply
+            || ''
+          )
     const emotion = normalizeAlicizationEmotion(governedSurface?.emotion ?? governedEmotion).emotion
     return {
       ...normalizedStructured,
@@ -1090,7 +1151,7 @@ export function enforceGovernedMindTurn(input: {
     personalityState: input.personalityState,
     preferGroundedEvidence: input.preferGroundedEvidence,
     fallbackReply: normalizedStructured.reply || input.fallbackReply,
-    governance: input.governance,
+    governance: effectiveGovernance,
     userText: input.userText,
     translate: input.translate,
   })

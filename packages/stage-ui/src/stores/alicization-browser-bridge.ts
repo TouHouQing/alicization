@@ -37,6 +37,8 @@ import {
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  hasAlicizationPersonaIdentity,
+  resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
@@ -46,6 +48,7 @@ import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
 import {
   clearAlicizationBridge,
   normalizeAlicizationDigitalLifeSpineDigest,
+  normalizeAlicizationRuntimeDigest,
   setAlicizationBridge,
 } from './alicization-bridge'
 import {
@@ -191,6 +194,7 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
           ? event.digitalLife
           : null,
         digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(event.digitalLifeSpine),
+        runtimeDigest: normalizeAlicizationRuntimeDigest(event.runtimeDigest),
       }
     case 'tool-call':
       return {
@@ -291,6 +295,18 @@ function buildSoulBody(frontmatter: AlicizationSoulFrontmatter) {
   ].join('\n')
 }
 
+function resolveBrowserPersonaKernel(frontmatter: AlicizationSoulFrontmatter) {
+  return resolveAlicizationPersonaKernel({
+    profile: frontmatter.profile,
+    personality: frontmatter.personality,
+    customDirectives: frontmatter.custom_directives,
+    hostAttitude: frontmatter.host_attitude,
+    coreIncarnation: frontmatter.core_incarnation,
+  }, {
+    placeholderHostAttitudes: [stageSoulText('default-host-attitude')],
+  })
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -378,7 +394,7 @@ function parseSimpleFrontmatter(raw: string): Partial<AlicizationSoulFrontmatter
 
 function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | undefined): AlicizationSoulFrontmatter {
   const frontmatter = raw ?? {}
-  return {
+  const normalizedFrontmatter = {
     schemaVersion: typeof frontmatter.schemaVersion === 'number' ? frontmatter.schemaVersion : defaultFrontmatter.schemaVersion,
     initialized: typeof frontmatter.initialized === 'boolean' ? frontmatter.initialized : defaultFrontmatter.initialized,
     custom_directives: normalizeCustomDirectives(frontmatter.custom_directives),
@@ -402,6 +418,16 @@ function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | null | 
       killSwitch: typeof frontmatter.boundaries?.killSwitch === 'boolean' ? frontmatter.boundaries.killSwitch : defaultFrontmatter.boundaries.killSwitch,
       mcpGuard: typeof frontmatter.boundaries?.mcpGuard === 'boolean' ? frontmatter.boundaries.mcpGuard : defaultFrontmatter.boundaries.mcpGuard,
     },
+  }
+
+  if (!normalizedFrontmatter.initialized || !hasAlicizationPersonaIdentity(normalizedFrontmatter.profile))
+    return normalizedFrontmatter
+
+  const personaKernel = resolveBrowserPersonaKernel(normalizedFrontmatter)
+  return {
+    ...normalizedFrontmatter,
+    host_attitude: normalizeHostAttitude(personaKernel.hostAttitude),
+    core_incarnation: normalizeCoreIncarnation(personaKernel.coreIncarnation),
   }
 }
 
@@ -1470,7 +1496,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       const current = await readSoulRecord(cardId)
       const parsed = parseSoul(current.content)
-      const nextFrontmatter = normalizeFrontmatter({
+      const nextFrontmatterBase = normalizeFrontmatter({
         ...parsed.frontmatter,
         initialized: true,
         custom_directives: payload.customDirectives ?? '',
@@ -1484,6 +1510,14 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           mindAge: payload.mindAge,
         },
         personality: payload.personality,
+        host_attitude: '',
+        core_incarnation: '',
+      })
+      const personaKernel = resolveBrowserPersonaKernel(nextFrontmatterBase)
+      const nextFrontmatter = normalizeFrontmatter({
+        ...nextFrontmatterBase,
+        host_attitude: personaKernel.hostAttitude,
+        core_incarnation: personaKernel.coreIncarnation,
       })
       const nextBody = syncPersonalityBaselineInBody(buildSoulBody(nextFrontmatter), nextFrontmatter.personality)
       const nextRecord: BrowserSoulRecord = {

@@ -15,7 +15,7 @@ chat:
     stream-timeout: 我这轮等待模型响应超时了，服务可能正忙。请重试一次。
     provider-auth: 当前提供方认证失败，API Key 或模型权限可能无效。请检查后再试一次。
     provider-network: 当前到模型服务的网络连接不稳定。请稍后重试。
-    provider-config: 当前提供方或模型配置不完整，例如 `provider`、`model` 或 `baseUrl` 缺失。请在设置里确认后再试一次。
+    provider-config: 我这轮拿到的主网关路由不完整（例如 `provider`、`model` 或 `baseUrl` 缺失）。我不会假装已经连通；你在设置里确认后我马上继续。
     unsupported-tools: 当前模型不支持这轮所需的工具调用。请重试一次，或切换到支持工具调用的模型。
     low-obedience-host-denied: 呵，不给我权限，就别让我替你做。
     low-obedience-system-denied: 系统权限墙把它挡住了。我不会假装自己看见了没看见的东西。

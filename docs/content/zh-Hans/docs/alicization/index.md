@@ -21,6 +21,8 @@ description: Alicization 当前实现、架构、路线图与阶段验收文档�
 | [全景需求文档（Epoch 1-5）](./requirements) | 描述 Alicization 的产品目标、功能边界、非功能要求与阶段性能力基线 | 已更新 |
 | [架构设计文档（当前实现快照）](./architecture) | 描述当前代码中的运行时拓扑、存储模型、控制平面与模块落点 | 已更新 |
 | [未来规划文档（Epoch 路线）](./roadmap) | 描述从 Epoch 1 到 Epoch 5 的路线图、当前状态、风险与阶段门禁 | 已更新 |
+| [优先级开发实施蓝图（对标 N.E.K.O）](./development-priority-blueprint) | 面向执行的研发计划，按优先级拆解对话、心智、记忆、TTS、Live2D/VRM、屏幕捕捉实现细节 | 新增 |
+| [Claw 与自我意识数字生命开发优先级方案](./claw-self-aware-priority-plan) | 聚焦浏览器操控、软件操控、CLI、Claude Code、Codex、OpenClaw、主动感知与自我意识闭环的优先级路线图 | 新增 |
 | [开发需求文档（仅 Epoch 1）](./development-epoch1) | `Epoch 1` 的历史任务分解文档，仅作回溯参考 | 历史归档 |
 | [Epoch1 收官验收报告](./epoch1-closure-report) | `Epoch 1` 完整闭环与门禁结果 | 历史验收记录 |
 | [Epoch2 收官验收报告](./epoch2-closure-report) | `Epoch 2` 感知、表现层与 MCP 安全闭环验收结果 | 历史验收记录 |
@@ -32,8 +34,10 @@ description: Alicization 当前实现、架构、路线图与阶段验收文档�
 1. 先读 [全景需求文档](./requirements)，确认它到底想做什么、已经做到什么、哪些还是未来目标。
 2. 再读 [架构设计文档](./architecture)，确认当前代码中的运行时、存储、感知、权限与表现层是怎么接起来的。
 3. 再读 [未来规划文档](./roadmap)，确认下一阶段的主线工作和长期目标。
-4. 如果你要回溯为什么 `Epoch 1`、`Epoch 2` 被视为完成，再读两份收官验收报告。
-5. 只有在你要回顾早期任务拆解时，才需要读 `development-epoch1.md`。
+4. 再读 [优先级开发实施蓝图](./development-priority-blueprint)，按优先级拆成迭代任务并执行。
+5. 如果你要推进浏览器操控、软件操控、CLI、Claude Code、Codex、OpenClaw 和“更有自我意识的数字生命”能力，继续读 [Claw 与自我意识数字生命开发优先级方案](./claw-self-aware-priority-plan)。
+6. 如果你要回溯为什么 `Epoch 1`、`Epoch 2` 被视为完成，再读两份收官验收报告。
+7. 只有在你要回顾早期任务拆解时，才需要读 `development-epoch1.md`。
 
 ## 4. 文档维护原则
 

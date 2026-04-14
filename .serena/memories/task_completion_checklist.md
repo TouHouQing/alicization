@@ -1,0 +1,1 @@
+When finishing a task, prefer targeted Vitest coverage for touched files and run pnpm -F @proj-alicization/stage-tamagotchi typecheck for desktop/runtime changes. Repo-wide pnpm lint:fix exists, but validate pragmatically if unrelated workspace issues exist. Summaries should include files changed, commands run, and any remaining risks or follow-ups.

@@ -465,13 +465,32 @@ export interface AlicizationClaudeCodeCommandInput {
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }
 
+export interface AlicizationOpenClawContentPart {
+  type: 'text' | 'image' | 'audio' | 'file' | 'video'
+  text?: string
+  image_url?: string
+  video_url?: string
+  data?: string
+  format?: string
+  file_url?: string
+  filename?: string
+  file_id?: string
+}
+
 export interface AlicizationOpenClawCommandInput {
   instruction: string
   sessionId?: string | null
   sessionAffinityKey?: string | null
   senderId?: string | null
   roleName?: string | null
+  channelId?: string | null
+  conversationId?: string | null
   timeoutMs?: number | null
+  contentParts?: AlicizationOpenClawContentPart[] | null
+  images?: Array<string | Record<string, unknown>> | null
+  audios?: Array<string | Record<string, unknown>> | null
+  files?: Array<string | Record<string, unknown>> | null
+  meta?: Record<string, unknown> | null
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }
 
@@ -815,6 +834,55 @@ export interface AlicizationDigitalLifeSpineDigest {
   memory: AlicizationDigitalLifeSpineMemoryDigest | null
 }
 
+export type AlicizationRuntimeChannelId
+  = | 'dialogue'
+    | 'active-perception'
+    | 'active-dialogue'
+    | 'active-control'
+    | 'active-mind'
+    | 'active-memory'
+    | 'anthropomorphic-mind'
+    | 'agent-runtime'
+
+export type AlicizationRuntimeChannelState = 'hot' | 'warm' | 'idle'
+
+export interface AlicizationRuntimeChannelDigest {
+  id: AlicizationRuntimeChannelId
+  state: AlicizationRuntimeChannelState
+  readiness: number
+  focus: string | null
+  summary: string
+}
+
+export type AlicizationActiveLoopPhase = 'observe' | 'dialogue' | 'control' | 'integrate'
+
+export interface AlicizationActiveLoopDigest {
+  version: 'alicization-active-loop-v1'
+  phase: AlicizationActiveLoopPhase
+  dominantChannel: AlicizationRuntimeChannelId | null
+  handoffTarget: AlicizationRuntimeChannelId | null
+  dialogueReady: boolean
+  controlReady: boolean
+  memoryCarry: boolean
+  companionshipReady: boolean
+  observationHeavy: boolean
+  initiativeBudget: number
+  coherence: number
+  summary: string
+}
+
+export interface AlicizationRuntimeDigest {
+  version: 'alicization-runtime-digest-v1'
+  dominantChannel: AlicizationRuntimeChannelId
+  activeLoop?: AlicizationActiveLoopDigest | null
+  shouldProactivelySpeak: boolean
+  shouldProactivelyAct: boolean
+  continuityPressure: number
+  companionshipPressure: number
+  channels: AlicizationRuntimeChannelDigest[]
+  summary: string
+}
+
 function sanitizeAlicizationDigitalLifeDigestText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
@@ -871,6 +939,134 @@ function normalizeAlicizationDigitalLifeSubsystemIds(raw: unknown) {
     normalized.push(next)
   }
   return normalized
+}
+
+function normalizeAlicizationRuntimeChannelId(raw: unknown): AlicizationRuntimeChannelId | null {
+  return raw === 'dialogue'
+    || raw === 'active-perception'
+    || raw === 'active-dialogue'
+    || raw === 'active-control'
+    || raw === 'active-mind'
+    || raw === 'active-memory'
+    || raw === 'anthropomorphic-mind'
+    || raw === 'agent-runtime'
+    ? raw
+    : null
+}
+
+function normalizeAlicizationRuntimeChannelState(raw: unknown): AlicizationRuntimeChannelState | null {
+  return raw === 'hot'
+    || raw === 'warm'
+    || raw === 'idle'
+    ? raw
+    : null
+}
+
+function deriveAlicizationRuntimeChannelState(readiness: number): AlicizationRuntimeChannelState {
+  if (readiness >= 0.72)
+    return 'hot'
+  if (readiness >= 0.38)
+    return 'warm'
+  return 'idle'
+}
+
+function normalizeAlicizationActiveLoopPhase(raw: unknown): AlicizationActiveLoopPhase | null {
+  return raw === 'observe'
+    || raw === 'dialogue'
+    || raw === 'control'
+    || raw === 'integrate'
+    ? raw
+    : null
+}
+
+function deriveAlicizationActiveLoopPhase(input: {
+  dialogueReady: boolean
+  controlReady: boolean
+  observationHeavy: boolean
+}) {
+  if (input.observationHeavy && !input.dialogueReady && !input.controlReady)
+    return 'observe' as const
+  if (input.controlReady)
+    return 'control' as const
+  if (input.dialogueReady)
+    return 'dialogue' as const
+  return 'integrate' as const
+}
+
+export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRuntimeDigest | null {
+  const candidate = raw && typeof raw === 'object'
+    ? raw as Record<string, unknown>
+    : null
+  if (!candidate)
+    return null
+
+  const rawChannels = Array.isArray(candidate.channels)
+    ? candidate.channels
+    : candidate.channels && typeof candidate.channels === 'object'
+      ? Object.values(candidate.channels as Record<string, unknown>)
+      : []
+  const channels: AlicizationRuntimeChannelDigest[] = []
+  const seen = new Set<AlicizationRuntimeChannelId>()
+  for (const rawChannel of rawChannels) {
+    const channelCandidate = rawChannel && typeof rawChannel === 'object'
+      ? rawChannel as Record<string, unknown>
+      : null
+    const id = normalizeAlicizationRuntimeChannelId(channelCandidate?.id)
+    if (!id || seen.has(id))
+      continue
+    seen.add(id)
+
+    const readiness = normalizeAlicizationDigitalLifeDigestUnit(channelCandidate?.readiness) ?? 0
+    channels.push({
+      id,
+      readiness,
+      state: normalizeAlicizationRuntimeChannelState(channelCandidate?.state)
+        ?? deriveAlicizationRuntimeChannelState(readiness),
+      focus: sanitizeAlicizationDigitalLifeDigestText(channelCandidate?.focus, 120) || null,
+      summary: sanitizeAlicizationDigitalLifeDigestText(channelCandidate?.summary, 220),
+    })
+  }
+
+  const fallbackDominant = channels[0]?.id ?? 'active-mind'
+  const dominantChannel = normalizeAlicizationRuntimeChannelId(candidate.dominantChannel) ?? fallbackDominant
+  const activeLoopCandidate = candidate.activeLoop && typeof candidate.activeLoop === 'object'
+    ? candidate.activeLoop as Record<string, unknown>
+    : null
+  const dialogueReady = activeLoopCandidate?.dialogueReady === true
+  const controlReady = activeLoopCandidate?.controlReady === true
+  const observationHeavy = activeLoopCandidate?.observationHeavy === true
+
+  return {
+    version: 'alicization-runtime-digest-v1',
+    dominantChannel,
+    activeLoop: activeLoopCandidate
+      ? {
+          version: 'alicization-active-loop-v1',
+          phase: normalizeAlicizationActiveLoopPhase(activeLoopCandidate.phase)
+            ?? deriveAlicizationActiveLoopPhase({
+              dialogueReady,
+              controlReady,
+              observationHeavy,
+            }),
+          dominantChannel: normalizeAlicizationRuntimeChannelId(activeLoopCandidate.dominantChannel) ?? dominantChannel,
+          handoffTarget: normalizeAlicizationRuntimeChannelId(activeLoopCandidate.handoffTarget),
+          dialogueReady,
+          controlReady,
+          memoryCarry: activeLoopCandidate.memoryCarry === true,
+          companionshipReady: activeLoopCandidate.companionshipReady === true,
+          observationHeavy,
+          initiativeBudget: normalizeAlicizationDigitalLifeDigestUnit(activeLoopCandidate.initiativeBudget) ?? 0,
+          coherence: normalizeAlicizationDigitalLifeDigestUnit(activeLoopCandidate.coherence) ?? 0,
+          summary: sanitizeAlicizationDigitalLifeDigestText(activeLoopCandidate.summary, 240),
+        }
+      : null,
+    shouldProactivelySpeak: candidate.shouldProactivelySpeak === true,
+    shouldProactivelyAct: candidate.shouldProactivelyAct === true,
+    continuityPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.continuityPressure) ?? 0,
+    companionshipPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.companionshipPressure) ?? 0,
+    channels,
+    summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 240),
+  }
 }
 
 export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): AlicizationDigitalLifeSpineDigest | null {
@@ -980,6 +1176,7 @@ export type AlicizationBridgeChatStreamEvent
       speechTimeline?: AlicizationDialogueSpeechTimeline | null
       digitalLife?: AlicizationDigitalLifeEnvelope | null
       digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+      runtimeDigest?: AlicizationRuntimeDigest | null
     }
     | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
     | { type: 'tool-result', toolCallId: string, result?: unknown }
@@ -1040,6 +1237,11 @@ export type AlicizationProactiveReasonCode
     | 'watch-mode-symbiotic'
     | 'watch-mode-invited-inspection'
     | 'watch-mode-recovering'
+    | 'runtime-dialogue-ready'
+    | 'runtime-observe-dominant'
+    | 'runtime-control-ready'
+    | 'runtime-continuity-pressure'
+    | 'runtime-companionship-pressure'
 
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean

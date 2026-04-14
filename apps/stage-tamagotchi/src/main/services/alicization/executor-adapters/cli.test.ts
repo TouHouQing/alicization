@@ -1,5 +1,9 @@
 import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
 
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { executeCliTaskThread } from './cli'
@@ -133,6 +137,94 @@ describe('cli executor adapter', () => {
         args: [],
       }),
     }))
+  })
+
+  it('expands home-directory aliases in CLI args before process spawn', async () => {
+    const result = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: ['-e', 'process.stdout.write(process.argv[1] || "")', '~/Desktop'],
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.finalStatus).toBe('completed')
+    expect(result.output).not.toContain('~/Desktop')
+    expect(result.events[0]?.payload).toEqual(expect.objectContaining({
+      aliasExpansionCount: expect.any(Number),
+    }))
+    expect(Number((result.events[0]?.payload as { aliasExpansionCount?: unknown }).aliasExpansionCount ?? 0)).toBeGreaterThan(0)
+  })
+
+  it('expands home-directory aliases inside option assignments', async () => {
+    const result = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: ['-e', 'process.stdout.write(process.argv[1] || "")', '--', '--target=~/Desktop'],
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.finalStatus).toBe('completed')
+    expect(result.output).not.toContain('~/Desktop')
+    expect(result.output).toContain('--target=')
+    expect(result.output).toMatch(/--target=.+(Desktop|桌面)/u)
+  })
+
+  it('expands home-directory aliases from inline command strings', async () => {
+    const result = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node -e "process.stdout.write(process.argv[1] || \'\')" ~/Desktop',
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.finalStatus).toBe('completed')
+    expect(result.output).not.toContain('~/Desktop')
+    expect(result.output).toMatch(/(Desktop|桌面)/u)
+  })
+
+  it('builds callback-friendly summaries for ls listings and keeps decoded hints', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'alicization-cli-ls-'))
+    const encodedName = '%E5%B0%8F%E7%A0%96%E7%8C%BF'
+    const chineseName = '小砖猿'
+
+    try {
+      await Promise.all([
+        mkdir(join(tempRoot, encodedName)),
+        mkdir(join(tempRoot, chineseName)),
+      ])
+
+      const result = await executeCliTaskThread({
+        thread: createThread(),
+        command: {
+          command: 'ls',
+          args: ['-la', tempRoot],
+        },
+        workspaceRoot: process.cwd(),
+      })
+
+      expect(result.ok).toBe(true)
+      expect(result.finalStatus).toBe('completed')
+      expect(result.summary).toContain('Listed entries')
+      expect(result.summary).toContain(`${encodedName} (${chineseName})`)
+      expect(result.summary).not.toContain('drwx')
+      expect(result.events.at(-1)?.payload).toEqual(expect.objectContaining({
+        summary: expect.stringContaining('Listed entries'),
+      }))
+    }
+    finally {
+      await rm(tempRoot, {
+        recursive: true,
+        force: true,
+      })
+    }
   })
 
   it('cancels a running CLI command when the abort signal fires', async () => {

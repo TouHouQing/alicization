@@ -58,6 +58,7 @@ export const useChatTextComposerStore = defineStore('chat-text-composer', () => 
     try {
       const providerConfig = providersStore.getProviderConfig(providerId)
       await chatOrchestrator.ingest(rawDraft, {
+        providerId,
         chatProvider: await providersStore.getProviderInstance(providerId) as ChatProvider,
         model: modelId,
         providerConfig,

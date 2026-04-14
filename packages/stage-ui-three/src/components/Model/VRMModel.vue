@@ -17,6 +17,7 @@ import type {
   Group,
   Object3D,
   PerspectiveCamera,
+  Scene,
   ShaderMaterial,
   SphericalHarmonics3,
   Texture,
@@ -267,6 +268,10 @@ function getRendererInstance() {
   return renderer?.instance as WebGLRenderer | undefined
 }
 
+function getSceneInstance() {
+  return scene.value as unknown as Scene | undefined
+}
+
 function toErrorMessage(error: unknown) {
   if (error instanceof Error)
     return error.message
@@ -465,7 +470,7 @@ function bindManagedVrmInstanceRenderLoop() {
 }
 
 function commitManagedVrmInstance(instance: ManagedVrmInstance) {
-  scene.value?.add(instance.group)
+  getSceneInstance()?.add(instance.group)
   applyManagedVrmInstance(instance)
   bindManagedVrmInstanceRenderLoop()
   emitCustomExpressionsResolved(instance.vrm)
@@ -1056,8 +1061,9 @@ async function loadModel() {
           return
         }
 
-        if (!airiIblProbe && scene.value)
-          airiIblProbe = createIblProbeController(scene.value)
+        const sceneInstance = getSceneInstance()
+        if (!airiIblProbe && sceneInstance)
+          airiIblProbe = createIblProbeController(sceneInstance)
 
         if (loadReason === 'model-switch') {
           componentCleanUp('model-switch', { invalidate: false })
@@ -1146,11 +1152,12 @@ async function loadModel() {
     const isShaderMat = (m: any): m is ShaderMaterial => !!m?.isShaderMaterial
 
     // MToon material sky box lightProbe setting
-    if (!airiIblProbe && scene.value)
-      airiIblProbe = createIblProbeController(scene.value)
+    const sceneInstance = getSceneInstance()
+    if (!airiIblProbe && sceneInstance)
+      airiIblProbe = createIblProbeController(sceneInstance)
 
     // Material traverse setting
-    _vrm.scene.traverse((child) => {
+    _vrm.scene.traverse((child: Object3D) => {
       if (child instanceof Mesh && child.material) {
         const material = Array.isArray(child.material) ? child.material : [child.material]
         material.forEach((mat) => {

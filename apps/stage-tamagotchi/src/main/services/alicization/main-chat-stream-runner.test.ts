@@ -188,6 +188,50 @@ describe('main chat stream runner', () => {
     }))
   })
 
+  it('buffers structured mind-turn deltas and releases only reply text on the visible stream surface', async () => {
+    const streamMeta = createStreamMetaController()
+    const incrementChunkStats = vi.fn()
+    const emitChunk = vi.fn()
+
+    const structuredText = '{"format":"mind-turn-v1","thought":"obligation=answer","emotion":"thinking","reply":"你好。"}'
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-structured-stream',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats,
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta,
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({ type: 'text-delta', text: structuredText.slice(0, 48) })
+        await emit({ type: 'text-delta', text: structuredText.slice(48) })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(result).toEqual({
+      finishReason: 'stop',
+      fullText: structuredText,
+    })
+    expect(emitChunk).toHaveBeenCalledTimes(1)
+    expect(emitChunk).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-structured-stream',
+      text: '你好。',
+    })
+    expect(incrementChunkStats).toHaveBeenCalledWith('你好。')
+    expect(streamMeta.emit).toHaveBeenCalledWith('你好。')
+  })
+
   it('aborts with a first-event-timeout when the stream never produces progress', async () => {
     vi.useFakeTimers()
 
@@ -219,9 +263,10 @@ describe('main chat stream runner', () => {
   })
 
   it('records debug diagnostics when the stream settles without a progress event', async () => {
+    vi.useFakeTimers()
     const appendRuntimeDebugLine = vi.fn(async () => {})
 
-    await expect(runAlicizationMainChatStream({
+    const promise = runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
         turnId: 'turn-non-progress',
@@ -242,7 +287,12 @@ describe('main chat stream runner', () => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({ type: 'response-metadata' })
       },
-    })).rejects.toMatchObject({
+    })
+    const settled = promise.catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(1_600)
+
+    await expect(settled).resolves.toMatchObject({
       name: 'AbortError',
     })
 
@@ -251,11 +301,123 @@ describe('main chat stream runner', () => {
       turnId: 'turn-non-progress',
       eventType: 'response-metadata',
     }))
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.first-event-timeout-grace-armed', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-non-progress',
+      graceTimeoutMs: 1000,
+      lastEventType: 'response-metadata',
+      nonProgressEventTypes: ['response-metadata'],
+    }))
     expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.first-event-timeout-fired', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-non-progress',
+      timeoutPhase: 'grace',
+      sawAnyEvent: true,
+      firstEventGraceApplied: true,
       lastEventType: 'response-metadata',
       nonProgressEventTypes: ['response-metadata'],
+    }))
+  })
+
+  it('allows delayed first progress after non-progress activity within grace window', async () => {
+    vi.useFakeTimers()
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-delayed-first-progress',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({ type: 'response-metadata' })
+        await new Promise(resolve => setTimeout(resolve, 900))
+        await emit({ type: 'text-delta', text: '你好' })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(1_600)
+    const result = await promise
+
+    expect(result).toEqual({
+      finishReason: 'stop',
+      fullText: '你好',
+    })
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.first-event-timeout-grace-armed', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-delayed-first-progress',
+      graceTimeoutMs: 1000,
+    }))
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.first-progress-event', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-delayed-first-progress',
+      eventType: 'text-delta',
+    }))
+    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith('chat-stream.first-event-timeout-fired', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-delayed-first-progress',
+    }))
+  })
+
+  it('fails when a required executor tool was never called before finish', async () => {
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-required-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [
+          {
+            function: {
+              name: 'executor_run_cli',
+            },
+          },
+        ],
+        toolChoice: {
+          type: 'function',
+          function: {
+            name: 'executor_run_cli',
+          },
+        },
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({ type: 'text-delta', text: '我先看看。' })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })).rejects.toThrow('Model finished without calling required tool: executor_run_cli')
+
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.required-tool-missing', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-required-tool',
+      finishReason: 'stop',
+      requiredToolNames: ['executor_run_cli'],
     }))
   })
 })

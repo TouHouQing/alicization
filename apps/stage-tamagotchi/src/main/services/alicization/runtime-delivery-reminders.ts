@@ -1,0 +1,569 @@
+import type {
+  AlicizationAuditLogInput,
+  AlicizationTaskThreadRecord,
+} from '../../../shared/eventa'
+import type { AlicizationAgentTurnRuntime } from './agent-runtime'
+
+interface CreateAlicizationDeliveryReminderRuntimeOptions {
+  getActiveCardId: () => string
+  isAlicizationKillSwitchSuspended: () => boolean
+  getAlicizationCardKillSwitchState: (cardId: string) => 'ACTIVE' | 'SUSPENDED'
+  appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
+  clearReminderDueTimer: () => void
+  getAlicizationDb: () => any
+  scheduleNextReminderDueCheck: (reason: string) => Promise<void>
+  reminderClaimBatchSize: number
+  reminderOverdueTierThresholdMinutes: number
+  reminderLlmRetryDelayMs: number
+  getSoulSnapshot: () => any
+  bootstrap: () => Promise<any>
+  generateReminderStructuredWithGateway: (
+    personality: any,
+    reminder: { minutes: number, message: string, tier: 'mild' | 'severe' },
+    agentTurnInput?: {
+      turnId: string
+      decisionTraceId?: string | null
+    },
+    agentTurn?: AlicizationAgentTurnRuntime | null,
+  ) => Promise<any>
+  appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
+  buildReminderContinuitySignal: (input: any) => any
+  ensureActiveOrLatestSessionId: (cardId: string) => Promise<string>
+  appendConversationTurnWithGuards: (payload: any) => Promise<boolean | undefined>
+  sanitizeBriefText: (raw: string, maxLength?: number) => string
+  buildReminderSessionMirrorAction: (input: any) => any
+  syncAgentTurnSessionMirror: (input: any) => void
+  syncSessionMirrorFromCurrentCardState: (input: any) => Promise<void>
+  buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
+  normalizeSessionId: (raw: unknown) => string
+  getActiveSessionIdByCard: (cardId: string) => unknown
+  executionDeliveryRuntime: {
+    isInlineSurfaced: (input: {
+      cardId: string
+      completedAt: number
+      sessionId: string
+      threadId: string
+    }) => boolean
+    takeNext: (input: { cardId: string, sessionId?: string }) => any | null
+    requeue: (entry: any) => void
+    markDelivered: (entry: any) => void
+  }
+  buildExecutionDeliveryAction: (entry: any) => any
+  generateExecutionCallbackStructuredWithGateway: (input: any) => Promise<any>
+  buildExecutionDeliveryDeterministicStructured: (input: any) => any
+  selectExecutionDeliveryReplySurface: (input: {
+    channel: string
+    goal: string
+    llmReply?: string | null
+    outcome: string
+    status: AlicizationTaskThreadRecord['status']
+    summary: string
+  }) => {
+    reply: string
+    source: 'llm' | 'llm-repaired' | 'deterministic'
+    reason?: string
+  }
+  persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
+  queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
+  executionCallbackRuntime: {
+    markSurfaced: (input: { sessionId: string, createdAt: number }) => void
+  }
+  errorMessageFrom: (error: unknown) => string | undefined
+}
+
+export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizationDeliveryReminderRuntimeOptions) {
+  async function processDueRemindersForCurrentCard(
+    trigger: 'timer' | 'force' | 'startup',
+    agentTurn?: AlicizationAgentTurnRuntime | null,
+  ) {
+    const cardId = options.getActiveCardId()
+    if (options.isAlicizationKillSwitchSuspended() || options.getAlicizationCardKillSwitchState(cardId) === 'SUSPENDED') {
+      await options.appendRuntimeDebugLine('reminder.scan-skipped', {
+        cardId,
+        trigger,
+        reason: 'kill-switch-suspended',
+      })
+      options.clearReminderDueTimer()
+      return { claimed: 0, completed: 0, failed: 0, requeued: 0 }
+    }
+
+    const nowMs = Date.now()
+    const pendingPreview = await options.getAlicizationDb().listPendingScheduledTasks(1).catch(() => [])
+    const nextPending = pendingPreview.at(0)
+    await options.appendRuntimeDebugLine('reminder.scan-started', {
+      cardId: options.getActiveCardId(),
+      trigger,
+      nowMs,
+      nowIso: new Date(nowMs).toISOString(),
+      nextPendingTaskId: nextPending?.taskId,
+      nextPendingTriggerAt: nextPending?.triggerAt,
+      nextPendingTriggerIso: typeof nextPending?.triggerAt === 'number' ? new Date(nextPending.triggerAt).toISOString() : undefined,
+      nextPendingDueInMs: typeof nextPending?.triggerAt === 'number' ? nextPending.triggerAt - nowMs : undefined,
+    })
+    const dueTasks = await options.getAlicizationDb().claimDueScheduledTasks(nowMs, options.reminderClaimBatchSize)
+    if (dueTasks.length === 0) {
+      await options.appendRuntimeDebugLine('reminder.scan-empty', {
+        cardId: options.getActiveCardId(),
+        trigger,
+        nowMs,
+        nextPendingTaskId: nextPending?.taskId,
+        nextPendingTriggerAt: nextPending?.triggerAt,
+        nextPendingDueInMs: typeof nextPending?.triggerAt === 'number' ? nextPending.triggerAt - nowMs : undefined,
+      })
+      await options.scheduleNextReminderDueCheck(`scan-empty:${trigger}`)
+      return { claimed: 0, completed: 0, failed: 0, requeued: 0 }
+    }
+
+    await options.appendRuntimeDebugLine('reminder.scan-claimed', {
+      cardId: options.getActiveCardId(),
+      trigger,
+      nowMs,
+      claimedTaskIds: dueTasks.map((task: { taskId: string }) => task.taskId),
+      claimedCount: dueTasks.length,
+    })
+
+    const soulForReminder = options.getSoulSnapshot() ?? await options.bootstrap()
+    const personality = soulForReminder.frontmatter.personality
+    let completed = 0
+    let failed = 0
+    let requeued = 0
+
+    for (const task of dueTasks) {
+      const delayMinutes = Math.max(0, (nowMs - task.triggerAt) / 60_000)
+      const tier = delayMinutes >= options.reminderOverdueTierThresholdMinutes ? 'severe' : 'mild'
+      const reminderInput = {
+        minutes: delayMinutes,
+        message: task.message,
+        tier,
+      } as const
+      await options.appendRuntimeDebugLine('reminder.task-processing', {
+        cardId: options.getActiveCardId(),
+        trigger,
+        taskId: task.taskId,
+        triggerAt: task.triggerAt,
+        triggerIso: new Date(task.triggerAt).toISOString(),
+        delayMinutes: Number(delayMinutes.toFixed(2)),
+        tier,
+      })
+
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.reminder',
+        action: 'alicization.reminder.task.claimed',
+        message: 'Claimed due reminder task for subconscious delivery.',
+        payload: {
+          trigger,
+          taskId: task.taskId,
+          triggerAt: task.triggerAt,
+        },
+      })
+
+      if (delayMinutes > 0) {
+        await options.appendAuditLog({
+          level: 'notice',
+          category: 'alicization.reminder',
+          action: 'alicization.reminder.task.overdue-triggered',
+          message: 'Triggered overdue reminder task after runtime recovery.',
+          payload: {
+            trigger,
+            taskId: task.taskId,
+            delayMinutes: Number(delayMinutes.toFixed(2)),
+            tier,
+          },
+        })
+      }
+
+      try {
+        await options.appendAuditLog({
+          level: 'notice',
+          category: 'alicization.reminder',
+          action: 'alicization.reminder.task.triggered',
+          message: 'Triggering reminder proactive utterance generation.',
+          payload: {
+            trigger,
+            taskId: task.taskId,
+            tier,
+          },
+        })
+        agentTurn?.ingestContinuitySignals([
+          options.buildReminderContinuitySignal({
+            task: {
+              taskId: task.taskId,
+              triggerAt: task.triggerAt,
+              message: task.message,
+              sourceTurnId: task.sourceTurnId,
+            },
+            tier,
+            delayMinutes,
+            trigger,
+          }),
+        ])
+        const firedTurnId = `reminder:${options.getActiveCardId()}:${task.taskId}:${Date.now()}`
+        const llmStructured = await options.generateReminderStructuredWithGateway(personality, reminderInput, {
+          turnId: firedTurnId,
+        }, agentTurn)
+        if (!llmStructured) {
+          const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'llm-unavailable', nextTriggerAt)
+          requeued += 1
+          await options.appendRuntimeDebugLine('reminder.task-requeued', {
+            cardId: options.getActiveCardId(),
+            trigger,
+            taskId: task.taskId,
+            reason: 'llm-unavailable',
+            nextTriggerAt,
+            nextTriggerIso: new Date(nextTriggerAt).toISOString(),
+          })
+          await options.appendAuditLog({
+            level: 'warning',
+            category: 'alicization.reminder',
+            action: 'alicization.reminder.task.failed',
+            message: 'Reminder task generation unavailable in this tick; task requeued for retry without deterministic fallback text.',
+            payload: {
+              trigger,
+              taskId: task.taskId,
+              reason: 'llm-unavailable',
+              nextTriggerAt,
+            },
+          })
+          continue
+        }
+        const structured = llmStructured
+        await options.appendRuntimeDebugLine('reminder.task-generated', {
+          cardId: options.getActiveCardId(),
+          trigger,
+          taskId: task.taskId,
+          source: 'llm',
+          emotion: structured.emotion,
+          replyPreview: options.sanitizeBriefText(structured.reply, 120),
+        })
+        const deliveredSessionId = await options.ensureActiveOrLatestSessionId(options.getActiveCardId())
+        const persisted = await options.appendConversationTurnWithGuards({
+          turnId: firedTurnId,
+          sessionId: deliveredSessionId,
+          assistantText: structured.reply,
+          structured,
+          origin: 'subconscious-proactive',
+          createdAt: Date.now(),
+        })
+
+        if (!persisted) {
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, 'turn-write-skipped')
+          requeued += 1
+          await options.appendAuditLog({
+            level: 'warning',
+            category: 'alicization.reminder',
+            action: 'alicization.reminder.task.failed',
+            message: 'Reminder turn write skipped by runtime guard; task requeued.',
+            payload: {
+              trigger,
+              taskId: task.taskId,
+              reason: 'turn-write-skipped',
+            },
+          })
+          continue
+        }
+        await options.appendRuntimeDebugLine('reminder.task-persisted', {
+          cardId: options.getActiveCardId(),
+          trigger,
+          taskId: task.taskId,
+          firedTurnId,
+        })
+        const reminderAction = options.buildReminderSessionMirrorAction({
+          delayMinutes,
+          firedTurnId,
+          task: {
+            taskId: task.taskId,
+            triggerAt: task.triggerAt,
+            message: task.message,
+            sourceTurnId: task.sourceTurnId,
+          },
+          tier,
+          trigger,
+        })
+        if (agentTurn)
+          agentTurn.ingestRuntimeActions([reminderAction])
+        options.syncAgentTurnSessionMirror({
+          agentTurn,
+          cardId: options.getActiveCardId(),
+          sessionId: deliveredSessionId,
+          source: 'reminder',
+        })
+        if (!agentTurn) {
+          await options.syncSessionMirrorFromCurrentCardState({
+            cardId: options.getActiveCardId(),
+            reminderAction: {
+              delayMinutes,
+              firedTurnId,
+              task: {
+                taskId: task.taskId,
+                triggerAt: task.triggerAt,
+                message: task.message,
+                sourceTurnId: task.sourceTurnId,
+              },
+              tier,
+              trigger,
+            },
+            sessionId: deliveredSessionId,
+            source: 'reminder',
+            turnId: firedTurnId,
+          })
+        }
+
+        await options.getAlicizationDb().completeScheduledTask(task.taskId, firedTurnId, Date.now())
+        completed += 1
+        await options.appendRuntimeDebugLine('reminder.task-completed', {
+          cardId: options.getActiveCardId(),
+          trigger,
+          taskId: task.taskId,
+          firedTurnId,
+        })
+        await options.appendAuditLog({
+          level: 'notice',
+          category: 'alicization.reminder',
+          action: 'alicization.reminder.task.completed',
+          message: 'Reminder task completed and delivered through subconscious proactive turn.',
+          payload: {
+            trigger,
+            taskId: task.taskId,
+            firedTurnId,
+            emotion: structured.emotion,
+            format: structured.format,
+            source: 'llm',
+            agentRuntime: options.buildAgentRuntimeAuditSnapshot(agentTurn),
+          },
+        })
+      }
+      catch (error) {
+        failed += 1
+        const reason = options.sanitizeBriefText(error instanceof Error ? error.message : String(error), 300) || 'unknown reminder execution failure'
+        await options.getAlicizationDb().failScheduledTask(task.taskId, reason, Date.now()).catch(() => {})
+        await options.appendRuntimeDebugLine('reminder.task-failed', {
+          cardId: options.getActiveCardId(),
+          trigger,
+          taskId: task.taskId,
+          reason,
+        })
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.reminder',
+          action: 'alicization.reminder.task.failed',
+          message: 'Reminder task failed during subconscious trigger execution.',
+          payload: {
+            trigger,
+            taskId: task.taskId,
+            reason,
+          },
+        })
+      }
+    }
+
+    await options.scheduleNextReminderDueCheck(`scan-finished:${trigger}`)
+    return {
+      claimed: dueTasks.length,
+      completed,
+      failed,
+      requeued,
+    }
+  }
+
+  async function processPendingExecutionDeliveriesForCurrentCard(
+    trigger: 'timer' | 'force',
+    agentTurn?: AlicizationAgentTurnRuntime | null,
+  ) {
+    const activeCardId = options.getActiveCardId()
+    const activeSessionId = options.normalizeSessionId(options.getActiveSessionIdByCard(activeCardId))
+    const pendingDelivery = options.executionDeliveryRuntime.takeNext({
+      cardId: activeCardId,
+      sessionId: activeSessionId || undefined,
+    })
+    if (!pendingDelivery)
+      return false
+
+    agentTurn?.ingestRuntimeActions([
+      options.buildExecutionDeliveryAction(pendingDelivery),
+    ])
+
+    const firedTurnId = `execution-callback:${options.getActiveCardId()}:${pendingDelivery.threadId}:${Date.now()}`
+    const skipIfInlineSurfaced = async (stage: 'pre-generate' | 'pre-persist') => {
+      if (!options.executionDeliveryRuntime.isInlineSurfaced({
+        cardId: options.getActiveCardId(),
+        sessionId: pendingDelivery.sessionId,
+        threadId: pendingDelivery.threadId,
+        completedAt: pendingDelivery.completedAt,
+      })) {
+        return false
+      }
+
+      options.executionDeliveryRuntime.markDelivered(pendingDelivery)
+      await options.persistExecutionDeliveryState(options.getActiveCardId())
+      await options.appendRuntimeDebugLine('execution-delivery.skipped-inline-surfaced', {
+        trigger,
+        stage,
+        cardId: options.getActiveCardId(),
+        threadId: pendingDelivery.threadId,
+        sessionId: pendingDelivery.sessionId,
+        completedAt: pendingDelivery.completedAt,
+      })
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.delivery',
+        action: 'inline-surfaced-skip',
+        message: 'Skipped subconscious execution delivery because the same execution result was already surfaced inline.',
+        payload: {
+          trigger,
+          stage,
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          completedAt: pendingDelivery.completedAt,
+        },
+      })
+      return true
+    }
+
+    try {
+      if (await skipIfInlineSurfaced('pre-generate'))
+        return true
+
+      const llmStructured = await options.generateExecutionCallbackStructuredWithGateway({
+        cardId: options.getActiveCardId(),
+        channel: pendingDelivery.channel,
+        completedAt: pendingDelivery.completedAt,
+        decisionTraceId: pendingDelivery.decisionTraceId,
+        goal: pendingDelivery.goal,
+        outcome: pendingDelivery.outcome,
+        sessionId: pendingDelivery.sessionId,
+        status: pendingDelivery.status,
+        summary: pendingDelivery.summary,
+        threadId: pendingDelivery.threadId,
+        turnId: pendingDelivery.turnId,
+        agentTurn,
+        agentTurnInput: {
+          turnId: firedTurnId,
+          decisionTraceId: pendingDelivery.decisionTraceId,
+        },
+      })
+      const deterministicStructured = options.buildExecutionDeliveryDeterministicStructured({
+        channel: pendingDelivery.channel,
+        goal: pendingDelivery.goal,
+        outcome: pendingDelivery.outcome,
+        status: pendingDelivery.status,
+        summary: pendingDelivery.summary,
+      })
+      const selectedReply = options.selectExecutionDeliveryReplySurface({
+        channel: pendingDelivery.channel,
+        goal: pendingDelivery.goal,
+        llmReply: typeof llmStructured?.reply === 'string' ? llmStructured.reply : null,
+        outcome: pendingDelivery.outcome,
+        status: pendingDelivery.status,
+        summary: pendingDelivery.summary,
+      })
+      const structured = selectedReply.source === 'llm' && llmStructured
+        ? {
+            ...llmStructured,
+            reply: selectedReply.reply,
+          }
+        : {
+            ...deterministicStructured,
+            reply: selectedReply.reply,
+          }
+      const deliverySource = selectedReply.source
+      await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {
+        trigger,
+        cardId: options.getActiveCardId(),
+        threadId: pendingDelivery.threadId,
+        sessionId: pendingDelivery.sessionId,
+        status: pendingDelivery.status,
+        source: deliverySource,
+        surfaceReason: selectedReply.reason ?? null,
+      })
+
+      if (await skipIfInlineSurfaced('pre-persist'))
+        return true
+
+      const persisted = await options.appendConversationTurnWithGuards({
+        turnId: firedTurnId,
+        sessionId: pendingDelivery.sessionId,
+        assistantText: structured.reply,
+        structured,
+        origin: 'subconscious-proactive',
+        createdAt: Date.now(),
+      })
+      if (!persisted) {
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        await options.persistExecutionDeliveryState(options.getActiveCardId())
+        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-retry:${pendingDelivery.threadId}`, 1_500)
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'requeued',
+          message: 'Execution callback delivery was deferred because the runtime skipped turn persistence.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+          },
+        })
+        return false
+      }
+
+      options.executionDeliveryRuntime.markDelivered(pendingDelivery)
+      options.executionCallbackRuntime.markSurfaced({
+        sessionId: pendingDelivery.sessionId,
+        createdAt: pendingDelivery.completedAt,
+      })
+      await options.persistExecutionDeliveryState(options.getActiveCardId())
+      options.syncAgentTurnSessionMirror({
+        agentTurn,
+        cardId: options.getActiveCardId(),
+        decisionTraceId: pendingDelivery.decisionTraceId,
+        sessionId: pendingDelivery.sessionId,
+        source: 'execution-callback',
+      })
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.delivery',
+        action: 'delivered',
+        message: 'Delivered a settled task-thread callback through the subconscious runtime.',
+        payload: {
+          trigger,
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          status: pendingDelivery.status,
+          channel: pendingDelivery.channel,
+          source: deliverySource,
+          surfaceReason: selectedReply.reason ?? null,
+          firedTurnId,
+          format: structured.format,
+          agentRuntime: options.buildAgentRuntimeAuditSnapshot(agentTurn),
+        },
+      })
+      return true
+    }
+    catch (error) {
+      options.executionDeliveryRuntime.requeue(pendingDelivery)
+      await options.persistExecutionDeliveryState(options.getActiveCardId())
+      options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-error:${pendingDelivery.threadId}`, 2_500)
+      await options.appendAuditLog({
+        level: 'warning',
+        category: 'alicization.executor.delivery',
+        action: 'delivery-failed',
+        message: 'Execution callback delivery failed and was requeued for another subconscious attempt.',
+        payload: {
+          trigger,
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          status: pendingDelivery.status,
+          reason: options.errorMessageFrom(error) ?? 'unknown-error',
+        },
+      })
+      return false
+    }
+  }
+
+  return {
+    processDueRemindersForCurrentCard,
+    processPendingExecutionDeliveriesForCurrentCard,
+  }
+}

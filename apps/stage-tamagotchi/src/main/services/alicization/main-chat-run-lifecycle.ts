@@ -12,7 +12,16 @@ function isAbortLikeError(error: unknown) {
     && (error as { name?: unknown }).name === 'AbortError'
 }
 
-export type AlicizationMainChatTimeoutRecoveryMode = 'original' | 'tools-disabled'
+export type AlicizationMainChatTimeoutRecoveryMode
+  = 'original'
+    | 'tools-disabled'
+    | 'non-streaming'
+    | 'active-dialogue-local'
+    | 'active-dialogue-deterministic'
+    | 'active-dialogue-compact'
+    | 'deterministic-required-tool'
+    | 'local-fallback'
+    | 'minimal-context-non-streaming'
 
 export function normalizeAlicizationMainChatAbortReason(reason: unknown) {
   const normalized = String(reason ?? 'abort')
@@ -52,6 +61,41 @@ function sanitizeTimeoutDiagnosticSegment(raw: unknown) {
   return normalized.slice(0, 80)
 }
 
+function isMainGatewayRecoveryLivenessTag(tag: string) {
+  return tag.includes('keepalive')
+    || tag.includes('heartbeat')
+    || tag.includes('metadata')
+    || tag.includes('response-start')
+    || tag.includes('stream-open')
+}
+
+export function deriveAlicizationTimeoutRecoveryMs(input: {
+  baseTimeoutMs: number
+  timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode
+  nonProgressEventTypes: Set<string>
+}) {
+  const safeBaseTimeoutMs = Number.isFinite(input.baseTimeoutMs)
+    ? Math.max(1_000, Math.floor(input.baseTimeoutMs))
+    : 1_000
+  const hasStreamLivenessSignals = [...input.nonProgressEventTypes]
+    .map(eventType => sanitizeTimeoutDiagnosticSegment(eventType))
+    .some(isMainGatewayRecoveryLivenessTag)
+  if (!hasStreamLivenessSignals)
+    return safeBaseTimeoutMs
+
+  // NOTICE: If stream metadata/keepalive arrived before first content, the route is alive.
+  // Fixed 12s recovery often re-times out for slower providers; extend recovery window to
+  // keep timeout fallback from degenerating into deterministic double-timeout loops.
+  const livenessFloorMs = input.timeoutRecoveryMode === 'minimal-context-non-streaming'
+    ? 30_000
+    : input.timeoutRecoveryMode === 'tools-disabled'
+      ? 25_000
+      : input.timeoutRecoveryMode === 'active-dialogue-compact'
+        ? 12_000
+      : 20_000
+  return Math.max(safeBaseTimeoutMs, livenessFloorMs)
+}
+
 function buildTimeoutAbortFinishReason(input: {
   dispatchBound: boolean
   nonProgressEventTypes: Set<string>
@@ -64,8 +108,8 @@ function buildTimeoutAbortFinishReason(input: {
   if (input.dispatchBound)
     tags.push('after-dispatch-meta')
 
-  if (input.timeoutRecoveryMode === 'tools-disabled')
-    tags.push('recovery-mode=tools-disabled')
+  if (input.timeoutRecoveryMode !== 'original')
+    tags.push(`recovery-mode=${input.timeoutRecoveryMode}`)
 
   const normalizedNonProgress = [...input.nonProgressEventTypes]
     .map(eventType => sanitizeTimeoutDiagnosticSegment(eventType))
@@ -114,7 +158,10 @@ interface HandleAlicizationMainChatRunFailureOptions {
     tools: AlicizationPreparedMainChatExecutionResult['tools']
     toolChoice: AlicizationPreparedMainChatExecutionResult['toolChoice']
     timeoutMs: number
-  }) => Promise<string>
+  }) => Promise<{
+    recoveredText: string
+    recoveryMode: AlicizationMainChatTimeoutRecoveryMode
+  }>
   emitRecoveredText: (text: string) => void | Promise<void>
   emitError: (reason: string) => void | Promise<void>
   finish: (payload: {
@@ -157,14 +204,20 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
     const normalizedAbortReason = normalizeAlicizationMainChatAbortReason(abortReasonText)
 
     if (normalizedAbortReason === 'chat-first-event-timeout' && input.chatConfig) {
+      const effectiveTimeoutRecoveryMs = deriveAlicizationTimeoutRecoveryMs({
+        baseTimeoutMs: input.timeoutRecoveryMs,
+        timeoutRecoveryMode: input.timeoutRecoveryMode,
+        nonProgressEventTypes: input.nonProgressEventTypes,
+      })
+      let gatewayUnreachableReason: string | undefined
       const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
       if (!reachability.reachable) {
-        const unreachableReason = reachability.code ?? reachability.reason ?? 'gateway-unreachable'
+        gatewayUnreachableReason = reachability.code ?? reachability.reason ?? 'gateway-unreachable'
         await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
           level: 'warning',
           category: 'alicization.main-gateway',
-          action: 'stream-gateway-unreachable',
-          message: 'Timeout path detected an unreachable main gateway; recovery was skipped.',
+          action: 'stream-gateway-unreachable-advisory',
+          message: 'Timeout path detected an unreachable main gateway; recovery will still attempt one-shot fallback.',
           payload: {
             cardId: input.payload.cardId,
             turnId: input.payload.turnId,
@@ -176,37 +229,30 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             reason: reachability.reason,
           },
         }))
-        await input.appendRuntimeDebugLine('chat-stream.gateway-unreachable', {
+        await input.appendRuntimeDebugLine('chat-stream.gateway-unreachable-advisory', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           dispatchBound: input.dispatchBound,
           cached: reachability.cached ?? false,
           code: reachability.code,
           reason: reachability.reason ?? reachability.formattedReason,
+          timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
           timeoutRecoveryMode: input.timeoutRecoveryMode,
           nonProgressEventTypes: [...input.nonProgressEventTypes],
         })
-        await input.finish({
-          status: 'aborted',
-          finishReason: buildTimeoutAbortFinishReason({
-            dispatchBound: input.dispatchBound,
-            nonProgressEventTypes: input.nonProgressEventTypes,
-            gatewayUnreachableReason: unreachableReason,
-            timeoutRecoveryMode: input.timeoutRecoveryMode,
-          }),
-        })
-        return
       }
 
       try {
-        const recoveredText = await input.recoverFromTimeout({
+        const recoveryResult = await input.recoverFromTimeout({
           chatConfig: input.chatConfig,
           messages: input.messages,
           headers: input.headers,
           tools: input.tools,
           toolChoice: input.toolChoice,
-          timeoutMs: input.timeoutRecoveryMs,
+          timeoutMs: effectiveTimeoutRecoveryMs,
         })
+        const recoveredText = recoveryResult.recoveredText
+        const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
         if (recoveredText) {
           if (input.isRunActive())
             await input.emitRecoveredText(recoveredText)
@@ -223,7 +269,8 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
               model: input.payload.model,
               dispatchBound: input.dispatchBound,
               recoveredChars: recoveredText.length,
-              timeoutRecoveryMode: input.timeoutRecoveryMode,
+              timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
+              timeoutRecoveryMode: effectiveRecoveryMode,
               nonProgressEventTypes: [...input.nonProgressEventTypes],
             },
           }))
@@ -233,7 +280,8 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             turnId: input.payload.turnId,
             dispatchBound: input.dispatchBound,
             recoveredChars: recoveredText.length,
-            timeoutRecoveryMode: input.timeoutRecoveryMode,
+            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
+            timeoutRecoveryMode: effectiveRecoveryMode,
             nonProgressEventTypes: [...input.nonProgressEventTypes],
           })
           await input.finish({
@@ -258,6 +306,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
             providerId: input.payload.providerId,
             model: input.payload.model,
             dispatchBound: input.dispatchBound,
+            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
             reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
             timeoutRecoveryMode: input.timeoutRecoveryMode,
             nonProgressEventTypes: [...input.nonProgressEventTypes],
@@ -267,6 +316,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           dispatchBound: input.dispatchBound,
+          timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
           reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
           timeoutRecoveryMode: input.timeoutRecoveryMode,
           nonProgressEventTypes: [...input.nonProgressEventTypes],
@@ -276,6 +326,7 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           finishReason: buildTimeoutAbortFinishReason({
             dispatchBound: input.dispatchBound,
             nonProgressEventTypes: input.nonProgressEventTypes,
+            gatewayUnreachableReason,
             recoveryFailureReason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
             timeoutRecoveryMode: input.timeoutRecoveryMode,
           }),

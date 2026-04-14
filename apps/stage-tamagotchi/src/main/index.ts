@@ -10,7 +10,7 @@ import messages from '@proj-alicization/i18n/locales'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
 import { initScreenCaptureForMain } from '@proj-alicization/electron-screen-capture/main'
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
 import { isLinux } from 'std-env'
@@ -81,10 +81,29 @@ electronApp.setAppUserModelId('com.tohoqing.alicization')
 
 initScreenCaptureForMain()
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
+else {
+  app.on('second-instance', () => {
+    const targetWindow = BrowserWindow.getAllWindows().find(window => !window.isDestroyed())
+    if (!targetWindow)
+      return
+
+    if (targetWindow.isMinimized())
+      targetWindow.restore()
+
+    targetWindow.show()
+    targetWindow.focus()
+  })
+}
+
 let fileLogger: FileLoggerHandle = nullFileLoggerHandle
 let skipFileLogging = false
 
-app.whenReady().then(async () => {
+if (hasSingleInstanceLock) {
+  app.whenReady().then(async () => {
   // Initialize file logger and register the hook
   fileLogger = await setupFileLogger()
 
@@ -199,9 +218,10 @@ app.whenReady().then(async () => {
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
-}).catch((err) => {
-  log.withError(err).error('Error during app initialization')
-})
+  }).catch((err) => {
+    log.withError(err).error('Error during app initialization')
+  })
+}
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

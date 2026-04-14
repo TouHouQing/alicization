@@ -19,17 +19,42 @@ import type {
   PreparedMainChatExecution,
 } from './runtime-soul'
 
-import { deriveAlicizationResidentPerformanceSnapshot } from '@proj-alicization/stage-shared'
+import {
+  alicizationMainGatewayOneShotRecoveryBudget,
+  deriveAlicizationResidentPerformanceSnapshot,
+  looksLikeAlicizationStructuredPayloadText,
+} from '@proj-alicization/stage-shared'
 
-import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
+import { deriveAlicizationRuntimeSnapshot, projectAlicizationRuntimeDigest } from './alicization-runtime-architecture'
+import { deriveAlicizationDigitalLifeSpineFromSurface, projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
+import {
+  buildAlicizationExecutionPayoffDeterministicStructured,
+  buildAlicizationExecutionPayoffPrompt,
+  normalizeAlicizationExecutionPayoffEmotion,
+  normalizeAlicizationExecutionPayoffPerformance,
+  selectAlicizationExecutionDeliveryReply,
+} from './execution-delivery-surface'
+import {
+  type AlicizationActiveDialogueFastPathDecision,
+  buildAlicizationActiveDialogueFastPathMessages,
+  deriveAlicizationActiveDialogueFastPathDecision,
+  normalizeAlicizationActiveDialogueFastPathReply,
+} from './main-chat-active-dialogue-loop'
 import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
+import { isAlicizationRequiredToolMissingError } from './main-chat-required-tool'
+import {
+  recoverAlicizationRequiredToolDeterministically,
+  resolveDeterministicRequiredToolNames,
+} from './main-chat-required-tool-recovery'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
+import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
+import { parseJsonObjectFromText } from './runtime-transport-content'
 import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
@@ -77,11 +102,211 @@ interface RunAlicizationMainChatBackgroundOptions {
     message: string
     payload: Record<string, unknown>
   }) => Promise<void> | void
+  suppressInlineExecutionDeliveries?: (input: {
+    cardId: string
+    entries: Array<{
+      completedAt: number
+      sessionId: string
+      threadId: string
+    }>
+  }) => Promise<void> | void
+  resolveActiveDialogueDeterministicReply?: (input: {
+    conversationMessages: Message[]
+    decision: AlicizationActiveDialogueFastPathDecision
+    prepared: AlicizationPreparedMainChatExecutionResult
+  }) => Promise<string | null> | string | null
+}
+
+interface AlicizationInlineExecutionReceipt {
+  completedAt: number
+  sessionId: string
+  threadId: string
+}
+
+interface AlicizationInlineExecutionSurfaceInput {
+  channel: string
+  status: 'completed' | 'failed' | 'blocked' | 'cancelled' | 'queued' | 'running'
+  goal: string
+  summary: string
+  outcome: string
+}
+
+const executorToolNames = new Set([
+  'executor_run_cli',
+  'executor_run_codex',
+  'executor_run_claude_code',
+  'executor_run_openclaw',
+])
+
+const terminalExecutionThreadStatuses = new Set([
+  'completed',
+  'failed',
+  'blocked',
+  'cancelled',
+])
+
+function buildMinimalContextRecoveryMessages(messages: Message[]) {
+  if (!Array.isArray(messages) || messages.length <= 6)
+    return messages
+
+  const keepIndexes = new Set<number>()
+  let preservedSystemCount = 0
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index]
+    if (message?.role !== 'system')
+      continue
+    if (preservedSystemCount < 3) {
+      keepIndexes.add(index)
+      preservedSystemCount += 1
+    }
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (message?.role === 'system') {
+      keepIndexes.add(index)
+      break
+    }
+  }
+
+  let preservedTailCount = 0
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'system')
+      continue
+    keepIndexes.add(index)
+    preservedTailCount += 1
+    if (preservedTailCount >= 4)
+      break
+  }
+
+  const compactMessages = messages.filter((_, index) => keepIndexes.has(index))
+  return compactMessages.length > 0
+    ? compactMessages
+    : messages.slice(-6)
+}
+
+function deriveAlicizationVisibleReplyText(rawText: string) {
+  const normalizedText = typeof rawText === 'string'
+    ? rawText.trim()
+    : ''
+  if (!normalizedText)
+    return ''
+
+  const parsed = parseJsonObjectFromText(normalizedText)
+  const structuredReply = typeof parsed?.reply === 'string'
+    ? parsed.reply.trim()
+    : ''
+  if (structuredReply)
+    return structuredReply
+
+  return looksLikeAlicizationStructuredPayloadText(normalizedText)
+    ? ''
+    : normalizedText
+}
+
+function readInlineExecutionReceipt(result: unknown): AlicizationInlineExecutionReceipt | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result))
+    return null
+
+  const payload = result as {
+    completedAt?: unknown
+    sessionId?: unknown
+    threadId?: unknown
+    threadStatus?: unknown
+  }
+  const threadStatus = sanitizeText(payload.threadStatus, '')
+    .toLowerCase()
+  const sessionId = sanitizeText(payload.sessionId, '')
+  const threadId = sanitizeText(payload.threadId, '')
+  const completedAt = typeof payload.completedAt === 'number' && Number.isFinite(payload.completedAt)
+    ? Math.max(0, Math.floor(payload.completedAt))
+    : 0
+
+  if (!terminalExecutionThreadStatuses.has(threadStatus) || !sessionId || !threadId || completedAt <= 0)
+    return null
+
+  return {
+    completedAt,
+    sessionId,
+    threadId,
+  }
+}
+
+function asInlineExecutionSurfaceInput(toolName: string, result: unknown): AlicizationInlineExecutionSurfaceInput | null {
+  if (!result || typeof result !== 'object' || Array.isArray(result))
+    return null
+
+  const payload = result as Record<string, unknown>
+  const normalizedToolName = sanitizeText(toolName, '').toLowerCase()
+  const selectedChannel = sanitizeText(payload.selectedChannel, '')
+    || sanitizeText(payload.channel, '')
+    || (normalizedToolName === 'executor_run_cli'
+      ? 'cli'
+      : normalizedToolName === 'executor_run_codex'
+        ? 'codex'
+        : normalizedToolName === 'executor_run_claude_code'
+          ? 'claude-code'
+          : normalizedToolName === 'executor_run_openclaw'
+            ? 'openclaw'
+            : 'executor')
+  const status = sanitizeText(payload.threadStatus, '').toLowerCase()
+    || sanitizeText(payload.status, '').toLowerCase()
+    || (payload.ok === true ? 'completed' : payload.ok === false ? 'failed' : '')
+  const normalizedStatus = (
+    status === 'completed'
+    || status === 'failed'
+    || status === 'blocked'
+    || status === 'cancelled'
+    || status === 'queued'
+    || status === 'running'
+  )
+    ? status
+    : 'failed'
+  const summary = sanitizeText(payload.summary, '')
+  const output = typeof payload.output === 'string'
+    ? payload.output
+    : payload.output != null
+      ? JSON.stringify(payload.output)
+      : ''
+  const outcome = sanitizeText(output, '')
+  const goal = sanitizeText(payload.goal, '')
+    || summary
+    || 'the current task'
+
+  return {
+    channel: selectedChannel,
+    status: normalizedStatus,
+    goal,
+    summary,
+    outcome,
+  }
+}
+
+function shouldUseExecutionFirstFastPath(input: {
+  enforcedExecutionTools: string[]
+  prepared: AlicizationPreparedMainChatExecutionResult
+}) {
+  if (!input.prepared.waitForTools)
+    return false
+  if (input.enforcedExecutionTools.length !== 1)
+    return false
+  if (!input.enforcedExecutionTools.every(toolName => executorToolNames.has(toolName)))
+    return false
+
+  const actionKind = input.prepared.runtimeSurface.action?.kind
+  if (actionKind !== 'execute' && actionKind !== 'continue-task')
+    return false
+
+  return input.prepared.runtimeSurface.tooling.routingRequired === true
 }
 
 export async function runAlicizationMainChatBackground(
   input: RunAlicizationMainChatBackgroundOptions,
 ) {
+  const conversationMessages = Array.isArray(input.payload.messages)
+    ? input.payload.messages as Message[]
+    : []
   let prepared: AlicizationPreparedMainChatExecutionResult | null = null
   let chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']> | null = null
   let messages: Message[] = []
@@ -90,6 +315,21 @@ export async function runAlicizationMainChatBackground(
   let timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode = 'original'
   let timeoutRecoveryMs = mainChatTimeoutRecoveryMs
   const nonProgressEventTypes = new Set<string>()
+  const resolveDigitalLifeSpineFromPrepared = () => {
+    const runtimeSurface = prepared?.runtimeSurface
+    if (!runtimeSurface)
+      return null
+    if (runtimeSurface.digitalLifeSpine)
+      return runtimeSurface.digitalLifeSpine
+    if (!runtimeSurface.digitalLifeRuntimeSurface)
+      return null
+    try {
+      return deriveAlicizationDigitalLifeSpineFromSurface(runtimeSurface.digitalLifeRuntimeSurface)
+    }
+    catch {
+      return null
+    }
+  }
   const resolveResidentPerformanceFromPrepared = (): AlicizationResidentPerformanceSnapshot | null => {
     const runtimeSurface = prepared?.runtimeSurface
     const runtimeDigestSurface = runtimeSurface?.digitalLifeSpine?.runtimeSurface
@@ -113,18 +353,265 @@ export async function runAlicizationMainChatBackground(
       source: 'main-runtime',
     })
   }
+  const resolveRuntimeDigestFromPrepared = () => {
+    return projectAlicizationRuntimeDigest(
+      deriveAlicizationRuntimeSnapshot({
+        spine: resolveDigitalLifeSpineFromPrepared(),
+      }),
+    )
+  }
   const streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
     cardId: input.payload.cardId,
     turnId: input.payload.turnId,
     getGovernance: () => prepared?.governance ?? null,
-    getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(
-      prepared?.runtimeSurface.digitalLifeSpine ?? null,
-    ),
+    getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(resolveDigitalLifeSpineFromPrepared()),
+    getRuntimeDigest: () => resolveRuntimeDigestFromPrepared(),
     getResidentPerformance: () => resolveResidentPerformanceFromPrepared(),
     getPerformanceManifest: () => prepared?.performanceManifest ?? null,
     emit: input.emitMeta,
   })
   const emitStreamEmbodimentMeta = streamMetaEmitter.emit
+  const executorToolCallIds = new Set<string>()
+  const inlineExecutionReceipts = new Map<string, AlicizationInlineExecutionReceipt>()
+
+  const noteInlineExecutionReceipt = (result: unknown) => {
+    const receipt = readInlineExecutionReceipt(result)
+    if (!receipt)
+      return
+    inlineExecutionReceipts.set(
+      `${receipt.sessionId}::${receipt.threadId}::${receipt.completedAt}`,
+      receipt,
+    )
+  }
+
+  const emitToolCall = (event: AlicizationChatToolCallEvent) => {
+    const toolName = sanitizeText(event.toolName, '')
+    const toolCallId = sanitizeText(event.toolCallId, '')
+    if (toolName && toolCallId && executorToolNames.has(toolName))
+      executorToolCallIds.add(toolCallId)
+    input.emitToolCall(event)
+  }
+
+  const emitToolResult = (event: AlicizationChatToolResultEvent) => {
+    const toolCallId = sanitizeText(event.toolCallId, '')
+    if (toolCallId && executorToolCallIds.has(toolCallId))
+      noteInlineExecutionReceipt(event.result)
+    input.emitToolResult(event)
+  }
+
+  const suppressInlineExecutionDeliveries = async () => {
+    if (inlineExecutionReceipts.size === 0 || !input.suppressInlineExecutionDeliveries)
+      return
+
+    const entries = [...inlineExecutionReceipts.values()]
+    inlineExecutionReceipts.clear()
+    await Promise.resolve(input.suppressInlineExecutionDeliveries({
+      cardId: input.payload.cardId,
+      entries,
+    }))
+  }
+
+  const attemptDeterministicRequiredToolRecovery = async (recoveryInput: {
+    error?: unknown
+    origin: 'execution-first' | 'stream' | 'timeout-recovery'
+    requiredToolNames?: string[]
+  }) => {
+    if (!prepared || !input.isRunActive())
+      return null
+
+    const requiredToolNames = resolveDeterministicRequiredToolNames({
+      error: recoveryInput.error,
+      fallbackToolNames: recoveryInput.requiredToolNames?.length
+        ? recoveryInput.requiredToolNames
+        : prepared.runtimeSurface?.tooling?.enforcedToolNames,
+    })
+    if (requiredToolNames.length === 0)
+      return null
+    if (!Array.isArray(prepared.tools) || prepared.tools.length === 0)
+      return null
+
+    const recoveryStartAudit = recoveryInput.origin === 'execution-first'
+      ? {
+          level: 'notice' as const,
+          action: 'execution-first-inline-started',
+          message: 'Explicit execution turn routed directly into deterministic executor dispatch before model streaming.',
+        }
+      : {
+          level: 'warning' as const,
+          action: 'required-tool-recovery-started',
+          message: 'Model skipped required executor tool call; switched to deterministic executor recovery.',
+        }
+    await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-started', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      origin: recoveryInput.origin,
+      requiredToolNames,
+    })
+    await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+      level: recoveryStartAudit.level,
+      category: 'alicization.main-gateway',
+      action: recoveryStartAudit.action,
+      message: recoveryStartAudit.message,
+      payload: {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        origin: recoveryInput.origin,
+        requiredToolNames,
+      },
+    }))
+
+    const recoveryResult = await recoverAlicizationRequiredToolDeterministically({
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      messages,
+      tools: prepared.tools as never,
+      requiredToolNames,
+      emitToolCall: payload => emitToolCall(payload),
+      emitToolResult: payload => emitToolResult(payload),
+    })
+
+    const recoveryFinishAudit = recoveryInput.origin === 'execution-first'
+      ? {
+          action: 'execution-first-inline-finished',
+          message: 'Execution-first inline executor dispatch completed before model streaming.',
+        }
+      : {
+          action: 'required-tool-recovery-finished',
+          message: 'Deterministic executor recovery completed and produced a user-facing answer.',
+        }
+    await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-finished', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      origin: recoveryInput.origin,
+      toolName: recoveryResult.toolName,
+      fullTextChars: recoveryResult.fullText.length,
+    })
+    await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+      level: 'notice',
+      category: 'alicization.main-gateway',
+      action: recoveryFinishAudit.action,
+      message: recoveryFinishAudit.message,
+      payload: {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        origin: recoveryInput.origin,
+        toolName: recoveryResult.toolName,
+      },
+    }))
+
+    return recoveryResult
+  }
+
+  const attemptInlineExecutionPayoff = async (recoveryResult: Awaited<ReturnType<typeof recoverAlicizationRequiredToolDeterministically>>) => {
+    if (!prepared || !chatConfig || !input.isRunActive())
+      return recoveryResult.fullText
+
+    const surfaceInput = asInlineExecutionSurfaceInput(recoveryResult.toolName, recoveryResult.toolResult)
+    if (!surfaceInput)
+      return recoveryResult.fullText
+
+    const deterministicStructured = buildAlicizationExecutionPayoffDeterministicStructured({
+      mode: 'inline-execution',
+      channel: surfaceInput.channel,
+      goal: surfaceInput.goal,
+      status: surfaceInput.status,
+      summary: surfaceInput.summary,
+      outcome: surfaceInput.outcome,
+    })
+
+    try {
+      const prompt = buildAlicizationExecutionPayoffPrompt({
+        mode: 'inline-execution',
+        channel: surfaceInput.channel,
+        goal: surfaceInput.goal,
+        status: surfaceInput.status,
+        summary: surfaceInput.summary,
+        outcome: surfaceInput.outcome,
+        userText: input.payload.messages.at(-1)?.role === 'user'
+          ? sanitizeText(String(input.payload.messages.at(-1)?.content ?? ''), '')
+          : null,
+        trace: {
+          decisionTraceId: prepared.runtimeSurface.trace.decisionTraceId,
+          turnMode: prepared.runtimeSurface.trace.turnMode,
+          personaKernelMode: prepared.runtimeSurface.trace.personaKernelMode,
+        },
+        governance: prepared.runtimeSurface.governance
+          ? {
+              relationshipPosture: prepared.runtimeSurface.governance.relationshipPosture,
+              answerAct: prepared.runtimeSurface.governance.answerAct,
+              answerSubject: prepared.runtimeSurface.governance.answerSubject,
+              focusAnchor: prepared.runtimeSurface.governance.focusAnchor,
+              answerIntent: prepared.runtimeSurface.governance.answerIntent,
+            }
+          : null,
+      })
+      await input.appendRuntimeDebugLine('chat-stream.execution-payoff-started', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        channel: surfaceInput.channel,
+        status: surfaceInput.status,
+      })
+      const nonStreamingResult = await generateAlicizationMainChatNonStreaming({
+        chatConfig,
+        headers: input.headers,
+        messages: [
+          { role: 'system', content: prompt.system },
+          ...buildMinimalContextRecoveryMessages(messages),
+          { role: 'user', content: prompt.user },
+        ],
+        timeoutMs: 9_000,
+      })
+      const parsed = parseJsonObjectFromText(nonStreamingResult.fullText)
+      if (!parsed)
+        throw new Error('execution-payoff-invalid-json')
+
+      const llmReply = sanitizeText(parsed.reply, '')
+      if (!llmReply)
+        throw new Error('execution-payoff-missing-reply')
+
+      const selectedReply = selectAlicizationExecutionDeliveryReply({
+        channel: surfaceInput.channel,
+        goal: surfaceInput.goal,
+        llmReply,
+        outcome: surfaceInput.outcome,
+        status: surfaceInput.status,
+        summary: surfaceInput.summary,
+      })
+      const emotion = normalizeAlicizationExecutionPayoffEmotion(
+        parsed.emotion,
+        deterministicStructured.emotion,
+      )
+      const performance = normalizeAlicizationExecutionPayoffPerformance(
+        parsed.performance,
+        emotion,
+        deterministicStructured.performance,
+      )
+      const structured = {
+        ...deterministicStructured,
+        thought: sanitizeText(parsed.thought, '') || deterministicStructured.thought,
+        emotion,
+        reply: selectedReply.reply,
+        performance,
+      }
+      await input.appendRuntimeDebugLine('chat-stream.execution-payoff-finished', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        channel: surfaceInput.channel,
+        status: surfaceInput.status,
+        source: selectedReply.source,
+        surfaceReason: selectedReply.reason ?? null,
+      })
+      return JSON.stringify(structured)
+    }
+    catch (error) {
+      await input.appendRuntimeDebugLine('chat-stream.execution-payoff-failed', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+      return JSON.stringify(deterministicStructured)
+    }
+  }
 
   try {
     prepared = await input.preparationPromise
@@ -199,6 +686,242 @@ export async function runAlicizationMainChatBackground(
       toolCount: Array.isArray(tools) ? tools.length : 0,
       messageCount: messages.length,
     })
+    if (shouldUseExecutionFirstFastPath({
+      prepared,
+      enforcedExecutionTools,
+    })) {
+      try {
+        await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-started', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          enforcedExecutionTools,
+          actionKind: prepared.runtimeSurface.action?.kind ?? null,
+        })
+        const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
+          origin: 'execution-first',
+          requiredToolNames: enforcedExecutionTools,
+        })
+        if (deterministicRecovery) {
+          const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
+          const visiblePayoffText = deriveAlicizationVisibleReplyText(payoffText) || payoffText
+          emitStreamEmbodimentMeta(visiblePayoffText)
+          input.emitChunk({
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            text: visiblePayoffText,
+          })
+          await suppressInlineExecutionDeliveries()
+          await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-finished', {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            fullTextChars: payoffText.length,
+            toolName: deterministicRecovery.toolName,
+          })
+          input.runStateController.finishRun(input.key, {
+            status: 'completed',
+            finishReason: 'execution-first-inline',
+            fullText: payoffText,
+          })
+          return
+        }
+      }
+      catch (error) {
+        await input.appendRuntimeDebugLine('chat-stream.execution-first-inline-failed', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+    const activeDialogueDecision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared,
+      runtimeDigest: resolveRuntimeDigestFromPrepared(),
+    })
+    if (activeDialogueDecision) {
+      await input.appendRuntimeDebugLine('chat-stream.active-dialogue-lane-selected', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        lane: activeDialogueDecision.lane,
+        strategy: activeDialogueDecision.strategy,
+        timeoutMs: activeDialogueDecision.timeoutMs,
+        reasonCodes: activeDialogueDecision.reasonCodes,
+      })
+      if (activeDialogueDecision.strategy === 'local-only') {
+        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
+          messages: conversationMessages,
+          turnId: input.payload.turnId,
+          actionKind: prepared.runtimeSurface.action?.kind ?? null,
+          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
+          personaKernel: prepared.personaKernel ?? null,
+          runtimeDigest: activeDialogueDecision.runtimeDigest,
+          sessionMirror: prepared.sessionMirror ?? null,
+        })
+        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
+        emitStreamEmbodimentMeta(visibleLocalReply)
+        input.emitChunk({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          text: visibleLocalReply,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-finished', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          fullTextChars: localReply.length,
+        })
+        input.runStateController.finishRun(input.key, {
+          status: 'completed',
+          finishReason: 'active-dialogue-local',
+          fullText: localReply,
+        })
+        return
+      }
+
+      if (activeDialogueDecision.strategy === 'deterministic-payoff') {
+        const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
+          conversationMessages,
+          decision: activeDialogueDecision,
+          prepared,
+        }) ?? null)
+        if (deterministicReply) {
+          const visibleDeterministicReply = deriveAlicizationVisibleReplyText(deterministicReply) || deterministicReply
+          emitStreamEmbodimentMeta(visibleDeterministicReply)
+          input.emitChunk({
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            text: visibleDeterministicReply,
+          })
+          await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-finished', {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            lane: activeDialogueDecision.lane,
+            fullTextChars: deterministicReply.length,
+          })
+          input.runStateController.finishRun(input.key, {
+            status: 'completed',
+            finishReason: 'active-dialogue-deterministic',
+            fullText: deterministicReply,
+          })
+          return
+        }
+
+        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
+          messages: conversationMessages,
+          turnId: input.payload.turnId,
+          actionKind: prepared.runtimeSurface.action?.kind ?? null,
+          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
+          personaKernel: prepared.personaKernel ?? null,
+          runtimeDigest: activeDialogueDecision.runtimeDigest,
+          sessionMirror: prepared.sessionMirror ?? null,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-missed', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+        })
+        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
+        emitStreamEmbodimentMeta(visibleLocalReply)
+        input.emitChunk({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          text: visibleLocalReply,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-fallback', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          fullTextChars: localReply.length,
+        })
+        input.runStateController.finishRun(input.key, {
+          status: 'completed',
+          finishReason: 'active-dialogue-local-fallback',
+          fullText: localReply,
+        })
+        return
+      }
+
+      try {
+        const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
+          conversationMessages,
+          decision: activeDialogueDecision,
+          prepared,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-started', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          timeoutMs: activeDialogueDecision.timeoutMs,
+          messageCount: compactMessages.length,
+        })
+        const compactReply = await recoverAlicizationMainChatFromTimeout({
+          chatConfig,
+          messages: compactMessages,
+          headers: input.headers,
+          timeoutMs: activeDialogueDecision.timeoutMs,
+          maxSteps: 2,
+        })
+        const normalizedReply = normalizeAlicizationActiveDialogueFastPathReply({
+          decision: activeDialogueDecision,
+          rawText: compactReply,
+        })
+        const visibleNormalizedReply = deriveAlicizationVisibleReplyText(normalizedReply) || normalizedReply
+        emitStreamEmbodimentMeta(visibleNormalizedReply)
+        input.emitChunk({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          text: visibleNormalizedReply,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-finished', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          fullTextChars: normalizedReply.length,
+        })
+        input.runStateController.finishRun(input.key, {
+          status: 'completed',
+          finishReason: 'active-dialogue-fast-path',
+          fullText: normalizedReply,
+        })
+        return
+      }
+      catch (error) {
+        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
+          messages: conversationMessages,
+          turnId: input.payload.turnId,
+          actionKind: prepared.runtimeSurface.action?.kind ?? null,
+          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
+          personaKernel: prepared.personaKernel ?? null,
+          runtimeDigest: activeDialogueDecision.runtimeDigest,
+          sessionMirror: prepared.sessionMirror ?? null,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-failed', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
+        emitStreamEmbodimentMeta(visibleLocalReply)
+        input.emitChunk({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          text: visibleLocalReply,
+        })
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-fallback', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: activeDialogueDecision.lane,
+          fullTextChars: localReply.length,
+        })
+        input.runStateController.finishRun(input.key, {
+          status: 'completed',
+          finishReason: 'active-dialogue-local-fallback',
+          fullText: localReply,
+        })
+        return
+      }
+    }
     const streamResult = await runAlicizationMainChatStream({
       payload: input.payload,
       prepared,
@@ -210,8 +933,8 @@ export async function runAlicizationMainChatBackground(
       streamMeta: streamMetaEmitter,
       incrementChunkStats: input.incrementChunkStats,
       emitChunk: input.emitChunk,
-      emitToolCall: input.emitToolCall,
-      emitToolResult: input.emitToolResult,
+      emitToolCall,
+      emitToolResult,
       generateNonStreaming: async (oneShotInput) => {
         const cardId = normalizeCardId(oneShotInput.cardId ?? input.activeCardId)
         const turnId = sanitizeText(oneShotInput.turnId)
@@ -262,6 +985,8 @@ export async function runAlicizationMainChatBackground(
       },
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
     })
+    if (streamResult.fullText.trim())
+      await suppressInlineExecutionDeliveries()
     input.runStateController.finishRun(input.key, {
       status: 'completed',
       finishReason: streamResult.finishReason,
@@ -269,8 +994,44 @@ export async function runAlicizationMainChatBackground(
     })
   }
   catch (error) {
+    let failureError: unknown = error
+    if (isAlicizationRequiredToolMissingError(error)) {
+      try {
+        const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
+          error,
+          origin: 'stream',
+        })
+        if (deterministicRecovery) {
+          const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
+          const visiblePayoffText = deriveAlicizationVisibleReplyText(payoffText) || payoffText
+          emitStreamEmbodimentMeta(visiblePayoffText)
+          input.emitChunk({
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            text: visiblePayoffText,
+          })
+          await suppressInlineExecutionDeliveries()
+          input.runStateController.finishRun(input.key, {
+            status: 'completed',
+            finishReason: 'required-tool-recovered',
+            fullText: payoffText,
+          })
+          return
+        }
+      }
+      catch (recoveryError) {
+        failureError = recoveryError
+        await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          origin: 'stream',
+          reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+        })
+      }
+    }
+
     await handleAlicizationMainChatRunFailure({
-      error,
+      error: failureError,
       prepared,
       controller: input.runState.controller,
       mainGateway: input.mainGateway,
@@ -288,16 +1049,133 @@ export async function runAlicizationMainChatBackground(
       ensureMainGatewayReachable: input.ensureMainGatewayReachable,
       recordMainGatewayGenerationTimeout: input.recordMainGatewayGenerationTimeout,
       recoverFromTimeout: async (recoveryInput) => {
+        const preparedExecution = prepared!
         const normalizedCardId = normalizeCardId(input.payload.cardId ?? input.activeCardId)
         const normalizedTurnId = sanitizeText(input.payload.turnId)
-        await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-started', {
-          cardId: normalizedCardId,
-          turnId: normalizedTurnId,
-          timeoutMs: recoveryInput.timeoutMs,
-          recoveryMode: timeoutRecoveryMode,
-          toolCount: Array.isArray(recoveryInput.tools) ? recoveryInput.tools.length : 0,
-          messageCount: recoveryInput.messages.length,
-        })
+        const requiredToolNames = extractAllowedToolNamesFromToolChoice(recoveryInput.toolChoice, recoveryInput.tools)
+        const effectiveRequiredToolNames = requiredToolNames.length > 0
+          ? requiredToolNames
+          : (preparedExecution.runtimeSurface.tooling?.enforcedToolNames ?? [])
+        const toolingRequired = effectiveRequiredToolNames.length > 0
+        if (toolingRequired) {
+          try {
+            const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
+              origin: 'timeout-recovery',
+              requiredToolNames: effectiveRequiredToolNames,
+            })
+            if (deterministicRecovery) {
+              const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
+              await suppressInlineExecutionDeliveries()
+              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
+                cardId: normalizedCardId,
+                turnId: normalizedTurnId,
+                chunkCount: 1,
+                rawChunkChars: payoffText.length,
+                finalChars: payoffText.length,
+                recoveryMode: 'deterministic-required-tool',
+              })
+              return {
+                recoveredText: payoffText,
+                recoveryMode: 'deterministic-required-tool',
+              }
+            }
+          }
+          catch (error) {
+            await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
+              cardId: normalizedCardId,
+              turnId: normalizedTurnId,
+              origin: 'timeout-recovery',
+              recoveryMode: 'deterministic-required-tool',
+              reason: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+
+        const recoveryAttempts: Array<{
+          mode: AlicizationMainChatTimeoutRecoveryMode
+          input: typeof recoveryInput & { maxSteps?: number }
+          normalizeRecoveredText?: (rawText: string) => string
+        }> = []
+        const recoveryConversationMessages = recoveryInput.messages.length > 0
+          ? recoveryInput.messages
+          : conversationMessages
+        const timeoutActiveDialogueDecision = !toolingRequired
+          ? deriveAlicizationActiveDialogueFastPathDecision({
+              conversationMessages: recoveryConversationMessages,
+              prepared: preparedExecution,
+              runtimeDigest: resolveRuntimeDigestFromPrepared(),
+            })
+          : null
+        if (!toolingRequired && timeoutActiveDialogueDecision) {
+          if (timeoutActiveDialogueDecision.strategy === 'local-only') {
+            const activeDialogueLocalReply = buildAlicizationMainGatewayTimeoutFallbackReply({
+              messages: recoveryConversationMessages,
+              turnId: normalizedTurnId,
+              actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+              governance: preparedExecution.governance ?? preparedExecution.runtimeSurface.governance ?? null,
+              personaKernel: preparedExecution.personaKernel ?? null,
+              runtimeDigest: resolveRuntimeDigestFromPrepared(),
+              sessionMirror: preparedExecution.sessionMirror ?? null,
+            })
+            if (activeDialogueLocalReply) {
+              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-local', {
+                cardId: normalizedCardId,
+                turnId: normalizedTurnId,
+                lane: timeoutActiveDialogueDecision.lane,
+                recoveredChars: activeDialogueLocalReply.length,
+              })
+              return {
+                recoveredText: activeDialogueLocalReply,
+                recoveryMode: 'active-dialogue-local',
+              }
+            }
+          }
+
+          if (timeoutActiveDialogueDecision.strategy === 'deterministic-payoff') {
+            const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
+              conversationMessages: recoveryConversationMessages,
+              decision: timeoutActiveDialogueDecision,
+              prepared: preparedExecution,
+            }) ?? null)
+            if (deterministicReply) {
+              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deterministic', {
+                cardId: normalizedCardId,
+                turnId: normalizedTurnId,
+                lane: timeoutActiveDialogueDecision.lane,
+                recoveredChars: deterministicReply.length,
+              })
+              return {
+                recoveredText: deterministicReply,
+                recoveryMode: 'active-dialogue-deterministic',
+              }
+            }
+          }
+
+          if (timeoutActiveDialogueDecision.strategy === 'compact-one-shot') {
+            recoveryAttempts.push({
+              mode: 'active-dialogue-compact',
+              input: {
+                ...recoveryInput,
+                messages: buildAlicizationActiveDialogueFastPathMessages({
+                  conversationMessages: recoveryConversationMessages,
+                  decision: timeoutActiveDialogueDecision,
+                  prepared: preparedExecution,
+                }),
+                tools: undefined,
+                toolChoice: undefined,
+                timeoutMs: Math.min(
+                  recoveryInput.timeoutMs,
+                  Math.max(timeoutActiveDialogueDecision.timeoutMs, 9_000),
+                ),
+                maxSteps: 2,
+              },
+              normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReply({
+                decision: timeoutActiveDialogueDecision,
+                rawText,
+              }),
+            })
+          }
+        }
         const effectiveRecoveryInput = timeoutRecoveryMode === 'tools-disabled'
           ? {
               ...recoveryInput,
@@ -305,23 +1183,181 @@ export async function runAlicizationMainChatBackground(
               toolChoice: undefined,
             }
           : recoveryInput
-        const recoveredText = await recoverAlicizationMainChatFromTimeout(effectiveRecoveryInput)
-        await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
+        recoveryAttempts.push({
+          mode: timeoutRecoveryMode === 'tools-disabled' ? 'tools-disabled' : 'non-streaming',
+          input: {
+            ...effectiveRecoveryInput,
+            timeoutMs: toolingRequired
+              ? Math.max(
+                  alicizationMainGatewayOneShotRecoveryBudget.toolingRequiredPrimaryMs,
+                  recoveryInput.timeoutMs,
+                )
+              : Math.max(
+                  alicizationMainGatewayOneShotRecoveryBudget.primaryMs,
+                  recoveryInput.timeoutMs,
+                ),
+            maxSteps: toolingRequired ? 4 : 2,
+          },
+        })
+        if (!toolingRequired) {
+          const minimalMessages = buildMinimalContextRecoveryMessages(recoveryInput.messages)
+          if (minimalMessages.length < recoveryInput.messages.length || recoveryInput.messages.length > 6) {
+            recoveryAttempts.push({
+              mode: 'minimal-context-non-streaming',
+              input: {
+                ...recoveryInput,
+                messages: minimalMessages,
+                tools: undefined,
+                toolChoice: undefined,
+                timeoutMs: Math.max(
+                  alicizationMainGatewayOneShotRecoveryBudget.minimalContextMs,
+                  recoveryInput.timeoutMs,
+                ),
+                maxSteps: 2,
+              },
+            })
+          }
+        }
+        await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-started', {
           cardId: normalizedCardId,
           turnId: normalizedTurnId,
-          chunkCount: recoveredText ? 1 : 0,
-          rawChunkChars: recoveredText.length,
-          finalChars: recoveredText.length,
+          timeoutMs: recoveryInput.timeoutMs,
           recoveryMode: timeoutRecoveryMode,
+          toolCount: Array.isArray(recoveryInput.tools) ? recoveryInput.tools.length : 0,
+          messageCount: recoveryInput.messages.length,
+          recoveryAttemptModes: recoveryAttempts.map(attempt => attempt.mode),
         })
-        return recoveredText
+        let lastRecoveryError: unknown = null
+        for (let index = 0; index < recoveryAttempts.length; index += 1) {
+          const attempt = recoveryAttempts[index]
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt', {
+            cardId: normalizedCardId,
+            turnId: normalizedTurnId,
+            attempt: index + 1,
+            totalAttempts: recoveryAttempts.length,
+            recoveryMode: attempt.mode,
+            timeoutMs: attempt.input.timeoutMs,
+            toolCount: Array.isArray(attempt.input.tools) ? attempt.input.tools.length : 0,
+            messageCount: attempt.input.messages.length,
+            maxSteps: attempt.input.maxSteps ?? 1,
+          })
+          try {
+            const recoveredText = await recoverAlicizationMainChatFromTimeout(attempt.input)
+            const normalizedRecoveredText = attempt.normalizeRecoveredText
+              ? attempt.normalizeRecoveredText(recoveredText)
+              : recoveredText
+            if (!normalizedRecoveredText) {
+              lastRecoveryError = new Error('empty-recovery-text')
+              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt-empty', {
+                cardId: normalizedCardId,
+                turnId: normalizedTurnId,
+                attempt: index + 1,
+                totalAttempts: recoveryAttempts.length,
+                recoveryMode: attempt.mode,
+              })
+              continue
+            }
+
+            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-finished', {
+              cardId: normalizedCardId,
+              turnId: normalizedTurnId,
+              chunkCount: 1,
+              rawChunkChars: recoveredText.length,
+              finalChars: normalizedRecoveredText.length,
+              recoveryMode: attempt.mode,
+            })
+            return {
+              recoveredText: normalizedRecoveredText,
+              recoveryMode: attempt.mode,
+            }
+          }
+          catch (error) {
+            if (isAlicizationRequiredToolMissingError(error)) {
+              try {
+                const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
+                  error,
+                  origin: 'timeout-recovery',
+                })
+                if (deterministicRecovery) {
+                  await suppressInlineExecutionDeliveries()
+                  return {
+                    recoveredText: deterministicRecovery.fullText,
+                    recoveryMode: attempt.mode,
+                  }
+                }
+              }
+              catch (recoveryError) {
+                lastRecoveryError = recoveryError
+                await input.appendRuntimeDebugLine('chat-stream.required-tool-recovery-failed', {
+                  cardId: normalizedCardId,
+                  turnId: normalizedTurnId,
+                  attempt: index + 1,
+                  totalAttempts: recoveryAttempts.length,
+                  recoveryMode: attempt.mode,
+                  origin: 'timeout-recovery',
+                  reason: recoveryError instanceof Error ? recoveryError.message : String(recoveryError),
+                })
+                continue
+              }
+            }
+
+            lastRecoveryError = error
+            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-attempt-failed', {
+              cardId: normalizedCardId,
+              turnId: normalizedTurnId,
+              attempt: index + 1,
+              totalAttempts: recoveryAttempts.length,
+              recoveryMode: attempt.mode,
+              reason: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+
+        const localFallbackReply = buildAlicizationMainGatewayTimeoutFallbackReply({
+          messages: conversationMessages.length > 0
+            ? conversationMessages
+            : recoveryInput.messages,
+          turnId: normalizedTurnId,
+          actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+          governance: preparedExecution.governance ?? preparedExecution.runtimeSurface.governance ?? null,
+          personaKernel: preparedExecution.personaKernel ?? null,
+          runtimeDigest: resolveRuntimeDigestFromPrepared(),
+          sessionMirror: preparedExecution.sessionMirror ?? null,
+        })
+        if (localFallbackReply && input.isRunActive()) {
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback', {
+            cardId: normalizedCardId,
+            turnId: normalizedTurnId,
+            recoveredChars: localFallbackReply.length,
+            actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+            reason: lastRecoveryError instanceof Error ? lastRecoveryError.message : String(lastRecoveryError ?? 'none'),
+          })
+          await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+            level: 'warning',
+            category: 'alicization.main-gateway',
+            action: 'stream-timeout-local-fallback',
+            message: 'Recovered turn with local continuity fallback after stream and one-shot recovery timed out.',
+            payload: {
+              cardId: normalizedCardId,
+              turnId: normalizedTurnId,
+              actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+            },
+          }))
+          return {
+            recoveredText: localFallbackReply,
+            recoveryMode: 'local-fallback',
+          }
+        }
+
+        throw (lastRecoveryError ?? new Error('main-gateway-timeout-recovery'))
       },
       emitRecoveredText: (recoveredText) => {
-        emitStreamEmbodimentMeta(recoveredText)
+        const visibleRecoveredText = deriveAlicizationVisibleReplyText(recoveredText) || recoveredText
+        emitStreamEmbodimentMeta(visibleRecoveredText)
         input.emitChunk({
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
-          text: recoveredText,
+          text: visibleRecoveredText,
         })
       },
       emitError: (reason) => {

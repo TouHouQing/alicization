@@ -47,7 +47,18 @@ export async function setupMainWindowElectronInvokes(params: {
   createOnboardingService({ context, onboardingWindowManager: params.onboardingWindowManager })
 
   defineInvokeHandler(context, electronOpenMainDevtools, () => params.window.webContents.openDevTools({ mode: 'detach' }))
-  defineInvokeHandler(context, electronOpenSettings, payload => params.settingsWindow.openWindow(payload?.route))
+  defineInvokeHandler(context, electronOpenSettings, async (payload) => {
+    const route = payload?.route
+    console.info('[main-window-rpc] electronOpenSettings invoked', { route: route ?? '/settings' })
+    try {
+      await params.settingsWindow.openWindow(route)
+      console.info('[main-window-rpc] electronOpenSettings completed', { route: route ?? '/settings' })
+    }
+    catch (error) {
+      console.error('[main-window-rpc] electronOpenSettings failed', { route: route ?? '/settings', error })
+      throw error
+    }
+  })
   defineInvokeHandler(context, electronOpenChat, async () => toggleWindowShow(await params.chatWindow()))
   defineInvokeHandler(context, noticeWindowEventa.openWindow, payload => params.noticeWindow.open(payload))
 }

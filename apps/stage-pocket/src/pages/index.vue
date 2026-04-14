@@ -85,7 +85,12 @@ async function startAudioInteraction() {
         if (!provider || !activeChatModel.value)
           return
 
-        await chatStore.ingest(text, { model: activeChatModel.value, chatProvider: provider as ChatProvider })
+        await chatStore.ingest(text, {
+          providerId: activeChatProvider.value,
+          model: activeChatModel.value,
+          chatProvider: provider as ChatProvider,
+          providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+        })
       }
       catch (err) {
         console.error('Failed to send chat from voice:', err)
@@ -114,7 +119,12 @@ async function handleSpeechStart() {
             if (!provider || !activeChatModel.value)
               return
 
-            await chatStore.ingest(finalText, { model: activeChatModel.value, chatProvider: provider as ChatProvider })
+            await chatStore.ingest(finalText, {
+              providerId: activeChatProvider.value,
+              model: activeChatModel.value,
+              chatProvider: provider as ChatProvider,
+              providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
+            })
           }
           catch (err) {
             console.error('Failed to send chat from voice:', err)

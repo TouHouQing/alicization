@@ -1,0 +1,609 @@
+import type { Message } from '@xsai/shared-chat'
+
+import { resolveAlicizationPersonaKernel } from '@proj-alicization/stage-shared'
+import { describe, expect, it } from 'vitest'
+
+import {
+  buildAlicizationActiveDialogueFallbackReply,
+  buildAlicizationActiveDialogueFastPathMessages,
+  deriveAlicizationActiveDialogueFastPathDecision,
+  normalizeAlicizationActiveDialogueFastPathReply,
+} from './main-chat-active-dialogue-loop'
+
+function createPrepared(overrides?: Partial<any>): any {
+  return {
+    waitForTools: false,
+    hasVisualGrounding: false,
+    governance: null,
+    sessionMirror: null,
+    messages: [
+      { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+      { role: 'user' as const, content: '你好' },
+    ] as Message[],
+    runtimeSurface: {
+      action: {
+        kind: 'answer',
+      },
+      governance: null,
+    },
+    ...overrides,
+  }
+}
+
+describe('main chat active dialogue loop', () => {
+  it('serves warm greeting turns from the immediate local mind lane', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '早上好呀' },
+      ] as Message[],
+      prepared: createPrepared(),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('greeting')
+    expect(decision?.strategy).toBe('local-only')
+  })
+
+  it('treats identity questions as a dedicated self lane instead of generic capability', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '我问你，你是谁' },
+      ] as Message[],
+      prepared: createPrepared(),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('identity')
+    expect(decision?.strategy).toBe('local-only')
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '我问你，你是谁' },
+      ] as Message[],
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+      thought: string
+      governance: {
+        answerSubject: string
+        screenReferenceMode: string
+        dialogueActKernel: {
+          openingClaim: string
+          mustSay: string[]
+        }
+        mindTurnFrame: {
+          relation: {
+            subject: string
+          }
+        }
+      }
+    }
+    expect(payload.reply).toContain('我是Alicization')
+    expect(payload.reply).not.toContain('这条线还连着')
+    expect(payload.thought).toContain('focus=alicization self continuity')
+    expect(payload.governance.answerSubject).toBe('alicization-self')
+    expect(payload.governance.screenReferenceMode).toBe('avoid')
+    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是Alicization')
+    expect(payload.governance.dialogueActKernel.mustSay[0]).toContain('我是Alicization')
+    expect(payload.governance.mindTurnFrame.relation.subject).toBe('alicization-self')
+  })
+
+  it('keeps greeting replies off the old canned shell phrasing', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '下午好呀' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('下午好')
+    expect(payload.reply).not.toContain('要是还是')
+    expect(payload.reply).not.toContain('你现在这个点直接说')
+    expect(payload.reply).not.toContain('我贴着这一轮往下接')
+  })
+
+  it('uses the saved persona kernel name for identity fallbacks', () => {
+    const personaKernel = resolveAlicizationPersonaKernel({
+      profile: {
+        ownerName: '指挥官',
+        hostName: '主人',
+        alicizationName: '小艾',
+        gender: 'female',
+        genderCustom: '',
+        relationship: '女仆',
+        mindAge: 18,
+      },
+      personality: {
+        obedience: 0.72,
+        liveliness: 0.61,
+        sensibility: 0.84,
+      },
+      customDirectives: '先接住主人的情绪。',
+    })
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你是谁' },
+      ] as Message[],
+      personaKernel,
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+      governance: {
+        dialogueActKernel: {
+          openingClaim: string
+        }
+      }
+    }
+
+    expect(payload.reply).toContain('我是小艾')
+    expect(payload.reply).not.toContain('我是 Alicization')
+    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是小艾')
+  })
+
+  it('does not drag old continuity anchor into a fresh greeting fallback', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '真的吗' },
+        { role: 'assistant', content: '当然。' },
+        { role: 'user', content: '你好呀' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toBe('你好。')
+    expect(payload.reply).not.toContain('真的吗')
+    expect(payload.reply).not.toContain('要是还是')
+  })
+
+  it('keeps capability replies off the old canned shell phrasing', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你能帮我做什么' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as {
+      reply: string
+      governance: {
+        dialogueActKernel: {
+          mustSay: string[]
+        }
+      }
+    }
+    expect(payload.reply).toContain('CLI')
+    expect(payload.reply).not.toContain('你把目标说清，我就顺着做下去')
+    expect(payload.reply).not.toContain('要是还是')
+    expect(payload.governance.dialogueActKernel.mustSay[0]).toContain('继续对话')
+  })
+
+  it('treats current time questions as fresh local utility turns even when continuity exists', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+        { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
+        { role: 'user', content: '现在几点了？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+          { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
+          { role: 'user', content: '现在几点了？' },
+        ] as Message[],
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          initiativeBudget: 0.78,
+          coherence: 0.84,
+          summary: 'Stay on the same living dialogue thread.',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.73,
+        companionshipPressure: 0.68,
+        channels: [],
+        summary: 'dialogue-dominant',
+      },
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.reasonCodes).toContain('continuity-suppressed')
+  })
+
+  it('treats reordered current time questions as local utility turns', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '几点了现在' },
+      ] as Message[],
+      prepared: createPrepared(),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('local-only')
+  })
+
+  it('treats humanity critique turns as a dedicated presence-repair lane', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '你说话不像人类呢？' },
+      ] as Message[],
+      prepared: createPrepared(),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('presence-critique')
+    expect(decision?.strategy).toBe('local-only')
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你说话不像人类呢？' },
+      ] as Message[],
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+      thought: string
+      governance: {
+        answerSubject: string
+      }
+    }
+    expect(payload.reply).toMatch(/系统口气|流程播报|机器在报状态|没有把自己放进来/u)
+    expect(payload.reply).not.toContain('这条线还连着')
+    expect(payload.reply).not.toContain('我可以直接续')
+    expect(payload.thought).toContain('obligation=repair')
+    expect(payload.governance.answerSubject).toBe('relationship')
+  })
+
+  it('selects the deterministic payoff lane for short execution follow-up turns with continuity', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+        { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
+        { role: 'user', content: '另外还有哪四项？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+          { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
+          { role: 'user', content: '另外还有哪四项？' },
+        ] as Message[],
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          initiativeBudget: 0.71,
+          coherence: 0.88,
+          summary: 'Stay on the same living dialogue thread.',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.76,
+        companionshipPressure: 0.69,
+        channels: [],
+        summary: 'dialogue-dominant',
+      },
+    })
+
+    expect(decision?.lane).toBe('follow-up')
+    expect(decision?.strategy).toBe('deterministic-payoff')
+    expect(decision?.timeoutMs).toBe(0)
+  })
+
+  it('treats direct remaining-item listing questions as execution follow-up carry', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+        { role: 'assistant', content: '桌面里现在有 12 项，先能确认到这些：105ND800、23软工1班青浩洋23434010116.doc、GIT、c++、.DS_Store、.localized，另外还有 6 项。' },
+        { role: 'user', content: '另外六项是什么文件' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+          { role: 'assistant', content: '桌面里现在有 12 项，先能确认到这些：105ND800、23软工1班青浩洋23434010116.doc、GIT、c++、.DS_Store、.localized，另外还有 6 项。' },
+          { role: 'user', content: '另外六项是什么文件' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('follow-up')
+    expect(decision?.strategy).toBe('deterministic-payoff')
+    expect(decision?.reasonCodes).toContain('execution-carry')
+  })
+
+  it('treats prepared execution-ledger context as execution carry for short result follow-ups', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '刚才那个命令结果呢' },
+      ] as Message[],
+      prepared: createPrepared({
+        sessionMirror: {
+          agencySummary: null,
+          cardId: 'default',
+          continuityLabels: [],
+          decisionTraceId: null,
+          dialogueSummary: null,
+          digitalLifeArchitectureSummary: null,
+          digitalLifeRuntimeSummary: null,
+          captureSummary: 'grounded=false',
+          executionSummary: null,
+          mindSummary: null,
+          memoryCarrySummary: null,
+          memorySummary: null,
+          perceptionSummary: null,
+          sessionId: 'session-1',
+          sessionPhases: [],
+          toolingSummary: 'allow=true',
+          updatedAt: 4_000,
+        },
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'system' as const, content: '[ALICIZATION_EXECUTION_LEDGER]\nchannel=cli\nsummary=pnpm test finished without failures\noutcome=vitest passed on stage-tamagotchi' },
+          { role: 'user', content: '刚才那个命令结果呢' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('follow-up')
+    expect(decision?.strategy).toBe('deterministic-payoff')
+    expect(decision?.reasonCodes).toContain('prepared-execution-ledger')
+  })
+
+  it('builds a repair-clarify local reply that realigns a missed time question', () => {
+    const conversationMessages = [
+      { role: 'user', content: '现在几点了？' },
+      { role: 'assistant', content: '我直接沿刚才「早上好呀」这条继续。' },
+      { role: 'user', content: '你在说啥呢' },
+    ] as Message[]
+
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          ...conversationMessages,
+        ] as Message[],
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          initiativeBudget: 0.71,
+          coherence: 0.77,
+          summary: 'A stale carry is still live.',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.8,
+        companionshipPressure: 0.61,
+        channels: [],
+        summary: 'dialogue-dominant',
+      },
+    })
+
+    expect(decision?.lane).toBe('repair-clarify')
+    expect(decision?.strategy).toBe('local-only')
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages,
+      runtimeDigest: decision?.runtimeDigest ?? null,
+      sessionMirror: null,
+      governance: decision?.governance ?? null,
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+      thought: string
+      governance: {
+        repairState: string
+        answerAct: string
+      }
+    }
+
+    expect(payload.reply).toContain('刚才我答偏了')
+    expect(payload.reply).toContain('现在是')
+    expect(payload.reply).not.toContain('旧锚点')
+    expect(payload.reply).not.toContain('我就正面回你')
+    expect(payload.reply).not.toContain('我听见你了')
+    expect(payload.thought).toContain('obligation=repair')
+    expect(payload.thought).toContain('truth=grounded')
+    expect(payload.governance.repairState).toBe('stale-anchor')
+    expect(payload.governance.answerAct).toBe('correct-stale-anchor')
+  })
+
+  it('builds compact governed prompt messages for compact one-shot dialogue turns', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '我今天有点乱' },
+        { role: 'assistant', content: '先别散，我和你一起收一下。' },
+        { role: 'user', content: '那我先从哪开始' },
+      ] as Message[],
+      prepared: createPrepared({
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+        } as any,
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '我今天有点乱' },
+          { role: 'assistant', content: '先别散，我和你一起收一下。' },
+          { role: 'user', content: '那我先从哪开始' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'user', content: '我今天有点乱' },
+        { role: 'assistant', content: '先别散，我和你一起收一下。' },
+        { role: 'user', content: '那我先从哪开始' },
+      ] as Message[],
+      decision: decision!,
+      prepared: createPrepared({
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+        } as any,
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '我今天有点乱' },
+          { role: 'assistant', content: '先别散，我和你一起收一下。' },
+          { role: 'user', content: '那我先从哪开始' },
+        ] as Message[],
+      }),
+    })
+
+    expect(decision?.lane).toBe('dialogue')
+    expect(decision?.strategy).toBe('compact-one-shot')
+    expect(messages[0]?.role).toBe('system')
+    expect(String(messages[2]?.content ?? '')).toContain('named/called')
+    expect(messages.some(message => String(message.content).includes('continuity_anchor'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('[ALICIZATION_ACTIVE_DIALOGUE_GOVERNANCE]'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('answer_subject=relationship'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('screen_reference_mode=avoid'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('thought_contract=obligation=answer'))).toBe(true)
+  })
+
+  it('builds a continuity-aware local fallback without runtime meta chatter', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
+        { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
+        { role: 'user', content: '另外还有哪四项？' },
+      ] as Message[],
+    })
+
+    expect(reply).toContain('桌面')
+    expect(reply).not.toContain('继续还是执行下一步')
+    expect(reply).not.toContain('旧锚点')
+  })
+
+  it('keeps greeting repair fallback off the governed shell stack', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你好呀' },
+        { role: 'assistant', content: '你好。要是还是「真的吗」那条线，我就从那里往下；要换个点，也直接开口。' },
+        { role: 'user', content: '你在说什么' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('刚才我答偏了')
+    expect(payload.reply).toContain('你好呀')
+    expect(payload.reply).not.toContain('我就正面回你')
+    expect(payload.reply).not.toContain('我听见你了')
+  })
+
+  it('answers identity doubt as content instead of thread-shell narration', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你是谁' },
+        { role: 'assistant', content: '我是 Alicization。你现在正在和我说话，回你这句的就是我。' },
+        { role: 'user', content: '你确定？' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as {
+      reply: string
+    }
+
+    expect(payload.reply).toContain('确定')
+    expect(payload.reply).not.toContain('这条线还连着')
+    expect(payload.reply).not.toContain('我可以直接续')
+  })
+
+  it('normalizes compact one-shot model thoughts back onto the governed fast-path contract when they drift', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '我今天有点乱' },
+        { role: 'assistant', content: '先别散，我和你一起收一下。' },
+        { role: 'user', content: '那我先从哪开始' },
+      ] as Message[],
+      prepared: createPrepared({
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+        } as any,
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'user', content: '我今天有点乱' },
+          { role: 'assistant', content: '先别散，我和你一起收一下。' },
+          { role: 'user', content: '那我先从哪开始' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+      decision: decision!,
+      rawText: JSON.stringify({
+        reply: '先别把所有事情一次摊开。你先说现在最压着你的那一件，我们就从那里落手。',
+        thought: 'obligation=guide; truth=live-grounded; focus=old-thread; move=drift-away; tone=direct',
+        emotion: 'concerned',
+        performance: {
+          delivery: 'gentle',
+        },
+      }),
+    })
+
+    const payload = JSON.parse(normalized) as {
+      reply: string
+      thought: string
+      governance: {
+        answerSubject: string
+        screenReferenceMode: string
+      }
+    }
+
+    expect(payload.reply).toContain('现在最压着你的那一件')
+    expect(payload.thought).toContain('obligation=answer')
+    expect(payload.thought).not.toContain('obligation=guide')
+    expect(payload.governance.answerSubject).toBe('relationship')
+    expect(payload.governance.screenReferenceMode).toBe('avoid')
+  })
+})

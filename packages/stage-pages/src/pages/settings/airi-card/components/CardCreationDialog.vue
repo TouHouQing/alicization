@@ -85,7 +85,7 @@ const selectedDisplayModelId = ref<string>('')
 const modelSelectorOpen = ref(false)
 
 const consciousnessProviderOptions = computed(() => {
-  return providersStore.configuredChatProvidersMetadata.map(provider => ({
+  return providersStore.persistedChatProvidersMetadata.map(provider => ({
     value: provider.id,
     label: provider.localizedName || provider.name,
   }))
@@ -340,12 +340,20 @@ function resolveSelectedDisplayModelId() {
     || defaultAlicizationStageModelId
 }
 
+function resolveConsciousnessProviderId() {
+  return (selectedConsciousnessProvider.value || consciousnessProvider.value || '').trim()
+}
+
+function resolveConsciousnessModelId() {
+  return (selectedConsciousnessModel.value || defaultConsciousnessModel.value || '').trim()
+}
+
 function buildAiriExtension(existingExtension?: AiriExtension): AiriExtension {
   return {
     modules: {
       consciousness: {
-        provider: selectedConsciousnessProvider.value || consciousnessProvider.value,
-        model: selectedConsciousnessModel.value || defaultConsciousnessModel.value,
+        provider: resolveConsciousnessProviderId(),
+        model: resolveConsciousnessModelId(),
       },
       speech: {
         provider: selectedSpeechProvider.value || speechProvider.value,
@@ -461,6 +469,12 @@ async function saveCard(nextCard: Card) {
   if (!resolveSelectedDisplayModelId()) {
     showError.value = true
     errorMessage.value = t('settings.pages.card.alicization.creation.errors.display_model_required')
+    return
+  }
+
+  if (!resolveConsciousnessProviderId() || !resolveConsciousnessModelId()) {
+    showError.value = true
+    errorMessage.value = t('stage.chat.fallbacks.provider-config')
     return
   }
 

@@ -1,5 +1,3 @@
-import type { Buffer } from 'node:buffer'
-
 import type {
   AlicizationCliCommandInput,
   AlicizationExecutionEventInput,
@@ -8,7 +6,10 @@ import type {
   AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 
-import { exec, execFile } from 'node:child_process'
+import { Buffer } from 'node:buffer'
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir as osHomedir } from 'node:os'
 import { basename, isAbsolute, relative, resolve } from 'node:path'
 import { cwd as processCwd, env as processEnv } from 'node:process'
 
@@ -17,11 +18,12 @@ import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/s
 
 import { buildAlicizationExecutionEnv } from '../execution-command-env'
 
-const cliDefaultTimeoutMs = 20_000
-const cliMaxTimeoutMs = 120_000
+const cliDefaultTimeoutMs = 300_000
+const cliMaxTimeoutMs = 1_800_000
 const cliEventChunkChars = 1_500
 const cliMaxPreviewChars = 4_000
-const cliMaxBufferBytes = 512 * 1024
+const cliMaxCapturedOutputBytes = 2 * 1024 * 1024
+const cliForceKillDelayMs = 300
 const cliSystemBinaryPrefixes = [
   '/bin/',
   '/usr/bin/',
@@ -91,6 +93,24 @@ const packageManagerCommands = new Set([
   'node',
   'git',
 ])
+const cliHomeAliasExactTokens = new Set([
+  '~',
+  '$HOME',
+  '${HOME}',
+  '%USERPROFILE%',
+])
+const cliHomeAliasPrefixes = [
+  '~/',
+  '~\\',
+  '$HOME/',
+  '$HOME\\',
+  '${HOME}/',
+  '${HOME}\\',
+  '%USERPROFILE%/',
+  '%USERPROFILE%\\',
+]
+const cliDesktopSegmentPattern = /(^|[\\/])(Desktop|桌面)(?=([\\/]|$))/u
+const cliUriEncodedTokenPattern = /^(?:%[0-9A-Fa-f]{2}){2,}$/u
 
 type AlicizationCliRiskLevel = 'safe' | 'sensitive' | 'danger'
 type AlicizationCliActionCategory = 'read' | 'write' | 'delete' | 'execute' | 'network'
@@ -105,6 +125,7 @@ interface AlicizationCliCommandSpec {
   riskLevel: AlicizationCliRiskLevel
   actionCategory: AlicizationCliActionCategory
   commandLabel: string
+  aliasExpansionCount: number
   runtimeContext: AlicizationExecutionRuntimeContext | null
 }
 
@@ -112,6 +133,7 @@ interface AlicizationCliExecutionRuntimeResult {
   ok: boolean
   stdout: string
   stderr: string
+  outputTruncated: boolean
   exitCode: number | null
   signal: string | null
   durationMs: number
@@ -176,6 +198,87 @@ function normalizeTimeoutMs(raw: unknown) {
   if (!Number.isFinite(numeric))
     return cliDefaultTimeoutMs
   return Math.max(300, Math.min(cliMaxTimeoutMs, Math.floor(numeric)))
+}
+
+function resolveCliHomeDirectory() {
+  const homeFromEnv = typeof processEnv.HOME === 'string' && processEnv.HOME.trim()
+    ? processEnv.HOME.trim()
+    : typeof processEnv.USERPROFILE === 'string' && processEnv.USERPROFILE.trim()
+      ? processEnv.USERPROFILE.trim()
+      : osHomedir().trim()
+  return homeFromEnv ? resolve(homeFromEnv) : ''
+}
+
+function applyCliDesktopAliasFallback(pathValue: string) {
+  if (!cliDesktopSegmentPattern.test(pathValue))
+    return pathValue
+  if (existsSync(pathValue))
+    return pathValue
+
+  const fallback = pathValue.replace(
+    cliDesktopSegmentPattern,
+    (_match, separator: string, segment: string) => `${separator}${segment === 'Desktop' ? '桌面' : 'Desktop'}`,
+  )
+  if (fallback !== pathValue && existsSync(fallback))
+    return fallback
+  return pathValue
+}
+
+function expandCliHomeAliasPath(value: string, homeDirectory: string) {
+  const normalized = value.trim()
+  if (!normalized || !homeDirectory)
+    return null
+  if (cliHomeAliasExactTokens.has(normalized))
+    return resolve(homeDirectory)
+  for (const prefix of cliHomeAliasPrefixes) {
+    if (!normalized.startsWith(prefix))
+      continue
+    return resolve(homeDirectory, normalized.slice(prefix.length))
+  }
+  return null
+}
+
+function normalizeCliPathValueAliases(value: string, homeDirectory: string) {
+  const expanded = expandCliHomeAliasPath(value, homeDirectory)
+  if (!expanded) {
+    return {
+      value,
+      expanded: false,
+    }
+  }
+
+  return {
+    value: applyCliDesktopAliasFallback(expanded),
+    expanded: true,
+  }
+}
+
+function splitCliOptionAssignment(value: string) {
+  const separatorIndex = value.indexOf('=')
+  if (separatorIndex <= 0 || !value.startsWith('-'))
+    return null
+  return {
+    prefix: value.slice(0, separatorIndex + 1),
+    body: value.slice(separatorIndex + 1),
+  }
+}
+
+function normalizeCliPathTokenAliases(token: string, homeDirectory: string) {
+  const optionAssignment = splitCliOptionAssignment(token)
+  if (!optionAssignment)
+    return normalizeCliPathValueAliases(token, homeDirectory)
+
+  const normalizedBody = normalizeCliPathValueAliases(optionAssignment.body, homeDirectory)
+  if (!normalizedBody.expanded) {
+    return {
+      value: token,
+      expanded: false,
+    }
+  }
+  return {
+    value: `${optionAssignment.prefix}${normalizedBody.value}`,
+    expanded: true,
+  }
 }
 
 function parseCommandWords(raw: string) {
@@ -371,13 +474,14 @@ function normalizeCommandPath(command: string, workspaceRoot: string) {
   }
 }
 
-function normalizeWorkingDirectory(raw: unknown, workspaceRoot: string) {
+function normalizeWorkingDirectory(raw: unknown, workspaceRoot: string, homeDirectory: string) {
   const requested = typeof raw === 'string' && raw.trim()
     ? raw.trim()
     : workspaceRoot
-  const resolved = isAbsolute(requested)
-    ? resolve(requested)
-    : resolve(workspaceRoot, requested)
+  const normalizedRequested = normalizeCliPathValueAliases(requested, homeDirectory)
+  const resolved = isAbsolute(normalizedRequested.value)
+    ? resolve(normalizedRequested.value)
+    : resolve(workspaceRoot, normalizedRequested.value)
 
   if (!isWithinRoot(workspaceRoot, resolved)) {
     return {
@@ -390,6 +494,7 @@ function normalizeWorkingDirectory(raw: unknown, workspaceRoot: string) {
   return {
     ok: true as const,
     cwd: resolved,
+    aliasExpanded: normalizedRequested.expanded,
   }
 }
 
@@ -514,6 +619,7 @@ function resolveThreadEffect(thread: AlicizationTaskThreadRecord) {
 
 function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
   const workspaceRoot = resolve(input.workspaceRoot ?? processCwd())
+  const homeDirectory = resolveCliHomeDirectory()
   const rawCommand = typeof input.command.command === 'string'
     ? input.command.command.trim()
     : ''
@@ -525,25 +631,39 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
     }
   }
 
-  const normalizedCwd = normalizeWorkingDirectory(input.command.cwd, workspaceRoot)
+  const normalizedCwd = normalizeWorkingDirectory(input.command.cwd, workspaceRoot, homeDirectory)
   if (!normalizedCwd.ok)
     return normalizedCwd
 
   const rawArgs = normalizeArgs(input.command.args)
+  let aliasExpansionCount = normalizedCwd.aliasExpanded ? 1 : 0
+  const normalizedArgs = rawArgs.map((arg) => {
+    const normalized = normalizeCliPathTokenAliases(arg, homeDirectory)
+    if (normalized.expanded)
+      aliasExpansionCount += 1
+    return normalized.value
+  })
   const parsedCommandWords = parseCommandWords(rawCommand)
+  const normalizedParsedCommandWords = parsedCommandWords?.map((word) => {
+    const normalized = normalizeCliPathTokenAliases(word, homeDirectory)
+    if (normalized.expanded)
+      aliasExpansionCount += 1
+    return normalized.value
+  }) ?? null
   const shellExecutionRequired = requiresShellExecution(rawCommand)
-    || requiresShellExecutionFromArgs(rawArgs)
+    || requiresShellExecutionFromArgs(normalizedArgs)
   const shellCommandExpression = shellExecutionRequired
     ? buildShellCommandExpression({
         rawCommand,
-        rawArgs,
-        parsedCommandWords,
+        rawArgs: normalizedArgs,
+        parsedCommandWords: normalizedParsedCommandWords,
       })
     : ''
 
   const mode: AlicizationCliExecutionMode = shellExecutionRequired ? 'shell' : 'exec-file'
   let executableCommand = rawCommand
-  let executableArgs = [...rawArgs]
+  let executableArgs = [...normalizedArgs]
+  let commandLabel = rawCommand
   if (mode === 'exec-file') {
     if (parsedCommandWords == null && rawArgs.length > 0) {
       return {
@@ -554,12 +674,18 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
     }
 
     if (parsedCommandWords && parsedCommandWords.length > 0) {
-      executableCommand = parsedCommandWords[0]
-      executableArgs = [...parsedCommandWords.slice(1), ...rawArgs]
+      const normalizedWords = normalizedParsedCommandWords ?? parsedCommandWords
+      executableCommand = normalizedWords[0]
+      executableArgs = [...normalizedWords.slice(1), ...normalizedArgs]
+      commandLabel = [...parsedCommandWords, ...rawArgs].join(' ').trim()
     }
     else {
-      executableCommand = rawCommand
-      executableArgs = [...rawArgs]
+      const normalizedCommand = normalizeCliPathTokenAliases(rawCommand, homeDirectory)
+      if (normalizedCommand.expanded)
+        aliasExpansionCount += 1
+      executableCommand = normalizedCommand.value
+      executableArgs = [...normalizedArgs]
+      commandLabel = [rawCommand, ...rawArgs].join(' ').trim()
     }
   }
 
@@ -623,9 +749,10 @@ function buildCliCommandSpec(input: AlicizationCliAdapterInput) {
       timeoutMs: normalizeTimeoutMs(input.command.timeoutMs),
       riskLevel: classification.riskLevel,
       actionCategory: classification.actionCategory,
+      aliasExpansionCount,
       commandLabel: mode === 'shell'
         ? shellCommandExpression
-        : [normalizedPath?.commandLabel ?? executableCommand, ...executableArgs].join(' ').trim(),
+        : commandLabel || [normalizedPath?.commandLabel ?? executableCommand, ...rawArgs].join(' ').trim(),
       runtimeContext,
     } satisfies AlicizationCliCommandSpec,
   }
@@ -646,10 +773,70 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
   })
 }
 
-function isCliTimeoutError(error: unknown) {
-  const message = errorMessageFrom(error) ?? ''
-  return /timed out|timeout|SIGTERM|killed/i.test(message)
-    || (typeof error === 'object' && error != null && 'killed' in error && (error as { killed?: unknown }).killed === true)
+function createCliTruncatedNotice(input: {
+  capturedBytes: number
+  maxBytes: number
+  stream: 'stdout' | 'stderr'
+}) {
+  return [
+    '',
+    `[ALICIZATION_NOTICE] ${input.stream} output was truncated after ${input.maxBytes} bytes.`,
+    `captured_bytes=${input.capturedBytes}`,
+  ].join('\n')
+}
+
+function captureCliStreamChunk(input: {
+  chunks: Buffer[]
+  maxBytes: number
+  totalBytes: number
+  truncated: boolean
+  chunk: Buffer
+}) {
+  let nextTotalBytes = input.totalBytes
+  let nextTruncated = input.truncated
+  if (input.chunk.byteLength === 0) {
+    return {
+      totalBytes: nextTotalBytes,
+      truncated: nextTruncated,
+    }
+  }
+
+  const availableBytes = Math.max(0, input.maxBytes - nextTotalBytes)
+  if (availableBytes > 0) {
+    if (input.chunk.byteLength <= availableBytes) {
+      input.chunks.push(input.chunk)
+      nextTotalBytes += input.chunk.byteLength
+    }
+    else {
+      input.chunks.push(input.chunk.subarray(0, availableBytes))
+      nextTotalBytes += availableBytes
+      nextTruncated = true
+    }
+  }
+  else {
+    nextTruncated = true
+  }
+
+  return {
+    totalBytes: nextTotalBytes,
+    truncated: nextTruncated,
+  }
+}
+
+function finalizeCapturedCliStream(input: {
+  chunks: Buffer[]
+  capturedBytes: number
+  truncated: boolean
+  stream: 'stdout' | 'stderr'
+}) {
+  const base = Buffer.concat(input.chunks).toString('utf8')
+  if (!input.truncated)
+    return base
+  return `${base}${createCliTruncatedNotice({
+    capturedBytes: input.capturedBytes,
+    maxBytes: cliMaxCapturedOutputBytes,
+    stream: input.stream,
+  })}`
 }
 
 async function runCliCommand(
@@ -660,103 +847,184 @@ async function runCliCommand(
   const startedAt = now()
   return await new Promise<AlicizationCliExecutionRuntimeResult>((resolveResult) => {
     let aborted = abortSignal?.aborted === true
+    let timedOut = false
     let settled = false
+    let stdoutBytes = 0
+    let stderrBytes = 0
+    let stdoutTruncated = false
+    let stderrTruncated = false
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+    const runtimeEnv = buildCliRuntimeEnv(spec.runtimeContext)
 
-    const child = (spec.mode === 'shell'
-      ? exec(spec.command, {
+    const child = spec.mode === 'shell'
+      ? spawn(spec.command, {
           cwd: spec.cwd,
-          timeout: spec.timeoutMs,
-          maxBuffer: cliMaxBufferBytes,
-          env: buildCliRuntimeEnv(spec.runtimeContext),
+          env: runtimeEnv,
+          shell: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
-        }, onCompleted)
-      : execFile(spec.command, spec.args, {
+        })
+      : spawn(spec.command, spec.args, {
           cwd: spec.cwd,
-          timeout: spec.timeoutMs,
-          maxBuffer: cliMaxBufferBytes,
-          env: buildCliRuntimeEnv(spec.runtimeContext),
+          env: runtimeEnv,
+          shell: false,
+          stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
-        }, onCompleted))
+        })
 
-    function onCompleted(error: unknown, stdout: string | Buffer, stderr: string | Buffer) {
+    const finalizeAndResolve = (input: {
+      ok: boolean
+      exitCode: number | null
+      signal: string | null
+      errorCode?: string
+      errorMessage?: string
+    }) => {
       if (settled)
         return
       settled = true
       cleanup()
       const durationMs = Math.max(0, now() - startedAt)
+      const stdout = finalizeCapturedCliStream({
+        chunks: stdoutChunks,
+        capturedBytes: stdoutBytes,
+        truncated: stdoutTruncated,
+        stream: 'stdout',
+      })
+      const stderr = finalizeCapturedCliStream({
+        chunks: stderrChunks,
+        capturedBytes: stderrBytes,
+        truncated: stderrTruncated,
+        stream: 'stderr',
+      })
+      resolveResult({
+        ok: input.ok,
+        stdout,
+        stderr,
+        outputTruncated: stdoutTruncated || stderrTruncated,
+        exitCode: input.exitCode,
+        signal: input.signal,
+        durationMs,
+        aborted,
+        timedOut,
+        errorCode: input.errorCode,
+        errorMessage: input.errorMessage,
+      })
+    }
 
+    const killProcess = (reason: 'abort' | 'timeout') => {
+      if (settled)
+        return
+      if (reason === 'abort')
+        aborted = true
+      else
+        timedOut = true
+      child.kill('SIGTERM')
+      const hardKillTimer = setTimeout(() => {
+        if (!settled)
+          child.kill('SIGKILL')
+      }, cliForceKillDelayMs)
+      hardKillTimer.unref?.()
+    }
+
+    const timeoutTimer = setTimeout(() => {
+      killProcess('timeout')
+    }, spec.timeoutMs)
+    timeoutTimer.unref?.()
+
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      const captured = captureCliStreamChunk({
+        chunks: stdoutChunks,
+        maxBytes: cliMaxCapturedOutputBytes,
+        totalBytes: stdoutBytes,
+        truncated: stdoutTruncated,
+        chunk: Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+      })
+      stdoutBytes = captured.totalBytes
+      stdoutTruncated = captured.truncated
+    })
+
+    child.stderr?.on('data', (chunk: Buffer | string) => {
+      const captured = captureCliStreamChunk({
+        chunks: stderrChunks,
+        maxBytes: cliMaxCapturedOutputBytes,
+        totalBytes: stderrBytes,
+        truncated: stderrTruncated,
+        chunk: Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
+      })
+      stderrBytes = captured.totalBytes
+      stderrTruncated = captured.truncated
+    })
+
+    child.on('error', (error) => {
+      const errorCode = typeof error === 'object' && error != null && 'code' in error && typeof (error as { code?: unknown }).code === 'string'
+        ? String((error as { code?: string }).code)
+        : ''
+      finalizeAndResolve({
+        ok: false,
+        exitCode: null,
+        signal: null,
+        errorCode: aborted
+          ? 'CLI_ABORTED'
+          : timedOut
+            ? 'CLI_TIMEOUT'
+            : errorCode === 'ENOENT'
+              ? 'CLI_COMMAND_NOT_FOUND'
+              : 'CLI_EXECUTE_FAILED',
+        errorMessage: aborted
+          ? 'CLI execution was aborted by kill switch.'
+          : timedOut
+            ? `CLI execution timed out after ${spec.timeoutMs}ms.`
+            : errorMessageFrom(error) ?? 'CLI execution failed.',
+      })
+    })
+
+    child.on('close', (exitCode, signal) => {
       if (aborted) {
-        resolveResult({
+        finalizeAndResolve({
           ok: false,
-          stdout: String(stdout ?? ''),
-          stderr: String(stderr ?? ''),
-          exitCode: null,
-          signal: 'SIGTERM',
-          durationMs,
-          aborted: true,
-          timedOut: false,
+          exitCode: exitCode ?? null,
+          signal: signal ? String(signal) : 'SIGTERM',
           errorCode: 'CLI_ABORTED',
           errorMessage: 'CLI execution was aborted by kill switch.',
         })
         return
       }
 
-      if (error) {
-        const errorCode = typeof error === 'object' && error != null && 'code' in error && typeof (error as { code?: unknown }).code === 'string'
-          ? String((error as { code?: string }).code)
-          : undefined
-        const exitCode = typeof error === 'object' && error != null && 'code' in error && typeof (error as { code?: unknown }).code === 'number'
-          ? Number((error as { code?: number }).code)
-          : null
-        const signal = typeof error === 'object' && error != null && 'signal' in error && typeof (error as { signal?: unknown }).signal === 'string'
-          ? String((error as { signal?: string }).signal)
-          : null
-        const timedOut = isCliTimeoutError(error)
-
-        resolveResult({
+      if (timedOut) {
+        finalizeAndResolve({
           ok: false,
-          stdout: String(stdout ?? ''),
-          stderr: String(stderr ?? ''),
-          exitCode,
-          signal,
-          durationMs,
-          aborted: false,
-          timedOut,
-          errorCode: timedOut
-            ? 'CLI_TIMEOUT'
-            : errorCode === 'ENOENT'
-              ? 'CLI_COMMAND_NOT_FOUND'
-              : 'CLI_EXECUTE_FAILED',
-          errorMessage: errorMessageFrom(error) ?? 'CLI execution failed.',
+          exitCode: exitCode ?? null,
+          signal: signal ? String(signal) : null,
+          errorCode: 'CLI_TIMEOUT',
+          errorMessage: `CLI execution timed out after ${spec.timeoutMs}ms.`,
         })
         return
       }
 
-      resolveResult({
-        ok: true,
-        stdout: String(stdout ?? ''),
-        stderr: String(stderr ?? ''),
-        exitCode: 0,
-        signal: null,
-        durationMs,
-        aborted: false,
-        timedOut: false,
+      const resolvedExitCode = typeof exitCode === 'number' ? exitCode : null
+      const success = resolvedExitCode === 0
+      finalizeAndResolve({
+        ok: success,
+        exitCode: resolvedExitCode,
+        signal: signal ? String(signal) : null,
+        errorCode: success ? undefined : 'CLI_EXECUTE_FAILED',
+        errorMessage: success
+          ? undefined
+          : normalizeText(finalizeCapturedCliStream({
+            chunks: stderrChunks,
+            capturedBytes: stderrBytes,
+            truncated: stderrTruncated,
+            stream: 'stderr',
+          }), 260)
+          || `CLI exited with code ${resolvedExitCode ?? 'unknown'}.`,
       })
-    }
+    })
 
-    const abortExecution = () => {
-      if (settled)
-        return
-      aborted = true
-      child.kill('SIGTERM')
-      const killTimer = setTimeout(() => {
-        if (!settled)
-          child.kill('SIGKILL')
-      }, 200)
-      killTimer.unref?.()
-    }
+    const abortExecution = () => killProcess('abort')
 
     function cleanup() {
+      clearTimeout(timeoutTimer)
       if (abortSignal)
         abortSignal.removeEventListener('abort', abortExecution)
     }
@@ -775,6 +1043,75 @@ function composeCombinedOutput(stdout: string, stderr: string) {
   if (parts.length === 0)
     return null
   return parts.join('\n').slice(0, cliMaxPreviewChars)
+}
+
+function decodeCliDisplayToken(token: string) {
+  if (!cliUriEncodedTokenPattern.test(token))
+    return token
+
+  try {
+    const decoded = decodeURIComponent(token)
+    const normalized = decoded.trim()
+    if (!normalized || normalized === token)
+      return token
+    return `${token} (${normalized})`
+  }
+  catch {
+    return token
+  }
+}
+
+function parseLsEntryName(line: string) {
+  const normalizedLine = line.trim()
+  if (!normalizedLine || /^total\s+\d+/iu.test(normalizedLine))
+    return ''
+
+  const longListingNameMatch = normalizedLine.match(/^(?:\S+\s+){8}(.+)$/u)
+  if (longListingNameMatch?.[1]) {
+    const name = longListingNameMatch[1].trim()
+    if (name && name !== '.' && name !== '..')
+      return name
+  }
+
+  const fallbackToken = normalizedLine.split(/\s+/u).at(-1)?.trim() ?? ''
+  if (!fallbackToken || fallbackToken === '.' || fallbackToken === '..')
+    return ''
+  return fallbackToken
+}
+
+function buildLsOutputSummary(stdout: string, args: string[]) {
+  const names = stdout
+    .split(/\r?\n/u)
+    .map(parseLsEntryName)
+    .filter(Boolean)
+
+  const uniqueNames = [...new Set(names)]
+  if (uniqueNames.length === 0)
+    return ''
+
+  const previewItems = uniqueNames
+    .slice(0, 6)
+    .map(decodeCliDisplayToken)
+    .join(', ')
+  const extraCount = Math.max(0, uniqueNames.length - 6)
+  const targetScope = args.some(arg => cliDesktopSegmentPattern.test(arg))
+    ? 'desktop entries'
+    : 'entries'
+
+  return `Listed ${targetScope} (${uniqueNames.length}): ${previewItems}${extraCount > 0 ? `, +${extraCount} more` : ''}`
+}
+
+function buildCliSuccessSummary(input: {
+  output: string | null
+  spec: AlicizationCliCommandSpec
+  stdout: string
+}) {
+  if (basename(input.spec.command).toLowerCase() === 'ls') {
+    const lsSummary = buildLsOutputSummary(input.stdout, input.spec.args)
+    if (lsSummary)
+      return normalizeText(lsSummary, 260)
+  }
+  return normalizeText(input.output, 260)
 }
 
 function buildFailureSummary(thread: AlicizationTaskThreadRecord, errorMessage: string) {
@@ -833,6 +1170,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
       timeoutMs: spec.timeoutMs,
       riskLevel: spec.riskLevel,
       actionCategory: spec.actionCategory,
+      aliasExpansionCount: spec.aliasExpansionCount,
       hasRuntimeContext: spec.runtimeContext !== null,
       runtimeContext: spec.runtimeContext,
     },
@@ -906,6 +1244,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
             durationMs: runtimeResult.durationMs,
             errorCode: runtimeResult.errorCode,
             errorMessage: runtimeResult.errorMessage,
+            aliasExpansionCount: spec.aliasExpansionCount,
             hasRuntimeContext: spec.runtimeContext !== null,
             runtimeContext: spec.runtimeContext,
           },
@@ -917,11 +1256,19 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
 
   const resultAt = stepBaseAt + stdoutSegments.length + stderrSegments.length
   const success = runtimeResult.ok && runtimeResult.exitCode === 0
+  const successSummary = success
+    ? buildCliSuccessSummary({
+        output,
+        spec,
+        stdout: runtimeResult.stdout,
+      })
+    : ''
+  const finalSummary = success
+    ? successSummary || `CLI execution completed for ${normalizeText(thread.goal, 140) || 'the current task'}.`
+    : buildFailureSummary(thread, runtimeResult.errorMessage ?? 'unknown error')
   return {
     ok: success,
-    summary: success
-      ? normalizeText(output, 220) || `CLI execution completed for ${normalizeText(thread.goal, 140) || 'the current task'}.`
-      : buildFailureSummary(thread, runtimeResult.errorMessage ?? 'unknown error'),
+    summary: finalSummary,
     output,
     errorCode: success ? undefined : runtimeResult.errorCode,
     errorMessage: success ? undefined : runtimeResult.errorMessage,
@@ -946,8 +1293,11 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
           exitCode: runtimeResult.exitCode,
           signal: runtimeResult.signal,
           timedOut: runtimeResult.timedOut,
+          outputTruncated: runtimeResult.outputTruncated,
+          summary: finalSummary,
           stdout: normalizeText(runtimeResult.stdout),
           stderr: normalizeText(runtimeResult.stderr),
+          aliasExpansionCount: spec.aliasExpansionCount,
           errorCode: runtimeResult.errorCode,
           errorMessage: runtimeResult.errorMessage,
           hasRuntimeContext: spec.runtimeContext !== null,

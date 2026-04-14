@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import Tres from '@tresjs/core'
 
 import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
+import { errorMessageFrom } from '@moeru/std'
 import { MotionPlugin } from '@vueuse/motion'
 import { createPinia } from 'pinia'
 import { setupLayouts } from 'virtual:generated-layouts'
@@ -12,6 +13,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { routes } from 'vue-router/auto-routes'
 
 import App from './App.vue'
+import { shouldPromoteAlicizationBootFallback } from './boot-fallback-policy'
 
 import { i18n } from './modules/i18n'
 
@@ -38,6 +40,63 @@ import '@fontsource/kiwi-maru'
 import '@fontsource/m-plus-rounded-1c'
 import '@fontsource/sniglet'
 
+const bootFallbackElement = document.getElementById('boot-fallback')
+const bootFallbackMessageElement = document.getElementById('boot-fallback-message')
+let bootFallbackState: 'booting' | 'mounted' | 'failed' = 'booting'
+
+function resolveErrorMessage(error: unknown) {
+  return errorMessageFrom(error) ?? String(error)
+}
+
+function setBootFallbackState(state: 'booting' | 'mounted' | 'failed', message?: string) {
+  bootFallbackState = state
+  if (!bootFallbackElement)
+    return
+
+  bootFallbackElement.setAttribute('data-state', state)
+  if (bootFallbackMessageElement && message)
+    bootFallbackMessageElement.textContent = message
+}
+
+function promoteBootFallbackFromRuntimeError(input: {
+  source: Parameters<typeof shouldPromoteAlicizationBootFallback>[0]['source']
+  detail: string
+  title: string
+}) {
+  const decision = shouldPromoteAlicizationBootFallback({
+    source: input.source,
+    state: bootFallbackState,
+    detail: input.detail,
+  })
+  if (!decision.promote) {
+    console.warn(`[renderer] Boot fallback suppressed (${decision.reason})`, input.detail)
+    return false
+  }
+
+  setBootFallbackState('failed', `${input.title}:\n${input.detail}`)
+  return true
+}
+
+window.addEventListener('error', (event) => {
+  const detail = resolveErrorMessage(event.error ?? event.message)
+  promoteBootFallbackFromRuntimeError({
+    source: 'window-error',
+    detail,
+    title: '渲染异常',
+  })
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  const detail = resolveErrorMessage(event.reason)
+  const promoted = promoteBootFallbackFromRuntimeError({
+    source: 'unhandledrejection',
+    detail,
+    title: 'Promise 未处理异常',
+  })
+  if (!promoted)
+    event.preventDefault()
+})
+
 const pinia = createPinia()
 
 const router = createRouter({
@@ -46,12 +105,45 @@ const router = createRouter({
   routes: setupLayouts(routes as RouteRecordRaw[]),
 })
 
-createApp(App)
-  .use(MotionPlugin)
-  // TODO: Fix autoAnimatePlugin type error
-  .use(autoAnimatePlugin as unknown as Plugin)
-  .use(router)
-  .use(pinia)
-  .use(i18n)
-  .use(Tres)
-  .mount('#app')
+router.onError((error) => {
+  const detail = resolveErrorMessage(error)
+  promoteBootFallbackFromRuntimeError({
+    source: 'router-error',
+    detail,
+    title: '路由加载失败',
+  })
+  console.error('[renderer] Router runtime error:', error)
+})
+
+try {
+  const app = createApp(App)
+
+  // NOTICE: Vue runtime errors in component setup/render are not guaranteed to
+  // reach window.onerror. Promote them to startup fallback so "transparent blank
+  // stage" always surfaces a concrete error for diagnosis.
+  app.config.errorHandler = (error, _instance, info) => {
+    const detail = resolveErrorMessage(error)
+    promoteBootFallbackFromRuntimeError({
+      source: 'vue-error',
+      detail,
+      title: `Vue 运行时异常 (${info})`,
+    })
+    console.error('[renderer] Vue runtime error:', info, error)
+  }
+
+  app
+    .use(MotionPlugin)
+    // TODO: Fix autoAnimatePlugin type error
+    .use(autoAnimatePlugin as unknown as Plugin)
+    .use(router)
+    .use(pinia)
+    .use(i18n)
+    .use(Tres)
+    .mount('#app')
+
+  setBootFallbackState('mounted')
+}
+catch (error) {
+  setBootFallbackState('failed', `渲染启动失败:\n${resolveErrorMessage(error)}`)
+  throw error
+}

@@ -3,6 +3,8 @@ import type { AlicizationChannelCapability } from '@proj-alicization/stage-share
 import type { AlicizationSensoryCacheSnapshot } from '../../../shared/eventa'
 import type { MainGatewayExecutionTaskThreadResult } from './main-chat-execution-surface'
 
+import { Buffer } from 'node:buffer'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
@@ -71,6 +73,8 @@ describe('main chat execution surface', () => {
     expect(routerBlock).toContain('executor_run_codex')
     expect(routerBlock).toContain('executor_run_claude_code')
     expect(routerBlock).toContain('executor_run_openclaw')
+    expect(routerBlock).toContain('filesystem_patch_file')
+    expect(routerBlock).toContain('filesystem_search_files')
   })
 
   it('builds execution routing guard with required tool names', () => {
@@ -100,7 +104,7 @@ describe('main chat execution surface', () => {
     expect(intent).toEqual({
       requestedChannels: ['cli'],
       requiredToolNames: ['executor_run_cli'],
-      reasonCodes: ['command-literal', 'action-verb', 'default-cli-from-command-literal'],
+      reasonCodes: expect.arrayContaining(['command-literal', 'action-verb', 'default-cli-from-command-structure']),
     })
   })
 
@@ -203,12 +207,594 @@ describe('main chat execution surface', () => {
     expect(toolNames).toContain('set_reminder')
     expect(toolNames).toContain('executor_capability_snapshot')
     expect(toolNames).toContain('sensory_capture_state')
+    expect(toolNames).toContain('filesystem_read_file')
+    expect(toolNames).toContain('filesystem_write_file')
+    expect(toolNames).toContain('filesystem_edit_file')
+    expect(toolNames).toContain('filesystem_patch_file')
+    expect(toolNames).toContain('filesystem_list_directory')
+    expect(toolNames).toContain('filesystem_search_files')
     expect(toolNames).toContain('executor_run_cli')
     expect(toolNames).toContain('executor_run_codex')
     expect(toolNames).toContain('executor_run_claude_code')
     expect(toolNames).toContain('executor_run_openclaw')
     expect(toolNames).toContain('mcp_list_tools')
     expect(toolNames).toContain('mcp_call_tool')
+  })
+
+  it('provides normalized filesystem read/edit/list tools with MCP fallback', async () => {
+    const sourceContent = `alpha\\nbeta\\n${'x'.repeat(260)}`
+    const invokeMcpCallTool = vi.fn(async (payload: any) => {
+      if (payload?.name === 'filesystem::read_file') {
+        return {
+          ok: true,
+          isError: false,
+          content: [{ type: 'text', text: sourceContent }],
+        }
+      }
+      if (payload?.name === 'filesystem::write_file') {
+        return {
+          ok: true,
+          isError: false,
+          content: [{ type: 'text', text: 'written' }],
+        }
+      }
+      if (payload?.name === 'filesystem::list_directory') {
+        return {
+          ok: false,
+          isError: true,
+          errorCode: 'MCP_CALL_FAILED',
+          errorMessage: 'method not found',
+        }
+      }
+      if (payload?.name === 'filesystem::list') {
+        return {
+          ok: true,
+          isError: false,
+          structuredContent: {
+            entries: [{ name: 'README.md' }, { name: 'src' }],
+          },
+        }
+      }
+      if (payload?.name === 'filesystem::search_files') {
+        return {
+          ok: false,
+          isError: true,
+          errorCode: 'MCP_CALL_FAILED',
+          errorMessage: 'method not found',
+        }
+      }
+      if (payload?.name === 'filesystem::search') {
+        return {
+          ok: true,
+          isError: false,
+          structuredContent: {
+            matches: [
+              { path: '/workspace/src/main.ts', line: 12, column: 4, snippet: 'const alpha = true' },
+              { path: '/workspace/src/notes.md', line: 3, snippet: 'alpha checklist' },
+            ],
+          },
+        }
+      }
+      return {
+        ok: false,
+        isError: true,
+        errorCode: 'MCP_CALL_FAILED',
+        errorMessage: 'method not found',
+      }
+    })
+
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 12,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 6,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 4096,
+          totalMB: 8192,
+          usagePercent: 50,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-tools-1',
+        decisionTraceId: 'trace-filesystem-tools-1',
+        sessionId: 'session-filesystem-tools-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-filesystem-tools-1',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      } satisfies MainGatewayExecutionTaskThreadResult)),
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+
+    const readTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_read_file') as any
+    const readResult = await readTool.execute({
+      path: '/workspace/notes.txt',
+      maxReturnBytes: 80,
+    }) as any
+    expect(readResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'read_file',
+      path: '/workspace/notes.txt',
+      truncated: true,
+      byteLength: Buffer.byteLength(sourceContent, 'utf8'),
+      contentHash: expect.any(String),
+      mcpToolName: 'filesystem::read_file',
+    }))
+
+    const editTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_edit_file') as any
+    const editResult = await editTool.execute({
+      path: '/workspace/notes.txt',
+      oldText: 'beta',
+      newText: 'gamma',
+    }) as any
+    expect(editResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'edit_file',
+      path: '/workspace/notes.txt',
+      replacedCount: 1,
+      mcpToolName: 'filesystem::write_file',
+    }))
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::write_file',
+      arguments: expect.objectContaining({
+        path: '/workspace/notes.txt',
+        content: expect.stringContaining('gamma'),
+      }),
+    }))
+
+    const patchTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_patch_file') as any
+    const patchResult = await patchTool.execute({
+      path: '/workspace/notes.txt',
+      changes: [
+        { oldText: 'gamma', newText: 'delta' },
+        { oldText: 'alpha', newText: 'ALPHA' },
+      ],
+    }) as any
+    expect(patchResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'patch_file',
+      path: '/workspace/notes.txt',
+      totalChanges: 2,
+      appliedChanges: 2,
+      skippedChanges: 0,
+      totalReplacedCount: 2,
+      mcpToolName: 'filesystem::write_file',
+      previousHash: expect.any(String),
+      nextHash: expect.any(String),
+    }))
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::write_file',
+      arguments: expect.objectContaining({
+        path: '/workspace/notes.txt',
+        content: expect.stringContaining('delta'),
+      }),
+    }))
+
+    const listTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_list_directory') as any
+    const listResult = await listTool.execute({
+      path: '/workspace',
+      recursive: true,
+    }) as any
+    expect(listResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'list_directory',
+      path: '/workspace',
+      mcpToolName: 'filesystem::list',
+      entries: ['README.md', 'src'],
+      entryCount: 2,
+    }))
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::list_directory',
+    }))
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::list',
+    }))
+
+    const searchTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_search_files') as any
+    const searchResult = await searchTool.execute({
+      path: '/workspace',
+      query: 'alpha',
+      recursive: true,
+      maxResults: 1,
+      caseSensitive: true,
+      regex: true,
+      includeGlobs: ['src/**', '  ', 'src/**'],
+      excludeGlobs: ['**/*.spec.ts', '**/*.spec.ts'],
+      pathMode: 'relative',
+    }) as any
+    expect(searchResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'search_files',
+      path: '/workspace',
+      query: 'alpha',
+      recursive: true,
+      caseSensitive: true,
+      regex: true,
+      includeGlobs: ['src/**'],
+      excludeGlobs: ['**/*.spec.ts'],
+      pathMode: 'relative',
+      mcpToolName: 'filesystem::search',
+      matchCount: 1,
+      totalMatchCount: 2,
+      filteredOutCount: 0,
+      truncated: true,
+    }))
+    expect(searchResult.matches).toEqual([
+      {
+        path: 'src/main.ts',
+        line: 12,
+        column: 4,
+        snippet: 'const alpha = true',
+      },
+    ])
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::search_files',
+      arguments: expect.objectContaining({
+        caseSensitive: true,
+        regex: true,
+        includeGlobs: ['src/**'],
+        excludeGlobs: ['**/*.spec.ts'],
+        pathMode: 'relative',
+      }),
+    }))
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::search',
+    }))
+  })
+
+  it('rejects filesystem_write_file expectedHash when no read state exists in the current turn', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 2,
+      nextTickAt: 8,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 4,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 4096,
+          totalMB: 8192,
+          usagePercent: 50,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-hash-guard-1',
+        decisionTraceId: 'trace-filesystem-hash-guard-1',
+        sessionId: 'session-filesystem-hash-guard-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-filesystem-hash-guard-1',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      } satisfies MainGatewayExecutionTaskThreadResult)),
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true, isError: false })),
+    })
+
+    const writeTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_write_file') as any
+    const writeResult = await writeTool.execute({
+      path: '/workspace/guarded.txt',
+      content: 'hello',
+      expectedHash: 'abc123',
+    }) as any
+    expect(writeResult).toEqual(expect.objectContaining({
+      status: 'failed',
+      operation: 'write_file',
+      errorCode: 'FILESYSTEM_EXPECTED_HASH_MISSING',
+    }))
+  })
+
+  it('rejects filesystem_patch_file when changes is empty', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 2,
+      nextTickAt: 8,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 4,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 4096,
+          totalMB: 8192,
+          usagePercent: 50,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-patch-empty-1',
+        decisionTraceId: 'trace-filesystem-patch-empty-1',
+        sessionId: 'session-filesystem-patch-empty-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-filesystem-patch-empty-1',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      } satisfies MainGatewayExecutionTaskThreadResult)),
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true, isError: false })),
+    })
+
+    const patchTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_patch_file') as any
+    const patchResult = await patchTool.execute({
+      path: '/workspace/guarded.txt',
+      changes: [],
+    }) as any
+    expect(patchResult).toEqual(expect.objectContaining({
+      status: 'failed',
+      operation: 'patch_file',
+      errorCode: 'FILESYSTEM_PATCH_EMPTY_CHANGES',
+    }))
+  })
+
+  it('runs filesystem_patch_file in dryRun mode without persisting write', async () => {
+    const sourceContent = 'alpha\\nbeta\\n'
+    const invokeMcpCallTool = vi.fn(async (payload: any) => {
+      if (payload?.name === 'filesystem::read_file') {
+        return {
+          ok: true,
+          isError: false,
+          content: [{ type: 'text', text: sourceContent }],
+        }
+      }
+      if (payload?.name === 'filesystem::write_file') {
+        return {
+          ok: true,
+          isError: false,
+          content: [{ type: 'text', text: 'written' }],
+        }
+      }
+      return {
+        ok: false,
+        isError: true,
+        errorCode: 'MCP_CALL_FAILED',
+        errorMessage: 'method not found',
+      }
+    })
+
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 1,
+      nextTickAt: 8,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 4,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 4096,
+          totalMB: 8192,
+          usagePercent: 50,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-patch-dry-run-1',
+        decisionTraceId: 'trace-filesystem-patch-dry-run-1',
+        sessionId: 'session-filesystem-patch-dry-run-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-filesystem-patch-dry-run-1',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      } satisfies MainGatewayExecutionTaskThreadResult)),
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+
+    const patchTool = tools.find((entry: any) => String(entry?.function?.name) === 'filesystem_patch_file') as any
+    const patchResult = await patchTool.execute({
+      path: '/workspace/notes.txt',
+      changes: [{ oldText: 'alpha', newText: 'omega' }],
+      dryRun: true,
+      maxPreviewBytes: 32,
+    }) as any
+    expect(patchResult).toEqual(expect.objectContaining({
+      status: 'completed',
+      operation: 'patch_file',
+      dryRun: true,
+      writeApplied: false,
+      path: '/workspace/notes.txt',
+      totalChanges: 1,
+      appliedChanges: 1,
+      skippedChanges: 0,
+      totalReplacedCount: 1,
+      previousHash: expect.any(String),
+      nextHash: expect.any(String),
+      previewTruncated: false,
+      preview: expect.stringContaining('omega'),
+    }))
+
+    const writeCalls = invokeMcpCallTool.mock.calls.filter((call: any[]) => call?.[0]?.name === 'filesystem::write_file')
+    expect(writeCalls).toHaveLength(0)
+    expect(invokeMcpCallTool).toBeCalledWith(expect.objectContaining({
+      name: 'filesystem::read_file',
+    }))
+  })
+
+  it('returns routing rationale and experience in executor tool result payload', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-routing-rationale-1',
+        selectedChannel: 'claude-code',
+        metadata: {
+          fabric: {
+            experience: {
+              advisorChannel: 'claude-code',
+              advisorConfidence: 0.9,
+            },
+          },
+        },
+      },
+      plan: {
+        state: 'routed',
+        proposedChannel: 'claude-code',
+        reasonTags: ['advisor:claude-code', 'advisor-channel'],
+        narrative: ['Routing adopted the external channel assessor recommendation with confidence weighting.'],
+        affirmationReasonCodes: [],
+        blockedReasonCodes: [],
+      },
+      summary: 'done',
+      output: null,
+    } satisfies MainGatewayExecutionTaskThreadResult))
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 5,
+      nextTickAt: 10,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 8,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 2048,
+          totalMB: 8192,
+          usagePercent: 75,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-routing-rationale-1',
+        decisionTraceId: 'trace-routing-rationale-1',
+        sessionId: 'session-routing-rationale-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread,
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const cliTool = tools.find((entry: any) => String(entry?.function?.name) === 'executor_run_cli') as any
+    const result = await cliTool.execute({
+      command: 'echo',
+      args: ['hello'],
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      planState: 'routed',
+      proposedChannel: 'claude-code',
+      routeReasonTags: ['advisor:claude-code', 'advisor-channel'],
+      routeNarrative: ['Routing adopted the external channel assessor recommendation with confidence weighting.'],
+      routeExperience: expect.objectContaining({
+        advisorChannel: 'claude-code',
+        advisorConfidence: 0.9,
+      }),
+    }))
   })
 
   it('injects grounded sensory execution context into openclaw dispatches', async () => {

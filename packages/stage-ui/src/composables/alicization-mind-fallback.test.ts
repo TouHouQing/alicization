@@ -72,7 +72,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       truthState: 'uncertain',
       evidenceMode: 'repair-first',
       screenReferenceMode: 'required',
-    }))).toBe(false)
+    }), 'describe my screen again')).toBe(false)
   })
 
   it('does not force fallback takeover once this turn already has live grounding', () => {
@@ -83,7 +83,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       shouldAcknowledgeRepair: true,
       groundedThisTurn: true,
       screenReferenceMode: 'required',
-    }))).toBe(false)
+    }), 'describe my screen again')).toBe(false)
   })
 
   it('does not force fallback takeover for guide turns that only carry soft reground hints', () => {
@@ -94,7 +94,7 @@ describe('buildMindGovernedFallbackSurface', () => {
       shouldAskForGrounding: true,
       shouldAcknowledgeRepair: false,
       screenReferenceMode: 'helpful',
-    }))).toBe(false)
+    }), 'describe my screen again')).toBe(false)
   })
 
   it('still forces fallback takeover for explicit ask-reground repair turns', () => {
@@ -106,7 +106,22 @@ describe('buildMindGovernedFallbackSurface', () => {
       shouldAcknowledgeRepair: true,
       groundedThisTurn: false,
       screenReferenceMode: 'required',
-    }))).toBe(true)
+    }), 'describe my screen again')).toBe(true)
+  })
+
+  it('does not force repair takeover for non-inspection dialogue even when repair flags remain', () => {
+    expect(shouldForceGovernedMindSurface(createGovernance({
+      turnMode: 'screen-repair',
+      answerAct: 'ask-reground',
+      answerSubject: 'alicization-self',
+      repairState: 'need-reground',
+      shouldAskForGrounding: true,
+      shouldAcknowledgeRepair: true,
+      groundedThisTurn: false,
+      screenReferenceMode: 'required',
+      focusAnchor: 'current-user-turn',
+      answerIntent: 'Answer the host greeting directly.',
+    }), '你好')).toBe(false)
   })
 
   it('builds a repair-first surface for stale anchors', () => {
@@ -138,7 +153,7 @@ describe('buildMindGovernedFallbackSurface', () => {
         shouldAskForGrounding: true,
         shouldAcknowledgeRepair: true,
       }),
-      userText: 'what is wrong here',
+      userText: 'look at my screen again and tell me what is wrong here',
       translate: t,
     })
 
@@ -165,7 +180,7 @@ describe('buildMindGovernedFallbackSurface', () => {
     expect(result).not.toBeNull()
     expect(result?.reply).toContain('Answer: IntelliJ IDEA with Java project and git diff')
     expect(result?.reply).not.toContain('truth boundary')
-    expect(result?.reply).toContain('Reground on the fresh view.')
+    expect(result?.reply).not.toContain('Reground on the fresh view.')
   })
 
   it('avoids stacking carry-memory and reground templates on non-repair guide turns', () => {
@@ -211,6 +226,7 @@ describe('buildMindGovernedFallbackSurface', () => {
     expect(replyLeaksGovernedMindSurface(
       'Answer: The turn is asking for Alicization’s relational position, not a detached explanation.',
       governance,
+      '你真可爱',
     )).toBe(true)
   })
 

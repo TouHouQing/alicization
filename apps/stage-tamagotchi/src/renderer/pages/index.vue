@@ -10,6 +10,7 @@ import {
   useElectronMouseInWindow,
   useElectronRelativeMouse,
 } from '@proj-alicization/electron-vueuse'
+import { createLazyBroadcastPoster } from '@proj-alicization/stage-shared'
 import { useModelStore, useThreeSceneIsTransparentAtPoint } from '@proj-alicization/stage-ui-three'
 import { WidgetStage } from '@proj-alicization/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-alicization/stage-ui/composables/audio/audio-recorder'
@@ -24,14 +25,14 @@ import { useOnboardingStore } from '@proj-alicization/stage-ui/stores/onboarding
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-alicization/stage-ui/stores/settings'
 import { useStageDialogueStore } from '@proj-alicization/stage-ui/stores/stage-dialogue'
-import { refDebounced, useBroadcastChannel, useFocusWithin } from '@vueuse/core'
+import { refDebounced, useFocusWithin } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
 
 import ControlsIsland from '../components/stage-islands/controls-island/index.vue'
 import ResourceStatusIsland from '../components/stage-islands/resource-status-island/index.vue'
 
-import { electronOpenOnboarding } from '../../shared/eventa'
+import { electronMainStageStartupStatusChannel, electronOpenOnboarding } from '../../shared/eventa'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
@@ -46,8 +47,13 @@ const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
 
 const isLoading = ref(true)
 
+// NOTICE: Keep the stage surface visible by default.
+// The previous fade-on-hover path can make the entire transparent desktop window
+// appear as "fully disappeared" when hit-testing drifts.
 const shouldFadeOnCursorWithin = ref(false)
 const stageInteractionActive = ref(false)
+
+void ResourceStatusIsland
 
 const onboardingStore = useOnboardingStore()
 const openOnboarding = useElectronEventaInvoke(electronOpenOnboarding)
@@ -139,6 +145,8 @@ const stageLoadRecoveryInFlight = ref(false)
 let stageLoadRecoveryTimer: ReturnType<typeof setTimeout> | undefined
 const stageLoadRecoveryDelayMs = 8000
 const maxStageLoadRecoveryAttempts = 2
+const stageRecoveryStepTimeoutMs = 6000
+let lastStageStartupStatusState: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted' | undefined
 
 function resetDesktopLayout() {
   resetDesktopLayoutState({
@@ -147,27 +155,67 @@ function resetDesktopLayout() {
     stageDialogue: stageDialogueStore,
   })
 }
-
 watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
 
 const hearingDialogOpen = computed(() => controlsIslandRef.value?.hearingDialogOpen ?? false)
 
-watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+function resolveDesktopCaptureStateNow() {
   const insideControls = !isOutsideFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
-  const { shouldCaptureMouse, shouldFadeOnCursorWithin: nextShouldFadeOnCursorWithin } = resolveDesktopMouseCaptureState({
+  return resolveDesktopMouseCaptureState({
     fadeOnHoverEnabled: fadeOnHoverEnabled.value,
     hearingDialogOpen: hearingDialogOpen.value,
     insideControls,
     insideDialogueOverlay,
+    insideStageRecoveryPanel: false,
+    emergencyPanelHovered: false,
     isOutsideWindow: isOutsideWindow.value,
+    stageCharacterHovered: stageCharacterHovered.value,
     stageInteractionActive: stageInteractionActive.value,
     stageCapturePixel: stageCapturePixel.value,
     stagePaused: stagePaused.value,
   })
+}
 
-  setIgnoreMouseEvents([!shouldCaptureMouse, { forward: true }])
-  shouldFadeOnCursorWithin.value = nextShouldFadeOnCursorWithin
+function syncDesktopMouseCaptureState() {
+  const { shouldCaptureMouse } = resolveDesktopCaptureStateNow()
+  // Force-disable visual fade on the main stage until hover detection is fully stabilized.
+  // This guarantees desktop controls and the stage container remain visible.
+  shouldFadeOnCursorWithin.value = false
+
+  const ignoreMouse = !shouldCaptureMouse
+  setIgnoreMouseEvents([ignoreMouse, { forward: ignoreMouse }])
+}
+
+watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+  syncDesktopMouseCaptureState()
+}, { immediate: true })
+
+function emitStageStartupStatus(state: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted') {
+  if (typeof window === 'undefined' || typeof document === 'undefined')
+    return
+
+  if (lastStageStartupStatusState === state)
+    return
+
+  lastStageStartupStatusState = state
+  const route = window.location.hash.replace(/^#/, '') || '/'
+  document.documentElement.dataset.alicizationStagePageReady = route === '/' ? 'true' : 'false'
+  document.documentElement.dataset.alicizationStageMounted = state === 'stage-mounted' ? 'true' : 'false'
+  window.electron?.ipcRenderer?.send(electronMainStageStartupStatusChannel, {
+    route,
+    state,
+    timestamp: Date.now(),
+  })
+}
+
+watch(componentStateStage, (state) => {
+  if (state === 'mounted') {
+    emitStageStartupStatus('stage-mounted')
+    return
+  }
+
+  emitStageStartupStatus('stage-unmounted')
 }, { immediate: true })
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
@@ -208,7 +256,7 @@ let stopOnStopRecord: (() => void) | undefined
 type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
-const { post: postCaption } = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
+const captionPoster = createLazyBroadcastPoster<CaptionChannelEvent>('airi-caption-overlay')
 
 async function handleSpeechStart() {
   if (shouldUseStreamInput.value) {
@@ -259,7 +307,7 @@ async function startAudioInteraction() {
             return
           }
 
-          postCaption({ type: 'caption-speaker', text: finalText })
+          captionPoster.post({ type: 'caption-speaker', text: finalText })
 
           void (async () => {
             try {
@@ -271,8 +319,10 @@ async function startAudioInteraction() {
 
               console.info('[Main Page] Sending transcription to chat:', finalText)
               await chatStore.ingest(finalText, {
+                providerId: activeChatProvider.value,
                 model: activeChatModel.value,
                 chatProvider: provider as ChatProvider,
+                providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
                 origin: 'ui-user',
               })
             }
@@ -283,7 +333,7 @@ async function startAudioInteraction() {
         },
         onSpeechEnd: (text) => {
           console.info('[Main Page] Speech ended, final text:', text)
-          postCaption({ type: 'caption-speaker', text })
+          captionPoster.post({ type: 'caption-speaker', text })
         },
       })
 
@@ -307,7 +357,7 @@ async function startAudioInteraction() {
         return
 
       // Update caption overlay speaker text via BroadcastChannel
-      postCaption({ type: 'caption-speaker', text })
+      captionPoster.post({ type: 'caption-speaker', text })
 
       try {
         const provider = await providersStore.getProviderInstance(activeChatProvider.value)
@@ -315,8 +365,10 @@ async function startAudioInteraction() {
           return
 
         await chatStore.ingest(text, {
+          providerId: activeChatProvider.value,
           model: activeChatModel.value,
           chatProvider: provider as ChatProvider,
+          providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
           origin: 'ui-user',
         })
       }
@@ -364,6 +416,25 @@ async function ensureStageModelInitialized() {
   await settingsStore.initializeStageModel()
 }
 
+async function withStageRecoveryTimeout<T>(step: string, task: Promise<T>, timeoutMs = stageRecoveryStepTimeoutMs) {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    return await Promise.race<T>([
+      task,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`[Main Page] ${step} timed out after ${timeoutMs}ms`))
+        }, timeoutMs)
+      }),
+    ])
+  }
+  finally {
+    if (timeoutHandle)
+      clearTimeout(timeoutHandle)
+  }
+}
+
 async function recoverStageLoading(reason: 'init' | 'watchdog') {
   if (stageLoadRecoveryInFlight.value)
     return
@@ -371,14 +442,11 @@ async function recoverStageLoading(reason: 'init' | 'watchdog') {
   stageLoadRecoveryInFlight.value = true
 
   try {
-    await ensureStageModelInitialized()
-
-    if (stageModelRenderer.value === 'live2d') {
-      live2dStore.shouldUpdateView()
-    }
-    else {
-      await settingsStore.updateStageModel()
-    }
+    await withStageRecoveryTimeout('ensureStageModelInitialized', ensureStageModelInitialized())
+    // NOTICE: Always refresh the stage model directly from settings store.
+    // Triggering live2d "shouldUpdateView" here can temporarily hide stage and
+    // relies on async callbacks; direct refresh keeps recovery deterministic.
+    await withStageRecoveryTimeout('settingsStore.updateStageModel', settingsStore.updateStageModel())
 
     if (reason === 'watchdog')
       stageLoadRecoveryAttempts.value += 1
@@ -422,6 +490,8 @@ watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl], ([state,
 }, { immediate: true })
 
 onMounted(() => {
+  emitStageStartupStatus('stage-page-mounted')
+  syncDesktopMouseCaptureState()
   void recoverStageLoading('init')
 
   if (onboardingStore.needsOnboarding) {
@@ -430,6 +500,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  emitStageStartupStatus('stage-unmounted')
+  captionPoster.close()
   clearStageLoadRecoveryTimer()
   stopAudioInteraction()
 })

@@ -45,6 +45,15 @@ catalogs:
     '@intlify/core':
       specifier: ^11.2.8
       version: 11.2.8
+    '@intlify/core-base':
+      specifier: 11.2.8
+      version: 11.2.8
+    '@intlify/message-compiler':
+      specifier: 11.2.8
+      version: 11.2.8
+    '@intlify/shared':
+      specifier: 11.2.8
+      version: 11.2.8
     '@modelcontextprotocol/sdk':
       specifier: ^1.27.1
       version: 1.27.1
@@ -159,6 +168,9 @@ catalogs:
     embla-carousel-vue:
       specifier: ^9.0.0-rc01
       version: 9.0.0-rc01
+    error-stack-parser:
+      specifier: ^2.1.4
+      version: 2.1.4
     es-toolkit:
       specifier: 1.43.0
       version: 1.43.0
@@ -177,6 +189,9 @@ catalogs:
     is-network-error:
       specifier: ^1.3.0
       version: 1.3.0
+    is-what:
+      specifier: ^4.1.16
+      version: 4.1.16
     knip:
       specifier: ^5.85.0
       version: 5.85.0
@@ -192,6 +207,12 @@ catalogs:
     ofetch:
       specifier: ^1.5.1
       version: 1.5.1
+    onnxruntime-common:
+      specifier: ^1.24.2
+      version: 1.24.2
+    pathe:
+      specifier: ^2.0.3
+      version: 2.0.3
     pinia:
       specifier: ^3.0.4
       version: 3.0.4
@@ -1016,6 +1037,15 @@ importers:
       '@intlify/core':
         specifier: 'catalog:'
         version: 11.2.8
+      '@intlify/core-base':
+        specifier: 'catalog:'
+        version: 11.2.8
+      '@intlify/message-compiler':
+        specifier: 'catalog:'
+        version: 11.2.8
+      '@intlify/shared':
+        specifier: 'catalog:'
+        version: 11.2.8
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.6)
@@ -1124,6 +1154,12 @@ importers:
       '@xsai/utils-chat':
         specifier: 'catalog:'
         version: 0.4.0-beta.13
+      ajv:
+        specifier: ^8.17.1
+        version: 8.18.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.18.0)
       alien-signals:
         specifier: 'catalog:'
         version: 3.1.2
@@ -1142,6 +1178,9 @@ importers:
       copy-anything:
         specifier: 'catalog:'
         version: 3.0.5
+      cross-spawn:
+        specifier: ^7.0.5
+        version: 7.0.6
       crossws:
         specifier: ^0.4.4
         version: 0.4.4(srvx@0.11.8(patch_hash=c761d25a70e22a0925c88fe91a9dd1c3153dd341d8fd4f260166678156c4df2d))
@@ -1169,6 +1208,9 @@ importers:
       electron-updater:
         specifier: ^6.8.3
         version: 6.8.3
+      error-stack-parser:
+        specifier: 'catalog:'
+        version: 2.1.4
       es-toolkit:
         specifier: ^1.44.0
         version: 1.44.0
@@ -1181,6 +1223,9 @@ importers:
       injeca:
         specifier: 'catalog:'
         version: 0.1.8(@guiiai/logg@1.2.11)(error-stack-parser@2.1.4)(nanoid@5.1.6)
+      is-what:
+        specifier: 'catalog:'
+        version: 4.1.16
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -1199,9 +1244,15 @@ importers:
       nprogress:
         specifier: ^0.2.0
         version: 0.2.0
+      onnxruntime-common:
+        specifier: 'catalog:'
+        version: 1.24.2
       onnxruntime-web:
         specifier: npm:onnxruntime-web@^1.24.2
         version: 1.24.2
+      pathe:
+        specifier: 'catalog:'
+        version: 2.0.3
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.29(typescript@5.9.3))
@@ -1235,6 +1286,9 @@ importers:
       sqlite3:
         specifier: 5.1.7
         version: 5.1.7
+      stackframe:
+        specifier: ^1.3.4
+        version: 1.3.4
       std-env:
         specifier: ^4.0.0-rc.1
         version: 4.0.0-rc.1
@@ -1283,6 +1337,9 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.3.6
+      zod-to-json-schema:
+        specifier: ^3.25.1
+        version: 3.25.1(zod@4.3.6)
     devDependencies:
       '@electron-toolkit/tsconfig':
         specifier: ^2.0.0

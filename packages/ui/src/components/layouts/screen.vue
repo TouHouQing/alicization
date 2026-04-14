@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { breakpointsTailwind, useBreakpoints, useElementBounding, useWindowSize } from '@vueuse/core'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
 
 const containerRef = ref<HTMLDivElement>()
+console.info('[stage-startup-trace][screen-layout] setup-start')
 
 const breakpoints = useBreakpoints(breakpointsTailwind)
 const { width, height } = useWindowSize()
@@ -58,10 +59,16 @@ watch([containerElementBounding.width, containerElementBounding.height], () => {
 })
 
 onMounted(async () => {
+  console.info('[stage-startup-trace][screen-layout] onMounted-enter')
   if (!containerRef.value)
     return
 
   containerElementBounding.update()
+  console.info('[stage-startup-trace][screen-layout] onMounted-exit')
+})
+
+onBeforeMount(() => {
+  console.info('[stage-startup-trace][screen-layout] onBeforeMount')
 })
 </script>
 

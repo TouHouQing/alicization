@@ -223,8 +223,10 @@ async function sendChat() {
 
   try {
     await chatOrchestrator.ingest(content, {
+      providerId: activeChatProvider.value,
       model: activeChatModel.value,
       chatProvider: provider as ChatProvider,
+      providerConfig: providersStore.getProviderConfig(activeChatProvider.value),
     })
     chatInput.value = ''
   }

@@ -2,8 +2,10 @@ import type {
   AlicizationBeliefLedgerSnapshot,
   AlicizationInquiryLoopSnapshot,
   AlicizationPrivateThoughtSnapshot,
+  AlicizationProactiveReasonCode,
   AlicizationRelationshipModelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationRuntimeSnapshot } from './alicization-runtime-architecture'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -214,6 +216,85 @@ function createArchitecture(overrides: Partial<AlicizationDigitalLifeArchitectur
   }
 }
 
+function createRuntimeSnapshot(overrides: Partial<AlicizationRuntimeSnapshot> = {}): AlicizationRuntimeSnapshot {
+  const runtime: AlicizationRuntimeSnapshot = {
+    version: 'alicization-runtime-v1',
+    dominantChannel: 'dialogue',
+    channels: {
+      'dialogue': {
+        id: 'dialogue',
+        state: 'hot',
+        readiness: 0.86,
+        focus: 'reply',
+        summary: 'dialogue ready',
+      },
+      'active-perception': {
+        id: 'active-perception',
+        state: 'warm',
+        readiness: 0.58,
+        focus: 'editor',
+        summary: 'perception stable',
+      },
+      'active-dialogue': {
+        id: 'active-dialogue',
+        state: 'hot',
+        readiness: 0.82,
+        focus: 'nudge',
+        summary: 'active dialogue ready',
+      },
+      'active-control': {
+        id: 'active-control',
+        state: 'warm',
+        readiness: 0.62,
+        focus: 'guide',
+        summary: 'control warm',
+      },
+      'active-mind': {
+        id: 'active-mind',
+        state: 'warm',
+        readiness: 0.6,
+        focus: 'thread',
+        summary: 'mind warm',
+      },
+      'active-memory': {
+        id: 'active-memory',
+        state: 'warm',
+        readiness: 0.58,
+        focus: 'carry',
+        summary: 'memory warm',
+      },
+      'anthropomorphic-mind': {
+        id: 'anthropomorphic-mind',
+        state: 'warm',
+        readiness: 0.66,
+        focus: 'companionship',
+        summary: 'anthropomorphic warm',
+      },
+      'agent-runtime': {
+        id: 'agent-runtime',
+        state: 'warm',
+        readiness: 0.52,
+        focus: 'pending:1',
+        summary: 'agent runtime warm',
+      },
+    },
+    shouldProactivelySpeak: true,
+    shouldProactivelyAct: false,
+    continuityPressure: 0.64,
+    companionshipPressure: 0.7,
+    summary: 'dominant=dialogue',
+  }
+
+  return {
+    ...runtime,
+    ...overrides,
+    channels: {
+      ...runtime.channels,
+      ...overrides.channels,
+    },
+  }
+}
+
 describe('evaluateProactivePolicy', () => {
   it('allows coding interruption only with strong relevant cues', () => {
     const decision = evaluateProactivePolicy({
@@ -254,7 +335,7 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.consideredSignals).toContain('architecture.operatingMode')
     expect(decision.consideredSignals).toContain('architecture.dominantSystem')
     expect(decision.consideredSignals).toContain('architecture.supportingSystems')
-    expect(decision.whyNow).toContain('转入 speaking')
+    expect(decision.whyNow.includes('转入 speaking') || decision.whyNow.includes('活性循环')).toBe(true)
     expect(decision.whyNotLater).toContain('dialogue')
   })
 
@@ -611,6 +692,301 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.whyNow).toContain('继续观察')
     expect(decision.whyNotLater).toContain('perception')
+  })
+
+  it('maps Alicization runtime dialogue pressure into proactive reason codes and considered signals', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      runtimeDigest: createRuntimeSnapshot(),
+    })
+
+    const expectedRuntimeReasonCodes: AlicizationProactiveReasonCode[] = [
+      'runtime-dialogue-ready',
+      'runtime-continuity-pressure',
+      'runtime-companionship-pressure',
+    ]
+
+    for (const reasonCode of expectedRuntimeReasonCodes)
+      expect(decision.reasonCodes).toContain(reasonCode)
+    expect(decision.consideredSignals).toContain('runtimeDigest.dominantChannel')
+    expect(decision.consideredSignals).toContain('runtimeDigest.companionshipPressure')
+    expect(decision.shouldInterrupt).toBe(true)
+  })
+
+  it('suppresses interruption when Alicization runtime is observation-dominant', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-perception',
+        shouldProactivelySpeak: false,
+        continuityPressure: 0.34,
+        companionshipPressure: 0.32,
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'idle',
+            readiness: 0.24,
+            focus: 'none',
+            summary: 'dialogue cooling',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'idle',
+            readiness: 0.2,
+            focus: 'none',
+            summary: 'active dialogue idle',
+          },
+          'active-perception': {
+            id: 'active-perception',
+            state: 'hot',
+            readiness: 0.92,
+            focus: 'editor',
+            summary: 'perception hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('runtime-observe-dominant')
+    expect(decision.whyNow).toContain('主动感知通道')
+    expect(decision.whyNotLater).toContain('active-perception')
+  })
+
+  it('lifts silent-observe into light-nudge when active-control becomes dominant', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        suggestedStyle: 'silent-observe',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-control',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: true,
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'idle',
+            readiness: 0.28,
+            focus: 'none',
+            summary: 'dialogue cooling',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'idle',
+            readiness: 0.24,
+            focus: 'none',
+            summary: 'active dialogue cooling',
+          },
+          'active-control': {
+            id: 'active-control',
+            state: 'hot',
+            readiness: 0.92,
+            focus: 'guide host',
+            summary: 'active control is hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.style).toBe('light-nudge')
+    expect(decision.reasonCodes).toContain('runtime-control-ready')
+  })
+
+  it('keeps silent when active loop is still in observe phase with low coherence', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-perception',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.34,
+        companionshipPressure: 0.32,
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'observe',
+          dominantChannel: 'active-perception',
+          handoffTarget: 'active-perception',
+          dialogueReady: false,
+          controlReady: false,
+          memoryCarry: false,
+          companionshipReady: false,
+          observationHeavy: true,
+          continuityPressure: 0.34,
+          companionshipPressure: 0.32,
+          initiativeBudget: 0.24,
+          coherence: 0.3,
+          summary: 'phase=observe | low coherence',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'idle',
+            readiness: 0.24,
+            focus: 'none',
+            summary: 'dialogue cooling',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'idle',
+            readiness: 0.2,
+            focus: 'none',
+            summary: 'active dialogue idle',
+          },
+          'active-control': {
+            id: 'active-control',
+            state: 'idle',
+            readiness: 0.22,
+            focus: 'none',
+            summary: 'active control idle',
+          },
+          'active-perception': {
+            id: 'active-perception',
+            state: 'hot',
+            readiness: 0.92,
+            focus: 'editor',
+            summary: 'perception hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.style).toBe('silent-observe')
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.whyNow).toContain('活性循环')
+    expect(decision.whyNotLater).toContain('活性循环')
+  })
+
+  it('promotes silent-observe when active loop enters dialogue phase with high initiative and coherence', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        suggestedStyle: 'silent-observe',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-dialogue',
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'active-dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          continuityPressure: 0.62,
+          companionshipPressure: 0.78,
+          initiativeBudget: 0.82,
+          coherence: 0.78,
+          summary: 'phase=dialogue | high initiative',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'warm',
+            readiness: 0.68,
+            focus: 'reply',
+            summary: 'dialogue warm',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'nudge',
+            summary: 'active dialogue hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.style).toBe('light-nudge')
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.whyNow).toContain('活性循环')
+  })
+
+  it('lifts silent-observe into gentle-care when late-night memory carry dominates Alicization runtime', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext({
+        localTime: {
+          hour: 0,
+          minute: 45,
+          isLateNight: true,
+        },
+        workload: {
+          kind: 'media',
+          confidence: 0.82,
+          source: 'foreground-window-heuristic',
+          matchedLabels: ['music'],
+        },
+        relationship: {
+          ...createContext().relationship,
+          fatigue: 72,
+          lateNightActiveMinutes: 140,
+        },
+      }),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'recovering',
+      privateThought: createPrivateThought({
+        stance: 'observe',
+        suggestedStyle: 'silent-observe',
+        emotionalTension: 'late-night-drain',
+      }),
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-memory',
+        shouldProactivelySpeak: false,
+        continuityPressure: 0.8,
+        companionshipPressure: 0.42,
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'active-memory': {
+            id: 'active-memory',
+            state: 'hot',
+            readiness: 0.88,
+            focus: 'carry the shared thread',
+            summary: 'active memory carry is hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.scenario).toBe('late-night-care')
+    expect(decision.style).toBe('gentle-care')
+    expect(decision.reasonCodes).toContain('runtime-continuity-pressure')
   })
 
   it('respects global cooldown and ignored penalties', () => {

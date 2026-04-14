@@ -13,7 +13,10 @@ describe('stage desktop page helpers', () => {
         hearingDialogOpen: false,
         insideControls: false,
         insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
         isOutsideWindow: false,
+        stageCharacterHovered: false,
         stageInteractionActive: true,
         stageCapturePixel: false,
         stagePaused: false,
@@ -29,7 +32,10 @@ describe('stage desktop page helpers', () => {
         hearingDialogOpen: false,
         insideControls: false,
         insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
         isOutsideWindow: true,
+        stageCharacterHovered: false,
         stageInteractionActive: false,
         stageCapturePixel: false,
         stagePaused: false,
@@ -45,9 +51,12 @@ describe('stage desktop page helpers', () => {
         hearingDialogOpen: false,
         insideControls: false,
         insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
         isOutsideWindow: false,
+        stageCharacterHovered: true,
         stageInteractionActive: false,
-        stageCapturePixel: true,
+        stageCapturePixel: false,
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: false,
@@ -61,9 +70,69 @@ describe('stage desktop page helpers', () => {
         hearingDialogOpen: false,
         insideControls: false,
         insideDialogueOverlay: true,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
         isOutsideWindow: false,
+        stageCharacterHovered: true,
         stageInteractionActive: false,
         stageCapturePixel: true,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: true,
+        shouldFadeOnCursorWithin: false,
+      })
+    })
+
+    it('does not fade when only broad stage capture is true but character hover is false', () => {
+      expect(resolveDesktopMouseCaptureState({
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
+        isOutsideWindow: false,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: true,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: false,
+        shouldFadeOnCursorWithin: false,
+      })
+    })
+
+    it('captures mouse while emergency panel is hovered without enabling stage fade', () => {
+      expect(resolveDesktopMouseCaptureState({
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: true,
+        isOutsideWindow: false,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: false,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: true,
+        shouldFadeOnCursorWithin: false,
+      })
+    })
+
+    it('captures mouse while the stage recovery panel is hovered', () => {
+      expect(resolveDesktopMouseCaptureState({
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: true,
+        emergencyPanelHovered: false,
+        isOutsideWindow: false,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: false,
         stagePaused: false,
       })).toEqual({
         shouldCaptureMouse: true,
