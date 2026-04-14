@@ -89,6 +89,23 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.mindTurnFrame.relation.subject).toBe('alicization-self')
   })
 
+  it('keeps repeated identity confirmations continuity-aware instead of reusing the same shell line', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你是谁' },
+        { role: 'assistant', content: '我是 Alicization。现在和你说话的是我。' },
+        { role: 'user', content: '你到底是谁' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string, governance: { dialogueActKernel: { openingClaim: string } } }
+    expect(payload.reply).toContain('我是Alicization')
+    expect(payload.reply).toMatch(/确认|追问|同一个结论/u)
+    expect(payload.reply).not.toContain('这条线还连着')
+    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是Alicization')
+  })
+
   it('keeps greeting replies off the old canned shell phrasing', () => {
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -226,6 +243,27 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('utility-time')
     expect(decision?.strategy).toBe('local-only')
     expect(decision?.reasonCodes).toContain('continuity-suppressed')
+  })
+
+  it('allows deterministic local lanes to bypass temporary runtime-blocked flags for simple greeting turns', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '你好' },
+      ] as Message[],
+      prepared: createPrepared({
+        waitForTools: true,
+        hasVisualGrounding: true,
+        runtimeSurface: {
+          action: { kind: 'execute' },
+          governance: null,
+        },
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('greeting')
+    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.reasonCodes).toContain('runtime-blocked-local-override')
   })
 
   it('treats reordered current time questions as local utility turns', () => {

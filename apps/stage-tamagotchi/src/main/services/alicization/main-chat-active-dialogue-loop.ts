@@ -366,11 +366,30 @@ function deriveFreshEncounterKind(text: string): AlicizationActiveDialogueFreshE
   return null
 }
 
+function isIdentityReconfirmationTurn(input: {
+  latestUserText: string
+  previousUserText: string
+  previousAssistantText: string
+}) {
+  if (!isIdentityTurn(input.latestUserText))
+    return false
+  if (isIdentityTurn(input.previousUserText))
+    return true
+  const normalizedPreviousAssistant = normalizeTurnText(input.previousAssistantText, 220)
+  return /(?:我是|i am)\s*[a-zA-Z\u4E00-\u9FFF][\w\u4E00-\u9FFF -]{0,36}/iu.test(normalizedPreviousAssistant)
+}
+
 function deriveAlicizationActiveDialogueEncounter(
   input: AlicizationActiveDialogueEncounterContext,
 ): AlicizationActiveDialogueEncounter | null {
   const freshEncounter = deriveFreshEncounterKind(input.latestUserText)
   if (freshEncounter) {
+    const identityReconfirmation = freshEncounter === 'identity'
+      && isIdentityReconfirmationTurn({
+        latestUserText: input.latestUserText,
+        previousUserText: input.previousUserText,
+        previousAssistantText: input.previousAssistantText,
+      })
     const strategy: AlicizationActiveDialogueFastPathStrategy = 'local-only'
     const timeoutMs = 0
     const freshReasonCode = freshEncounter === 'utility-time'
@@ -390,6 +409,7 @@ function deriveAlicizationActiveDialogueEncounter(
       timeoutMs,
       reasonCodes: [
         freshEncounter === 'identity' ? 'fresh-identity' : freshReasonCode,
+        identityReconfirmation ? 'identity-reconfirmation' : '',
         input.hasContinuity ? 'continuity-suppressed' : 'fresh-turn',
         input.hasContinuity ? 'fresh-turn-with-continuity' : '',
         freshEncounter === 'repair-clarify' && input.previousUserText ? 'repair-payoff-available' : '',
@@ -1046,6 +1066,7 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
   const localeIsZh = countCjkChars(decision.latestUserText) > 0
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
   const personaName = resolvePersonaDisplayName(decision.personaKernel)
+  const identityReconfirmation = decision.reasonCodes.includes('identity-reconfirmation')
   switch (decision.lane) {
     case 'greeting': {
       const greeting = buildGreetingMove(decision).salutation
@@ -1054,6 +1075,11 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
       return localeIsZh ? `${greeting}。` : `${greeting}.`
     }
     case 'identity':
+      if (identityReconfirmation) {
+        return localeIsZh
+          ? `你在继续确认我是谁：我是${personaName}，这句仍然是我在回你。`
+          : `You are reconfirming who I am: I am ${personaName}, and this turn is still from me.`
+      }
       return localeIsZh
         ? `我是${personaName}，现在在和你说话的是我。`
         : `I am ${personaName}, and I am the one speaking with you now.`
@@ -1134,10 +1160,15 @@ function buildGreetingMove(decision: AlicizationActiveDialogueFastPathDecision):
 }
 
 function buildIdentityMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceIdentityMove {
+  const identityReconfirmation = decision.reasonCodes.includes('identity-reconfirmation')
   return {
     kind: 'identity',
     name: resolvePersonaDisplayName(decision.personaKernel),
     askedLabel: decision.latestUserText,
+    repeated: identityReconfirmation,
+    continuityAnchor: identityReconfirmation
+      ? sanitizeText(decision.previousUserText || decision.continuityAnchor, 120) || null
+      : null,
   }
 }
 
@@ -1330,8 +1361,8 @@ function buildExecutionRecoveryReply(input: {
     72,
   )
   const reply = anchor
-    ? `如果还是 ${anchor} 这件事，你要我重跑，还是把结果补全，我都直接接着做。`
-    : '如果还是刚才那件事，你要我重跑，还是把结果补全，我都直接接着做。'
+    ? `如果还是 ${anchor} 这件事，你要我重新执行，还是把结果补全，我都直接接着做。`
+    : '如果还是刚才那件事，你要我重新执行，还是把结果补全，我都直接接着做。'
   const decision = {
     lane: 'follow-up',
     strategy: 'local-only',
@@ -1434,21 +1465,23 @@ function normalizeCompactReplyPayload(
 export function deriveAlicizationActiveDialogueFastPathDecision(
   input: AlicizationActiveDialogueFastPathInput,
 ): AlicizationActiveDialogueFastPathDecision | null {
+  const conversationMessages = normalizeConversationMessages(input.conversationMessages)
+  const latestUserText = readLatestUserText(conversationMessages)
+  if (!latestUserText)
+    return null
+
   const actionKind = input.prepared.runtimeSurface.action?.kind ?? null
-  if (
+  const runtimeBlocked = (
     input.prepared.waitForTools
     || actionKind === 'execute'
     || actionKind === 'continue-task'
     || actionKind === 'inspect'
     || input.prepared.hasVisualGrounding
-  ) {
+  )
+  const localDeterministicEncounter = deriveFreshEncounterKind(latestUserText)
+  if (runtimeBlocked && !localDeterministicEncounter) {
     return null
   }
-
-  const conversationMessages = normalizeConversationMessages(input.conversationMessages)
-  const latestUserText = readLatestUserText(conversationMessages)
-  if (!latestUserText)
-    return null
 
   const previousUserText = readPreviousUserText(conversationMessages)
   const previousAssistantText = readPreviousAssistantText(conversationMessages)
@@ -1493,7 +1526,9 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     sessionMirror,
     governance,
     personaKernel: input.prepared.personaKernel ?? null,
-    reasonCodes: encounter.reasonCodes,
+    reasonCodes: runtimeBlocked
+      ? [...encounter.reasonCodes, 'runtime-blocked-local-override']
+      : encounter.reasonCodes,
   }
 }
 

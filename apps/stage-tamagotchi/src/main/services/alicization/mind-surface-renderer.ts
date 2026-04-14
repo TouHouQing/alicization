@@ -107,6 +107,16 @@ const allowedDeliveries = new Set([
   'teasing',
 ])
 
+const zhUtilityTimePattern = /^(?:现在|这会儿|此刻)?(?:几点(?:钟)?(?:了)?|几时(?:了)?|时间(?:是多少|是啥|是什么|呢)?|现在时间|当前时间)$/u
+const enUtilityTimePattern = /^(?:what(?:'s| is)? the time(?: now)?|time now|current time)$/iu
+const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月几号|几月几日|星期几|周几|礼拜几|什么日期|日期是什么)|今天是几号|今天星期几|今天周几|今天礼拜几)$/u
+const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
+const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁)/u
+const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
+const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
+const enPresentStatePattern = /(?:what are you doing|what are you up to|what are you working on|what are you doing right now)/iu
+const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
+
 export interface AlicizationMindSurfaceClockSnapshot {
   language: 'zh' | 'en'
   timeText: string
@@ -125,6 +135,8 @@ export interface AlicizationMindSurfaceIdentityMove {
   kind: 'identity'
   name: string
   askedLabel?: string | null
+  repeated?: boolean
+  continuityAnchor?: string | null
 }
 
 export interface AlicizationMindSurfaceCapabilityMove {
@@ -250,6 +262,175 @@ function inferLocale(userText: string, moves: AlicizationMindSurfaceMove[]) {
   return countCjkChars(userText) > 0 ? 'zh' : 'en'
 }
 
+function normalizeTurnText(raw: string, maxChars = 240) {
+  return sanitizeText(raw, maxChars).replace(/[!！。,.…~～?？]+/g, '').trim()
+}
+
+function isUtilityTimeTurn(text: string) {
+  const normalized = normalizeTurnText(text, 160)
+  return zhUtilityTimePattern.test(normalized) || enUtilityTimePattern.test(normalized)
+}
+
+function isUtilityDateTurn(text: string) {
+  const normalized = normalizeTurnText(text, 160)
+  return zhUtilityDatePattern.test(normalized) || enUtilityDatePattern.test(normalized)
+}
+
+function isIdentityTurn(text: string) {
+  const normalized = normalizeTurnText(text, 180)
+  return zhIdentityPattern.test(normalized) || enIdentityPattern.test(normalized)
+}
+
+function isPresentStateTurn(text: string) {
+  const normalized = normalizeTurnText(text, 200)
+  return zhPresentStatePattern.test(normalized) || enPresentStatePattern.test(normalized)
+}
+
+function buildSyntheticClockSnapshot(locale: 'zh' | 'en'): AlicizationMindSurfaceClockSnapshot {
+  const now = new Date()
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  if (locale === 'zh') {
+    return {
+      language: 'zh',
+      timeText: new Intl.DateTimeFormat('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone,
+      }).format(now),
+      dateText: `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`,
+      weekdayText: zhWeekdayLabels[now.getDay()]!,
+    }
+  }
+
+  return {
+    language: 'en',
+    timeText: new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    }).format(now),
+    dateText: new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      timeZone,
+    }).format(now),
+    weekdayText: new Intl.DateTimeFormat('en-US', {
+      weekday: 'long',
+      timeZone,
+    }).format(now),
+  }
+}
+
+function resolveGovernanceIdentityName(governance: AlicizationMindTurnGovernance, fallbackLocale: 'zh' | 'en') {
+  const openingClaim = sanitizeText(governance.dialogueActKernel?.openingClaim, 160)
+  const zhMatch = openingClaim.match(/我是\s*([^\s，。,；;:：]{1,32})/u)
+  if (zhMatch?.[1])
+    return sanitizeText(zhMatch[1], 48)
+  const enMatch = openingClaim.match(/i am\s+([a-zA-Z][a-zA-Z0-9 _-]{0,31})/iu)
+  if (enMatch?.[1])
+    return sanitizeText(enMatch[1], 48)
+  return fallbackLocale === 'zh' ? 'Alicization' : 'Alicization'
+}
+
+function buildGovernanceFallbackMoves(input: {
+  governance: AlicizationMindTurnGovernance
+  userText: string
+  previousAssistantText: string
+  locale: 'zh' | 'en'
+}): AlicizationMindSurfaceMove[] {
+  const userText = sanitizeText(input.userText, 240)
+  const carryAnchor = sanitizeText(
+    input.governance.carriedThread
+    || input.governance.focusAnchor
+    || input.governance.liveSurface
+    || input.governance.answerIntent,
+    120,
+  )
+  const subject = input.governance.answerSubject ?? input.governance.mindTurnFrame?.relation?.subject ?? null
+  const answerAct = input.governance.answerAct ?? input.governance.mindTurnFrame?.obligation?.answerAct ?? 'answer'
+  const turnMode = input.governance.turnMode
+  const identityName = resolveGovernanceIdentityName(input.governance, input.locale)
+
+  if (isUtilityTimeTurn(userText)) {
+    return [{
+      kind: 'local-time',
+      clock: buildSyntheticClockSnapshot(input.locale),
+      includeDate: true,
+    }]
+  }
+
+  if (isUtilityDateTurn(userText)) {
+    return [{
+      kind: 'local-date',
+      clock: buildSyntheticClockSnapshot(input.locale),
+      includeTime: true,
+    }]
+  }
+
+  if (isIdentityTurn(userText) || subject === 'alicization-self') {
+    const repeated = shouldSuppressRepeatedSentence(
+      input.locale === 'zh' ? `我是${identityName}` : `I am ${identityName}`,
+      input.previousAssistantText,
+    )
+    return [{
+      kind: 'identity',
+      name: identityName,
+      askedLabel: userText || null,
+      repeated,
+      continuityAnchor: carryAnchor || null,
+    }]
+  }
+
+  if (isPresentStateTurn(userText) || subject === 'host-state') {
+    return [{
+      kind: 'present-state',
+      threadSummary: carryAnchor || null,
+    }]
+  }
+
+  if (input.governance.repairState !== 'none') {
+    return [{
+      kind: 'repair',
+      target: 'dialogue',
+      anchor: userText || carryAnchor || null,
+    }]
+  }
+
+  if (
+    answerAct === 'guide'
+    && input.governance.evidenceMode === 'continuity-carry'
+    && carryAnchor
+  ) {
+    return [{
+      kind: 'follow-up',
+      variant: 'continue',
+      anchor: carryAnchor,
+    }]
+  }
+
+  const careLikeTurn = turnMode === 'care'
+    || turnMode === 'accompany'
+    || answerAct === 'care'
+    || answerAct === 'defer'
+    || subject === 'relationship'
+  if (careLikeTurn) {
+    return [{
+      kind: 'dialogue',
+      focus: userText || carryAnchor || null,
+      continuityAnchor: carryAnchor || null,
+    }]
+  }
+
+  return [{
+    kind: 'dialogue',
+    focus: userText || null,
+    continuityAnchor: carryAnchor || null,
+  }]
+}
+
 function resolveGovernedDelivery(governance: AlicizationMindTurnGovernance) {
   const tone = resolveGovernedMindTone(governance)
   if (governance.repairState !== 'none')
@@ -301,7 +482,22 @@ function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, locale: 'z
 
 function renderIdentityMove(move: AlicizationMindSurfaceIdentityMove, locale: 'zh' | 'en', seed: string) {
   const askedLabel = quoteCue(move.askedLabel ?? '', locale)
+  const continuityAnchor = quoteCue(move.continuityAnchor ?? '', locale)
   if (locale === 'zh') {
+    if (move.repeated) {
+      return [
+        continuityAnchor
+          ? pickVariant(seed, [
+              `这条确认我继续按 ${continuityAnchor} 说清：我是${move.name}，现在和你对话的还是我。`,
+              `你连着追问到 ${continuityAnchor}，我把结论钉住：我是${move.name}，这句仍然由我来回。`,
+            ])
+          : pickVariant(seed, [
+              `你在继续确认这一点，我直接给同一个结论：我是${move.name}，现在回你这句的还是我。`,
+              `这次我不换说法也不绕：我是${move.name}，此刻和你说话的还是我。`,
+            ]),
+      ]
+    }
+
     return [
       askedLabel
         ? pickVariant(seed, [
@@ -311,6 +507,20 @@ function renderIdentityMove(move: AlicizationMindSurfaceIdentityMove, locale: 'z
         : pickVariant(seed, [
             `我是${move.name}，现在和你说话的是我本人。`,
             `直接回答：我是${move.name}，此刻在回你的是我。`,
+          ]),
+    ]
+  }
+
+  if (move.repeated) {
+    return [
+      continuityAnchor
+        ? pickVariant(seed, [
+            `I'll keep this confirmation pinned on ${continuityAnchor}: I am ${move.name}, and this turn is still from me.`,
+            `You are rechecking ${continuityAnchor}, so I'll keep it plain: I am ${move.name}, and I'm still the one speaking to you.`,
+          ])
+        : pickVariant(seed, [
+            `You're confirming this again, so I'll keep the same answer: I am ${move.name}, and this reply is still from me.`,
+            `No detour and no relabeling: I am ${move.name}, and I'm still the one speaking with you.`,
           ]),
     ]
   }
@@ -821,8 +1031,21 @@ function shouldUseGovernedLead(input: {
 export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRenderInput): AlicizationMindSurfaceRenderResult {
   const userText = sanitizeText(input.userText, 240)
   const previousAssistantText = sanitizeText(input.previousAssistantText, 420)
-  const locale = inferLocale(userText, input.moves)
-  const governance = enrichGovernance(input, locale)
+  const hasExplicitMoves = input.moves.length > 0
+  const preliminaryLocale = inferLocale(userText, input.moves)
+  const resolvedMoves = hasExplicitMoves
+    ? input.moves
+    : buildGovernanceFallbackMoves({
+        governance: input.governance,
+        userText,
+        previousAssistantText,
+        locale: preliminaryLocale,
+      })
+  const locale = inferLocale(userText, resolvedMoves)
+  const governance = enrichGovernance({
+    ...input,
+    moves: resolvedMoves,
+  }, locale)
   const governedSurface = buildMindGovernedFallbackSurface({
     governance,
     userText,
@@ -834,9 +1057,9 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     governance.turnMode,
     userText,
     previousAssistantText,
-    input.moves.map(move => move.kind).join('|'),
+    resolvedMoves.map(move => move.kind).join('|'),
   ].join('|')
-  const moveSentences = input.moves
+  const moveSentences = resolvedMoves
     .flatMap(move => renderMove(move, locale, seed))
     .map(sentence => normalizeTemplatePhrasing(sentence, locale))
   const maxSentences = Math.max(1, Math.min(3, governance.maxSentences || 2))
@@ -844,10 +1067,10 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
   const normalizedGovernedReply = normalizeTemplatePhrasing(governedReply, locale)
   const governedVisibleReplyMode = governedSurface?.visibleReplyMode ?? 'bubble'
   const useGovernedLead = shouldUseGovernedLead({
-    moves: input.moves,
+    moves: resolvedMoves,
     governedReply: normalizedGovernedReply,
     previousAssistantText,
-    suppressGovernedLead: input.suppressGovernedLead,
+    suppressGovernedLead: input.suppressGovernedLead || !hasExplicitMoves,
   })
   const replySentences = uniqueSentences([
     useGovernedLead && governedVisibleReplyMode !== 'dispatch-only'
