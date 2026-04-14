@@ -8,6 +8,7 @@ import type {
 import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type { AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 
 import {
   alicizationFixedCoreSystemInstruction,
@@ -40,6 +41,10 @@ import {
   type AlicizationMindSurfaceTimeMove,
 } from './mind-surface-renderer'
 import { readTransportContentAsText, parseJsonObjectFromText } from './runtime-transport-content'
+import {
+  isValidIanaTimeZone,
+  resolveAlicizationTimeZoneFromMessages,
+} from './time-zone-governor'
 
 export type AlicizationActiveDialogueFastPathLane
   = | 'greeting'
@@ -63,6 +68,7 @@ export interface AlicizationActiveDialogueFastPathDecision {
   strategy: AlicizationActiveDialogueFastPathStrategy
   timeoutMs: number
   resolvedTimeZone: string
+  resolvedTimeZoneSource: AlicizationResolvedTimeZoneSource
   latestUserText: string
   previousUserText: string
   previousAssistantText: string
@@ -177,96 +183,8 @@ function countAsciiWords(raw: string) {
   return (raw.match(/[A-Z]+/gi) ?? []).length
 }
 
-function isValidIanaTimeZone(value: string) {
-  const candidate = sanitizeText(value, 96)
-  if (!candidate)
-    return false
-  try {
-    // NOTICE: Use Intl runtime validation so fast-path time/date replies stay in the
-    // same user-region timezone as runtime context instead of drifting to process defaults.
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: candidate,
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(new Date())
-    return true
-  }
-  catch {
-    return false
-  }
-}
-
-function isLikelyIanaTimeZone(value: string) {
-  const candidate = sanitizeText(value, 96)
-  if (!candidate)
-    return false
-  return /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+$/.test(candidate)
-}
-
-function collectTimeZoneHintsFromText(text: string) {
-  const candidates: string[] = []
-  const seen = new Set<string>()
-  const patterns = [
-    /"timezone"\s*:\s*"([^"]{1,96})"/gi,
-    /\btimezone\s*[:=]\s*([A-Za-z_][A-Za-z0-9_./+-]{1,96})/gi,
-  ] as const
-
-  for (const pattern of patterns) {
-    let match: RegExpExecArray | null
-    while ((match = pattern.exec(text)) !== null) {
-      const candidate = sanitizeText(match[1] ?? '', 96)
-      if (!candidate || seen.has(candidate))
-        continue
-      seen.add(candidate)
-      candidates.push(candidate)
-    }
-  }
-
-  return candidates
-}
-
 function resolveUserRegionTimeZone(messages?: Message[]) {
-  const normalizedMessages = messages ?? []
-  for (let index = normalizedMessages.length - 1; index >= 0; index -= 1) {
-    const message = normalizedMessages[index]
-    if (!message)
-      continue
-    const text = sanitizeText(readTransportContentAsText(message.content), 2_000)
-    if (!text)
-      continue
-    for (const hint of collectTimeZoneHintsFromText(text)) {
-      if (isLikelyIanaTimeZone(hint))
-        return hint
-    }
-
-    const parsed = parseJsonObjectFromText(text)
-    if (parsed && typeof parsed === 'object') {
-      const payload = parsed as Record<string, unknown>
-      const nestedHints = [
-        payload.timezone,
-        (payload.time as Record<string, unknown> | undefined)?.timezone,
-        ((payload.sample as Record<string, unknown> | undefined)?.time as Record<string, unknown> | undefined)?.timezone,
-        (((payload.sensory as Record<string, unknown> | undefined)?.sample as Record<string, unknown> | undefined)?.time as Record<string, unknown> | undefined)?.timezone,
-      ]
-      for (const nestedHint of nestedHints) {
-        if (isLikelyIanaTimeZone(sanitizeText(nestedHint, 96)))
-          return sanitizeText(nestedHint, 96)
-      }
-    }
-  }
-
-  const envTimezone = typeof process !== 'undefined'
-    ? sanitizeText(process.env?.TZ, 96)
-    : ''
-  if (envTimezone && isValidIanaTimeZone(envTimezone))
-    return envTimezone
-
-  const intlTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-  if (intlTimezone && isValidIanaTimeZone(intlTimezone))
-    return intlTimezone
-
-  return 'UTC'
+  return resolveAlicizationTimeZoneFromMessages(messages).timezone
 }
 
 function resolvePersonaDisplayName(personaKernel: AlicizationPersonaKernelSnapshot | null | undefined) {
@@ -512,6 +430,25 @@ function deriveAlicizationActiveDialogueEncounter(
         input.hasContinuity ? 'continuity-suppressed' : 'fresh-turn',
         input.hasContinuity ? 'fresh-turn-with-continuity' : '',
         freshEncounter === 'repair-clarify' && input.previousUserText ? 'repair-payoff-available' : '',
+      ].filter(Boolean),
+    }
+  }
+
+  const previousFreshEncounter = deriveFreshEncounterKind(input.previousUserText)
+  if (
+    continuityCheckPattern.test(input.latestUserText)
+    && (previousFreshEncounter === 'utility-time' || previousFreshEncounter === 'utility-date')
+  ) {
+    return {
+      kind: previousFreshEncounter,
+      strategy: 'local-only',
+      timeoutMs: 0,
+      reasonCodes: [
+        'continuity-check',
+        previousFreshEncounter === 'utility-time'
+          ? 'continuity-check-time-confirm'
+          : 'continuity-check-date-confirm',
+        input.hasContinuity ? 'session-carry' : '',
       ].filter(Boolean),
     }
   }
@@ -1469,6 +1406,7 @@ function buildExecutionRecoveryReply(input: {
   sessionMirror?: AlicizationDialogueSessionMirror | null
   runtimeDigest?: AlicizationRuntimeDigest | null
 }) {
+  const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages()
   const anchor = quoteExcerpt(
     sanitizeText(input.latestUserText, 96)
       || sanitizeText(input.previousUserText, 96)
@@ -1483,7 +1421,8 @@ function buildExecutionRecoveryReply(input: {
     lane: 'follow-up',
     strategy: 'local-only',
     timeoutMs: 0,
-    resolvedTimeZone: resolveUserRegionTimeZone(),
+    resolvedTimeZone: resolvedTimeZone.timezone,
+    resolvedTimeZoneSource: resolvedTimeZone.source,
     latestUserText: input.latestUserText,
     previousUserText: input.previousUserText,
     previousAssistantText: '',
@@ -1530,6 +1469,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
     governance,
     userText: input.decision.latestUserText,
     previousAssistantText: input.decision.previousAssistantText,
+    resolvedTimeZone: input.decision.resolvedTimeZone,
     moves,
     thought: !runtimeMetaLeakPattern.test(sanitizeText(input.thought, 220))
       ? sanitizeText(input.thought, 220) || governedThought
@@ -1634,11 +1574,14 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
   if (!encounter)
     return null
 
+  const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages(input.prepared.messages)
+
   return {
     lane: encounter.kind,
     strategy: encounter.strategy,
     timeoutMs: encounter.timeoutMs,
-    resolvedTimeZone: resolveUserRegionTimeZone(input.prepared.messages),
+    resolvedTimeZone: resolvedTimeZone.timezone,
+    resolvedTimeZoneSource: resolvedTimeZone.source,
     latestUserText,
     previousUserText,
     previousAssistantText,
@@ -1722,10 +1665,16 @@ export function buildAlicizationActiveDialogueFallbackReply(
     prepared: preparedLike,
     runtimeDigest: input.runtimeDigest ?? null,
   }) ?? {
-    lane: 'dialogue',
-    strategy: 'local-only',
-    timeoutMs: 0,
-    resolvedTimeZone: resolveUserRegionTimeZone(normalizedConversationMessages),
+    ...(() => {
+      const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages(normalizedConversationMessages)
+      return {
+        lane: 'dialogue',
+        strategy: 'local-only',
+        timeoutMs: 0,
+        resolvedTimeZone: resolvedTimeZone.timezone,
+        resolvedTimeZoneSource: resolvedTimeZone.source,
+      } as const
+    })(),
     latestUserText,
     previousUserText,
     previousAssistantText: readPreviousAssistantText(normalizedConversationMessages),

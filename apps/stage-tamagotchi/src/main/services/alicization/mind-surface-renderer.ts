@@ -9,6 +9,7 @@ import {
   resolveGovernedMindTruth,
   translateGovernedMindFallback,
 } from '@proj-alicization/stage-shared'
+import { resolveAlicizationTimeZoneCandidate } from './time-zone-governor'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -109,12 +110,17 @@ const allowedDeliveries = new Set([
 
 const zhUtilityTimePattern = /^(?:现在|这会儿|此刻)?(?:几点(?:钟)?(?:了)?|几时(?:了)?|时间(?:是多少|是啥|是什么|呢)?|现在时间|当前时间)$/u
 const enUtilityTimePattern = /^(?:what(?:'s| is)? the time(?: now)?|time now|current time)$/iu
+const zhUtilityTimeZonePattern = /(?:时区|北京时间|东八区|utc|gmt)/iu
+const enUtilityTimeZonePattern = /(?:time[\s-]?zone|utc|gmt)/iu
 const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月几号|几月几日|星期几|周几|礼拜几|什么日期|日期是什么)|今天是几号|今天星期几|今天周几|今天礼拜几)$/u
 const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
 const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁)/u
 const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
 const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
 const enPresentStatePattern = /(?:what are you doing|what are you up to|what are you working on|what are you doing right now)/iu
+const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
+const utilityTimeReplyPattern = /(?:现在是\s*\d{1,2}:\d{2}|it's\s*\d{1,2}:\d{2}|\d{1,2}:\d{2}[^。]*(?:星期|today|right now))/iu
+const utilityDateReplyPattern = /(?:今天是|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/iu
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
 
 export interface AlicizationMindSurfaceClockSnapshot {
@@ -230,6 +236,7 @@ export interface AlicizationMindSurfaceRenderInput {
   governance: AlicizationMindTurnGovernance
   userText?: string
   previousAssistantText?: string
+  resolvedTimeZone?: string | null
   moves: AlicizationMindSurfaceMove[]
   thought?: string
   emotion?: string
@@ -268,7 +275,10 @@ function normalizeTurnText(raw: string, maxChars = 240) {
 
 function isUtilityTimeTurn(text: string) {
   const normalized = normalizeTurnText(text, 160)
-  return zhUtilityTimePattern.test(normalized) || enUtilityTimePattern.test(normalized)
+  return zhUtilityTimePattern.test(normalized)
+    || enUtilityTimePattern.test(normalized)
+    || zhUtilityTimeZonePattern.test(normalized)
+    || enUtilityTimeZonePattern.test(normalized)
 }
 
 function isUtilityDateTurn(text: string) {
@@ -286,9 +296,16 @@ function isPresentStateTurn(text: string) {
   return zhPresentStatePattern.test(normalized) || enPresentStatePattern.test(normalized)
 }
 
-function buildSyntheticClockSnapshot(locale: 'zh' | 'en'): AlicizationMindSurfaceClockSnapshot {
+function resolveClockTimeZone(preferredTimeZone?: string | null) {
+  const preferred = resolveAlicizationTimeZoneCandidate(preferredTimeZone)
+  if (preferred)
+    return preferred
+  return resolveAlicizationTimeZoneCandidate(Intl.DateTimeFormat().resolvedOptions().timeZone || '') || 'UTC'
+}
+
+function buildSyntheticClockSnapshot(locale: 'zh' | 'en', preferredTimeZone?: string | null): AlicizationMindSurfaceClockSnapshot {
   const now = new Date()
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const timeZone = resolveClockTimeZone(preferredTimeZone)
   if (locale === 'zh') {
     return {
       language: 'zh',
@@ -340,6 +357,7 @@ function buildGovernanceFallbackMoves(input: {
   userText: string
   previousAssistantText: string
   locale: 'zh' | 'en'
+  resolvedTimeZone?: string | null
 }): AlicizationMindSurfaceMove[] {
   const userText = sanitizeText(input.userText, 240)
   const carryAnchor = sanitizeText(
@@ -357,7 +375,18 @@ function buildGovernanceFallbackMoves(input: {
   if (isUtilityTimeTurn(userText)) {
     return [{
       kind: 'local-time',
-      clock: buildSyntheticClockSnapshot(input.locale),
+      clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
+      includeDate: true,
+    }]
+  }
+
+  if (
+    continuityCheckPattern.test(userText)
+    && utilityTimeReplyPattern.test(sanitizeText(input.previousAssistantText, 280))
+  ) {
+    return [{
+      kind: 'local-time',
+      clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
       includeDate: true,
     }]
   }
@@ -365,7 +394,18 @@ function buildGovernanceFallbackMoves(input: {
   if (isUtilityDateTurn(userText)) {
     return [{
       kind: 'local-date',
-      clock: buildSyntheticClockSnapshot(input.locale),
+      clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
+      includeTime: true,
+    }]
+  }
+
+  if (
+    continuityCheckPattern.test(userText)
+    && utilityDateReplyPattern.test(sanitizeText(input.previousAssistantText, 280))
+  ) {
+    return [{
+      kind: 'local-date',
+      clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
       includeTime: true,
     }]
   }
@@ -1040,6 +1080,7 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
         userText,
         previousAssistantText,
         locale: preliminaryLocale,
+        resolvedTimeZone: input.resolvedTimeZone,
       })
   const locale = inferLocale(userText, resolvedMoves)
   const governance = enrichGovernance({

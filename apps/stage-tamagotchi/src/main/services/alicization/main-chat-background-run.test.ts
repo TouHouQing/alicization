@@ -422,6 +422,9 @@ describe('main chat background run', () => {
       lane: 'utility-time',
       strategy: 'local-only',
     }))
+    const laneSelectedPayload = vi.mocked(input.appendRuntimeDebugLine).mock.calls
+      .find(([event]) => event === 'chat-stream.active-dialogue-lane-selected')?.[1] as { resolvedTimeZoneSource?: string } | undefined
+    expect(laneSelectedPayload?.resolvedTimeZoneSource).not.toBe('utc-fallback')
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time',
@@ -514,6 +517,52 @@ describe('main chat background run', () => {
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-reordered',
+      lane: 'utility-time',
+    }))
+  })
+
+  it('keeps continuity-check after a time answer on deterministic local utility-time lane', async () => {
+    const input = createInput({
+      key: 'card-1::turn-time-confirm',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-time-confirm',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '现在几点？' },
+          { role: 'assistant' as const, content: '现在是 16:33，星期二。' },
+          { role: 'user' as const, content: '你确定吗？' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '现在几点？' },
+          { role: 'assistant' as const, content: '现在是 16:33，星期二。' },
+          { role: 'user' as const, content: '你确定吗？' },
+        ] as Message[],
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
+    expect(emittedChunk?.text).toContain('现在是')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-confirm',
+      lane: 'utility-time',
+      strategy: 'local-only',
+      resolvedTimeZoneSource: 'context-hint',
+      reasonCodes: expect.arrayContaining(['continuity-check-time-confirm']),
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-confirm',
       lane: 'utility-time',
     }))
   })

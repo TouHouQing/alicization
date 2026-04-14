@@ -787,6 +787,8 @@ export async function runAlicizationMainChatBackground(
         lane: activeDialogueDecision.lane,
         strategy: activeDialogueDecision.strategy,
         timeoutMs: activeDialogueDecision.timeoutMs,
+        resolvedTimeZone: activeDialogueDecision.resolvedTimeZone,
+        resolvedTimeZoneSource: activeDialogueDecision.resolvedTimeZoneSource,
         reasonCodes: activeDialogueDecision.reasonCodes,
       })
 

@@ -11,6 +11,7 @@ const DATETIME_CONTEXT_ID = 'system:datetime'
  */
 export function createDatetimeContext(): ContextMessage {
   const now = new Date()
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 
   return {
     id: nanoid(),
@@ -19,6 +20,8 @@ export function createDatetimeContext(): ContextMessage {
     text: JSON.stringify({
       iso: now.toISOString(),
       local: now.toLocaleString(),
+      timezone,
+      timezoneOffsetMinutes: -now.getTimezoneOffset(),
     }),
     createdAt: Date.now(),
   }

@@ -314,6 +314,52 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('utility-time')
     expect(decision?.strategy).toBe('local-only')
     expect(decision?.resolvedTimeZone).toBe('Asia/Shanghai')
+    expect(decision?.resolvedTimeZoneSource).toBe('context-hint')
+  })
+
+  it('keeps continuity-check after a time question on deterministic utility-time lane', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '现在几点？' },
+        { role: 'assistant', content: '现在是 16:33，星期二。' },
+        { role: 'user', content: '你确定吗？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '现在几点？' },
+          { role: 'assistant' as const, content: '现在是 16:33，星期二。' },
+          { role: 'user' as const, content: '你确定吗？' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.reasonCodes).toContain('continuity-check-time-confirm')
+    expect(decision?.resolvedTimeZone).toBe('Asia/Shanghai')
+    expect(decision?.resolvedTimeZoneSource).toBe('context-hint')
+  })
+
+  it('prioritizes user explicit timezone preference over ambient runtime timezone', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '后面按东京时间回答，现在几点了？' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
+    expect(decision?.resolvedTimeZoneSource).toBe('user-explicit')
   })
 
   it('does not enter active dialogue fast path for realtime weather queries', () => {
