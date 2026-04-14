@@ -31,7 +31,7 @@ function createPrepared(overrides?: Partial<any>): any {
 }
 
 describe('main chat active dialogue loop', () => {
-  it('serves warm greeting turns from the immediate local mind lane', () => {
+  it('routes warm greeting turns through the compact mind lane', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '早上好呀' },
@@ -41,7 +41,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('greeting')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
   })
 
   it('treats identity questions as a dedicated self lane instead of generic capability', () => {
@@ -54,7 +54,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('identity')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
 
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -243,11 +243,11 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('utility-time')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.reasonCodes).toContain('continuity-suppressed')
   })
 
-  it('allows deterministic local lanes to bypass temporary runtime-blocked flags for simple greeting turns', () => {
+  it('keeps compact dialogue greeting lanes available despite temporary runtime-blocked flags', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '你好' },
@@ -264,7 +264,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('greeting')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.reasonCodes).toContain('runtime-blocked-local-override')
   })
 
@@ -278,7 +278,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('utility-time')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
   })
 
   it('resolves utility time lane timezone from prepared runtime context when available', () => {
@@ -299,7 +299,7 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
   })
 
-  it('treats timezone confirmation questions as utility-time local turns', () => {
+  it('treats timezone confirmation questions as compact utility-time turns', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '你现在用的是哪个时区？' },
@@ -314,12 +314,12 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('utility-time')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.resolvedTimeZone).toBe('Asia/Shanghai')
     expect(decision?.resolvedTimeZoneSource).toBe('context-hint')
   })
 
-  it('keeps continuity-check after a time question on deterministic utility-time lane', () => {
+  it('keeps continuity-check after a time question on compact utility-time lane', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '现在几点？' },
@@ -338,7 +338,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('utility-time')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.reasonCodes).toContain('continuity-check-time-confirm')
     expect(decision?.resolvedTimeZone).toBe('Asia/Shanghai')
     expect(decision?.resolvedTimeZoneSource).toBe('context-hint')
@@ -359,7 +359,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('utility-time')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
     expect(decision?.resolvedTimeZoneSource).toBe('user-explicit')
   })
@@ -380,7 +380,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.reply).not.toContain('我把现在这一下对了对')
   })
 
-  it('surfaces the active timezone inside deterministic local time replies', () => {
+  it('surfaces the active timezone inside fallback time replies', () => {
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
       conversationMessages: [
@@ -490,7 +490,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('presence-critique')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
 
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -554,7 +554,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('present-state')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
 
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -726,7 +726,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('repair-clarify')
-    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.strategy).toBe('compact-one-shot')
 
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -807,6 +807,41 @@ describe('main chat active dialogue loop', () => {
     expect(messages.some(message => String(message.content).includes('answer_subject=relationship'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('screen_reference_mode=avoid'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('thought_contract=obligation=answer'))).toBe(true)
+  })
+
+  it('injects authoritative clock evidence into compact utility-time prompts', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '后面按东京时间回答，现在几点了？' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+      decision: decision!,
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '后面按东京时间回答，现在几点了？' },
+        ] as Message[],
+      }),
+    })
+
+    const evidenceBlock = messages.find(message => String(message.content).includes('[ALICIZATION_ACTIVE_DIALOGUE_EVIDENCE]'))
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('compact-one-shot')
+    expect(String(evidenceBlock?.content ?? '')).toContain('authoritative_local_time=')
+    expect(String(evidenceBlock?.content ?? '')).toContain('authoritative_timezone=Asia/Tokyo')
+    expect(String(evidenceBlock?.content ?? '')).toContain('Do not recompute time or date from your own clock')
   })
 
   it('builds a continuity-aware local fallback without runtime meta chatter', () => {
@@ -908,5 +943,37 @@ describe('main chat active dialogue loop', () => {
     expect(payload.thought).not.toContain('obligation=guide')
     expect(payload.governance.answerSubject).toBe('relationship')
     expect(payload.governance.screenReferenceMode).toBe('avoid')
+  })
+
+  it('falls back to authoritative local clock reply when compact one-shot returns the wrong time basis', () => {
+    const conversationMessages = [
+      { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+    ] as Message[]
+    const prepared = createPrepared({
+      messages: [
+        { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+        { role: 'user' as const, content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+    })
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared,
+      runtimeDigest: null,
+    })
+
+    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+      decision: decision!,
+      rawText: JSON.stringify({
+        reply: '现在是 12:06，星期二。',
+        thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+        emotion: 'thinking',
+      }),
+    })
+    const fallback = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages,
+    })
+
+    expect(JSON.parse(normalized)).toEqual(JSON.parse(fallback))
   })
 })

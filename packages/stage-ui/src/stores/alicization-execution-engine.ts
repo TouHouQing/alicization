@@ -64,14 +64,16 @@ interface RealtimeExecutionInput {
   }) => Promise<void>
 }
 
-interface RealtimeExecutionOutput {
+export interface RealtimeExecutionOutput {
   handled: boolean
   intent: RealtimeQueryIntent
   trace: ExecutionTurnTrace
+  evidences: RealtimeEvidenceItem[]
+  failedCategories: RealtimeQueryCategory[]
   reply?: string
 }
 
-interface RealtimeEvidenceItem {
+export interface RealtimeEvidenceItem {
   category: RealtimeQueryCategory
   source: 'builtin' | 'mcp'
   summary: string
@@ -366,6 +368,8 @@ export const useAlicizationExecutionEngineStore = defineStore('alicization-execu
         handled: false,
         intent,
         trace,
+        evidences: [],
+        failedCategories: [],
       }
     }
 
@@ -569,6 +573,8 @@ export const useAlicizationExecutionEngineStore = defineStore('alicization-execu
       handled: true,
       intent,
       trace,
+      evidences,
+      failedCategories,
       reply,
     }
   }

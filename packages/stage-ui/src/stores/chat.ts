@@ -23,7 +23,9 @@ import {
   buildAlicizationDialogueSpeechTimeline,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
+  formatAlicizationRealtimeSurfaceSummary,
   inferAlicizationInspectionIntent,
+  inferAlicizationRealtimeSurfaceLocale,
   looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationDialogueEmbodiment,
   shouldBufferAlicizationStructuredSpeechPrelude,
@@ -43,7 +45,7 @@ import { categorizeResponse, createStreamingCategorizer } from '../composables/r
 import { useAnalytics } from '../composables/use-analytics'
 import { translateStageUi } from '../utils/i18n'
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
-import { useAlicizationExecutionEngineStore } from './alicization-execution-engine'
+import { type RealtimeEvidenceItem, useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { extractRuleFacts, upsertFacts } from './alicization-memory'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
@@ -88,6 +90,51 @@ type ExternalPipelineAborter = (reason: AlicizationAbortReason) => Promise<void>
 
 function stageChatText(path: string, params?: Record<string, unknown>) {
   return translateStageUi(`stage.chat.${path}`, params)
+}
+
+function sanitizeRealtimeEvidenceText(raw: unknown, maxChars = 480) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function buildRealtimeEvidenceSystemPrompt(input: {
+  message: string
+  evidences: RealtimeEvidenceItem[]
+  failedCategories: string[]
+  fallbackReply?: string
+}) {
+  const locale = inferAlicizationRealtimeSurfaceLocale(input.message)
+  const lines = [
+    '[ALICIZATION_REALTIME_EVIDENCE]',
+    locale === 'zh'
+      ? '这轮实时查询已经执行完了。最终可见回复只能根据下面这些证据来写。'
+      : 'Realtime lookups for this turn already finished. Write the visible reply only from the evidence below.',
+    locale === 'zh'
+      ? '不要再说“我去查”“我现在调用工具”，也不要假装拿到了更新鲜的数据。'
+      : 'Do not say you are about to check or call tools again, and do not invent fresher live data.',
+  ]
+
+  input.evidences.forEach((evidence, index) => {
+    const summary = evidence.surface
+      ? formatAlicizationRealtimeSurfaceSummary(evidence.surface)
+      : evidence.summary
+    const normalizedSummary = sanitizeRealtimeEvidenceText(summary, 640)
+    if (!normalizedSummary)
+      return
+    lines.push(`evidence_${index + 1}_category=${evidence.category}`)
+    lines.push(`evidence_${index + 1}_source=${evidence.source}`)
+    lines.push(`evidence_${index + 1}_summary=${normalizedSummary}`)
+  })
+
+  if (input.failedCategories.length > 0)
+    lines.push(`failed_categories=${input.failedCategories.join('|')}`)
+
+  const fallbackReply = sanitizeRealtimeEvidenceText(input.fallbackReply, 320)
+  if (fallbackReply)
+    lines.push(`fallback_guidance=${fallbackReply}`)
+
+  return lines.filter(Boolean).join('\n')
 }
 
 const assistantLeakFallbackReply = () => stageChatText('fallbacks.leak-filtered')
@@ -1495,6 +1542,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       return resolution
     }
 
+    let turnPersonalityState: AlicizationPersonalityState | null = null
+    let hasVisualAttachment = false
+    let inspectionLikeTurn = false
+
     const stageAssistantFallback = (
       replyText: string,
       emotion: StructuredOutputResult['emotion'] = 'neutral',
@@ -1512,35 +1563,98 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
     }
 
-    const commitAssistantResolution = async () => {
-      if (assistantTextCommitted)
-        return finalAssistantDisplayText
+    async function finalizeGovernedStructuredOutput(
+      input: {
+        structured: StructuredWithContract
+        fallbackReply?: string
+        personalityState: AlicizationPersonalityState | null
+        preferGroundedEvidence: boolean
+      },
+    ): Promise<StructuredWithContract> {
+      const governedSurface = enforceGovernedMindTurn({
+        structured: input.structured,
+        governance: turnMindGovernance,
+        personalityState: input.personalityState,
+        preferGroundedEvidence: input.preferGroundedEvidence,
+        fallbackReply: input.fallbackReply,
+        userText: sendingMessage,
+        translate: stageChatText,
+      })
+      const governed = mergeStructuredRuntimeMeta({
+        ...input.structured,
+        ...governedSurface,
+      }, getTurnStructuredRuntimeMeta())
 
-      const staged = stagedAssistantResolution
-      const finalReply = (
-        staged?.reply
-        || finalAssistantDisplayText
-        || stagedSpeechDraft
-        || stringifyAssistantContent(buildingMessage.content)
-      ).trim()
-
-      if (!finalReply)
-        return ''
-
-      const structured = staged?.structured ?? createStructuredFallback(finalReply, 'neutral')
-      const categorization = staged?.categorization ?? {
-        speech: finalReply,
-        reasoning: '',
+      if (
+        turnMindGovernance
+        && (
+          governedSurface.format !== input.structured.format
+          || governedSurface.thought !== input.structured.thought
+          || governedSurface.reply !== input.structured.reply
+          || governedSurface.emotion !== input.structured.emotion
+        )
+      ) {
+        await appendAlicizationAuditLog({
+          level: 'notice',
+          category: 'alicization.structured',
+          action: 'mind-turn-governed',
+          message: 'Mind governance took over the final assistant structured surface before persistence.',
+          details: {
+            sessionId,
+            turnId,
+            previousFormat: input.structured.format ?? 'unknown',
+            nextFormat: governedSurface.format,
+            turnMode: turnMindGovernance.turnMode,
+            repairState: turnMindGovernance.repairState,
+            changedThought: governedSurface.thought !== input.structured.thought,
+            changedReply: governedSurface.reply !== input.structured.reply,
+            changedEmotion: governedSurface.emotion !== input.structured.emotion,
+          },
+        })
       }
-      const structuredWithGovernance = mergeStructuredRuntimeMeta(structured, getTurnStructuredRuntimeMeta())
-      const finalizedSlices = finalReply
-        ? removeExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
-        : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
 
-      buildingMessage.categorization = categorization
-      buildingMessage.structured = structuredWithGovernance
-      buildingMessage.content = finalReply
-      buildingMessage.slices = finalizedSlices
+      return governed
+    }
+
+    const commitAssistantResolution = async () => {
+        if (assistantTextCommitted)
+          return finalAssistantDisplayText
+
+        const staged = stagedAssistantResolution
+        const fallbackReply = (
+          staged?.reply
+          || finalAssistantDisplayText
+          || stagedSpeechDraft
+          || stringifyAssistantContent(buildingMessage.content)
+        ).trim()
+
+        if (!fallbackReply)
+          return ''
+
+        const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral')
+        const structuredWithGovernance = await finalizeGovernedStructuredOutput({
+          structured,
+          fallbackReply,
+          personalityState: turnPersonalityState,
+          preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+        })
+        const finalReply = structuredWithGovernance.reply.trim() || fallbackReply
+        const categorization = staged?.categorization ?? {
+          speech: finalReply,
+          reasoning: '',
+        }
+        const finalizedCategorization = {
+          ...categorization,
+          speech: finalReply,
+        }
+        const finalizedSlices = finalReply
+          ? removeExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
+          : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
+
+        buildingMessage.categorization = finalizedCategorization
+        buildingMessage.structured = structuredWithGovernance
+        buildingMessage.content = finalReply
+        buildingMessage.slices = finalizedSlices
       finalAssistantDisplayText = finalReply
       assistantTextCommitted = true
 
@@ -1669,8 +1783,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
       }
 
-      const hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
-      const inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn({
+      hasVisualAttachment = contentParts.some(part => part.type === 'image_url')
+      inspectionLikeTurn = origin === 'ui-user' && detectInvitedInspectionLikeTurn({
         message: sendingMessage,
         recentMessages: sessionMessagesForSend.slice(0, -1),
       })
@@ -1690,10 +1804,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         requiresReminderToolCall,
         requiresExecutionToolCall,
       })
+      let effectiveRuntimeGatewayToolingPolicy = runtimeGatewayToolingPolicy
       const parsedReminderIntent = requiresReminderToolCall
         ? parseReminderIntentPayload(sendingMessage)
         : null
       let policyLockedReason: StructuredPolicyLock | undefined
+      let realtimeIntentSettledByEvidence = false
+      let realtimeGovernedFallbackReply = ''
       const turnToolEvidence: TurnToolEvidence = {
         toolCallCount: 0,
         toolResultCount: 0,
@@ -2007,7 +2124,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const categorizer = createStreamingCategorizer(activeProvider.value)
       let streamPosition = 0
-      let turnPersonalityState: AlicizationPersonalityState | null = null
       let streamSpeechMode: 'undecided' | 'plain' | 'structured-json' = 'undecided'
       let streamSpeechPrelude = ''
 
@@ -2399,55 +2515,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         return fallback
       }
 
-      const finalizeGovernedStructuredOutput = async (
-        structured: StructuredWithContract,
-        fallbackReply?: string,
-      ): Promise<StructuredWithContract> => {
-        const governedSurface = enforceGovernedMindTurn({
-          structured,
-          governance: turnMindGovernance,
-          personalityState: turnPersonalityState,
-          preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
-          fallbackReply,
-          userText: sendingMessage,
-          translate: stageChatText,
-        })
-        const governed = mergeStructuredRuntimeMeta({
-          ...structured,
-          ...governedSurface,
-        }, getTurnStructuredRuntimeMeta())
-
-        if (
-          turnMindGovernance
-          && (
-            governedSurface.format !== structured.format
-            || governedSurface.thought !== structured.thought
-            || governedSurface.reply !== structured.reply
-            || governedSurface.emotion !== structured.emotion
-          )
-        ) {
-          await appendAlicizationAuditLog({
-            level: 'notice',
-            category: 'alicization.structured',
-            action: 'mind-turn-governed',
-            message: 'Mind governance took over the final assistant structured surface before persistence.',
-            details: {
-              sessionId,
-              turnId,
-              previousFormat: structured.format ?? 'unknown',
-              nextFormat: governedSurface.format,
-              turnMode: turnMindGovernance.turnMode,
-              repairState: turnMindGovernance.repairState,
-              changedThought: governedSurface.thought !== structured.thought,
-              changedReply: governedSurface.reply !== structured.reply,
-              changedEmotion: governedSurface.emotion !== structured.emotion,
-            },
-          })
-        }
-
-        return governed
-      }
-
       const applyAssistantResult = async (payload: {
         fullText: string
         reasoning: string
@@ -2470,7 +2537,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         if (payload.policyLocked) {
           structured.policyLocked = payload.policyLocked
         }
-        const governedStructured = await finalizeGovernedStructuredOutput(structured, nonContractReply)
+        const governedStructured = await finalizeGovernedStructuredOutput({
+          structured,
+          fallbackReply: nonContractReply,
+          personalityState: turnPersonalityState,
+          preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+        })
         const governedReply = governedStructured.reply.trim()
         const safeFallbackReply = nonContractReply
           || assistantStructuredContractFallbackReply()
@@ -2566,12 +2638,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const emptyAfterSanitize = !sanitizedOutput.cleanText.trim()
         const realtimeFallbackApplied = realtimeIntent.needsRealtime
           && !turnToolEvidence.verifiedToolResult
+          && !realtimeIntentSettledByEvidence
           && !policyLockedReason
         const leakFallbackApplied = sanitizedOutput.leakDetected && emptyAfterSanitize
         const emptyOutputFallbackApplied = !realtimeFallbackApplied && !leakFallbackApplied && emptyAfterSanitize
         const sanitizeFallbackReply = policyLockedReason
           ? assistantEpoch1StrictFallbackReply()
-          : assistantLeakFallbackReply()
+          : realtimeGovernedFallbackReply || assistantLeakFallbackReply()
         let finalSpeech = sanitizedOutput.cleanText
         if (realtimeFallbackApplied) {
           finalSpeech = assistantRealtimeUnavailableReply()
@@ -3056,15 +3129,42 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             throw abortSignal.reason ?? new DOMException('Aborted', 'AbortError')
           }
 
-          const reply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply()
-          await applyAssistantResult({
-            fullText: reply,
-            reasoning: '',
-            reply,
-            enforceContract: false,
+          turnToolEvidence.toolCallCount += realtimeExecution.trace.toolEvidence.toolCallCount
+          turnToolEvidence.toolResultCount += (
+            realtimeExecution.trace.toolEvidence.successCount
+            + realtimeExecution.trace.toolEvidence.failureCount
+          )
+          turnToolEvidence.verifiedToolResult = (
+            turnToolEvidence.verifiedToolResult
+            || realtimeExecution.trace.toolEvidence.verifiedToolResult
+          )
+          realtimeIntentSettledByEvidence = true
+          realtimeGovernedFallbackReply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply()
+          effectiveRuntimeGatewayToolingPolicy = {
+            supportsTools: false,
+            waitForTools: false,
+            toolingRequired: false,
+          }
+          newMessages = insertSystemMessageBeforeLatestUser(newMessages as Message[], buildRealtimeEvidenceSystemPrompt({
+            message: sendingMessage,
+            evidences: realtimeExecution.evidences,
+            failedCategories: realtimeExecution.failedCategories,
+            fallbackReply: realtimeGovernedFallbackReply,
+          })) as any
+          streamingMessageContext.composedMessage = newMessages as Message[]
+          await appendAlicizationAuditLog({
+            level: 'notice',
+            category: 'execution-engine',
+            action: 'realtime-evidence-injected',
+            message: 'Injected settled realtime evidence into the governed reply prompt instead of replying directly from renderer state.',
+            details: {
+              sessionId,
+              turnId,
+              evidenceCount: realtimeExecution.evidences.length,
+              failedCategories: realtimeExecution.failedCategories,
+              verifiedToolResult: realtimeExecution.trace.toolEvidence.verifiedToolResult,
+            },
           })
-          await finalizeAssistantTurn()
-          return
         }
       }
 
@@ -3077,11 +3177,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       await streamWithRuntimeGateway(newMessages as Message[], {
         headers,
         tools: options.tools,
-        supportsTools: runtimeGatewayToolingPolicy.supportsTools,
+        supportsTools: effectiveRuntimeGatewayToolingPolicy.supportsTools,
         abortSignal,
         // NOTICE: xsai stream may emit `finish` before tool steps continue, so keep waiting until
         // the final non-tool finish to avoid ending the chat turn with no assistant reply.
-        waitForTools: runtimeGatewayToolingPolicy.waitForTools,
+        waitForTools: effectiveRuntimeGatewayToolingPolicy.waitForTools,
         onStreamEvent: async (event: StreamEvent) => {
           switch (event.type) {
             case 'meta':

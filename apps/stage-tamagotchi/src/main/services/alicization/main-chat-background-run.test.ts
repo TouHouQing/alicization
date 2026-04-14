@@ -252,6 +252,22 @@ describe('main chat background run', () => {
         })
       }
 
+      if (/你确定吗|确定吗|are you sure|really/i.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+          emotion: 'thinking',
+          reply: '我又核了一遍。现在是 10:30，星期二。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        })
+      }
+
       if (/你好|哈喽|hello|hi/i.test(latestUserText)) {
         return JSON.stringify({
           format: 'mind-turn-v1',
@@ -357,7 +373,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('你好')
     const finishedPayload = readFinishedPayload(input)
@@ -366,19 +382,25 @@ describe('main chat background run', () => {
     expect(finishedStructured.reply).toContain('你好')
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
       status: 'completed',
-      finishReason: 'active-dialogue-local',
+      finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
     })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-greeting',
       lane: 'greeting',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-greeting',
       lane: 'greeting',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-finished', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-greeting',
+      lane: 'greeting',
+      strategy: 'compact-one-shot',
     }))
   })
 
@@ -409,7 +431,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     expect(emittedChunk?.text).toContain('星期')
@@ -420,19 +442,19 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-time',
       lane: 'utility-time',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
     const laneSelectedPayload = vi.mocked(input.appendRuntimeDebugLine).mock.calls
       .find(([event]) => event === 'chat-stream.active-dialogue-lane-selected')?.[1] as { resolvedTimeZoneSource?: string } | undefined
     expect(laneSelectedPayload?.resolvedTimeZoneSource).not.toBe('utc-fallback')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time',
       lane: 'utility-time',
     }))
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
       status: 'completed',
-      finishReason: 'active-dialogue-local',
+      finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
     })
   })
@@ -460,9 +482,9 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('我是Alicization')
+    expect(emittedChunk?.text).toContain('我是 Alicization')
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
     expect(finishedStructured.thought).toContain('obligation=answer')
@@ -470,9 +492,9 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-identity',
       lane: 'identity',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-identity',
       lane: 'identity',
@@ -502,7 +524,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     const finishedPayload = readFinishedPayload(input)
@@ -512,16 +534,16 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-time-reordered',
       lane: 'utility-time',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-reordered',
       lane: 'utility-time',
     }))
   })
 
-  it('keeps continuity-check after a time answer on deterministic local utility-time lane', async () => {
+  it('keeps continuity-check after a time answer on compact utility-time lane', async () => {
     const input = createInput({
       key: 'card-1::turn-time-confirm',
       payload: {
@@ -549,18 +571,18 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('现在是')
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-confirm',
       lane: 'utility-time',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
       resolvedTimeZoneSource: 'context-hint',
       reasonCodes: expect.arrayContaining(['continuity-check-time-confirm']),
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-confirm',
       lane: 'utility-time',
@@ -678,7 +700,7 @@ describe('main chat background run', () => {
     }))
   })
 
-  it('answers humanity critique turns from the local presence-repair lane instead of thread-shell fallback', async () => {
+  it('answers humanity critique turns from the compact presence-repair lane instead of thread-shell fallback', async () => {
     const input = createInput({
       key: 'card-1::turn-presence-critique',
       payload: {
@@ -701,7 +723,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/流程播报|真的在和你说话/u)
     expect(emittedChunk?.text).not.toContain('这条线还连着')
@@ -710,16 +732,16 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-presence-critique',
       lane: 'presence-critique',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-presence-critique',
       lane: 'presence-critique',
     }))
   })
 
-  it('repairs a misthreaded complaint from the local mind lane instead of re-entering the heavy stream path', async () => {
+  it('repairs a misthreaded complaint through the compact mind lane instead of re-entering the heavy stream path', async () => {
     const input = createInput({
       key: 'card-1::turn-repair',
       payload: {
@@ -746,7 +768,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/答偏了|接偏了/u)
     expect(emittedChunk?.text).toContain('现在是')
@@ -757,16 +779,16 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-repair',
       lane: 'repair-clarify',
-      strategy: 'local-only',
+      strategy: 'compact-one-shot',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-mind-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-repair',
       lane: 'repair-clarify',
     }))
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
       status: 'completed',
-      finishReason: 'active-dialogue-local',
+      finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
     })
   })

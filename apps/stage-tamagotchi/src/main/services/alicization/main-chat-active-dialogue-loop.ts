@@ -403,8 +403,14 @@ function deriveAlicizationActiveDialogueEncounter(
         previousUserText: input.previousUserText,
         previousAssistantText: input.previousAssistantText,
       })
-    const strategy: AlicizationActiveDialogueFastPathStrategy = 'local-only'
-    const timeoutMs = 0
+    const strategy: AlicizationActiveDialogueFastPathStrategy = 'compact-one-shot'
+    const timeoutMs = freshEncounter === 'greeting'
+      || freshEncounter === 'identity'
+      || freshEncounter === 'capability'
+      || freshEncounter === 'utility-time'
+      || freshEncounter === 'utility-date'
+        ? 4_500
+        : 5_500
     const freshReasonCode = freshEncounter === 'utility-time'
       ? 'fresh-utility-time'
       : freshEncounter === 'utility-date'
@@ -437,8 +443,8 @@ function deriveAlicizationActiveDialogueEncounter(
   ) {
     return {
       kind: previousFreshEncounter,
-      strategy: 'local-only',
-      timeoutMs: 0,
+      strategy: 'compact-one-shot',
+      timeoutMs: 4_500,
       reasonCodes: [
         'continuity-check',
         previousFreshEncounter === 'utility-time'
@@ -531,6 +537,8 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
     '[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]',
     'This is the low-latency foreground dialogue loop. Keep the same living thread coherent across continuity, memory carry, and immediate reply payoff.',
     `lane=${decision.lane}`,
+    `resolved_timezone=${decision.resolvedTimeZone}`,
+    `resolved_timezone_source=${decision.resolvedTimeZoneSource}`,
     decision.sessionMirror?.sessionId
       ? `conversation_session_id=${decision.sessionMirror.sessionId}`
       : '',
@@ -562,6 +570,103 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
       ? `continuity_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
       : '',
   ].filter(Boolean).join('\n')
+}
+
+function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFastPathDecision) {
+  const lines = ['[ALICIZATION_ACTIVE_DIALOGUE_EVIDENCE]']
+  const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
+
+  switch (decision.lane) {
+    case 'greeting': {
+      const greetingMove = buildGreetingMove(decision)
+      lines.push(`host_salutation=${greetingMove.salutation}`)
+      lines.push(`presence_check=${greetingMove.presenceCheck === true ? 'true' : 'false'}`)
+      lines.push('Use the salutation above as the immediate contact cue. Do not fall back to a generic task-offer shell.')
+      break
+    }
+    case 'identity': {
+      const identityMove = buildIdentityMove(decision)
+      lines.push(`authoritative_identity_name=${identityMove.name}`)
+      lines.push(`identity_reconfirmation=${identityMove.repeated === true ? 'true' : 'false'}`)
+      if (identityMove.continuityAnchor)
+        lines.push(`identity_continuity_anchor=${identityMove.continuityAnchor}`)
+      lines.push('Answer identity from the authoritative name above and keep the voice personal, not templated.')
+      break
+    }
+    case 'capability': {
+      lines.push(`authoritative_capability_surface=${fastPathCapabilityList.join(' | ')}`)
+      lines.push('Answer from the capability surface above, then bridge into immediate action without canned shell phrasing.')
+      break
+    }
+    case 'utility-time':
+    case 'utility-date': {
+      const clock = buildLocalClockSnapshot(decision.latestUserText, decision.resolvedTimeZone)
+      lines.push(`authoritative_local_time=${clock.timeText}`)
+      lines.push(`authoritative_local_date=${clock.dateText}`)
+      lines.push(`authoritative_local_weekday=${clock.weekdayText}`)
+      lines.push(`authoritative_timezone=${clock.timeZone}`)
+      lines.push(`authoritative_timezone_source=${decision.resolvedTimeZoneSource}`)
+      lines.push('These clock fields are authoritative for this turn. Do not recompute time or date from your own clock.')
+      break
+    }
+    case 'presence-critique':
+      lines.push('The host is explicitly challenging robotic, templated, or mindless phrasing.')
+      lines.push('Reply with immediacy and self-possession; do not use canned reassurance shells.')
+      break
+    case 'present-state': {
+      const presentStateMove = buildPresentStateMove(decision)
+      if (presentStateMove.threadSummary)
+        lines.push(`authoritative_present_thread=${presentStateMove.threadSummary}`)
+      lines.push('Describe the current thread you are actually holding, not a generic placeholder state.')
+      break
+    }
+    case 'repair-clarify': {
+      const repairMove = buildRepairClarifyMove(decision)
+      lines.push(`repair_target=${repairMove.target}`)
+      if (repairMove.target === 'time' || repairMove.target === 'date') {
+        const clock = repairMove.clock ?? buildLocalClockSnapshot(
+          decision.previousUserText || decision.latestUserText,
+          decision.resolvedTimeZone,
+        )
+        lines.push(`authoritative_local_time=${clock.timeText}`)
+        lines.push(`authoritative_local_date=${clock.dateText}`)
+        lines.push(`authoritative_local_weekday=${clock.weekdayText}`)
+        lines.push(`authoritative_timezone=${clock.timeZone}`)
+        lines.push(`authoritative_timezone_source=${repairMove.resolvedTimeZoneSource ?? decision.resolvedTimeZoneSource}`)
+        lines.push('Repair the previous miss using the clock evidence above. Do not drift to another timezone or recompute from your own clock.')
+      }
+      else if (repairMove.target === 'capability') {
+        lines.push(`authoritative_capability_surface=${(repairMove.capabilities ?? fastPathCapabilityList).join(' | ')}`)
+      }
+      else if (repairMove.anchor) {
+        lines.push(`repair_anchor=${repairMove.anchor}`)
+      }
+      break
+    }
+    case 'follow-up':
+      if (decision.continuityAnchor)
+        lines.push(`follow_up_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
+      break
+    case 'dialogue':
+      if (decision.continuityAnchor)
+        lines.push(`dialogue_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
+      break
+  }
+
+  if (
+    previousFreshEncounter === 'utility-time'
+    || previousFreshEncounter === 'utility-date'
+  ) {
+    const confirmationClock = buildLocalClockSnapshot(
+      decision.previousUserText || decision.latestUserText,
+      decision.resolvedTimeZone,
+    )
+    lines.push(`continuity_confirmation_time=${confirmationClock.timeText}`)
+    lines.push(`continuity_confirmation_date=${confirmationClock.dateText}`)
+    lines.push(`continuity_confirmation_weekday=${confirmationClock.weekdayText}`)
+  }
+
+  return lines.filter(Boolean).join('\n')
 }
 
 function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogueFastPathDecision) {
@@ -1540,6 +1645,29 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
   })
 }
 
+function violatesAuthoritativeClockEvidence(
+  reply: string,
+  decision: AlicizationActiveDialogueFastPathDecision,
+) {
+  if (decision.lane !== 'utility-time' && decision.lane !== 'utility-date')
+    return false
+
+  const normalizedReply = sanitizeText(reply, 640)
+  if (!normalizedReply)
+    return false
+
+  const clock = buildLocalClockSnapshot(decision.latestUserText, decision.resolvedTimeZone)
+  const containsClockLikeToken = /\b\d{1,2}:\d{2}\b/u.test(normalizedReply)
+  if (containsClockLikeToken && !normalizedReply.includes(clock.timeText))
+    return true
+
+  const mentionsCalendar = /(?:\d{4}.+?[日号]|today is|星期[一二三四五六日天]|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/iu.test(normalizedReply)
+  if (mentionsCalendar && normalizedReply.includes('现在是') && !normalizedReply.includes(clock.weekdayText))
+    return true
+
+  return false
+}
+
 function normalizeCompactReplyPayload(
   raw: string,
   decision: AlicizationActiveDialogueFastPathDecision,
@@ -1551,8 +1679,14 @@ function normalizeCompactReplyPayload(
   const parsed = parseJsonObjectFromText(normalizedRaw)
   if (parsed) {
     const reply = sanitizeText(parsed.reply, 320)
-    if (!reply || runtimeMetaLeakPattern.test(reply) || legacyTemplateShellPattern.test(reply))
+    if (
+      !reply
+      || runtimeMetaLeakPattern.test(reply)
+      || legacyTemplateShellPattern.test(reply)
+      || violatesAuthoritativeClockEvidence(reply, decision)
+    ) {
       return buildDecisionLocalReply(decision)
+    }
 
     return buildAlicizationActiveDialogueGovernedReply({
       decision,
@@ -1563,8 +1697,13 @@ function normalizeCompactReplyPayload(
     })
   }
 
-  if (runtimeMetaLeakPattern.test(normalizedRaw) || legacyTemplateShellPattern.test(normalizedRaw))
+  if (
+    runtimeMetaLeakPattern.test(normalizedRaw)
+    || legacyTemplateShellPattern.test(normalizedRaw)
+    || violatesAuthoritativeClockEvidence(normalizedRaw, decision)
+  ) {
     return buildDecisionLocalReply(decision)
+  }
   return buildAlicizationActiveDialogueGovernedReply({
     decision,
     reply: normalizedRaw,
@@ -1672,6 +1811,7 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
       ? `[ALICIZATION_CARD_DIRECTIVES_COMPACT]\n${customDirectives}`
       : '',
     buildCompactDialogueContextBlock(input.decision),
+    buildCompactDialogueEvidenceBlock(input.decision),
     buildCompactDialogueGovernanceBlock(input.decision),
   ]
     .filter(Boolean)

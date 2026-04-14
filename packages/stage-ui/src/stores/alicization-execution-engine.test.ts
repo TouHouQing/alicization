@@ -92,6 +92,8 @@ describe('alicization execution engine', () => {
     })
 
     expect(output.handled).toBe(true)
+    expect(output.evidences).toHaveLength(1)
+    expect(output.failedCategories).toHaveLength(0)
     expect(output.reply).toContain('United States 现在 晴朗')
     expect(output.reply).not.toContain('内置源')
     expect(output.trace.toolEvidence.verifiedToolResult).toBe(true)
@@ -133,6 +135,8 @@ describe('alicization execution engine', () => {
 
     expect(output.handled).toBe(true)
     expect(output.trace.fallbackApplied).toBe(true)
+    expect(output.evidences).toHaveLength(0)
+    expect(output.failedCategories).toContain('news')
     expect(output.reply).toContain('这轮没拿到可靠的实时新闻结果')
     expect(audits).toContain('unverified-fallback')
   })
@@ -179,6 +183,7 @@ describe('alicization execution engine', () => {
     expect(output.handled).toBe(true)
     expect(output.trace.toolEvidence.verifiedToolResult).toBe(false)
     expect(output.trace.fallbackApplied).toBe(true)
+    expect(output.failedCategories).toContain('weather')
   })
 
   it('passes through non-realtime messages', async () => {
@@ -205,5 +210,6 @@ describe('alicization execution engine', () => {
 
     expect(output.handled).toBe(false)
     expect(output.intent.needsRealtime).toBe(false)
+    expect(output.evidences).toHaveLength(0)
   })
 })

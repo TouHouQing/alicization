@@ -373,6 +373,64 @@ describe('chat orchestrator', () => {
     expect(payload?.assistantText).toContain('普通回复')
   })
 
+  it('feeds settled realtime evidence back through governed model reply instead of replying directly from renderer', async () => {
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: any[], options: any) => {
+      expect(options.supportsTools).toBe(false)
+      expect(options.waitForTools).toBe(false)
+      expect(messages.some(message => String(message.content ?? '').includes('[ALICIZATION_REALTIME_EVIDENCE]'))).toBe(true)
+      expect(messages.some(message => String(message.content ?? '').includes('evidence_1_category=weather'))).toBe(true)
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=grounded; focus=weather evidence; move=answer-directly; tone=warm","emotion":"neutral","reply":"美国这边现在晴朗，22 度，风也不大。"}',
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    executeRealtimeQueryTurnMock.mockResolvedValue({
+      handled: true,
+      intent: { needsRealtime: true, categories: ['weather'] },
+      trace: {
+        realtimeIntent: true,
+        categories: ['weather'],
+        planStartedAt: 1,
+        planCompletedAt: 2,
+        fallbackApplied: false,
+        capabilitySnapshotAt: 1,
+        toolEvidence: {
+          toolCallCount: 1,
+          successCount: 1,
+          failureCount: 0,
+          verifiedToolResult: true,
+          sources: ['builtin'],
+        },
+      },
+      evidences: [{
+        category: 'weather',
+        source: 'builtin',
+        summary: 'weather ; title=United States ; lead=United States 现在 晴朗 ; fields=温度=22.0°C, 体感=21.0°C',
+      }],
+      failedCategories: [],
+      reply: 'United States 现在 晴朗，温度 22.0°C。',
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请帮我查一下今天美国天气', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(executeRealtimeQueryTurnMock).toBeCalledTimes(1)
+    expect(streamMock).toBeCalledTimes(1)
+    expect(appendConversationTurnMock).toBeCalledTimes(1)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'execution-engine',
+      action: 'realtime-evidence-injected',
+    }))
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('美国这边现在晴朗')
+    expect(String(payload?.assistantText ?? '')).not.toContain('当前无法获取可靠的实时外部数据')
+  })
+
   it('extracts and upserts rule-based memory facts from ui user turns', async () => {
     extractRuleFactsMock.mockReturnValueOnce([
       {
