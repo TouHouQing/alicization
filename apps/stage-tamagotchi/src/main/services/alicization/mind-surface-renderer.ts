@@ -1,4 +1,5 @@
 import type { AlicizationMindTurnGovernance } from '../../../shared/eventa'
+import type { AlicizationResolvedTimeZoneSource } from './time-zone-governor'
 
 import {
   buildGovernedMindThought,
@@ -10,6 +11,10 @@ import {
   translateGovernedMindFallback,
 } from '@proj-alicization/stage-shared'
 import { resolveAlicizationTimeZoneCandidate } from './time-zone-governor'
+import {
+  resolveAlicizationTimeQueryIntent,
+  type AlicizationTimeQueryMode,
+} from './time-query-semantics'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -108,12 +113,8 @@ const allowedDeliveries = new Set([
   'teasing',
 ])
 
-const zhUtilityTimePattern = /^(?:现在|这会儿|此刻)?(?:几点(?:钟)?(?:了)?|几时(?:了)?|时间(?:是多少|是啥|是什么|呢)?|现在时间|当前时间)$/u
-const enUtilityTimePattern = /^(?:what(?:'s| is)? the time(?: now)?|time now|current time)$/iu
 const zhUtilityTimeZonePattern = /(?:时区|北京时间|东八区|utc|gmt)/iu
 const enUtilityTimeZonePattern = /(?:time[\s-]?zone|utc|gmt)/iu
-const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月几号|几月几日|星期几|周几|礼拜几|什么日期|日期是什么)|今天是几号|今天星期几|今天周几|今天礼拜几)$/u
-const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
 const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|你是alicization吗|你是爱丽丝化吗|我问你你是谁)/u
 const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
 const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
@@ -186,6 +187,8 @@ export interface AlicizationMindSurfaceTimeMove {
   kind: 'local-time'
   clock: AlicizationMindSurfaceClockSnapshot
   includeDate?: boolean
+  queryMode?: AlicizationTimeQueryMode
+  resolvedTimeZoneSource?: AlicizationResolvedTimeZoneSource | null
 }
 
 export interface AlicizationMindSurfaceDateMove {
@@ -206,6 +209,8 @@ export interface AlicizationMindSurfaceRepairMove {
   anchor?: string | null
   clock?: AlicizationMindSurfaceClockSnapshot | null
   capabilities?: string[]
+  queryMode?: AlicizationTimeQueryMode
+  resolvedTimeZoneSource?: AlicizationResolvedTimeZoneSource | null
 }
 
 export interface AlicizationMindSurfaceDialogueMove {
@@ -264,6 +269,7 @@ export interface AlicizationMindSurfaceRenderInput {
   userText?: string
   previousAssistantText?: string
   resolvedTimeZone?: string | null
+  resolvedTimeZoneSource?: AlicizationResolvedTimeZoneSource | null
   moves: AlicizationMindSurfaceMove[]
   thought?: string
   emotion?: string
@@ -301,16 +307,20 @@ function normalizeTurnText(raw: string, maxChars = 240) {
 }
 
 function isUtilityTimeTurn(text: string) {
-  const normalized = normalizeTurnText(text, 160)
-  return zhUtilityTimePattern.test(normalized)
-    || enUtilityTimePattern.test(normalized)
-    || zhUtilityTimeZonePattern.test(normalized)
-    || enUtilityTimeZonePattern.test(normalized)
+  const intent = resolveAlicizationTimeQueryIntent({
+    userTextRaw: text,
+  })
+  return intent.mode === 'time'
+    || intent.mode === 'time-confirmation'
+    || intent.mode === 'timezone'
+    || intent.mode === 'timezone-why'
 }
 
 function isUtilityDateTurn(text: string) {
-  const normalized = normalizeTurnText(text, 160)
-  return zhUtilityDatePattern.test(normalized) || enUtilityDatePattern.test(normalized)
+  const intent = resolveAlicizationTimeQueryIntent({
+    userTextRaw: text,
+  })
+  return intent.mode === 'date' || intent.mode === 'date-confirmation'
 }
 
 function isIdentityTurn(text: string) {
@@ -402,8 +412,13 @@ function buildGovernanceFallbackMoves(input: {
   previousAssistantText: string
   locale: 'zh' | 'en'
   resolvedTimeZone?: string | null
+  resolvedTimeZoneSource?: AlicizationResolvedTimeZoneSource | null
 }): AlicizationMindSurfaceMove[] {
   const userText = sanitizeText(input.userText, 240)
+  const timeQueryIntent = resolveAlicizationTimeQueryIntent({
+    userTextRaw: userText,
+    previousAssistantTextRaw: input.previousAssistantText,
+  })
   const carryAnchor = sanitizeText(
     input.governance.carriedThread
     || input.governance.focusAnchor
@@ -420,7 +435,9 @@ function buildGovernanceFallbackMoves(input: {
     return [{
       kind: 'local-time',
       clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
-      includeDate: true,
+      includeDate: timeQueryIntent.mode === 'time-confirmation',
+      queryMode: timeQueryIntent.mode === 'none' ? 'time' : timeQueryIntent.mode,
+      resolvedTimeZoneSource: input.resolvedTimeZoneSource ?? null,
     }]
   }
 
@@ -432,6 +449,8 @@ function buildGovernanceFallbackMoves(input: {
       kind: 'local-time',
       clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
       includeDate: true,
+      queryMode: 'time-confirmation',
+      resolvedTimeZoneSource: input.resolvedTimeZoneSource ?? null,
     }]
   }
 
@@ -439,7 +458,7 @@ function buildGovernanceFallbackMoves(input: {
     return [{
       kind: 'local-date',
       clock: buildSyntheticClockSnapshot(input.locale, input.resolvedTimeZone),
-      includeTime: true,
+      includeTime: timeQueryIntent.mode === 'date-confirmation',
     }]
   }
 
@@ -925,37 +944,95 @@ function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, lo
 }
 
 function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: AlicizationMindSurfaceReplyContext) {
-  const askTimeZone = isTimeZoneFocusedTurn(context.userText)
-  const confirmation = continuityCheckPattern.test(normalizeTurnText(context.userText, 180))
+  const queryMode = move.queryMode ?? resolveAlicizationTimeQueryIntent({
+    userTextRaw: context.userText,
+    previousAssistantTextRaw: context.previousAssistantText,
+  }).mode
+  const confirmation = queryMode === 'time-confirmation'
   const locale = context.locale
   const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
-  const timeFact = renderLocalTimeFact(move.clock, move.includeDate === true || askTimeZone || confirmation)
+  const timeFact = renderLocalTimeFact(move.clock, move.includeDate === true || confirmation)
+  const source = move.resolvedTimeZoneSource ?? null
 
   if (locale === 'zh') {
-    return [
-      askTimeZone
-        ? `我这轮按 ${timeZoneLabel} 对时。`
-        : confirmation
-          ? `我再按 ${timeZoneLabel} 对一遍。`
-          : pickVariant(context.seed, [
-              `我按 ${timeZoneLabel} 看了一眼。`,
-              `我就按 ${timeZoneLabel} 这边的时钟回你。`,
-            ]),
-      timeFact,
-    ]
+    switch (queryMode) {
+      case 'timezone':
+        return [
+          source === 'user-explicit'
+            ? `你这轮自己把时间基准指定到了 ${timeZoneLabel}。`
+            : source === 'context-hint'
+              ? `这轮上下文里已经带着 ${timeZoneLabel} 这条时间线索。`
+              : `你没有另指定时区，所以我先沿当前环境里的 ${timeZoneLabel} 来回你。`,
+          `我现在采用的就是 ${timeZoneLabel}。`,
+        ]
+      case 'timezone-why':
+        return [
+          source === 'user-explicit'
+            ? `因为你刚才已经把回答基准指定到了 ${timeZoneLabel}，所以我沿着它继续回。`
+            : source === 'context-hint'
+              ? `因为这轮上下文里已经带着 ${timeZoneLabel} 这条时间线索，而你没有把它改掉，所以我沿着它回答。`
+              : `因为你没有另指定时区，我就默认按当前环境的本地时间基准来回；在这里它是 ${timeZoneLabel}。`,
+          `如果你要我改成别的时区，直接点名就行。`,
+        ]
+      case 'time-confirmation':
+        return [
+          source === 'user-explicit'
+            ? `我又按 ${timeZoneLabel} 核对了一遍。`
+            : '我又核对了一遍现在这一刻。',
+          timeFact,
+        ]
+      case 'time':
+      default:
+        return [
+          source === 'user-explicit'
+            ? `你刚才把这一轮的时间基准指定到了 ${timeZoneLabel}。`
+            : pickVariant(context.seed, [
+                '我看了下现在这一刻。',
+                '我把现在这一下对了对。',
+              ]),
+          timeFact,
+        ]
+    }
   }
 
-  return [
-    askTimeZone
-      ? `I'm checking this against ${timeZoneLabel}.`
-      : confirmation
-        ? `I'm checking it again against ${timeZoneLabel}.`
-        : pickVariant(context.seed, [
-            `I'm answering from ${timeZoneLabel}.`,
-            `I'm checking the clock on ${timeZoneLabel}.`,
-          ]),
-    timeFact,
-  ]
+  switch (queryMode) {
+    case 'timezone':
+      return [
+        source === 'user-explicit'
+          ? `You explicitly set this turn to ${timeZoneLabel}.`
+          : source === 'context-hint'
+            ? `This turn already carries ${timeZoneLabel} in its context.`
+            : `You did not name another timezone, so I'm following the current local basis here: ${timeZoneLabel}.`,
+        `The active time basis right now is ${timeZoneLabel}.`,
+      ]
+    case 'timezone-why':
+      return [
+        source === 'user-explicit'
+          ? `Because you explicitly told me to answer on ${timeZoneLabel}, I kept following that basis.`
+          : source === 'context-hint'
+            ? `Because this turn already carried ${timeZoneLabel} in context and you did not replace it, I followed that basis.`
+            : `Because you did not name another timezone, I defaulted to the local runtime basis here, which is ${timeZoneLabel}.`,
+        `If you want another timezone, name it directly and I'll switch.`,
+      ]
+    case 'time-confirmation':
+      return [
+        source === 'user-explicit'
+          ? `I checked it again against ${timeZoneLabel}.`
+          : `I checked the moment again.`,
+        timeFact,
+      ]
+    case 'time':
+    default:
+      return [
+        source === 'user-explicit'
+          ? `You set the time basis for this turn to ${timeZoneLabel}.`
+          : pickVariant(context.seed, [
+              `I checked the current moment.`,
+              `I took another look at the clock just now.`,
+            ]),
+        timeFact,
+      ]
+  }
 }
 
 function renderDateMove(move: AlicizationMindSurfaceDateMove, context: AlicizationMindSurfaceReplyContext) {
@@ -963,7 +1040,7 @@ function renderDateMove(move: AlicizationMindSurfaceDateMove, context: Alicizati
   const confirmation = continuityCheckPattern.test(normalizeTurnText(context.userText, 180))
   const locale = context.locale
   const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
-  const dateFact = renderLocalDateFact(move.clock, move.includeTime === true || askTimeZone || confirmation)
+  const dateFact = renderLocalDateFact(move.clock, move.includeTime === true || confirmation)
 
   if (locale === 'zh') {
     return [
@@ -1307,10 +1384,11 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     : buildGovernanceFallbackMoves({
         governance: input.governance,
         userText,
-        previousAssistantText,
-        locale: preliminaryLocale,
-        resolvedTimeZone: input.resolvedTimeZone,
-      })
+      previousAssistantText,
+      locale: preliminaryLocale,
+      resolvedTimeZone: input.resolvedTimeZone,
+      resolvedTimeZoneSource: input.resolvedTimeZoneSource,
+    })
   const locale = inferLocale(userText, resolvedMoves)
   const governance = enrichGovernance({
     ...input,

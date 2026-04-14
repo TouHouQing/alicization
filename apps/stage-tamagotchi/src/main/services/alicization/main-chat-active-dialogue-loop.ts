@@ -45,6 +45,10 @@ import {
   isValidIanaTimeZone,
   resolveAlicizationTimeZoneFromMessages,
 } from './time-zone-governor'
+import {
+  resolveAlicizationTimeQueryIntent,
+  type AlicizationTimeQueryMode,
+} from './time-query-semantics'
 
 export type AlicizationActiveDialogueFastPathLane
   = | 'greeting'
@@ -133,12 +137,6 @@ const zhIdentityPattern = /(?:你是谁|你到底是谁|你算谁|你叫什么|�
 const enIdentityPattern = /(?:who are you|what are you|what should i call you|what is your name)/iu
 const zhCapabilityPattern = /你.*(?:能|会|可以).*(?:做什么|帮什么)|你是谁|你能干嘛|你能做啥/u
 const enCapabilityPattern = /what can you do|who are you|what are you capable of/iu
-const zhUtilityTimePattern = /^(?:现在|这会儿|此刻)?(?:几点(?:钟)?(?:了)?|几时(?:了)?|时间(?:是多少|是啥|是什么|呢)?|现在时间|当前时间)$/u
-const enUtilityTimePattern = /^(?:what(?:'s| is)? the time(?: now)?|time now|current time)$/iu
-const zhUtilityTimeZonePattern = /(?:时区|北京时间|东八区|utc|gmt)/iu
-const enUtilityTimeZonePattern = /(?:time[\s-]?zone|utc|gmt)/iu
-const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月几号|几月几日|星期几|周几|礼拜几|什么日期|日期是什么)|今天是几号|今天星期几|今天周几|今天礼拜几)$/u
-const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
 const zhPresenceCritiquePattern = /(?:不像人类|不像真人|不像人在说话|太像机器人|太像ai|太像系统|没有人格|没人格|没有心智|没心智|太机械|太固定|不像活的)/u
 const enPresenceCritiquePattern = /(?:you do(?:n't| not) sound human|you sound like a bot|you sound robotic|you sound mechanical|you don't feel alive)/iu
 const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
@@ -153,9 +151,6 @@ const runtimeMetaLeakPattern = /(?:provider|baseurl|main-gateway|timeout|timed o
 const legacyTemplateShellPattern = /(?:要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|这一轮你想开哪个点|我贴着这一轮往下接|这条线还连着|我可以直接续|我就正面回你|我听见你了|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.)/iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
-const zhNowTokens = ['现在', '当前', '这会儿', '此刻'] as const
-const zhTimeCoreTokens = ['几点', '几点了', '几点啦', '几时', '时间', '现在时间', '当前时间'] as const
-const zhDateCoreTokens = ['几号', '多少号', '几月几号', '几月几日', '日期', '什么日期', '今天几号', '今天星期几', '星期几', '周几', '礼拜几'] as const
 
 function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
@@ -171,10 +166,6 @@ function normalizeCompactTurnText(raw: string, maxChars = 240) {
   return normalizeTurnText(raw, maxChars).replace(/\s+/g, '').toLowerCase()
 }
 
-function includesAny(text: string, terms: readonly string[]) {
-  return terms.some(term => text.includes(term))
-}
-
 function countCjkChars(raw: string) {
   return [...raw].filter(char => cjkPattern.test(char)).length
 }
@@ -185,6 +176,16 @@ function countAsciiWords(raw: string) {
 
 function resolveUserRegionTimeZone(messages?: Message[]) {
   return resolveAlicizationTimeZoneFromMessages(messages).timezone
+}
+
+function resolveTimeQueryModeForTurn(input: {
+  latestUserText: string
+  previousAssistantText?: string
+}): AlicizationTimeQueryMode {
+  return resolveAlicizationTimeQueryIntent({
+    userTextRaw: input.latestUserText,
+    previousAssistantTextRaw: input.previousAssistantText,
+  }).mode
 }
 
 function resolvePersonaDisplayName(personaKernel: AlicizationPersonaKernelSnapshot | null | undefined) {
@@ -291,25 +292,20 @@ function isCapabilityTurn(text: string) {
 }
 
 function isUtilityTimeTurn(text: string) {
-  const normalizedLoose = normalizeTurnText(text, 160)
-  const normalizedCompact = normalizeCompactTurnText(text, 160)
-  const hasDateCore = includesAny(normalizedCompact, zhDateCoreTokens)
-  const hasNowToken = includesAny(normalizedCompact, zhNowTokens)
-  const hasTimeCore = includesAny(normalizedCompact, zhTimeCoreTokens)
-  const asksTimeZone = zhUtilityTimeZonePattern.test(normalizedLoose)
-    || enUtilityTimeZonePattern.test(normalizedLoose)
-  return zhUtilityTimePattern.test(normalizedCompact)
-    || enUtilityTimePattern.test(normalizedLoose)
-    || asksTimeZone
-    || (!hasDateCore && hasTimeCore && (hasNowToken || normalizedCompact === '几点' || normalizedCompact === '几点了' || normalizedCompact === '几点啦'))
+  const intent = resolveAlicizationTimeQueryIntent({
+    userTextRaw: text,
+  })
+  return intent.mode === 'time'
+    || intent.mode === 'time-confirmation'
+    || intent.mode === 'timezone'
+    || intent.mode === 'timezone-why'
 }
 
 function isUtilityDateTurn(text: string) {
-  const normalizedLoose = normalizeTurnText(text, 160)
-  const normalizedCompact = normalizeCompactTurnText(text, 160)
-  return zhUtilityDatePattern.test(normalizedCompact)
-    || enUtilityDatePattern.test(normalizedLoose)
-    || includesAny(normalizedCompact, zhDateCoreTokens)
+  const intent = resolveAlicizationTimeQueryIntent({
+    userTextRaw: text,
+  })
+  return intent.mode === 'date' || intent.mode === 'date-confirmation'
 }
 
 function isPresenceCritiqueTurn(text: string) {
@@ -638,6 +634,10 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
     140,
   )
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
+  const timeQueryMode = resolveTimeQueryModeForTurn({
+    latestUserText: decision.latestUserText,
+    previousAssistantText: decision.previousAssistantText,
+  })
   switch (decision.lane) {
     case 'greeting':
       return {
@@ -713,7 +713,11 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
       }
     case 'utility-time':
       return {
-        focus: 'local time',
+        focus: timeQueryMode === 'timezone'
+          ? 'active time basis'
+          : timeQueryMode === 'timezone-why'
+            ? 'time basis reasoning'
+            : 'local time',
         truthState: 'live-grounded' as const,
         turnMode: 'answer' as const,
         openingStyle: 'direct-answer' as const,
@@ -723,16 +727,32 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         answerAct: 'answer' as const,
         evidenceMode: 'live-grounded' as const,
         repairState: 'none' as const,
-        answerIntent: '直接给出当前本地时间。',
-        openingMove: '用当前时钟直接回答。',
-        relationNeed: '把本地时间说准确。',
+        answerIntent: timeQueryMode === 'timezone'
+          ? '把当前正在采用的时间基准说清。'
+          : timeQueryMode === 'timezone-why'
+            ? '解释为什么这一轮采用这个时间基准，而不是只重复报时。'
+            : '沿当前生效的时间基准把现在这一刻说准确。',
+        openingMove: timeQueryMode === 'timezone'
+          ? '先把当前时间基准交代清楚。'
+          : timeQueryMode === 'timezone-why'
+            ? '先解释为什么会采用这个时间基准。'
+            : '先按当前时钟把这一刻钉住。',
+        relationNeed: timeQueryMode === 'timezone'
+          ? '让对方知道我当前按什么时间基准在回。'
+          : timeQueryMode === 'timezone-why'
+            ? '把时间基准的来源说清，不要回成重复报时。'
+            : '把本地时间说准确。',
         continuityPolicy: 'answer-then-carry' as const,
         memoryMode: 'task-thread' as const,
-        selfStance: 'observe' as const,
+        selfStance: timeQueryMode === 'timezone-why' ? 'warn' as const : 'observe' as const,
         mindMode: 'tracking' as const,
         embodiedPresence: 'attentive' as const,
         emotionalTension: 'focused-flow' as const,
-        whyNow: '用户要的是这一刻的时间，而不是旧线程。',
+        whyNow: timeQueryMode === 'timezone'
+          ? '用户这轮要确认我当前采用的时间基准。'
+          : timeQueryMode === 'timezone-why'
+            ? '用户在追问我为什么按这个时间基准回答。'
+            : '用户要的是这一刻的时间，而不是旧线程。',
         confidence: 0.98,
       }
     case 'utility-date':
@@ -1103,6 +1123,10 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
   const personaName = resolvePersonaDisplayName(decision.personaKernel)
   const identityReconfirmation = decision.reasonCodes.includes('identity-reconfirmation')
+  const timeQueryMode = resolveTimeQueryModeForTurn({
+    latestUserText: decision.latestUserText,
+    previousAssistantText: decision.previousAssistantText,
+  })
   switch (decision.lane) {
     case 'greeting': {
       const greeting = buildGreetingMove(decision).salutation
@@ -1126,9 +1150,19 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         ? `我能 ${fastPathCapabilityList.join('、')}。`
         : `I can ${fastPathCapabilityList.join(', ')}.`
     case 'utility-time':
+      if (timeQueryMode === 'timezone') {
+        return localeIsZh
+          ? '把当前生效的时间基准说清，不要只重复报时。'
+          : 'Clarify the active time basis instead of merely repeating the clock.'
+      }
+      if (timeQueryMode === 'timezone-why') {
+        return localeIsZh
+          ? '解释为什么采用这个时间基准，并把依据交代清楚。'
+          : 'Explain why this time basis was chosen and make the reason explicit.'
+      }
       return localeIsZh
-        ? '按当前生效时区给出本地时间，不让时间依据漂移。'
-        : 'Give the local time from the active timezone without letting the time basis drift.'
+        ? '沿当前生效的时间基准回答这一刻，不让依据漂移。'
+        : 'Answer this moment from the active time basis without letting the basis drift.'
     case 'utility-date':
       return localeIsZh
         ? '按当前生效时区给出今天的日期，不让日期依据漂移。'
@@ -1277,9 +1311,16 @@ function buildLocalClockSnapshot(text: string, preferredTimeZone?: string): Alic
 }
 
 function buildUtilityTimeMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceTimeMove {
+  const timeQueryMode = resolveTimeQueryModeForTurn({
+    latestUserText: decision.latestUserText,
+    previousAssistantText: decision.previousAssistantText,
+  })
   return {
     kind: 'local-time',
     clock: buildLocalClockSnapshot(decision.latestUserText, decision.resolvedTimeZone),
+    includeDate: timeQueryMode === 'time-confirmation',
+    queryMode: timeQueryMode === 'none' ? 'time' : timeQueryMode,
+    resolvedTimeZoneSource: decision.resolvedTimeZoneSource,
   }
 }
 
@@ -1317,6 +1358,10 @@ function buildFollowUpMove(decision: AlicizationActiveDialogueFastPathDecision):
 function buildRepairClarifyMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceRepairMove {
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
   if (previousFreshEncounter === 'utility-time') {
+    const previousTimeQueryMode = resolveTimeQueryModeForTurn({
+      latestUserText: decision.previousUserText,
+      previousAssistantText: decision.previousAssistantText,
+    })
     return {
       kind: 'repair',
       target: 'time',
@@ -1324,6 +1369,8 @@ function buildRepairClarifyMove(decision: AlicizationActiveDialogueFastPathDecis
         decision.previousUserText || decision.latestUserText,
         decision.resolvedTimeZone,
       ),
+      queryMode: previousTimeQueryMode === 'none' ? 'time' : previousTimeQueryMode,
+      resolvedTimeZoneSource: decision.resolvedTimeZoneSource,
     }
   }
 
@@ -1474,6 +1521,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
     userText: input.decision.latestUserText,
     previousAssistantText: input.decision.previousAssistantText,
     resolvedTimeZone: input.decision.resolvedTimeZone,
+    resolvedTimeZoneSource: input.decision.resolvedTimeZoneSource,
     moves,
     thought: !runtimeMetaLeakPattern.test(sanitizeText(input.thought, 220))
       ? sanitizeText(input.thought, 220) || governedThought

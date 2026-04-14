@@ -364,6 +364,20 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.resolvedTimeZoneSource).toBe('user-explicit')
   })
 
+  it('does not force timezone phrasing into ordinary current-time replies', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你知道现在几点了吗' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('现在是')
+    expect(payload.reply).not.toContain('北京时间')
+    expect(payload.reply).not.toContain('Asia/Shanghai')
+  })
+
   it('surfaces the active timezone inside deterministic local time replies', () => {
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -401,6 +415,23 @@ describe('main chat active dialogue loop', () => {
     expect(secondPayload.reply).toContain('现在是')
     expect(secondPayload.reply).not.toContain('北京时间')
     expect(secondPayload.reply).not.toContain('Asia/Shanghai')
+  })
+
+  it('explains why a timezone basis was used instead of repeating the clock answer', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '现在几点了？' },
+        { role: 'assistant', content: '我看了下现在这一刻。现在是 18:45，星期二。' },
+        { role: 'user', content: '为什么按北京时间回复我？' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('因为')
+    expect(payload.reply).toContain('北京时间')
+    expect(payload.reply).not.toContain('我再按')
+    expect(payload.reply).not.toContain('现在是')
   })
 
   it('does not enter active dialogue fast path for realtime weather queries', () => {
