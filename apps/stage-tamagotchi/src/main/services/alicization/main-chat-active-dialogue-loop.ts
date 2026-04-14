@@ -13,6 +13,7 @@ import {
   alicizationFixedCoreSystemInstruction,
   alicizationFixedHostNameDirectiveTemplate,
   alicizationFixedStructuredContractAnchor,
+  detectAlicizationRealtimeQueryIntent,
   renderAlicizationPromptTemplate,
   resolveGovernedMindEmotion,
   resolveGovernedMindObligation,
@@ -61,6 +62,7 @@ export interface AlicizationActiveDialogueFastPathDecision {
   lane: AlicizationActiveDialogueFastPathLane
   strategy: AlicizationActiveDialogueFastPathStrategy
   timeoutMs: number
+  resolvedTimeZone: string
   latestUserText: string
   previousUserText: string
   previousAssistantText: string
@@ -171,6 +173,98 @@ function countCjkChars(raw: string) {
 
 function countAsciiWords(raw: string) {
   return (raw.match(/[A-Z]+/gi) ?? []).length
+}
+
+function isValidIanaTimeZone(value: string) {
+  const candidate = sanitizeText(value, 96)
+  if (!candidate)
+    return false
+  try {
+    // NOTICE: Use Intl runtime validation so fast-path time/date replies stay in the
+    // same user-region timezone as runtime context instead of drifting to process defaults.
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: candidate,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date())
+    return true
+  }
+  catch {
+    return false
+  }
+}
+
+function isLikelyIanaTimeZone(value: string) {
+  const candidate = sanitizeText(value, 96)
+  if (!candidate)
+    return false
+  return /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)+$/.test(candidate)
+}
+
+function collectTimeZoneHintsFromText(text: string) {
+  const candidates: string[] = []
+  const seen = new Set<string>()
+  const patterns = [
+    /"timezone"\s*:\s*"([^"]{1,96})"/gi,
+    /\btimezone\s*[:=]\s*([A-Za-z_][A-Za-z0-9_./+-]{1,96})/gi,
+  ] as const
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(text)) !== null) {
+      const candidate = sanitizeText(match[1] ?? '', 96)
+      if (!candidate || seen.has(candidate))
+        continue
+      seen.add(candidate)
+      candidates.push(candidate)
+    }
+  }
+
+  return candidates
+}
+
+function resolveUserRegionTimeZone(messages?: Message[]) {
+  const normalizedMessages = messages ?? []
+  for (let index = normalizedMessages.length - 1; index >= 0; index -= 1) {
+    const message = normalizedMessages[index]
+    if (!message)
+      continue
+    const text = sanitizeText(readTransportContentAsText(message.content), 2_000)
+    if (!text)
+      continue
+    for (const hint of collectTimeZoneHintsFromText(text)) {
+      if (isLikelyIanaTimeZone(hint))
+        return hint
+    }
+
+    const parsed = parseJsonObjectFromText(text)
+    if (parsed && typeof parsed === 'object') {
+      const payload = parsed as Record<string, unknown>
+      const nestedHints = [
+        payload.timezone,
+        (payload.time as Record<string, unknown> | undefined)?.timezone,
+        ((payload.sample as Record<string, unknown> | undefined)?.time as Record<string, unknown> | undefined)?.timezone,
+        (((payload.sensory as Record<string, unknown> | undefined)?.sample as Record<string, unknown> | undefined)?.time as Record<string, unknown> | undefined)?.timezone,
+      ]
+      for (const nestedHint of nestedHints) {
+        if (isLikelyIanaTimeZone(sanitizeText(nestedHint, 96)))
+          return sanitizeText(nestedHint, 96)
+      }
+    }
+  }
+
+  const envTimezone = typeof process !== 'undefined'
+    ? sanitizeText(process.env?.TZ, 96)
+    : ''
+  if (envTimezone && isValidIanaTimeZone(envTimezone))
+    return envTimezone
+
+  const intlTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  if (intlTimezone && isValidIanaTimeZone(intlTimezone))
+    return intlTimezone
+
+  return 'UTC'
 }
 
 function resolvePersonaDisplayName(personaKernel: AlicizationPersonaKernelSnapshot | null | undefined) {
@@ -1186,9 +1280,12 @@ function buildPresenceCritiqueMove(): AlicizationMindSurfacePresenceRepairMove {
   }
 }
 
-function buildLocalClockSnapshot(text: string): AlicizationMindSurfaceClockSnapshot {
+function buildLocalClockSnapshot(text: string, preferredTimeZone?: string): AlicizationMindSurfaceClockSnapshot {
   const now = new Date()
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const resolvedFromContext = resolveUserRegionTimeZone()
+  const preferred = sanitizeText(preferredTimeZone, 96)
+  const timeZone = [preferred, resolvedFromContext]
+    .find(candidate => isValidIanaTimeZone(candidate)) || 'UTC'
   const prefersChinese = countCjkChars(text) > 0
   if (prefersChinese) {
     return {
@@ -1199,8 +1296,16 @@ function buildLocalClockSnapshot(text: string): AlicizationMindSurfaceClockSnaps
         hour12: false,
         timeZone,
       }).format(now),
-      dateText: `${now.getFullYear()} 年 ${now.getMonth() + 1} 月 ${now.getDate()} 日`,
-      weekdayText: zhWeekdayLabels[now.getDay()]!,
+      dateText: new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone,
+      }).format(now),
+      weekdayText: new Intl.DateTimeFormat('zh-CN', {
+        weekday: 'long',
+        timeZone,
+      }).format(now) || zhWeekdayLabels[now.getDay()]!,
     }
   }
 
@@ -1228,14 +1333,14 @@ function buildLocalClockSnapshot(text: string): AlicizationMindSurfaceClockSnaps
 function buildUtilityTimeMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceTimeMove {
   return {
     kind: 'local-time',
-    clock: buildLocalClockSnapshot(decision.latestUserText),
+    clock: buildLocalClockSnapshot(decision.latestUserText, decision.resolvedTimeZone),
   }
 }
 
 function buildUtilityDateMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceDateMove {
   return {
     kind: 'local-date',
-    clock: buildLocalClockSnapshot(decision.latestUserText),
+    clock: buildLocalClockSnapshot(decision.latestUserText, decision.resolvedTimeZone),
   }
 }
 
@@ -1269,7 +1374,10 @@ function buildRepairClarifyMove(decision: AlicizationActiveDialogueFastPathDecis
     return {
       kind: 'repair',
       target: 'time',
-      clock: buildLocalClockSnapshot(decision.previousUserText || decision.latestUserText),
+      clock: buildLocalClockSnapshot(
+        decision.previousUserText || decision.latestUserText,
+        decision.resolvedTimeZone,
+      ),
     }
   }
 
@@ -1277,7 +1385,10 @@ function buildRepairClarifyMove(decision: AlicizationActiveDialogueFastPathDecis
     return {
       kind: 'repair',
       target: 'date',
-      clock: buildLocalClockSnapshot(decision.previousUserText || decision.latestUserText),
+      clock: buildLocalClockSnapshot(
+        decision.previousUserText || decision.latestUserText,
+        decision.resolvedTimeZone,
+      ),
     }
   }
 
@@ -1367,6 +1478,7 @@ function buildExecutionRecoveryReply(input: {
     lane: 'follow-up',
     strategy: 'local-only',
     timeoutMs: 0,
+    resolvedTimeZone: resolveUserRegionTimeZone(),
     latestUserText: input.latestUserText,
     previousUserText: input.previousUserText,
     previousAssistantText: '',
@@ -1479,6 +1591,9 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     || input.prepared.hasVisualGrounding
   )
   const localDeterministicEncounter = deriveFreshEncounterKind(latestUserText)
+  const realtimeIntent = detectAlicizationRealtimeQueryIntent(latestUserText)
+  if (realtimeIntent.needsRealtime && !localDeterministicEncounter)
+    return null
   if (runtimeBlocked && !localDeterministicEncounter) {
     return null
   }
@@ -1518,6 +1633,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     lane: encounter.kind,
     strategy: encounter.strategy,
     timeoutMs: encounter.timeoutMs,
+    resolvedTimeZone: resolveUserRegionTimeZone(input.prepared.messages),
     latestUserText,
     previousUserText,
     previousAssistantText,
@@ -1604,6 +1720,7 @@ export function buildAlicizationActiveDialogueFallbackReply(
     lane: 'dialogue',
     strategy: 'local-only',
     timeoutMs: 0,
+    resolvedTimeZone: resolveUserRegionTimeZone(normalizedConversationMessages),
     latestUserText,
     previousUserText,
     previousAssistantText: readPreviousAssistantText(normalizedConversationMessages),

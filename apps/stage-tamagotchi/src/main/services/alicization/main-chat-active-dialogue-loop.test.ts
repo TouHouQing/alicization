@@ -279,6 +279,67 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.strategy).toBe('local-only')
   })
 
+  it('resolves utility time lane timezone from prepared runtime context when available', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '现在几点了？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Tokyo"}}}' },
+          { role: 'user' as const, content: '现在几点了？' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
+  })
+
+  it('does not enter active dialogue fast path for realtime weather queries', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '帮我查一下天津天气' },
+      ] as Message[],
+      prepared: createPrepared({
+        runtimeSurface: {
+          action: { kind: 'answer' },
+          governance: {
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+        },
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          initiativeBudget: 0.74,
+          coherence: 0.82,
+          summary: 'dialogue-ready',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.64,
+        companionshipPressure: 0.71,
+        channels: [],
+        summary: 'dialogue-dominant',
+      },
+    })
+
+    expect(decision).toBeNull()
+  })
+
   it('treats humanity critique turns as a dedicated presence-repair lane', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [

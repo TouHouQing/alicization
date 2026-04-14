@@ -879,6 +879,62 @@ describe('chat orchestrator', () => {
     expect(String(payload?.assistantText ?? '')).not.toContain('我现在帮你执行')
   })
 
+  it('skips executor payoff retry when the first-pass reply already contains settled execution outcome', async () => {
+    let streamInvocation = 0
+    streamMock.mockImplementation(async (_model: string, _provider: unknown, _messages: unknown, options: any) => {
+      streamInvocation += 1
+      if (streamInvocation > 1) {
+        throw new Error('executor payoff retry should be skipped when first-pass reply is already settled')
+      }
+
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: '{"thought":"obligation=answer; truth=grounded; focus=cli-execution; move=report-result; tone=direct","emotion":"neutral","reply":"CLI 那条任务已经结束，桌面列表结果已经拿到了。"}',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-executor-settled-1',
+        toolName: 'executor_run_cli',
+        arguments: {
+          command: 'ls',
+          args: ['~/Desktop'],
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-executor-settled-1',
+        result: {
+          status: 'completed',
+          summary: 'listed desktop entries',
+          output: 'Desktop entries: A, B, C',
+          selectedChannel: 'cli',
+        },
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 CLI 帮我查桌面文件', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamMock).toBeCalledTimes(1)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'executor-result-payoff-retry-skipped',
+    }))
+    expect(appendAuditLogMock).not.toBeCalledWith(expect.objectContaining({
+      category: 'alicization.intent-action',
+      action: 'executor-result-payoff-retry-completed',
+    }))
+
+    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
+    expect(String(payload?.assistantText ?? '')).toContain('任务已经结束')
+    expect(String(payload?.assistantText ?? '')).toContain('桌面列表')
+  })
+
   it('forces executor tool retry for Claude Code execution intent and accepts executor_run_claude_code evidence', async () => {
     let streamInvocation = 0
     streamMock.mockImplementation(async (_model: string, _provider: unknown, messages: unknown, options: any) => {

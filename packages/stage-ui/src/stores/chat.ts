@@ -153,6 +153,8 @@ const executionToolCallCriticalRetryDirective = [
   'DO NOT claim execution is done unless an executor tool result confirms completion.',
   'If required command/prompt details are missing, ask one concise clarification question instead of generic refusal.',
 ].join(' ')
+const executionPromisePattern = /(?:我现在|我这就|马上|稍后|正在|接下来|i(?:'|’)?ll|i will|let me|going to|about to|run it now)/iu
+const executionSettledPattern = /(?:已经|已|完成|结束|拿到|结果|输出|列出|通过|失败|报错|done|completed|finished|result|output|listed|succeeded|failed|error)/iu
 const fileSystemOperationVerbPattern = /读取|读|查看|打开|访问|写入|写|修改|删除|列出|搜索|获取|read|open|access|write|update|delete|list|find|inspect/i
 const fileSystemOperationTargetPattern = /文件夹|目录|路径|桌面|系统状态|磁盘|file|folder|directory|path|desktop|system state|\/|\\|\.(?:txt|md|json|yaml|yml|csv|log)\b|文件(?!夹)/i
 const reminderVerbPattern = /提醒|闹钟|alarm|remind|notify|叫我|喊我|告诉我|通知我|记得|别忘/iu
@@ -396,6 +398,61 @@ function buildExecutorResultPayoffRetryDirective(evidence: ExecutorToolReplyEvid
 
 function buildExecutorResultFallbackReply(evidence: ExecutorToolReplyEvidence) {
   return evidence.summary || evidence.errorMessage || evidence.output
+}
+
+function normalizeExecutorEvidenceCompareText(raw: string) {
+  return sanitizeExecutorReplyEvidenceText(raw, 640)
+    .toLowerCase()
+    .replace(/\s+/g, '')
+}
+
+function collectExecutorEvidenceTokens(raw: string, limit = 8) {
+  const normalized = normalizeExecutorEvidenceCompareText(raw)
+  if (!normalized)
+    return []
+
+  const tokens: string[] = []
+  const seen = new Set<string>()
+  const cjkTokens = normalized.match(/[\u4E00-\u9FFF]{2,}/g) ?? []
+  const asciiTokens = normalized.match(/[a-z0-9]{3,}/g) ?? []
+  for (const token of [...cjkTokens, ...asciiTokens]) {
+    if (!token || seen.has(token))
+      continue
+    seen.add(token)
+    tokens.push(token)
+    if (tokens.length >= limit)
+      break
+  }
+  return tokens
+}
+
+function replyMentionsExecutorEvidence(reply: string, evidence: ExecutorToolReplyEvidence) {
+  const normalizedReply = sanitizeExecutorReplyEvidenceText(reply, 640)
+  if (!normalizedReply)
+    return false
+
+  const replyComparisonText = normalizeExecutorEvidenceCompareText(normalizedReply)
+  if (!replyComparisonText)
+    return false
+
+  const evidenceTokens = [
+    ...collectExecutorEvidenceTokens(evidence.summary, 8),
+    ...collectExecutorEvidenceTokens(evidence.output, 6),
+    ...collectExecutorEvidenceTokens(evidence.errorMessage, 6),
+  ]
+  const mentionsEvidence = evidenceTokens.some(token => token.length >= 2 && replyComparisonText.includes(token))
+  const hasSettledSignal = executionSettledPattern.test(normalizedReply)
+  const hasPromiseSignal = executionPromisePattern.test(normalizedReply)
+  const statusSettled = evidence.status === 'completed'
+    || evidence.status === 'failed'
+    || evidence.status === 'blocked'
+    || evidence.status === 'cancelled'
+
+  if (mentionsEvidence)
+    return true
+  if (hasSettledSignal && statusSettled && !hasPromiseSignal)
+    return true
+  return false
 }
 
 function detectInvitedInspectionLikeTurn(input: {
@@ -3288,12 +3345,45 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
       }
 
+      const stagedResolution = stagedAssistantResolution as StagedAssistantResolution | null
+      const stagedExecutorPayoffReply = stagedResolution && typeof stagedResolution.reply === 'string'
+        ? stagedResolution.reply
+        : finalAssistantDisplayText || stagedSpeechDraft
+
       const shouldForceExecutionResultPayoffRetry = requiresExecutionToolCall
         && turnToolEvidence.latestExecutorResult !== null
         && !turnToolEvidence.sawTextAfterExecutorResult
+        && !replyMentionsExecutorEvidence(
+          stagedExecutorPayoffReply,
+          turnToolEvidence.latestExecutorResult,
+        )
         && !policyLockedReason
         && !abortSignal.aborted
         && !shouldAbort()
+
+      if (
+        requiresExecutionToolCall
+        && turnToolEvidence.latestExecutorResult !== null
+        && !turnToolEvidence.sawTextAfterExecutorResult
+        && !shouldForceExecutionResultPayoffRetry
+      ) {
+        await appendAlicizationAuditLog({
+          level: 'notice',
+          category: 'alicization.intent-action',
+          action: 'executor-result-payoff-retry-skipped',
+          message: 'Skipped executor payoff retry because the staged reply already carries settled execution evidence.',
+          details: {
+            sessionId,
+            turnId,
+            stagedReplyPreview: sanitizeExecutorReplyEvidenceText(
+              stagedExecutorPayoffReply,
+              160,
+            ),
+            executorSummary: turnToolEvidence.latestExecutorResult.summary,
+            executorStatus: turnToolEvidence.latestExecutorResult.status,
+          },
+        })
+      }
 
       if (shouldForceExecutionResultPayoffRetry && turnToolEvidence.latestExecutorResult) {
         const executorResultDirective = buildExecutorResultPayoffRetryDirective(turnToolEvidence.latestExecutorResult)
