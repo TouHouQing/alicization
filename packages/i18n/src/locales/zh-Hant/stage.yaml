@@ -25,7 +25,7 @@ chat:
   mind-fallback:
     focus-default: '當前這件事'
     repair-stale-anchor: '我先更正一下：剛才那是舊錨點，不該繼續當成你現在的畫面。'
-    repair-need-reground: '我先守住真實邊界：這一輪沒有足夠穩定的即時畫面依據，我不會把舊記憶當成目前螢幕。'
+    repair-need-reground: '這句我先不拿舊線硬接；如果要落到螢幕細節，我需要這輪可確認的即時畫面依據。'
     dialogue-boundary-memory: '這一輪我先留在你剛才這句話裡，不把舊畫面或舊執行緒硬套回現在。'
     care-body: '你不用先把話整理好，我先陪你把這一下接住；如果你願意，就把讓你難受的那件事慢慢告訴我。'
     accompany-body: '我聽見你這句了。你想讓我安靜陪著你一會兒，還是把卡住你的那一點慢慢說給我？'
@@ -39,10 +39,10 @@ chat:
     accompany-opening-plain: '我先直接接你這句。'
     observation-opening: '我先說這一輪我能穩住的部分：{focus}。'
     observation-opening-plain: '我先說這一輪我能穩住的部分。'
-    answer-opening: '先按你眼前這件事說：{focus}。'
+    answer-opening: '我先把這句答清：{focus}。'
     answer-opening-plain: '我直接說。'
-    carry-memory: '我還記著上一條線是 {carry}，但那是我還在續持的執行緒，不是我斷定你現在螢幕上的內容。'
-    reground-note: '如果你要我細到目前螢幕的內容，我會按這次的新畫面重新落地。'
+    carry-memory: '我還記著上一條線是 {carry}，我會把它當連續執行緒，不當成你目前螢幕的既成事實。'
+    reground-note: '如果你要我基於目前螢幕給出細節，請給我這輪可用的即時畫面依據。'
   reminder:
     default-message: 你剛才要我記住的那件事
   kill-switch:

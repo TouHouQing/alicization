@@ -297,6 +297,25 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.resolvedTimeZone).toBe('Asia/Tokyo')
   })
 
+  it('treats timezone confirmation questions as utility-time local turns', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '你现在用的是哪个时区？' },
+      ] as Message[],
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+          { role: 'user' as const, content: '你现在用的是哪个时区？' },
+        ] as Message[],
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('utility-time')
+    expect(decision?.strategy).toBe('local-only')
+    expect(decision?.resolvedTimeZone).toBe('Asia/Shanghai')
+  })
+
   it('does not enter active dialogue fast path for realtime weather queries', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [

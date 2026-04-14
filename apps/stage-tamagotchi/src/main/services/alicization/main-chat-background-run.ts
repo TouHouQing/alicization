@@ -740,6 +740,18 @@ export async function runAlicizationMainChatBackground(
     })
     if (activeDialogueDecision) {
       const resolveActiveDialogueMindReply = async (decision: AlicizationActiveDialogueFastPathDecision) => {
+        if (decision.strategy === 'local-only') {
+          await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-only-direct', {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            lane: decision.lane,
+          })
+          return normalizeAlicizationActiveDialogueFastPathReply({
+            decision,
+            rawText: '',
+          })
+        }
+
         const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
           conversationMessages,
           decision,
@@ -1083,9 +1095,25 @@ export async function runAlicizationMainChatBackground(
             }
           }
 
+          if (timeoutActiveDialogueDecision.strategy === 'local-only') {
+            const localOnlyReply = normalizeAlicizationActiveDialogueFastPathReply({
+              decision: timeoutActiveDialogueDecision,
+              rawText: '',
+            })
+            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-local-direct', {
+              cardId: normalizedCardId,
+              turnId: normalizedTurnId,
+              lane: timeoutActiveDialogueDecision.lane,
+              recoveredChars: localOnlyReply.length,
+            })
+            return {
+              recoveredText: localOnlyReply,
+              recoveryMode: 'active-dialogue-local',
+            }
+          }
+
           if (
-            timeoutActiveDialogueDecision.strategy === 'local-only'
-            || timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+            timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
             || timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
           ) {
             const oneShotTimeoutMs = Math.max(

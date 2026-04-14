@@ -129,6 +129,8 @@ const zhCapabilityPattern = /你.*(?:能|会|可以).*(?:做什么|帮什么)|�
 const enCapabilityPattern = /what can you do|who are you|what are you capable of/iu
 const zhUtilityTimePattern = /^(?:现在|这会儿|此刻)?(?:几点(?:钟)?(?:了)?|几时(?:了)?|时间(?:是多少|是啥|是什么|呢)?|现在时间|当前时间)$/u
 const enUtilityTimePattern = /^(?:what(?:'s| is)? the time(?: now)?|time now|current time)$/iu
+const zhUtilityTimeZonePattern = /(?:时区|北京时间|东八区|utc|gmt)/iu
+const enUtilityTimeZonePattern = /(?:time[\s-]?zone|utc|gmt)/iu
 const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月几号|几月几日|星期几|周几|礼拜几|什么日期|日期是什么)|今天是几号|今天星期几|今天周几|今天礼拜几)$/u
 const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
 const zhPresenceCritiquePattern = /(?:不像人类|不像真人|不像人在说话|太像机器人|太像ai|太像系统|没有人格|没人格|没有心智|没心智|太机械|太固定|不像活的)/u
@@ -141,7 +143,7 @@ const explicitCarryPattern = /(?:刚才|刚刚|上一条|上条|上个|上一轮
 const remainingFollowUpPattern = /(?:另外(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|另外还有|还有哪|还有什么|还有几(?:项|个)?|另外哪|剩下哪|剩下(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|其余哪|其余(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|what else|which other|the other|remaining)/iu
 const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
 const commandLikePattern = /(?:\b(?:cli|shell|terminal|command|ls|cat|grep|rg|pnpm|npm|yarn|git)\b|[\\/]|--?\w+)/iu
-const runtimeMetaLeakPattern = /(?:provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步)/iu
+const runtimeMetaLeakPattern = /(?:provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节)/iu
 const legacyTemplateShellPattern = /(?:要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|这一轮你想开哪个点|我贴着这一轮往下接|这条线还连着|我可以直接续|我就正面回你|我听见你了|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.)/iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
@@ -376,8 +378,11 @@ function isUtilityTimeTurn(text: string) {
   const hasDateCore = includesAny(normalizedCompact, zhDateCoreTokens)
   const hasNowToken = includesAny(normalizedCompact, zhNowTokens)
   const hasTimeCore = includesAny(normalizedCompact, zhTimeCoreTokens)
+  const asksTimeZone = zhUtilityTimeZonePattern.test(normalizedLoose)
+    || enUtilityTimeZonePattern.test(normalizedLoose)
   return zhUtilityTimePattern.test(normalizedCompact)
     || enUtilityTimePattern.test(normalizedLoose)
+    || asksTimeZone
     || (!hasDateCore && hasTimeCore && (hasNowToken || normalizedCompact === '几点' || normalizedCompact === '几点了' || normalizedCompact === '几点啦'))
 }
 

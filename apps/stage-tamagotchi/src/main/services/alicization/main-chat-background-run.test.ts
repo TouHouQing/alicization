@@ -357,7 +357,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('你好')
     const finishedPayload = readFinishedPayload(input)
@@ -374,6 +374,11 @@ describe('main chat background run', () => {
       turnId: 'turn-greeting',
       lane: 'greeting',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-greeting',
+      lane: 'greeting',
     }))
   })
 
@@ -404,7 +409,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     expect(emittedChunk?.text).toContain('星期')
@@ -416,6 +421,11 @@ describe('main chat background run', () => {
       turnId: 'turn-time',
       lane: 'utility-time',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time',
+      lane: 'utility-time',
     }))
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
       status: 'completed',
@@ -447,9 +457,9 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('我是 Alicization')
+    expect(emittedChunk?.text).toContain('我是Alicization')
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
     expect(finishedStructured.thought).toContain('obligation=answer')
@@ -458,6 +468,11 @@ describe('main chat background run', () => {
       turnId: 'turn-identity',
       lane: 'identity',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-identity',
+      lane: 'identity',
     }))
   })
 
@@ -484,7 +499,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     const finishedPayload = readFinishedPayload(input)
@@ -495,6 +510,11 @@ describe('main chat background run', () => {
       turnId: 'turn-time-reordered',
       lane: 'utility-time',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-reordered',
+      lane: 'utility-time',
     }))
   })
 
@@ -632,7 +652,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/流程播报|真的在和你说话/u)
     expect(emittedChunk?.text).not.toContain('这条线还连着')
@@ -642,6 +662,11 @@ describe('main chat background run', () => {
       turnId: 'turn-presence-critique',
       lane: 'presence-critique',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-presence-critique',
+      lane: 'presence-critique',
     }))
   })
 
@@ -672,9 +697,9 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('刚才我答偏了')
+    expect(emittedChunk?.text).toMatch(/答偏了|接偏了/u)
     expect(emittedChunk?.text).toContain('现在是')
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
@@ -684,6 +709,11 @@ describe('main chat background run', () => {
       turnId: 'turn-repair',
       lane: 'repair-clarify',
       strategy: 'local-only',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-local-only-direct', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-repair',
+      lane: 'repair-clarify',
     }))
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
       status: 'completed',

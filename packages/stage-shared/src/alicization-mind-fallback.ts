@@ -469,6 +469,11 @@ function groundedSceneShouldSuppressRepair(governance: AlicizationMindTurnGovern
     )
 }
 
+function hasStrongVisualInspectionSignal(reasonCodes: string[]) {
+  return reasonCodes.includes('visual-plane-cue')
+    || reasonCodes.includes('explicit-visual-ask')
+}
+
 function resolveVisibleRepairSurfaceDecision(input: {
   governance: AlicizationMindTurnGovernanceLike
   userText?: string
@@ -505,15 +510,23 @@ function resolveVisibleRepairSurfaceDecision(input: {
         || sceneCentricTurn
       )
     )
+  const strongVisualInspection = hasStrongVisualInspectionSignal(inspectionIntent.reasonCodes)
+    || (
+      sceneCentricTurn
+      && inspectionIntent.sharedAttentionLikely
+      && inspectionIntent.contextOverlap >= 0.34
+    )
   const allowed = !input.executionBound
     && !isDialogueFirstGovernance(governance)
     && governance.screenReferenceMode !== 'avoid'
     && isExplicitRepairGovernanceTurn(governance)
     && contextualInspection
+    && strongVisualInspection
 
   return {
     allowed,
     inspectionIntent,
+    strongVisualInspection,
   }
 }
 
@@ -1066,7 +1079,8 @@ export function buildMindGovernedFallbackSurface(input: {
   const preferAnchoredDialogueOpening = dialogueFirst
     && input.forceDialogueAnswerFallback === true
     && Boolean(anchor)
-  const usePlainOpening = !anchor || (dialogueFirst && !preferAnchoredDialogueOpening)
+  const weakAnchor = Boolean(anchor && isWeakAlicizationScreenSurfaceCue(anchor))
+  const usePlainOpening = !anchor || weakAnchor || (dialogueFirst && !preferAnchoredDialogueOpening)
   const suppressDialogueFirstPlainOpener = usePlainOpening && shouldSuppressDialogueFirstPlainOpener(governance)
   const truthMode = resolveGovernedMindTruth(governance)
   const repairSuppressedByGrounding = groundedSceneShouldSuppressRepair(governance)
@@ -1076,14 +1090,16 @@ export function buildMindGovernedFallbackSurface(input: {
     executionBound: executionFirstGovernance.executionBound,
   })
   const effectiveRepairState = repairSuppressedByGrounding ? 'none' : governance.repairState
-  const visibleRepairState = visibleRepairSurface.allowed ? effectiveRepairState : 'none'
+  const visibleRepairState = visibleRepairSurface.allowed && visibleRepairSurface.strongVisualInspection
+    ? effectiveRepairState
+    : 'none'
   const contextualNeedRegroundOpening = Boolean(
     !dialogueFirst
     && visibleRepairState === 'need-reground'
     && anchor
     && !isWeakAlicizationScreenSurfaceCue(anchor),
   )
-  const repairNarrationAllowed = visibleRepairSurface.allowed
+  const repairNarrationAllowed = visibleRepairState !== 'none'
   const prefersLiveObservationOpening = !dialogueFirst
     && visibleRepairState === 'none'
     && governance.screenReferenceMode !== 'avoid'

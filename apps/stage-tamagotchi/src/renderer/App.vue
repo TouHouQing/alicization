@@ -796,10 +796,10 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
 function createDialogueRespondedDedupKey(payload: AlicizationDialogueRespondedPayload) {
   const sessionId = typeof payload.sessionId === 'string' ? payload.sessionId.trim() : ''
   const turnId = typeof payload.turnId === 'string' ? payload.turnId.trim() : ''
-  const createdAt = typeof payload.createdAt === 'number' && Number.isFinite(payload.createdAt)
-    ? Math.floor(payload.createdAt)
-    : 0
-  return `${payload.cardId}::${sessionId}::${turnId}::${createdAt}`
+  const origin = typeof payload.origin === 'string' ? payload.origin.trim() : ''
+  // NOTICE: Deduplicate by logical turn identity instead of createdAt so delivery retries
+  // or replay clocks cannot re-apply a second assistant surface over the same turn.
+  return `${payload.cardId}::${sessionId}::${turnId}::${origin}`
 }
 
 function registerHandledDialogueResponded(payload: AlicizationDialogueRespondedPayload) {

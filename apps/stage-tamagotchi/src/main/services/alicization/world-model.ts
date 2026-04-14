@@ -127,7 +127,7 @@ function buildThreadTitle(input: {
   switch (input.kind) {
     case 'debugging': return '当前故障点'
     case 'change-review': return '当前改动块'
-    case 'deep-focus': return '当前工作线程'
+    case 'deep-focus': return '你手上的这件任务'
     case 'co-viewing': return '当前共视内容'
     case 'late-night-endurance': return '深夜里的这一段停留'
     case 'chatting': return '当前对话'
