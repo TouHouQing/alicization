@@ -33,7 +33,7 @@ describe('execution delivery surface', () => {
     })
 
     expect(reply).toContain('callback fallback mirror ok')
-    expect(reply).toMatch(/有结果|跑到结果|做完/u)
+    expect(reply).toMatch(/有结果|落到结果|收束成结果|做完/u)
   })
 
   it('keeps failure callbacks explicit when execution is blocked', () => {

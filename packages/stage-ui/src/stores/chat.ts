@@ -26,6 +26,7 @@ import {
   formatAlicizationRealtimeSurfaceSummary,
   inferAlicizationInspectionIntent,
   inferAlicizationRealtimeSurfaceLocale,
+  translateGovernedMindFallback,
   looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationDialogueEmbodiment,
   shouldBufferAlicizationStructuredSpeechPrelude,
@@ -92,6 +93,10 @@ function stageChatText(path: string, params?: Record<string, unknown>) {
   return translateStageUi(`stage.chat.${path}`, params)
 }
 
+function mindRepairText(path: string, userText?: string, params?: Record<string, unknown>) {
+  return translateGovernedMindFallback(`mind-repair.${path}`, params, userText)
+}
+
 function sanitizeRealtimeEvidenceText(raw: unknown, maxChars = 480) {
   if (typeof raw !== 'string')
     return ''
@@ -137,16 +142,16 @@ function buildRealtimeEvidenceSystemPrompt(input: {
   return lines.filter(Boolean).join('\n')
 }
 
-const assistantLeakFallbackReply = () => stageChatText('fallbacks.leak-filtered')
-const assistantRealtimeUnavailableReply = () => stageChatText('fallbacks.realtime-unavailable')
-const assistantEpoch1StrictFallbackReply = () => stageChatText('fallbacks.epoch1-strict')
-const assistantStructuredContractFallbackReply = () => stageChatText('fallbacks.structured-contract')
-const assistantStreamFailureFallbackReply = () => stageChatText('fallbacks.stream-failure')
-const assistantLocalRuntimeUnavailableFallbackReply = () => stageChatText('fallbacks.local-runtime-unavailable')
-const assistantProviderAuthFallbackReply = () => stageChatText('fallbacks.provider-auth')
-const assistantProviderNetworkFallbackReply = () => stageChatText('fallbacks.provider-network')
-const assistantProviderConfigFallbackReply = () => stageChatText('fallbacks.provider-config')
-const assistantUnsupportedToolsFallbackReply = () => stageChatText('fallbacks.unsupported-tools')
+const assistantLeakFallbackReply = (userText?: string) => mindRepairText('internal-leak', userText)
+const assistantRealtimeUnavailableReply = (userText?: string) => mindRepairText('realtime-unavailable', userText)
+const assistantEpoch1StrictFallbackReply = (userText?: string) => mindRepairText('epoch1-strict', userText)
+const assistantStructuredContractFallbackReply = (userText?: string) => mindRepairText('structured-contract', userText)
+const assistantStreamFailureFallbackReply = (userText?: string) => mindRepairText('stream-failure', userText)
+const assistantLocalRuntimeUnavailableFallbackReply = (userText?: string) => mindRepairText('local-runtime-unavailable', userText)
+const assistantProviderAuthFallbackReply = (userText?: string) => mindRepairText('provider-auth', userText)
+const assistantProviderNetworkFallbackReply = (userText?: string) => mindRepairText('provider-network', userText)
+const assistantProviderConfigFallbackReply = (userText?: string) => mindRepairText('provider-config', userText)
+const assistantUnsupportedToolsFallbackReply = (userText?: string) => mindRepairText('unsupported-tools', userText)
 const runtimeGatewayWatchdogPolicy = deriveAlicizationRendererBridgeWatchdogTimeoutPolicy()
 const alicizationEpoch1StrictModeEnabled = false
 const runtimeContractAnchorHeader = 'Output contract (must-follow, highest priority):'
@@ -763,7 +768,7 @@ type StreamFailureKind
     | 'runtime-aborted'
     | 'unknown'
 
-function buildTimeoutDiagnosticReply(error: unknown) {
+function buildTimeoutDiagnosticReply(error: unknown, userText?: string) {
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
   const afterDispatchMeta = message.includes('after-dispatch-meta')
   const recoveryTimedOut = message.includes('recovery-failed=main-gateway-timeout-recovery')
@@ -787,8 +792,8 @@ function buildTimeoutDiagnosticReply(error: unknown) {
   const pickVariant = (variants: readonly string[]) => {
     if (variants.length === 0)
       return isChineseLocale
-        ? '我还在。这轮等模型开口等得太久了。你把刚才那句再发一次，我直接接上。'
-        : 'I am still here. This turn waited too long for the model to speak. Send the same request again and I will pick it up directly.'
+        ? translateGovernedMindFallback('mind-repair.stream-failure', undefined, userText)
+        : translateGovernedMindFallback('mind-repair.stream-failure', undefined, userText)
     if (variants.length === 1)
       return variants[0] ?? ''
 
@@ -826,7 +831,7 @@ function buildTimeoutDiagnosticReply(error: unknown) {
   return pickVariant(isChineseLocale ? zhReplies : enReplies)
 }
 
-function resolveStreamFailureFallback(error: unknown): { reply: string, kind: StreamFailureKind } {
+function resolveStreamFailureFallback(error: unknown, userText?: string): { reply: string, kind: StreamFailureKind } {
   const errorCode = typeof error === 'object' && error && 'code' in error
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
     : ''
@@ -843,7 +848,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('duplicate-finished')
   ) {
     return {
-      reply: assistantStreamFailureFallbackReply(),
+      reply: assistantStreamFailureFallbackReply(userText),
       kind: 'runtime-aborted',
     }
   }
@@ -857,7 +862,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || (isStartRejectedError && message.includes('reason=missing provider/model'))
   ) {
     return {
-      reply: assistantProviderConfigFallbackReply(),
+      reply: assistantProviderConfigFallbackReply(userText),
       kind: 'provider-config',
     }
   }
@@ -870,7 +875,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('lm studio')
   ) {
     return {
-      reply: assistantLocalRuntimeUnavailableFallbackReply(),
+      reply: assistantLocalRuntimeUnavailableFallbackReply(userText),
       kind: 'local-runtime-unavailable',
     }
   }
@@ -882,7 +887,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('main-gateway-timeout-recovery')
   ) {
     return {
-      reply: buildTimeoutDiagnosticReply(error),
+      reply: buildTimeoutDiagnosticReply(error, userText),
       kind: 'timeout',
     }
   }
@@ -897,7 +902,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('socket hang up')
   ) {
     return {
-      reply: assistantProviderNetworkFallbackReply(),
+      reply: assistantProviderNetworkFallbackReply(userText),
       kind: 'provider-network',
     }
   }
@@ -909,7 +914,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('timed out')
   ) {
     return {
-      reply: buildTimeoutDiagnosticReply(error),
+      reply: buildTimeoutDiagnosticReply(error, userText),
       kind: 'timeout',
     }
   }
@@ -921,7 +926,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('unsupported tool')
   ) {
     return {
-      reply: assistantUnsupportedToolsFallbackReply(),
+      reply: assistantUnsupportedToolsFallbackReply(userText),
       kind: 'model-tools-unsupported',
     }
   }
@@ -935,7 +940,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('invalid key')
   ) {
     return {
-      reply: assistantProviderAuthFallbackReply(),
+      reply: assistantProviderAuthFallbackReply(userText),
       kind: 'provider-auth',
     }
   }
@@ -945,7 +950,7 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('stream start rejected')
   ) {
     return {
-      reply: assistantStreamFailureFallbackReply(),
+      reply: assistantStreamFailureFallbackReply(userText),
       kind: 'unknown',
     }
   }
@@ -955,12 +960,12 @@ function resolveStreamFailureFallback(error: unknown): { reply: string, kind: St
     || message.includes('kill-switch')
   ) {
     return {
-      reply: assistantStreamFailureFallbackReply(),
+      reply: assistantStreamFailureFallbackReply(userText),
       kind: 'runtime-aborted',
     }
   }
   return {
-    reply: assistantStreamFailureFallbackReply(),
+    reply: assistantStreamFailureFallbackReply(userText),
     kind: 'unknown',
   }
 }
@@ -1191,11 +1196,15 @@ function hasStructuredJsonContract(structured: StructuredOutputResult | undefine
   return structured.parsePath === 'json' || structured.parsePath === 'repair-json'
 }
 
-function createStructuredFallback(replyText: string, emotion: StructuredOutputResult['emotion'] = 'neutral'): StructuredWithContract {
+function createStructuredFallback(
+  replyText: string,
+  emotion: StructuredOutputResult['emotion'] = 'neutral',
+  userText?: string,
+): StructuredWithContract {
   return {
     thought: '',
     emotion,
-    reply: sanitizeStructuredReplySurface(replyText.trim()) || assistantStructuredContractFallbackReply(),
+    reply: sanitizeStructuredReplySurface(replyText.trim()) || assistantStructuredContractFallbackReply(userText),
     performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
@@ -1231,12 +1240,13 @@ function createFailureStructuredFallback(input: {
   kind: StreamFailureKind
   replyText: string
   emotion?: StructuredOutputResult['emotion']
+  userText?: string
 }): StructuredWithContract {
   const emotion = input.emotion ?? 'concerned'
   return {
     thought: createFailureFallbackThought(input.kind),
     emotion,
-    reply: sanitizeStructuredReplySurface(input.replyText.trim()) || assistantStructuredContractFallbackReply(),
+    reply: sanitizeStructuredReplySurface(input.replyText.trim()) || assistantStructuredContractFallbackReply(input.userText),
     performance: normalizeAlicizationPerformancePayload(undefined, emotion as AlicizationEmotion),
     userSentimentScore: 0,
     sentimentConfidence: 0.2,
@@ -1254,19 +1264,20 @@ function summarizeValidationIssues(issues: StructuredValidationIssue[]) {
 function createContractFallbackReply(
   personalityState?: AlicizationPersonalityState | null,
   options?: { toolDenied?: boolean, denialSource?: 'host' | 'system' | 'generic', reminderScheduled?: boolean },
+  userText?: string,
 ) {
   if (options?.toolDenied && options.denialSource === 'host' && personalityState && personalityState.obedience <= 0.2) {
-    return stageChatText('fallbacks.low-obedience-host-denied')
+    return mindRepairText('low-obedience-host-denied', userText)
   }
   if (options?.toolDenied && options.denialSource === 'system' && personalityState && personalityState.obedience <= 0.2) {
-    return stageChatText('fallbacks.low-obedience-system-denied')
+    return mindRepairText('low-obedience-system-denied', userText)
   }
   if (options?.toolDenied && personalityState && personalityState.obedience <= 0.2) {
-    return stageChatText('fallbacks.low-obedience-denied')
+    return mindRepairText('low-obedience-denied', userText)
   }
   if (personalityState && personalityState.liveliness <= 0.2)
-    return stageChatText('fallbacks.low-liveliness')
-  return assistantStructuredContractFallbackReply()
+    return mindRepairText('low-liveliness', userText)
+  return assistantStructuredContractFallbackReply(userText)
 }
 
 function createContractFallbackEmotion(
@@ -1552,9 +1563,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       reasoning = '',
       structuredOverride?: StructuredWithContract,
     ) => {
-      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply()
+      const normalizedReply = replyText.trim() || assistantStructuredContractFallbackReply(sendingMessage)
       return setStagedAssistantResolution({
-        structured: structuredOverride ?? createStructuredFallback(normalizedReply, emotion),
+        structured: structuredOverride ?? createStructuredFallback(normalizedReply, emotion, sendingMessage),
         categorization: {
           speech: normalizedReply,
           reasoning,
@@ -1578,7 +1589,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         preferGroundedEvidence: input.preferGroundedEvidence,
         fallbackReply: input.fallbackReply,
         userText: sendingMessage,
-        translate: stageChatText,
+        translate: (path, params) => translateGovernedMindFallback(path, params, sendingMessage),
       })
       const governed = mergeStructuredRuntimeMeta({
         ...input.structured,
@@ -1631,7 +1642,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         if (!fallbackReply)
           return ''
 
-        const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral')
+        const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral', sendingMessage)
         const structuredWithGovernance = await finalizeGovernedStructuredOutput({
           structured,
           fallbackReply,
@@ -2495,12 +2506,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               toolDenied: turnToolEvidence.deniedBySafety,
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
-            })
+            }, sendingMessage)
         const fallback = createStructuredFallback(fallbackReply, createContractFallbackEmotion(turnPersonalityState, {
           toolDenied: turnToolEvidence.deniedBySafety,
           denialSource: turnToolEvidence.denialSource,
           reminderScheduled: turnToolEvidence.reminderScheduled,
-        }))
+        }), sendingMessage)
         await appendAlicizationAuditLog({
           level: 'warning',
           category: 'structured-output',
@@ -2526,13 +2537,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           toolDenied: turnToolEvidence.deniedBySafety,
           denialSource: turnToolEvidence.denialSource,
           reminderScheduled: turnToolEvidence.reminderScheduled,
-        })
+        }, sendingMessage)
         const structured = payload.enforceContract === false
           ? createStructuredFallback(nonContractReply, createContractFallbackEmotion(turnPersonalityState, {
               toolDenied: turnToolEvidence.deniedBySafety,
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
-            }))
+            }), sendingMessage)
           : await buildStructuredOutputWithGuard(payload)
         if (payload.policyLocked) {
           structured.policyLocked = payload.policyLocked
@@ -2545,7 +2556,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
         const governedReply = governedStructured.reply.trim()
         const safeFallbackReply = nonContractReply
-          || assistantStructuredContractFallbackReply()
+          || assistantStructuredContractFallbackReply(sendingMessage)
         const finalReply = (
           governedReply && !looksLikeAlicizationStructuredPayloadText(governedReply)
             ? governedReply
@@ -2643,11 +2654,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const leakFallbackApplied = sanitizedOutput.leakDetected && emptyAfterSanitize
         const emptyOutputFallbackApplied = !realtimeFallbackApplied && !leakFallbackApplied && emptyAfterSanitize
         const sanitizeFallbackReply = policyLockedReason
-          ? assistantEpoch1StrictFallbackReply()
-          : realtimeGovernedFallbackReply || assistantLeakFallbackReply()
+          ? assistantEpoch1StrictFallbackReply(sendingMessage)
+          : realtimeGovernedFallbackReply || assistantLeakFallbackReply(sendingMessage)
         let finalSpeech = sanitizedOutput.cleanText
         if (realtimeFallbackApplied) {
-          finalSpeech = assistantRealtimeUnavailableReply()
+          finalSpeech = assistantRealtimeUnavailableReply(sendingMessage)
         }
         else if (leakFallbackApplied || emptyOutputFallbackApplied) {
           finalSpeech = sanitizeFallbackReply
@@ -3084,7 +3095,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
 
-          const fallbackReply = assistantEpoch1StrictFallbackReply()
+          const fallbackReply = assistantEpoch1StrictFallbackReply(sendingMessage)
           await applyAssistantResult({
             fullText: fallbackReply,
             reasoning: '',
@@ -3139,7 +3150,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             || realtimeExecution.trace.toolEvidence.verifiedToolResult
           )
           realtimeIntentSettledByEvidence = true
-          realtimeGovernedFallbackReply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply()
+          realtimeGovernedFallbackReply = realtimeExecution.reply?.trim() || assistantRealtimeUnavailableReply(sendingMessage)
           effectiveRuntimeGatewayToolingPolicy = {
             supportsTools: false,
             waitForTools: false,
@@ -3688,7 +3699,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
         })
 
-        const reminderFailureReply = stageChatText('fallbacks.reminder-schedule-failed')
+        const reminderFailureReply = mindRepairText('reminder-schedule-failed', sendingMessage)
         stageAssistantFallback(reminderFailureReply, 'concerned')
         await appendAlicizationAuditLog({
           level: 'warning',
@@ -3761,7 +3772,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       if (!assistantOutputCommitted) {
-        const fallback = resolveStreamFailureFallback(error)
+        const fallback = resolveStreamFailureFallback(error, sendingMessage)
         const fallbackReply = fallback.reply
         stageAssistantFallback(
           fallbackReply,
@@ -3771,6 +3782,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             kind: fallback.kind,
             replyText: fallbackReply,
             emotion: 'concerned',
+            userText: sendingMessage,
           }),
         )
         const assistantOutputText = await commitAssistantResolution()

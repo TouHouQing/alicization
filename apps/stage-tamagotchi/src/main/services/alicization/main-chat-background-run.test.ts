@@ -573,7 +573,7 @@ describe('main chat background run', () => {
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('现在是')
+    expect(emittedChunk?.text).toMatch(/现在是|这会儿是|此刻/u)
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-confirm',
@@ -771,7 +771,7 @@ describe('main chat background run', () => {
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/答偏了|接偏了/u)
-    expect(emittedChunk?.text).toContain('现在是')
+    expect(emittedChunk?.text).toMatch(/现在是|这会儿是|此刻/u)
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
     expect(finishedStructured.thought).toContain('obligation=repair')
@@ -1168,7 +1168,7 @@ describe('main chat background run', () => {
       turnId: 'turn-required-tool',
       text: expect.any(String),
     })
-    expect(recoveredChunk?.text).toMatch(/确认|落下|跑完|跑到结尾|有结果/u)
+    expect(recoveredChunk?.text).toMatch(/确认|落下|跑完|跑到结尾|有结果|收束成结果/u)
     expect(recoveredChunk?.text).toContain('Desktop files: alpha.txt, beta.md')
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
@@ -1258,7 +1258,7 @@ describe('main chat background run', () => {
     expect(recoveryResult?.recoveryMode).toBe('deterministic-required-tool')
     const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
     expect(recoveryPayload.format).toBe('mind-turn-v1')
-    expect(recoveryPayload.reply).toMatch(/确认|落下|跑完|跑到结尾|有结果/u)
+    expect(recoveryPayload.reply).toMatch(/确认|落下|跑完|跑到结尾|有结果|收束成结果/u)
     expect(recoveryPayload.reply).toContain('Desktop files: alpha.txt, beta.md')
     expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
     expect(executeDeterministicTool).toHaveBeenCalled()

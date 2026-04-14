@@ -283,6 +283,7 @@ function composeRealtimeReply(input: {
     evidences: input.evidences,
     failed: input.failed.map(category => category as AlicizationRealtimeCategory),
     locale: inferAlicizationRealtimeSurfaceLocale(input.message),
+    query: input.message,
   })
 }
 

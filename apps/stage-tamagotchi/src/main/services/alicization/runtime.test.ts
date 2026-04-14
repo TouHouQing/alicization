@@ -9849,7 +9849,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }
 
     expect(structured.format).toBe('mind-turn-v1')
-    expect(structured.reply).toContain('CLI 那条任务已经跑完了')
+    expect(structured.reply).toMatch(/CLI 那条.*(跑完了|收束了|回来了)/u)
     expect(structured.reply).toContain('vitest passed on stage-tamagotchi')
     expect(structured.reply).toContain('pnpm test finished without failures')
     expect(systemTexts.some(text => text.includes('[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]'))).toBe(false)

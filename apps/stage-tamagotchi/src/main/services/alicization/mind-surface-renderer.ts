@@ -42,6 +42,21 @@ function pickVariant(seed: string, candidates: readonly string[]) {
   return candidates[stableVariantIndex(seed, candidates.length)] ?? candidates[0] ?? ''
 }
 
+function buildVariantSeed(base: string, ...parts: Array<string | number | boolean | null | undefined>) {
+  return [base, ...parts.map(part => part == null ? '' : String(part))]
+    .filter(Boolean)
+    .join('|')
+}
+
+function pickLocaleVariant(
+  locale: 'zh' | 'en',
+  seed: string,
+  zhCandidates: readonly string[],
+  enCandidates: readonly string[],
+) {
+  return pickVariant(seed, locale === 'zh' ? zhCandidates : enCandidates)
+}
+
 function uniqueSentences(sentences: Array<string | null | undefined>, maxSentences: number) {
   const output: string[] = []
   for (const sentence of sentences) {
@@ -538,28 +553,60 @@ function resolveGovernedDelivery(governance: AlicizationMindTurnGovernance) {
   return governance.answerSubject === 'relationship' ? 'gentle' : 'calm'
 }
 
-function renderLocalTimeFact(clock: AlicizationMindSurfaceClockSnapshot, includeDate = false) {
+function renderLocalTimeFact(clock: AlicizationMindSurfaceClockSnapshot, includeDate = false, seed = '') {
   if (clock.language === 'zh') {
     return includeDate
-      ? `现在是 ${clock.timeText}，今天是 ${clock.dateText}，${clock.weekdayText}。`
-      : `现在是 ${clock.timeText}，${clock.weekdayText}。`
+      ? pickVariant(buildVariantSeed(seed, 'time-fact', 'with-date', clock.timeZone, clock.timeText, clock.dateText), [
+          `现在是 ${clock.timeText}，今天是 ${clock.dateText}，${clock.weekdayText}。`,
+          `这会儿是 ${clock.timeText}，今天落在 ${clock.dateText}，${clock.weekdayText}。`,
+          `此刻按这边的时钟看，是 ${clock.timeText}；日期是 ${clock.dateText}，${clock.weekdayText}。`,
+        ])
+      : pickVariant(buildVariantSeed(seed, 'time-fact', 'plain', clock.timeZone, clock.timeText), [
+          `现在是 ${clock.timeText}，${clock.weekdayText}。`,
+          `这会儿是 ${clock.timeText}，${clock.weekdayText}。`,
+          `此刻看过去是 ${clock.timeText}，${clock.weekdayText}。`,
+        ])
   }
 
   return includeDate
-    ? `It's ${clock.timeText} right now. Today is ${clock.dateText} (${clock.weekdayText}).`
-    : `It's ${clock.timeText} right now (${clock.weekdayText}).`
+    ? pickVariant(buildVariantSeed(seed, 'time-fact', 'with-date', clock.timeZone, clock.timeText, clock.dateText), [
+        `It's ${clock.timeText} right now. Today is ${clock.dateText} (${clock.weekdayText}).`,
+        `Right now it's ${clock.timeText}, and today is ${clock.dateText} (${clock.weekdayText}).`,
+        `At this moment it's ${clock.timeText}; the date is ${clock.dateText} (${clock.weekdayText}).`,
+      ])
+    : pickVariant(buildVariantSeed(seed, 'time-fact', 'plain', clock.timeZone, clock.timeText), [
+        `It's ${clock.timeText} right now (${clock.weekdayText}).`,
+        `Right now it's ${clock.timeText} (${clock.weekdayText}).`,
+        `At this moment it's ${clock.timeText} (${clock.weekdayText}).`,
+      ])
 }
 
-function renderLocalDateFact(clock: AlicizationMindSurfaceClockSnapshot, includeTime = false) {
+function renderLocalDateFact(clock: AlicizationMindSurfaceClockSnapshot, includeTime = false, seed = '') {
   if (clock.language === 'zh') {
     return includeTime
-      ? `今天是 ${clock.dateText}，${clock.weekdayText}，现在是 ${clock.timeText}。`
-      : `今天是 ${clock.dateText}，${clock.weekdayText}。`
+      ? pickVariant(buildVariantSeed(seed, 'date-fact', 'with-time', clock.timeZone, clock.dateText, clock.timeText), [
+          `今天是 ${clock.dateText}，${clock.weekdayText}，现在是 ${clock.timeText}。`,
+          `日期落在 ${clock.dateText}，${clock.weekdayText}；这会儿是 ${clock.timeText}。`,
+          `按这边的日历看，今天是 ${clock.dateText}，${clock.weekdayText}，时间是 ${clock.timeText}。`,
+        ])
+      : pickVariant(buildVariantSeed(seed, 'date-fact', 'plain', clock.timeZone, clock.dateText), [
+          `今天是 ${clock.dateText}，${clock.weekdayText}。`,
+          `今天落在 ${clock.dateText}，${clock.weekdayText}。`,
+          `按这边的日历看，今天是 ${clock.dateText}，${clock.weekdayText}。`,
+        ])
   }
 
   return includeTime
-    ? `Today is ${clock.dateText} (${clock.weekdayText}), and it's ${clock.timeText} right now.`
-    : `Today is ${clock.dateText} (${clock.weekdayText}).`
+    ? pickVariant(buildVariantSeed(seed, 'date-fact', 'with-time', clock.timeZone, clock.dateText, clock.timeText), [
+        `Today is ${clock.dateText} (${clock.weekdayText}), and it's ${clock.timeText} right now.`,
+        `The date is ${clock.dateText} (${clock.weekdayText}), and the time is ${clock.timeText}.`,
+        `On this calendar it's ${clock.dateText} (${clock.weekdayText}), with the clock at ${clock.timeText}.`,
+      ])
+    : pickVariant(buildVariantSeed(seed, 'date-fact', 'plain', clock.timeZone, clock.dateText), [
+        `Today is ${clock.dateText} (${clock.weekdayText}).`,
+        `The date is ${clock.dateText} (${clock.weekdayText}).`,
+        `On this calendar it's ${clock.dateText} (${clock.weekdayText}).`,
+      ])
 }
 
 interface AlicizationMindSurfaceReplyContext {
@@ -835,10 +882,10 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
             move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
             move.resolvedTimeZoneSource === 'user-explicit'
               ? `这轮我还是按 ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}。`
-              : renderLocalTimeFact(move.clock, true),
+              : renderLocalTimeFact(move.clock, true, buildVariantSeed(seed, 'repair-time', 'zh')),
           ),
           ...(move.resolvedTimeZoneSource === 'user-explicit'
-            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true))
+            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true, buildVariantSeed(seed, 'repair-time', 'zh', 'explicit')))
             : []),
         ]
       : [
@@ -855,10 +902,10 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
             move.resolvedTimeZoneSource === 'user-explicit' ? 'basis' : 'fact',
             move.resolvedTimeZoneSource === 'user-explicit'
               ? `I'm still answering on ${formatClockTimeZoneLabel(move.clock.timeZone, locale)}.`
-              : renderLocalTimeFact(move.clock, true),
+              : renderLocalTimeFact(move.clock, true, buildVariantSeed(seed, 'repair-time', 'en')),
           ),
           ...(move.resolvedTimeZoneSource === 'user-explicit'
-            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true))
+            ? createMindSurfaceReplyPart('fact', renderLocalTimeFact(move.clock, true, buildVariantSeed(seed, 'repair-time', 'en', 'explicit')))
             : []),
         ]
   if (move.target === 'date' && move.clock)
@@ -873,7 +920,7 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
             'I leaned on the wrong layer there.',
             'That landed off the real point.',
           ]),
-          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
+          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true, buildVariantSeed(seed, 'repair-date', 'zh'))),
         ]
       : [
           ...renderRepairAcknowledgement([
@@ -885,7 +932,7 @@ function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' |
             'I leaned on the wrong layer there.',
             'That landed off the real point.',
           ]),
-          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true)),
+          ...createMindSurfaceReplyPart('fact', renderLocalDateFact(move.clock, true, buildVariantSeed(seed, 'repair-date', 'en'))),
         ]
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
@@ -1078,8 +1125,9 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
   }).mode
   const confirmation = queryMode === 'time-confirmation'
   const locale = context.locale
+  const seed = buildVariantSeed(context.seed, 'local-time', queryMode, move.clock.timeZone, move.clock.timeText)
   const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
-  const timeFact = renderLocalTimeFact(move.clock, move.includeDate === true || confirmation)
+  const timeFact = renderLocalTimeFact(move.clock, move.includeDate === true || confirmation, seed)
   const source = move.resolvedTimeZoneSource ?? null
 
   if (locale === 'zh') {
@@ -1089,38 +1137,86 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
         parts.push(...createMindSurfaceReplyPart(
           'reason',
           source === 'user-explicit'
-            ? '这轮的时间基准是你刚才指定的。'
+            ? pickVariant(buildVariantSeed(seed, 'timezone', 'explicit'), [
+                `这轮我沿你刚点名的时区来回。`,
+                `你刚把这轮的时间基准扣住了。`,
+                `这轮的时钟基准是你刚指定下来的。`,
+              ])
             : source === 'context-hint'
-              ? '这轮上下文已经带着一条时间基准。'
-              : '你没有另指定时区。',
+              ? pickVariant(buildVariantSeed(seed, 'timezone', 'context'), [
+                  `这轮上下文里本来就带着一条时间基准。`,
+                  `我接到这句时，这轮已经挂着现成的时间基准了。`,
+                  `这一轮的上下文自己把时间基准带了进来。`,
+                ])
+              : pickVariant(buildVariantSeed(seed, 'timezone', 'default'), [
+                  `你这句没有另点时区。`,
+                  `这轮里你还没把时区改到别处。`,
+                  `你没有额外指定新的时间基准。`,
+                ]),
         ))
-        parts.push(...createMindSurfaceReplyPart('fact', `我当前按 ${timeZoneLabel}。`))
+        parts.push(...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'timezone', 'fact'), [
+          `我现在按 ${timeZoneLabel}。`,
+          `这会儿我沿的是 ${timeZoneLabel}。`,
+          `当前生效的是 ${timeZoneLabel}。`,
+        ])))
         return parts
       case 'timezone-why':
         parts.push(...createMindSurfaceReplyPart(
           'reason',
           source === 'user-explicit'
-            ? `因为你刚才已经把回答基准指定到了 ${timeZoneLabel}。`
+            ? pickVariant(buildVariantSeed(seed, 'timezone-why', 'explicit'), [
+                `因为你刚才已经把回答基准扣在 ${timeZoneLabel}。`,
+                `因为这轮是你亲手指定到 ${timeZoneLabel} 的。`,
+                `因为你刚把这轮的时钟基准点到了 ${timeZoneLabel}。`,
+              ])
             : source === 'context-hint'
-              ? `因为这轮上下文已经把时间基准带到了 ${timeZoneLabel}。`
-              : '因为你没有另指定时区，所以我默认沿当前环境的本地时间来回。',
+              ? pickVariant(buildVariantSeed(seed, 'timezone-why', 'context'), [
+                  `因为这轮上下文已经把时间基准带到了 ${timeZoneLabel}。`,
+                  `因为我接到这句时，上下文里挂着的就是 ${timeZoneLabel}。`,
+                  `因为这轮先前留下的时间基准就在 ${timeZoneLabel}。`,
+                ])
+              : pickVariant(buildVariantSeed(seed, 'timezone-why', 'default'), [
+                  '因为你没有另指定时区，所以我先沿当前环境的本地时间来回。',
+                  '因为这轮没被改到别的时区，我就顺着当前环境这边的本地时间答。',
+                  '因为你这句没点名新时区，所以我默认沿当前环境的本地时间回答。',
+                ]),
         ))
-        parts.push(...createMindSurfaceReplyPart('basis', `在这里就是 ${timeZoneLabel}。`))
-        parts.push(...createMindSurfaceReplyPart('offer', '你要我改成别的时区，直接点名就行。'))
+        parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'timezone-why', 'basis'), [
+          `落到这里就是 ${timeZoneLabel}。`,
+          `所以这轮此刻用的是 ${timeZoneLabel}。`,
+          `换成明面上的说法，就是 ${timeZoneLabel}。`,
+        ])))
+        parts.push(...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'timezone-why', 'offer'), [
+          '你要我改成别的时区，直接点名就行。',
+          '你要换成别的时区，只要把名字告诉我。',
+          '如果你想切到别的时区，直接把时区说出来就好。',
+        ])))
         return parts
       case 'time-confirmation':
         parts.push(...createMindSurfaceReplyPart(
           source === 'user-explicit' ? 'basis' : 'reason',
           source === 'user-explicit'
-            ? `我又按 ${timeZoneLabel} 核对了一遍。`
-            : '我又核了一遍。',
+            ? pickVariant(buildVariantSeed(seed, 'time-confirmation', 'explicit'), [
+                `我又按 ${timeZoneLabel} 核了一遍。`,
+                `我重新照着 ${timeZoneLabel} 对了一次。`,
+                `我刚又按 ${timeZoneLabel} 复核了一下。`,
+              ])
+            : pickVariant(buildVariantSeed(seed, 'time-confirmation', 'default'), [
+                '我又核了一遍。',
+                '我刚重新对了一次。',
+                '我又把这一刻对了一下表。',
+              ]),
         ))
         parts.push(...createMindSurfaceReplyPart('fact', timeFact))
         return parts
       case 'time':
       default:
         if (source === 'user-explicit')
-          parts.push(...createMindSurfaceReplyPart('basis', `这轮我按 ${timeZoneLabel}。`))
+          parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'time', 'explicit-basis'), [
+            `这轮我按 ${timeZoneLabel}。`,
+            `这句我沿 ${timeZoneLabel} 来回。`,
+            `这轮此刻我照的是 ${timeZoneLabel}。`,
+          ])))
         parts.push(...createMindSurfaceReplyPart('fact', timeFact))
         return parts
     }
@@ -1132,38 +1228,86 @@ function renderTimeMove(move: AlicizationMindSurfaceTimeMove, context: Alicizati
       parts.push(...createMindSurfaceReplyPart(
         'reason',
         source === 'user-explicit'
-          ? `You explicitly set the time basis for this turn.`
+          ? pickVariant(buildVariantSeed(seed, 'timezone', 'explicit'), [
+              `You explicitly set the time basis for this turn.`,
+              `You already pinned this turn to a specific time basis.`,
+              `The time basis here was set by you just now.`,
+            ])
           : source === 'context-hint'
-            ? `This turn already carries a time basis in context.`
-            : `You did not name another timezone.`,
+            ? pickVariant(buildVariantSeed(seed, 'timezone', 'context'), [
+                `This turn already carries a time basis in context.`,
+                `The context for this turn was already carrying a time basis.`,
+                `A time basis was already hanging in the context for this turn.`,
+              ])
+            : pickVariant(buildVariantSeed(seed, 'timezone', 'default'), [
+                `You did not name another timezone.`,
+                `You did not switch this turn to a different timezone.`,
+                `No other timezone was named in this turn.`,
+              ]),
       ))
-      parts.push(...createMindSurfaceReplyPart('fact', `The active time basis right now is ${timeZoneLabel}.`))
+      parts.push(...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'timezone', 'fact'), [
+        `The active time basis right now is ${timeZoneLabel}.`,
+        `Right now I'm answering on ${timeZoneLabel}.`,
+        `The current clock basis here is ${timeZoneLabel}.`,
+      ])))
       return parts
     case 'timezone-why':
       parts.push(...createMindSurfaceReplyPart(
         'reason',
         source === 'user-explicit'
-          ? `Because you explicitly told me to answer on ${timeZoneLabel}.`
+          ? pickVariant(buildVariantSeed(seed, 'timezone-why', 'explicit'), [
+              `Because you explicitly told me to answer on ${timeZoneLabel}.`,
+              `Because you already set this turn to ${timeZoneLabel}.`,
+              `Because you pinned the turn to ${timeZoneLabel} yourself.`,
+            ])
           : source === 'context-hint'
-            ? `Because this turn already carried ${timeZoneLabel} in context.`
-            : `Because you did not name another timezone, I defaulted to the local runtime basis here.`,
+            ? pickVariant(buildVariantSeed(seed, 'timezone-why', 'context'), [
+                `Because this turn already carried ${timeZoneLabel} in context.`,
+                `Because the context for this turn was already pointing at ${timeZoneLabel}.`,
+                `Because ${timeZoneLabel} was already attached to the turn context when I picked it up.`,
+              ])
+            : pickVariant(buildVariantSeed(seed, 'timezone-why', 'default'), [
+                `Because you did not name another timezone, I defaulted to the local runtime basis here.`,
+                `Because this turn never switched to another timezone, I stayed on the local runtime basis.`,
+                `Because no different timezone was named, I answered on the local runtime basis here.`,
+              ]),
       ))
-      parts.push(...createMindSurfaceReplyPart('basis', `Here that means ${timeZoneLabel}.`))
-      parts.push(...createMindSurfaceReplyPart('offer', `If you want another timezone, name it directly and I'll switch.`))
+      parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'timezone-why', 'basis'), [
+        `Here that means ${timeZoneLabel}.`,
+        `In concrete terms, that lands on ${timeZoneLabel}.`,
+        `So the visible clock basis here is ${timeZoneLabel}.`,
+      ])))
+      parts.push(...createMindSurfaceReplyPart('offer', pickVariant(buildVariantSeed(seed, 'timezone-why', 'offer'), [
+        `If you want another timezone, name it directly and I'll switch.`,
+        `If you want me on a different timezone, point to it and I'll move the clock there.`,
+        `If you'd rather use another timezone, just name it and I'll answer on that basis.`,
+      ])))
       return parts
     case 'time-confirmation':
       parts.push(...createMindSurfaceReplyPart(
         source === 'user-explicit' ? 'basis' : 'reason',
         source === 'user-explicit'
-          ? `I checked it again against ${timeZoneLabel}.`
-          : `I checked again.`,
+          ? pickVariant(buildVariantSeed(seed, 'time-confirmation', 'explicit'), [
+              `I checked it again against ${timeZoneLabel}.`,
+              `I re-checked it on ${timeZoneLabel}.`,
+              `I just verified it again against ${timeZoneLabel}.`,
+            ])
+          : pickVariant(buildVariantSeed(seed, 'time-confirmation', 'default'), [
+              `I checked again.`,
+              `I just checked it once more.`,
+              `I re-checked the clock.`,
+            ]),
       ))
       parts.push(...createMindSurfaceReplyPart('fact', timeFact))
       return parts
     case 'time':
     default:
       if (source === 'user-explicit')
-        parts.push(...createMindSurfaceReplyPart('basis', `This turn is aligned to ${timeZoneLabel}.`))
+        parts.push(...createMindSurfaceReplyPart('basis', pickVariant(buildVariantSeed(seed, 'time', 'explicit-basis'), [
+          `This turn is aligned to ${timeZoneLabel}.`,
+          `I'm answering this turn on ${timeZoneLabel}.`,
+          `The clock basis for this turn is ${timeZoneLabel}.`,
+        ])))
       parts.push(...createMindSurfaceReplyPart('fact', timeFact))
       return parts
   }
@@ -1173,8 +1317,9 @@ function renderDateMove(move: AlicizationMindSurfaceDateMove, context: Alicizati
   const askTimeZone = isTimeZoneFocusedTurn(context.userText)
   const confirmation = continuityCheckPattern.test(normalizeTurnText(context.userText, 180))
   const locale = context.locale
+  const seed = buildVariantSeed(context.seed, 'local-date', move.clock.timeZone, move.clock.dateText, move.clock.timeText)
   const timeZoneLabel = formatClockTimeZoneLabel(move.clock.timeZone, locale)
-  const dateFact = renderLocalDateFact(move.clock, move.includeTime === true || confirmation)
+  const dateFact = renderLocalDateFact(move.clock, move.includeTime === true || confirmation, seed)
 
   if (locale === 'zh') {
     return [
@@ -1203,7 +1348,7 @@ function renderDateMove(move: AlicizationMindSurfaceDateMove, context: Alicizati
   ]
 }
 
-function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListingMove, locale: 'zh' | 'en') {
+function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListingMove, locale: 'zh' | 'en', seed: string) {
   const scopeLabel = move.scope === 'desktop'
     ? (locale === 'zh' ? '桌面' : 'desktop')
     : (locale === 'zh' ? '目录' : 'directory')
@@ -1212,43 +1357,83 @@ function renderExecutionListingMove(move: AlicizationMindSurfaceExecutionListing
 
   if (move.mode === 'follow-up') {
     if (!previewText)
-      return createMindSurfaceReplyPart('fact', locale === 'zh' ? `${scopeLabel}这边没有新的剩余项了。` : `There are no remaining ${scopeLabel} items to add.`)
+      return createMindSurfaceReplyPart('fact', pickLocaleVariant(locale, buildVariantSeed(seed, 'execution-listing', 'follow-up-empty', scopeLabel), [
+        `${scopeLabel}这边没有新的剩余项了。`,
+        `${scopeLabel}剩下这边已经没有新的项可补了。`,
+        `${scopeLabel}后面已经没有新的剩余项了。`,
+      ], [
+        `There are no remaining ${scopeLabel} items to add.`,
+        `There are no further ${scopeLabel} items left to append.`,
+        `There are no new remaining ${scopeLabel} items to add.`,
+      ]))
     if (locale === 'zh') {
       return [
         ...createMindSurfaceReplyPart('fact',
           move.requestedCount && move.requestedCount > 0
-            ? `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`
-            : `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+            ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
+                `另外 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `剩下还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+                `我再补上的 ${move.previewItems.length} 项是：${previewText}。${extraCount > 0 ? `后面还压着 ${extraCount} 项，你点头我就继续往下翻。` : ''}`,
+                `另外这一截能点出来的是：${previewText}。${extraCount > 0 ? `再往后还有 ${extraCount} 项，你要我就继续列。` : ''}`,
+              ])
+            : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
+                `剩下这些是：${previewText}。${extraCount > 0 ? `后面还有 ${extraCount} 项，你要我就继续往下列。` : ''}`,
+                `后面这一截是：${previewText}。${extraCount > 0 ? `再往后还挂着 ${extraCount} 项，你要我就继续翻。` : ''}`,
+                `还没说到的这些是：${previewText}。${extraCount > 0 ? `剩下另有 ${extraCount} 项，你要我就接着点。` : ''}`,
+              ]),
         ),
       ]
     }
     return [
       ...createMindSurfaceReplyPart('fact',
         move.requestedCount && move.requestedCount > 0
-          ? `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`
-          : `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+          ? pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-requested', move.previewItems.length, extraCount), [
+              `The other ${move.previewItems.length} items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep listing them.` : ''}`,
+              `The next ${move.previewItems.length} items I can name are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+              `The additional ${move.previewItems.length} items here are: ${previewText}.${extraCount > 0 ? ` Another ${extraCount} remain behind them if you want the rest.` : ''}`,
+            ])
+          : pickVariant(buildVariantSeed(seed, 'execution-listing', 'follow-up-remaining', move.previewItems.length, extraCount), [
+              `The remaining items are: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want me to keep going.` : ''}`,
+              `What is still left here is: ${previewText}.${extraCount > 0 ? ` There are ${extraCount} more after that if you want the rest.` : ''}`,
+              `The items I have not named yet are: ${previewText}.${extraCount > 0 ? ` ${extraCount} more still sit behind them if you want me to continue.` : ''}`,
+            ]),
       ),
     ]
   }
 
   if (!previewText) {
     return locale === 'zh'
-      ? createMindSurfaceReplyPart('fact', `${scopeLabel}里现在一共是 ${move.count} 项。`)
-      : createMindSurfaceReplyPart('fact', `There are ${move.count} items in the ${scopeLabel} right now.`)
+      ? createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-listing', 'empty-preview', move.count, scopeLabel), [
+          `${scopeLabel}里现在一共是 ${move.count} 项。`,
+          `${scopeLabel}这边现在总共有 ${move.count} 项。`,
+          `按我现在拿到的结果，${scopeLabel}里一共是 ${move.count} 项。`,
+        ]))
+      : createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-listing', 'empty-preview', move.count, scopeLabel), [
+          `There are ${move.count} items in the ${scopeLabel} right now.`,
+          `The ${scopeLabel} currently contains ${move.count} items.`,
+          `From what I have in hand, there are ${move.count} items in the ${scopeLabel}.`,
+        ]))
   }
 
   if (locale === 'zh') {
     return [
-      ...createMindSurfaceReplyPart('fact', `${scopeLabel}里现在一共 ${move.count} 项，先能点出来的是：${previewText}${extraCount > 0 ? `，另外还有 ${extraCount} 项` : ''}。`),
+      ...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-listing', 'summary', move.count, extraCount, scopeLabel), [
+        `${scopeLabel}里现在一共 ${move.count} 项，先能点出来的是：${previewText}${extraCount > 0 ? `，另外还有 ${extraCount} 项` : ''}。`,
+        `${scopeLabel}这边现在总共有 ${move.count} 项，我先能叫出来的是：${previewText}${extraCount > 0 ? `，后面还压着 ${extraCount} 项` : ''}。`,
+        `按这次回执看，${scopeLabel}里一共有 ${move.count} 项；眼下先能报给你的是：${previewText}${extraCount > 0 ? `，另外还有 ${extraCount} 项没展开` : ''}。`,
+      ])),
     ]
   }
 
   return [
-    ...createMindSurfaceReplyPart('fact', `There are ${move.count} items in the ${scopeLabel} right now. The ones I can name first are: ${previewText}${extraCount > 0 ? `, plus ${extraCount} more` : ''}.`),
+    ...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-listing', 'summary', move.count, extraCount, scopeLabel), [
+      `There are ${move.count} items in the ${scopeLabel} right now. The ones I can name first are: ${previewText}${extraCount > 0 ? `, plus ${extraCount} more` : ''}.`,
+      `The ${scopeLabel} currently has ${move.count} items. The first ones I can name are: ${previewText}${extraCount > 0 ? `, with ${extraCount} more behind them` : ''}.`,
+      `From this result, there are ${move.count} items in the ${scopeLabel}; the ones I can name first are ${previewText}${extraCount > 0 ? `, plus ${extraCount} others` : ''}.`,
+    ])),
   ]
 }
 
-function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMove, locale: 'zh' | 'en') {
+function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMove, locale: 'zh' | 'en', seed: string) {
   const detail = sanitizeText(move.detail, 220)
   const summary = sanitizeText(move.summary, 180)
   const channelLabel = sanitizeText(move.channelLabel, 48) || 'CLI'
@@ -1257,49 +1442,105 @@ function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMo
     if (move.mode === 'follow-up') {
       if (move.status === 'completed') {
         return [
-          ...createMindSurfaceReplyPart('fact', `${channelLabel} 那条任务已经跑完了${detail ? `，现在拿到的是：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`),
+          ...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'follow-up-completed', channelLabel, detail, summary), [
+            `${channelLabel} 那条任务已经跑完了${detail ? `，现在拿到的是：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`,
+            `${channelLabel} 那条已经收束了${detail ? `，我现在拿到的是：${detail}。` : '。'}${summary ? `压成一句就是：${summary}。` : ''}`,
+            `${channelLabel} 那边已经回来了${detail ? `，结果这会儿在我手上：${detail}。` : '。'}${summary ? `概括来说是：${summary}。` : ''}`,
+          ])),
         ]
       }
       if (move.status === 'failed' || move.status === 'blocked' || move.status === 'cancelled' || move.status === 'not-routed') {
         return [
-          ...createMindSurfaceReplyPart('fact', `${channelLabel} 那条任务这次没跑通${detail ? `：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`),
+          ...createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'follow-up-failed', channelLabel, detail, summary, move.status), [
+            `${channelLabel} 那条任务这次没跑通${detail ? `：${detail}。` : '。'}${summary ? `概括上就是：${summary}。` : ''}`,
+            `${channelLabel} 那条这次没真正跑成${detail ? `：${detail}。` : '。'}${summary ? `压一句就是：${summary}。` : ''}`,
+            `${channelLabel} 那边这次没有顺利落完${detail ? `，卡在：${detail}。` : '。'}${summary ? `概括来看是：${summary}。` : ''}`,
+          ])),
         ]
       }
     }
 
     switch (move.status) {
       case 'completed':
-        return createMindSurfaceReplyPart('fact', detail ? `这件事已经有结果了：${detail}。` : '这件事已经有结果了。')
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'completed', detail, summary, channelLabel), [
+          detail ? `这件事已经有结果了：${detail}。` : '这件事已经有结果了。',
+          detail ? `这件事已经落到结果上了：${detail}。` : '这件事已经落到结果上了。',
+          detail ? `这件事这会儿已经收束成结果了：${detail}。` : '这件事这会儿已经收束成结果了。',
+        ]))
       case 'running':
-        return createMindSurfaceReplyPart('fact', `这件事已经交给 ${channelLabel} 在跑了。`)
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'running', channelLabel), [
+          `这件事已经交给 ${channelLabel} 在跑了。`,
+          `${channelLabel} 已经接到这件事，正在跑。`,
+          `这条执行已经挂到 ${channelLabel} 上了，现在在跑。`,
+        ]))
       case 'queued':
-        return createMindSurfaceReplyPart('fact', `这件事已经排进 ${channelLabel} 了。`)
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'queued', channelLabel), [
+          `这件事已经排进 ${channelLabel} 了。`,
+          `${channelLabel} 那边已经把这件事收进队列了。`,
+          `这条执行已经挂进 ${channelLabel} 的排队里。`,
+        ]))
       case 'cancelled':
-        return createMindSurfaceReplyPart('fact', detail ? `这次执行中断了：${detail}。` : '这次执行中断了。')
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'cancelled', detail, summary), [
+          detail ? `这次执行中断了：${detail}。` : '这次执行中断了。',
+          detail ? `这条执行半路停掉了：${detail}。` : '这条执行半路停掉了。',
+          detail ? `这次执行没走完，中途断在：${detail}。` : '这次执行没走完，中途断掉了。',
+        ]))
       case 'blocked':
       case 'not-routed':
-        return createMindSurfaceReplyPart('fact', detail ? `这件事没能真正跑出去：${detail}。` : '这件事没能真正跑出去。')
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'blocked', detail, summary, move.status), [
+          detail ? `这件事没能真正跑出去：${detail}。` : '这件事没能真正跑出去。',
+          detail ? `这件事卡在出发前了：${detail}。` : '这件事卡在出发前了。',
+          detail ? `这条执行没真正离开准备面：${detail}。` : '这条执行没真正离开准备面。',
+        ]))
       case 'failed':
       default:
-        return createMindSurfaceReplyPart('fact', detail ? `这件事没跑通：${detail}。` : summary ? `这件事没跑通：${summary}。` : '这件事没跑通。')
+        return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'failed', detail, summary, channelLabel), [
+          detail ? `这件事没跑通：${detail}。` : summary ? `这件事没跑通：${summary}。` : '这件事没跑通。',
+          detail ? `这条执行这次没落成：${detail}。` : summary ? `这条执行这次没落成：${summary}。` : '这条执行这次没落成。',
+          detail ? `这件事这轮还是断在执行里：${detail}。` : summary ? `这件事这轮还是断在执行里：${summary}。` : '这件事这轮还是断在执行里。',
+        ]))
     }
   }
 
   switch (move.status) {
     case 'completed':
-      return createMindSurfaceReplyPart('fact', detail ? `The task has a result now: ${detail}.` : 'The task has a result now.')
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'completed', detail, summary, channelLabel), [
+        detail ? `The task has a result now: ${detail}.` : 'The task has a result now.',
+        detail ? `The task has settled into a result now: ${detail}.` : 'The task has settled into a result now.',
+        detail ? `This task has come back with a result: ${detail}.` : 'This task has come back with a result.',
+      ]))
     case 'running':
-      return createMindSurfaceReplyPart('fact', `The task is already running in ${channelLabel}.`)
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'running', channelLabel), [
+        `The task is already running in ${channelLabel}.`,
+        `${channelLabel} is already carrying the task.`,
+        `That execution is already in motion inside ${channelLabel}.`,
+      ]))
     case 'queued':
-      return createMindSurfaceReplyPart('fact', `The task is already queued in ${channelLabel}.`)
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'queued', channelLabel), [
+        `The task is already queued in ${channelLabel}.`,
+        `${channelLabel} has already queued the task.`,
+        `That execution is already sitting in ${channelLabel}'s queue.`,
+      ]))
     case 'cancelled':
-      return createMindSurfaceReplyPart('fact', detail ? `The execution stopped partway through: ${detail}.` : 'The execution stopped partway through.')
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'cancelled', detail, summary), [
+        detail ? `The execution stopped partway through: ${detail}.` : 'The execution stopped partway through.',
+        detail ? `The run cut off midway: ${detail}.` : 'The run cut off midway.',
+        detail ? `That execution did not finish cleanly and stopped here: ${detail}.` : 'That execution did not finish cleanly and stopped partway through.',
+      ]))
     case 'blocked':
     case 'not-routed':
-      return createMindSurfaceReplyPart('fact', detail ? `The task did not actually get out: ${detail}.` : 'The task did not actually get out.')
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'blocked', detail, summary, move.status), [
+        detail ? `The task did not actually get out: ${detail}.` : 'The task did not actually get out.',
+        detail ? `The task stalled before it truly launched: ${detail}.` : 'The task stalled before it truly launched.',
+        detail ? `That execution never really left the pad: ${detail}.` : 'That execution never really left the pad.',
+      ]))
     case 'failed':
     default:
-      return createMindSurfaceReplyPart('fact', detail ? `The task failed: ${detail}.` : summary ? `The task failed: ${summary}.` : 'The task failed.')
+      return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'failed', detail, summary, channelLabel), [
+        detail ? `The task failed: ${detail}.` : summary ? `The task failed: ${summary}.` : 'The task failed.',
+        detail ? `That execution did not land cleanly: ${detail}.` : summary ? `That execution did not land cleanly: ${summary}.` : 'That execution did not land cleanly.',
+        detail ? `The run broke before completion: ${detail}.` : summary ? `The run broke before completion: ${summary}.` : 'The run broke before completion.',
+      ]))
   }
 }
 
@@ -1326,9 +1567,9 @@ function renderMove(move: AlicizationMindSurfaceMove, context: AlicizationMindSu
     case 'present-state':
       return renderPresentStateMove(move, context.locale, context.seed)
     case 'execution-listing':
-      return renderExecutionListingMove(move, context.locale)
+      return renderExecutionListingMove(move, context.locale, context.seed)
     case 'execution-detail':
-      return renderExecutionDetailMove(move, context.locale)
+      return renderExecutionDetailMove(move, context.locale, context.seed)
     case 'direct-reply':
       return createMindSurfaceReplyPart('fact', sanitizeText(move.text, 320))
   }

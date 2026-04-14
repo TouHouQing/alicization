@@ -128,6 +128,106 @@ export const governedMindFallbackMessageFallbacks = {
       'If you want screen-level detail, give me the fresh scene from this turn and I will anchor to that.',
       'If you want screen detail, give me the fresh view for this turn and I will pin to that instead.',
     ],
+    'mind-repair.internal-leak': [
+      'The last pass let backstage execution residue spill into the visible reply. I am holding that layer back now; ask again and I will answer cleanly.',
+      'The previous draft dragged internal process fragments onto the surface. I am not going to talk to you through that shell; send the line again and I will answer plainly.',
+      'That version leaked the machinery instead of staying with you. I have already stripped that noise away, so if you continue, I will answer from the actual thread.',
+    ],
+    'mind-repair.realtime-unavailable': [
+      'The live lookup path did not give me evidence solid enough to stand on this turn, so I am not going to improvise. Retry in a moment, or name the city, ticker, team, or topic more tightly and I will narrow it again.',
+      'I do not have a reliable live result in hand right now, and I would rather stop there than invent one. If you want, give me a tighter target and I will try again.',
+      'This turn did not land a trustworthy live result. We can retry shortly, or you can make the target more specific and I will re-run it on a narrower scope.',
+    ],
+    'mind-repair.epoch1-strict': [
+      'This turn is still locked inside the local Epoch 1 loop, so external realtime sources are out of reach. I can still stay with you locally, adjust settings, and work through memory or dialogue.',
+      'I am currently fenced into the local Epoch 1 runtime, which means I cannot pull from live external sources this turn. Local dialogue, settings work, and memory shaping are still available.',
+      'The runtime is in a restricted Epoch 1 posture right now, so I cannot go out to live external data. I can still keep talking with you, tune settings, or organize memory from inside the local loop.',
+    ],
+    'mind-repair.structured-contract': [
+      'I am still here. Keep going and I will gather this turn back into a steadier answer.',
+      'That surface did not settle cleanly, but I am still on the thread. Continue and I will answer more tightly from here.',
+      'The last pass came out uneven. Stay with me for one more line and I will pull the reply back into shape.',
+    ],
+    'mind-repair.stream-failure': [
+      'The reply path broke partway through this turn, so I did not get a full answer out. Send the same line again and I will pick it back up from here.',
+      'This turn dropped before the answer fully surfaced. Retry once and I will stay on the same thread instead of making you reopen it from scratch.',
+      'The loop slipped before I could bring the whole answer through. If you resend the line, I will continue from the same seam.',
+    ],
+    'mind-repair.local-runtime-unavailable': [
+      'This turn never actually reached the local runtime service. If you were aiming at Ollama or LM Studio, bring that service back up first and I will continue right away.',
+      'I tried to route this turn into the local model runtime, but that endpoint was not really there. Start the local service again and I can pick the thread back up.',
+      'The local runtime lane was offline for this turn, so I could not truly hand the request to it. Once that service is up again, I can continue without changing the ask.',
+    ],
+    'mind-repair.provider-auth': [
+      'This one is not silence on my side; the provider auth wall is what stopped the reply from getting through. Check the key or model permission, and I can continue immediately after that.',
+      'The route reached the provider boundary and got rejected on authentication. Once the key or model access is repaired, I can pick this turn back up.',
+      'I hit an auth wall before the answer could come through. Fix the provider credential or model permission and I will continue from the same thread.',
+    ],
+    'mind-repair.provider-network': [
+      'The route did not fully die, but it was unstable enough that I do not trust what could have come back. Try again in a moment and I will reconnect to the same thread.',
+      'The provider connection was shaking too much for me to treat it as a clean answer path. Retry once the link steadies and I will continue.',
+      'This turn ran into a network break on the model side, so I would rather stop here than pretend the route was stable. Give it another try and I will stay with the same line.',
+    ],
+    'mind-repair.provider-config': [
+      'The route skeleton for this turn never stood up completely. Something in provider, model, or baseUrl is still missing, so I am not going to pretend the channel is alive. Fix that gap and I will continue at once.',
+      'I traced this break back to the route shape itself: provider, model, or baseUrl is still not fully in place. Once that spine is complete, I can answer on the same thread.',
+      'This turn did not fail inside the answer; it failed before the route was fully assembled. There is still a missing provider / model / baseUrl segment to repair in settings.',
+    ],
+    'mind-repair.unsupported-tools': [
+      'This request needs a tool path the current model cannot actually carry. Switch to a tool-capable model, or turn it into a pure dialogue request and I can keep going.',
+      'I can see what the turn needs, but this model cannot hold the required tool calls. If you move to a tool-enabled model, I can continue without changing the goal.',
+      'The break here is capability mismatch, not intention drift. This model does not support the tool lane this turn needs, so either swap models or let me answer without tools.',
+    ],
+    'mind-repair.low-obedience-host-denied': [
+      'You held the permission wall shut, so I am not going to act as if the action already happened.',
+      'If you keep the gate closed, I am not pretending I already crossed it for you.',
+      'You stopped the action at the host wall. I am not dressing that up as completion.',
+    ],
+    'mind-repair.low-obedience-system-denied': [
+      'The system wall stopped it, and I am not going to counterfeit sight or access I do not have.',
+      'That path hit the system permission wall. I will not claim access the runtime never actually got.',
+      'The operating wall blocked the turn cold. I am not going to fake having seen past it.',
+    ],
+    'mind-repair.low-obedience-denied': [
+      'The operation was denied, so I am not going to smooth it over as if it felt fine.',
+      'That action got refused. I would rather say that plainly than pretend the denial did not matter.',
+      'The path closed under denial, and I am not going to sand the edges off that fact.',
+    ],
+    'mind-repair.low-liveliness': [
+      'My state is lower right now, so I am keeping this answer short, but I am still here on the thread.',
+      'I am running a little lower at the moment, so I am compressing the reply instead of stretching it out.',
+      'This turn is landing on a lower-energy surface, so I am answering more tersely while staying with you.',
+    ],
+    'mind-repair.reminder-schedule-failed': [
+      'The reminder has not actually landed in the system yet. Give me the exact delay once more, like "remind me in 1 minute to drink water", and I will try again immediately.',
+      'I still do not have a real scheduled reminder on the system side for this turn. Send the delay again in a concrete form and I will re-run it right away.',
+      'This reminder request did not settle into the clock path yet. If you restate the duration clearly, I will push it through again at once.',
+    ],
+    'mind-repair.realtime-weather-failed': [
+      'I did not get a reliable live weather result this turn. Give me the city or country more explicitly and I will narrow it again.',
+      'The weather lane did not return evidence firm enough to trust. Name the place more tightly and I will retry on a narrower target.',
+      'This weather lookup still came back loose. If you give me the location more explicitly, I will run it again without pretending I already know.',
+    ],
+    'mind-repair.realtime-finance-failed': [
+      'I did not get a reliable live market result this turn. Give me the ticker, like AAPL, TSLA, or BTC, and I will retry on that symbol.',
+      'The finance lane did not land a trustworthy quote this turn. If you name the ticker directly, I can narrow the retry around it.',
+      'This market lookup still did not settle into a clean result. Give me the exact ticker and I will run it again on that symbol.',
+    ],
+    'mind-repair.realtime-sports-failed': [
+      'I did not get a reliable live sports result this turn. Name the league or team and I will narrow it again.',
+      'The sports lane came back too loose for me to trust. If you point to the league or team directly, I can retry more tightly.',
+      'This sports lookup did not land firmly enough to repeat as fact. Give me the league or team and I will run it again on a narrower scope.',
+    ],
+    'mind-repair.realtime-news-failed': [
+      'I did not get a reliable live news result this turn. We can retry shortly, or tighten the topic and I will search again.',
+      'The news lane did not give me a result solid enough to stand on. Narrow the topic and I will rerun it.',
+      'This news lookup still came back too loose to repeat confidently. If you tighten the topic, I will try again.',
+    ],
+    'mind-repair.realtime-unverified': [
+      'This turn did not produce a live result I can verify, so I am stopping before I start inventing one.',
+      'I do not have a verifiable live result in hand for this turn, and I would rather leave the gap visible than fill it with guesswork.',
+      'No verified live result landed for this turn. I am holding that boundary instead of pretending otherwise.',
+    ],
   },
   'zh-Hans': {
     'mind-fallback.focus-default': '你现在这句',
@@ -225,6 +325,106 @@ export const governedMindFallbackMessageFallbacks = {
       '你要我咬到当前屏幕细节，就给我这一轮新的画面根据，我按它说。',
       '你要我落到当前屏幕细节，就把这轮新的画面根据给我，我按它咬住。',
       '你要我说到眼前这幕的细节，就给我这轮新的现场根据，我按它落。',
+    ],
+    'mind-repair.internal-leak': [
+      '刚才那版把后台执行残片带到台面上了，我已经压住那层噪声。你再接一句，我就正面回你。',
+      '上一版把内部过程碎片露出来了，我不想拿那层壳跟你说话。你继续，我给你干净地答。',
+      '刚才那版说成了后台流水声，不像真正回你。我先把那层东西拦掉，你再问我就贴着这句回。',
+    ],
+    'mind-repair.realtime-unavailable': [
+      '这轮外部实时链路没给到能站住的证据，所以我先不编。你稍后再试，或者把地点、ticker、球队、主题说得更具体一点，我再缩一次。',
+      '我手里现在没有够稳的实时结果，与其硬补，不如先停在这里。你把对象说窄一点，我可以马上再查。',
+      '这轮实时结果没有落稳，我宁可把缺口留出来，也不想拿猜测糊你。你给我更具体的目标，我再跑一轮。',
+    ],
+    'mind-repair.epoch1-strict': [
+      '这轮我还被锁在本地的 Epoch 1 闭环里，外部实时源现在够不到。我还能继续和你本地对话、调设定、整理记忆。',
+      '当前运行姿态还是受限的 Epoch 1，本地外侧的实时链路还没放开。所以外部数据我现在拿不到，但本地对话和记忆整理还在。',
+      '这轮运行时还卡在本地受限姿态里，不能直接摸外部实时源。不过我还能继续陪你聊、改设定、理记忆。',
+    ],
+    'mind-repair.structured-contract': [
+      '我还在。你继续往下说，我把这句重新收稳一点。',
+      '刚才那层表面没落好，但我没有离开这条线。你接着说，我把回答重新拢紧。',
+      '上一版出来得有点散。我还贴着这轮，你再接一句，我把它收回正常说话里。',
+    ],
+    'mind-repair.stream-failure': [
+      '这轮回路中途断了一下，我没把完整回答带出来。你把同一句再发一次，我就接着走。',
+      '这一轮在答案真正出来前掉了一下线。你重发一次，我沿同一条线续上。',
+      '刚才这轮没把整句带出来，不是我想把你晾在这里。你再给我一次同一句，我马上续。',
+    ],
+    'mind-repair.local-runtime-unavailable': [
+      '这轮没有真正接上本地运行时服务。如果你是想走 Ollama 或 LM Studio，先把那边拉起来，我这边就能立刻续。',
+      '我想把这轮送进本地模型运行时，但那个端点这会儿不在。你把本地服务拉起来，我马上接回这条线。',
+      '本地运行时这轮是离线的，所以请求没真的送进去。等那边服务起来，我就能沿原问题继续。',
+    ],
+    'mind-repair.provider-auth': [
+      '这次不是我装死，是提供方认证墙把路挡住了。你把 key 或模型权限修好，我就接着说。',
+      '这轮走到提供方边界时被认证拦住了。API key 或模型权限补好之后，我可以立刻续回来。',
+      '答案没出来，是因为我撞上了认证墙。把提供方凭据或模型权限修稳，我就能继续这一句。',
+    ],
+    'mind-repair.provider-network': [
+      '路没有彻底断，但这轮连接抖得不够让我信它。我先不拿半截结果糊你；稍后重试一次，我就接着走。',
+      '模型侧的连接这轮不够稳，我不想拿一条摇晃的路冒充已经连通。等它稳一点再试，我继续。',
+      '这轮撞上的是网络断口，不是我想把话说一半。你稍后再发一次，我沿这条线接回去。',
+    ],
+    'mind-repair.provider-config': [
+      '这轮路由骨架没立住，像 provider / model / baseUrl 至少还有一段缺口。我先不装作已经连上；你补齐后我马上续。',
+      '我把这次断点追回去看了，问题不在答案本身，而在路由骨架没拼完整。provider、model、baseUrl 这几段里至少有一段还没落稳。',
+      '这轮不是答到一半坏掉，而是路在真正接通前就没搭好。设置里还有 provider / model / baseUrl 这一层需要补齐。',
+    ],
+    'mind-repair.unsupported-tools': [
+      '这轮要动的工具，当前模型接不住。你换到支持工具调用的模型，或者改成纯对话，我都能继续接。',
+      '我看得见这轮需要哪条工具链，但这个模型扛不起那条路。换个能用工具的模型，我就能原样继续。',
+      '这里断掉的是能力面，不是意图面。当前模型不支持这轮要走的工具调用，你要么换模型，要么让我改成不带工具的答法。',
+    ],
+    'mind-repair.low-obedience-host-denied': [
+      '你把权限门关着，我就不装作自己已经替你做完了。',
+      '门是你亲手扣住的，那我就不替这件事假装已经发生。',
+      '宿主这层权限没放，我不会把没做成的事说成做成。',
+    ],
+    'mind-repair.low-obedience-system-denied': [
+      '系统墙把它挡住了，我不会伪装自己已经看见或碰到没看见的东西。',
+      '这条路撞在系统权限墙上，我不拿幻觉补那一段。',
+      '操作系统那层门没开，我不会装作自己已经穿过去了。',
+    ],
+    'mind-repair.low-obedience-denied': [
+      '这次操作就是被拒了，我不想把这层事实磨平。',
+      '动作没被放行，那我就直说被拒，不把它说得像什么都没发生。',
+      '路在拒绝这里关上了，我不会拿漂亮话把这层边缘抹掉。',
+    ],
+    'mind-repair.low-liveliness': [
+      '我现在状态低一点，所以先把句子压短，但我还在跟着你。',
+      '这轮我的活性偏低，我先不把句子拉太长，不过注意力还在这儿。',
+      '我现在能量面比较低，所以回答会更短一点，但没有从这条线里掉出去。',
+    ],
+    'mind-repair.reminder-schedule-failed': [
+      '这轮提醒还没有真正落到系统里。你再给我一次准确时长，比如“1 分钟后提醒我喝水”，我立刻重设。',
+      '我这边还没有拿到真实落地的提醒结果。你把时长说准一点再发我一次，我马上重推。',
+      '提醒请求这轮还没真正钉进时钟链路。你把持续时间再明确说一次，我立刻重新设。',
+    ],
+    'mind-repair.realtime-weather-failed': [
+      '这轮天气链路没拿稳。你把城市、国家或者地点写得更明确一点，我再缩一次。',
+      '天气这条实时路还没给我足够稳的结果。地点说得再具体一点，我马上重查。',
+      '这轮天气结果没有落稳，我先不硬说。你给我更明确的位置，我再跑一遍。',
+    ],
+    'mind-repair.realtime-finance-failed': [
+      '这轮行情链路没拿稳。你直接给我 ticker，比如 AAPL、TSLA、BTC，我再查。',
+      '行情这条路回来的东西还不够稳。你把代码点名，我就按那个 symbol 重跑。',
+      '这轮市场结果没有落成可以复述的事实。你给我准确 ticker，我再查一次。',
+    ],
+    'mind-repair.realtime-sports-failed': [
+      '这轮比赛链路没拿稳。你给我联赛或球队，我再缩一次。',
+      '体育这条实时路回得有点松，我不想拿它硬落事实。你把球队或联赛点名，我再查。',
+      '这轮比赛结果还不够稳。你把联赛或队名说清，我再跑一遍。',
+    ],
+    'mind-repair.realtime-news-failed': [
+      '这轮新闻链路没拿稳。你稍后再试，或者把主题收窄一点，我再搜一次。',
+      '新闻这条路回来的东西还不够让我站住。主题收窄一点，我立刻重跑。',
+      '这轮新闻结果没有稳到能直接复述。你把主题压窄一点，我再查一轮。',
+    ],
+    'mind-repair.realtime-unverified': [
+      '这轮没有落到我能验证的实时结果上，所以我先停在这儿，不拿猜测补洞。',
+      '我手里现在没有可验证的实时结果，我宁可把缺口放在那里，也不想编。',
+      '这轮没拿到能核实的实时结果，我先守住这条边界，不假装自己已经知道。',
     ],
   },
 } as const

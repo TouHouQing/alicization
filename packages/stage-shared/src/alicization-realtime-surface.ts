@@ -4,6 +4,7 @@ import type {
   AlicizationRealtimeSurfaceField,
   AlicizationRealtimeSurfaceItem,
 } from './alicization-transport-contracts'
+import { translateGovernedMindFallback } from './alicization-mind-fallback-messages'
 
 function sanitizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
@@ -231,38 +232,27 @@ export interface AlicizationRealtimeReplyEvidence {
   surface?: AlicizationRealtimeSurface | null
 }
 
-function buildFailureReply(category: AlicizationRealtimeCategory, locale: 'zh' | 'en') {
-  if (locale === 'en') {
-    if (category === 'weather')
-      return 'I did not get a reliable live weather result this turn. Give me a city or country and I will narrow it again.'
-    if (category === 'finance')
-      return 'I did not get a reliable live market result this turn. Give me a ticker like AAPL, TSLA, or BTC and I will retry.'
-    if (category === 'sports')
-      return 'I did not get a reliable live sports result this turn. Name the league or team and I will narrow it again.'
-    return 'I did not get a reliable live news result this turn. We can retry in a moment.'
-  }
-
+function buildFailureReply(category: AlicizationRealtimeCategory, query?: string) {
   if (category === 'weather')
-    return '这轮没拿到可靠的实时天气结果。你给我城市或国家，我再缩一次。'
+    return translateGovernedMindFallback('mind-repair.realtime-weather-failed', undefined, query)
   if (category === 'finance')
-    return '这轮没拿到可靠的实时行情结果。你给我 ticker，比如 AAPL、TSLA、BTC，我再查。'
+    return translateGovernedMindFallback('mind-repair.realtime-finance-failed', undefined, query)
   if (category === 'sports')
-    return '这轮没拿到可靠的实时比赛结果。你给我联赛或球队，我再缩一次。'
-  return '这轮没拿到可靠的实时新闻结果。稍后再试一轮会更稳。'
+    return translateGovernedMindFallback('mind-repair.realtime-sports-failed', undefined, query)
+  return translateGovernedMindFallback('mind-repair.realtime-news-failed', undefined, query)
 }
 
 export function composeAlicizationRealtimeReply(input: {
   evidences: AlicizationRealtimeReplyEvidence[]
   failed: AlicizationRealtimeCategory[]
   locale?: 'zh' | 'en'
+  query?: string
 }): string {
   const locale = input.locale ?? 'zh'
   if (input.evidences.length === 0) {
     if (input.failed.length > 0)
-      return buildFailureReply(input.failed[0]!, locale)
-    return locale === 'zh'
-      ? '这轮没有拿到可验证的实时结果。'
-      : 'This turn did not produce a verified live result.'
+      return buildFailureReply(input.failed[0]!, input.query)
+    return translateGovernedMindFallback('mind-repair.realtime-unverified', undefined, input.query)
   }
 
   const sections = input.evidences
