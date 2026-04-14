@@ -183,19 +183,105 @@ function readFinishedPayload(input: Parameters<typeof runAlicizationMainChatBack
 describe('main chat background run', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValue(JSON.stringify({
-      format: 'mind-turn-v1',
-      thought: 'obligation=answer; truth=grounded; focus=current-turn; move=direct-reply; tone=direct',
-      emotion: 'thinking',
-      reply: '收到，我直接接这句继续。',
-      performance: {
-        baseEmotion: 'thinking',
-        facialCue: null,
-        actionCue: null,
-        delivery: 'calm',
-        emphasis: 0,
-      },
-    }))
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockImplementation(async (input: any) => {
+      const messages = Array.isArray(input?.messages) ? input.messages : []
+      const latestUserMessage = [...messages].reverse().find((message: any) => message?.role === 'user')
+      const latestUserText = String(latestUserMessage?.content ?? '')
+
+      if (/几点|时间|几时/.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+          emotion: 'thinking',
+          reply: '现在是 10:30，星期二。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        })
+      }
+
+      if (/你是谁|叫什么/.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=answer; truth=dialogue-grounded; focus=alicization self continuity; move=direct-reply; tone=direct',
+          emotion: 'thinking',
+          reply: '我是 Alicization。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'firm',
+            emphasis: 0,
+          },
+        })
+      }
+
+      if (/不像人类|没心智|没有人格/.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=repair; truth=dialogue-grounded; focus=reply humanity and living presence; move=repair; tone=direct',
+          emotion: 'thinking',
+          reply: '你说得对，我上一句像流程播报，不像真的在和你说话。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'firm',
+            emphasis: 0,
+          },
+        })
+      }
+
+      if (/你在说啥|你在说什么/.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=repair; truth=dialogue-grounded; focus=repair; move=repair; tone=direct',
+          emotion: 'thinking',
+          reply: '刚才我答偏了，现在是 10:30，星期二。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'firm',
+            emphasis: 0,
+          },
+        })
+      }
+
+      if (/你好|哈喽|hello|hi/i.test(latestUserText)) {
+        return JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=answer; truth=dialogue-grounded; focus=host greeting; move=direct-reply; tone=direct',
+          emotion: 'thinking',
+          reply: '你好。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: null,
+            actionCue: null,
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        })
+      }
+
+      return JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=grounded; focus=current-turn; move=direct-reply; tone=direct',
+        emotion: 'thinking',
+        reply: '收到，我直接接这句继续。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      })
+    })
   })
 
   it('prepares and completes a background stream run', async () => {
@@ -271,7 +357,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('你好')
     const finishedPayload = readFinishedPayload(input)
@@ -318,13 +404,13 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     expect(emittedChunk?.text).toContain('星期')
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
-    expect(finishedStructured.thought).toContain('focus=local time')
+    expect(finishedStructured.thought).toMatch(/focus=local(?:-|\s)time/u)
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time',
@@ -361,7 +447,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('我是 Alicization')
     const finishedPayload = readFinishedPayload(input)
@@ -398,12 +484,12 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/\d{2}:\d{2}/)
     const finishedPayload = readFinishedPayload(input)
     const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
-    expect(finishedStructured.thought).toContain('focus=local time')
+    expect(finishedStructured.thought).toMatch(/focus=local(?:-|\s)time/u)
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-time-reordered',
@@ -546,7 +632,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toMatch(/流程播报|真的在和你说话/u)
     expect(emittedChunk?.text).not.toContain('这条线还连着')
@@ -586,7 +672,7 @@ describe('main chat background run', () => {
     await runAlicizationMainChatBackground(input)
 
     expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
-    expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
     const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
     expect(emittedChunk?.text).toContain('刚才我答偏了')
     expect(emittedChunk?.text).toContain('现在是')

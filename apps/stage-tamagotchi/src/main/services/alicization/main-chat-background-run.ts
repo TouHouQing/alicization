@@ -739,6 +739,36 @@ export async function runAlicizationMainChatBackground(
       runtimeDigest: resolveRuntimeDigestFromPrepared(),
     })
     if (activeDialogueDecision) {
+      const resolveActiveDialogueMindReply = async (decision: AlicizationActiveDialogueFastPathDecision) => {
+        const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
+          conversationMessages,
+          decision,
+          prepared: prepared!,
+        })
+        const oneShotTimeoutMs = Math.max(
+          decision.timeoutMs,
+          decision.strategy === 'compact-one-shot' ? 6_500 : 9_000,
+        )
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-mind-started', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          lane: decision.lane,
+          strategy: decision.strategy,
+          timeoutMs: oneShotTimeoutMs,
+          messageCount: compactMessages.length,
+        })
+        const compactReply = await recoverAlicizationMainChatFromTimeout({
+          chatConfig: chatConfig!,
+          messages: compactMessages,
+          headers: input.headers,
+          timeoutMs: oneShotTimeoutMs,
+          maxSteps: 2,
+        })
+        return normalizeAlicizationActiveDialogueFastPathReply({
+          decision,
+          rawText: compactReply,
+        })
+      }
       await input.appendRuntimeDebugLine('chat-stream.active-dialogue-lane-selected', {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
@@ -747,36 +777,6 @@ export async function runAlicizationMainChatBackground(
         timeoutMs: activeDialogueDecision.timeoutMs,
         reasonCodes: activeDialogueDecision.reasonCodes,
       })
-      if (activeDialogueDecision.strategy === 'local-only') {
-        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
-          messages: conversationMessages,
-          turnId: input.payload.turnId,
-          actionKind: prepared.runtimeSurface.action?.kind ?? null,
-          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
-          personaKernel: prepared.personaKernel ?? null,
-          runtimeDigest: activeDialogueDecision.runtimeDigest,
-          sessionMirror: prepared.sessionMirror ?? null,
-        })
-        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
-        emitStreamEmbodimentMeta(visibleLocalReply)
-        input.emitChunk({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          text: visibleLocalReply,
-        })
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-finished', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          fullTextChars: localReply.length,
-        })
-        input.runStateController.finishRun(input.key, {
-          status: 'completed',
-          finishReason: 'active-dialogue-local',
-          fullText: localReply,
-        })
-        return
-      }
 
       if (activeDialogueDecision.strategy === 'deterministic-payoff') {
         const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
@@ -806,65 +806,15 @@ export async function runAlicizationMainChatBackground(
           return
         }
 
-        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
-          messages: conversationMessages,
-          turnId: input.payload.turnId,
-          actionKind: prepared.runtimeSurface.action?.kind ?? null,
-          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
-          personaKernel: prepared.personaKernel ?? null,
-          runtimeDigest: activeDialogueDecision.runtimeDigest,
-          sessionMirror: prepared.sessionMirror ?? null,
-        })
         await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-missed', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           lane: activeDialogueDecision.lane,
         })
-        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
-        emitStreamEmbodimentMeta(visibleLocalReply)
-        input.emitChunk({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          text: visibleLocalReply,
-        })
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-fallback', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          fullTextChars: localReply.length,
-        })
-        input.runStateController.finishRun(input.key, {
-          status: 'completed',
-          finishReason: 'active-dialogue-local-fallback',
-          fullText: localReply,
-        })
-        return
       }
 
       try {
-        const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
-          conversationMessages,
-          decision: activeDialogueDecision,
-          prepared,
-        })
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-started', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-          timeoutMs: activeDialogueDecision.timeoutMs,
-          messageCount: compactMessages.length,
-        })
-        const compactReply = await recoverAlicizationMainChatFromTimeout({
-          chatConfig,
-          messages: compactMessages,
-          headers: input.headers,
-          timeoutMs: activeDialogueDecision.timeoutMs,
-          maxSteps: 2,
-        })
-        const normalizedReply = normalizeAlicizationActiveDialogueFastPathReply({
-          decision: activeDialogueDecision,
-          rawText: compactReply,
-        })
+        const normalizedReply = await resolveActiveDialogueMindReply(activeDialogueDecision)
         const visibleNormalizedReply = deriveAlicizationVisibleReplyText(normalizedReply) || normalizedReply
         emitStreamEmbodimentMeta(visibleNormalizedReply)
         input.emitChunk({
@@ -872,15 +822,20 @@ export async function runAlicizationMainChatBackground(
           turnId: input.payload.turnId,
           text: visibleNormalizedReply,
         })
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-finished', {
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-mind-finished', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           lane: activeDialogueDecision.lane,
+          strategy: activeDialogueDecision.strategy,
           fullTextChars: normalizedReply.length,
         })
         input.runStateController.finishRun(input.key, {
           status: 'completed',
-          finishReason: 'active-dialogue-fast-path',
+          finishReason: activeDialogueDecision.strategy === 'compact-one-shot'
+            ? 'active-dialogue-fast-path'
+            : activeDialogueDecision.strategy === 'deterministic-payoff'
+              ? 'active-dialogue-deterministic'
+              : 'active-dialogue-local',
           fullText: normalizedReply,
         })
         return
@@ -899,6 +854,7 @@ export async function runAlicizationMainChatBackground(
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           lane: activeDialogueDecision.lane,
+          strategy: activeDialogueDecision.strategy,
           reason: error instanceof Error ? error.message : String(error),
         })
         const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
@@ -1107,30 +1063,6 @@ export async function runAlicizationMainChatBackground(
             })
           : null
         if (!toolingRequired && timeoutActiveDialogueDecision) {
-          if (timeoutActiveDialogueDecision.strategy === 'local-only') {
-            const activeDialogueLocalReply = buildAlicizationMainGatewayTimeoutFallbackReply({
-              messages: recoveryConversationMessages,
-              turnId: normalizedTurnId,
-              actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
-              governance: preparedExecution.governance ?? preparedExecution.runtimeSurface.governance ?? null,
-              personaKernel: preparedExecution.personaKernel ?? null,
-              runtimeDigest: resolveRuntimeDigestFromPrepared(),
-              sessionMirror: preparedExecution.sessionMirror ?? null,
-            })
-            if (activeDialogueLocalReply) {
-              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-local', {
-                cardId: normalizedCardId,
-                turnId: normalizedTurnId,
-                lane: timeoutActiveDialogueDecision.lane,
-                recoveredChars: activeDialogueLocalReply.length,
-              })
-              return {
-                recoveredText: activeDialogueLocalReply,
-                recoveryMode: 'active-dialogue-local',
-              }
-            }
-          }
-
           if (timeoutActiveDialogueDecision.strategy === 'deterministic-payoff') {
             const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
               conversationMessages: recoveryConversationMessages,
@@ -1151,9 +1083,25 @@ export async function runAlicizationMainChatBackground(
             }
           }
 
-          if (timeoutActiveDialogueDecision.strategy === 'compact-one-shot') {
+          if (
+            timeoutActiveDialogueDecision.strategy === 'local-only'
+            || timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+            || timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
+          ) {
+            const oneShotTimeoutMs = Math.max(
+              timeoutActiveDialogueDecision.timeoutMs,
+              timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+                ? 6_500
+                : timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
+                  ? 8_500
+                  : 9_000,
+            )
             recoveryAttempts.push({
-              mode: 'active-dialogue-compact',
+              mode: timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+                ? 'active-dialogue-compact'
+                : timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
+                  ? 'active-dialogue-deterministic'
+                  : 'active-dialogue-local',
               input: {
                 ...recoveryInput,
                 messages: buildAlicizationActiveDialogueFastPathMessages({
@@ -1163,9 +1111,9 @@ export async function runAlicizationMainChatBackground(
                 }),
                 tools: undefined,
                 toolChoice: undefined,
-                timeoutMs: Math.min(
-                  recoveryInput.timeoutMs,
-                  Math.max(timeoutActiveDialogueDecision.timeoutMs, 9_000),
+                timeoutMs: Math.max(
+                  oneShotTimeoutMs,
+                  Math.min(recoveryInput.timeoutMs, 9_000),
                 ),
                 maxSteps: 2,
               },

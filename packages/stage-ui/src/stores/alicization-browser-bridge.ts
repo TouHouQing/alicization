@@ -640,6 +640,164 @@ async function fetchTextWithTimeout(url: string, timeoutMs = realtimeRequestTime
 
 const extractLocationFromQuery = extractAlicizationLocationFromQuery
 
+interface OpenMeteoGeocodeResult {
+  name?: unknown
+  admin1?: unknown
+  country?: unknown
+  country_code?: unknown
+  latitude?: unknown
+  longitude?: unknown
+  population?: unknown
+}
+
+const cjkLocationPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+const weatherLocationSuffixPattern = /(特别行政区|自治区|自治州|自治县|市|州|盟|县|区|旗)$/u
+const weatherLocationAliasMap: Record<string, string> = {
+  纽约: 'New York',
+  洛杉矶: 'Los Angeles',
+  旧金山: 'San Francisco',
+  天津: 'Tianjin',
+}
+
+function hasCjkCharacters(text: string) {
+  return cjkLocationPattern.test(text)
+}
+
+function normalizeGeocodeToken(value: unknown) {
+  if (typeof value !== 'string')
+    return ''
+  return value
+    .toLowerCase()
+    .replace(/[，,\s·.'’"“”\-_/\\()（）[\]【】]/g, '')
+    .replace(weatherLocationSuffixPattern, '')
+}
+
+function buildWeatherGeocodeQueryCandidates(location: string) {
+  const normalizedLocation = sanitizeText(location, '')
+  if (!normalizedLocation)
+    return []
+
+  const candidates: string[] = []
+  const pushCandidate = (candidate: string) => {
+    const normalizedCandidate = sanitizeText(candidate, '')
+    if (!normalizedCandidate || candidates.includes(normalizedCandidate))
+      return
+    candidates.push(normalizedCandidate)
+  }
+
+  pushCandidate(normalizedLocation)
+
+  if (hasCjkCharacters(normalizedLocation)) {
+    const withoutSuffix = normalizedLocation.replace(weatherLocationSuffixPattern, '')
+    if (withoutSuffix && withoutSuffix !== normalizedLocation) {
+      pushCandidate(withoutSuffix)
+    }
+    else if (!normalizedLocation.endsWith('市')) {
+      pushCandidate(`${normalizedLocation}市`)
+    }
+  }
+
+  const alias = weatherLocationAliasMap[normalizedLocation]
+  if (alias)
+    pushCandidate(alias)
+
+  return candidates
+}
+
+function scoreWeatherGeocodeResult(input: {
+  result: OpenMeteoGeocodeResult
+  queryName: string
+  originalLocation: string
+}) {
+  const queryToken = normalizeGeocodeToken(input.queryName)
+  const originalToken = normalizeGeocodeToken(input.originalLocation)
+  const nameToken = normalizeGeocodeToken(input.result.name)
+  const adminToken = normalizeGeocodeToken(input.result.admin1)
+  const countryToken = normalizeGeocodeToken(input.result.country)
+  const combinedToken = normalizeGeocodeToken([
+    sanitizeText(input.result.name, ''),
+    sanitizeText(input.result.admin1, ''),
+    sanitizeText(input.result.country, ''),
+  ].join(' '))
+  const countryCode = sanitizeText(input.result.country_code, '').toUpperCase()
+  const population = Number(input.result.population)
+
+  let score = 0
+  if (nameToken && nameToken === queryToken)
+    score += 8
+  if (nameToken && nameToken === originalToken)
+    score += 7
+  if (adminToken && (adminToken === queryToken || adminToken === originalToken))
+    score += 4
+  if (countryToken && (countryToken === queryToken || countryToken === originalToken))
+    score += 5
+  if (combinedToken && queryToken && combinedToken.includes(queryToken))
+    score += 2
+  if (combinedToken && originalToken && combinedToken.includes(originalToken))
+    score += 2
+  if (hasCjkCharacters(input.originalLocation) && countryCode === 'CN')
+    score += 3
+  if (Number.isFinite(population) && population > 0)
+    score += Math.min(2, Math.log10(population + 1) / 3)
+
+  return score
+}
+
+async function resolveBestWeatherGeocode(location: string): Promise<OpenMeteoGeocodeResult | null> {
+  const candidates = buildWeatherGeocodeQueryCandidates(location)
+  if (candidates.length === 0)
+    return null
+
+  const perRequestTimeoutMs = Math.max(
+    1_800,
+    Math.min(4_500, Math.floor(realtimeRequestTimeoutMsec / candidates.length) + 1_200),
+  )
+  let bestCandidate: {
+    result: OpenMeteoGeocodeResult
+    score: number
+    population: number
+  } | null = null
+
+  for (const candidate of candidates) {
+    const geocode = await fetchJsonWithTimeout(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(candidate)}&count=8&language=zh&format=json`,
+      perRequestTimeoutMs,
+    )
+    const results = Array.isArray(geocode.results)
+      ? geocode.results as OpenMeteoGeocodeResult[]
+      : []
+    for (const result of results) {
+      const latitude = Number(result.latitude)
+      const longitude = Number(result.longitude)
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude))
+        continue
+
+      const score = scoreWeatherGeocodeResult({
+        result,
+        queryName: candidate,
+        originalLocation: location,
+      })
+      const population = Number(result.population)
+      const safePopulation = Number.isFinite(population) ? population : 0
+
+      if (!bestCandidate || score > bestCandidate.score || (score === bestCandidate.score && safePopulation > bestCandidate.population)) {
+        bestCandidate = {
+          result,
+          score,
+          population: safePopulation,
+        }
+      }
+    }
+
+    if (bestCandidate && bestCandidate.score >= 12)
+      break
+  }
+
+  if (!bestCandidate)
+    return null
+  return bestCandidate.result
+}
+
 function describeWeatherCode(code: number | null | undefined) {
   const map: Record<number, string> = {
     0: '晴朗',
@@ -675,16 +833,13 @@ async function executeBuiltinWeather(query: string): Promise<AlicizationRealtime
       throw createRealtimeError('MISSING_LOCATION', '未识别到地点，请补充城市或国家后重试。')
     }
 
-    const geocode = await fetchJsonWithTimeout(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=zh&format=json`,
-    )
-    const first = Array.isArray(geocode.results) ? geocode.results[0] : null
-    if (!first) {
+    const resolvedGeocode = await resolveBestWeatherGeocode(location)
+    if (!resolvedGeocode) {
       throw createRealtimeError('LOCATION_NOT_FOUND', `未找到地点：${location}`)
     }
 
-    const latitude = Number(first.latitude)
-    const longitude = Number(first.longitude)
+    const latitude = Number(resolvedGeocode.latitude)
+    const longitude = Number(resolvedGeocode.longitude)
     const weather = await fetchJsonWithTimeout(
       `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`,
     )
@@ -693,7 +848,7 @@ async function executeBuiltinWeather(query: string): Promise<AlicizationRealtime
       throw createRealtimeError('NO_DATA', '天气源未返回有效的实时温度。')
     }
 
-    const resolvedLocation = [first.name, first.admin1, first.country]
+    const resolvedLocation = [resolvedGeocode.name, resolvedGeocode.admin1, resolvedGeocode.country]
       .filter((item: unknown) => typeof item === 'string' && item.trim().length > 0)
       .join(', ')
     return {

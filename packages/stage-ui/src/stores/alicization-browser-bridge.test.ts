@@ -450,4 +450,57 @@ describe('browser alicization bridge visual presence listeners', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('falls back to suffix-based geocode candidates when the first city token misses', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [],
+        }),
+      } satisfies Partial<Response>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [{
+            name: '天津',
+            admin1: '天津市',
+            country: '中国',
+            country_code: 'CN',
+            latitude: 39.0842,
+            longitude: 117.201,
+          }],
+        }),
+      } satisfies Partial<Response>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          current: {
+            temperature_2m: 20.2,
+            relative_humidity_2m: 50,
+            apparent_temperature: 19.3,
+            weather_code: 1,
+            wind_speed_10m: 8.4,
+          },
+        }),
+      } satisfies Partial<Response>)
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const result = await bridge.realtimeExecute?.({
+      category: 'weather',
+      query: '今天天津天气怎么样',
+    } as any)
+
+    expect(result?.ok).toBe(true)
+    expect(result?.summary).toContain('天津')
+    expect(String(fetchMock.mock.calls[0]?.[0] ?? '')).toContain(encodeURIComponent('天津'))
+    expect(String(fetchMock.mock.calls[1]?.[0] ?? '')).toContain(encodeURIComponent('天津市'))
+
+    vi.unstubAllGlobals()
+  })
 })

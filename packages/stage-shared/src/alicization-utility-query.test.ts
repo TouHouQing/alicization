@@ -10,6 +10,7 @@ describe('alicization utility query parser', () => {
     expect(extractAlicizationLocationFromQuery('帮我查一下天津天气')).toBe('天津')
     expect(extractAlicizationLocationFromQuery('帮我查一下现在天津气温')).toBe('天津')
     expect(extractAlicizationLocationFromQuery('请帮我看看天津的天气情况')).toBe('天津')
+    expect(extractAlicizationLocationFromQuery('今天天津天气怎么样')).toBe('天津')
   })
 
   it('keeps country aliases working for weather and news prompts', () => {
