@@ -406,4 +406,48 @@ describe('browser alicization bridge visual presence listeners', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('uses the shared location parser for builtin realtime weather queries', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          results: [{
+            name: '天津',
+            admin1: '天津市',
+            country: '中国',
+            latitude: 39.0842,
+            longitude: 117.201,
+          }],
+        }),
+      } satisfies Partial<Response>)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          current: {
+            temperature_2m: 21.2,
+            relative_humidity_2m: 48,
+            apparent_temperature: 20.3,
+            weather_code: 0,
+            wind_speed_10m: 12.4,
+          },
+        }),
+      } satisfies Partial<Response>)
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const result = await bridge.realtimeExecute?.({
+      category: 'weather',
+      query: '帮我查一下天津天气',
+    } as any)
+
+    expect(result?.ok).toBe(true)
+    expect(result?.summary).toContain('天津')
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(encodeURIComponent('天津'))
+
+    vi.unstubAllGlobals()
+  })
 })

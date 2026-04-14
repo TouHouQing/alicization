@@ -37,6 +37,7 @@ import {
   defaultAlicizationCustomDirectives,
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  extractAlicizationLocationFromQuery,
   hasAlicizationPersonaIdentity,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
@@ -637,33 +638,7 @@ async function fetchTextWithTimeout(url: string, timeoutMs = realtimeRequestTime
   return await response.text()
 }
 
-function extractLocationFromQuery(query: string) {
-  const normalized = normalizeQueryText(query)
-  if (!normalized)
-    return ''
-
-  if (/美国|usa|united states/i.test(normalized))
-    return 'United States'
-  if (/中国|china/i.test(normalized))
-    return 'China'
-  if (/日本|japan/i.test(normalized))
-    return 'Japan'
-
-  const inMatch = /\b(?:in|for)\s+([A-Z][A-Z\s-]{1,40})\b/i.exec(normalized)
-  if (inMatch?.[1])
-    return inMatch[1].trim()
-
-  const zhMatch = /([A-Z\u4E00-\u9FFF][A-Z\u4E00-\u9FFF\s-]{1,30})的?(?:天气|气温|温度|forecast|weather)/i.exec(normalized)
-  if (zhMatch?.[1]) {
-    const location = zhMatch[1]
-      .replace(/^(?:今天|今日|现在|当前|请|帮我|帮忙|查一下|查下|查|看看|告诉我)\s*/g, '')
-      .trim()
-    if (location)
-      return location
-  }
-
-  return ''
-}
+const extractLocationFromQuery = extractAlicizationLocationFromQuery
 
 function describeWeatherCode(code: number | null | undefined) {
   const map: Record<number, string> = {

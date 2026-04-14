@@ -2,6 +2,7 @@ import type { RealtimeQueryCategory, RealtimeQueryIntent } from '../composables/
 import type { AlicizationRealtimeCategory, AlicizationRealtimeExecuteResult } from './alicization-bridge'
 import type { McpCallToolResult, McpCapabilitiesSnapshot, McpToolDescriptor } from './mcp-tool-bridge'
 
+import { extractAlicizationLocationFromQuery } from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -93,17 +94,7 @@ function uniqueStrings(input: string[]) {
   return [...new Set(input.filter(Boolean))]
 }
 
-function extractLocation(message: string) {
-  const normalized = normalizeText(message)
-  if (!normalized)
-    return ''
-  if (/美国|usa|united states/i.test(normalized))
-    return 'United States'
-  if (/中国|china/i.test(normalized))
-    return 'China'
-  const match = /([A-Z\u4E00-\u9FFF][A-Z\u4E00-\u9FFF\s-]{1,30})的?(?:天气|新闻|时事|events?|forecast|weather)/i.exec(normalized)
-  return normalizeText(match?.[1] ?? '')
-}
+const extractLocation = extractAlicizationLocationFromQuery
 
 function extractTicker(message: string) {
   const normalized = normalizeText(message)

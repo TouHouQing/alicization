@@ -33,6 +33,7 @@ import {
   type AlicizationMindSurfaceGreetingMove,
   type AlicizationMindSurfaceIdentityMove,
   type AlicizationMindSurfaceMove,
+  type AlicizationMindSurfacePresentStateMove,
   type AlicizationMindSurfacePresenceRepairMove,
   type AlicizationMindSurfaceRepairMove,
   type AlicizationMindSurfaceTimeMove,
@@ -46,6 +47,7 @@ export type AlicizationActiveDialogueFastPathLane
     | 'utility-time'
     | 'utility-date'
     | 'presence-critique'
+    | 'present-state'
     | 'repair-clarify'
     | 'follow-up'
     | 'dialogue'
@@ -93,6 +95,7 @@ type AlicizationActiveDialogueFreshEncounterKind
     | 'utility-time'
     | 'utility-date'
     | 'presence-critique'
+    | 'present-state'
     | 'repair-clarify'
 
 interface AlicizationActiveDialogueEncounterContext {
@@ -128,7 +131,9 @@ const zhUtilityDatePattern = /^(?:(?:今天|现在)?(?:几号|多少号|几月�
 const enUtilityDatePattern = /^(?:what(?:'s| is)? the date(?: today)?|what day is it(?: today)?|today'?s date|current date)$/iu
 const zhPresenceCritiquePattern = /(?:不像人类|不像真人|不像人在说话|太像机器人|太像ai|太像系统|没有人格|没人格|没有心智|没心智|太机械|太固定|不像活的)/u
 const enPresenceCritiquePattern = /(?:you do(?:n't| not) sound human|you sound like a bot|you sound robotic|you sound mechanical|you don't feel alive)/iu
-const zhRepairClarifyPattern = /(?:你在说啥(?:呢)?|你在说什么(?:呢)?|你说啥(?:呢)?|你说什么(?:呢)?|你在讲啥|你在讲什么|答非所问|不是这个(?:意思)?|这不对|你没懂|没听懂|你没听懂|听不懂|跑题了|跑偏了|说偏了|别绕|直接回答|你到底在说什么|你在干嘛|你在搞啥|你在搞什么)/u
+const zhPresentStatePattern = /(?:你在干嘛|你在做什么|你现在在干嘛|你现在在做什么|你在忙什么|你现在在忙什么|你在搞什么|你在搞啥|你刚在干嘛)/u
+const enPresentStatePattern = /(?:what are you doing|what are you up to|what are you working on|what are you doing right now)/iu
+const zhRepairClarifyPattern = /(?:你在说啥(?:呢)?|你在说什么(?:呢)?|你说啥(?:呢)?|你说什么(?:呢)?|你在讲啥|你在讲什么|答非所问|不是这个(?:意思)?|这不对|你没懂|没听懂|你没听懂|听不懂|跑题了|跑偏了|说偏了|别绕|直接回答|你到底在说什么)/u
 const enRepairClarifyPattern = /(?:what are you talking about|you are not making sense|that is not what i asked|answer the question|not that|you missed the point|stay on this turn)/iu
 const explicitCarryPattern = /(?:刚才|刚刚|上一条|上条|上个|上一轮|前面|那条|那个|那次|继续|接着|续上|顺着|沿着|剩下|其余|后面|补全|展开|详细|具体|再列|继续说|继续列|同一条|那个命令|那个任务|那个结果|另外|that one|previous|earlier|continue|go on|keep going|pick up|follow up|same thread|same task|remaining)/iu
 const remainingFollowUpPattern = /(?:另外(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|另外还有|还有哪|还有什么|还有几(?:项|个)?|另外哪|剩下哪|剩下(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|其余哪|其余(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|what else|which other|the other|remaining)/iu
@@ -295,6 +300,11 @@ function isPresenceCritiqueTurn(text: string) {
   return zhPresenceCritiquePattern.test(normalizedLoose) || enPresenceCritiquePattern.test(normalizedLoose)
 }
 
+function isPresentStateTurn(text: string) {
+  const normalizedLoose = normalizeTurnText(text, 200)
+  return zhPresentStatePattern.test(normalizedLoose) || enPresentStatePattern.test(normalizedLoose)
+}
+
 function isRepairClarifyTurn(text: string) {
   const normalizedLoose = normalizeTurnText(text, 200)
   return zhRepairClarifyPattern.test(normalizedLoose) || enRepairClarifyPattern.test(normalizedLoose)
@@ -349,6 +359,8 @@ function deriveFreshEncounterKind(text: string): AlicizationActiveDialogueFreshE
     return 'utility-date'
   if (isPresenceCritiqueTurn(text))
     return 'presence-critique'
+  if (isPresentStateTurn(text))
+    return 'present-state'
   if (isRepairClarifyTurn(text))
     return 'repair-clarify'
   return null
@@ -367,9 +379,11 @@ function deriveAlicizationActiveDialogueEncounter(
         ? 'fresh-utility-date'
         : freshEncounter === 'presence-critique'
           ? 'fresh-presence-critique'
-        : freshEncounter === 'repair-clarify'
-          ? 'repair-clarify'
-          : `fresh-${freshEncounter}`
+          : freshEncounter === 'present-state'
+            ? 'fresh-present-state'
+          : freshEncounter === 'repair-clarify'
+            ? 'repair-clarify'
+            : `fresh-${freshEncounter}`
     return {
       kind: freshEncounter,
       strategy,
@@ -713,6 +727,30 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         whyNow: '用户在直接指出我的说话方式没有活感。',
         confidence: 0.95,
       }
+    case 'present-state':
+      return {
+        focus: carryAnchor || 'current living state',
+        truthState: 'live-observed' as const,
+        turnMode: 'answer' as const,
+        openingStyle: 'direct-answer' as const,
+        relationshipPosture: 'warm' as const,
+        answerSubject: 'host-state' as const,
+        screenReferenceMode: 'avoid' as const,
+        answerAct: 'answer' as const,
+        evidenceMode: carryAnchor ? 'continuity-carry' as const : 'dialogue-grounded' as const,
+        repairState: 'none' as const,
+        answerIntent: '直接回答我此刻在接什么，不把这句误判成纠错或旧锚点修复。',
+        openingMove: '先把我此刻的状态说清。',
+        relationNeed: '让对方知道我现在正把注意力放在哪条线上。',
+        continuityPolicy: 'dialogue-before-scene' as const,
+        memoryMode: carryAnchor ? 'dialogue-carry' as const : 'task-thread' as const,
+        selfStance: 'accompany' as const,
+        mindMode: 'tracking' as const,
+        embodiedPresence: 'attentive' as const,
+        emotionalTension: 'focused-flow' as const,
+        whyNow: '用户在问我这会儿正在做什么、正把注意力放在哪里。',
+        confidence: 0.91,
+      }
     case 'repair-clarify':
       return {
         focus: previousFreshEncounter === 'utility-time'
@@ -1035,6 +1073,10 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
       return localeIsZh
         ? '承认刚才像流程播报，把说话方式拉回真实对话。'
         : 'Acknowledge the robotic phrasing and pull the reply back into a real conversation.'
+    case 'present-state':
+      return localeIsZh
+        ? '直接回答我这会儿在接什么，不把这句扯成修复旧锚点。'
+        : 'Answer what I am currently staying with, without turning this into a stale-anchor repair.'
     case 'repair-clarify':
       if (previousFreshEncounter === 'utility-time')
         return localeIsZh ? '先承认刚才答偏了，再直接给出时间。' : 'Acknowledge the miss first, then give the time directly.'
@@ -1234,116 +1276,18 @@ function buildDialogueMove(decision: AlicizationActiveDialogueFastPathDecision):
   }
 }
 
-function buildOrganicGreetingReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const salutation = resolveGreetingSalutation(decision.latestUserText)
+function buildPresentStateMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfacePresentStateMove {
+  const threadSummary = sanitizeText(
+    decision.continuityAnchor
+    || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
+    || humanizeMirrorSummary(decision.sessionMirror?.dialogueSummary)
+    || humanizeMirrorSummary(decision.runtimeDigest?.activeLoop?.summary),
+    120,
+  )
 
-  if (/在吗|在嘛/u.test(decision.latestUserText))
-    return countCjkChars(decision.latestUserText) > 0 ? '我在。' : `I'm here.`
-  return countCjkChars(decision.latestUserText) > 0 ? `${salutation}。` : `${salutation}.`
-}
-
-function buildOrganicIdentityReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const personaName = resolvePersonaDisplayName(decision.personaKernel)
-  return countCjkChars(decision.latestUserText) > 0
-    ? `我是${personaName}。现在在和你说话的是我。`
-    : `I am ${personaName}. I am the one speaking with you now.`
-}
-
-function buildOrganicCapabilityReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  return countCjkChars(decision.latestUserText) > 0
-    ? '我能直接和你对话，也能看上下文、跑 CLI、改代码、接工具和记忆。你给我一个具体目标，我就直接开始。'
-    : 'I can talk with you directly, inspect context, run CLI, edit code, and use tools and memory. Give me one concrete goal and I will start.'
-}
-
-function buildOrganicUtilityTimeReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const clock = buildLocalClockSnapshot(decision.latestUserText)
-  return clock.language === 'zh'
-    ? `现在是 ${clock.timeText}，${clock.weekdayText}。`
-    : `It's ${clock.timeText} right now (${clock.weekdayText}).`
-}
-
-function buildOrganicUtilityDateReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const clock = buildLocalClockSnapshot(decision.latestUserText)
-  return clock.language === 'zh'
-    ? `今天是 ${clock.dateText}，${clock.weekdayText}。`
-    : `Today is ${clock.dateText} (${clock.weekdayText}).`
-}
-
-function buildOrganicPresenceCritiqueReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  return countCjkChars(decision.latestUserText) > 0
-    ? '你说得对，刚才那句像流程播报，不像真的在和你说话。我收回来。你现在想让我怎么接，我就怎么接。'
-    : 'You are right. That sounded like process narration, not like a real reply. I am resetting that, so tell me how you want me to pick this up.'
-}
-
-function buildOrganicFollowUpReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const move = buildFollowUpMove(decision)
-  const personaName = resolvePersonaDisplayName(decision.personaKernel)
-  if (move.variant === 'identity-confirm') {
-    return countCjkChars(decision.latestUserText) > 0
-      ? `确定。刚才我不是在报一个标签，我是在直接回答：我是${personaName}，现在和你说话的是我。`
-      : `Yes. I was not naming a label. I was answering directly that I am ${personaName}, and I am the one speaking with you now.`
-  }
-
-  if (move.variant === 'remaining') {
-    return countCjkChars(decision.latestUserText) > 0
-      ? '前半段我不重讲，后面还欠的那部分我直接补上。'
-      : 'I will not restate the first half. I will fill in the missing part directly.'
-  }
-
-  return countCjkChars(decision.latestUserText) > 0
-    ? '好，我直接接着这条线往下。'
-    : 'Alright, I will continue this thread directly.'
-}
-
-function buildOrganicRepairClarifyReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
-  const personaName = resolvePersonaDisplayName(decision.personaKernel)
-  if (previousFreshEncounter === 'utility-time')
-    return `刚才我答偏了。你问的是时间，${buildOrganicUtilityTimeReply(decision)}`
-  if (previousFreshEncounter === 'utility-date')
-    return `刚才我答偏了。你问的是日期，${buildOrganicUtilityDateReply(decision)}`
-  if (previousFreshEncounter === 'capability')
-    return '刚才我答偏了。你真正问的是我能做什么：我能直接对话、看上下文、跑 CLI、改代码、接工具和记忆。'
-  if (previousFreshEncounter === 'identity')
-    return `刚才我答偏了。直接答你：我是${personaName}，现在在和你说话的是我。`
-  if (previousFreshEncounter === 'greeting') {
-    const previousGreeting = sanitizeText(decision.previousUserText, 32) || '你好'
-    return `刚才我答偏了。你这句是在打招呼，我重新接：${previousGreeting}。`
-  }
-  return countCjkChars(decision.latestUserText) > 0
-    ? '刚才我没贴住你。你现在要我怎么接，我就直接接这句。'
-    : 'That missed your point. Tell me how you want this picked up and I will answer this turn directly.'
-}
-
-function buildOrganicDialogueReply(decision: AlicizationActiveDialogueFastPathDecision) {
-  const focus = sanitizeText(decision.latestUserText, 72)
-  if (!focus)
-    return countCjkChars(decision.latestUserText) > 0 ? '我在。' : `I'm here.`
-  return countCjkChars(decision.latestUserText) > 0
-    ? `我在。你就顺着这句继续说，我直接接。`
-    : 'I am here. Continue from this line and I will pick it up directly.'
-}
-
-function buildOrganicLocalReplyText(decision: AlicizationActiveDialogueFastPathDecision) {
-  switch (decision.lane) {
-    case 'greeting':
-      return buildOrganicGreetingReply(decision)
-    case 'identity':
-      return buildOrganicIdentityReply(decision)
-    case 'capability':
-      return buildOrganicCapabilityReply(decision)
-    case 'utility-time':
-      return buildOrganicUtilityTimeReply(decision)
-    case 'utility-date':
-      return buildOrganicUtilityDateReply(decision)
-    case 'presence-critique':
-      return buildOrganicPresenceCritiqueReply(decision)
-    case 'repair-clarify':
-      return buildOrganicRepairClarifyReply(decision)
-    case 'follow-up':
-      return buildOrganicFollowUpReply(decision)
-    case 'dialogue':
-      return buildOrganicDialogueReply(decision)
+  return {
+    kind: 'present-state',
+    threadSummary: threadSummary || null,
   }
 }
 
@@ -1361,6 +1305,8 @@ function buildDecisionLocalMoves(decision: AlicizationActiveDialogueFastPathDeci
       return [buildUtilityDateMove(decision)]
     case 'presence-critique':
       return [buildPresenceCritiqueMove()]
+    case 'present-state':
+      return [buildPresentStateMove(decision)]
     case 'repair-clarify':
       return [buildRepairClarifyMove(decision)]
     case 'follow-up':
@@ -1419,6 +1365,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
   thought?: string
   emotion?: string
   delivery?: string
+  suppressGovernedLead?: boolean
 }) {
   const governance = buildFastPathGovernance(input.decision)
   const governedThought = buildFastPathGovernedThought(input.decision, governance)
@@ -1441,13 +1388,15 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
       : governedThought,
     emotion: input.emotion,
     delivery: input.delivery,
+    suppressGovernedLead: input.suppressGovernedLead,
   })
 }
 
 function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDecision) {
   return buildAlicizationActiveDialogueGovernedReply({
     decision,
-    reply: buildOrganicLocalReplyText(decision),
+    moves: buildDecisionLocalMoves(decision),
+    suppressGovernedLead: true,
   })
 }
 

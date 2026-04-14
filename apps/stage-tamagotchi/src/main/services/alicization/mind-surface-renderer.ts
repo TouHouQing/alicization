@@ -169,6 +169,11 @@ export interface AlicizationMindSurfaceDialogueMove {
   continuityAnchor?: string | null
 }
 
+export interface AlicizationMindSurfacePresentStateMove {
+  kind: 'present-state'
+  threadSummary?: string | null
+}
+
 export interface AlicizationMindSurfaceExecutionListingMove {
   kind: 'execution-listing'
   scope: 'desktop' | 'directory'
@@ -204,6 +209,7 @@ export type AlicizationMindSurfaceMove
     | AlicizationMindSurfaceFollowUpMove
     | AlicizationMindSurfaceRepairMove
     | AlicizationMindSurfaceDialogueMove
+    | AlicizationMindSurfacePresentStateMove
     | AlicizationMindSurfaceExecutionListingMove
     | AlicizationMindSurfaceExecutionDetailMove
     | AlicizationMindSurfaceDirectReplyMove
@@ -217,6 +223,7 @@ export interface AlicizationMindSurfaceRenderInput {
   emotion?: string
   delivery?: string
   forceDialogueAnswerFallback?: boolean
+  suppressGovernedLead?: boolean
 }
 
 export interface AlicizationMindSurfaceRenderResult {
@@ -281,14 +288,8 @@ function renderLocalDate(clock: AlicizationMindSurfaceClockSnapshot, includeTime
 function renderGreetingMove(move: AlicizationMindSurfaceGreetingMove, locale: 'zh' | 'en', seed: string) {
   if (locale === 'zh') {
     if (move.presenceCheck)
-      return ['我在。你直接说。']
-    return [
-      `${move.salutation}。你直接开口，我接着你这句。`,
-      pickVariant(seed, [
-        `${move.salutation}。我在这，你想从哪句开始就从哪句开始。`,
-        `${move.salutation}。你把这一轮想开的点直接给我。`,
-      ]),
-    ]
+      return [pickVariant(seed, ['我在。', '我在，你直接说。'])]
+    return [`${move.salutation}。`]
   }
 
   if (move.presenceCheck)
@@ -379,43 +380,136 @@ function renderFollowUpMove(move: AlicizationMindSurfaceFollowUpMove, locale: 'z
     : [anchor ? `Alright, I'll continue from ${anchor}.` : `Alright, I'll continue from the missing part directly.`]
 }
 
-function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' | 'en') {
+function renderRepairMove(move: AlicizationMindSurfaceRepairMove, locale: 'zh' | 'en', seed: string) {
   if (move.target === 'time' && move.clock)
-    return locale === 'zh' ? [`刚才我答偏了。你问的是时间，${renderLocalTime(move.clock, true)}`] : [`I picked up the wrong thread. You were asking for the time, and ${renderLocalTime(move.clock, true)}`]
+    return locale === 'zh'
+      ? [pickVariant(seed, [
+          `刚才那句没贴住你的问题。你问的是时间，${renderLocalTime(move.clock, true)}`,
+          `上一句我接偏了。你要的是时间，${renderLocalTime(move.clock, true)}`,
+        ])]
+      : [pickVariant(seed, [
+          `That missed your question. You were asking for the time, and ${renderLocalTime(move.clock, true)}`,
+          `I answered the wrong thing. You wanted the time, and ${renderLocalTime(move.clock, true)}`,
+        ])]
   if (move.target === 'date' && move.clock)
-    return locale === 'zh' ? [`刚才我答偏了。你问的是日期，${renderLocalDate(move.clock, true)}`] : [`I picked up the wrong thread. You were asking for the date, and ${renderLocalDate(move.clock, true)}`]
+    return locale === 'zh'
+      ? [pickVariant(seed, [
+          `刚才那句没贴住你的问题。你问的是日期，${renderLocalDate(move.clock, true)}`,
+          `上一句我接偏了。你要的是日期，${renderLocalDate(move.clock, true)}`,
+        ])]
+      : [pickVariant(seed, [
+          `That missed your question. You were asking for the date, and ${renderLocalDate(move.clock, true)}`,
+          `I answered the wrong thing. You wanted the date, and ${renderLocalDate(move.clock, true)}`,
+        ])]
   if (move.target === 'capability') {
     const capabilityText = (move.capabilities ?? []).filter(Boolean).join(locale === 'zh' ? '、' : ', ')
     return locale === 'zh'
-      ? [`刚才我答偏了。你真正问的是我能做什么：我能 ${capabilityText}。`]
-      : [`I answered the wrong layer. What you were asking was what I can do: I can ${capabilityText}.`]
+      ? [pickVariant(seed, [
+          `刚才那句没贴住你的重点。你真正问的是我能做什么：我能 ${capabilityText}。`,
+          `上一句我答偏了。你问的是能力面：我能 ${capabilityText}。`,
+        ])]
+      : [pickVariant(seed, [
+          `That missed your actual point. What you were asking was what I can do: I can ${capabilityText}.`,
+          `I answered the wrong layer. You were asking about capability: I can ${capabilityText}.`,
+        ])]
   }
 
   const anchor = quoteCue(move.anchor ?? '', locale)
   return locale === 'zh'
-    ? [anchor ? `刚才我没贴住你真正问的地方。我现在就按 ${anchor} 这点直接回。` : '刚才我没贴住你真正问的地方。我现在就直接回这句。']
-    : [anchor ? `I missed the point you were actually asking for. I'll answer directly from ${anchor}.` : `I missed the point you were actually asking for. I'll answer this turn directly now.`]
+    ? [anchor
+        ? pickVariant(seed, [
+            `刚才那句没有贴住你真正想问的点。我现在就按 ${anchor} 直接回你。`,
+            `上一句我接偏了。你真正要的是 ${anchor} 这点，我现在直接回到这里。`,
+          ])
+        : pickVariant(seed, [
+            '刚才那句没有贴住你真正想问的点。我现在直接回这句。',
+            '上一句我接偏了。我现在把焦点收回这句，直接答你。',
+          ])]
+    : [anchor
+        ? pickVariant(seed, [
+            `I missed the point you were actually asking for. I'll answer directly from ${anchor}.`,
+            `I drifted off the real question. I'll come straight back to ${anchor}.`,
+          ])
+        : pickVariant(seed, [
+            `I missed the point you were actually asking for. I'll answer this turn directly now.`,
+            `I drifted off the real question. I'm pulling the focus back to this turn now.`,
+          ])]
 }
 
-function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'zh' | 'en') {
+function renderDialogueMove(move: AlicizationMindSurfaceDialogueMove, locale: 'zh' | 'en', seed: string) {
   const anchor = quoteCue(move.continuityAnchor ?? '', locale)
   const focus = quoteCue(move.focus ?? '', locale)
   if (locale === 'zh') {
     return [
       anchor
-        ? `我们就沿 ${anchor} 往下，不把话题滑开。`
+        ? pickVariant(seed, [
+            `我们就沿 ${anchor} 往下，不把话题滑开。`,
+            `这轮就贴着 ${anchor} 往下说，我不把它扯去别处。`,
+          ])
         : focus
-          ? `焦点就在 ${focus}，我直接接这点回你。`
-          : '我就在这句上继续，不绕别处。',
+          ? pickVariant(seed, [
+              `焦点就在 ${focus}，我直接接这点回你。`,
+              `这句的重点就是 ${focus}，我现在就贴着它回。`,
+            ])
+          : pickVariant(seed, [
+              '我就在这句上继续，不绕别处。',
+              '我贴着这句继续回你，不把话题滑开。',
+            ]),
     ]
   }
 
   return [
     anchor
-      ? `I'll stay with ${anchor} and keep going from there.`
+      ? pickVariant(seed, [
+          `I'll stay with ${anchor} and keep going from there.`,
+          `I'll hold to ${anchor} and keep the reply on that line.`,
+        ])
       : focus
-        ? `I'll answer right on ${focus}, without drifting away from it.`
-        : `I'll stay with this turn and continue from here.`,
+        ? pickVariant(seed, [
+            `I'll answer right on ${focus}, without drifting away from it.`,
+            `The focus is ${focus}, so I'll answer directly on that point.`,
+          ])
+        : pickVariant(seed, [
+            `I'll stay with this turn and continue from here.`,
+            `I'll keep the reply on this turn instead of drifting away.`,
+          ]),
+  ]
+}
+
+function renderPresentStateMove(move: AlicizationMindSurfacePresentStateMove, locale: 'zh' | 'en', seed: string) {
+  const summary = quoteCue(move.threadSummary ?? '', locale)
+  if (locale === 'zh') {
+    if (summary) {
+      return [
+        pickVariant(seed, [
+          `我现在就在接 ${summary} 这条线，也在看你这句。`,
+          `我这会儿主要盯着 ${summary} 这条线，同时在接你现在这句。`,
+        ]),
+      ]
+    }
+
+    return [
+      pickVariant(seed, [
+        '我现在就在这轮里，正看着你这句，也准备直接接下去。',
+        '我这会儿就在接这轮对话，没有飘去别处。',
+      ]),
+    ]
+  }
+
+  if (summary) {
+    return [
+      pickVariant(seed, [
+        `Right now I'm staying with ${summary} while answering this turn.`,
+        `I'm currently holding ${summary} and meeting this turn at the same time.`,
+      ]),
+    ]
+  }
+
+  return [
+    pickVariant(seed, [
+      `Right now I'm here in this turn, watching what you're saying and ready to keep going.`,
+      `I'm currently staying with this conversation instead of drifting somewhere else.`,
+    ]),
   ]
 }
 
@@ -532,9 +626,11 @@ function renderMove(move: AlicizationMindSurfaceMove, locale: 'zh' | 'en', seed:
     case 'follow-up':
       return renderFollowUpMove(move, locale)
     case 'repair':
-      return renderRepairMove(move, locale)
+      return renderRepairMove(move, locale, seed)
     case 'dialogue':
-      return renderDialogueMove(move, locale)
+      return renderDialogueMove(move, locale, seed)
+    case 'present-state':
+      return renderPresentStateMove(move, locale, seed)
     case 'execution-listing':
       return renderExecutionListingMove(move, locale)
     case 'execution-detail':
@@ -582,6 +678,10 @@ function deriveKernelCues(moves: AlicizationMindSurfaceMove[], locale: 'zh' | 'e
           cues.push(sanitizeText(move.focus, 120))
         else if (move.continuityAnchor)
           cues.push(sanitizeText(move.continuityAnchor, 120))
+        break
+      case 'present-state':
+        if (move.threadSummary)
+          cues.push(sanitizeText(move.threadSummary, 120))
         break
       case 'execution-listing':
         cues.push(locale === 'zh'
@@ -689,7 +789,10 @@ function shouldUseGovernedLead(input: {
   moves: AlicizationMindSurfaceMove[]
   governedReply: string
   previousAssistantText: string
+  suppressGovernedLead?: boolean
 }) {
+  if (input.suppressGovernedLead)
+    return false
   if (!input.governedReply)
     return false
 
@@ -710,6 +813,7 @@ function shouldUseGovernedLead(input: {
     || move.kind === 'presence-repair'
     || move.kind === 'repair'
     || move.kind === 'dialogue'
+    || move.kind === 'present-state'
     || move.kind === 'follow-up',
   )
 }
@@ -743,6 +847,7 @@ export function renderAlicizationMindSurface(input: AlicizationMindSurfaceRender
     moves: input.moves,
     governedReply: normalizedGovernedReply,
     previousAssistantText,
+    suppressGovernedLead: input.suppressGovernedLead,
   })
   const replySentences = uniqueSentences([
     useGovernedLead && governedVisibleReplyMode !== 'dispatch-only'

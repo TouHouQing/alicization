@@ -273,6 +273,70 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.answerSubject).toBe('relationship')
   })
 
+  it('routes present-state questions away from repair-clarify and answers them as host-state turns', () => {
+    const conversationMessages = [
+      { role: 'user', content: '帮我查一下天津天气' },
+      { role: 'assistant', content: '天津, 天津市, 中国 当前天气：晴朗；温度 21.0°C。' },
+      { role: 'user', content: '你在干嘛' },
+    ] as Message[]
+
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          ...conversationMessages,
+        ] as Message[],
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'dialogue',
+          dominantChannel: 'dialogue',
+          handoffTarget: 'active-dialogue',
+          dialogueReady: true,
+          controlReady: false,
+          memoryCarry: true,
+          companionshipReady: true,
+          observationHeavy: false,
+          initiativeBudget: 0.8,
+          coherence: 0.86,
+          summary: 'Stay with the current reply seam.',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.7,
+        companionshipPressure: 0.72,
+        channels: [],
+        summary: 'dialogue-dominant',
+      },
+    })
+
+    expect(decision?.lane).toBe('present-state')
+    expect(decision?.strategy).toBe('local-only')
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages,
+      runtimeDigest: decision?.runtimeDigest ?? null,
+      governance: decision?.governance ?? null,
+      sessionMirror: null,
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+      governance: {
+        answerSubject: string
+      }
+    }
+
+    expect(payload.reply).not.toContain('刚才我没贴住你')
+    expect(payload.reply).not.toContain('你现在要我怎么接')
+    expect(payload.reply).toMatch(/我现在|我这会儿/u)
+    expect(payload.governance.answerSubject).toBe('host-state')
+  })
+
   it('selects the deterministic payoff lane for short execution follow-up turns with continuity', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
@@ -441,7 +505,7 @@ describe('main chat active dialogue loop', () => {
       }
     }
 
-    expect(payload.reply).toContain('刚才我答偏了')
+    expect(payload.reply).toMatch(/没贴住|接偏了/u)
     expect(payload.reply).toContain('现在是')
     expect(payload.reply).not.toContain('旧锚点')
     expect(payload.reply).not.toContain('我就正面回你')
@@ -532,7 +596,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('刚才我答偏了')
+    expect(payload.reply).toMatch(/接偏了|没贴住/u)
     expect(payload.reply).toContain('你好呀')
     expect(payload.reply).not.toContain('我就正面回你')
     expect(payload.reply).not.toContain('我听见你了')
