@@ -10,6 +10,16 @@ export interface AlicizationInspectionIntentResult {
   overlapTerms: string[]
   contextOverlap: number
   sharedAttentionLikely: boolean
+  signalProfile: AlicizationInspectionSignalProfile
+}
+
+export interface AlicizationInspectionSignalProfile {
+  explicitSceneDirective: boolean
+  contextualContinuationDirective: boolean
+  focusAnchored: boolean
+  lexicalOnlyCue: boolean
+  actionable: boolean
+  decisive: boolean
 }
 
 const inspectionObserveCues = ['帮我看', '看一下', '看下', '看看', '瞧瞧', 'look at', 'take a look', 'check', 'inspect', 'review', 'show me', '見て', '見せて', '確認して', '見てくれる']
@@ -85,6 +95,84 @@ function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function hasInspectionReason(reasonCodes: string[], ...targets: string[]) {
+  return targets.some(target => reasonCodes.includes(target))
+}
+
+export function deriveAlicizationInspectionSignalProfile(input: {
+  reasonCodes: string[]
+  contextOverlap?: number
+  confidence?: number
+}) {
+  const reasonCodes = input.reasonCodes
+  const contextOverlap = clamp01(input.contextOverlap ?? 0)
+  const confidence = clamp01(input.confidence ?? 0)
+  const observeCue = hasInspectionReason(reasonCodes, 'observe-cue')
+  const describeCue = hasInspectionReason(reasonCodes, 'describe-cue')
+  const visualPlaneCue = hasInspectionReason(reasonCodes, 'visual-plane-cue')
+  const recheckCue = hasInspectionReason(reasonCodes, 'recheck-cue')
+  const sceneShiftCue = hasInspectionReason(reasonCodes, 'scene-shift-cue')
+  const deicticCue = hasInspectionReason(reasonCodes, 'deictic-cue')
+  const questionCue = hasInspectionReason(reasonCodes, 'question-cue')
+  const continuationCue = hasInspectionReason(reasonCodes, 'continuation-cue')
+  const entityDense = hasInspectionReason(reasonCodes, 'entity-dense')
+  const referentiallyRich = hasInspectionReason(reasonCodes, 'referentially-rich')
+  const sharedAttentionContinuation = hasInspectionReason(
+    reasonCodes,
+    'contextual-continuation',
+    'observed-shared-attention-continuation',
+  )
+  const explicitSceneDirective = hasInspectionReason(reasonCodes, 'explicit-visual-ask')
+    || (
+      (recheckCue || sceneShiftCue)
+      && (
+        visualPlaneCue
+        || questionCue
+        || entityDense
+        || referentiallyRich
+        || contextOverlap >= 0.24
+      )
+    )
+  const focusAnchored = explicitSceneDirective
+    || sharedAttentionContinuation
+    || visualPlaneCue
+    || entityDense
+    || referentiallyRich
+    || contextOverlap >= 0.24
+    || (
+      (recheckCue || sceneShiftCue)
+      && (deicticCue || questionCue || continuationCue)
+    )
+  const lexicalOnlyCue = (observeCue || describeCue)
+    && !explicitSceneDirective
+    && !sharedAttentionContinuation
+    && !focusAnchored
+  const actionable = explicitSceneDirective
+    || sharedAttentionContinuation
+    || (
+      focusAnchored
+      && (
+        questionCue
+        || recheckCue
+        || sceneShiftCue
+        || (observeCue && (visualPlaneCue || contextOverlap >= 0.24 || entityDense || referentiallyRich))
+        || (describeCue && (visualPlaneCue || contextOverlap >= 0.24 || entityDense || referentiallyRich))
+      )
+    )
+  const decisive = explicitSceneDirective
+    || sharedAttentionContinuation
+    || (actionable && confidence >= 0.72)
+
+  return {
+    explicitSceneDirective,
+    contextualContinuationDirective: sharedAttentionContinuation,
+    focusAnchored,
+    lexicalOnlyCue,
+    actionable,
+    decisive,
+  } satisfies AlicizationInspectionSignalProfile
 }
 
 export function stringifyInspectionIntentContent(content: unknown) {
@@ -190,7 +278,7 @@ export function inferAlicizationInspectionIntent(input: {
   recentMessages?: AlicizationInspectionContextMessage[]
   contextPhrases?: string[]
   sharedAttentionActive?: boolean
-}) {
+}): AlicizationInspectionIntentResult {
   const normalizedMessage = normalizeInspectionIntentText(input.message)
   if (!normalizedMessage) {
     return {
@@ -200,6 +288,11 @@ export function inferAlicizationInspectionIntent(input: {
       overlapTerms: [],
       contextOverlap: 0,
       sharedAttentionLikely: false,
+      signalProfile: deriveAlicizationInspectionSignalProfile({
+        reasonCodes: [],
+        contextOverlap: 0,
+        confidence: 0,
+      }),
     } satisfies AlicizationInspectionIntentResult
   }
 
@@ -295,9 +388,31 @@ export function inferAlicizationInspectionIntent(input: {
     score = Math.max(score, 0.9)
 
   const confidence = clamp01(score)
-  const active = explicitVisualAsk
-    || contextualContinuation
-    || (confidence >= 0.76 && semanticAnchorCue)
+  const signalProfile = deriveAlicizationInspectionSignalProfile({
+    reasonCodes: [
+      observeCue ? 'observe-cue' : '',
+      describeCue ? 'describe-cue' : '',
+      visualPlaneCue ? 'visual-plane-cue' : '',
+      recheckCue ? 'recheck-cue' : '',
+      sceneShiftCue ? 'scene-shift-cue' : '',
+      deicticCue ? 'deictic-cue' : '',
+      questionCue ? 'question-cue' : '',
+      continuationCue ? 'continuation-cue' : '',
+      anchoredContinuationCue ? 'anchored-continuation-cue' : '',
+      entityDense ? 'entity-dense' : '',
+      referentiallyRich ? 'referentially-rich' : '',
+      effectiveContextOverlap > 0 ? 'context-overlap' : '',
+      sharedAttentionLikely ? 'shared-attention-likely' : '',
+      observedSharedAttentionContinuation ? 'observed-shared-attention-continuation' : '',
+      contextualContinuation ? 'contextual-continuation' : '',
+      explicitVisualAsk ? 'explicit-visual-ask' : '',
+    ].filter(Boolean),
+    contextOverlap: effectiveContextOverlap,
+    confidence,
+  })
+  const active = signalProfile.decisive
+    || (confidence >= 0.76 && semanticAnchorCue && signalProfile.focusAnchored)
+    || (explicitVisualAsk && signalProfile.actionable)
 
   return {
     active,
@@ -323,5 +438,6 @@ export function inferAlicizationInspectionIntent(input: {
     overlapTerms,
     contextOverlap: clamp01(effectiveContextOverlap),
     sharedAttentionLikely,
+    signalProfile,
   } satisfies AlicizationInspectionIntentResult
 }

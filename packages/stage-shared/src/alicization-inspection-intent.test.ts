@@ -21,6 +21,7 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.active).toBe(false)
     expect(result.contextOverlap).toBeLessThan(0.34)
     expect(result.reasonCodes).not.toContain('contextual-continuation')
+    expect(result.signalProfile.decisive).toBe(false)
   })
 
   it('keeps explicit short follow-up rechecks inspection-active when the anchor is real', () => {
@@ -42,6 +43,7 @@ describe('inferAlicizationInspectionIntent', () => {
       'deictic-cue',
       'contextual-continuation',
     ]))
+    expect(result.signalProfile.decisive).toBe(true)
   })
 
   it('keeps short observed follow-up questions inside the same shared-attention window', () => {
@@ -65,6 +67,7 @@ describe('inferAlicizationInspectionIntent', () => {
       'observed-shared-attention-continuation',
       'contextual-continuation',
     ]))
+    expect(result.signalProfile.decisive).toBe(true)
   })
 
   it('does not let repeated self dialogue turns be misread as inspection carry by context overlap alone', () => {
@@ -85,5 +88,26 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.active).toBe(false)
     expect(result.contextOverlap).toBe(0)
     expect(result.reasonCodes).not.toContain('contextual-continuation')
+    expect(result.signalProfile.actionable).toBe(false)
+  })
+
+  it('keeps weak observe fillers non-actionable even when an old inspection carry exists', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '看看',
+      recentMessages: [
+        { role: 'user', content: '帮我看看 Cursor 里面这个 diff 有什么问题' },
+        { role: 'assistant', content: '我在看着。' },
+      ],
+      contextPhrases: [
+        'Cursor',
+        'main.ts - diff',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.reasonCodes).toContain('observe-cue')
+    expect(result.signalProfile.actionable).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
   })
 })

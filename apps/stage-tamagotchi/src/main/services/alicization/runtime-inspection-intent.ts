@@ -5,7 +5,10 @@ import type {
 import type { AlicizationPerceptionState } from './attention-anchor'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
-import { inferAlicizationInspectionIntent } from '@proj-alicization/stage-shared'
+import {
+  deriveAlicizationInspectionSignalProfile,
+  inferAlicizationInspectionIntent,
+} from '@proj-alicization/stage-shared'
 
 import {
   detectInvitedInspectionIntent,
@@ -330,6 +333,11 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       contextPhrases: buildInspectionIntentContextPhrases(input),
       sharedAttentionActive: stableSharedAttention || inspectionContinuityActive,
     })
+    const semanticIntentProfile = deriveAlicizationInspectionSignalProfile({
+      reasonCodes: semanticIntent.reasonCodes,
+      contextOverlap: semanticIntent.contextOverlap,
+      confidence: semanticIntent.confidence,
+    })
     const identityDialoguePivotSignal = Boolean(
       normalized
       && (
@@ -338,14 +346,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
         || /\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/i.test(normalized)
       ),
     )
-    const semanticPremarkEligible = semanticIntent.reasonCodes.some(code => [
-      'explicit-visual-ask',
-      'observe-cue',
-      'describe-cue',
-      'visual-plane-cue',
-      'recheck-cue',
-      'scene-shift-cue',
-    ].includes(code))
+    const semanticPremarkEligible = semanticIntentProfile.decisive
     const forceDialogueIdentityPivot = Boolean(
       inspectionContinuityActive
       && identityDialoguePivotSignal
@@ -563,8 +564,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
       message: normalized,
       contextPhrases: buildConcreteInspectionFocusPhrases(input),
     })
-    const hasDirectVisualCue = semanticIntent.reasonCodes.includes('observe-cue')
-      || semanticIntent.reasonCodes.includes('describe-cue')
+    const hasDirectVisualCue = semanticIntentProfile.explicitSceneDirective
       || semanticIntent.reasonCodes.includes('visual-plane-cue')
     const hasContinuationRepairCue = semanticIntent.reasonCodes.includes('deictic-cue')
       || semanticIntent.reasonCodes.includes('scene-shift-cue')
@@ -574,7 +574,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     const shortRepairTurn = normalized.length > 0 && normalized.length <= 28
     const anchoredSceneContinuation = Boolean(
       hasDirectVisualCue
-      || hasContinuationRepairCue
+      || (hasContinuationRepairCue && semanticIntentProfile.focusAnchored)
       || focusAlignment.overlapRatio >= 0.32
       || semanticIntent.contextOverlap >= 0.45,
     )
@@ -614,9 +614,9 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     )
     const semanticBoost = (
       (inspectionContinuityActive ? 0.22 : 0)
-      + (semanticIntent.reasonCodes.includes('observe-cue') ? 0.2 : 0)
-      + (semanticIntent.reasonCodes.includes('describe-cue') ? 0.16 : 0)
-      + (semanticIntent.reasonCodes.includes('visual-plane-cue') ? 0.18 : 0)
+      + (semanticIntentProfile.actionable && semanticIntent.reasonCodes.includes('observe-cue') ? 0.2 : 0)
+      + (semanticIntentProfile.actionable && semanticIntent.reasonCodes.includes('describe-cue') ? 0.16 : 0)
+      + (semanticIntentProfile.focusAnchored && semanticIntent.reasonCodes.includes('visual-plane-cue') ? 0.18 : 0)
       + (stableSharedAttention ? 0.12 : 0)
       + (semanticIntent.reasonCodes.includes('context-overlap') ? 0.18 : 0)
       + (semanticIntent.reasonCodes.includes('question-cue') ? 0.08 : 0)
@@ -630,7 +630,7 @@ export function createAlicizationInspectionIntentRuntime(options: CreateAlicizat
     const confidence = clamp01(Math.max(baseIntent.confidence, semanticIntent.confidence, semanticBoost))
     const activeHeuristic = !detachedTurnFromScene && (
       baseIntent.active
-      || semanticIntent.active
+      || semanticIntentProfile.decisive
       || confidence >= 0.64
       || sharedAttentionContinuation
     )

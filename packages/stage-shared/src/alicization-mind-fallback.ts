@@ -9,7 +9,10 @@ import {
   analyzeAlicizationExecutionTurnAuthority,
   type AlicizationExecutionDispatchChannel,
 } from './alicization-execution-intent'
-import { inferAlicizationInspectionIntent } from './alicization-inspection-intent'
+import {
+  deriveAlicizationInspectionSignalProfile,
+  inferAlicizationInspectionIntent,
+} from './alicization-inspection-intent'
 import { buildAlicizationScreenSurfaceCue, isWeakAlicizationScreenSurfaceCue } from './alicization-screen-surface'
 
 function sanitizeText(raw: unknown, maxChars = 180) {
@@ -497,10 +500,17 @@ function resolveVisibleRepairSurfaceDecision(input: {
       .map(value => sanitizeGovernedSurfaceCue(value, governance, input.userText, 180))
       .filter(Boolean),
   })
+  const inspectionSignalProfile = inspectionIntent.signalProfile
+    ?? deriveAlicizationInspectionSignalProfile({
+      reasonCodes: inspectionIntent.reasonCodes,
+      contextOverlap: inspectionIntent.contextOverlap,
+      confidence: inspectionIntent.confidence,
+    })
   const inspectionSignal = inspectionIntent.reasonCodes.some(code => visibleRepairInspectionReasonCodes.has(code))
-  const contextualInspection = inspectionIntent.active
+  const contextualInspection = inspectionSignalProfile.decisive
     || (
       inspectionSignal
+      && inspectionSignalProfile.actionable
       && inspectionIntent.confidence >= 0.58
       && (
         inspectionIntent.contextOverlap >= 0.24
@@ -510,7 +520,8 @@ function resolveVisibleRepairSurfaceDecision(input: {
         || sceneCentricTurn
       )
     )
-  const strongVisualInspection = hasStrongVisualInspectionSignal(inspectionIntent.reasonCodes)
+  const strongVisualInspection = inspectionSignalProfile.explicitSceneDirective
+    || hasStrongVisualInspectionSignal(inspectionIntent.reasonCodes)
     || (
       sceneCentricTurn
       && inspectionIntent.sharedAttentionLikely

@@ -2,6 +2,8 @@ import type { AlicizationDialogueAnswerSubject } from '../../../shared/eventa'
 import type { AlicizationDialogueScreenReferenceMode } from './dialogue-focus-governor'
 import type { AlicizationDialogueTurnSemantics } from './dialogue-turn-semantics'
 
+import { deriveAlicizationInspectionSignalProfile } from '@proj-alicization/stage-shared'
+
 import { isDialogueFirstSubject } from './dialogue-surface-text'
 
 export interface AlicizationDialogueIngressGovernor {
@@ -82,26 +84,19 @@ export function buildDialogueIngressGovernor(input: {
   const dialogueFirst = resolveDialogueFirst(input.semantics, turnOwner)
   const hardDialogueFirst = resolveHardDialogueFirst(input.semantics, turnOwner)
   const softDialogueFirst = dialogueFirst && !hardDialogueFirst
-  const semanticInspectionReasons = new Set(input.semanticInspectionReasonCodes ?? [])
+  const semanticInspectionReasons = input.semanticInspectionReasonCodes ?? []
+  const semanticInspectionProfile = deriveAlicizationInspectionSignalProfile({
+    reasonCodes: semanticInspectionReasons,
+    confidence: input.semanticInspectionIntentConfidence ?? 0,
+  })
   const strongSemanticInspection = input.semanticInspectionIntentActive
-    && (
-      Number(input.semanticInspectionIntentConfidence ?? 0) >= 0.72
-      || semanticInspectionReasons.has('observe-cue')
-      || semanticInspectionReasons.has('describe-cue')
-      || semanticInspectionReasons.has('visual-plane-cue')
-      || semanticInspectionReasons.has('recheck-cue')
-      || semanticInspectionReasons.has('scene-shift-cue')
-      || semanticInspectionReasons.has('explicit-visual-ask')
-    )
+    && semanticInspectionProfile.decisive
   const explicitInspectionClaim = input.baseInspectionIntentActive || strongSemanticInspection
   const detachedDialogueSceneClaim = turnOwner === 'alicization-self'
     && input.semantics.reasonTags.includes('scene-detached-turn')
     && (
-      semanticInspectionReasons.has('explicit-visual-ask')
-      || semanticInspectionReasons.has('describe-cue')
-      || semanticInspectionReasons.has('observe-cue')
-      || semanticInspectionReasons.has('visual-plane-cue')
-      || semanticInspectionReasons.has('recheck-cue')
+      semanticInspectionProfile.explicitSceneDirective
+      || semanticInspectionProfile.actionable
     )
   const inspectionOwnsTurn = explicitInspectionClaim
     && !hardDialogueFirst

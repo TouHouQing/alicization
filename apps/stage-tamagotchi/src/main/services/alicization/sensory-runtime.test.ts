@@ -148,6 +148,14 @@ function createSensoryRuntimeHarness() {
     active: false,
     confidence: 0,
     reasonCodes: [],
+    signalProfile: {
+      explicitSceneDirective: false,
+      contextualContinuationDirective: false,
+      focusAnchored: false,
+      lexicalOnlyCue: false,
+      actionable: false,
+      decisive: false,
+    },
   }))
   const hasImageTransportContent = vi.fn(() => false)
   const isGenericScreenInspectionRequest = vi.fn(() => false)
@@ -274,6 +282,14 @@ describe('sensory runtime', () => {
       active: false,
       confidence: 0,
       reasonCodes: [],
+      signalProfile: {
+        explicitSceneDirective: false,
+        contextualContinuationDirective: false,
+        focusAnchored: false,
+        lexicalOnlyCue: false,
+        actionable: false,
+        decisive: false,
+      },
     })
 
     expect(harness.runtime.resolveInspectionIntentFromMessageHistory({

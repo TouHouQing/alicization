@@ -223,6 +223,9 @@ interface AlicizationSensoryRuntimeOptions {
     active: boolean
     confidence: number
     reasonCodes: string[]
+    signalProfile?: {
+      decisive?: boolean
+    }
   }
   inspectionGroundingImageJpegQuality: number
   inspectionGroundingImageMaxHeight: number
@@ -349,14 +352,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
       message: input.userText,
       recentMessages: input.messages.slice(0, -1),
     })
-    const semanticPremarkEligible = semanticIntent.reasonCodes.some(code => [
-      'explicit-visual-ask',
-      'observe-cue',
-      'describe-cue',
-      'visual-plane-cue',
-      'recheck-cue',
-      'scene-shift-cue',
-    ].includes(code))
+    const semanticPremarkEligible = semanticIntent.signalProfile?.decisive ?? semanticIntent.active
     if (!baseIntent.active && !semanticIntent.active)
       return false
 

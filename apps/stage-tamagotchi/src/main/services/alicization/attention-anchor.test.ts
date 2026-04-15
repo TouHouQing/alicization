@@ -193,6 +193,15 @@ describe('attention anchor helpers', () => {
     ]))
   })
 
+  it('does not treat weak observe fillers as invited inspection intent on their own', () => {
+    const detected = detectInvitedInspectionIntent('看看')
+
+    expect(detected).toEqual({
+      active: false,
+      confidence: 0.22,
+    })
+  })
+
   it('treats English screen description requests as invited inspection intent', () => {
     const detected = detectInvitedInspectionIntent('Can you look again and tell me what is on my screen now?')
 
