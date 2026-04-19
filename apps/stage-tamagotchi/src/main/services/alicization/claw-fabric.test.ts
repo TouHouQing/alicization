@@ -211,7 +211,43 @@ describe('buildClawFabricPlan', () => {
     expect(plan.state).toBe('needs-affirmation')
     expect(plan.selectedChannel).toBeNull()
     expect(plan.proposedChannel).toBe('software')
-    expect(plan.affirmationReasonCodes).toContain('proactive-side-effects-require-explicit-consent')
+    expect(plan.affirmationReasonCodes).toContain('medium-risk-proactive-action-requires-affirmation')
+  })
+
+  it('allows low-risk proactive rollbackable code edits to self-start on code agents', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the current runtime regression with the smallest safe change.',
+        origin: 'proactive',
+        effect: 'mutate',
+        justification: 'grounded',
+        riskBudget: 'low',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code']),
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('codex')
+    expect(plan.affirmationReasonCodes).toEqual([])
+  })
+
+  it('still requires affirmation for medium-risk proactive code edits', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Refactor the current runtime knot more aggressively.',
+        origin: 'proactive',
+        effect: 'mutate',
+        justification: 'grounded',
+        riskBudget: 'medium',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code']),
+    })
+
+    expect(plan.state).toBe('needs-affirmation')
+    expect(plan.selectedChannel).toBeNull()
+    expect(plan.affirmationReasonCodes).toContain('medium-risk-proactive-action-requires-affirmation')
   })
 
   it('keeps generic desktop fallback behind stronger justification', () => {

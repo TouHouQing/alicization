@@ -490,6 +490,46 @@ describe('dialogue session manager', () => {
     expect(block).toContain('mind=mode=tracking | drive=understand | need=guidance')
     expect(block).toContain('memory_carry=mode=reflective-repair')
     expect(block).toContain('memory=recent=carry the refactor thread forward')
-    expect(block).toContain('execution=recent=callback:cli:completed summary=cli callback settled')
+    expect(block).toContain('execution=recent=callback:cli:completed status=completed summary=cli callback settled')
+  })
+
+  it('summarizes affirmation-gated executor intent with goal and channel detail', () => {
+    const manager = createAlicizationDialogueSessionManager({
+      getNow: () => 60,
+    })
+
+    const mirror = manager.ingestAgentSessionSnapshot({
+      agentSession: {
+        ...createAgentSessionSnapshot(),
+        tasks: [{
+          id: 'task-proposal',
+          kind: 'executor',
+          label: 'plan:software',
+          metadata: {
+            source: 'task-planning',
+            threadId: 'thread-proposal',
+            selectedChannel: null,
+            proposedChannel: 'software',
+            threadStatus: 'needs-affirmation',
+            goal: 'Publish the current foreground draft',
+            affirmationReasonCodes: ['proactive-side-effects-require-explicit-consent'],
+          },
+          startedAt: 40,
+          finishedAt: null,
+          status: 'pending',
+          summary: 'Execution is waiting for affirmation before software can act on Publish the current foreground draft.',
+        }],
+      },
+      cardId: 'default',
+      decisionTraceId: 'trace-proposal-1',
+      sessionId: 'session-1',
+      sessionPhases: ['source:task-planning'],
+      source: 'task-planning',
+    })
+
+    expect(mirror.executionSummary).toContain('status=needs-affirmation')
+    expect(mirror.executionSummary).toContain('goal=Publish the current foreground draft')
+    expect(mirror.executionSummary).toContain('channel=software')
+    expect(mirror.executionSummary).toContain('summary=waiting-confirmation before software can act on Publish the current foreground draft')
   })
 })

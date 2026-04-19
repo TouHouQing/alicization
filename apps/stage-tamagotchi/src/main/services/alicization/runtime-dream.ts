@@ -7,6 +7,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { SubconsciousCardState } from './runtime-soul'
+import type { AlicizationProactiveLoopState } from './proactive-feedback'
 
 import { errorMessageFrom } from '@moeru/std'
 
@@ -22,6 +23,7 @@ import {
 
 interface CreateAlicizationDreamRuntimeOptions {
   ensureSubconsciousState: (cardId: string) => Promise<SubconsciousCardState>
+  ensureProactiveLoopState: (cardId: string) => Promise<AlicizationProactiveLoopState>
   getAlicizationDb: () => any
   getSoulSnapshot: () => AlicizationSoulSnapshot | null
   bootstrap: () => Promise<AlicizationSoulSnapshot>
@@ -52,6 +54,8 @@ interface CreateAlicizationDreamRuntimeOptions {
   ) => Promise<AlicizationSoulSnapshot | void>
   snapshotFromContent: (content: string) => AlicizationSoulSnapshot
   persistSubconsciousState: (cardId: string, state: SubconsciousCardState) => Promise<void>
+  persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState) => Promise<void>
+  recoverProactiveRhythmAfterDream: (state: AlicizationProactiveLoopState, at?: number) => AlicizationProactiveLoopState
   clampNeed: (value: number) => number
   dreamMaxTurns: number
   dreamMaxCharsPerAssistantTurn: number
@@ -62,6 +66,7 @@ interface CreateAlicizationDreamRuntimeOptions {
 export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRuntimeOptions) {
   const {
     ensureSubconsciousState,
+    ensureProactiveLoopState,
     getAlicizationDb,
     getSoulSnapshot,
     bootstrap,
@@ -81,6 +86,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     queueSoulMutation,
     snapshotFromContent,
     persistSubconsciousState,
+    persistProactiveLoopState,
+    recoverProactiveRhythmAfterDream,
     clampNeed,
     dreamMaxTurns,
     dreamMaxCharsPerAssistantTurn,
@@ -396,6 +403,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       lastSavedAt: now,
     }
     await persistSubconsciousState(getActiveCardId(), nextState)
+    const proactiveLoopState = await ensureProactiveLoopState(cardId)
+    await persistProactiveLoopState(cardId, recoverProactiveRhythmAfterDream(proactiveLoopState, now))
     return {
       processed: true,
     }

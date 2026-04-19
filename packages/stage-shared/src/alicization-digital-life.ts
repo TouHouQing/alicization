@@ -8,12 +8,18 @@ import type {
   AlicizationEmotion,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
+import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
+import type { StageEmbodimentMotorState } from './stage-embodiment-motor-state'
 import type { StageEmbodimentPresencePostureMode } from './stage-embodiment-presence-posture'
 import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profile'
 
 import { normalizeAlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationEmotion, normalizeAlicizationPerformancePayload } from './alicization-performance-contracts'
+import {
+  createIdleStageEmbodimentMotorState,
+  normalizeStageEmbodimentMotorState,
+} from './stage-embodiment-motor-state'
 
 export type AlicizationDigitalLifeMode = 'thinking' | 'speaking' | 'acting' | 'recovering'
 export type AlicizationDigitalLifeLipSyncMode = 'hybrid' | 'viseme' | 'energy' | 'closed'
@@ -52,6 +58,8 @@ export interface AlicizationDigitalLifeActionPlan {
   rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
 }
 
+export type AlicizationDigitalLifeMotorPlan = StageEmbodimentMotorState
+
 export interface AlicizationDigitalLifeFrame {
   id: string
   index: number
@@ -65,6 +73,7 @@ export interface AlicizationDigitalLifeFrame {
   lipSync: AlicizationDigitalLifeLipSyncPlan
   face: AlicizationDigitalLifeFacePlan
   action: AlicizationDigitalLifeActionPlan
+  motor: AlicizationDigitalLifeMotorPlan
 }
 
 export interface AlicizationDigitalLifeEnvelope {
@@ -80,6 +89,7 @@ export interface AlicizationDigitalLifeEnvelope {
   lipSync: AlicizationDigitalLifeLipSyncPlan
   face: AlicizationDigitalLifeFacePlan
   action: AlicizationDigitalLifeActionPlan
+  motor: AlicizationDigitalLifeMotorPlan
   frames: AlicizationDigitalLifeFrame[]
 }
 
@@ -87,6 +97,7 @@ export interface BuildAlicizationDigitalLifeEnvelopeInput {
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
 }
 
 function clampUnit(value: number | null | undefined, fallback: number = 0) {
@@ -119,6 +130,10 @@ function clampFactor(value: number, fallback: number = 1) {
 
 function roundHundredths(value: number, fallback: number = 0) {
   return Number(clampUnit(value, fallback).toFixed(2))
+}
+
+function roundSignedHundredths(value: number, fallback = 0) {
+  return Number(clampRange(value, -1, 1, fallback).toFixed(2))
 }
 
 function normalizeCue(raw: unknown) {
@@ -171,6 +186,1101 @@ function averageWeight(
     return sum + clampUnit(selector(segment))
   }, 0)
   return total / segments.length
+}
+
+function resolveEmotionMotorBias(emotion: AlicizationEmotion) {
+  switch (emotion) {
+    case 'happy':
+      return {
+        bodyLean: 0.12,
+        bodyOpenness: 0.16,
+        bodySway: 0.08,
+        breathAmplitude: 0.06,
+        browLift: 0.14,
+        browTension: -0.08,
+        cheekLift: 0.22,
+        expressivity: 0.18,
+        eyeOpenness: 0.08,
+        gazeAzimuth: 0.06,
+        gazeElevation: 0.08,
+        gazeFocus: -0.04,
+        gazeStability: -0.06,
+        headPitch: -0.08,
+        jawOpenBias: 0.12,
+        mouthRound: -0.08,
+        mouthSpread: 0.24,
+        stillness: -0.14,
+      }
+    case 'sad':
+    case 'tired':
+      return {
+        bodyLean: -0.12,
+        bodyOpenness: -0.12,
+        bodySway: -0.04,
+        breathAmplitude: -0.06,
+        browLift: -0.14,
+        browTension: 0.08,
+        cheekLift: -0.06,
+        expressivity: -0.1,
+        eyeOpenness: -0.16,
+        gazeAzimuth: -0.04,
+        gazeElevation: -0.14,
+        gazeFocus: 0.02,
+        gazeStability: 0.12,
+        headPitch: 0.12,
+        jawOpenBias: -0.08,
+        mouthRound: 0.06,
+        mouthSpread: -0.14,
+        stillness: 0.18,
+      }
+    case 'angry':
+      return {
+        bodyLean: 0.18,
+        bodyOpenness: 0.08,
+        bodySway: 0.12,
+        breathAmplitude: 0.1,
+        browLift: -0.18,
+        browTension: 0.3,
+        cheekLift: -0.04,
+        expressivity: 0.16,
+        eyeOpenness: -0.06,
+        gazeAzimuth: 0,
+        gazeElevation: -0.04,
+        gazeFocus: 0.2,
+        gazeStability: 0.16,
+        headPitch: 0.1,
+        jawOpenBias: 0.14,
+        mouthRound: -0.1,
+        mouthSpread: 0.02,
+        stillness: -0.02,
+      }
+    case 'concerned':
+    case 'apologetic':
+      return {
+        bodyLean: -0.04,
+        bodyOpenness: -0.06,
+        bodySway: -0.02,
+        breathAmplitude: 0.02,
+        browLift: -0.08,
+        browTension: 0.18,
+        cheekLift: 0.02,
+        expressivity: -0.02,
+        eyeOpenness: -0.04,
+        gazeAzimuth: -0.02,
+        gazeElevation: -0.08,
+        gazeFocus: 0.12,
+        gazeStability: 0.12,
+        headPitch: 0.04,
+        jawOpenBias: -0.02,
+        mouthRound: 0.1,
+        mouthSpread: -0.04,
+        stillness: 0.1,
+      }
+    case 'surprised':
+      return {
+        bodyLean: 0.08,
+        bodyOpenness: 0.08,
+        bodySway: 0.1,
+        breathAmplitude: 0.12,
+        browLift: 0.28,
+        browTension: 0.06,
+        cheekLift: 0.04,
+        expressivity: 0.2,
+        eyeOpenness: 0.26,
+        gazeAzimuth: 0,
+        gazeElevation: 0.12,
+        gazeFocus: 0.04,
+        gazeStability: -0.12,
+        headPitch: -0.04,
+        jawOpenBias: 0.22,
+        mouthRound: 0.1,
+        mouthSpread: 0.04,
+        stillness: -0.18,
+      }
+    case 'thinking':
+      return {
+        bodyLean: 0.06,
+        bodyOpenness: -0.02,
+        bodySway: -0.06,
+        breathAmplitude: 0,
+        browLift: 0.06,
+        browTension: 0.18,
+        cheekLift: 0,
+        expressivity: -0.02,
+        eyeOpenness: -0.04,
+        gazeAzimuth: 0.1,
+        gazeElevation: 0.02,
+        gazeFocus: 0.18,
+        gazeStability: 0.16,
+        headPitch: 0.02,
+        jawOpenBias: -0.04,
+        mouthRound: 0.06,
+        mouthSpread: -0.04,
+        stillness: 0.14,
+      }
+    case 'neutral':
+    default:
+      return {
+        bodyLean: 0,
+        bodyOpenness: 0,
+        bodySway: 0,
+        breathAmplitude: 0,
+        browLift: 0,
+        browTension: 0,
+        cheekLift: 0,
+        expressivity: 0,
+        eyeOpenness: 0,
+        gazeAzimuth: 0,
+        gazeElevation: 0,
+        gazeFocus: 0,
+        gazeStability: 0,
+        headPitch: 0,
+        jawOpenBias: 0,
+        mouthRound: 0,
+        mouthSpread: 0,
+        stillness: 0,
+      }
+  }
+}
+
+function resolveDeliveryMotorBias(delivery: AlicizationDialoguePerformancePayload['delivery']) {
+  switch (delivery) {
+    case 'energetic':
+      return {
+        breathPace: 0.18,
+        expressivity: 0.18,
+        gazeAzimuth: 0.04,
+        gazeStability: -0.1,
+        headNod: 0.24,
+        headPitch: -0.06,
+        headRoll: 0.06,
+        mouthSpread: 0.08,
+        stillness: -0.18,
+        sway: 0.16,
+      }
+    case 'firm':
+      return {
+        breathPace: 0.1,
+        expressivity: 0.08,
+        gazeAzimuth: 0,
+        gazeStability: 0.12,
+        headNod: 0.16,
+        headPitch: 0.04,
+        headRoll: -0.02,
+        mouthSpread: 0.02,
+        stillness: -0.04,
+        sway: 0.04,
+      }
+    case 'gentle':
+      return {
+        breathPace: -0.04,
+        expressivity: -0.02,
+        gazeAzimuth: -0.02,
+        gazeStability: 0.08,
+        headNod: 0.04,
+        headPitch: 0.02,
+        headRoll: 0.06,
+        mouthSpread: 0.06,
+        stillness: 0.12,
+        sway: -0.02,
+      }
+    case 'hesitant':
+      return {
+        breathPace: -0.06,
+        expressivity: -0.08,
+        gazeAzimuth: -0.08,
+        gazeStability: -0.06,
+        headNod: 0.02,
+        headPitch: 0.08,
+        headRoll: 0.04,
+        mouthSpread: -0.08,
+        stillness: 0.14,
+        sway: -0.06,
+      }
+    case 'teasing':
+      return {
+        breathPace: 0.08,
+        expressivity: 0.12,
+        gazeAzimuth: 0.12,
+        gazeStability: -0.08,
+        headNod: 0.12,
+        headPitch: -0.04,
+        headRoll: 0.1,
+        mouthSpread: 0.14,
+        stillness: -0.12,
+        sway: 0.12,
+      }
+    case 'calm':
+    default:
+      return {
+        breathPace: 0,
+        expressivity: 0,
+        gazeAzimuth: 0,
+        gazeStability: 0.04,
+        headNod: 0,
+        headPitch: 0,
+        headRoll: 0,
+        mouthSpread: 0,
+        stillness: 0.08,
+        sway: 0,
+      }
+  }
+}
+
+function resolvePostureMotorBias(postureHint: StageEmbodimentPresencePostureMode) {
+  switch (postureHint) {
+    case 'attentive':
+      return {
+        gazeFocus: 0.12,
+        gazeStability: 0.08,
+        lean: 0.08,
+        openness: 0.06,
+        settle: 0.02,
+      }
+    case 'inspection':
+      return {
+        gazeFocus: 0.18,
+        gazeStability: 0.14,
+        lean: 0.1,
+        openness: -0.02,
+        settle: 0.08,
+      }
+    case 'hesitant':
+      return {
+        gazeFocus: 0.04,
+        gazeStability: -0.04,
+        lean: -0.08,
+        openness: -0.12,
+        settle: 0.12,
+      }
+    case 'concerned':
+      return {
+        gazeFocus: 0.1,
+        gazeStability: 0.1,
+        lean: -0.04,
+        openness: -0.08,
+        settle: 0.1,
+      }
+    case 'idle':
+    default:
+      return {
+        gazeFocus: 0,
+        gazeStability: 0,
+        lean: 0,
+        openness: 0,
+        settle: 0,
+      }
+  }
+}
+
+interface AlicizationDigitalLifeEmbodimentMotorBias {
+  stillness: number
+  expressivity: number
+  gazeFocus: number
+  gazeStability: number
+  gazeAzimuth: number
+  gazeElevation: number
+  headPitch: number
+  headRoll: number
+  headNod: number
+  breathAmplitude: number
+  breathPace: number
+  eyeOpenness: number
+  browLift: number
+  browTension: number
+  cheekLift: number
+  mouthSpread: number
+  mouthRound: number
+  jawOpenBias: number
+  bodySway: number
+  bodyLean: number
+  bodyOpenness: number
+  settle: number
+}
+
+function createNeutralEmbodimentMotorBias(): AlicizationDigitalLifeEmbodimentMotorBias {
+  return {
+    stillness: 0,
+    expressivity: 0,
+    gazeFocus: 0,
+    gazeStability: 0,
+    gazeAzimuth: 0,
+    gazeElevation: 0,
+    headPitch: 0,
+    headRoll: 0,
+    headNod: 0,
+    breathAmplitude: 0,
+    breathPace: 0,
+    eyeOpenness: 0,
+    browLift: 0,
+    browTension: 0,
+    cheekLift: 0,
+    mouthSpread: 0,
+    mouthRound: 0,
+    jawOpenBias: 0,
+    bodySway: 0,
+    bodyLean: 0,
+    bodyOpenness: 0,
+    settle: 0,
+  }
+}
+
+function resolveCategoricalEmbodimentWeight(
+  raw: string | null | undefined,
+  mapping: Record<string, number>,
+  fallback = 0.5,
+) {
+  if (typeof raw !== 'string')
+    return fallback
+
+  const key = raw.trim()
+  return Object.prototype.hasOwnProperty.call(mapping, key)
+    ? clampUnit(mapping[key], fallback)
+    : fallback
+}
+
+function resolvePresenceEmbodimentMotorBias(raw: string | null | undefined): AlicizationDigitalLifeEmbodimentMotorBias {
+  const idle = createNeutralEmbodimentMotorBias()
+  switch (raw) {
+    case 'glance':
+      return {
+        ...idle,
+        stillness: 0.04,
+        gazeFocus: -0.06,
+        gazeStability: -0.04,
+        gazeAzimuth: 0.08,
+        gazeElevation: -0.04,
+        bodyLean: -0.06,
+        bodyOpenness: -0.06,
+        settle: 0.06,
+      }
+    case 'attentive':
+      return {
+        ...idle,
+        gazeFocus: 0.08,
+        gazeStability: 0.06,
+        headNod: 0.02,
+        bodyLean: 0.06,
+        bodyOpenness: 0.04,
+      }
+    case 'hesitant':
+      return {
+        ...idle,
+        stillness: 0.08,
+        gazeFocus: -0.02,
+        gazeStability: -0.04,
+        breathPace: -0.04,
+        browTension: 0.08,
+        mouthRound: 0.06,
+        bodyLean: -0.08,
+        bodyOpenness: -0.12,
+        settle: 0.08,
+      }
+    case 'concerned':
+      return {
+        ...idle,
+        stillness: 0.04,
+        gazeFocus: 0.08,
+        gazeStability: 0.08,
+        breathAmplitude: 0.04,
+        browTension: 0.1,
+        mouthRound: 0.08,
+        bodyLean: -0.02,
+        bodyOpenness: -0.08,
+        settle: 0.1,
+      }
+    default:
+      return idle
+  }
+}
+
+function resolveExpressionStyleEmbodimentMotorBias(raw: string | null | undefined): AlicizationDigitalLifeEmbodimentMotorBias {
+  const idle = createNeutralEmbodimentMotorBias()
+  switch (raw) {
+    case 'contained':
+      return {
+        ...idle,
+        stillness: 0.08,
+        expressivity: -0.08,
+        gazeStability: 0.06,
+        cheekLift: -0.02,
+        mouthSpread: -0.08,
+        jawOpenBias: -0.04,
+        bodySway: -0.04,
+        settle: 0.04,
+      }
+    case 'measured':
+      return {
+        ...idle,
+        stillness: 0.04,
+        gazeStability: 0.04,
+        browTension: 0.04,
+        mouthSpread: -0.02,
+        settle: 0.04,
+      }
+    case 'warm':
+      return {
+        ...idle,
+        expressivity: 0.06,
+        browLift: 0.04,
+        cheekLift: 0.08,
+        mouthSpread: 0.08,
+        bodyOpenness: 0.08,
+      }
+    case 'playful':
+      return {
+        ...idle,
+        expressivity: 0.1,
+        gazeStability: -0.04,
+        headRoll: 0.04,
+        breathAmplitude: 0.04,
+        cheekLift: 0.1,
+        mouthSpread: 0.12,
+        jawOpenBias: 0.04,
+        bodySway: 0.08,
+        bodyOpenness: 0.08,
+      }
+    case 'sharp':
+      return {
+        ...idle,
+        stillness: 0.02,
+        gazeFocus: 0.06,
+        headPitch: 0.04,
+        browTension: 0.1,
+        mouthSpread: -0.04,
+        jawOpenBias: 0.04,
+      }
+    default:
+      return idle
+  }
+}
+
+function resolveApproachEmbodimentMotorBias(raw: string | null | undefined): AlicizationDigitalLifeEmbodimentMotorBias {
+  const idle = createNeutralEmbodimentMotorBias()
+  switch (raw) {
+    case 'give-space':
+      return {
+        ...idle,
+        stillness: 0.04,
+        gazeStability: 0.04,
+        bodyLean: -0.08,
+        bodyOpenness: -0.08,
+        settle: 0.06,
+      }
+    case 'stay-near':
+      return {
+        ...idle,
+        gazeFocus: 0.04,
+        bodyLean: 0.06,
+        bodyOpenness: 0.04,
+      }
+    case 'guide':
+      return {
+        ...idle,
+        gazeFocus: 0.08,
+        gazeStability: 0.08,
+        headPitch: 0.04,
+        browTension: 0.06,
+        jawOpenBias: 0.04,
+        bodyLean: 0.04,
+      }
+    case 'care':
+      return {
+        ...idle,
+        gazeFocus: 0.04,
+        browLift: -0.02,
+        browTension: 0.04,
+        mouthRound: 0.08,
+        bodyOpenness: 0.04,
+        settle: 0.1,
+      }
+    default:
+      return idle
+  }
+}
+
+function resolveSpineEmbodimentMotorBias(
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null,
+): AlicizationDigitalLifeEmbodimentMotorBias {
+  const embodiment = digitalLifeSpine?.embodiment
+  if (!embodiment)
+    return createNeutralEmbodimentMotorBias()
+
+  const privateThought = embodiment.privateThought ?? null
+  const selfContinuity = embodiment.selfContinuity ?? null
+  const autobiographicalSelf = embodiment.autobiographicalSelf ?? null
+  const relationship = embodiment.relationship ?? null
+  const selfState = embodiment.selfState ?? null
+  const mindEcology = embodiment.mindEcology ?? null
+  const initiative = embodiment.initiative ?? null
+
+  const presence = privateThought?.embodiedPresence
+    ?? initiative?.preferredPresence
+    ?? digitalLifeSpine?.runtime.preferredPresence
+    ?? null
+  const expressionStyle = autobiographicalSelf?.expressionStyle ?? null
+  const approachVector = relationship?.approachVector ?? null
+
+  const climateWarmth = resolveCategoricalEmbodimentWeight(relationship?.climate, {
+    guarded: 0.16,
+    neutral: 0.48,
+    warm: 0.74,
+    attuned: 0.92,
+  })
+  const guardedOrientation = resolveCategoricalEmbodimentWeight(selfContinuity?.attachmentMode, {
+    guarded: 0.9,
+    nearby: 0.56,
+    attuned: 0.22,
+  })
+  const attunementOrientation = resolveCategoricalEmbodimentWeight(selfContinuity?.attachmentMode, {
+    guarded: 0.18,
+    nearby: 0.6,
+    attuned: 0.92,
+  })
+  const initiativeDrive = resolveCategoricalEmbodimentWeight(selfContinuity?.initiativeTemperament, {
+    reserved: 0.24,
+    balanced: 0.56,
+    eager: 0.88,
+  })
+  const expressionWarmth = resolveCategoricalEmbodimentWeight(expressionStyle, {
+    contained: 0.24,
+    measured: 0.42,
+    warm: 0.76,
+    playful: 0.84,
+    sharp: 0.38,
+  })
+  const expressionPlayfulness = resolveCategoricalEmbodimentWeight(expressionStyle, {
+    contained: 0.18,
+    measured: 0.26,
+    warm: 0.48,
+    playful: 0.92,
+    sharp: 0.22,
+  })
+  const relationshipApproach = resolveCategoricalEmbodimentWeight(approachVector, {
+    'give-space': 0.2,
+    'stay-near': 0.58,
+    guide: 0.78,
+    care: 0.92,
+  })
+  const replyHabitRestraint = resolveCategoricalEmbodimentWeight(mindEcology?.replyHabit, {
+    'repair-first': 0.64,
+    'care-first': 0.56,
+    'answer-first': 0.42,
+    'hover-first': 0.66,
+    'observe-first': 0.84,
+  })
+  const regulationRestraint = resolveCategoricalEmbodimentWeight(mindEcology?.regulationHabit, {
+    'cool-down-before-speaking': 0.86,
+    'soften-before-speaking': 0.68,
+    'contain-and-watch': 0.9,
+    'lean-forward-gently': 0.42,
+  })
+  const tensionArousal = resolveCategoricalEmbodimentWeight(privateThought?.emotionalTension, {
+    'tense-debug': 0.84,
+    'focused-flow': 0.58,
+    'soft-covision': 0.38,
+    'late-night-drain': 0.26,
+    'restless-switching': 0.92,
+    'calm-browse': 0.32,
+  })
+
+  const warmth = clampUnit(
+    climateWarmth * 0.24
+    + clampUnit(relationship?.receptivity, 0.5) * 0.1
+    + clampUnit(selfState?.feltCloseness, 0.46) * 0.14
+    + clampUnit(autobiographicalSelf?.careBias, 0.5) * 0.12
+    + clampUnit(autobiographicalSelf?.companionship, 0.5) * 0.12
+    + clampUnit(autobiographicalSelf?.proactiveCare, 0.5) * 0.08
+    + clampUnit(mindEcology?.temperament.tenderness, 0.5) * 0.12
+    + expressionWarmth * 0.08,
+  )
+  const playfulness = clampUnit(
+    expressionPlayfulness * 0.18
+    + clampUnit(autobiographicalSelf?.playBias, 0.28) * 0.18
+    + clampUnit(autobiographicalSelf?.playfulIntimacy, 0.28) * 0.16
+    + clampUnit(mindEcology?.temperament.playfulness, 0.3) * 0.18
+    + climateWarmth * 0.08
+    + clampUnit(mindEcology?.climate.valence, 0.48) * 0.1,
+  )
+  const guardedness = clampUnit(
+    guardedOrientation * 0.18
+    + clampUnit(selfContinuity?.guardingTendency, 0.42) * 0.18
+    + resolveCategoricalEmbodimentWeight(relationship?.climate, {
+      guarded: 0.88,
+      neutral: 0.5,
+      warm: 0.3,
+      attuned: 0.18,
+    }) * 0.14
+    + clampUnit(selfState?.fearOfInterrupting, 0.38) * 0.14
+    + clampUnit(autobiographicalSelf?.autonomyRespect, 0.52) * 0.12
+    + clampUnit(autobiographicalSelf?.autonomyNeed, 0.48) * 0.12
+    + clampUnit(mindEcology?.climate.solitudeNeed, 0.44) * 0.12,
+  )
+  const attunement = clampUnit(
+    attunementOrientation * 0.2
+    + clampUnit(selfContinuity?.relationshipTrust, 0.46) * 0.16
+    + clampUnit(relationship?.sharedAttentionTrust, 0.46) * 0.18
+    + clampUnit(selfState?.feltCloseness, 0.46) * 0.12
+    + clampUnit(autobiographicalSelf?.companionship, 0.48) * 0.1
+    + clampUnit(mindEcology?.temperament.attachment, 0.48) * 0.12
+    + resolveCategoricalEmbodimentWeight(presence, {
+      glance: 0.28,
+      attentive: 0.78,
+      hesitant: 0.4,
+      concerned: 0.7,
+    }) * 0.12,
+  )
+  const protectiveness = clampUnit(
+    clampUnit(selfState?.protectiveness, 0.3) * 0.22
+    + relationshipApproach * 0.18
+    + resolveCategoricalEmbodimentWeight(presence, {
+      glance: 0.2,
+      attentive: 0.56,
+      hesitant: 0.48,
+      concerned: 0.9,
+    }) * 0.14
+    + clampUnit(autobiographicalSelf?.careBias, 0.48) * 0.12
+    + clampUnit(mindEcology?.temperament.tenderness, 0.5) * 0.12
+    + clampUnit(privateThought?.confidence, 0.46) * 0.08
+    + tensionArousal * 0.14,
+  )
+  const care = clampUnit(
+    clampUnit(autobiographicalSelf?.careBias, 0.5) * 0.22
+    + clampUnit(autobiographicalSelf?.proactiveCare, 0.5) * 0.16
+    + clampUnit(mindEcology?.temperament.tenderness, 0.5) * 0.18
+    + clampUnit(mindEcology?.relationshipHabit === 'warm-guidance' ? 0.74 : mindEcology?.relationshipHabit === 'protective-shadow' ? 0.68 : 0.5, 0.5) * 0.12
+    + climateWarmth * 0.1
+    + protectiveness * 0.12,
+  )
+  const directness = clampUnit(
+    resolveCategoricalEmbodimentWeight(autobiographicalSelf?.agencyStyle, {
+      reserved: 0.26,
+      balanced: 0.56,
+      'self-starting': 0.9,
+    }) * 0.18
+    + initiativeDrive * 0.12
+    + clampUnit(initiative?.confidence, 0.5) * 0.12
+    + clampUnit(initiative?.speakDrive, 0.46) * 0.12
+    + clampUnit(selfState?.desireToSpeak, 0.46) * 0.12
+    + clampUnit(autobiographicalSelf?.truthAnchor, 0.56) * 0.08
+    + clampUnit(autobiographicalSelf?.truthfulGrounding, 0.56) * 0.1
+    + clampUnit(mindEcology?.temperament.directness, 0.5) * 0.16
+    - clampUnit(selfState?.fearOfInterrupting, 0.38) * 0.1,
+  )
+  const restraint = clampUnit(
+    clampUnit(mindEcology?.temperament.steadiness, 0.5) * 0.2
+    + clampUnit(selfState?.patience, 0.42) * 0.16
+    + clampUnit(autobiographicalSelf?.quietObservation, 0.5) * 0.14
+    + guardedness * 0.18
+    + replyHabitRestraint * 0.12
+    + regulationRestraint * 0.2,
+  )
+  const arousal = clampUnit(
+    clampUnit(mindEcology?.climate.arousal, 0.5) * 0.24
+    + clampUnit(mindEcology?.climate.restlessness, 0.4) * 0.12
+    + tensionArousal * 0.22
+    + playfulness * 0.12
+    + directness * 0.08
+    + clampUnit(initiative?.confidence, 0.5) * 0.1,
+  )
+  const truthDiscipline = clampUnit(
+    clampUnit(autobiographicalSelf?.truthAnchor, 0.56) * 0.56
+    + clampUnit(autobiographicalSelf?.truthfulGrounding, 0.56) * 0.44,
+  )
+  const irritation = clampUnit(
+    clampUnit(mindEcology?.temperament.irritability, 0.28) * 0.48
+    + clampUnit(mindEcology?.climate.irritation, 0.28) * 0.52,
+  )
+
+  const warmthDelta = warmth - 0.5
+  const playDelta = playfulness - 0.5
+  const guardedDelta = guardedness - 0.5
+  const attunementDelta = attunement - 0.5
+  const protectiveDelta = protectiveness - 0.5
+  const careDelta = care - 0.5
+  const directnessDelta = directness - 0.5
+  const restraintDelta = restraint - 0.5
+  const arousalDelta = arousal - 0.5
+  const truthDelta = truthDiscipline - 0.5
+  const irritationDelta = irritation - 0.5
+
+  const presenceBias = resolvePresenceEmbodimentMotorBias(presence)
+  const styleBias = resolveExpressionStyleEmbodimentMotorBias(expressionStyle)
+  const approachBias = resolveApproachEmbodimentMotorBias(approachVector)
+
+  return {
+    stillness: roundSignedHundredths(
+      presenceBias.stillness
+      + styleBias.stillness
+      + approachBias.stillness
+      + guardedDelta * 0.24
+      + restraintDelta * 0.2
+      + protectiveDelta * 0.08
+      - warmthDelta * 0.1
+      - playDelta * 0.16
+      - directnessDelta * 0.08,
+    ),
+    expressivity: roundSignedHundredths(
+      presenceBias.expressivity
+      + styleBias.expressivity
+      + approachBias.expressivity
+      + warmthDelta * 0.18
+      + playDelta * 0.22
+      + arousalDelta * 0.08
+      + directnessDelta * 0.08
+      - guardedDelta * 0.08
+      - restraintDelta * 0.12,
+    ),
+    gazeFocus: roundSignedHundredths(
+      presenceBias.gazeFocus
+      + styleBias.gazeFocus
+      + approachBias.gazeFocus
+      + attunementDelta * 0.22
+      + protectiveDelta * 0.16
+      + directnessDelta * 0.14
+      + truthDelta * 0.1
+      - guardedDelta * 0.06,
+    ),
+    gazeStability: roundSignedHundredths(
+      presenceBias.gazeStability
+      + styleBias.gazeStability
+      + approachBias.gazeStability
+      + restraintDelta * 0.22
+      + attunementDelta * 0.08
+      + truthDelta * 0.12
+      - playDelta * 0.08
+      - arousalDelta * 0.04,
+    ),
+    gazeAzimuth: roundSignedHundredths(
+      presenceBias.gazeAzimuth
+      + (clampUnit(mindEcology?.temperament.curiosity, 0.46) - 0.5) * 0.12
+      + playDelta * 0.04
+      - restraintDelta * 0.04,
+    ),
+    gazeElevation: roundSignedHundredths(
+      presenceBias.gazeElevation
+      + arousalDelta * 0.08
+      - guardedDelta * 0.04
+      - careDelta * 0.03,
+    ),
+    headPitch: roundSignedHundredths(
+      styleBias.headPitch
+      + approachBias.headPitch
+      + directnessDelta * 0.08
+      - guardedDelta * 0.04
+      + careDelta * 0.04,
+    ),
+    headRoll: roundSignedHundredths(
+      styleBias.headRoll
+      + approachBias.headRoll
+      + playDelta * 0.08
+      - irritationDelta * 0.04,
+    ),
+    headNod: roundSignedHundredths(
+      presenceBias.headNod
+      + attunementDelta * 0.08
+      + directnessDelta * 0.08
+      + careDelta * 0.04,
+    ),
+    breathAmplitude: roundSignedHundredths(
+      presenceBias.breathAmplitude
+      + styleBias.breathAmplitude
+      + arousalDelta * 0.14
+      + warmthDelta * 0.04
+      + playDelta * 0.08
+      - restraintDelta * 0.06,
+    ),
+    breathPace: roundSignedHundredths(
+      presenceBias.breathPace
+      + arousalDelta * 0.18
+      + directnessDelta * 0.08
+      - restraintDelta * 0.12
+      - careDelta * 0.04,
+    ),
+    eyeOpenness: roundSignedHundredths(
+      presenceBias.eyeOpenness
+      + arousalDelta * 0.08
+      + playDelta * 0.06
+      - restraintDelta * 0.04
+      - irritationDelta * 0.03,
+    ),
+    browLift: roundSignedHundredths(
+      styleBias.browLift
+      + approachBias.browLift
+      + (clampUnit(mindEcology?.temperament.curiosity, 0.46) - 0.5) * 0.12
+      + warmthDelta * 0.06
+      - protectiveDelta * 0.04,
+    ),
+    browTension: roundSignedHundredths(
+      presenceBias.browTension
+      + styleBias.browTension
+      + approachBias.browTension
+      + protectiveDelta * 0.16
+      + truthDelta * 0.1
+      + irritationDelta * 0.14
+      + guardedDelta * 0.08
+      - warmthDelta * 0.08,
+    ),
+    cheekLift: roundSignedHundredths(
+      styleBias.cheekLift
+      + warmthDelta * 0.16
+      + playDelta * 0.16
+      - guardedDelta * 0.04,
+    ),
+    mouthSpread: roundSignedHundredths(
+      styleBias.mouthSpread
+      + warmthDelta * 0.2
+      + playDelta * 0.18
+      + directnessDelta * 0.08
+      - guardedDelta * 0.06
+      - protectiveDelta * 0.04,
+    ),
+    mouthRound: roundSignedHundredths(
+      presenceBias.mouthRound
+      + approachBias.mouthRound
+      + careDelta * 0.16
+      + protectiveDelta * 0.1
+      + guardedDelta * 0.08
+      - playDelta * 0.06,
+    ),
+    jawOpenBias: roundSignedHundredths(
+      styleBias.jawOpenBias
+      + approachBias.jawOpenBias
+      + directnessDelta * 0.08
+      + arousalDelta * 0.08
+      - restraintDelta * 0.08
+      - guardedDelta * 0.04,
+    ),
+    bodySway: roundSignedHundredths(
+      styleBias.bodySway
+      + playDelta * 0.16
+      + arousalDelta * 0.08
+      - guardedDelta * 0.04
+      - restraintDelta * 0.06,
+    ),
+    bodyLean: roundSignedHundredths(
+      presenceBias.bodyLean
+      + approachBias.bodyLean
+      + attunementDelta * 0.18
+      + directnessDelta * 0.08
+      - clampUnit(autobiographicalSelf?.autonomyNeed, 0.48) * 0.14
+      + 0.07,
+    ),
+    bodyOpenness: roundSignedHundredths(
+      presenceBias.bodyOpenness
+      + styleBias.bodyOpenness
+      + approachBias.bodyOpenness
+      + warmthDelta * 0.22
+      + attunementDelta * 0.14
+      + careDelta * 0.08
+      - guardedDelta * 0.14
+      - clampUnit(autobiographicalSelf?.autonomyRespect, 0.52) * 0.12
+      + 0.06,
+    ),
+    settle: roundSignedHundredths(
+      presenceBias.settle
+      + styleBias.settle
+      + approachBias.settle
+      + restraintDelta * 0.18
+      + protectiveDelta * 0.08
+      + careDelta * 0.08
+      - playDelta * 0.06,
+    ),
+  }
+}
+
+export function deriveAlicizationDigitalLifeMotorPlan(input: {
+  action: Pick<AlicizationDigitalLifeActionPlan, 'actionCue' | 'actionMode' | 'intensity'>
+  emotion: AlicizationEmotion
+  face: Pick<AlicizationDigitalLifeFacePlan, 'expressionMode' | 'facialCue' | 'intensity'>
+  lipSync: Pick<AlicizationDigitalLifeLipSyncPlan, 'mode' | 'mouthScale'>
+  performance: AlicizationDialoguePerformancePayload
+  postureHint?: StageEmbodimentPresencePostureMode | null
+  segmentWeights?: {
+    beat?: number | null
+    facial?: number | null
+    gesture?: number | null
+    head?: number | null
+    mouth?: number | null
+  } | null
+  voice: Pick<AlicizationDigitalLifeVoicePlan, 'cadence' | 'energy'>
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+}): AlicizationDigitalLifeMotorPlan {
+  const idle = createIdleStageEmbodimentMotorState()
+  const emphasis = clampUnit(input.performance.emphasis * 0.5)
+  const gestureWeight = clampUnit(Math.max(input.segmentWeights?.gesture ?? 0, input.action.intensity))
+  const facialWeight = clampUnit(Math.max(input.segmentWeights?.facial ?? 0, input.face.intensity))
+  const beatWeight = clampUnit(input.segmentWeights?.beat ?? input.voice.cadence)
+  const mouthWeight = clampUnit(input.segmentWeights?.mouth ?? input.lipSync.mouthScale)
+  const headWeight = clampUnit(Math.max(input.segmentWeights?.head ?? 0, input.action.intensity))
+  const energy = clampUnit(input.voice.energy, 0.5)
+  const cadence = clampUnit(input.voice.cadence, 0.5)
+  const emotionBias = resolveEmotionMotorBias(input.emotion)
+  const deliveryBias = resolveDeliveryMotorBias(input.performance.delivery)
+  const postureBias = resolvePostureMotorBias(input.postureHint ?? 'idle')
+  const embodimentBias = resolveSpineEmbodimentMotorBias(input.digitalLifeSpine)
+  const expressivity = roundHundredths(
+    idle.expressivity
+    + emotionBias.expressivity
+    + deliveryBias.expressivity
+    + embodimentBias.expressivity
+    + emphasis * 0.12
+    + gestureWeight * 0.08
+    + facialWeight * 0.06
+    + cadence * 0.08
+    + energy * 0.04
+    + (input.action.actionCue ? 0.04 : 0)
+    + (input.face.facialCue ? 0.02 : -0.02),
+    idle.expressivity,
+  )
+  const stillness = roundHundredths(
+    idle.stillness
+    + emotionBias.stillness
+    + deliveryBias.stillness
+    + embodimentBias.stillness
+    - expressivity * 0.14
+    - gestureWeight * 0.08
+    - cadence * 0.06
+    + (input.face.expressionMode === 'hold' ? 0.08 : input.face.expressionMode === 'recover' ? 0.14 : -0.02)
+    + (input.action.actionMode === 'none' ? 0.08 : input.action.actionMode === 'hold' ? 0.02 : -0.06),
+    idle.stillness,
+  )
+
+  return normalizeStageEmbodimentMotorState({
+    stillness,
+    expressivity,
+    gaze: {
+      focus: idle.gaze.focus
+        + emotionBias.gazeFocus
+        + postureBias.gazeFocus
+        + embodimentBias.gazeFocus
+        + facialWeight * 0.08
+        + headWeight * 0.04
+        + (input.face.expressionMode === 'hold' ? 0.06 : 0),
+      stability: idle.gaze.stability
+        + emotionBias.gazeStability
+        + deliveryBias.gazeStability
+        + postureBias.gazeStability
+        + embodimentBias.gazeStability
+        + stillness * 0.12
+        - beatWeight * 0.08
+        - deliveryBias.sway * 0.08,
+      azimuth: idle.gaze.azimuth
+        + emotionBias.gazeAzimuth
+        + deliveryBias.gazeAzimuth
+        + embodimentBias.gazeAzimuth
+        + (headWeight - 0.5) * 0.08,
+      elevation: idle.gaze.elevation
+        + emotionBias.gazeElevation
+        + embodimentBias.gazeElevation
+        + (energy - 0.5) * 0.08
+        - (input.performance.delivery === 'hesitant' ? 0.04 : 0),
+    },
+    head: {
+      yaw: idle.head.yaw
+        + deliveryBias.gazeAzimuth * 0.8
+        + emotionBias.gazeAzimuth * 0.5
+        + embodimentBias.gazeAzimuth * 0.6
+        + (headWeight - 0.5) * 0.16,
+      pitch: idle.head.pitch
+        + emotionBias.headPitch
+        + deliveryBias.headPitch
+        + embodimentBias.headPitch
+        + postureBias.lean * 0.4
+        - (gestureWeight - 0.5) * 0.08,
+      roll: idle.head.roll
+        + deliveryBias.headRoll
+        + embodimentBias.headRoll
+        + (input.performance.delivery === 'teasing' ? 0.06 : 0)
+        + (input.performance.delivery === 'gentle' ? 0.04 : 0),
+      nod: idle.head.nod
+        + deliveryBias.headNod
+        + embodimentBias.headNod
+        + cadence * 0.22
+        + beatWeight * 0.16
+        + emphasis * 0.12
+        + gestureWeight * 0.08,
+    },
+    breath: {
+      amplitude: idle.breath.amplitude
+        + emotionBias.breathAmplitude
+        + embodimentBias.breathAmplitude
+        + energy * 0.12
+        + mouthWeight * 0.06
+        + (input.performance.delivery === 'calm' ? -0.04 : 0),
+      pace: idle.breath.pace
+        + deliveryBias.breathPace
+        + embodimentBias.breathPace
+        + cadence * 0.24
+        + beatWeight * 0.12
+        + emphasis * 0.08,
+    },
+    facial: {
+      eyeOpenness: idle.facial.eyeOpenness
+        + emotionBias.eyeOpenness
+        + embodimentBias.eyeOpenness
+        + (facialWeight - 0.5) * 0.12
+        + (input.face.expressionMode === 'recover' ? -0.04 : 0),
+      browLift: idle.facial.browLift
+        + emotionBias.browLift
+        + embodimentBias.browLift
+        + (input.performance.delivery === 'firm' ? -0.04 : 0),
+      browTension: idle.facial.browTension
+        + emotionBias.browTension
+        + embodimentBias.browTension
+        + (input.face.expressionMode === 'hold' ? 0.06 : 0)
+        + emphasis * 0.06,
+      cheekLift: idle.facial.cheekLift
+        + emotionBias.cheekLift
+        + embodimentBias.cheekLift
+        + facialWeight * 0.08
+        + energy * 0.04,
+      mouthSpread: idle.facial.mouthSpread
+        + emotionBias.mouthSpread
+        + deliveryBias.mouthSpread
+        + embodimentBias.mouthSpread
+        + mouthWeight * 0.12,
+      mouthRound: idle.facial.mouthRound
+        + emotionBias.mouthRound
+        + embodimentBias.mouthRound
+        + (input.performance.delivery === 'gentle' ? 0.04 : 0)
+        + (input.performance.delivery === 'hesitant' ? 0.06 : 0)
+        + (1 - mouthWeight) * 0.06,
+      jawOpenBias: input.lipSync.mode === 'closed'
+        ? 0
+        : idle.facial.jawOpenBias
+            + emotionBias.jawOpenBias
+            + embodimentBias.jawOpenBias
+            + energy * 0.12
+            + mouthWeight * 0.1
+            + (Number(input.lipSync.mouthScale) - 0.88) * 0.16,
+    },
+    body: {
+      sway: idle.body.sway
+        + emotionBias.bodySway
+        + deliveryBias.sway
+        + embodimentBias.bodySway
+        + (gestureWeight - 0.5) * 0.16
+        + (cadence - 0.5) * 0.08,
+      lean: idle.body.lean
+        + emotionBias.bodyLean
+        + postureBias.lean
+        + embodimentBias.bodyLean
+        + (input.action.actionMode === 'hold' ? 0.02 : 0),
+      openness: idle.body.openness
+        + emotionBias.bodyOpenness
+        + postureBias.openness
+        + embodimentBias.bodyOpenness
+        + gestureWeight * 0.08
+        + facialWeight * 0.04,
+      settle: idle.body.settle
+        + postureBias.settle
+        + embodimentBias.settle
+        + stillness * 0.12
+        + (input.action.actionMode === 'none' ? 0.06 : 0)
+        - deliveryBias.sway * 0.08,
+    },
+  }, idle)
 }
 
 function resolveDeliveryEnergyBoost(delivery: AlicizationDialoguePerformancePayload['delivery']) {
@@ -364,6 +1474,7 @@ function resolveFrame(input: {
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   baseVoice: AlicizationDigitalLifeVoicePlan
   baseLipSync: AlicizationDigitalLifeLipSyncPlan
+  digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
 }): AlicizationDigitalLifeFrame {
   const actionCue = normalizeCue(input.segment.actionCue)
   const facialCue = normalizeCue(input.segment.facialCue)
@@ -444,6 +1555,23 @@ function resolveFrame(input: {
     ),
     actionMode,
   })
+  const motor = deriveAlicizationDigitalLifeMotorPlan({
+    action,
+    emotion: face.emotion,
+    face,
+    lipSync,
+    digitalLifeSpine: input.digitalLifeSpine,
+    performance: input.envelope.performance,
+    postureHint: input.envelope.postureHint,
+    segmentWeights: {
+      beat: input.segment.beatWeight,
+      facial: input.segment.facialWeight,
+      gesture: input.segment.gestureWeight,
+      head: input.segment.headWeight,
+      mouth: input.segment.mouthWeight,
+    },
+    voice,
+  })
 
   return {
     id: input.segment.id,
@@ -462,6 +1590,7 @@ function resolveFrame(input: {
     lipSync,
     face,
     action,
+    motor,
   }
 }
 
@@ -520,12 +1649,30 @@ export function buildAlicizationDigitalLifeEnvelope(
     ),
     actionMode: performance.actionCue ? 'pulse' : 'none',
   })
+  const motor = deriveAlicizationDigitalLifeMotorPlan({
+    action,
+    emotion: face.emotion,
+    face,
+    lipSync,
+    digitalLifeSpine: input.digitalLifeSpine,
+    performance,
+    postureHint: embodiment.postureHint,
+    segmentWeights: {
+      beat: averageWeight(speechTimeline.segments, segment => segment.beatWeight),
+      facial: averageWeight(speechTimeline.segments, segment => segment.facialWeight),
+      gesture: averageWeight(speechTimeline.segments, segment => segment.gestureWeight),
+      head: averageWeight(speechTimeline.segments, segment => segment.headWeight),
+      mouth: averageWeight(speechTimeline.segments, segment => segment.mouthWeight),
+    },
+    voice,
+  })
   const frames = speechTimeline.segments.map(segment => resolveFrame({
     segment,
     envelope: embodiment,
     performanceManifest: input.performanceManifest,
     baseVoice: voice,
     baseLipSync: lipSync,
+    digitalLifeSpine: input.digitalLifeSpine,
   }))
 
   return {
@@ -547,6 +1694,7 @@ export function buildAlicizationDigitalLifeEnvelope(
     lipSync,
     face,
     action,
+    motor,
     frames,
   }
 }
@@ -604,6 +1752,46 @@ export function normalizeAlicizationDigitalLifeEnvelope(
       const voiceRaw = item.voice && typeof item.voice === 'object' && !Array.isArray(item.voice)
         ? item.voice as Record<string, unknown>
         : {}
+      const face = {
+        emotion: normalizeAlicizationEmotion(faceRaw.emotion ?? normalizedEmotion).emotion,
+        facialCue: normalizeCue(faceRaw.facialCue),
+        expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
+        intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
+        holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
+        rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
+          ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
+          : null,
+      } satisfies AlicizationDigitalLifeFacePlan
+      const action = {
+        actionCue: normalizeCue(actionRaw.actionCue),
+        actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
+        intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
+        holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
+        rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
+          ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
+          : null,
+      } satisfies AlicizationDigitalLifeActionPlan
+      const lipSync = {
+        mode: normalizeDigitalLifeLipSyncMode(lipSyncRaw.mode),
+        visemeBias: roundHundredths(Number(lipSyncRaw.visemeBias), 0.66),
+        energyBias: roundHundredths(Number(lipSyncRaw.energyBias), 0.34),
+        mouthScale: clampFactor(Number(lipSyncRaw.mouthScale), 0.88),
+        continuityHoldMs: Math.round(clampRange(Number(lipSyncRaw.continuityHoldMs), 60, 520, 180)),
+      } satisfies AlicizationDigitalLifeLipSyncPlan
+      const voice = {
+        pitchDelta: clampPitchDelta(Number(voiceRaw.pitchDelta)),
+        rateMultiplier: clampRateMultiplier(Number(voiceRaw.rateMultiplier)),
+        energy: roundHundredths(Number(voiceRaw.energy), 0.5),
+        cadence: roundHundredths(Number(voiceRaw.cadence), 0.5),
+      } satisfies AlicizationDigitalLifeVoicePlan
+      const fallbackMotor = deriveAlicizationDigitalLifeMotorPlan({
+        action,
+        emotion: face.emotion,
+        face,
+        lipSync,
+        performance,
+        voice,
+      })
 
       return {
         id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `digital-life:${index}`,
@@ -618,38 +1806,11 @@ export function normalizeAlicizationDigitalLifeEnvelope(
         settleMode: item.settleMode === 'hold' || item.settleMode === 'linger'
           ? item.settleMode
           : 'release',
-        voice: {
-          pitchDelta: clampPitchDelta(Number(voiceRaw.pitchDelta)),
-          rateMultiplier: clampRateMultiplier(Number(voiceRaw.rateMultiplier)),
-          energy: roundHundredths(Number(voiceRaw.energy), 0.5),
-          cadence: roundHundredths(Number(voiceRaw.cadence), 0.5),
-        },
-        lipSync: {
-          mode: normalizeDigitalLifeLipSyncMode(lipSyncRaw.mode),
-          visemeBias: roundHundredths(Number(lipSyncRaw.visemeBias), 0.66),
-          energyBias: roundHundredths(Number(lipSyncRaw.energyBias), 0.34),
-          mouthScale: clampFactor(Number(lipSyncRaw.mouthScale), 0.88),
-          continuityHoldMs: Math.round(clampRange(Number(lipSyncRaw.continuityHoldMs), 60, 520, 180)),
-        },
-        face: {
-          emotion: normalizeAlicizationEmotion(faceRaw.emotion ?? normalizedEmotion).emotion,
-          facialCue: normalizeCue(faceRaw.facialCue),
-          expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
-          intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
-          holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
-          rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
-            ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-            : null,
-        },
-        action: {
-          actionCue: normalizeCue(actionRaw.actionCue),
-          actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
-          intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
-          holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
-          rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
-            ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-            : null,
-        },
+        voice,
+        lipSync,
+        face,
+        action,
+        motor: normalizeStageEmbodimentMotorState(item.motor, fallbackMotor),
       }
     })
     .filter((frame): frame is AlicizationDigitalLifeFrame => frame !== null)
@@ -672,19 +1833,61 @@ export function normalizeAlicizationDigitalLifeEnvelope(
   const postureHintRaw = typeof candidate.postureHint === 'string'
     ? candidate.postureHint.trim().toLowerCase()
     : ''
+  const postureHint = postureHintRaw === 'attentive'
+    || postureHintRaw === 'inspection'
+    || postureHintRaw === 'hesitant'
+    || postureHintRaw === 'concerned'
+    || postureHintRaw === 'idle'
+    ? postureHintRaw
+    : 'idle'
+  const voice = {
+    pitchDelta: clampPitchDelta(Number(voiceRaw.pitchDelta ?? speechStyle.pitchDelta)),
+    rateMultiplier: clampRateMultiplier(Number(voiceRaw.rateMultiplier ?? speechStyle.rateMultiplier)),
+    energy: roundHundredths(Number(voiceRaw.energy), 0.5),
+    cadence: roundHundredths(Number(voiceRaw.cadence), 0.5),
+  } satisfies AlicizationDigitalLifeVoicePlan
+  const lipSync = {
+    mode: normalizeDigitalLifeLipSyncMode(lipSyncRaw.mode),
+    visemeBias: roundHundredths(Number(lipSyncRaw.visemeBias), 0.66),
+    energyBias: roundHundredths(Number(lipSyncRaw.energyBias), 0.34),
+    mouthScale: clampFactor(Number(lipSyncRaw.mouthScale), 0.88),
+    continuityHoldMs: Math.round(clampRange(Number(lipSyncRaw.continuityHoldMs), 60, 520, 180)),
+  } satisfies AlicizationDigitalLifeLipSyncPlan
+  const face = {
+    emotion: normalizeAlicizationEmotion(faceRaw.emotion ?? normalizedEmotion).emotion,
+    facialCue: normalizeCue(faceRaw.facialCue ?? performance.facialCue),
+    expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
+    intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
+    holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
+    rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
+      ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
+      : rendererHints,
+  } satisfies AlicizationDigitalLifeFacePlan
+  const action = {
+    actionCue: normalizeCue(actionRaw.actionCue ?? performance.actionCue),
+    actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
+    intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
+    holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
+    rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
+      ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
+      : rendererHints,
+  } satisfies AlicizationDigitalLifeActionPlan
+  const fallbackMotor = deriveAlicizationDigitalLifeMotorPlan({
+    action,
+    emotion: face.emotion,
+    face,
+    lipSync,
+    performance,
+    postureHint,
+    voice,
+  })
 
   return {
     version: 'digital-life-v1',
     variationToken,
     emotion: normalizedEmotion,
     mode: normalizeDigitalLifeMode(candidate.mode),
-    postureHint: postureHintRaw === 'attentive'
-      || postureHintRaw === 'inspection'
-      || postureHintRaw === 'hesitant'
-      || postureHintRaw === 'concerned'
-      || postureHintRaw === 'idle'
-      ? postureHintRaw
-      : 'idle',
+    postureHint,
     performance: {
       ...performance,
       baseEmotion: normalizedEmotion,
@@ -692,38 +1895,11 @@ export function normalizeAlicizationDigitalLifeEnvelope(
     },
     speechStyle,
     rendererHints,
-    voice: {
-      pitchDelta: clampPitchDelta(Number(voiceRaw.pitchDelta ?? speechStyle.pitchDelta)),
-      rateMultiplier: clampRateMultiplier(Number(voiceRaw.rateMultiplier ?? speechStyle.rateMultiplier)),
-      energy: roundHundredths(Number(voiceRaw.energy), 0.5),
-      cadence: roundHundredths(Number(voiceRaw.cadence), 0.5),
-    },
-    lipSync: {
-      mode: normalizeDigitalLifeLipSyncMode(lipSyncRaw.mode),
-      visemeBias: roundHundredths(Number(lipSyncRaw.visemeBias), 0.66),
-      energyBias: roundHundredths(Number(lipSyncRaw.energyBias), 0.34),
-      mouthScale: clampFactor(Number(lipSyncRaw.mouthScale), 0.88),
-      continuityHoldMs: Math.round(clampRange(Number(lipSyncRaw.continuityHoldMs), 60, 520, 180)),
-    },
-    face: {
-      emotion: normalizeAlicizationEmotion(faceRaw.emotion ?? normalizedEmotion).emotion,
-      facialCue: normalizeCue(faceRaw.facialCue ?? performance.facialCue),
-      expressionMode: normalizeDigitalLifeExpressionMode(faceRaw.expressionMode),
-      intensity: roundHundredths(Number(faceRaw.intensity), 0.5),
-      holdMs: Math.round(clampRange(Number(faceRaw.holdMs), 80, 960, 220)),
-      rendererHints: faceRaw.rendererHints && typeof faceRaw.rendererHints === 'object' && !Array.isArray(faceRaw.rendererHints)
-        ? faceRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-        : rendererHints,
-    },
-    action: {
-      actionCue: normalizeCue(actionRaw.actionCue ?? performance.actionCue),
-      actionMode: normalizeDigitalLifeActionMode(actionRaw.actionMode),
-      intensity: roundHundredths(Number(actionRaw.intensity), 0.3),
-      holdMs: Math.round(clampRange(Number(actionRaw.holdMs), 70, 720, 180)),
-      rendererHints: actionRaw.rendererHints && typeof actionRaw.rendererHints === 'object' && !Array.isArray(actionRaw.rendererHints)
-        ? actionRaw.rendererHints as AlicizationDialogueEmbodimentRendererHints
-        : rendererHints,
-    },
+    voice,
+    lipSync,
+    face,
+    action,
+    motor: normalizeStageEmbodimentMotorState(candidate.motor, fallbackMotor),
     frames,
   }
 }

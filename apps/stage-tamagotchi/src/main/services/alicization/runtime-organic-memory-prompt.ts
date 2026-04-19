@@ -92,14 +92,30 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     }
 
     if (context.recalledFragments.length > 0) {
-      blocks.push([
-        '[ALICIZATION_ASSOCIATIVE_RECALL]',
-        'These recalled fragments are secondary to the present scene and must never override fresh grounding.',
-        ...context.recalledFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
-          sourceKind: item.sourceKind,
-          text: item.text,
-        })}]`),
-      ].join('\n'))
+      const autobiographicalEpisodes = context.recalledFragments.filter(item => item.sourceKind === 'autobiographical-episode')
+      const otherFragments = context.recalledFragments.filter(item => item.sourceKind !== 'autobiographical-episode')
+      if (autobiographicalEpisodes.length > 0) {
+        blocks.push([
+          '[ALICIZATION_AUTOBIOGRAPHICAL_EPISODES]',
+          'These are remembered autobiographical episodes: things Alicization went through that changed how she understands herself or the bond.',
+          'Reuse them as lived history or self continuity, never as fresh scene proof.',
+          ...autobiographicalEpisodes.map(item => `[自传回想：${JSON.stringify({
+            sourceKind: item.sourceKind,
+            text: item.text,
+          })}]`),
+        ].join('\n'))
+      }
+
+      if (otherFragments.length > 0) {
+        blocks.push([
+          '[ALICIZATION_ASSOCIATIVE_RECALL]',
+          'These recalled fragments are secondary to the present scene and must never override fresh grounding.',
+          ...otherFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
+            sourceKind: item.sourceKind,
+            text: item.text,
+          })}]`),
+        ].join('\n'))
+      }
     }
 
     if (context.relationshipDynamics) {

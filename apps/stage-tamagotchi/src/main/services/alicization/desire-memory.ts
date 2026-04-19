@@ -8,7 +8,9 @@ import type {
   AlicizationEntityWorldModelSnapshot,
   AlicizationGoalKind,
   AlicizationGoalStackSnapshot,
+  AlicizationHabitPolicySnapshot,
   AlicizationInitiativeSnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSubjectiveSceneAppraisal,
   AlicizationVisualTransitionSnapshot,
@@ -140,6 +142,8 @@ export function buildDesireMemory(input: {
   commitmentLedger?: AlicizationCommitmentLedgerSnapshot | null
   deliberationState?: AlicizationDeliberationStateSnapshot | null
   actionEcology?: AlicizationActionEcologySnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
   previous?: AlicizationDesireMemorySnapshot | null
   recentTransition: AlicizationVisualTransitionSnapshot | null
 }): AlicizationDesireMemorySnapshot {
@@ -227,6 +231,9 @@ export function buildDesireMemory(input: {
       + (input.deliberationState?.readiness ?? 0) * 0.1
       + (input.commitmentLedger?.carryPressure ?? 0) * 0.12
       + (input.actionEcology?.surfacePressure ?? 0) * 0.1
+      + (input.motiveEngine?.returnPressure ?? 0) * (kind === 'recheck' ? 0.12 : 0.04)
+      + (input.motiveEngine?.drives.companionship ?? 0) * (kind === 'stay-near' ? 0.1 : 0)
+      + (input.motiveEngine?.drives.restProtection ?? 0) * (kind === 'care' || kind === 'warn' ? 0.12 : 0)
       - (input.actionEcology?.silencePressure ?? 0) * 0.08,
     )
     activeDesires.push({
@@ -241,7 +248,11 @@ export function buildDesireMemory(input: {
       createdAt: previousDesire?.createdAt ?? input.now,
       lastFeltAt: input.now,
       lastSurfacedAt: speakingNow ? input.now : previousDesire?.lastSurfacedAt ?? null,
-      expiresAt: input.now + (speakingNow ? 5 * 60_000 : desireTtlMs),
+      expiresAt: input.now + (
+        input.habitPolicy?.returnViaRecheck && kind === 'recheck'
+          ? 40 * 60_000
+          : speakingNow ? 5 * 60_000 : desireTtlMs
+      ),
     })
   }
 

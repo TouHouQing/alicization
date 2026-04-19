@@ -426,11 +426,12 @@ function bindManagedVrmInstanceRenderLoop() {
     const blinkAndSaccadeMs = measureFrameStep(tracingEnabled, () => {
       const blinkResult = blink.update(delta, speechDynamics.value)
       vrmEmote.value?.setBlinkWeights(blinkResult.weights)
-      idleEyeSaccades.update(activeVrm, lookAtTarget, delta, speechDynamics.value, presencePosture.value)
+      idleEyeSaccades.update(activeVrm, lookAtTarget, delta, speechDynamics.value, performanceState.value?.motor, presencePosture.value)
     })
     const postureMs = measureFrameStep(tracingEnabled, () => {
       applyStageEmbodimentVrmPosture({
         delta,
+        motor: performanceState.value?.motor,
         posture: presencePosture.value,
         vrm: activeVrm,
       })
@@ -618,14 +619,26 @@ function resolveExpressionIntensityFromPerformanceState(state?: StageEmbodimentP
   if (!state || state.phase === 'idle')
     return 0.62
 
-  return clamp01(state.expressionIntensity, 0.72)
+  return clamp01(
+    state.expressionIntensity * 0.78
+    + state.motor.expressivity * 0.16
+    + state.motor.facial.cheekLift * 0.08
+    - state.motor.stillness * 0.04,
+    0.72,
+  )
 }
 
 function resolveFacialCueIntensityFromPerformanceState(state?: StageEmbodimentPerformanceState | null) {
   if (!state || state.phase === 'idle')
     return 0
 
-  return clamp01(state.facialCueIntensity, resolveExpressionIntensityFromPerformanceState(state))
+  return clamp01(
+    state.facialCueIntensity * 0.8
+    + state.motor.expressivity * 0.1
+    + state.motor.facial.browTension * 0.08
+    + state.motor.facial.eyeOpenness * 0.04,
+    resolveExpressionIntensityFromPerformanceState(state),
+  )
 }
 
 function resolveDialoguePerformanceFromState(state?: StageEmbodimentPerformanceState | null): DialoguePerformanceInput | null {
@@ -1370,6 +1383,11 @@ onMounted(async () => {
       () => performanceState.value?.activeCue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
       () => Math.round((performanceState.value?.expressionIntensity ?? 0) * 10),
       () => Math.round((performanceState.value?.facialCueIntensity ?? 0) * 10),
+      () => Math.round((performanceState.value?.motor.expressivity ?? 0) * 100),
+      () => Math.round((performanceState.value?.motor.facial.cheekLift ?? 0) * 100),
+      () => Math.round((performanceState.value?.motor.facial.browTension ?? 0) * 100),
+      () => Math.round((performanceState.value?.motor.facial.eyeOpenness ?? 0) * 100),
+      () => Math.round((performanceState.value?.motor.stillness ?? 0) * 100),
     ],
     () => {
       applyDialogueExpressionFromState(performanceState.value)

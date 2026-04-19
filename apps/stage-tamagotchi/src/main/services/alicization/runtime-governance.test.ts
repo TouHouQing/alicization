@@ -166,7 +166,7 @@ describe('runtime-governance', () => {
     expect(String(structured.reply ?? '')).not.toContain('重新落地')
     expect(String(structured.thought ?? '')).toContain('obligation=guide')
     expect(structured.performance).toEqual(expect.objectContaining({
-      delivery: 'calm',
+      baseEmotion: 'thinking',
       emphasis: 0,
     }))
     expect(governed.audit).toEqual(expect.objectContaining({
@@ -230,8 +230,8 @@ describe('runtime-governance', () => {
     expect(String(structured.reply ?? '')).not.toContain('真实边界')
     expect(String(structured.reply ?? '')).not.toContain('重新落地')
     expect(structured.performance).toEqual(expect.objectContaining({
+      baseEmotion: 'angry',
       delivery: 'firm',
-      emphasis: 0,
     }))
     expect(governed.audit).toEqual(expect.objectContaining({
       visible_reply_authority: 'mind-surface-renderer',

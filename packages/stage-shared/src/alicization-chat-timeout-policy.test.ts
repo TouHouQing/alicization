@@ -12,7 +12,7 @@ describe('alicization chat timeout policy', () => {
     const rendererPolicy = deriveAlicizationRendererBridgeWatchdogTimeoutPolicy()
 
     expect(mainRecoveryWindowMs).toBe(
-      45_000
+      65_000
       + alicizationMainGatewayOneShotRecoveryBudget.primaryMs
       + alicizationMainGatewayOneShotRecoveryBudget.minimalContextMs,
     )

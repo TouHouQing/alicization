@@ -74,6 +74,10 @@ export interface BuildMainGatewayToolsOptions {
     dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'claudeCode' | 'cli' | 'codex' | 'openclaw'>
     task: AlicizationClawTaskIntent
   }) => Promise<MainGatewayExecutionTaskThreadResult>
+  resumeTaskThread?: (input: {
+    context: MainGatewayExecutionToolContext
+    threadId: string
+  }) => Promise<MainGatewayExecutionTaskThreadResult>
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   invokeMcpCallTool: (payload: {
     arguments?: Record<string, unknown>
@@ -737,7 +741,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       name: 'executor_run_cli',
       description: 'Plan and execute a CLI task thread through Alicization executor governance. Use this for local command execution.',
       parameters: z.object({
-        command: z.string().min(1),
+        threadId: z.string().optional(),
+        command: z.string().min(1).optional(),
         args: z.array(z.string()).default([]),
         cwd: z.string().optional(),
         timeoutMs: z.coerce.number().optional(),
@@ -745,8 +750,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         effect: z.enum(['observe', 'mutate', 'high-impact']).optional(),
         permissionMode: z.enum(['none', 'implicit', 'explicit']).optional(),
       }).strict(),
-      execute: async ({ command, args, cwd, timeoutMs, goal, effect, permissionMode }, toolContext) => {
-        const commandLabel = [command, ...(Array.isArray(args) ? args : [])].join(' ').trim()
+      execute: async ({ threadId, command, args, cwd, timeoutMs, goal, effect, permissionMode }, toolContext) => {
+        const resumedThreadId = sanitizeText(threadId) || ''
+        if (resumedThreadId && options.resumeTaskThread)
+          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        const resolvedCommand = sanitizeText(command)
+        if (!resolvedCommand)
+          throw new Error('executor_run_cli requires either threadId or command.')
+        const commandLabel = [resolvedCommand, ...(Array.isArray(args) ? args : [])].join(' ').trim()
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
         return await options.executeTaskThread({
           context: toolContext,
@@ -764,7 +775,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           },
           dispatch: {
             cli: {
-              command,
+              command: resolvedCommand,
               args,
               cwd: sanitizeText(cwd) || undefined,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
@@ -778,7 +789,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       name: 'executor_run_codex',
       description: 'Plan and execute a Codex task thread through Alicization executor governance for codebase edits or investigation.',
       parameters: z.object({
-        prompt: z.string().min(1),
+        threadId: z.string().optional(),
+        prompt: z.string().min(1).optional(),
         kind: z.enum(['codebase-edit', 'codebase-investigation']).optional(),
         cwd: z.string().optional(),
         timeoutMs: z.coerce.number().optional(),
@@ -789,13 +801,19 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         effect: z.enum(['observe', 'mutate', 'high-impact']).optional(),
         permissionMode: z.enum(['none', 'implicit', 'explicit']).optional(),
       }).strict(),
-      execute: async ({ prompt, kind, cwd, timeoutMs, model, profile, sandbox, goal, effect, permissionMode }, toolContext) => {
+      execute: async ({ threadId, prompt, kind, cwd, timeoutMs, model, profile, sandbox, goal, effect, permissionMode }, toolContext) => {
+        const resumedThreadId = sanitizeText(threadId) || ''
+        if (resumedThreadId && options.resumeTaskThread)
+          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        const resolvedPrompt = sanitizeText(prompt)
+        if (!resolvedPrompt)
+          throw new Error('executor_run_codex requires either threadId or prompt.')
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
         return await options.executeTaskThread({
           context: toolContext,
           task: {
             kind: kind ?? 'codebase-edit',
-            goal: sanitizeText(goal) || `Run Codex task: ${sanitizeBriefText(prompt, 220)}`,
+            goal: sanitizeText(goal) || `Run Codex task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
             permissionMode: permissionMode ?? 'implicit',
@@ -807,7 +825,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           },
           dispatch: {
             codex: {
-              prompt,
+              prompt: resolvedPrompt,
               cwd: sanitizeText(cwd) || undefined,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
               model: sanitizeText(model) || undefined,
@@ -823,7 +841,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       name: 'executor_run_claude_code',
       description: 'Plan and execute a Claude Code task thread through Alicization executor governance for codebase edits or investigation. Edit tasks enable Claude Code tools by default unless allowTools=false is set explicitly.',
       parameters: z.object({
-        prompt: z.string().min(1),
+        threadId: z.string().optional(),
+        prompt: z.string().min(1).optional(),
         kind: z.enum(['codebase-edit', 'codebase-investigation']).optional(),
         cwd: z.string().optional(),
         timeoutMs: z.coerce.number().optional(),
@@ -834,7 +853,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         effect: z.enum(['observe', 'mutate', 'high-impact']).optional(),
         permissionMode: z.enum(['none', 'implicit', 'explicit']).optional(),
       }).strict(),
-      execute: async ({ prompt, kind, cwd, timeoutMs, model, allowTools, claudePermissionMode, goal, effect, permissionMode }, toolContext) => {
+      execute: async ({ threadId, prompt, kind, cwd, timeoutMs, model, allowTools, claudePermissionMode, goal, effect, permissionMode }, toolContext) => {
+        const resumedThreadId = sanitizeText(threadId) || ''
+        if (resumedThreadId && options.resumeTaskThread)
+          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        const resolvedPrompt = sanitizeText(prompt)
+        if (!resolvedPrompt)
+          throw new Error('executor_run_claude_code requires either threadId or prompt.')
         const resolvedKind = kind ?? 'codebase-edit'
         const resolvedEffect = effect ?? (resolvedKind === 'codebase-investigation' ? 'observe' : 'mutate')
         const resolvedAllowTools = typeof allowTools === 'boolean'
@@ -845,7 +870,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           context: toolContext,
           task: {
             kind: resolvedKind,
-            goal: sanitizeText(goal) || `Run Claude Code task: ${sanitizeBriefText(prompt, 220)}`,
+            goal: sanitizeText(goal) || `Run Claude Code task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
             effect: resolvedEffect,
             permissionMode: permissionMode ?? 'implicit',
@@ -857,7 +882,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           },
           dispatch: {
             claudeCode: {
-              prompt,
+              prompt: resolvedPrompt,
               cwd: sanitizeText(cwd) || undefined,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
               model: sanitizeText(model) || undefined,
@@ -873,7 +898,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       name: 'executor_run_openclaw',
       description: 'Plan and execute an OpenClaw embodied task thread through Alicization executor governance for browser, software, desktop, or mixed visual actions. Alicization will attach the latest grounded sensory context automatically.',
       parameters: z.object({
-        instruction: z.string().min(1),
+        threadId: z.string().optional(),
+        instruction: z.string().min(1).optional(),
         kind: z.enum(['run-command', 'codebase-edit', 'codebase-investigation', 'browser-automation', 'software-automation', 'desktop-automation', 'agent-delegation', 'mixed', 'unknown']).optional(),
         timeoutMs: z.coerce.number().optional(),
         senderId: z.string().optional(),
@@ -903,7 +929,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         riskBudget: z.enum(['low', 'medium', 'high']).optional(),
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
-      execute: async ({ instruction, kind, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+      execute: async ({ threadId, instruction, kind, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+        const resumedThreadId = sanitizeText(threadId) || ''
+        if (resumedThreadId && options.resumeTaskThread)
+          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        const resolvedInstruction = sanitizeText(instruction)
+        if (!resolvedInstruction)
+          throw new Error('executor_run_openclaw requires either threadId or instruction.')
         const resolvedKind = kind ?? 'browser-automation'
         const visualKinds = new Set(['browser-automation', 'software-automation', 'desktop-automation', 'mixed', 'unknown'])
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
@@ -911,7 +943,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           context: toolContext,
           task: {
             kind: resolvedKind,
-            goal: sanitizeText(goal) || `Run OpenClaw task: ${sanitizeBriefText(instruction, 220)}`,
+            goal: sanitizeText(goal) || `Run OpenClaw task: ${sanitizeBriefText(resolvedInstruction, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
             permissionMode: permissionMode ?? 'implicit',
@@ -925,7 +957,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           },
           dispatch: {
             openclaw: {
-              instruction,
+              instruction: resolvedInstruction,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
               senderId: sanitizeText(senderId) || undefined,
               roleName: sanitizeText(roleName) || undefined,

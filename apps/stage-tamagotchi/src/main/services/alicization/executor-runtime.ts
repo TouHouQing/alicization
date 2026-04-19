@@ -351,9 +351,155 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
   }
 
+  function buildResumeDispatchPayload(input: {
+    thread: {
+      goal: string
+      kind: string
+      proposedChannel: string | null
+      selectedChannel: string | null
+      summary: string | null
+    } | null | undefined
+  }) {
+    const thread = input.thread
+    if (!thread)
+      return null
+
+    const resumeChannel = thread.selectedChannel ?? thread.proposedChannel
+    const goal = options.sanitizeText(thread.goal) || 'the current task'
+    if (resumeChannel === 'codex') {
+      return {
+        codex: {
+          prompt: thread.kind === 'codebase-edit'
+            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`
+            : `Continue the already-confirmed Alicization task directly in read-only investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+          sandbox: thread.kind === 'codebase-edit' ? 'workspace-write' as const : 'read-only' as const,
+        },
+      }
+    }
+    if (resumeChannel === 'claude-code') {
+      return {
+        claudeCode: {
+          prompt: thread.kind === 'codebase-edit'
+            ? `Continue the already-confirmed Alicization task directly and make the code change now.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`
+            : `Continue the already-confirmed Alicization task directly in investigation mode.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+          allowTools: thread.kind === 'codebase-edit',
+          permissionMode: thread.kind === 'codebase-edit' ? 'acceptEdits' as const : 'plan' as const,
+        },
+      }
+    }
+    if (resumeChannel === 'openclaw') {
+      return {
+        openclaw: {
+          instruction: `Continue the already-confirmed Alicization task directly.\nGoal: ${goal}\nSummary: ${options.sanitizeText(thread.summary) || 'none'}`,
+        },
+      }
+    }
+    return null
+  }
+
+  async function resumeMainGatewayTaskThread(input: {
+    context: MainGatewayExecutionToolContext
+    threadId: string
+  }): Promise<MainGatewayExecutionTaskThreadResult> {
+    const db = options.getAlicizationDb()
+    const originalThread = await db.getTaskThread(input.threadId).catch(() => undefined)
+    if (!originalThread) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: {
+          id: input.threadId,
+          selectedChannel: null,
+          status: 'failed',
+        },
+        plan: {
+          state: 'blocked',
+        },
+        summary: `Task thread "${input.threadId}" was not found for resume.`,
+        errorCode: 'TASK_THREAD_NOT_FOUND',
+        errorMessage: 'The pending affirmation task thread no longer exists.',
+      }
+    }
+
+    const resumeChannel = originalThread.selectedChannel ?? originalThread.proposedChannel
+    if (!resumeChannel) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: originalThread,
+        plan: {
+          state: 'blocked',
+        },
+        summary: 'Task thread cannot resume because no structured channel was preserved.',
+        errorCode: 'TASK_THREAD_RESUME_CHANNEL_MISSING',
+        errorMessage: 'No structured channel is available for resume.',
+      }
+    }
+
+    const resumableThread = originalThread.status === 'needs-affirmation'
+      ? await db.upsertTaskThread({
+          ...originalThread,
+          selectedChannel: resumeChannel,
+          status: 'planned',
+          updatedAt: Date.now(),
+        })
+      : originalThread
+
+    const dispatch = buildResumeDispatchPayload({
+      thread: resumableThread,
+    })
+    if (!dispatch) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: resumableThread,
+        plan: {
+          state: 'blocked',
+          proposedChannel: resumeChannel,
+        },
+        summary: `Task thread resume is not supported yet for channel ${resumeChannel}.`,
+        errorCode: 'TASK_THREAD_RESUME_UNSUPPORTED_CHANNEL',
+        errorMessage: `Resume is not supported for ${resumeChannel}.`,
+      }
+    }
+
+    const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
+      || options.getCardKillSwitchState(input.context.cardId) === 'SUSPENDED'
+    const dispatchResult = await options.dispatchTaskThread({
+      port: {
+        getTaskThread: db.getTaskThread,
+        upsertTaskThread: db.upsertTaskThread,
+        upsertExecutorSession: db.upsertExecutorSession,
+        appendExecutionEvents: db.appendExecutionEvents,
+        appendAuditLog: options.appendAuditLog,
+      },
+      input: {
+        threadId: resumableThread.id,
+        ...dispatch,
+        killSwitchSuspended,
+      },
+    })
+
+    return {
+      ok: dispatchResult.ok,
+      stage: 'dispatch',
+      thread: dispatchResult.thread,
+      plan: {
+        state: 'routed',
+        proposedChannel: resumeChannel,
+      },
+      summary: dispatchResult.summary,
+      output: dispatchResult.output ?? null,
+      errorCode: dispatchResult.errorCode,
+      errorMessage: dispatchResult.errorMessage,
+      createdEventKinds: dispatchResult.createdEventKinds,
+    }
+  }
+
   return {
     executeMainGatewayTaskThread,
     planTaskThread,
+    resumeMainGatewayTaskThread,
     resolveExecutionCapabilitiesForPrompt,
     resolveTaskPlanningCapabilities,
   }

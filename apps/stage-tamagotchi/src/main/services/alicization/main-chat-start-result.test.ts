@@ -142,7 +142,7 @@ describe('main chat start result', () => {
 
     const result = await resolveAlicizationMainChatStartResult(input)
 
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       accepted: true,
       turnId: 'turn-1',
       state: 'accepted',
@@ -152,7 +152,7 @@ describe('main chat start result', () => {
       embodiment: null,
       speechTimeline: null,
       digitalLife: null,
-      digitalLifeSpine: {
+      digitalLifeSpine: expect.objectContaining({
         version: 'digital-life-spine-digest-v1',
         runtime: expect.objectContaining({
           watchMode: 'symbiotic-vision',
@@ -170,15 +170,32 @@ describe('main chat start result', () => {
           selectedAction: 'wait',
           preferredPresence: 'attentive',
         }),
+        embodiment: expect.objectContaining({
+          privateThought: expect.objectContaining({
+            embodiedPresence: 'attentive',
+          }),
+          mindEcology: expect.objectContaining({
+            moodLabel: expect.any(String),
+          }),
+          initiative: expect.objectContaining({
+            selectedAction: 'wait',
+            preferredStyle: 'silent-observe',
+          }),
+        }),
         memory: expect.objectContaining({
           recentEpisodeCount: 0,
         }),
-      },
-    })
+      }),
+    }))
     expect(input.buildEmbodimentMeta).toHaveBeenCalledWith({
       governance: {
         decisionTraceId: 'prepared-trace',
       },
+      digitalLifeSpine: expect.objectContaining({
+        runtime: expect.objectContaining({
+          activeThreadId: 'thread-1',
+        }),
+      }),
       turnId: 'turn-1',
     })
   })
@@ -209,6 +226,7 @@ describe('main chat start result', () => {
     expect(result.governance).toBeNull()
     expect(input.buildEmbodimentMeta).toHaveBeenCalledWith({
       governance: null,
+      digitalLifeSpine: null,
       turnId: 'turn-1',
     })
   })

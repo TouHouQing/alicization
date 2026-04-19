@@ -127,6 +127,8 @@ describe('main chat runtime surface', () => {
       actionObligation: {
         confidence: 0.88,
         kind: 'continue-task',
+        resumePendingThreadId: 'thread-proposal-1',
+        resumePendingThreadChannel: 'codex',
         routingIntent: {
           requestedChannels: ['codex', 'openclaw'],
           requiredToolNames: ['executor_run_codex', 'executor_run_openclaw'],
@@ -193,7 +195,119 @@ describe('main chat runtime surface', () => {
           goalStack: null,
           concerns: [],
           concernContinuity: null,
+          longHorizonMemory: {
+            preferenceBias: {
+              companionship: 0.74,
+              truthfulGrounding: 0.8,
+              gentleRepair: 0.72,
+              quietObservation: 0.46,
+              proactiveCare: 0.7,
+              playfulIntimacy: 0.24,
+              autonomyRespect: 0.66,
+              unfinishedThreadReturn: 0.62,
+            },
+            identityBias: {
+              guardedness: 0.42,
+              tenderness: 0.68,
+              directness: 0.72,
+              selfDirection: 0.58,
+            },
+            anchorFacts: [{
+              factId: 'fact-1',
+              subject: 'relationship',
+              predicate: 'prefer',
+              object: 'keep things honest and direct',
+              confidence: 0.82,
+              weight: 0.76,
+              influenceTags: ['bond', 'truth'],
+              summary: 'Remembered preference: relationship prefer keep things honest and direct',
+              lastRecalledAt: 123,
+            }],
+            summary: 'preference=Remembered preference: relationship prefer keep things honest and direct | plan=Remembered open loop: assistant remember return to the active runtime knot',
+            dominantCueSummary: 'Remembered preference: relationship prefer keep things honest and direct',
+            rememberedPreferenceSummary: 'Remembered preference: relationship prefer keep things honest and direct',
+            rememberedConstraintSummary: 'Remembered boundary: host needs space when deeply focused',
+            rememberedPlanSummary: 'Remembered open loop: assistant remember return to the active runtime knot',
+            updatedAt: 123,
+          },
           selfContinuity: null,
+          autobiographicalSelf: {
+            personaDrift: {
+              attachmentStyle: 'attuned',
+              expressionStyle: 'warm',
+              conflictStyle: 'soften-first',
+              agencyStyle: 'balanced',
+              attachmentNeed: 0.7,
+              autonomyNeed: 0.58,
+              truthAnchor: 0.68,
+              careBias: 0.76,
+              playBias: 0.24,
+              irritabilityThreshold: 0.62,
+              stubbornness: 0.48,
+            },
+            preferenceEvolution: {
+              companionship: 0.74,
+              truthfulGrounding: 0.7,
+              gentleRepair: 0.68,
+              quietObservation: 0.42,
+              proactiveCare: 0.76,
+              playfulIntimacy: 0.3,
+              autonomyRespect: 0.64,
+              unfinishedThreadReturn: 0.58,
+            },
+            activeGoals: [{
+              id: 'autobio-goal::preserve-trust',
+              kind: 'preserve-trust',
+              status: 'active',
+              weight: 0.78,
+              summary: 'Keep truth and trust aligned, even when warmth would be easier.',
+              sourceTags: ['reflection'],
+              createdAt: 0,
+              updatedAt: 123,
+            }],
+            behaviorSignatures: ['conflict:soften-first', 'agency:balanced', 'bond:attuned'],
+            identityNarrative: 'I am learning to stay warm without dropping truth.',
+            relationshipDoctrine: 'Stay close enough to matter, but do not let closeness outrun reality.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            stability: 0.72,
+            updatedAt: 123,
+          },
+          motiveEngine: {
+            rulingDrive: 'truth-discipline',
+            drives: {
+              companionship: 0.62,
+              boundaryRespect: 0.68,
+              truthDiscipline: 0.82,
+              restProtection: 0.34,
+              unfinishedThreadReturn: 0.58,
+              selfDirection: 0.52,
+            },
+            longTermGoals: [{
+              id: 'motive-goal::preserve-trust',
+              kind: 'preserve-trust',
+              status: 'foreground',
+              weight: 0.8,
+              summary: 'Keep trust by letting warmth answer to truth instead of outrunning it.',
+              sourceTags: ['autobiographical-self'],
+              targetGoalKind: 'clarify-scene',
+              createdAt: 0,
+              updatedAt: 123,
+            }],
+            backgroundAgendas: [{
+              id: 'motive-agenda::preserve-trust::runtime',
+              kind: 'preserve-trust',
+              status: 'foreground',
+              weight: 0.82,
+              summary: 'Keep trust by slowing down, grounding first, and avoiding pressure.',
+              sourceTags: ['truth-discipline'],
+              targetGoalKind: 'clarify-scene',
+              createdAt: 0,
+              updatedAt: 123,
+            }],
+            returnPressure: 0.58,
+            narrative: ['agenda:preserve-trust', 'drive:truth-discipline'],
+            updatedAt: 123,
+          },
           threadRuntime: null,
           commitmentLedger: null,
           inquiryPlanner: null,
@@ -226,6 +340,18 @@ describe('main chat runtime surface', () => {
           counterfactualDeliberation: null,
           actionEcology: null,
           initiativeArbitration: null,
+          habitPolicy: {
+            dominantMode: 'repair-before-fluency',
+            requiresGroundingBeforeSurface: true,
+            prefersQuietCompanionship: true,
+            blocksDirectSpeakWhenBusy: true,
+            protectsRestWindow: false,
+            returnViaRecheck: false,
+            suggestedStyleCap: 'silent-observe',
+            suggestedPresenceCap: 'hesitant',
+            narrative: ['policy:repair-before-fluency', 'ground-before-surface'],
+            updatedAt: 123,
+          },
           initiative: null,
         },
       },
@@ -267,6 +393,8 @@ describe('main chat runtime surface', () => {
     expect(result.action).toEqual(expect.objectContaining({
       kind: 'continue-task',
       routingRequired: true,
+      resumePendingThreadId: 'thread-proposal-1',
+      resumePendingThreadChannel: 'codex',
     }))
     expect(result.tooling.enforcedToolNames).toEqual(['executor_run_codex', 'executor_run_openclaw'])
     expect(result.tooling.routingRequired).toBe(true)
@@ -303,6 +431,26 @@ describe('main chat runtime surface', () => {
     expect(result.messages.some(message =>
       typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_VISUAL_PRESENCE]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MIND_ECOLOGY]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_LONG_HORIZON_MEMORY]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MOTIVE_ENGINE]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_HABIT_POLICY]'),
     )).toBe(true)
   })
 
@@ -365,6 +513,473 @@ describe('main chat runtime surface', () => {
     expect(result.capture.hasVisualGrounding).toBe(true)
     expect(result.digitalLifeSpine).toBeNull()
     expect(result.trace.sessionPhases).toEqual(['runtime-surface'])
+  })
+
+  it('collapses dialogue-first digital life prompt state into a living self block', () => {
+    const result = buildAlicizationMainChatRuntimeSurface({
+      actionObligation: {
+        confidence: 0.72,
+        kind: 'answer',
+        routingIntent: null,
+        source: 'dialogue-governance',
+        reasonCodes: ['owed-action:answer-general'],
+        summary: 'Answer the host directly.',
+      },
+      actionObligationSystemBlock: '[ALICIZATION_ACTION_OBLIGATION]',
+      allowTools: false,
+      waitForTools: false,
+      baseMessages: [{ role: 'user', content: '你是谁' } as Message],
+      runtimeCorePromptBlocks: ['[CORE]'],
+      perceptionPromptSystemBlocks: ['[ALICIZATION_PERCEPTION]\nforeground=chat'],
+      perceptionSystemBlocks: ['[ALICIZATION_VISUAL_PRESENCE]\nWatch mode: symbiotic-vision.'],
+      executionCapabilitySystemBlocks: [],
+      organicMemorySystemBlocks: [],
+      performanceManifestSystemBlocks: [],
+      digitalLifeRuntimeSurface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {
+          watchMode: 'symbiotic-vision',
+          currentScene: null,
+          attention: null,
+          captureState: {
+            permission: 'unknown',
+            lastGroundedAt: null,
+          },
+          durabilityPulse: null,
+          recentTransition: null,
+          nextSuggestedProbeMs: 30_000,
+          updatedAt: 123,
+        },
+        world: {
+          worldModel: null,
+          worldOntology: null,
+          entityWorld: null,
+          livingWorldState: null,
+          relationshipModel: null,
+        },
+        cognition: {
+          mindTurnFrame: null,
+          subjectiveInference: null,
+          appraisal: null,
+          beliefLedger: null,
+          beliefRevision: null,
+          hypothesisGraph: null,
+          mindDynamics: null,
+          mindKernel: null,
+          privateThought: null,
+        },
+        memory: {
+          workingMemoryEpisodes: [],
+          goalStack: null,
+          concerns: [],
+          concernContinuity: null,
+          longHorizonMemory: {
+            preferenceBias: {
+              companionship: 0.74,
+              truthfulGrounding: 0.8,
+              gentleRepair: 0.72,
+              quietObservation: 0.46,
+              proactiveCare: 0.7,
+              playfulIntimacy: 0.24,
+              autonomyRespect: 0.66,
+              unfinishedThreadReturn: 0.62,
+            },
+            identityBias: {
+              guardedness: 0.42,
+              tenderness: 0.68,
+              directness: 0.72,
+              selfDirection: 0.58,
+            },
+            anchorFacts: [],
+            summary: 'memory summary',
+            dominantCueSummary: 'Remembered preference: relationship prefer keep things honest and direct',
+            rememberedPreferenceSummary: 'Remembered preference: relationship prefer keep things honest and direct',
+            rememberedConstraintSummary: 'Remembered boundary: host needs space when deeply focused',
+            rememberedPlanSummary: 'Remembered open loop: answer the host directly without shell phrases',
+            updatedAt: 123,
+          },
+          selfContinuity: null,
+          autobiographicalSelf: {
+            personaDrift: {
+              attachmentStyle: 'attuned',
+              expressionStyle: 'warm',
+              conflictStyle: 'soften-first',
+              agencyStyle: 'balanced',
+              attachmentNeed: 0.7,
+              autonomyNeed: 0.58,
+              truthAnchor: 0.68,
+              careBias: 0.76,
+              playBias: 0.24,
+              irritabilityThreshold: 0.62,
+              stubbornness: 0.48,
+            },
+            preferenceEvolution: {
+              companionship: 0.74,
+              truthfulGrounding: 0.7,
+              gentleRepair: 0.68,
+              quietObservation: 0.42,
+              proactiveCare: 0.76,
+              playfulIntimacy: 0.3,
+              autonomyRespect: 0.64,
+              unfinishedThreadReturn: 0.58,
+            },
+            activeGoals: [],
+            behaviorSignatures: ['conflict:soften-first', 'agency:balanced', 'bond:attuned'],
+            identityNarrative: 'I want to sound like a real person before I sound polished.',
+            relationshipDoctrine: 'Closeness should land as real care, not a pretty shell.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            stability: 0.72,
+            updatedAt: 123,
+          },
+          motiveEngine: {
+            rulingDrive: 'truth-discipline',
+            drives: {
+              companionship: 0.62,
+              boundaryRespect: 0.68,
+              truthDiscipline: 0.82,
+              restProtection: 0.34,
+              unfinishedThreadReturn: 0.58,
+              selfDirection: 0.52,
+            },
+            longTermGoals: [],
+            backgroundAgendas: [{
+              id: 'motive-agenda::preserve-trust::runtime',
+              kind: 'preserve-trust',
+              status: 'foreground',
+              weight: 0.82,
+              summary: 'Keep trust by slowing down, grounding first, and avoiding pressure.',
+              sourceTags: ['truth-discipline'],
+              targetGoalKind: 'clarify-scene',
+              createdAt: 0,
+              updatedAt: 123,
+            }],
+            returnPressure: 0.58,
+            narrative: ['agenda:preserve-trust', 'drive:truth-discipline'],
+            updatedAt: 123,
+          },
+          threadRuntime: null,
+          commitmentLedger: null,
+          inquiryPlanner: null,
+          repairLedger: null,
+          intentionStream: null,
+          reflectionLedger: null,
+          executiveCycle: null,
+          thoughtThreads: null,
+          desireMemory: null,
+          recallGovernor: null,
+        },
+        dialogue: {
+          discourseState: null,
+          dialogueEncounter: null,
+          mindSynthesis: {
+            answerSubject: 'relationship',
+            relationMove: 'attune',
+            speechObligation: 'answer-relationship',
+            openingIntent: 'Answer from Alicization’s living bond, not from a service shell.',
+            truthBoundary: 'Do not let system phrasing or old carry seize the opening answer.',
+            interiorSummary: 'The host is asking for Alicization herself, not a protocol explanation.',
+            beliefs: [],
+            uncertainties: [],
+            concerns: [],
+            commitments: [],
+            desires: [],
+            confidence: 0.82,
+            narrative: [],
+            updatedAt: 123,
+          },
+          conversationState: null,
+          dialogueWorldThread: null,
+          dialogueActKernel: null,
+          answerCompiler: null,
+          currentConsciousFrame: null,
+          claimEvidenceLedger: null,
+          replyDeliberation: null,
+          answerPlanner: null,
+        },
+        agency: {
+          selfState: null,
+          selfGovernor: null,
+          inquiryLoop: null,
+          deliberationState: null,
+          counterfactualDeliberation: null,
+          actionEcology: null,
+          initiativeArbitration: null,
+          habitPolicy: {
+            dominantMode: 'repair-before-fluency',
+            requiresGroundingBeforeSurface: true,
+            prefersQuietCompanionship: true,
+            blocksDirectSpeakWhenBusy: false,
+            protectsRestWindow: false,
+            returnViaRecheck: false,
+            suggestedStyleCap: 'silent-observe',
+            suggestedPresenceCap: 'hesitant',
+            narrative: ['policy:repair-before-fluency', 'ground-before-surface'],
+            updatedAt: 123,
+          },
+          initiative: null,
+        },
+      },
+      customDirectivesResolution: {
+        text: '优先诚实，不要臆测。',
+        source: 'card-soul',
+      },
+      governance: {
+        decisionTraceId: 'trace-dialogue-first',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '你是谁',
+        answerIntent: '直接回答你是谁这个问题。',
+        openingMove: 'answer-current-turn-directly',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 2,
+        mindMode: 'accompanying',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      hasVisualGrounding: false,
+      turnMode: 'answer',
+      personaKernelMode: 'full',
+      personaKernelReason: '',
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        health: null,
+        permission: null,
+        fallbackReason: null,
+        degradedReasons: [],
+      },
+    })
+
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_LIVING_SELF]'),
+    )).toBe(true)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MIND_ECOLOGY]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_HABIT_POLICY]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MOTIVE_ENGINE]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_LONG_HORIZON_MEMORY]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_VISUAL_PRESENCE]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_PERCEPTION]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[CAPABILITIES]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[VESSEL]'),
+    )).toBe(false)
+  })
+
+  it('strips execution-heavy prompt blocks and tools from dialogue-first living turns', () => {
+    const result = buildAlicizationMainChatRuntimeSurface({
+      actionObligation: {
+        confidence: 0.72,
+        kind: 'answer',
+        routingIntent: null,
+        source: 'dialogue-governance',
+        reasonCodes: ['owed-action:answer-general'],
+        summary: 'Answer the host directly.',
+      },
+      actionObligationSystemBlock: '[ALICIZATION_ACTION_OBLIGATION]',
+      allowTools: true,
+      waitForTools: true,
+      baseMessages: [{ role: 'user', content: '我今天有点乱' } as Message],
+      runtimeCorePromptBlocks: ['[CORE]'],
+      perceptionPromptSystemBlocks: ['[ALICIZATION_PERCEPTION]\nforeground=chat'],
+      perceptionSystemBlocks: ['[ALICIZATION_VISUAL_PRESENCE]\nWatch mode: symbiotic-vision.'],
+      executionCapabilitySystemBlocks: ['[CAPABILITIES]'],
+      executionRoutingEnforcementSystemBlock: '[ROUTING]',
+      executionCallbackSystemBlocks: ['[ALICIZATION_EXECUTION_CALLBACKS]'],
+      executionLedgerSystemBlocks: ['[ALICIZATION_EXECUTION_LEDGER]'],
+      organicMemorySystemBlocks: ['[ORGANIC]'],
+      performanceManifestSystemBlocks: ['[VESSEL]'],
+      digitalLifeRuntimeSurface: {
+        version: 'digital-life-runtime-surface-v1',
+        perception: {
+          watchMode: 'symbiotic-vision',
+          currentScene: null,
+          attention: null,
+          captureState: {
+            permission: 'unknown',
+            lastGroundedAt: null,
+          },
+          durabilityPulse: null,
+          recentTransition: null,
+          nextSuggestedProbeMs: 30_000,
+          updatedAt: 123,
+        },
+        world: {
+          worldModel: null,
+          worldOntology: null,
+          entityWorld: null,
+          livingWorldState: null,
+          relationshipModel: null,
+        },
+        cognition: {
+          mindTurnFrame: null,
+          subjectiveInference: null,
+          appraisal: null,
+          beliefLedger: null,
+          beliefRevision: null,
+          hypothesisGraph: null,
+          mindDynamics: null,
+          mindKernel: null,
+          privateThought: null,
+        },
+        memory: {
+          workingMemoryEpisodes: [],
+          goalStack: null,
+          concerns: [],
+          concernContinuity: null,
+          longHorizonMemory: null,
+          selfContinuity: null,
+          autobiographicalSelf: null,
+          motiveEngine: null,
+          threadRuntime: null,
+          commitmentLedger: null,
+          inquiryPlanner: null,
+          repairLedger: null,
+          intentionStream: null,
+          reflectionLedger: null,
+          executiveCycle: null,
+          thoughtThreads: null,
+          desireMemory: null,
+          recallGovernor: null,
+        },
+        dialogue: {
+          discourseState: null,
+          dialogueEncounter: null,
+          mindSynthesis: null,
+          conversationState: null,
+          dialogueWorldThread: null,
+          dialogueActKernel: null,
+          answerCompiler: null,
+          currentConsciousFrame: null,
+          claimEvidenceLedger: null,
+          replyDeliberation: null,
+          answerPlanner: null,
+        },
+        agency: {
+          selfState: null,
+          selfGovernor: null,
+          inquiryLoop: null,
+          deliberationState: null,
+          counterfactualDeliberation: null,
+          actionEcology: null,
+          initiativeArbitration: null,
+          habitPolicy: null,
+          initiative: null,
+        },
+      },
+      customDirectivesResolution: {
+        text: '',
+        source: 'none',
+      },
+      governance: {
+        decisionTraceId: 'trace-dialogue-first-lite',
+        turnMode: 'answer',
+        truthState: 'live-observed',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        liveSurface: null,
+        focusAnchor: '我今天有点乱',
+        answerIntent: '直接接住当前关系句面。',
+        openingMove: 'answer-current-turn-directly',
+        carriedThread: null,
+        suppressAssociativeRecall: true,
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 2,
+        mindMode: 'accompanying',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        mustDo: [],
+        mustNotDo: [],
+      },
+      hasVisualGrounding: false,
+      turnMode: 'answer',
+      personaKernelMode: 'full',
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        health: 'healthy',
+        permission: 'granted',
+        fallbackReason: null,
+        degradedReasons: [],
+      },
+      tools: [
+        { type: 'function', function: { name: 'executor_run_cli' } },
+      ] as any,
+      toolChoice: 'required',
+    })
+
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[CAPABILITIES]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ROUTING]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_EXECUTION_CALLBACKS]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_EXECUTION_LEDGER]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      typeof message.content === 'string'
+      && message.content.includes('[VESSEL]'),
+    )).toBe(false)
+    expect(result.tooling.allowTools).toBe(false)
+    expect(result.tooling.waitForTools).toBe(false)
+    expect(result.tooling.enforcedToolNames).toEqual([])
   })
 
   it('extracts host metadata and custom directives from soul-shaped system messages', () => {

@@ -21,11 +21,19 @@ import type {
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
+  AlicizationMemoryReflectionInput,
+  AlicizationMemoryReflectionRecord,
+  AlicizationMemoryReflectionStatus,
   AlicizationMemorySource,
   AlicizationMemoryStats,
+  AlicizationMindHeadKey,
   AlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
+  AlicizationPersonaReinforcementEventInput,
+  AlicizationPersonaReinforcementEventRecord,
+  AlicizationRelationshipOutcomeInput,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousFragmentSourceKind,
   AlicizationTaskThreadRecord,
@@ -72,6 +80,59 @@ interface DbMemoryFactRow {
   updated_at: number
   last_access_at: number | null
   access_count: number
+}
+
+interface DbMemoryReflectionRow {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  target_scope: string
+  summary: string
+  lesson: string
+  status: AlicizationMemoryReflectionStatus
+  confidence: number
+  supporting_fact_ids_json: string | null
+  supporting_outcome_ids_json: string | null
+  created_at: number
+  updated_at: number
+  confirmed_at: number | null
+  denied_at: number | null
+}
+
+interface DbRelationshipOutcomeRow {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  action_summary: string
+  closeness_delta: number
+  trust_delta: number
+  burden_delta: number
+  boundary_delta: number
+  misread_delta: number
+  repair_delta: number
+  open_loop_delta: number
+  summary: string
+  created_at: number
+}
+
+interface DbPersonaReinforcementEventRow {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  dimension: string
+  delta: number
+  valence: string
+  summary: string
+  created_at: number
 }
 
 interface DbConversationTurnRow {
@@ -345,6 +406,22 @@ function parseJsonObject(raw: string | null) {
   }
 }
 
+function parseJsonStringArray(raw: string | null) {
+  if (!raw)
+    return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed))
+      return []
+    return parsed
+      .map(item => typeof item === 'string' ? item.trim() : '')
+      .filter(Boolean)
+  }
+  catch {
+    return []
+  }
+}
+
 function clamp01(value: number) {
   if (Number.isNaN(value))
     return 0
@@ -353,6 +430,10 @@ function clamp01(value: number) {
 
 function buildDedupeKey(subject: string, predicate: string, object: string) {
   return `${subject.trim().toLowerCase()}|${predicate.trim().toLowerCase()}|${object.trim().toLowerCase()}`
+}
+
+function buildMindHeadMetaKey(cardId: string, key: AlicizationMindHeadKey) {
+  return `mind-head:${cardId}:${key}`
 }
 
 function tokenize(text: string) {
@@ -406,6 +487,65 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     updatedAt: row.updated_at,
     lastAccessAt: typeof row.last_access_at === 'number' ? row.last_access_at : null,
     accessCount: Math.max(0, Math.floor(row.access_count)),
+  }
+}
+
+function mapMemoryReflectionRow(row: DbMemoryReflectionRow): AlicizationMemoryReflectionRecord {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    sourceKind: row.source_kind as AlicizationMemoryReflectionRecord['sourceKind'],
+    targetScope: row.target_scope as AlicizationMemoryReflectionRecord['targetScope'],
+    summary: row.summary,
+    lesson: row.lesson,
+    status: row.status,
+    confidence: clamp01(row.confidence),
+    supportingFactIds: parseJsonStringArray(row.supporting_fact_ids_json),
+    supportingOutcomeIds: parseJsonStringArray(row.supporting_outcome_ids_json),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    confirmedAt: row.confirmed_at,
+    deniedAt: row.denied_at,
+  }
+}
+
+function mapRelationshipOutcomeRow(row: DbRelationshipOutcomeRow): AlicizationRelationshipOutcomeRecord {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    sourceKind: row.source_kind as AlicizationRelationshipOutcomeRecord['sourceKind'],
+    actionSummary: row.action_summary,
+    closenessDelta: clampRelationshipDelta(row.closeness_delta, 0.2),
+    trustDelta: clampRelationshipDelta(row.trust_delta, 0.2),
+    burdenDelta: clampRelationshipDelta(row.burden_delta, 0.2),
+    boundaryDelta: clampRelationshipDelta(row.boundary_delta, 0.2),
+    misreadDelta: clampRelationshipDelta(row.misread_delta, 0.2),
+    repairDelta: clampRelationshipDelta(row.repair_delta, 0.2),
+    openLoopDelta: clampRelationshipDelta(row.open_loop_delta, 0.2),
+    summary: row.summary,
+    createdAt: row.created_at,
+  }
+}
+
+function mapPersonaReinforcementEventRow(row: DbPersonaReinforcementEventRow): AlicizationPersonaReinforcementEventRecord {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    sourceKind: row.source_kind as AlicizationPersonaReinforcementEventRecord['sourceKind'],
+    dimension: row.dimension as AlicizationPersonaReinforcementEventRecord['dimension'],
+    delta: clampRelationshipDelta(row.delta, 0.4),
+    valence: row.valence as AlicizationPersonaReinforcementEventRecord['valence'],
+    summary: row.summary,
+    createdAt: row.created_at,
   }
 }
 
@@ -709,6 +849,27 @@ export interface AlicizationDbService {
   getMemoryStats: () => Promise<AlicizationMemoryStats>
   upsertMemoryFacts: (facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) => Promise<void>
   retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
+  upsertMemoryReflections: (entries: AlicizationMemoryReflectionInput[]) => Promise<AlicizationMemoryReflectionRecord[]>
+  listMemoryReflections: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+    status?: AlicizationMemoryReflectionStatus
+  }) => Promise<AlicizationMemoryReflectionRecord[]>
+  appendRelationshipOutcomes: (entries: AlicizationRelationshipOutcomeInput[]) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  listRelationshipOutcomes: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  listPersonaReinforcementEvents: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  readMindHead: <T>(cardId: string, key: AlicizationMindHeadKey) => Promise<T | null>
+  upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown) => Promise<void>
   runMemoryPrune: () => Promise<AlicizationMemoryStats>
   importLegacyMemory: (snapshot: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   overrideMemoryStats: (next: AlicizationMemoryStats) => Promise<AlicizationMemoryStats>
@@ -793,6 +954,72 @@ export async function setupAlicizationDb(
 
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_updated_at ON memory_facts(updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_last_access_at ON memory_facts(last_access_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_reflections (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        source_kind TEXT NOT NULL,
+        target_scope TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        lesson TEXT NOT NULL,
+        status TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        supporting_fact_ids_json TEXT,
+        supporting_outcome_ids_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        confirmed_at INTEGER,
+        denied_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_card_updated_at ON memory_reflections(card_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_card_status_updated_at ON memory_reflections(card_id, status, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_reflections_trace_created_at ON memory_reflections(decision_trace_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS relationship_outcomes (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        source_kind TEXT NOT NULL,
+        action_summary TEXT NOT NULL,
+        closeness_delta REAL NOT NULL,
+        trust_delta REAL NOT NULL,
+        burden_delta REAL NOT NULL,
+        boundary_delta REAL NOT NULL,
+        misread_delta REAL NOT NULL,
+        repair_delta REAL NOT NULL,
+        open_loop_delta REAL NOT NULL,
+        summary TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_relationship_outcomes_card_created_at ON relationship_outcomes(card_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_relationship_outcomes_turn_created_at ON relationship_outcomes(turn_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_reinforcement_events (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        source_kind TEXT NOT NULL,
+        dimension TEXT NOT NULL,
+        delta REAL NOT NULL,
+        valence TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_reinforcement_card_dimension_created_at ON persona_reinforcement_events(card_id, dimension, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_reinforcement_turn_created_at ON persona_reinforcement_events(turn_id, created_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_archive (
@@ -1027,6 +1254,30 @@ export async function setupAlicizationDb(
   async function getMetaValue(key: string) {
     const row = await get<MetaRow>(database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
     return row?.value
+  }
+
+  async function readMindHead<T>(cardId: string, key: AlicizationMindHeadKey) {
+    const raw = await getMetaValue(buildMindHeadMetaKey(cardId.trim(), key))
+    if (!raw)
+      return null
+    try {
+      return JSON.parse(raw) as T
+    }
+    catch {
+      return null
+    }
+  }
+
+  async function upsertMindHead(cardId: string, key: AlicizationMindHeadKey, value: unknown) {
+    const normalizedCardId = cardId.trim()
+    if (!normalizedCardId)
+      throw new Error('cardId is required')
+    await enqueueWrite(async () => {
+      await upsertMeta(
+        buildMindHeadMetaKey(normalizedCardId, key),
+        JSON.stringify(value ?? null),
+      )
+    })
   }
 
   async function getLastPrunedAt() {
@@ -2153,12 +2404,16 @@ export async function setupAlicizationDb(
 
   async function clearConversationData() {
     await enqueueWrite(async () => await runInTransaction(database, async () => {
+      await run(database, 'DELETE FROM memory_reflections')
+      await run(database, 'DELETE FROM relationship_outcomes')
+      await run(database, 'DELETE FROM persona_reinforcement_events')
       await run(database, 'DELETE FROM conversation_turns')
       await run(database, 'DELETE FROM mind_turn_events')
       await run(database, 'DELETE FROM task_threads')
       await run(database, 'DELETE FROM executor_sessions')
       await run(database, 'DELETE FROM executor_events')
       await run(database, 'DELETE FROM scheduled_tasks')
+      await run(database, 'DELETE FROM alicization_meta WHERE key LIKE ?', ['mind-head:%'])
     }))
   }
 
@@ -2466,6 +2721,400 @@ export async function setupAlicizationDb(
     })
 
     return ranked.map(item => item.fact)
+  }
+
+  async function upsertMemoryReflections(entries: AlicizationMemoryReflectionInput[]) {
+    if (entries.length === 0)
+      return []
+
+    const prepared = entries
+      .map((entry) => {
+        const cardId = entry.cardId.trim()
+        const summary = entry.summary.trim()
+        const lesson = entry.lesson.trim()
+        if (!cardId || !summary || !lesson)
+          return null
+        const createdAt = Number.isFinite(entry.createdAt) ? Math.max(0, Math.floor(entry.createdAt!)) : now()
+        const updatedAt = Number.isFinite(entry.updatedAt) ? Math.max(0, Math.floor(entry.updatedAt!)) : createdAt
+        return {
+          id: entry.id?.trim() || randomUUID(),
+          cardId,
+          decisionTraceId: entry.decisionTraceId?.trim() || null,
+          turnId: entry.turnId?.trim() || null,
+          sessionId: entry.sessionId?.trim() || null,
+          sourceKind: entry.sourceKind,
+          targetScope: entry.targetScope,
+          summary,
+          lesson,
+          status: entry.status ?? 'pending',
+          confidence: clamp01(entry.confidence),
+          supportingFactIdsJson: JSON.stringify((entry.supportingFactIds ?? []).filter(Boolean)),
+          supportingOutcomeIdsJson: JSON.stringify((entry.supportingOutcomeIds ?? []).filter(Boolean)),
+          createdAt,
+          updatedAt,
+          confirmedAt: Number.isFinite(entry.confirmedAt) ? Math.max(0, Math.floor(entry.confirmedAt!)) : null,
+          deniedAt: Number.isFinite(entry.deniedAt) ? Math.max(0, Math.floor(entry.deniedAt!)) : null,
+        }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+    if (prepared.length === 0)
+      return []
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const entry of prepared) {
+          await run(
+            database,
+            `
+            INSERT INTO memory_reflections (
+              id,
+              card_id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              source_kind,
+              target_scope,
+              summary,
+              lesson,
+              status,
+              confidence,
+              supporting_fact_ids_json,
+              supporting_outcome_ids_json,
+              created_at,
+              updated_at,
+              confirmed_at,
+              denied_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id)
+            DO UPDATE SET
+              decision_trace_id = excluded.decision_trace_id,
+              turn_id = excluded.turn_id,
+              session_id = excluded.session_id,
+              source_kind = excluded.source_kind,
+              target_scope = excluded.target_scope,
+              summary = excluded.summary,
+              lesson = excluded.lesson,
+              status = excluded.status,
+              confidence = excluded.confidence,
+              supporting_fact_ids_json = excluded.supporting_fact_ids_json,
+              supporting_outcome_ids_json = excluded.supporting_outcome_ids_json,
+              updated_at = excluded.updated_at,
+              confirmed_at = excluded.confirmed_at,
+              denied_at = excluded.denied_at
+            `,
+            [
+              entry.id,
+              entry.cardId,
+              entry.decisionTraceId,
+              entry.turnId,
+              entry.sessionId,
+              entry.sourceKind,
+              entry.targetScope,
+              entry.summary,
+              entry.lesson,
+              entry.status,
+              entry.confidence,
+              entry.supportingFactIdsJson,
+              entry.supportingOutcomeIdsJson,
+              entry.createdAt,
+              entry.updatedAt,
+              entry.confirmedAt,
+              entry.deniedAt,
+            ],
+          )
+        }
+      })
+    })
+
+    return prepared.map(entry => mapMemoryReflectionRow({
+      id: entry.id,
+      card_id: entry.cardId,
+      decision_trace_id: entry.decisionTraceId,
+      turn_id: entry.turnId,
+      session_id: entry.sessionId,
+      source_kind: entry.sourceKind,
+      target_scope: entry.targetScope,
+      summary: entry.summary,
+      lesson: entry.lesson,
+      status: entry.status,
+      confidence: entry.confidence,
+      supporting_fact_ids_json: entry.supportingFactIdsJson,
+      supporting_outcome_ids_json: entry.supportingOutcomeIdsJson,
+      created_at: entry.createdAt,
+      updated_at: entry.updatedAt,
+      confirmed_at: entry.confirmedAt,
+      denied_at: entry.deniedAt,
+    }))
+  }
+
+  async function listMemoryReflections(input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+    status?: AlicizationMemoryReflectionStatus
+  }) {
+    const cardId = input.cardId.trim()
+    if (!cardId)
+      return []
+
+    const params: unknown[] = [cardId]
+    const where = ['card_id = ?']
+    if (input.turnId?.trim()) {
+      where.push('turn_id = ?')
+      params.push(input.turnId.trim())
+    }
+    if (input.status) {
+      where.push('status = ?')
+      params.push(input.status)
+    }
+    const limit = Math.max(1, Math.floor(input.limit ?? 8))
+    params.push(limit)
+
+    const rows = await all<DbMemoryReflectionRow>(
+      database,
+      `SELECT * FROM memory_reflections WHERE ${where.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`,
+      params,
+    )
+
+    return rows.map(mapMemoryReflectionRow)
+  }
+
+  async function appendRelationshipOutcomes(entries: AlicizationRelationshipOutcomeInput[]) {
+    if (entries.length === 0)
+      return []
+
+    const prepared = entries
+      .map((entry) => {
+        const cardId = entry.cardId.trim()
+        const actionSummary = entry.actionSummary.trim()
+        const summary = entry.summary.trim()
+        if (!cardId || !actionSummary || !summary)
+          return null
+        const createdAt = Number.isFinite(entry.createdAt) ? Math.max(0, Math.floor(entry.createdAt!)) : now()
+        return {
+          id: entry.id?.trim() || randomUUID(),
+          cardId,
+          decisionTraceId: entry.decisionTraceId?.trim() || null,
+          turnId: entry.turnId?.trim() || null,
+          sessionId: entry.sessionId?.trim() || null,
+          sourceKind: entry.sourceKind,
+          actionSummary,
+          closenessDelta: clampRelationshipDelta(entry.closenessDelta, 0.2),
+          trustDelta: clampRelationshipDelta(entry.trustDelta, 0.2),
+          burdenDelta: clampRelationshipDelta(entry.burdenDelta, 0.2),
+          boundaryDelta: clampRelationshipDelta(entry.boundaryDelta, 0.2),
+          misreadDelta: clampRelationshipDelta(entry.misreadDelta, 0.2),
+          repairDelta: clampRelationshipDelta(entry.repairDelta, 0.2),
+          openLoopDelta: clampRelationshipDelta(entry.openLoopDelta, 0.2),
+          summary,
+          createdAt,
+        }
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+
+    if (prepared.length === 0)
+      return []
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const entry of prepared) {
+          await run(
+            database,
+            `
+            INSERT INTO relationship_outcomes (
+              id,
+              card_id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              source_kind,
+              action_summary,
+              closeness_delta,
+              trust_delta,
+              burden_delta,
+              boundary_delta,
+              misread_delta,
+              repair_delta,
+              open_loop_delta,
+              summary,
+              created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              entry.id,
+              entry.cardId,
+              entry.decisionTraceId,
+              entry.turnId,
+              entry.sessionId,
+              entry.sourceKind,
+              entry.actionSummary,
+              entry.closenessDelta,
+              entry.trustDelta,
+              entry.burdenDelta,
+              entry.boundaryDelta,
+              entry.misreadDelta,
+              entry.repairDelta,
+              entry.openLoopDelta,
+              entry.summary,
+              entry.createdAt,
+            ],
+          )
+        }
+      })
+    })
+
+    return prepared.map(entry => mapRelationshipOutcomeRow({
+      id: entry.id,
+      card_id: entry.cardId,
+      decision_trace_id: entry.decisionTraceId,
+      turn_id: entry.turnId,
+      session_id: entry.sessionId,
+      source_kind: entry.sourceKind,
+      action_summary: entry.actionSummary,
+      closeness_delta: entry.closenessDelta,
+      trust_delta: entry.trustDelta,
+      burden_delta: entry.burdenDelta,
+      boundary_delta: entry.boundaryDelta,
+      misread_delta: entry.misreadDelta,
+      repair_delta: entry.repairDelta,
+      open_loop_delta: entry.openLoopDelta,
+      summary: entry.summary,
+      created_at: entry.createdAt,
+    }))
+  }
+
+  async function listRelationshipOutcomes(input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) {
+    const cardId = input.cardId.trim()
+    if (!cardId)
+      return []
+
+    const params: unknown[] = [cardId]
+    const where = ['card_id = ?']
+    if (input.turnId?.trim()) {
+      where.push('turn_id = ?')
+      params.push(input.turnId.trim())
+    }
+    const limit = Math.max(1, Math.floor(input.limit ?? 16))
+    params.push(limit)
+    const rows = await all<DbRelationshipOutcomeRow>(
+      database,
+      `SELECT * FROM relationship_outcomes WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,
+      params,
+    )
+    return rows.map(mapRelationshipOutcomeRow)
+  }
+
+  async function appendPersonaReinforcementEvents(events: AlicizationPersonaReinforcementEventInput[]) {
+    if (events.length === 0)
+      return []
+
+    const prepared = events
+      .map((event) => {
+        const cardId = event.cardId.trim()
+        const summary = event.summary.trim()
+        if (!cardId || !summary)
+          return null
+        const createdAt = Number.isFinite(event.createdAt) ? Math.max(0, Math.floor(event.createdAt!)) : now()
+        return {
+          id: event.id?.trim() || randomUUID(),
+          cardId,
+          decisionTraceId: event.decisionTraceId?.trim() || null,
+          turnId: event.turnId?.trim() || null,
+          sessionId: event.sessionId?.trim() || null,
+          sourceKind: event.sourceKind,
+          dimension: event.dimension,
+          delta: clampRelationshipDelta(event.delta, 0.4),
+          valence: event.valence,
+          summary,
+          createdAt,
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+
+    if (prepared.length === 0)
+      return []
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const event of prepared) {
+          await run(
+            database,
+            `
+            INSERT INTO persona_reinforcement_events (
+              id,
+              card_id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              source_kind,
+              dimension,
+              delta,
+              valence,
+              summary,
+              created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `,
+            [
+              event.id,
+              event.cardId,
+              event.decisionTraceId,
+              event.turnId,
+              event.sessionId,
+              event.sourceKind,
+              event.dimension,
+              event.delta,
+              event.valence,
+              event.summary,
+              event.createdAt,
+            ],
+          )
+        }
+      })
+    })
+
+    return prepared.map(event => mapPersonaReinforcementEventRow({
+      id: event.id,
+      card_id: event.cardId,
+      decision_trace_id: event.decisionTraceId,
+      turn_id: event.turnId,
+      session_id: event.sessionId,
+      source_kind: event.sourceKind,
+      dimension: event.dimension,
+      delta: event.delta,
+      valence: event.valence,
+      summary: event.summary,
+      created_at: event.createdAt,
+    }))
+  }
+
+  async function listPersonaReinforcementEvents(input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) {
+    const cardId = input.cardId.trim()
+    if (!cardId)
+      return []
+
+    const params: unknown[] = [cardId]
+    const where = ['card_id = ?']
+    if (input.turnId?.trim()) {
+      where.push('turn_id = ?')
+      params.push(input.turnId.trim())
+    }
+    const limit = Math.max(1, Math.floor(input.limit ?? 24))
+    params.push(limit)
+    const rows = await all<DbPersonaReinforcementEventRow>(
+      database,
+      `SELECT * FROM persona_reinforcement_events WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,
+      params,
+    )
+    return rows.map(mapPersonaReinforcementEventRow)
   }
 
   async function runMemoryPrune() {
@@ -3045,6 +3694,14 @@ export async function setupAlicizationDb(
     getMemoryStats,
     upsertMemoryFacts,
     retrieveMemoryFacts,
+    upsertMemoryReflections,
+    listMemoryReflections,
+    appendRelationshipOutcomes,
+    listRelationshipOutcomes,
+    appendPersonaReinforcementEvents,
+    listPersonaReinforcementEvents,
+    readMindHead,
+    upsertMindHead,
     runMemoryPrune,
     importLegacyMemory,
     overrideMemoryStats,

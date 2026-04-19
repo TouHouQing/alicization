@@ -15,6 +15,7 @@ import {
 } from './alicization-performance-contracts'
 import {
   resolveStageEmbodimentCueCandidates,
+  resolveStageEmbodimentLive2DExpressionAliases,
   resolveStageEmbodimentLive2DMotionAliases,
   resolveStageEmbodimentVrmBaseExpressionCandidates,
 } from './stage-embodiment-profile'
@@ -449,6 +450,7 @@ function resolveSegmentRendererHints(input: {
   const preferredExpressionAliases = dedupeCuePool([
     ...(useTurnEnvelopeAliases ? input.embodiment?.rendererHints?.preferredExpressionAliases ?? [] : []),
     ...(manifestHints?.preferredExpressionAliases ?? []),
+    ...resolveStageEmbodimentLive2DExpressionAliases(input.segmentEmotion),
     ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.segmentEmotion),
   ])
   const preferredMotionAliases = dedupeCuePool([

@@ -1,5 +1,16 @@
-import type { AlicizationDialogueSpeechTimelineSegment } from './alicization-dialogue-speech-timeline'
+import type { AlicizationDialogueEmbodimentRendererHints } from './alicization-dialogue-embodiment'
+import type {
+  AlicizationDialogueSpeechRendererSettleHints,
+  AlicizationDialogueSpeechTimelineSegment,
+} from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeFrame } from './alicization-digital-life'
+import type { StageEmbodimentSpeechArticulationState } from './stage-embodiment-speech-articulation'
+
+import {
+  cloneStageEmbodimentSpeechArticulationState,
+  createIdleStageEmbodimentSpeechArticulationState,
+  normalizeStageEmbodimentSpeechPlaybackDurationMs,
+} from './stage-embodiment-speech-articulation'
 
 export type StageEmbodimentSpeechPlaybackPhase = 'idle' | 'playing'
 
@@ -11,6 +22,8 @@ export interface StageEmbodimentSpeechPlaybackItem {
   text: string
   special: string | null
   continuityHoldMs: number
+  playbackDurationMs: number | null
+  metadata: Record<string, unknown> | null
   cue: AlicizationDialogueSpeechTimelineSegment | null
   digitalLifeFrame: AlicizationDigitalLifeFrame | null
 }
@@ -58,6 +71,7 @@ export interface StageEmbodimentSpeechRenderState {
   mouthOpenSize: number
   mouthOpenRatio: number
   visemeIntensity: number
+  articulation: StageEmbodimentSpeechArticulationState
   dynamics: StageEmbodimentSpeechDynamicsState
   startedAt: number | null
   endedAt: number | null
@@ -76,6 +90,274 @@ function clampRange(value: number, min: number, max: number) {
     return min
 
   return Math.min(max, Math.max(min, value))
+}
+
+function normalizeCueToken(value: string | null | undefined) {
+  if (typeof value !== 'string')
+    return null
+
+  const normalized = value.trim()
+  return normalized || null
+}
+
+function cloneRendererHints(
+  hints: AlicizationDialogueEmbodimentRendererHints | null | undefined,
+): AlicizationDialogueEmbodimentRendererHints | null {
+  if (!hints)
+    return null
+
+  return {
+    preferredExpressionAliases: hints.preferredExpressionAliases
+      ? [...hints.preferredExpressionAliases]
+      : undefined,
+    preferredMotionAliases: hints.preferredMotionAliases
+      ? [...hints.preferredMotionAliases]
+      : undefined,
+  }
+}
+
+function mergeRendererHintAliases(values: Array<readonly string[] | undefined>) {
+  const merged: string[] = []
+  const seen = new Set<string>()
+
+  for (const value of values) {
+    if (!value)
+      continue
+
+    for (const candidate of value) {
+      if (typeof candidate !== 'string')
+        continue
+
+      const normalized = candidate.trim()
+      if (!normalized || seen.has(normalized))
+        continue
+
+      seen.add(normalized)
+      merged.push(normalized)
+    }
+  }
+
+  return merged
+}
+
+function mergeRendererHints(
+  hints: Array<AlicizationDialogueEmbodimentRendererHints | null | undefined>,
+): AlicizationDialogueEmbodimentRendererHints | null {
+  const preferredExpressionAliases = mergeRendererHintAliases(
+    hints.map(item => item?.preferredExpressionAliases),
+  )
+  const preferredMotionAliases = mergeRendererHintAliases(
+    hints.map(item => item?.preferredMotionAliases),
+  )
+
+  if (preferredExpressionAliases.length === 0 && preferredMotionAliases.length === 0)
+    return null
+
+  return {
+    preferredExpressionAliases: preferredExpressionAliases.length > 0 ? preferredExpressionAliases : undefined,
+    preferredMotionAliases: preferredMotionAliases.length > 0 ? preferredMotionAliases : undefined,
+  }
+}
+
+function cloneRendererSettleHints(
+  hints: AlicizationDialogueSpeechRendererSettleHints | null | undefined,
+): AlicizationDialogueSpeechRendererSettleHints | null {
+  if (!hints)
+    return null
+
+  return {
+    live2dFacialReleaseMs: hints.live2dFacialReleaseMs,
+    live2dMotionFollowThroughMs: hints.live2dMotionFollowThroughMs,
+    vrmActionFadeMs: hints.vrmActionFadeMs,
+    vrmExpressionBlendMs: hints.vrmExpressionBlendMs,
+  }
+}
+
+function resolveProjectedCueBeatWeight(frame: AlicizationDigitalLifeFrame) {
+  return clampUnit(frame.voice.cadence * 0.56 + frame.action.intensity * 0.44)
+}
+
+function resolveProjectedCueMouthWeight(frame: AlicizationDigitalLifeFrame) {
+  const mouthScaleWeight = clampUnit((frame.lipSync.mouthScale - 0.4) / 0.95)
+  return clampUnit(mouthScaleWeight * 0.58 + frame.voice.energy * 0.42)
+}
+
+function resolveProjectedRendererSettleValue(
+  current: number | undefined,
+  derived: number,
+  mode: 'prefer-derived' | 'prefer-longer' | 'prefer-shorter',
+) {
+  if (!Number.isFinite(current))
+    return derived
+
+  switch (mode) {
+    case 'prefer-longer':
+      return Math.max(Number(current), derived)
+    case 'prefer-shorter':
+      return Math.min(Number(current), derived)
+    case 'prefer-derived':
+    default:
+      return derived
+  }
+}
+
+function resolveProjectedRendererSettleHints(
+  frame: AlicizationDigitalLifeFrame,
+  fallback: AlicizationDialogueSpeechRendererSettleHints | null | undefined,
+): AlicizationDialogueSpeechRendererSettleHints {
+  const faceHoldMs = Math.round(clampRange(frame.face.holdMs, 80, 960))
+  const actionHoldMs = Math.round(clampRange(frame.action.holdMs, 70, 720))
+  const facialReleaseMs = Math.round(clampRange(
+    frame.face.expressionMode === 'hold'
+      ? faceHoldMs * 1.08
+      : frame.face.expressionMode === 'recover'
+        ? faceHoldMs * 0.78
+        : faceHoldMs * 0.92,
+    80,
+    1600,
+  ))
+  const expressionBlendMs = Math.round(clampRange(
+    frame.face.expressionMode === 'hold'
+      ? faceHoldMs * 0.92
+      : frame.face.expressionMode === 'recover'
+        ? faceHoldMs * 0.66
+        : faceHoldMs * 0.8,
+    60,
+    960,
+  ))
+  const motionFollowThroughMs = Math.round(clampRange(
+    frame.action.actionMode === 'hold'
+      ? actionHoldMs * 1.06
+      : frame.action.actionMode === 'none'
+        ? actionHoldMs * 0.68
+        : actionHoldMs * 0.86,
+    0,
+    1200,
+  ))
+  const actionFadeMs = Math.round(clampRange(
+    frame.action.actionMode === 'hold'
+      ? actionHoldMs * 0.94
+      : frame.action.actionMode === 'none'
+        ? actionHoldMs * 0.58
+        : actionHoldMs * 0.76,
+    80,
+    1200,
+  ))
+
+  return {
+    live2dFacialReleaseMs: resolveProjectedRendererSettleValue(
+      fallback?.live2dFacialReleaseMs,
+      facialReleaseMs,
+      frame.face.expressionMode === 'recover' ? 'prefer-shorter' : 'prefer-longer',
+    ),
+    vrmExpressionBlendMs: resolveProjectedRendererSettleValue(
+      fallback?.vrmExpressionBlendMs,
+      expressionBlendMs,
+      frame.face.expressionMode === 'recover' ? 'prefer-shorter' : 'prefer-longer',
+    ),
+    live2dMotionFollowThroughMs: resolveProjectedRendererSettleValue(
+      fallback?.live2dMotionFollowThroughMs,
+      motionFollowThroughMs,
+      frame.action.actionMode === 'hold'
+        ? 'prefer-longer'
+        : frame.action.actionMode === 'none'
+          ? 'prefer-shorter'
+          : 'prefer-derived',
+    ),
+    vrmActionFadeMs: resolveProjectedRendererSettleValue(
+      fallback?.vrmActionFadeMs,
+      actionFadeMs,
+      frame.action.actionMode === 'hold'
+        ? 'prefer-longer'
+        : frame.action.actionMode === 'none'
+          ? 'prefer-shorter'
+          : 'prefer-derived',
+    ),
+  }
+}
+
+export function projectStageEmbodimentSpeechCue(input: {
+  cue?: AlicizationDialogueSpeechTimelineSegment | null
+  digitalLifeFrame?: AlicizationDigitalLifeFrame | null
+}): AlicizationDialogueSpeechTimelineSegment | null {
+  const cue = input.cue ?? null
+  const frame = input.digitalLifeFrame ?? null
+  if (!cue && !frame)
+    return null
+
+  const text = cue?.text ?? frame?.text ?? ''
+  if (!text)
+    return cue ? { ...cue } : null
+
+  const startOffset = frame?.startOffset ?? cue?.startOffset ?? 0
+  const endOffset = Math.max(
+    startOffset,
+    frame?.endOffset
+    ?? cue?.endOffset
+    ?? (startOffset + Math.max(1, Array.from(text).length)),
+  )
+  const rendererHints = frame
+    ? mergeRendererHints([
+        frame.face.rendererHints,
+        frame.action.rendererHints,
+        cue?.rendererHints,
+      ])
+    : cloneRendererHints(cue?.rendererHints)
+  const projectedActionCue = frame
+    ? frame.action.actionMode === 'none'
+      ? null
+      : normalizeCueToken(frame.action.actionCue)
+    : normalizeCueToken(cue?.actionCue)
+  const projectedFacialCue = frame
+    ? normalizeCueToken(frame.face.facialCue)
+    : normalizeCueToken(cue?.facialCue)
+
+  return {
+    id: frame?.id ?? cue?.id ?? 'stage-embodiment:segment',
+    index: frame?.index ?? cue?.index ?? 0,
+    startOffset,
+    endOffset,
+    text,
+    emotion: frame?.face.emotion ?? cue?.emotion,
+    gestureWeight: frame ? clampUnit(frame.action.intensity, cue?.gestureWeight ?? 0) : clampUnit(cue?.gestureWeight ?? 0),
+    facialWeight: frame ? clampUnit(frame.face.intensity, cue?.facialWeight ?? 0) : clampUnit(cue?.facialWeight ?? 0),
+    prosodyWeight: frame ? clampUnit(frame.voice.cadence, cue?.prosodyWeight ?? 0) : clampUnit(cue?.prosodyWeight ?? 0),
+    beatWeight: frame ? resolveProjectedCueBeatWeight(frame) : clampUnit(cue?.beatWeight ?? 0),
+    mouthWeight: frame ? resolveProjectedCueMouthWeight(frame) : cue?.mouthWeight,
+    headWeight: frame ? clampUnit(frame.action.intensity, cue?.headWeight ?? cue?.gestureWeight ?? 0) : cue?.headWeight,
+    facialHoldMs: frame
+      ? Math.round(clampRange(frame.face.holdMs, 80, 960))
+      : cue?.facialHoldMs,
+    actionHoldMs: frame
+      ? Math.round(clampRange(frame.action.holdMs, 70, 720))
+      : cue?.actionHoldMs,
+    emotionHoldMs: frame
+      ? Math.round(clampRange(
+          Math.max(
+            frame.face.holdMs,
+            frame.lipSync.continuityHoldMs,
+            cue?.emotionHoldMs ?? 0,
+          ),
+          80,
+          960,
+        ))
+      : cue?.emotionHoldMs,
+    settleMode: frame?.settleMode ?? cue?.settleMode,
+    rendererSettle: frame
+      ? resolveProjectedRendererSettleHints(frame, cue?.rendererSettle)
+      : cloneRendererSettleHints(cue?.rendererSettle),
+    rendererHints,
+    actionCue: projectedActionCue,
+    facialCue: projectedFacialCue,
+    actionWindow: frame
+      ? !projectedActionCue
+        ? 'none'
+        : cue?.actionWindow === 'cadence-peak' || resolveProjectedCueBeatWeight(frame) >= 0.66
+          ? 'cadence-peak'
+          : 'segment-start'
+      : cue?.actionWindow ?? 'none',
+    interruptMode: frame?.interruptPolicy ?? cue?.interruptMode ?? 'continue',
+  }
 }
 
 function normalizeStylePitch(value: number | null | undefined) {
@@ -270,6 +552,7 @@ export function createIdleStageEmbodimentSpeechRenderState(): StageEmbodimentSpe
     mouthOpenSize: 0,
     mouthOpenRatio: 0,
     visemeIntensity: 0,
+    articulation: createIdleStageEmbodimentSpeechArticulationState(),
     dynamics: createIdleStageEmbodimentSpeechDynamicsState(),
     startedAt: null,
     endedAt: null,
@@ -279,13 +562,25 @@ export function createIdleStageEmbodimentSpeechRenderState(): StageEmbodimentSpe
 
 export function deriveStageEmbodimentSpeechRenderState(input: {
   state: StageEmbodimentSpeechPlaybackState
+  articulation?: StageEmbodimentSpeechArticulationState | null
   lastEventType?: StageEmbodimentSpeechPlaybackEvent['type'] | null
   revision?: number
 }): StageEmbodimentSpeechRenderState {
   const mouthOpenRatio = clampUnit(input.state.mouthOpenSize / 100)
   const speechEnergy = clampUnit(input.state.dynamics.speechEnergy)
   const prosodyIntensity = clampUnit(input.state.dynamics.prosodyIntensity)
+  const articulation = cloneStageEmbodimentSpeechArticulationState(input.articulation)
+  const articulationIntensity = clampUnit(Math.max(
+    articulation.openness,
+    articulation.jawOpen,
+    articulation.visemes.A,
+    articulation.visemes.E,
+    articulation.visemes.I,
+    articulation.visemes.O,
+    articulation.visemes.U,
+  ))
   const visemeIntensity = clampUnit(Math.max(
+    articulationIntensity * 0.92,
     mouthOpenRatio * 0.76,
     speechEnergy * 0.92,
     prosodyIntensity * 0.44,
@@ -304,6 +599,7 @@ export function deriveStageEmbodimentSpeechRenderState(input: {
     mouthOpenSize: Math.max(0, Math.min(100, input.state.mouthOpenSize)),
     mouthOpenRatio,
     visemeIntensity,
+    articulation,
     dynamics: {
       speechEnergy,
       prosodyIntensity,
@@ -324,9 +620,13 @@ export function createStageEmbodimentSpeechPlaybackItem(input: {
   text: string
   special: string | null | undefined
   continuityHoldMs?: number | null
+  playbackDurationMs?: number | null
+  metadata?: Record<string, unknown> | null
   cue?: AlicizationDialogueSpeechTimelineSegment | null
   digitalLifeFrame?: AlicizationDigitalLifeFrame | null
 }): StageEmbodimentSpeechPlaybackItem {
+  const digitalLifeFrame = input.digitalLifeFrame ?? null
+
   return {
     intentId: input.intentId ?? null,
     streamId: input.streamId ?? null,
@@ -335,7 +635,12 @@ export function createStageEmbodimentSpeechPlaybackItem(input: {
     text: input.text,
     special: input.special ?? null,
     continuityHoldMs: normalizeStageEmbodimentSpeechContinuityHoldMs(input.continuityHoldMs),
-    cue: input.cue ?? null,
-    digitalLifeFrame: input.digitalLifeFrame ?? null,
+    playbackDurationMs: normalizeStageEmbodimentSpeechPlaybackDurationMs(input.playbackDurationMs),
+    metadata: input.metadata ? { ...input.metadata } : null,
+    cue: projectStageEmbodimentSpeechCue({
+      cue: input.cue,
+      digitalLifeFrame,
+    }),
+    digitalLifeFrame,
   }
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationDeterministicExecutionDeliveryReply,
+  buildAlicizationExecutionPayoffPrompt,
   buildAlicizationInlineExecutionOutcomeReply,
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
@@ -110,5 +111,46 @@ describe('execution delivery surface', () => {
 
     expect(selected.source).toBe('llm')
     expect(selected.reply).toContain('callback fallback mirror ok')
+  })
+
+  it('adds a soft availability check when learned delivery policy is cautious', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      policy: {
+        mode: 'check-availability-first',
+        tone: 'cautious',
+        reasonTags: ['result-mode:check-availability-first'],
+      },
+    })
+
+    expect(reply).toContain('你现在要是方便')
+    expect(reply).toContain('patched runtime line')
+  })
+
+  it('threads self continuity authority into the payoff prompt surface', () => {
+    const prompt = buildAlicizationExecutionPayoffPrompt({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      selfContinuityAuthority: {
+        selfLine: 'I would rather repair truth than sound smooth.',
+        relationshipLine: 'Stay close enough to matter, but do not let closeness outrun truth.',
+        motiveLine: 'Keep trust by letting warmth answer to truth.',
+        habitLine: 'Ground first, then let warmth surface.',
+        inwardLine: 'I am still carrying the same runtime seam.',
+        authoritySummary: 'I would rather repair truth than sound smooth. | Keep trust by letting warmth answer to truth.',
+        sourceTags: ['autobiographical-self', 'motive:truth-discipline'],
+      },
+    })
+
+    expect(prompt.system).toContain('Self continuity authority JSON')
+    expect(prompt.system).toContain('repair truth')
   })
 })

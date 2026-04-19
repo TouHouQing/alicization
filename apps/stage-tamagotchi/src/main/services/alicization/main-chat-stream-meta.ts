@@ -47,14 +47,37 @@ export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMeta
     digitalLifeDominantMode: body.digitalLifeSpine?.runtime.dominantMode ?? null,
     digitalLifeSelectedAction: body.digitalLifeSpine?.proactive?.selectedAction ?? null,
     digitalLifeMemorySummary: body.digitalLifeSpine?.memory?.summary ?? null,
+    digitalLifeLongHorizonSummary: body.digitalLifeSpine?.memory?.longHorizonSummary ?? null,
+    digitalLifeRememberedPreferenceSummary: body.digitalLifeSpine?.memory?.rememberedPreferenceSummary ?? null,
+    digitalLifeRememberedConstraintSummary: body.digitalLifeSpine?.memory?.rememberedConstraintSummary ?? null,
+    digitalLifeRememberedPlanSummary: body.digitalLifeSpine?.memory?.rememberedPlanSummary ?? null,
+    digitalLifeLongHorizonCueCount: body.digitalLifeSpine?.memory?.longHorizonCueCount ?? null,
     digitalLifeRecallMode: body.digitalLifeSpine?.memory?.recallMode ?? null,
     digitalLifeRecentEpisodeCount: body.digitalLifeSpine?.memory?.recentEpisodeCount ?? 0,
     digitalLifeReflectionPressure: body.digitalLifeSpine?.memory?.reflectionPressure ?? null,
+    digitalLifeMotiveRulingDrive: body.digitalLifeSpine?.motive?.rulingDrive ?? null,
+    digitalLifeMotiveLeadingGoal: body.digitalLifeSpine?.motive?.leadingGoalSummary ?? null,
+    digitalLifeMotiveLeadingAgendaKind: body.digitalLifeSpine?.motive?.leadingAgendaKind ?? null,
+    digitalLifeMotiveLeadingAgendaSummary: body.digitalLifeSpine?.motive?.leadingAgendaSummary ?? null,
+    digitalLifeMotiveReturnPressure: body.digitalLifeSpine?.motive?.returnPressure ?? null,
+    digitalLifeHabitMode: body.digitalLifeSpine?.habit?.dominantMode ?? null,
+    digitalLifeHabitGroundingGate: body.digitalLifeSpine?.habit?.requiresGroundingBeforeSurface ?? null,
+    digitalLifeHabitBusyBoundary: body.digitalLifeSpine?.habit?.blocksDirectSpeakWhenBusy ?? null,
+    digitalLifeHabitProtectsRest: body.digitalLifeSpine?.habit?.protectsRestWindow ?? null,
+    digitalLifeOutcomeLearningSummary: body.digitalLifeSpine?.outcomeLearning?.summary ?? null,
+    digitalLifeOutcomeLatestInflection: body.digitalLifeSpine?.outcomeLearning?.latestInflection ?? null,
+    digitalLifeOutcomeReflectionLesson: body.digitalLifeSpine?.outcomeLearning?.reflectionLesson ?? null,
     runtimeDigestDominantChannel: body.runtimeDigest?.dominantChannel ?? null,
     runtimeDigestShouldSpeak: body.runtimeDigest?.shouldProactivelySpeak ?? null,
     runtimeDigestShouldAct: body.runtimeDigest?.shouldProactivelyAct ?? null,
     runtimeDigestContinuityPressure: body.runtimeDigest?.continuityPressure ?? null,
     runtimeDigestCompanionshipPressure: body.runtimeDigest?.companionshipPressure ?? null,
+    runtimeDigestRulingMotive: body.runtimeDigest?.rulingMotive ?? null,
+    runtimeDigestHabitMode: body.runtimeDigest?.habitMode ?? null,
+    runtimeDigestTruthDisciplinePressure: body.runtimeDigest?.truthDisciplinePressure ?? null,
+    runtimeDigestBoundaryPressure: body.runtimeDigest?.boundaryPressure ?? null,
+    runtimeDigestRestProtectionPressure: body.runtimeDigest?.restProtectionPressure ?? null,
+    runtimeDigestReturnPressure: body.runtimeDigest?.returnPressure ?? null,
     runtimeDigestActiveLoopPhase: body.runtimeDigest?.activeLoop?.phase ?? null,
     runtimeDigestActiveLoopHandoff: body.runtimeDigest?.activeLoop?.handoffTarget ?? null,
     runtimeDigestActiveLoopInitiativeBudget: body.runtimeDigest?.activeLoop?.initiativeBudget ?? null,
@@ -80,14 +103,15 @@ export function createAlicizationChatStreamMetaEmitter(input: {
   let lastReply = ''
 
   function emit(reply: string, options?: { force?: boolean }) {
+    const digitalLifeSpine = input.getDigitalLifeSpine?.() ?? null
     const meta = buildAlicizationChatStreamEmbodimentMeta({
       governance: input.getGovernance() ?? null,
+      digitalLifeSpine,
       performanceManifest: input.getPerformanceManifest?.() ?? null,
       residentPerformance: input.getResidentPerformance?.() ?? null,
       reply,
       turnId: input.turnId,
     })
-    const digitalLifeSpine = input.getDigitalLifeSpine?.() ?? null
     const runtimeDigest = input.getRuntimeDigest?.() ?? null
     const emittedMeta = {
       cardId: input.cardId,

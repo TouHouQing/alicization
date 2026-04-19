@@ -1,5 +1,6 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernSnapshot,
@@ -10,12 +11,14 @@ import type {
   AlicizationExecutiveCycleSnapshot,
   AlicizationGoalStackSnapshot,
   AlicizationHypothesisGraphSnapshot,
+  AlicizationHabitPolicySnapshot,
   AlicizationInitiativeArbitrationSnapshot,
   AlicizationInitiativeSnapshot,
   AlicizationInquiryLoopSnapshot,
   AlicizationInquiryPlannerSnapshot,
   AlicizationIntentionStreamSnapshot,
   AlicizationMindDynamicsSnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMindMotive,
   AlicizationProactiveStyle,
@@ -33,6 +36,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildInitiativeArbitration } from './initiative-arbiter'
 
 function clamp01(value: number) {
@@ -147,6 +151,9 @@ export function buildInitiativeSnapshot(input: {
   intentionStream?: AlicizationIntentionStreamSnapshot | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   executiveCycle?: AlicizationExecutiveCycleSnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
 }): AlicizationInitiativeSnapshot {
   const concern = highestConcern(input.concerns)
   const focusBelief = input.beliefLedger?.beliefs.find(belief => belief.id === input.beliefLedger?.focusBeliefId) ?? null
@@ -171,9 +178,17 @@ export function buildInitiativeSnapshot(input: {
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const governingProject = dominantProject(input.intentionStream)
   const activeReflection = latestReflection(input.reflectionLedger)
+  const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf)
+  const stablePreferences = input.autobiographicalSelf?.preferenceEvolution ?? null
+  const motiveEngine = input.motiveEngine ?? null
+  const habitPolicy = input.habitPolicy ?? null
   const motives: Partial<Record<AlicizationMindMotive, number>> = {
     ...input.mindDynamics.motives,
   }
+  motives.accompany = clamp01((motives.accompany ?? 0) + (motiveEngine?.drives.companionship ?? 0) * 0.24)
+  motives.protect = clamp01((motives.protect ?? 0) + (motiveEngine?.drives.restProtection ?? 0) * 0.18 + (motiveEngine?.drives.boundaryRespect ?? 0) * 0.08)
+  motives.clarify = clamp01((motives.clarify ?? 0) + (motiveEngine?.drives.truthDiscipline ?? 0) * 0.18 + (motiveEngine?.returnPressure ?? 0) * 0.12)
+  motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + (motiveEngine?.drives.boundaryRespect ?? 0) * 0.08)
   motives.protect = clamp01((motives.protect ?? 0) + (input.mindKernel?.dominantMode === 'guarding' ? 0.1 : 0))
   motives.clarify = clamp01((motives.clarify ?? 0) + (input.mindKernel?.dominantMode === 'repairing' || input.mindKernel?.dominantMode === 'orienting' ? 0.08 : 0))
   motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + (activeInquiryPlan?.kind === 'wait-opening' ? 0.08 : 0))
@@ -185,6 +200,22 @@ export function buildInitiativeSnapshot(input: {
     motives.accompany = clamp01((motives.accompany ?? 0) + 0.1)
   if (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
     motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + 0.14)
+  if (autobiographicalGoal?.kind === 'preserve-trust' || autobiographicalGoal?.kind === 'reduce-misread') {
+    motives.clarify = clamp01((motives.clarify ?? 0) + 0.14)
+    motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + 0.06)
+  }
+  if (autobiographicalGoal?.kind === 'stay-near-without-crowding') {
+    motives.accompany = clamp01((motives.accompany ?? 0) + 0.12)
+    motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + ((stablePreferences?.autonomyRespect ?? 0) * 0.08))
+  }
+  if (autobiographicalGoal?.kind === 'protect-rest-rhythm') {
+    motives.care = clamp01((motives.care ?? 0) + 0.14)
+    motives.protect = clamp01((motives.protect ?? 0) + 0.08)
+  }
+  if (autobiographicalGoal?.kind === 'finish-open-loops')
+    motives.clarify = clamp01((motives.clarify ?? 0) + 0.1)
+  if (autobiographicalGoal?.kind === 'grow-shared-language')
+    motives.accompany = clamp01((motives.accompany ?? 0) + 0.08)
 
   const dominantDrive = Math.max(
     motives.protect ?? 0,
@@ -256,8 +287,58 @@ export function buildInitiativeSnapshot(input: {
   ) {
     selectedAction = governingProject?.kind === 'care-host' ? 'speak' : 'whisper'
   }
+  if (
+    (autobiographicalGoal?.kind === 'preserve-trust' || autobiographicalGoal?.kind === 'reduce-misread')
+    && (selectedAction === 'speak' || selectedAction === 'whisper')
+    && input.worldModel.epistemicState.certainty !== 'grounded'
+  ) {
+    selectedAction = 'recheck'
+  }
+  else if (
+    autobiographicalGoal?.kind === 'stay-near-without-crowding'
+    && selectedAction === 'wait'
+    && (stablePreferences?.companionship ?? 0) >= 0.58
+  ) {
+    selectedAction = input.context.system.inputActivity === 'active' ? 'hover' : 'whisper'
+  }
+  if (
+    habitPolicy?.requiresGroundingBeforeSurface
+    && (selectedAction === 'speak' || selectedAction === 'whisper' || selectedAction === 'warn')
+    && input.worldModel.epistemicState.certainty !== 'grounded'
+  ) {
+    selectedAction = 'recheck'
+  }
+  else if (
+    habitPolicy?.blocksDirectSpeakWhenBusy
+    && input.context.system.inputActivity === 'active'
+    && selectedAction === 'speak'
+  ) {
+    selectedAction = 'hover'
+  }
+  else if (
+    habitPolicy?.prefersQuietCompanionship
+    && motiveEngine?.rulingDrive === 'companionship'
+    && selectedAction === 'wait'
+  ) {
+    selectedAction = 'hover'
+  }
+  else if (
+    habitPolicy?.protectsRestWindow
+    && (selectedAction === 'wait' || selectedAction === 'hover')
+  ) {
+    selectedAction = input.context.relationship.fatigue >= 80 ? 'warn' : 'speak'
+  }
+  else if (
+    (motiveEngine?.returnPressure ?? 0) >= 0.62
+    && input.worldModel.activeThread?.unresolved
+    && selectedAction === 'wait'
+  ) {
+    selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'whisper' : 'recheck'
+  }
   const why = input.executiveCycle?.currentLine
     ?? activeReflection?.revision
+    ?? motiveEngine?.backgroundAgendas[0]?.summary
+    ?? autobiographicalGoal?.summary
     ?? governingProject?.summary
     ?? selectedProposal?.why
     ?? thoughtThread?.summary
@@ -276,8 +357,32 @@ export function buildInitiativeSnapshot(input: {
     selfState: input.selfState,
     mindKernel: input.mindKernel,
   })
-  const preferredStyleFromMind = counterfactualOption?.style ?? preferredStyle
-  const preferredPresence = counterfactualOption?.embodiedPresence ?? fallbackPresence
+  const autobiographicalStyle = autobiographicalGoal?.kind === 'protect-rest-rhythm'
+    ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
+    : autobiographicalGoal?.kind === 'grow-shared-language' && (stablePreferences?.playfulIntimacy ?? 0) >= 0.56
+      ? 'light-nudge'
+      : preferredStyle
+  const preferredStyleFromMind = counterfactualOption?.style ?? autobiographicalStyle
+  const cappedPreferredStyle = habitPolicy?.suggestedStyleCap === 'silent-observe'
+    ? 'silent-observe'
+    : habitPolicy?.suggestedStyleCap === 'gentle-care' && preferredStyleFromMind === 'light-nudge'
+      ? 'gentle-care'
+      : habitPolicy?.suggestedStyleCap === 'firm-warning' && selectedAction === 'warn'
+        ? 'firm-warning'
+        : preferredStyleFromMind
+  const preferredPresence = counterfactualOption?.embodiedPresence
+    ?? (
+      input.autobiographicalSelf?.personaDrift.attachmentStyle === 'attuned' && (selectedAction === 'hover' || selectedAction === 'whisper')
+        ? 'attentive'
+        : input.autobiographicalSelf?.personaDrift.attachmentStyle === 'guarded' && selectedAction === 'hover'
+          ? 'hesitant'
+          : fallbackPresence
+    )
+  const cappedPreferredPresence = habitPolicy?.suggestedPresenceCap === 'concerned'
+    ? selectedAction === 'warn' || selectedAction === 'speak' ? 'concerned' : preferredPresence
+    : habitPolicy?.suggestedPresenceCap === 'hesitant' && preferredPresence === 'attentive'
+      ? 'hesitant'
+      : habitPolicy?.suggestedPresenceCap ?? preferredPresence
   const speakForwardDrive = input.counterfactualDeliberation?.options
     .filter(option => option.action === 'whisper' || option.action === 'speak' || option.action === 'warn')
     .reduce((best, option) => Math.max(best, option.score), 0)
@@ -316,10 +421,27 @@ export function buildInitiativeSnapshot(input: {
       + (selectedAction === 'recheck' ? 0.06 : 0),
     ),
     motives,
-    speakDrive: clamp01(Math.max(speakDrive + executiveSurfaceBias + (governingProject?.speakAffinity ?? 0) * 0.12, speakForwardDrive ?? 0)),
-    silenceDrive: clamp01(Math.max(silenceDrive + executiveSilenceBias + (input.reflectionLedger?.revisionPressure ?? 0) * 0.08, silenceForwardDrive ?? 0)),
-    preferredStyle: selectedProposal?.style ?? preferredStyleFromMind,
-    preferredPresence: selectedProposal?.embodiedPresence ?? foregroundRuntimeThread?.suggestedPresence ?? preferredPresence,
+    speakDrive: clamp01(Math.max(
+      speakDrive
+      + executiveSurfaceBias
+      + (governingProject?.speakAffinity ?? 0) * 0.12
+      + (motiveEngine?.drives.companionship ?? 0) * 0.06
+      + (motiveEngine?.drives.restProtection ?? 0) * 0.08
+      - (habitPolicy?.blocksDirectSpeakWhenBusy ? 0.1 : 0)
+      - (habitPolicy?.requiresGroundingBeforeSurface ? 0.08 : 0),
+      speakForwardDrive ?? 0,
+    )),
+    silenceDrive: clamp01(Math.max(
+      silenceDrive
+      + executiveSilenceBias
+      + (input.reflectionLedger?.revisionPressure ?? 0) * 0.08
+      + (motiveEngine?.drives.boundaryRespect ?? 0) * 0.08
+      + (habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0)
+      + (habitPolicy?.prefersQuietCompanionship ? 0.08 : 0),
+      silenceForwardDrive ?? 0,
+    )),
+    preferredStyle: selectedProposal?.style ?? cappedPreferredStyle,
+    preferredPresence: selectedProposal?.embodiedPresence ?? foregroundRuntimeThread?.suggestedPresence ?? cappedPreferredPresence,
     why,
     shouldSurface: selectedProposal?.shouldSurface
       ?? input.actionEcology?.shouldSurface

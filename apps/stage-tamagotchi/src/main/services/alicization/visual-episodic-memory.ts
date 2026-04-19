@@ -1,7 +1,9 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationAnswerPlannerSnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationClaimEvidenceLedgerSnapshot,
@@ -32,6 +34,7 @@ import type {
   AlicizationInquiryPlannerSnapshot,
   AlicizationInspectionTurnState,
   AlicizationIntentionStreamSnapshot,
+  AlicizationLongHorizonMemorySnapshot,
   AlicizationLivingWorldStateSnapshot,
   AlicizationMindDynamicsSnapshot,
   AlicizationMindKernelSnapshot,
@@ -1124,6 +1127,87 @@ function normalizeInitiative(raw: unknown): AlicizationInitiativeSnapshot | null
   }
 }
 
+function normalizeAutonomy(raw: unknown): AlicizationAutonomySnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const candidate = raw as Record<string, unknown>
+  const selectedMode = candidate.selectedMode
+  if (
+    selectedMode !== 'wait'
+    && selectedMode !== 'recheck'
+    && selectedMode !== 'hover'
+    && selectedMode !== 'whisper'
+    && selectedMode !== 'speak'
+    && selectedMode !== 'warn'
+    && selectedMode !== 'prepare-act'
+    && selectedMode !== 'act'
+  ) {
+    return null
+  }
+
+  const visibleAction = candidate.visibleAction
+  if (
+    visibleAction !== 'wait'
+    && visibleAction !== 'recheck'
+    && visibleAction !== 'hover'
+    && visibleAction !== 'whisper'
+    && visibleAction !== 'speak'
+    && visibleAction !== 'warn'
+  ) {
+    return null
+  }
+
+  const executionIntent = candidate.executionIntent && typeof candidate.executionIntent === 'object' && !Array.isArray(candidate.executionIntent)
+    ? candidate.executionIntent as Record<string, unknown>
+    : null
+
+  return {
+    selectedMode,
+    visibleAction,
+    shouldSurface: candidate.shouldSurface === true,
+    shouldSpeak: candidate.shouldSpeak === true,
+    shouldAct: candidate.shouldAct === true,
+    speakReadiness: clamp01(Number(candidate.speakReadiness)),
+    actReadiness: clamp01(Number(candidate.actReadiness)),
+    inhibition: clamp01(Number(candidate.inhibition)),
+    confidence: clamp01(Number(candidate.confidence)),
+    deferReason: sanitizeText(candidate.deferReason, 160) || null,
+    guardReasons: Array.isArray(candidate.guardReasons)
+      ? candidate.guardReasons.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 64)).filter(Boolean).slice(0, 6)
+      : [],
+    whyNow: sanitizeText(candidate.whyNow, 220),
+    sourceGoalId: sanitizeText(candidate.sourceGoalId, 120) || null,
+    sourceGoalSummary: sanitizeText(candidate.sourceGoalSummary, 180) || null,
+    sourceAgendaId: sanitizeText(candidate.sourceAgendaId, 120) || null,
+    sourceAgendaKind: sanitizeText(candidate.sourceAgendaKind, 64) || null,
+    sourceAgendaSummary: sanitizeText(candidate.sourceAgendaSummary, 180) || null,
+    sourceThreadId: sanitizeText(candidate.sourceThreadId, 120) || null,
+    sourceThreadSummary: sanitizeText(candidate.sourceThreadSummary, 180) || null,
+    sourceThoughtThreadId: sanitizeText(candidate.sourceThoughtThreadId, 120) || null,
+    sourceDesireId: sanitizeText(candidate.sourceDesireId, 120) || null,
+    sourceConcernId: sanitizeText(candidate.sourceConcernId, 120) || null,
+    sourceProposalId: sanitizeText(candidate.sourceProposalId, 120) || null,
+    sourceProposalSource: sanitizeText(candidate.sourceProposalSource, 64) || null,
+    executionIntent: executionIntent
+      ? {
+          kind: executionIntent.kind === 'observe'
+            || executionIntent.kind === 'repair'
+            || executionIntent.kind === 'care'
+            || executionIntent.kind === 'guide'
+            || executionIntent.kind === 'follow-through'
+            || executionIntent.kind === 'companionship'
+            ? executionIntent.kind
+            : 'observe',
+          summary: sanitizeText(executionIntent.summary, 220),
+          targetThreadId: sanitizeText(executionIntent.targetThreadId, 120) || null,
+        }
+      : null,
+    updatedAt: Number.isFinite(Number(candidate.updatedAt))
+      ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
+      : Date.now(),
+  }
+}
+
 function normalizeWorldOntology(raw: unknown): AlicizationWorldOntologySnapshot | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
@@ -1816,6 +1900,12 @@ function normalizeExecutiveCycle(raw: unknown): AlicizationExecutiveCycleSnapsho
   return raw as AlicizationExecutiveCycleSnapshot
 }
 
+function normalizeAutobiographicalSelf(raw: unknown): AlicizationAutobiographicalSelfSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  return raw as AlicizationAutobiographicalSelfSnapshot
+}
+
 export function createDefaultVisualPresenceState(now = Date.now()): AlicizationVisualPresenceStateSnapshot {
   return withResidentPerformance({
     watchMode: 'mnemonic-passive',
@@ -1836,7 +1926,11 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     concerns: [],
     concernContinuity: null,
     relationshipModel: null,
+    longHorizonMemory: null,
     selfContinuity: null,
+    autobiographicalSelf: null,
+    motiveEngine: null,
+    habitPolicy: null,
     selfState: null,
     selfGovernor: null,
     inquiryLoop: null,
@@ -1855,6 +1949,7 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     actionEcology: null,
     initiativeArbitration: null,
     initiative: null,
+    autonomy: null,
     desireMemory: null,
     discourseState: null,
     dialogueEncounter: null,
@@ -1924,8 +2019,18 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
     ? candidate.concernContinuity as AlicizationConcernContinuityLedgerSnapshot
     : null
   base.relationshipModel = normalizeRelationshipModel(candidate.relationshipModel)
+  base.longHorizonMemory = candidate.longHorizonMemory && typeof candidate.longHorizonMemory === 'object'
+    ? candidate.longHorizonMemory as AlicizationLongHorizonMemorySnapshot
+    : null
   base.selfContinuity = candidate.selfContinuity && typeof candidate.selfContinuity === 'object'
     ? candidate.selfContinuity as AlicizationSelfContinuitySnapshot
+    : null
+  base.autobiographicalSelf = normalizeAutobiographicalSelf(candidate.autobiographicalSelf)
+  base.motiveEngine = candidate.motiveEngine && typeof candidate.motiveEngine === 'object'
+    ? candidate.motiveEngine as AlicizationVisualPresenceStateSnapshot['motiveEngine']
+    : null
+  base.habitPolicy = candidate.habitPolicy && typeof candidate.habitPolicy === 'object'
+    ? candidate.habitPolicy as AlicizationVisualPresenceStateSnapshot['habitPolicy']
     : null
   base.selfState = candidate.selfState && typeof candidate.selfState === 'object'
     ? candidate.selfState as AlicizationSelfStateSnapshot
@@ -1953,6 +2058,7 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   base.actionEcology = normalizeActionEcology(candidate.actionEcology)
   base.initiativeArbitration = normalizeInitiativeArbitration(candidate.initiativeArbitration)
   base.initiative = normalizeInitiative(candidate.initiative)
+  base.autonomy = normalizeAutonomy(candidate.autonomy)
   base.desireMemory = candidate.desireMemory && typeof candidate.desireMemory === 'object'
     ? candidate.desireMemory as AlicizationDesireMemorySnapshot
     : null
@@ -2078,7 +2184,11 @@ export function updateVisualPresenceState(input: {
   concerns?: AlicizationConcernSnapshot[]
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
+  habitPolicy?: AlicizationVisualPresenceStateSnapshot['habitPolicy']
   selfState?: AlicizationSelfStateSnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   inquiryLoop?: AlicizationInquiryLoopSnapshot | null
@@ -2097,6 +2207,7 @@ export function updateVisualPresenceState(input: {
   actionEcology?: AlicizationActionEcologySnapshot | null
   initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
+  autonomy?: AlicizationAutonomySnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounterSnapshot | null
@@ -2149,7 +2260,11 @@ export function updateVisualPresenceState(input: {
     concerns: Array.isArray(input.concerns) ? input.concerns : [],
     concernContinuity: input.concernContinuity ?? previousState.concernContinuity ?? null,
     relationshipModel: input.relationshipModel ?? previousState.relationshipModel ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? previousState.longHorizonMemory ?? null,
     selfContinuity: input.selfContinuity ?? previousState.selfContinuity ?? null,
+    autobiographicalSelf: input.autobiographicalSelf ?? previousState.autobiographicalSelf ?? null,
+    motiveEngine: input.motiveEngine ?? previousState.motiveEngine ?? null,
+    habitPolicy: input.habitPolicy ?? previousState.habitPolicy ?? null,
     selfState: input.selfState ?? null,
     selfGovernor: input.selfGovernor ?? previousState.selfGovernor ?? null,
     inquiryLoop: input.inquiryLoop ?? previousState.inquiryLoop ?? null,
@@ -2168,6 +2283,7 @@ export function updateVisualPresenceState(input: {
     actionEcology: input.actionEcology ?? previousState.actionEcology ?? null,
     initiativeArbitration: input.initiativeArbitration ?? previousState.initiativeArbitration ?? null,
     initiative: input.initiative ?? null,
+    autonomy: input.autonomy ?? previousState.autonomy ?? null,
     desireMemory: input.desireMemory ?? previousState.desireMemory ?? null,
     discourseState: input.discourseState ?? previousState.discourseState ?? null,
     dialogueEncounter: input.dialogueEncounter ?? previousState.dialogueEncounter ?? null,

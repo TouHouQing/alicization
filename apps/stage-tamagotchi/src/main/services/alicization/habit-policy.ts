@@ -1,0 +1,148 @@
+import type {
+  AlicizationAutobiographicalSelfSnapshot,
+  AlicizationHabitPolicySnapshot,
+  AlicizationMotiveEngineSnapshot,
+  AlicizationReflectionLedgerSnapshot,
+  AlicizationRelationshipModelSnapshot,
+  AlicizationSelfContinuitySnapshot,
+  AlicizationWorldModelSnapshot,
+} from '../../../shared/eventa'
+import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { buildHostRhythmModel } from './host-rhythm-model'
+
+export const alicizationHabitPolicyMarker = '[ALICIZATION_HABIT_POLICY]'
+
+function sanitizeText(raw: unknown, maxChars = 80) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+export function buildHabitPolicy(input: {
+  now: number
+  context: AlicizationProactiveLayeredContext
+  worldModel: AlicizationWorldModelSnapshot
+  relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  previous?: AlicizationHabitPolicySnapshot | null
+}): AlicizationHabitPolicySnapshot {
+  const hostRhythm = buildHostRhythmModel({
+    context: input.context,
+    worldModel: input.worldModel,
+    watchMode: 'symbiotic-vision',
+  })
+  const busyHost = input.context.system.inputActivity === 'active'
+    || input.worldModel.hostState.availability === 'focused'
+    || input.worldModel.hostState.availability === 'immersed'
+  const truthDrive = input.motiveEngine?.drives.truthDiscipline ?? 0
+  const boundaryDrive = input.motiveEngine?.drives.boundaryRespect ?? 0
+  const companionshipDrive = input.motiveEngine?.drives.companionship ?? 0
+  const restDrive = input.motiveEngine?.drives.restProtection ?? 0
+  const returnDrive = input.motiveEngine?.drives.unfinishedThreadReturn ?? 0
+  const misreadBurden = input.selfContinuity?.misreadBurden ?? 0.18
+  const correctionSensitivity = input.relationshipModel?.correctionSensitivity ?? 0.34
+  const revisionPressure = input.reflectionLedger?.revisionPressure ?? 0
+
+  const requiresGroundingBeforeSurface
+    = truthDrive >= 0.58
+      || revisionPressure >= 0.24
+      || misreadBurden >= 0.32
+      || (
+        input.autobiographicalSelf?.personaDrift.conflictStyle === 'repair-first'
+        && input.worldModel.epistemicState.certainty !== 'grounded'
+      )
+  const prefersQuietCompanionship
+    = companionshipDrive >= 0.56
+      && (
+        boundaryDrive >= companionshipDrive - 0.08
+        || busyHost
+        || hostRhythm.interruptionSensitivity >= 0.48
+        || input.autobiographicalSelf?.personaDrift.attachmentStyle !== 'attuned'
+      )
+  const blocksDirectSpeakWhenBusy
+    = busyHost
+      && (
+        boundaryDrive >= 0.56
+        || correctionSensitivity >= 0.62
+        || hostRhythm.workMode === 'deep-focus'
+        || (input.autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0) >= 0.62
+      )
+  const protectsRestWindow
+    = restDrive >= 0.58
+      && (
+        input.context.localTime.isLateNight
+        || input.context.relationship.fatigue >= 60
+        || input.worldModel.activeThread?.kind === 'late-night-endurance'
+      )
+  const returnViaRecheck
+    = returnDrive >= 0.56
+      && input.worldModel.activeThread?.unresolved === true
+      && input.worldModel.epistemicState.certainty !== 'grounded'
+
+  let dominantMode: AlicizationHabitPolicySnapshot['dominantMode'] = 'watchful-boundary'
+  if (protectsRestWindow)
+    dominantMode = 'protect-rest-window'
+  else if (requiresGroundingBeforeSurface)
+    dominantMode = 'repair-before-fluency'
+  else if (returnViaRecheck)
+    dominantMode = 'return-with-proof'
+  else if (prefersQuietCompanionship)
+    dominantMode = 'light-touch-companionship'
+
+  return {
+    dominantMode,
+    requiresGroundingBeforeSurface,
+    prefersQuietCompanionship,
+    blocksDirectSpeakWhenBusy,
+    protectsRestWindow,
+    returnViaRecheck,
+    suggestedStyleCap: dominantMode === 'protect-rest-window'
+      ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
+      : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof' || dominantMode === 'watchful-boundary'
+        ? 'silent-observe'
+        : 'light-nudge',
+    suggestedPresenceCap: dominantMode === 'protect-rest-window'
+      ? 'concerned'
+      : dominantMode === 'repair-before-fluency' || dominantMode === 'return-with-proof'
+        ? 'hesitant'
+        : dominantMode === 'light-touch-companionship'
+          ? 'attentive'
+          : 'glance',
+    narrative: [
+      `policy:${dominantMode}`,
+      requiresGroundingBeforeSurface ? 'ground-before-surface' : '',
+      prefersQuietCompanionship ? 'companionship:quiet' : '',
+      blocksDirectSpeakWhenBusy ? 'busy-window:no-direct-speak' : '',
+      ...hostRhythm.narrative,
+      protectsRestWindow ? 'protect-rest-window' : '',
+      returnViaRecheck ? 'return-open-loop-via-recheck' : '',
+      sanitizeText(input.motiveEngine?.backgroundAgendas[0]?.summary ?? '', 80),
+    ].filter(Boolean),
+    updatedAt: input.now,
+  }
+}
+
+export function buildHabitPolicySystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  const snapshot = surface?.agency.habitPolicy ?? null
+  if (!snapshot)
+    return ''
+
+  return [
+    alicizationHabitPolicyMarker,
+    'This block describes Alicization\'s stabilized behavior policy rather than a one-turn style choice.',
+    'Use it as the default behavior gate between durable self and immediate reply generation, especially when deciding whether to slow down, soften, wait, or return with proof.',
+    `Dominant mode: ${snapshot.dominantMode}.`,
+    `Grounding gate: ${snapshot.requiresGroundingBeforeSurface ? 'active' : 'inactive'}.`,
+    `Quiet companionship: ${snapshot.prefersQuietCompanionship ? 'preferred' : 'not preferred'}.`,
+    `Busy-window direct-speak block: ${snapshot.blocksDirectSpeakWhenBusy ? 'active' : 'inactive'}.`,
+    `Rest protection: ${snapshot.protectsRestWindow ? 'active' : 'inactive'}.`,
+    `Return via recheck: ${snapshot.returnViaRecheck ? 'active' : 'inactive'}.`,
+    `Style cap: ${snapshot.suggestedStyleCap}. Presence cap: ${snapshot.suggestedPresenceCap}.`,
+    `Habit narrative: ${snapshot.narrative.join(', ') || 'none'}.`,
+  ].join('\n')
+}

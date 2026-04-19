@@ -35,6 +35,7 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
   buildMainChatContextualString: (payload: AlicizationChatStartPayload) => Promise<string>
   buildMainChatExecutionCallbackContext: (payload: AlicizationChatStartPayload) => Promise<any>
   buildMainChatExecutionLedgerContext: (payload: AlicizationChatStartPayload) => Promise<any>
+  buildMainChatPendingAffirmationThread: (payload: AlicizationChatStartPayload) => Promise<any>
   augmentMainChatMessagesWithPerception: (input: {
     cardId: string
     userText: string
@@ -56,6 +57,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     buildMainChatContextualString,
     buildMainChatExecutionCallbackContext,
     buildMainChatExecutionLedgerContext,
+    buildMainChatPendingAffirmationThread,
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution,
   } = options
@@ -126,6 +128,9 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,
       explicitRoutingIntent: explicitExecutionRoutingIntent,
+      pendingAffirmationThread: latestUserText && !shouldBypassPerception
+        ? await buildMainChatPendingAffirmationThread(payload)
+        : null,
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
     })
 

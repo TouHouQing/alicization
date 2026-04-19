@@ -320,4 +320,27 @@ describe('main chat action obligation', () => {
     expect(clarifyTurn.kind).toBe('clarify')
     expect(clarifyTurn.routingIntent).toBeNull()
   })
+
+  it('treats short affirmative replies as consent for the latest pending execution proposal', () => {
+    const result = deriveMainChatActionObligation({
+      userText: '可以，做吧',
+      capabilityInquiry: createCapabilityInquiry(),
+      pendingAffirmationThread: {
+        threadId: 'thread-proposal-1',
+        goal: 'Proactively patch the current unresolved Alicization line',
+        summary: 'Execution is waiting for affirmation before codex can act on the current unresolved line.',
+        selectedChannel: null,
+        proposedChannel: 'codex',
+        affirmationReasonCodes: ['proactive-side-effects-require-explicit-consent'],
+      },
+    })
+
+    expect(result.kind).toBe('continue-task')
+    expect(result.source).toBe('pending-affirmation')
+    expect(result.resumePendingThreadId).toBe('thread-proposal-1')
+    expect(result.resumePendingThreadChannel).toBe('codex')
+    expect(result.routingIntent?.requestedChannels).toEqual(['codex'])
+    expect(result.routingIntent?.requiredToolNames).toEqual(['executor_run_codex'])
+    expect(result.reasonCodes).toContain('affirmed-pending-execution-proposal')
+  })
 })

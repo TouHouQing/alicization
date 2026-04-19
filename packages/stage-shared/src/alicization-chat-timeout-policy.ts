@@ -24,7 +24,7 @@ export const alicizationRendererBridgeIdleTimeoutMs = 45_000
 export const alicizationRendererBridgeRetryFirstEventTimeoutMs = 65_000
 export const alicizationRendererBridgeRetryIdleTimeoutMs = 25_000
 
-export const alicizationMainGatewayFirstProgressTimeoutMs = 45_000
+export const alicizationMainGatewayFirstProgressTimeoutMs = 65_000
 export const alicizationMainGatewayFirstProgressTimeoutWithVisualGroundingMs = 90_000
 
 function resolveMainGatewayFirstProgressTimeoutMs(input?: {

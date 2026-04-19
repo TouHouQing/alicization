@@ -2,6 +2,11 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationDurabilityPulseSnapshot,
+  AlicizationMemoryFact,
+  AlicizationMemoryReflectionRecord,
+  AlicizationMindHeadKey,
+  AlicizationPersonaReinforcementEventRecord,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSystemProbeSample,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
@@ -17,6 +22,8 @@ import type { buildVisualHeartbeat } from './visual-heartbeat'
 import { buildActionEcology } from './action-ecology'
 import { buildAnswerCompiler } from './answer-compiler'
 import { buildAnswerPlanner } from './answer-planner'
+import { buildAutonomySnapshot } from './autonomy-kernel'
+import { buildAutobiographicalSelf } from './autobiographical-self'
 import { isSelfPerceptionTarget } from './attention-anchor'
 import { buildBeliefLedger } from './belief-ledger'
 import { buildBeliefRevision } from './belief-revision'
@@ -32,6 +39,7 @@ import { buildDesireMemory } from './desire-memory'
 import { buildDialogueActKernel } from './dialogue-act-kernel'
 import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { buildDialogueTurnEncounter } from './dialogue-turn-encounter'
+import { buildHabitPolicy } from './habit-policy'
 import {
   buildDialogueTurnSemantics,
   mergeDialogueTurnSemantics,
@@ -51,8 +59,14 @@ import { buildInquiryLoop } from './inquiry-loop'
 import { buildInquiryPlanner } from './inquiry-planner'
 import { buildIntentionStream } from './intention-stream'
 import { buildLivingWorldState } from './living-world-state'
+import {
+  buildAlicizationLongHorizonMemory,
+  buildAlicizationLongHorizonMemoryQuery,
+} from './long-horizon-memory'
 import { buildMindDynamics } from './mind-dynamics'
+import { buildMindEcology } from './mind-ecology'
 import { buildMindKernel } from './mind-kernel'
+import { buildMotiveEngine } from './motive-engine'
 import { stabilizeMindStateInvariants } from './mind-state-invariants'
 import { buildMindSynthesis } from './mind-synthesizer'
 import { buildMindTurnFrame } from './mind-turn-frame'
@@ -115,6 +129,24 @@ interface CreateAlicizationMindStateRuntimeOptions {
   buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => string
   readLatestAssistantMessageText: (messages: Array<{ role?: string, content?: unknown }>) => string
   readTransportContentAsText: (content: unknown) => string
+  retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
+  listRelationshipOutcomes: (cardId: string, limit?: number) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  listPersonaReinforcementEvents: (cardId: string, limit?: number) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  listMemoryReflections: (cardId: string, limit?: number) => Promise<AlicizationMemoryReflectionRecord[]>
+  readMindHead: <T>(cardId: string, key: AlicizationMindHeadKey) => Promise<T | null>
+}
+
+function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflectionRecord): NonNullable<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>['entries'][number] {
+  return {
+    id: record.id,
+    summary: record.summary,
+    expectation: record.summary,
+    observedOutcome: record.summary,
+    outcome: 'unknown',
+    revision: record.lesson,
+    confidenceShift: 0,
+    createdAt: record.createdAt,
+  }
 }
 
 export function createAlicizationMindStateRuntime(options: CreateAlicizationMindStateRuntimeOptions) {
@@ -124,6 +156,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     buildMainGatewayAgentTurnId,
     readLatestAssistantMessageText,
     readTransportContentAsText,
+    retrieveMemoryFacts,
+    listRelationshipOutcomes,
+    listPersonaReinforcementEvents,
+    listMemoryReflections,
+    readMindHead,
   } = options
   function isSeriousDurabilityPulseForMind(durabilityPulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
     return durabilityPulse?.kind === 'process-gone'
@@ -933,6 +970,76 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       base: heuristicAppraisal,
       inference: subjectiveInference,
     })
+    const [
+      persistedAutobiographicalSelf,
+      persistedReflectionLedger,
+      persistedMotiveEngine,
+      persistedHabitPolicy,
+      recentRelationshipOutcomes,
+      recentReinforcementEvents,
+      recentMemoryReflections,
+    ] = await Promise.all([
+      readMindHead<AlicizationVisualPresenceStateSnapshot['autobiographicalSelf']>(input.cardId, 'autobiographical-self').catch(() => null),
+      readMindHead<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>(input.cardId, 'reflection-ledger').catch(() => null),
+      readMindHead<AlicizationVisualPresenceStateSnapshot['motiveEngine']>(input.cardId, 'motive-engine').catch(() => null),
+      readMindHead<AlicizationVisualPresenceStateSnapshot['habitPolicy']>(input.cardId, 'habit-policy').catch(() => null),
+      listRelationshipOutcomes(input.cardId, 12).catch(() => []),
+      listPersonaReinforcementEvents(input.cardId, 16).catch(() => []),
+      listMemoryReflections(input.cardId, 8).catch(() => []),
+    ])
+    const previousAutobiographicalSelf = input.previousVisualPresenceState.autobiographicalSelf ?? persistedAutobiographicalSelf ?? null
+    const previousReflectionLedger = input.previousVisualPresenceState.reflectionLedger ?? persistedReflectionLedger ?? null
+    const previousMotiveEngine = input.previousVisualPresenceState.motiveEngine ?? persistedMotiveEngine ?? null
+    const previousHabitPolicy = input.previousVisualPresenceState.habitPolicy ?? persistedHabitPolicy ?? null
+    const persistedReflectionEntries = recentMemoryReflections.map(mapPersistedReflectionRecordToEntry)
+    const previousLongHorizonMemory = input.previousVisualPresenceState.longHorizonMemory ?? null
+    const shouldRefreshLongHorizonMemory
+      = input.cognitionMode === 'interactive'
+        || Boolean(input.userText?.trim())
+        || !previousLongHorizonMemory
+        || input.now - previousLongHorizonMemory.updatedAt >= 2 * 60_000
+    const longHorizonMemoryQuery = shouldRefreshLongHorizonMemory
+      ? buildAlicizationLongHorizonMemoryQuery({
+          userText: input.userText,
+          worldModel: governedWorldModel,
+          appraisal,
+          previous: previousLongHorizonMemory,
+        })
+      : ''
+    const longHorizonMemoryFacts = longHorizonMemoryQuery
+      ? await retrieveMemoryFacts(longHorizonMemoryQuery, 8).catch(() => [])
+      : []
+    const longHorizonMemory = shouldRefreshLongHorizonMemory
+      ? buildAlicizationLongHorizonMemory({
+          now: input.now,
+          facts: longHorizonMemoryFacts,
+          previous: previousLongHorizonMemory,
+        })
+      : previousLongHorizonMemory
+    const seedMotiveEngine = buildMotiveEngine({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      appraisal,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      goalStack: input.previousVisualPresenceState.goalStack ?? null,
+      longHorizonMemory,
+      selfContinuity: input.previousVisualPresenceState.selfContinuity ?? null,
+      autobiographicalSelf: previousAutobiographicalSelf,
+      reflectionLedger: previousReflectionLedger,
+      previous: previousMotiveEngine,
+    })
+    const seedHabitPolicy = buildHabitPolicy({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      relationshipModel: input.previousVisualPresenceState.relationshipModel ?? null,
+      selfContinuity: input.previousVisualPresenceState.selfContinuity ?? null,
+      autobiographicalSelf: previousAutobiographicalSelf,
+      reflectionLedger: previousReflectionLedger,
+      motiveEngine: seedMotiveEngine,
+      previous: previousHabitPolicy,
+    })
     const beliefLedger = buildBeliefLedger({
       now: input.now,
       context: input.context,
@@ -949,6 +1056,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       entityWorld,
       appraisal,
       previousGoalStack: input.previousVisualPresenceState.goalStack ?? null,
+      longHorizonMemory,
+      autobiographicalSelf: previousAutobiographicalSelf,
+      motiveEngine: seedMotiveEngine,
+      habitPolicy: seedHabitPolicy,
       watchMode: input.visualHeartbeat.watchMode,
       recentTransition: input.visualHeartbeat.recentTransition,
       durabilityPulse: input.durabilityPulse,
@@ -958,6 +1069,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       context: input.context,
       worldModel: governedWorldModel,
       appraisal,
+      recentRelationshipOutcomes,
       previous: input.previousVisualPresenceState.relationshipModel ?? null,
       watchMode: input.visualHeartbeat.watchMode,
     })
@@ -977,6 +1089,8 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       worldModel: governedWorldModel,
       entityWorld,
       goalStack,
+      longHorizonMemory,
+      recentRelationshipOutcomes,
       previous: input.previousVisualPresenceState.selfContinuity ?? null,
       watchMode: input.visualHeartbeat.watchMode,
     })
@@ -1245,6 +1359,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       selfGovernor: stabilizedSelfGovernor,
       thoughtThreads,
       mindKernel,
+      autobiographicalSelf: previousAutobiographicalSelf,
+      motiveEngine: seedMotiveEngine,
+      goalStack,
+      desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
       previous: input.previousVisualPresenceState.intentionStream ?? null,
     })
     const reflectionLedger = buildReflectionLedger({
@@ -1254,7 +1372,48 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       intentionStream,
       previousIntentionStream: input.previousVisualPresenceState.intentionStream ?? null,
       previousAnswerPlanner: input.previousVisualPresenceState.answerPlanner ?? null,
-      previous: input.previousVisualPresenceState.reflectionLedger ?? null,
+      persistedEntries: persistedReflectionEntries,
+      previous: previousReflectionLedger,
+    })
+    const provisionalAutobiographicalSelf = buildAutobiographicalSelf({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      relationshipModel,
+      longHorizonMemory,
+      selfContinuity,
+      selfState,
+      goalStack,
+      reflectionLedger,
+      recentRelationshipOutcomes,
+      recentMemoryReflections,
+      desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
+      recentReinforcementEvents,
+      previous: previousAutobiographicalSelf,
+    })
+    const motiveEngine = buildMotiveEngine({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      appraisal,
+      recentTransition: input.visualHeartbeat.recentTransition,
+      goalStack,
+      longHorizonMemory,
+      selfContinuity,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      reflectionLedger,
+      previous: previousMotiveEngine,
+    })
+    const habitPolicy = buildHabitPolicy({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      relationshipModel,
+      selfContinuity,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      reflectionLedger,
+      motiveEngine,
+      previous: previousHabitPolicy,
     })
     const executiveCycle = buildExecutiveCycle({
       now: input.now,
@@ -1317,8 +1476,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       commitmentLedger,
       counterfactualDeliberation,
       desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      motiveEngine,
+      habitPolicy,
     })
-    const initiative = buildInitiativeSnapshot({
+    const initiativeBase = buildInitiativeSnapshot({
       context: input.context,
       watchMode: input.visualHeartbeat.watchMode,
       worldModel: governedWorldModel,
@@ -1347,6 +1509,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       intentionStream,
       reflectionLedger,
       executiveCycle,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      motiveEngine,
+      habitPolicy,
     })
     const desireMemory = buildDesireMemory({
       now: input.now,
@@ -1356,12 +1521,63 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       goalStack,
       selfContinuity,
       appraisal,
-      initiative,
+      initiative: initiativeBase,
       commitmentLedger,
       deliberationState,
       actionEcology,
+      motiveEngine,
+      habitPolicy,
       previous: input.previousVisualPresenceState.desireMemory ?? null,
       recentTransition: input.visualHeartbeat.recentTransition,
+    })
+    const autonomy = buildAutonomySnapshot({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      concerns,
+      goalStack,
+      desireMemory,
+      initiative: initiativeBase,
+      initiativeArbitration,
+      executiveCycle,
+      actionEcology,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      motiveEngine,
+      habitPolicy,
+      threadRuntime,
+      thoughtThreads,
+    })
+    const initiative = {
+      ...initiativeBase,
+      selectedAction: autonomy.visibleAction,
+      confidence: Math.max(initiativeBase.confidence, autonomy.confidence),
+      shouldSurface: autonomy.shouldSurface,
+      shouldSpeak: autonomy.shouldSpeak,
+      why: autonomy.whyNow,
+    }
+    const provisionalMindEcology = buildMindEcology({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      worldModel: governedWorldModel,
+      appraisal,
+      subjectiveInference,
+      beliefRevision,
+      relationshipModel,
+      longHorizonMemory,
+      selfContinuity,
+      selfState,
+      selfGovernor: stabilizedSelfGovernor,
+      mindDynamics,
+      mindKernel,
+      commitmentLedger,
+      inquiryPlanner,
+      reflectionLedger,
+      desireMemory,
+      actionEcology,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      motiveEngine,
+      habitPolicy,
     })
     const privateThought = buildPrivateThoughtLoop({
       now: input.now,
@@ -1386,6 +1602,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       concernContinuity,
       relationshipModel,
       selfContinuity,
+      autobiographicalSelf: provisionalAutobiographicalSelf,
+      motiveEngine,
+      habitPolicy,
       selfState,
       selfGovernor: stabilizedSelfGovernor,
       inquiryLoop,
@@ -1397,8 +1616,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       thoughtThreads,
       counterfactualDeliberation,
       initiative,
+      autonomy,
       desireMemory,
+      mindEcology: provisionalMindEcology,
       durabilityPulse: input.durabilityPulse,
+      previousPrivateThought: input.previousVisualPresenceState.privateThought ?? null,
       intentionStream,
       reflectionLedger,
       executiveCycle,
@@ -1529,6 +1751,49 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           runtimeSurface: conversationStateRuntimeSurface,
         })
       : null
+    const autobiographicalSelf = buildAutobiographicalSelf({
+      now: input.now,
+      context: input.context,
+      worldModel: governedWorldModel,
+      relationshipModel,
+      longHorizonMemory,
+      selfContinuity,
+      selfState,
+      goalStack,
+      reflectionLedger,
+      desireMemory,
+      actionEcology,
+      privateThought,
+      mindEcology: provisionalMindEcology,
+      recentReinforcementEvents,
+      previous: previousAutobiographicalSelf,
+    })
+    const mindEcology = buildMindEcology({
+      now: input.now,
+      context: input.context,
+      watchMode: input.visualHeartbeat.watchMode,
+      worldModel: governedWorldModel,
+      appraisal,
+      subjectiveInference,
+      beliefRevision,
+      relationshipModel,
+      longHorizonMemory,
+      selfContinuity,
+      selfState,
+      motiveEngine,
+      habitPolicy,
+      selfGovernor: stabilizedSelfGovernor,
+      mindDynamics,
+      mindKernel,
+      commitmentLedger,
+      inquiryPlanner,
+      reflectionLedger,
+      desireMemory,
+      privateThought,
+      actionEcology,
+      conversationState,
+      autobiographicalSelf,
+    })
     const dialogueWorldThreadSettlementRuntimeSurface = conversationState || discourseState
       ? buildAlicizationProvisionalDigitalLifeRuntimeSurface({
           now: input.now,
@@ -1572,6 +1837,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           relationshipModel,
           privateThought,
           desireMemory,
+          autobiographicalSelf,
+          motiveEngine,
+          habitPolicy,
+          mindEcology,
           selfState,
           selfContinuity,
         })
@@ -1786,6 +2055,12 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       replyDeliberation,
       privateThought,
       dialogueEncounter,
+      autobiographicalSelf,
+      longHorizonMemory,
+      goalStack,
+      desireMemory,
+      motiveEngine,
+      mindEcology,
     })
     const answerPlannerRuntimeSurface = buildAlicizationProvisionalDigitalLifeRuntimeSurface({
       now: input.now,
@@ -1963,8 +2238,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       concerns,
       concernContinuity,
       relationshipModel,
+      longHorizonMemory,
       selfContinuity,
       selfState,
+      motiveEngine,
+      habitPolicy,
       selfGovernor: stabilizedSelfGovernor,
       inquiryLoop,
       deliberationState,
@@ -1986,7 +2264,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       actionEcology,
       initiativeArbitration,
       initiative,
+      autonomy,
       desireMemory,
+      mindEcology,
       currentConsciousFrame,
       claimEvidenceLedger,
       answerPlanner,

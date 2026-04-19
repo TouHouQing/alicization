@@ -811,6 +811,91 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('runtime-control-ready')
   })
 
+  it('keeps silent when runtime autonomy is preparing to act but not to speak', () => {
+    const autonomy = {
+      selectedMode: 'prepare-act',
+      visibleAction: 'hover',
+      shouldSurface: true,
+      shouldSpeak: false,
+      shouldAct: false,
+      speakReadiness: 0.18,
+      actReadiness: 0.88,
+      inhibition: 0.32,
+      confidence: 0.84,
+      deferReason: 'busy-host',
+      guardReasons: ['busy-host', 'respect-boundary'],
+      whyNow: 'quietly keep the unresolved thread alive',
+      executionIntent: {
+        kind: 'follow-through',
+        summary: 'follow the unresolved thread without interrupting',
+        targetThreadId: 'thread-follow-through',
+      },
+      updatedAt: 1_000,
+    } as any
+
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought({
+        shouldSpeak: true,
+        stance: 'nudge',
+        suggestedStyle: 'light-nudge',
+      }),
+      autonomy,
+      runtimeDigest: createRuntimeSnapshot({
+        dominantChannel: 'active-control',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: true,
+        autonomy: {
+          selectedMode: 'prepare-act',
+          visibleAction: 'hover',
+          shouldSpeak: false,
+          shouldAct: false,
+          speakReadiness: 0.18,
+          actReadiness: 0.88,
+          inhibition: 0.32,
+          confidence: 0.84,
+          executionIntentKind: 'follow-through',
+          executionIntentSummary: 'follow the unresolved thread without interrupting',
+          deferReason: 'busy-host',
+          whyNow: 'quietly keep the unresolved thread alive',
+        },
+        channels: {
+          ...createRuntimeSnapshot().channels,
+          'dialogue': {
+            id: 'dialogue',
+            state: 'idle',
+            readiness: 0.24,
+            focus: 'none',
+            summary: 'dialogue cooling',
+          },
+          'active-dialogue': {
+            id: 'active-dialogue',
+            state: 'idle',
+            readiness: 0.22,
+            focus: 'none',
+            summary: 'active dialogue cooling',
+          },
+          'active-control': {
+            id: 'active-control',
+            state: 'hot',
+            readiness: 0.9,
+            focus: 'follow-through',
+            summary: 'active control is hot',
+          },
+        },
+      }),
+    })
+
+    expect(decision.style).toBe('light-nudge')
+    expect(decision.shouldInterrupt).toBe(true)
+    expect(decision.whyNow).toContain('control')
+    expect(decision.reasonCodes).toContain('runtime-control-ready')
+  })
+
   it('keeps silent when active loop is still in observe phase with low coherence', () => {
     const decision = evaluateProactivePolicy({
       now: 1_000,

@@ -1,6 +1,7 @@
 import type { VRMAnimation } from '@pixiv/three-vrm-animation'
 import type { VRMCore } from '@pixiv/three-vrm-core'
 import type {
+  StageEmbodimentMotorState,
   StageEmbodimentPresencePostureState,
   StageEmbodimentSpeechDynamicsState,
 } from '@proj-alicization/stage-shared'
@@ -241,6 +242,7 @@ export function useIdleEyeSaccades() {
     lookAtTarget: Ref<{ x: number, y: number, z: number }>,
     delta: number,
     speechDynamics?: StageEmbodimentSpeechDynamicsState | null,
+    motor?: StageEmbodimentMotorState | null,
     posture?: StageEmbodimentPresencePostureState | null,
   ) {
     if (!vrm?.expressionManager || !vrm.lookAt)
@@ -249,8 +251,28 @@ export function useIdleEyeSaccades() {
     const prosodyIntensity = clampUnit(speechDynamics?.prosodyIntensity ?? 0)
     const speechEnergy = clampUnit(speechDynamics?.speechEnergy ?? 0)
     const gazeStability = clampUnit(posture?.gazeStability ?? 0)
-    const amplitude = Math.max(0.12, 0.25 + prosodyIntensity * 0.08 + speechEnergy * 0.04 - gazeStability * 0.1)
-    const intervalScale = Math.max(0.7, 1 - prosodyIntensity * 0.22 + gazeStability * 0.08)
+    const motorFocus = clampUnit(motor?.gaze.focus ?? 0.52)
+    const motorStability = clampUnit(motor?.gaze.stability ?? 0.62)
+    const motorStillness = clampUnit(motor?.stillness ?? 0.58)
+    const motorExpressivity = clampUnit(motor?.expressivity ?? 0.44)
+    const motorAzimuth = Math.max(-1, Math.min(1, motor?.gaze.azimuth ?? 0))
+    const motorElevation = Math.max(-1, Math.min(1, motor?.gaze.elevation ?? 0))
+    const amplitude = Math.max(
+      0.06,
+      0.23
+      + prosodyIntensity * 0.08
+      + speechEnergy * 0.04
+      + motorExpressivity * 0.06
+      - gazeStability * 0.1
+      - motorStability * 0.08
+      - motorStillness * 0.06,
+    )
+    const intervalScale = Math.max(0.65, 1 - prosodyIntensity * 0.22 + gazeStability * 0.08 + motorStability * 0.08 + motorStillness * 0.08)
+    fixationTarget.set(
+      lookAtTarget.value.x + motorAzimuth * (0.16 + motorFocus * 0.08),
+      lookAtTarget.value.y + motorElevation * (0.12 + motorFocus * 0.06),
+      lookAtTarget.value.z,
+    )
 
     if (timeSinceLastSaccade >= nextSaccadeAfter * intervalScale) {
       updateFixationTarget(lookAtTarget, amplitude)

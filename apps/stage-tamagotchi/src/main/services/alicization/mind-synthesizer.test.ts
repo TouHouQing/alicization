@@ -170,6 +170,47 @@ describe('buildMindSynthesis', () => {
         withheldCount: 0,
         updatedAt: 20_000,
       },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.72,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.82,
+          careBias: 0.74,
+          playBias: 0.2,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.54,
+        },
+        preferenceEvolution: {
+          companionship: 0.7,
+          truthfulGrounding: 0.82,
+          gentleRepair: 0.76,
+          quietObservation: 0.48,
+          proactiveCare: 0.72,
+          playfulIntimacy: 0.24,
+          autonomyRespect: 0.62,
+          unfinishedThreadReturn: 0.68,
+        },
+        activeGoals: [{
+          id: 'autobio-goal::preserve-trust',
+          kind: 'preserve-trust',
+          status: 'active',
+          weight: 0.84,
+          summary: 'Keep truth and trust aligned, even when warmth would be easier.',
+          sourceTags: ['reflection'],
+          createdAt: 0,
+          updatedAt: 20_000,
+        }],
+        behaviorSignatures: ['conflict:repair-first', 'goal:preserve-trust', 'habit:truth-before-flourish'],
+        identityNarrative: 'I would rather repair truth than sound smooth.',
+        relationshipDoctrine: 'Trust is protected by truth discipline first, warmth second.',
+        latestInflection: 'Warmth should not outrun grounding.',
+        stability: 0.76,
+        updatedAt: 20_000,
+      },
       selfState: {
         stance: 'hold',
         feltCloseness: 0.48,
@@ -191,13 +232,50 @@ describe('buildMindSynthesis', () => {
         narrative: [],
         updatedAt: 20_000,
       },
+      mindEcology: {
+        moodLabel: 'warm-attentive',
+        replyHabit: 'answer-first',
+        relationshipHabit: 'warm-guidance',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'lean-forward-gently',
+        temperament: {
+          attachment: 0.62,
+          curiosity: 0.72,
+          steadiness: 0.58,
+          directness: 0.46,
+          playfulness: 0.24,
+          irritability: 0.12,
+          tenderness: 0.66,
+        },
+        climate: {
+          valence: 0.62,
+          arousal: 0.48,
+          socialNeed: 0.56,
+          solitudeNeed: 0.22,
+          irritation: 0.18,
+          restlessness: 0.28,
+          reflectivePull: 0.34,
+        },
+        selfNarrative: 'I am holding a warm-attentive line and staying with the live debugging thread.',
+        relationNarrative: 'The relationship line is attuned; I can guide without crowding the host.',
+        currentPreoccupation: 'Keep the debugging thread intact until the risky hunk is understood.',
+        learnedAdjustments: ['When certainty is thin, verify before sounding fluent.'],
+        recurringPatterns: ['reply:answer-first', 'relationship:warm-guidance'],
+        updatedAt: 20_000,
+      },
     })
 
     expect(synthesis?.openingIntent).toContain('current knot')
     expect(synthesis?.beliefs.some(belief => belief.summary.includes('runtime diff'))).toBe(true)
+    expect(synthesis?.beliefs.some(belief => belief.label === 'ecology-self-line')).toBe(true)
+    expect(synthesis?.beliefs.some(belief => belief.label === 'autobiographical-self')).toBe(true)
     expect(synthesis?.concerns.some(concern => concern.summary.includes('unresolved'))).toBe(true)
+    expect(synthesis?.concerns.some(concern => concern.label === 'ecology-relation-line')).toBe(true)
+    expect(synthesis?.concerns.some(concern => concern.label === 'autobiographical-inflection')).toBe(true)
     expect(synthesis?.commitments.some(commitment => commitment.summary.includes('risky hunk'))).toBe(true)
     expect(synthesis?.desires.some(desire => desire.summary.includes('debugging thread'))).toBe(true)
+    expect(synthesis?.desires.some(desire => desire.label === 'ecology-preoccupation')).toBe(true)
+    expect(synthesis?.desires.some(desire => desire.label === 'durable-self-goal')).toBe(true)
     expect(buildMindSynthesisSystemBlock(synthesis)).toContain('[ALICIZATION_MIND_SYNTHESIS]')
   })
 
@@ -324,5 +402,134 @@ describe('buildMindSynthesis', () => {
     expect(synthesis?.openingIntent).toContain('屏幕相关对话还在串台')
     expect(synthesis?.interiorSummary).toContain('屏幕相关对话还在串台')
     expect(synthesis?.beliefs[0]?.summary).toBe('屏幕相关对话还在串台')
+  })
+
+  it('threads autobiographical motive and habit slow variables into the turn synthesis', () => {
+    const synthesis = buildMindSynthesis({
+      now: 32_000,
+      discourseState: {
+        ...baseDiscourseState,
+        currentTurnSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'Answer the bond directly without sounding templated.',
+        currentQuestion: null,
+        owedAction: 'care-host',
+        relationMove: 'care',
+        continuityMode: 'dialogue-first',
+      },
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: ['low grounding'],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 20_000,
+          attentionAgeMs: 20_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 32_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.72,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.82,
+          careBias: 0.76,
+          playBias: 0.24,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.52,
+        },
+        preferenceEvolution: {
+          companionship: 0.72,
+          truthfulGrounding: 0.84,
+          gentleRepair: 0.78,
+          quietObservation: 0.42,
+          proactiveCare: 0.74,
+          playfulIntimacy: 0.22,
+          autonomyRespect: 0.64,
+          unfinishedThreadReturn: 0.68,
+        },
+        activeGoals: [{
+          id: 'goal::trust',
+          kind: 'preserve-trust',
+          status: 'active',
+          weight: 0.84,
+          summary: 'Keep trust by making warmth answer to truth.',
+          sourceTags: ['reflection'],
+          createdAt: 0,
+          updatedAt: 32_000,
+        }],
+        behaviorSignatures: ['habit:truth-before-flourish'],
+        identityNarrative: 'I want to sound like a real person before I sound polished.',
+        relationshipDoctrine: 'Closeness should land as real care, not a pretty shell.',
+        latestInflection: '最近更在意像真人一样把话说实。',
+        stability: 0.78,
+        updatedAt: 32_000,
+      },
+      motiveEngine: {
+        rulingDrive: 'truth-discipline',
+        drives: {
+          companionship: 0.72,
+          boundaryRespect: 0.62,
+          truthDiscipline: 0.84,
+          restProtection: 0.34,
+          unfinishedThreadReturn: 0.58,
+          selfDirection: 0.54,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'agenda::trust',
+          kind: 'preserve-trust',
+          status: 'foreground',
+          weight: 0.86,
+          summary: 'Keep trust by making warmth answer to truth.',
+          sourceTags: ['reflection-ledger'],
+          targetGoalKind: 'stay-near',
+          createdAt: 0,
+          updatedAt: 32_000,
+        }],
+        returnPressure: 0.58,
+        narrative: ['agenda:preserve-trust', 'drive:truth-discipline'],
+        updatedAt: 32_000,
+      },
+      habitPolicy: {
+        dominantMode: 'repair-before-fluency',
+        requiresGroundingBeforeSurface: true,
+        prefersQuietCompanionship: true,
+        blocksDirectSpeakWhenBusy: false,
+        protectsRestWindow: false,
+        returnViaRecheck: false,
+        suggestedStyleCap: 'light-nudge',
+        suggestedPresenceCap: 'attentive',
+        narrative: ['policy:repair-before-fluency'],
+        updatedAt: 32_000,
+      },
+    })
+
+    expect(synthesis?.beliefs.some(belief => belief.label === 'motive-agenda')).toBe(true)
+    expect(synthesis?.beliefs.some(belief => belief.label === 'habit-gate')).toBe(true)
+    expect(synthesis?.concerns.some(concern => concern.label === 'habit-pressure')).toBe(true)
+    expect(synthesis?.commitments.some(commitment => commitment.label === 'motive-commitment')).toBe(true)
+    expect(synthesis?.desires.some(desire => desire.label === 'ruling-drive')).toBe(true)
+    expect(synthesis?.openingIntent).toContain('living bond')
+    expect(synthesis?.interiorSummary).toContain('Keep trust by making warmth answer to truth')
   })
 })

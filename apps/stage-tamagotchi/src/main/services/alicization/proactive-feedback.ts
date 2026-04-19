@@ -26,6 +26,9 @@ export interface AlicizationProactiveLoopState {
   globalCooldownUntil: number
   scenarioBias: Record<AlicizationProactiveScenario, number>
   consecutiveIgnored: Record<AlicizationProactiveScenario, number>
+  initiativeTrust: number
+  openingMomentum: number
+  lastProactiveTurnAt: number | null
   lateNightActivityStartedAt: number | null
   lateNightActivityLastActiveAt: number | null
   pendingOutcomes: AlicizationPendingProactiveOutcome[]
@@ -42,6 +45,12 @@ function clampBias(value: number) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(-0.15, Math.min(0.75, Number(value.toFixed(2))))
+}
+
+function clamp01(value: number) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, Number(value.toFixed(2))))
 }
 
 function createScenarioNumberMap(initial = 0) {
@@ -145,6 +154,17 @@ function applyOutcome(
         : current.globalCooldownUntil,
       scenarioBias: nextScenarioBias,
       consecutiveIgnored: nextConsecutiveIgnored,
+      initiativeTrust: clamp01(
+        current.initiativeTrust
+        + (outcome === 'positive' ? 0.08 : 0)
+        + (outcome === 'reply-within-120s' ? 0.04 : 0)
+        - (outcome === 'dismiss' ? 0.12 : 0)
+        - (outcome === 'ignored' ? 0.06 : 0),
+      ),
+      openingMomentum: clamp01(
+        current.openingMomentum
+        * (outcome === 'dismiss' ? 0.42 : outcome === 'ignored' ? 0.68 : 0.74),
+      ),
       recentOutcomes: trimRecentOutcomes([...current.recentOutcomes, nextOutcome]),
       updatedAt: at,
     },
@@ -157,6 +177,9 @@ export function createDefaultProactiveLoopState(now = Date.now()): AlicizationPr
     globalCooldownUntil: 0,
     scenarioBias: createScenarioNumberMap(0),
     consecutiveIgnored: createScenarioNumberMap(0),
+    initiativeTrust: 0.5,
+    openingMomentum: 0,
+    lastProactiveTurnAt: null,
     lateNightActivityStartedAt: null,
     lateNightActivityLastActiveAt: null,
     pendingOutcomes: [],
@@ -173,6 +196,11 @@ export function normalizeProactiveLoopState(raw: unknown, now = Date.now()): Ali
     : 0
   next.scenarioBias = normalizeScenarioNumberMap(source.scenarioBias)
   next.consecutiveIgnored = normalizeScenarioNumberMap(source.consecutiveIgnored)
+  next.initiativeTrust = clamp01(Number(source.initiativeTrust))
+  next.openingMomentum = clamp01(Number(source.openingMomentum))
+  next.lastProactiveTurnAt = Number.isFinite(Number(source.lastProactiveTurnAt))
+    ? Math.max(0, Math.floor(Number(source.lastProactiveTurnAt)))
+    : null
   next.lateNightActivityStartedAt = Number.isFinite(Number(source.lateNightActivityStartedAt))
     ? Math.max(0, Math.floor(Number(source.lateNightActivityStartedAt)))
     : null
@@ -220,6 +248,8 @@ export function registerProactiveDelivery(
 
   return {
     ...state,
+    openingMomentum: clamp01(state.openingMomentum * 0.46),
+    lastProactiveTurnAt: deliveredAt,
     pendingOutcomes: pending.slice(-12),
     updatedAt: deliveredAt,
   }
@@ -346,4 +376,18 @@ export function updateLateNightActivityState(
     },
     lateNightActiveMinutes: Math.max(0, (now - safeStartedAt) / 60_000),
   }
+}
+
+export function recoverProactiveRhythmAfterDream(
+  state: AlicizationProactiveLoopState,
+  at = Date.now(),
+) {
+  return {
+    ...state,
+    openingMomentum: clamp01(state.openingMomentum * 0.52),
+    initiativeTrust: clamp01(state.initiativeTrust * 0.96 + 0.02),
+    lateNightActivityStartedAt: null,
+    lateNightActivityLastActiveAt: null,
+    updatedAt: at,
+  } satisfies AlicizationProactiveLoopState
 }

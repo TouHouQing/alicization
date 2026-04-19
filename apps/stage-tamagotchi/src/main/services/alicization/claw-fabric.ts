@@ -441,12 +441,42 @@ function requiresAffirmation(input: {
   const effect = task.effect ?? 'mutate'
   const justification = task.justification ?? 'grounded'
   const reasons: string[] = []
+  const riskBudget = task.riskBudget ?? 'medium'
+  const rollbackableCodeAgent
+    = (candidate.channel === 'codex' || candidate.channel === 'claude-code' || candidate.channel === 'cli')
+      && (task.kind === 'codebase-edit' || task.kind === 'codebase-investigation')
+      && task.requiresVisualGrounding !== true
+  const lowRiskSelfStartAllowed
+    = task.origin === 'proactive'
+      && riskBudget === 'low'
+      && justification === 'grounded'
+      && effect === 'mutate'
+      && rollbackableCodeAgent
 
   if (
     task.origin === 'proactive'
     && effect !== 'observe'
     && permissionMode !== 'explicit'
-    && candidate.invasiveness !== 'low'
+    && riskBudget === 'high'
+  ) {
+    reasons.push('high-risk-proactive-action-requires-explicit-consent')
+  }
+
+  if (
+    task.origin === 'proactive'
+    && effect !== 'observe'
+    && permissionMode !== 'explicit'
+    && riskBudget === 'medium'
+  ) {
+    reasons.push('medium-risk-proactive-action-requires-affirmation')
+  }
+
+  if (
+    task.origin === 'proactive'
+    && effect !== 'observe'
+    && permissionMode !== 'explicit'
+    && riskBudget === 'low'
+    && !lowRiskSelfStartAllowed
   ) {
     reasons.push('proactive-side-effects-require-explicit-consent')
   }
@@ -460,7 +490,6 @@ function requiresAffirmation(input: {
     reasons.push('desktop-fallback-requires-explicit-or-grounded-justification')
   }
 
-  const riskBudget = task.riskBudget ?? 'medium'
   if (
     effect === 'high-impact'
     && permissionMode !== 'explicit'
@@ -606,6 +635,12 @@ export function buildClawFabricPlan(input: {
         : '',
       affirmationReasonCodes.includes('proactive-side-effects-require-explicit-consent')
         ? 'The route was held for affirmation because proactive side effects should not quietly seize a stronger body.'
+        : '',
+      affirmationReasonCodes.includes('medium-risk-proactive-action-requires-affirmation')
+        ? 'The route was held for affirmation because medium-risk proactive work should still be confirmed before it starts.'
+        : '',
+      affirmationReasonCodes.includes('high-risk-proactive-action-requires-explicit-consent')
+        ? 'The route was held because high-risk proactive work must never start without explicit host consent.'
         : '',
       affirmationReasonCodes.includes('desktop-fallback-requires-explicit-or-grounded-justification')
         ? 'Desktop fallback requires stronger justification than a weak inference.'

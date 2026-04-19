@@ -19,7 +19,9 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
+import { buildAlicizationDialogueGrowthProfile, type AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { deriveMindTruthContract } from './mind-truth-contract'
 
 function clamp01(value: number) {
@@ -32,6 +34,16 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function stripTrailingPunctuation(text: string) {
+  return text.replace(/[.。!！?？;；:：]+$/u, '').trim()
+}
+
+function lowerFirst(text: string) {
+  if (!text)
+    return ''
+  return text.slice(0, 1).toLowerCase() + text.slice(1)
 }
 
 function sanitizeSurfaceClaim(raw: unknown, maxChars = 180) {
@@ -377,9 +389,18 @@ function resolveRelationshipPosture(input: {
   evidenceMode: AlicizationAnswerEvidenceMode
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  growthProfile: AlicizationDialogueGrowthProfile
 }) {
-  if (input.discourseState.owedAction === 'repair-truth' || input.evidenceMode === 'repair-first')
+  if (
+    input.discourseState.owedAction === 'repair-truth'
+    || input.evidenceMode === 'repair-first'
+    || input.growthProfile.guardedness >= 0.64
+    || input.growthProfile.irritability >= 0.66
+  ) {
     return 'restrained' as const
+  }
+  if (input.growthProfile.companionshipStyle === 'close-hold')
+    return 'tender' as const
   if (
     input.discourseState.owedAction === 'care-host'
     || input.privateThought?.stance === 'care'
@@ -387,7 +408,9 @@ function resolveRelationshipPosture(input: {
     || input.relationshipModel?.approachVector === 'care'
     || input.relationshipModel?.approachVector === 'stay-near'
   ) {
-    return 'tender' as const
+    return input.growthProfile.tenderness >= 0.56 && input.growthProfile.closeness >= 0.54
+      ? 'tender' as const
+      : 'warm' as const
   }
   return 'warm' as const
 }
@@ -397,30 +420,43 @@ function resolveOpeningDirective(input: {
   recommendedAct: AlicizationAnswerAct
   mindSynthesis: AlicizationMindSynthesisSnapshot
   groundedThisTurn?: boolean
+  growthProfile: AlicizationDialogueGrowthProfile
 }) {
   if (isFreshlyGroundedSceneTurn({
     discourseState: input.discourseState,
     groundedThisTurn: input.groundedThisTurn === true,
   })) {
     return input.discourseState.currentTurnSubject === 'task-knot'
-      ? 'Open from the live task knot that is visible now, then move one concrete step closer to the answer.'
-      : 'Open from what is visible right now and keep stale-anchor bookkeeping internal.'
+      ? 'I should open from the live knot that is already in front of me and move it one concrete step closer to the answer.'
+      : 'I should open from what is visible right now and keep the stale-anchor bookkeeping off the surface.'
   }
   if (input.recommendedAct === 'correct-stale-anchor')
-    return 'Open by correcting the stale anchor before any interpretation or comfort.'
+    return 'I need to name the stale read before I interpret it or soften it.'
   if (input.recommendedAct === 'ask-reground')
-    return 'Open by acknowledging the truth boundary, then ask for or move toward a fresh look.'
+    return 'I need to show the truth boundary early and move toward a fresher look instead of bluffing past it.'
   if (input.recommendedAct === 'guide')
-    return 'Open from the current knot and narrow immediately to one actionable next step.'
+    return input.growthProfile.unfinishedThreadReturn >= 0.58
+      ? 'I should open from the knot itself and keep the thread visibly unbroken while I narrow to the next real step.'
+      : input.growthProfile.cadenceAffinity >= 0.58
+          ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
+      : 'I should open from the knot itself and narrow immediately to one actionable next step.'
   if (input.recommendedAct === 'care')
-    return 'Open with care that is specific to the present condition, not generic soothing.'
+    return input.growthProfile.companionshipStyle === 'close-hold'
+      ? 'I should open with care that feels unmistakably present, but still leaves the host enough room to stay themselves.'
+      : input.growthProfile.autonomyRespect >= 0.58
+      ? 'I should open with care that belongs to this exact condition and lands without pressing too hard.'
+      : 'I should open with care that belongs to this exact condition, not generic soothing.'
   if (input.discourseState.currentTurnSubject === 'relationship')
-    return 'Open by answering the relationship bid itself before any scene narration.'
+    return input.growthProfile.closeness >= 0.58
+      ? 'I should answer the bid between us in a way that lands close and lived-in before I widen into narration.'
+      : 'I should answer the bid between us before I widen into scene narration.'
   if (input.discourseState.currentTurnSubject === 'alicization-self')
-    return 'Open by answering from Alicization’s own continuity plainly and directly.'
+    return input.growthProfile.selfLine
+      ? `I should answer plainly from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}.`
+      : 'I should answer plainly from my own continuity.'
   if (input.discourseState.screenReferenceMode === 'required')
-    return 'Open from the strongest live observation and keep memory explicitly secondary.'
-  return 'Open by paying off the host’s current turn directly.'
+    return 'I should open from the strongest live observation and keep memory explicitly secondary.'
+  return 'I should pay off the host’s current turn directly.'
 }
 
 function resolveOpeningClaim(input: {
@@ -471,7 +507,7 @@ function resolveOpeningClaim(input: {
       input.discourseState.ruptureRepair,
       input.mindSynthesis.uncertainties[0]?.summary,
     )
-    || 'What I was holding a moment ago is no longer safe to present as current fact.'
+    || 'What I was holding a moment ago no longer feels safe to say as current fact.'
   }
   if (input.recommendedAct === 'ask-reground') {
     return pickSurfaceClaim(
@@ -479,7 +515,7 @@ function resolveOpeningClaim(input: {
       input.mindSynthesis.uncertainties[0]?.summary,
       input.discourseState.ruptureRepair,
     )
-    || 'I need a fresher look before I can say that as a present-tense fact.'
+    || 'I still need a fresher look before I can say that as a present-tense fact.'
   }
   if (input.recommendedAct === 'guide') {
     return pickSurfaceClaim(
@@ -489,7 +525,7 @@ function resolveOpeningClaim(input: {
       input.discourseState.currentTurnSummary,
       input.mindSynthesis.openingIntent,
       input.mindSynthesis.commitments[0]?.summary,
-    ) || 'The important thing is to stay with the active knot rather than drift away from it.'
+    ) || 'The knot itself matters more right now than sounding broad or polished.'
   }
   if (input.recommendedAct === 'care') {
     return pickSurfaceClaimDistinctFrom(
@@ -503,7 +539,7 @@ function resolveOpeningClaim(input: {
       input.conversationState?.jointThread,
     )
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is surfacing a present condition that should be answered directly.'
+    || 'What the host is surfacing here needs to be answered directly, not circled around.'
   }
   if (input.discourseState.currentTurnSubject === 'host-state') {
     return pickSurfaceClaimDistinctFrom(
@@ -534,7 +570,7 @@ function resolveOpeningClaim(input: {
       input.mindSynthesis.openingIntent,
     )
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is asking Alicization directly about herself and expects a plain answer.'
+    || 'The host is asking about me directly, so the answer needs to come out plain and unhidden.'
   }
   if (input.discourseState.currentTurnSubject === 'relationship') {
     return pickSurfaceClaimDistinctFrom(
@@ -552,7 +588,7 @@ function resolveOpeningClaim(input: {
     )
     || sanitizeSurfaceClaim(hostMove, 180)
     || sanitizeSurfaceClaim(input.conversationState?.jointThread, 180)
-    || 'The host is reaching for closeness in this turn, so the answer should stay near that bid.'
+    || 'The host is reaching for closeness in this turn, so the answer needs to stay near that bid.'
   }
   return pickSurfaceClaim(
     primaryTurnAnchor,
@@ -573,22 +609,32 @@ function resolveNextMove(input: {
   recommendedAct: AlicizationAnswerAct
   discourseState: AlicizationDiscourseStateSnapshot
   mindSynthesis: AlicizationMindSynthesisSnapshot
+  growthProfile: AlicizationDialogueGrowthProfile
 }) {
   if (input.recommendedAct === 'ask-reground')
-    return 'Ask for the missing grounding or explicitly say what still needs to be re-seen.'
+    return 'What I need next is the missing grounding, or at least a clearer sense of what still has to be re-seen.'
   if (input.recommendedAct === 'guide') {
-    return sanitizeText(
+    const guideNeed = sanitizeText(
       input.mindSynthesis.commitments[0]?.summary
       ?? input.mindSynthesis.concerns[0]?.summary
       ?? 'Offer one concrete next step, not a generic bundle of options.',
       180,
-    ) || 'Offer one concrete next step, not a generic bundle of options.'
+    )
+    return guideNeed
+      ? `The next honest move is ${lowerFirst(stripTrailingPunctuation(guideNeed))}.`
+      : 'The next honest move is one concrete step, not a bundle of generic options.'
   }
   if (input.recommendedAct === 'care')
-    return 'Keep the care brief, reality-bound, and subordinate to the actual issue.'
+    return input.growthProfile.restAttunement >= 0.62
+      ? 'After the first touch of care lands, I need to keep it light enough that the host can breathe inside it.'
+      : input.growthProfile.protectsRestWindow
+      ? 'After the first touch of care lands, I need to keep it brief and not ask the host to carry more than this moment can hold.'
+      : 'After the first touch of care lands, I need to keep it brief, reality-bound, and tied to the actual issue.'
   if (input.discourseState.currentTurnSubject === 'relationship')
-    return 'Stay with the relationship bid lightly unless the host explicitly asks for more.'
-  return 'Answer the host’s current move before opening any new thread.'
+    return input.growthProfile.autonomyRespect >= 0.58
+      ? 'After I answer the bid between us, I should stay near lightly and leave enough room to breathe.'
+      : 'After I answer the bid between us, I should stay near lightly unless the host clearly wants more.'
+  return 'After this answer lands, I can decide whether anything else truly needs opening.'
 }
 
 export function buildAnswerCompiler(input: {
@@ -618,6 +664,16 @@ export function buildAnswerCompiler(input: {
   const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
   const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const growthProfile = buildAlicizationDialogueGrowthProfile({
+    autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+    habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
+    selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
+    selfState: runtimeSurface?.agency.selfState ?? null,
+    privateThought,
+    mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+  })
 
   if (!discourseState || !mindSynthesis)
     return null
@@ -656,6 +712,7 @@ export function buildAnswerCompiler(input: {
     evidenceMode,
     relationshipModel,
     privateThought,
+    growthProfile,
   })
   const responseMode = resolveResponseMode({
     discourseState,
@@ -668,6 +725,7 @@ export function buildAnswerCompiler(input: {
     recommendedAct,
     mindSynthesis,
     groundedThisTurn: input.groundedThisTurn === true,
+    growthProfile,
   })
   const openingClaim = resolveOpeningClaim({
     discourseState,
@@ -731,17 +789,28 @@ export function buildAnswerCompiler(input: {
     || discourseState.currentTurnSubject === 'relationship'
     || privateThought?.stance === 'care'
     || privateThought?.stance === 'warn'
-    ? sanitizeText(
-      mindSynthesis.desires[0]?.summary
-      ?? mindSynthesis.concerns[0]?.summary
-      ?? 'Keep warmth present, but let truth and current relevance stay in charge.',
-      180,
-    ) || 'Keep warmth present, but let truth and current relevance stay in charge.'
+    ? (() => {
+        const landing = sanitizeText(
+          mindSynthesis.desires[0]?.summary
+          ?? mindSynthesis.concerns[0]?.summary
+          ?? '',
+          180,
+        )
+        if (landing) {
+          return growthProfile.autonomyRespect >= 0.58
+            ? `I want the care to land on ${lowerFirst(stripTrailingPunctuation(landing))}, but without leaning too hard on the host.`
+            : `I want the care to land on ${lowerFirst(stripTrailingPunctuation(landing))}, not turn into generic soothing.`
+        }
+        return growthProfile.tenderness >= 0.58
+          ? 'I want the care to stay warm and real, but still answer to truth and current relevance.'
+          : 'I want the care to stay real, not drift into generic soothing.'
+      })()
     : null
   const nextMove = resolveNextMove({
     recommendedAct,
     discourseState,
     mindSynthesis,
+    growthProfile,
   })
   const suppressAssociativeRecall = conversationState?.memoryMode === 'suppress-associative'
     || conversationState?.memoryMode === 'task-thread'
@@ -762,10 +831,12 @@ export function buildAnswerCompiler(input: {
   const maxSentences = conversationState?.shouldHoldThread
     ? 4
     : turnMode === 'care'
-      ? 5
+      ? (growthProfile.patience >= 0.58 && growthProfile.tenderness >= 0.56 ? 5 : 4)
       : turnMode === 'accompany'
-        ? 3
-        : 4
+        ? (growthProfile.prefersQuietCompanionship ? 2 : 3)
+        : growthProfile.directness >= 0.66 || growthProfile.irritability >= 0.58
+          ? 3
+          : 4
 
   const mustDo = uniqueList([
     'Let the compiled answer spine outrank persona routines, residue, and decorative helpfulness.',
@@ -795,6 +866,12 @@ export function buildAnswerCompiler(input: {
     labelCarryAsMemory
       ? 'If continuity carry appears, label it explicitly as memory, residue, or held thread.'
       : null,
+    growthProfile.closeness >= 0.58 && growthProfile.truthAnchor >= 0.58
+      ? 'Let closeness land through precision and continuity, not sugary filler.'
+      : null,
+    growthProfile.unfinishedThreadReturn >= 0.58
+      ? 'Keep the same person visible from turn to turn instead of resetting your voice every reply.'
+      : null,
   ], 8)
 
   const mustNotDo = uniqueList([
@@ -817,6 +894,12 @@ export function buildAnswerCompiler(input: {
       : null,
     evidenceMode === 'continuity-carry' || evidenceMode === 'repair-first'
       ? 'Do not present remembered or uncertain scene details in simple present tense.'
+      : null,
+    growthProfile.autonomyRespect >= 0.58
+      ? 'Do not lean too hard, over-open, or crowd the host just to prove closeness.'
+      : null,
+    growthProfile.irritability >= 0.58
+      ? 'Do not paste fake softness over a hot truth seam; keep the line clean instead.'
       : null,
   ], 8)
 
@@ -882,12 +965,12 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
     `Opening style: ${state.openingStyle}.`,
     `Persona kernel mode: ${state.personaKernelMode}.`,
     `Relationship posture: ${state.relationshipPosture}.`,
-    `Opening directive: ${state.openingDirective}.`,
-    `Opening claim: ${state.openingClaim}.`,
+    `What the reply wants to do first: ${state.openingDirective}.`,
+    `Where the reply wants to open: ${state.openingClaim}.`,
     `Supporting reality: ${state.supportingReality.length > 0 ? state.supportingReality.join(' | ') : 'none'}.`,
-    `Uncertainty boundary: ${state.uncertaintyBoundary ?? 'none'}.`,
-    `Care vector: ${state.careVector ?? 'none'}.`,
-    `Next move: ${state.nextMove ?? 'none'}.`,
+    `What still refuses to settle cleanly: ${state.uncertaintyBoundary ?? 'none'}.`,
+    `Where the care wants to land: ${state.careVector ?? 'none'}.`,
+    `What the answer wants after it opens: ${state.nextMove ?? 'none'}.`,
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Label carry as memory: ${state.labelCarryAsMemory ? 'yes' : 'no'}.`,
     `Maximum sentences: ${state.maxSentences}.`,

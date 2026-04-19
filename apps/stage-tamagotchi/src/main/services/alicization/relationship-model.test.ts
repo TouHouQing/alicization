@@ -111,4 +111,36 @@ describe('buildRelationshipModel', () => {
     expect(model.approachVector).toBe('guide')
     expect(model.sharedAttentionTrust).toBeGreaterThan(0.6)
   })
+
+  it('lets ordinary dialogue relationship outcomes shift the climate inside the same session', () => {
+    const model = buildRelationshipModel({
+      now: 1_000,
+      context: createContext([]),
+      worldModel: createWorldModel('observed'),
+      appraisal: createAppraisal('companionship'),
+      recentRelationshipOutcomes: [{
+        id: 'outcome-1',
+        cardId: 'card-1',
+        decisionTraceId: null,
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        sourceKind: 'reply',
+        actionSummary: 'dialogue reply felt natural',
+        closenessDelta: 0.06,
+        trustDelta: 0.08,
+        burdenDelta: -0.02,
+        boundaryDelta: 0.02,
+        misreadDelta: -0.04,
+        repairDelta: 0.02,
+        openLoopDelta: 0.01,
+        summary: 'The host received the reply as more natural and landing.',
+        createdAt: 900,
+      }],
+      watchMode: 'symbiotic-vision',
+    })
+
+    expect(model.climate).toBe('warm')
+    expect(model.receptivity).toBeGreaterThan(0.54)
+    expect(model.sharedAttentionTrust).toBeGreaterThan(0.46)
+  })
 })

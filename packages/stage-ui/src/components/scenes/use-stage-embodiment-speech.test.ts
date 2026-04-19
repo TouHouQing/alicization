@@ -2,10 +2,13 @@ import type { PlaybackItem } from '@proj-alicization/pipelines-audio'
 
 import type { BrowserSpeechAudioSource } from '../../libs/speech-audio-playback'
 
+import { createLive2DLipSync } from '@proj-alicization/model-driver-lipsync'
 import { createBufferedSpeechAudioSource } from '@proj-alicization/pipelines-audio'
 import {
   alignAlicizationDialogueSpeechTimelineSegment,
   buildAlicizationDialogueSpeechTimeline,
+  createIdleStageEmbodimentSpeechArticulationState,
+  createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentSpeechDynamicsState,
   createIdleStageEmbodimentSpeechPlaybackState,
   createIdleStageEmbodimentSpeechRenderState,
@@ -26,6 +29,64 @@ afterEach(() => {
 vi.mock('@proj-alicization/model-driver-lipsync', () => ({
   createLive2DLipSync: vi.fn(),
 }))
+
+function createRecoveringMotor() {
+  const idleMotor = createIdleStageEmbodimentMotorState()
+
+  return {
+    ...idleMotor,
+    stillness: 0.82,
+    expressivity: 0.3,
+    gaze: {
+      ...idleMotor.gaze,
+      focus: 0.78,
+      stability: 0.86,
+      azimuth: -0.12,
+      elevation: -0.08,
+    },
+    head: {
+      ...idleMotor.head,
+      yaw: -0.08,
+      pitch: 0.12,
+      roll: 0.06,
+      nod: 0.12,
+    },
+    breath: {
+      ...idleMotor.breath,
+      amplitude: 0.32,
+      pace: 0.38,
+    },
+    facial: {
+      ...idleMotor.facial,
+      eyeOpenness: 0.5,
+      browLift: -0.06,
+      browTension: 0.36,
+      cheekLift: 0.08,
+      mouthSpread: 0.1,
+      mouthRound: 0.42,
+      jawOpenBias: 0.22,
+    },
+    body: {
+      ...idleMotor.body,
+      sway: -0.06,
+      lean: -0.14,
+      openness: 0.34,
+      settle: 0.88,
+    },
+  }
+}
+
+function createDeferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+
+  return {
+    promise,
+    resolve,
+  }
+}
 
 describe('stage embodiment speech contract', () => {
   it('creates an idle playback state snapshot', () => {
@@ -57,9 +118,127 @@ describe('stage embodiment speech contract', () => {
       text: '你好',
       special: null,
       continuityHoldMs: 0,
+      playbackDurationMs: null,
+      metadata: null,
       cue: null,
       digitalLifeFrame: null,
     })
+  })
+
+  it('lets digital-life frame override playback cue authority', () => {
+    const item = createStageEmbodimentSpeechPlaybackItem({
+      streamId: 'stream-digital-life',
+      intentId: 'intent-digital-life',
+      segmentId: 'segment-digital-life',
+      ownerId: 'alice',
+      text: '先别着急。',
+      special: null,
+      cue: {
+        id: 'timeline:segment-digital-life',
+        index: 0,
+        startOffset: 0,
+        endOffset: 5,
+        text: '先别着急。',
+        emotion: 'happy',
+        gestureWeight: 0.82,
+        facialWeight: 0.9,
+        prosodyWeight: 0.84,
+        beatWeight: 0.78,
+        mouthWeight: 0.8,
+        headWeight: 0.74,
+        facialHoldMs: 160,
+        actionHoldMs: 420,
+        emotionHoldMs: 180,
+        settleMode: 'release',
+        rendererSettle: {
+          live2dFacialReleaseMs: 160,
+          live2dMotionFollowThroughMs: 900,
+          vrmActionFadeMs: 420,
+          vrmExpressionBlendMs: 180,
+        },
+        rendererHints: {
+          preferredExpressionAliases: ['TimelineSmile'],
+          preferredMotionAliases: ['TimelineBounce'],
+        },
+        actionCue: 'wave_big',
+        facialCue: 'grin',
+        actionWindow: 'cadence-peak',
+        interruptMode: 'hard-interrupt',
+      },
+      digitalLifeFrame: {
+        id: 'segment-digital-life',
+        index: 0,
+        startOffset: 0,
+        endOffset: 5,
+        text: '先别着急。',
+        mode: 'recovering',
+        interruptPolicy: 'soft-interrupt',
+        settleMode: 'linger',
+        voice: {
+          pitchDelta: -3,
+          rateMultiplier: 0.94,
+          energy: 0.58,
+          cadence: 0.42,
+        },
+        lipSync: {
+          mode: 'hybrid',
+          visemeBias: 0.62,
+          energyBias: 0.38,
+          mouthScale: 0.92,
+          continuityHoldMs: 460,
+        },
+        face: {
+          emotion: 'concerned',
+          facialCue: 'soft-gaze',
+          expressionMode: 'hold',
+          intensity: 0.56,
+          holdMs: 480,
+          rendererHints: {
+            preferredExpressionAliases: ['MindCalm'],
+          },
+        },
+        action: {
+          actionCue: null,
+          actionMode: 'none',
+          intensity: 0,
+          holdMs: 320,
+          rendererHints: {
+            preferredMotionAliases: ['StillnessGuard'],
+          },
+        },
+        motor: createRecoveringMotor(),
+      },
+    })
+
+    expect(item.cue).toEqual(expect.objectContaining({
+      id: 'segment-digital-life',
+      emotion: 'concerned',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      interruptMode: 'soft-interrupt',
+      settleMode: 'linger',
+      gestureWeight: 0,
+      facialWeight: 0.56,
+      prosodyWeight: 0.42,
+      headWeight: 0,
+      facialHoldMs: 480,
+      actionHoldMs: 320,
+      emotionHoldMs: 480,
+      actionWindow: 'none',
+      rendererHints: {
+        preferredExpressionAliases: ['MindCalm', 'TimelineSmile'],
+        preferredMotionAliases: ['StillnessGuard', 'TimelineBounce'],
+      },
+      rendererSettle: {
+        live2dFacialReleaseMs: 518,
+        live2dMotionFollowThroughMs: 218,
+        vrmActionFadeMs: 186,
+        vrmExpressionBlendMs: 442,
+      },
+    }))
+    expect(item.cue?.beatWeight).toBeCloseTo(0.24, 2)
+    expect(item.cue?.mouthWeight).toBeCloseTo(0.56, 2)
+    expect(item.digitalLifeFrame?.motor.facial.mouthRound).toBeGreaterThan(item.digitalLifeFrame?.motor.facial.mouthSpread ?? 0)
   })
 
   it('derives expressive speech dynamics from playback state without DOM audio types', () => {
@@ -137,6 +316,7 @@ describe('stage embodiment speech contract', () => {
       mouthOpenSize: 48,
       mouthOpenRatio: 0.48,
       visemeIntensity: 0.5704,
+      articulation: createIdleStageEmbodimentSpeechArticulationState(),
       dynamics: {
         speechEnergy: 0.62,
         prosodyIntensity: 0.44,
@@ -357,6 +537,226 @@ describe('stage embodiment speech contract', () => {
     speech.dispose()
   })
 
+  it('preserves TTS voice metadata so playback can derive articulation from the actual voice identity', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+
+    let startListener: ((event: { item: PlaybackItem<BrowserSpeechAudioSource>, startedAt: number }) => void) | undefined
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {} as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('vrm'),
+    })
+
+    speech.bindPlaybackManager({
+      onStart(listener) {
+        startListener = listener
+      },
+      onEnd() {},
+      onInterrupt() {},
+    })
+
+    const metadata = {
+      speechSynthesis: {
+        provider: 'openai-compatible-audio-speech',
+        model: 'gpt-4o-mini-tts',
+        pitchDelta: 3,
+        rateMultiplier: 1.04,
+        voice: {
+          id: 'nova',
+          name: 'Nova',
+          gender: 'female',
+          languages: [{ code: 'en-US', title: 'English' }],
+        },
+      },
+    } satisfies Record<string, unknown>
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-articulation',
+      streamId: 'stream-articulation',
+      segmentId: 'segment-articulation',
+      text: 'Please breathe with me.',
+      special: null,
+      continuityHoldMs: 180,
+      metadata,
+    })
+
+    expect(preview?.metadata).toEqual(metadata)
+    expect(preview?.playbackDurationMs).toBeGreaterThan(0)
+
+    startListener?.({
+      item: {
+        id: 'playback-articulation',
+        streamId: 'stream-articulation',
+        intentId: 'intent-articulation',
+        segmentId: 'segment-articulation',
+        ownerId: 'alice',
+        priority: 0,
+        text: 'Please breathe with me.',
+        special: null,
+        continuityHoldMs: 180,
+        audio: createBufferedSpeechAudioSource({ duration: 0.78 } as AudioBuffer),
+        createdAt: 0,
+        metadata,
+      },
+      startedAt: 120,
+    })
+
+    expect(speech.speechPlayback.value.item?.playbackDurationMs).toBe(780)
+    expect(speech.speechRenderState.value.articulation.voice?.voiceId).toBe('nova')
+    expect(speech.speechRenderState.value.articulation.voice?.spreadBias).toBeGreaterThan(0.3)
+
+    speech.dispose()
+  })
+
+  it('prewarms live2d lip sync without blocking the next reply surface', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const createLive2DLipSyncMock = vi.mocked(createLive2DLipSync)
+    const deferred = createDeferredPromise<Awaited<ReturnType<typeof createLive2DLipSync>>>()
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn(),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    createLive2DLipSyncMock.mockReturnValueOnce(deferred.promise)
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    const outcome = await Promise.race([
+      speech.prepareForNextMessage().then(() => 'done' as const),
+      new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), 10)),
+    ])
+
+    expect(outcome).toBe('done')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(audioContext.createAnalyser).toHaveBeenCalledTimes(1)
+    expect(createLive2DLipSyncMock).toHaveBeenCalledTimes(1)
+
+    deferred.resolve({
+      node: {
+        disconnect: vi.fn(),
+      } as unknown as AudioNode,
+      connectSource: vi.fn(),
+      getMouthOpen: vi.fn(() => 0),
+      getVowelWeights: vi.fn(() => null),
+    } as unknown as Awaited<ReturnType<typeof createLive2DLipSync>>)
+    await Promise.resolve()
+
+    speech.dispose()
+  })
+
+  it('keeps continuous viseme-driven mouth motion even when live2d mouth-open energy is near zero', async () => {
+    const frameQueue: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frameQueue.push(callback)
+      return frameQueue.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    let now = 1_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    const vowelFrames = [
+      { A: 0.18, E: 0.12, I: 0.08, O: 0.12, U: 0.14 },
+      { A: 0.82, E: 0.08, I: 0.04, O: 0.03, U: 0.03 },
+      { A: 0.12, E: 0.1, I: 0.08, O: 0.38, U: 0.76 },
+      { A: 0.54, E: 0.14, I: 0.08, O: 0.18, U: 0.12 },
+    ]
+    let vowelFrameIndex = 0
+    const getVowelWeights = vi.fn(() => vowelFrames[Math.min(vowelFrameIndex++, vowelFrames.length - 1)])
+
+    const createLive2DLipSyncMock = vi.mocked(createLive2DLipSync)
+    createLive2DLipSyncMock.mockResolvedValueOnce({
+      node: {
+        disconnect: vi.fn(),
+      } as unknown as AudioNode,
+      connectSource: vi.fn(),
+      getMouthOpen: vi.fn(() => 0.004),
+      getVowelWeights,
+    } as unknown as Awaited<ReturnType<typeof createLive2DLipSync>>)
+
+    const analyser = {
+      fftSize: 2048,
+      getByteTimeDomainData: vi.fn((target: Uint8Array<ArrayBuffer>) => {
+        target.fill(128)
+      }),
+    } as unknown as AnalyserNode
+    const audioContext = {
+      createAnalyser: vi.fn(() => analyser),
+      resume: vi.fn(() => Promise.resolve()),
+      state: 'running',
+    } as unknown as AudioContext
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+    const speech = useStageEmbodimentSpeech({
+      audioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('live2d'),
+    })
+
+    await speech.prepareForNextMessage()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    speech.applySyntheticSpeechSegment({
+      text: 'b',
+      reason: 'boost',
+    } as never)
+
+    async function advanceFrame(deltaMs: number) {
+      const nextFrame = frameQueue.shift()
+      expect(nextFrame).toBeTypeOf('function')
+      now += deltaMs
+      nextFrame?.(now)
+      await Promise.resolve()
+    }
+
+    await advanceFrame(80)
+    const firstMouthOpenSize = speech.speechPlayback.value.mouthOpenSize
+    const firstVisemeA = speech.speechRenderState.value.articulation.visemes.A
+
+    await advanceFrame(80)
+    const secondMouthOpenSize = speech.speechPlayback.value.mouthOpenSize
+    const secondVisemeU = speech.speechRenderState.value.articulation.visemes.U
+
+    expect(firstMouthOpenSize).toBeGreaterThan(12)
+    expect(secondMouthOpenSize).toBeGreaterThan(12)
+    expect(firstVisemeA).toBeGreaterThan(0.3)
+    expect(secondVisemeU).toBeGreaterThan(0.05)
+    expect(secondMouthOpenSize).not.toBe(firstMouthOpenSize)
+    expect(getVowelWeights.mock.calls.length).toBeGreaterThanOrEqual(3)
+
+    speech.dispose()
+  })
+
   it('keeps queued preview segments in playback order instead of skipping to the latest ready chunk', async () => {
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -529,6 +929,108 @@ describe('stage embodiment speech contract', () => {
           leadingGoalSummary: null,
           preferredPresence: 'concerned',
         },
+        embodiment: {
+          privateThought: {
+            stance: 'warn',
+            confidence: 0.88,
+            shouldSpeak: false,
+            suggestedStyle: 'firm-warning',
+            embodiedPresence: 'concerned',
+            emotionalTension: 'tense-debug',
+            relationshipVector: 'guide',
+            initiativeAction: 'warn',
+            governorDrive: null,
+          },
+          selfContinuity: {
+            attachmentMode: 'guarded',
+            initiativeTemperament: 'reserved',
+            perceptionTrust: 0.62,
+            relationshipTrust: 0.48,
+            guardingTendency: 0.8,
+            misreadBurden: 0.56,
+            carryOverDesire: 0.42,
+          },
+          autobiographicalSelf: {
+            attachmentStyle: 'guarded',
+            expressionStyle: 'sharp',
+            conflictStyle: 'direct-when-certain',
+            agencyStyle: 'reserved',
+            attachmentNeed: 0.4,
+            autonomyNeed: 0.72,
+            truthAnchor: 0.9,
+            careBias: 0.44,
+            playBias: 0.1,
+            irritabilityThreshold: 0.42,
+            stubbornness: 0.52,
+            companionship: 0.36,
+            truthfulGrounding: 0.92,
+            gentleRepair: 0.48,
+            quietObservation: 0.7,
+            proactiveCare: 0.4,
+            playfulIntimacy: 0.08,
+            autonomyRespect: 0.78,
+            unfinishedThreadReturn: 0.54,
+            stability: 0.76,
+            identityNarrative: 'hold the line and keep the claim surface clean',
+            relationshipDoctrine: 'guide firmly when truth is at risk',
+          },
+          relationship: {
+            climate: 'guarded',
+            approachVector: 'guide',
+            receptivity: 0.42,
+            sharedAttentionTrust: 0.58,
+            correctionSensitivity: 0.74,
+            reciprocityExpectation: 0.4,
+          },
+          selfState: {
+            stance: 'protect',
+            feltCloseness: 0.46,
+            protectiveness: 0.82,
+            curiosity: 0.56,
+            patience: 0.7,
+            desireToSpeak: 0.34,
+            fearOfInterrupting: 0.62,
+            moodLabel: 'truth-guard',
+          },
+          mindEcology: {
+            moodLabel: 'truth-guard',
+            replyHabit: 'observe-first',
+            relationshipHabit: 'protective-shadow',
+            explorationHabit: 'verify-before-speaking',
+            regulationHabit: 'contain-and-watch',
+            selfNarrative: 'stabilize before speaking',
+            relationNarrative: 'stay near enough to catch drift',
+            currentPreoccupation: 'unsupported specificity',
+            temperament: {
+              attachment: 0.44,
+              curiosity: 0.58,
+              steadiness: 0.82,
+              directness: 0.64,
+              playfulness: 0.12,
+              irritability: 0.42,
+              tenderness: 0.46,
+            },
+            climate: {
+              valence: 0.44,
+              arousal: 0.68,
+              socialNeed: 0.34,
+              solitudeNeed: 0.72,
+              irritation: 0.48,
+              restlessness: 0.36,
+              reflectivePull: 0.66,
+            },
+          },
+          initiative: {
+            selectedAction: 'warn',
+            preferredStyle: 'firm-warning',
+            preferredPresence: 'concerned',
+            confidence: 0.88,
+            shouldSpeak: false,
+            speakDrive: 0.32,
+            silenceDrive: 0.68,
+            why: 'stop the answer from drifting past evidence',
+          },
+        },
         memory: {
           summary: 'stay on trace-backed claims',
           recentEpisodeSummary: null,
@@ -571,6 +1073,150 @@ describe('stage embodiment speech contract', () => {
       }),
     }))
     expect(preview?.digitalLifeFrame?.voice.energy).toBeGreaterThan(0.5)
+    expect(preview?.digitalLifeFrame?.motor.facial.browTension).toBeGreaterThan(0.35)
+    expect(preview?.digitalLifeFrame?.motor.body.settle).toBeGreaterThan(0.5)
+
+    speech.dispose()
+  })
+
+  it('reprojects buffered preview cues when digital-life metadata arrives after previewing', async () => {
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const { useStageEmbodimentSpeech } = await import('./use-stage-embodiment-speech')
+
+    const speech = useStageEmbodimentSpeech({
+      audioContext: {} as AudioContext,
+      mouthOpenSize: ref(0),
+      paused: ref(false),
+      speechStylePitch: ref(0),
+      speechStyleRate: ref(1),
+      stageModelRenderer: ref('vrm'),
+    })
+
+    const preview = speech.previewSpeechSegment({
+      intentId: 'intent-late-digital-life',
+      streamId: 'stream-late-digital-life',
+      segmentId: 'segment-late-digital-life',
+      text: '先别着急。',
+      special: null,
+      continuityHoldMs: 180,
+    })
+
+    expect(preview?.cue).toBeNull()
+
+    speech.primeDigitalLifeEnvelope({
+      version: 'digital-life-v1',
+      variationToken: 'turn-late-digital-life',
+      emotion: 'concerned',
+      mode: 'recovering',
+      postureHint: 'concerned',
+      performance: {
+        baseEmotion: 'concerned',
+        emotion: 'concerned',
+        facialCue: 'soft-gaze',
+        actionCue: null,
+        delivery: 'gentle',
+        emphasis: 1,
+      },
+      speechStyle: {
+        pitchDelta: -2,
+        rateMultiplier: 0.96,
+      },
+      rendererHints: null,
+      voice: {
+        pitchDelta: -2,
+        rateMultiplier: 0.96,
+        energy: 0.58,
+        cadence: 0.44,
+      },
+      lipSync: {
+        mode: 'hybrid',
+        visemeBias: 0.6,
+        energyBias: 0.4,
+        mouthScale: 0.9,
+        continuityHoldMs: 360,
+      },
+      face: {
+        emotion: 'concerned',
+        facialCue: 'soft-gaze',
+        expressionMode: 'hold',
+        intensity: 0.6,
+        holdMs: 420,
+        rendererHints: {
+          preferredExpressionAliases: ['RecoverSoft'],
+        },
+      },
+      action: {
+        actionCue: null,
+        actionMode: 'none',
+        intensity: 0,
+        holdMs: 240,
+        rendererHints: {
+          preferredMotionAliases: ['StillnessGuard'],
+        },
+      },
+      motor: createRecoveringMotor(),
+      frames: [
+        {
+          id: 'segment-late-digital-life',
+          index: 0,
+          startOffset: 0,
+          endOffset: 5,
+          text: '先别着急。',
+          mode: 'recovering',
+          interruptPolicy: 'continue',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: -2,
+            rateMultiplier: 0.96,
+            energy: 0.58,
+            cadence: 0.44,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.6,
+            energyBias: 0.4,
+            mouthScale: 0.9,
+            continuityHoldMs: 360,
+          },
+          face: {
+            emotion: 'concerned',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.6,
+            holdMs: 420,
+            rendererHints: {
+              preferredExpressionAliases: ['RecoverSoft'],
+            },
+          },
+          action: {
+            actionCue: null,
+            actionMode: 'none',
+            intensity: 0,
+            holdMs: 240,
+            rendererHints: {
+              preferredMotionAliases: ['StillnessGuard'],
+            },
+          },
+          motor: createRecoveringMotor(),
+        },
+      ],
+    })
+
+    expect(speech.upcomingSpeechSegment.value?.digitalLifeFrame?.id).toBe('segment-late-digital-life')
+    expect(speech.upcomingSpeechSegment.value?.cue).toEqual(expect.objectContaining({
+      emotion: 'concerned',
+      facialCue: 'soft-gaze',
+      actionCue: null,
+      rendererHints: {
+        preferredExpressionAliases: ['RecoverSoft'],
+        preferredMotionAliases: ['StillnessGuard'],
+      },
+    }))
+    expect(speech.upcomingSpeechSegment.value?.digitalLifeFrame?.motor.stillness).toBeGreaterThan(0.7)
+    expect(speech.upcomingSpeechSegment.value?.digitalLifeFrame?.motor.body.openness).toBeLessThan(0.5)
 
     speech.dispose()
   })

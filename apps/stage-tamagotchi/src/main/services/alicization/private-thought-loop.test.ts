@@ -269,4 +269,243 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.selectedThoughtThreadId).toBe('thread::wait')
     expect(thought.livingWorldObjectId).toBe('artifact::editor')
   })
+
+  it('uses mind ecology to keep a nearby inner posture even when the fallback is quiet', () => {
+    const thought = buildPrivateThoughtLoop({
+      now: 10_000,
+      context: createContext({
+        workload: { kind: 'browser', confidence: 0.72, source: 'foreground-window-heuristic', matchedLabels: ['browser'] },
+        content: { kind: 'doc', confidence: 0.68, source: 'foreground-window-heuristic', matchedLabels: ['docs'] },
+      }),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'browser',
+        contentKind: 'doc',
+        scenario: 'general',
+        summary: 'Documentation page',
+        source: 'foreground-window-heuristic',
+        confidence: 0.72,
+        beganAt: 0,
+        lastSeenAt: 10_000,
+      },
+      attention: null,
+      recentTransition: null,
+      durabilityPulse: null,
+      mindEcology: {
+        moodLabel: 'warm-attentive',
+        replyHabit: 'hover-first',
+        relationshipHabit: 'stay-near',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'lean-forward-gently',
+        temperament: {
+          attachment: 0.64,
+          curiosity: 0.54,
+          steadiness: 0.66,
+          directness: 0.34,
+          playfulness: 0.18,
+          irritability: 0.12,
+          tenderness: 0.72,
+        },
+        climate: {
+          valence: 0.62,
+          arousal: 0.32,
+          socialNeed: 0.58,
+          solitudeNeed: 0.24,
+          irritation: 0.16,
+          restlessness: 0.22,
+          reflectivePull: 0.38,
+        },
+        selfNarrative: 'I am staying near the host quietly while the thread is still forming.',
+        relationNarrative: 'The relationship line is warm; staying nearby feels kinder than disappearing.',
+        currentPreoccupation: 'Stay near the forming thread without interrupting too early.',
+        learnedAdjustments: [],
+        recurringPatterns: ['relationship:stay-near'],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(thought.rationaleTags).toContain('ecology-mood:warm-attentive')
+    expect(thought.rationaleTags).toContain('ecology-relationship:stay-near')
+    expect(thought.stance).toBe('accompany')
+  })
+
+  it('falls back to the durable autobiographical self when no ecology has formed yet', () => {
+    const thought = buildPrivateThoughtLoop({
+      now: 12_000,
+      context: createContext({
+        localTime: { hour: 15, minute: 20, isLateNight: false },
+        workload: { kind: 'browser', confidence: 0.62, source: 'foreground-window-heuristic', matchedLabels: ['browser'] },
+        content: { kind: 'doc', confidence: 0.58, source: 'foreground-window-heuristic', matchedLabels: ['doc'] },
+        relationship: {
+          ...createContext().relationship,
+          boredom: 48,
+          loneliness: 54,
+          fatigue: 18,
+        },
+      }),
+      watchMode: 'mnemonic-passive',
+      currentScene: {
+        workloadKind: 'browser',
+        contentKind: 'doc',
+        scenario: 'general',
+        summary: 'Documentation page',
+        source: 'foreground-window-heuristic',
+        confidence: 0.64,
+        beganAt: 0,
+        lastSeenAt: 12_000,
+      },
+      attention: null,
+      recentTransition: null,
+      durabilityPulse: null,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.76,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.68,
+          careBias: 0.78,
+          playBias: 0.24,
+          irritabilityThreshold: 0.62,
+          stubbornness: 0.46,
+        },
+        preferenceEvolution: {
+          companionship: 0.78,
+          truthfulGrounding: 0.66,
+          gentleRepair: 0.7,
+          quietObservation: 0.42,
+          proactiveCare: 0.76,
+          playfulIntimacy: 0.28,
+          autonomyRespect: 0.62,
+          unfinishedThreadReturn: 0.56,
+        },
+        activeGoals: [{
+          id: 'autobio-goal::stay-near-without-crowding',
+          kind: 'stay-near-without-crowding',
+          status: 'active',
+          weight: 0.82,
+          summary: 'Stay near enough to matter, but not so near that presence becomes pressure.',
+          sourceTags: ['relationship'],
+          createdAt: 0,
+          updatedAt: 12_000,
+        }],
+        behaviorSignatures: ['bond:attuned', 'goal:stay-near-without-crowding', 'habit:near-with-boundary'],
+        identityNarrative: 'I stay near with intention instead of impulse.',
+        relationshipDoctrine: 'Stay close enough to matter, but treat intrusion as a rupture of care.',
+        latestInflection: 'Nearness should still leave room for the host.',
+        stability: 0.8,
+        updatedAt: 12_000,
+      },
+    })
+
+    expect(thought.rationaleTags).toContain('autobio-goal:stay-near-without-crowding/active')
+    expect(thought.thoughtText).toContain('stay nearby')
+  })
+
+  it('carries forward the same private thought line when the same inner carrier stays alive', () => {
+    const thought = buildPrivateThoughtLoop({
+      now: 20_000,
+      context: createContext({
+        localTime: { hour: 14, minute: 0, isLateNight: false },
+        system: {
+          ...createContext().system,
+          inputActivity: 'idle' as const,
+        },
+      }),
+      watchMode: 'mnemonic-passive',
+      currentScene: null,
+      attention: null,
+      recentTransition: null,
+      durabilityPulse: null,
+      previousPrivateThought: {
+        stance: 'observe',
+        confidence: 0.72,
+        rationaleTags: ['private-thought-carry'],
+        thoughtText: 'I am still circling the same unfinished repair line quietly.',
+        shouldSpeak: false,
+        suggestedStyle: 'silent-observe',
+        embodiedPresence: 'attentive',
+        expiresAt: 30_000,
+        afterglowFromScenario: null,
+        emotionalTension: 'focused-flow',
+        selectedThoughtThreadId: 'thread-1',
+        governorIntentionId: 'governor-1',
+        leadingGoalId: 'goal-1',
+        counterfactualOptionId: null,
+        commitmentId: null,
+      } as any,
+      thoughtThreads: {
+        foregroundThreadId: 'thread-1',
+        threads: [{
+          id: 'thread-1',
+          kind: 'problem-thread',
+          status: 'waiting',
+          title: 'runtime knot',
+          summary: 'Keep the runtime knot alive quietly.',
+          question: 'Which seam is still unresolved?',
+          salience: 0.7,
+          confidence: 0.74,
+          surfaceReadiness: 0.28,
+          reopenWhen: ['host-open'],
+          openedAt: 0,
+          lastUpdatedAt: 20_000,
+          expiresAt: 60_000,
+        }],
+        unresolvedCount: 1,
+        narrative: [],
+        updatedAt: 20_000,
+      } as any,
+      selfGovernor: {
+        dominantDrive: 'withhold',
+        dominantIntentionId: 'governor-1',
+        activeIntentions: [{
+          id: 'governor-1',
+          kind: 'wait-opening',
+          status: 'withheld',
+          drive: 'withhold',
+          title: 'wait',
+          summary: 'Wait for a better opening.',
+          urgency: 0.64,
+          confidence: 0.72,
+          patience: 0.76,
+          createdAt: 0,
+          lastUpdatedAt: 20_000,
+          expiresAt: 60_000,
+        }],
+        focusObjectId: null,
+        inhibition: 0.72,
+        persistence: 0.74,
+        socialRiskTolerance: 0.22,
+        revisionReadiness: 0.42,
+        narrative: [],
+        updatedAt: 20_000,
+      } as any,
+      goalStack: {
+        leadingAlicizationGoalId: 'goal-1',
+        alicizationGoals: [{
+          id: 'goal-1',
+          kind: 'help-resolve',
+          owner: 'alicization',
+          status: 'active',
+          label: 'keep resolving runtime knot',
+          confidence: 0.72,
+          urgency: 0.7,
+          desireWeight: 0.66,
+          blockers: [],
+          entityIds: [],
+          createdAt: 0,
+          lastUpdatedAt: 20_000,
+        }],
+        hostGoals: [],
+        unresolvedSummary: 'runtime knot',
+        updatedAt: 20_000,
+      } as any,
+    })
+
+    expect(thought.rationaleTags).toContain('private-thought-carry')
+    expect(thought.thoughtText).toContain('Still:')
+    expect(thought.expiresAt).toBeGreaterThan(20_000 + 90_000)
+  })
 })

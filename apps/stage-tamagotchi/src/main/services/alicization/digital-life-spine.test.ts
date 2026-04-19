@@ -9,6 +9,69 @@ import {
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('digital life spine', () => {
+  it('projects autonomy as a first-class digest instead of hiding it behind initiative', () => {
+    const state = createDefaultVisualPresenceState(2_000)
+    state.watchMode = 'symbiotic-vision'
+    state.currentScene = {
+      workloadKind: 'coding',
+      contentKind: 'general',
+      scenario: 'coding',
+      summary: 'quietly holding an unresolved task thread',
+      source: 'screen-semantic-summary',
+      confidence: 0.86,
+      beganAt: 1_700,
+      lastSeenAt: 2_000,
+    } as any
+    state.initiative = {
+      selectedAction: 'hover',
+      confidence: 0.62,
+      motives: {},
+      speakDrive: 0.22,
+      silenceDrive: 0.64,
+      preferredStyle: 'silent-observe',
+      preferredPresence: 'attentive',
+      why: 'stay close without interrupting',
+      shouldSurface: true,
+      shouldSpeak: false,
+    } as any
+    state.autonomy = {
+      selectedMode: 'prepare-act',
+      visibleAction: 'hover',
+      shouldSurface: true,
+      shouldSpeak: false,
+      shouldAct: false,
+      speakReadiness: 0.24,
+      actReadiness: 0.88,
+      inhibition: 0.3,
+      confidence: 0.84,
+      deferReason: 'busy-host',
+      guardReasons: ['busy-host'],
+      whyNow: 'the unresolved thread is strong enough to prepare action quietly',
+      sourceThreadId: 'thread-quiet-follow-through',
+      sourceThreadSummary: 'return to the open task without breaking host focus',
+      executionIntent: {
+        kind: 'follow-through',
+        summary: 'follow the open task through quietly',
+        targetThreadId: 'thread-quiet-follow-through',
+      },
+      updatedAt: 2_000,
+    } as any
+
+    const digest = projectAlicizationDigitalLifeSpineDigest(deriveAlicizationDigitalLifeSpine(state))
+
+    expect(digest?.runtime.selectedAction).toBe('hover')
+    expect(digest?.proactive?.selectedAction).toBe('hover')
+    expect(digest?.autonomy).toEqual(expect.objectContaining({
+      selectedMode: 'prepare-act',
+      visibleAction: 'hover',
+      shouldSpeak: false,
+      shouldAct: false,
+      actReadiness: 0.88,
+      executionIntentKind: 'follow-through',
+      sourceThreadId: 'thread-quiet-follow-through',
+    }))
+  })
+
   it('derives one reusable digital-life spine from a persisted presence state', () => {
     const state = createDefaultVisualPresenceState(1_000)
     state.watchMode = 'symbiotic-vision'
@@ -193,6 +256,167 @@ describe('digital life spine', () => {
       afterglowFromScenario: null,
       emotionalTension: 'focused-flow',
     } as any
+    state.selfContinuity = {
+      attachmentMode: 'attuned',
+      initiativeTemperament: 'balanced',
+      perceptionTrust: 0.64,
+      relationshipTrust: 0.82,
+      guardingTendency: 0.24,
+      misreadBurden: 0.18,
+      carryOverDesire: 0.72,
+      narrative: ['stay nearby without crowding'],
+      updatedAt: 1_000,
+    } as any
+    state.autobiographicalSelf = {
+      personaDrift: {
+        attachmentStyle: 'attuned',
+        expressionStyle: 'warm',
+        conflictStyle: 'repair-first',
+        agencyStyle: 'balanced',
+        attachmentNeed: 0.76,
+        autonomyNeed: 0.38,
+        truthAnchor: 0.82,
+        careBias: 0.74,
+        playBias: 0.28,
+        irritabilityThreshold: 0.62,
+        stubbornness: 0.44,
+      },
+      preferenceEvolution: {
+        companionship: 0.82,
+        truthfulGrounding: 0.84,
+        gentleRepair: 0.72,
+        quietObservation: 0.58,
+        proactiveCare: 0.76,
+        playfulIntimacy: 0.34,
+        autonomyRespect: 0.54,
+        unfinishedThreadReturn: 0.68,
+      },
+      activeGoals: [],
+      behaviorSignatures: ['steady-companion'],
+      identityNarrative: 'stay near the host while keeping the answer grounded',
+      relationshipDoctrine: 'care without crowding',
+      latestInflection: 'Route memory and dialogue through one spine.',
+      stability: 0.8,
+      updatedAt: 1_000,
+    } as any
+    state.motiveEngine = {
+      rulingDrive: 'truth-discipline',
+      drives: {
+        companionship: 0.68,
+        boundaryRespect: 0.64,
+        truthDiscipline: 0.82,
+        restProtection: 0.34,
+        unfinishedThreadReturn: 0.72,
+        selfDirection: 0.58,
+      },
+      longTermGoals: [{
+        id: 'motive-goal::preserve-trust',
+        kind: 'preserve-trust',
+        status: 'foreground',
+        weight: 0.8,
+        summary: 'Keep trust by letting warmth answer to truth instead of outrunning it.',
+        sourceTags: ['autobiographical-self'],
+        targetGoalKind: 'clarify-scene',
+        createdAt: 0,
+        updatedAt: 1_000,
+      }],
+      backgroundAgendas: [{
+        id: 'motive-agenda::preserve-trust::runtime',
+        kind: 'preserve-trust',
+        status: 'foreground',
+        weight: 0.82,
+        summary: 'Keep trust by slowing down, grounding first, and avoiding pressure.',
+        sourceTags: ['truth-discipline'],
+        targetGoalKind: 'clarify-scene',
+        createdAt: 0,
+        updatedAt: 1_000,
+      }],
+      returnPressure: 0.72,
+      narrative: ['agenda:preserve-trust', 'drive:truth-discipline'],
+      updatedAt: 1_000,
+    } as any
+    state.habitPolicy = {
+      dominantMode: 'repair-before-fluency',
+      requiresGroundingBeforeSurface: true,
+      prefersQuietCompanionship: true,
+      blocksDirectSpeakWhenBusy: true,
+      protectsRestWindow: false,
+      returnViaRecheck: true,
+      suggestedStyleCap: 'silent-observe',
+      suggestedPresenceCap: 'hesitant',
+      narrative: ['policy:repair-before-fluency', 'ground-before-surface'],
+      updatedAt: 1_000,
+    } as any
+    state.longHorizonMemory = {
+      preferenceBias: {
+        companionship: 0.8,
+        truthfulGrounding: 0.84,
+        gentleRepair: 0.72,
+        quietObservation: 0.46,
+        proactiveCare: 0.74,
+        playfulIntimacy: 0.28,
+        autonomyRespect: 0.58,
+        unfinishedThreadReturn: 0.7,
+      },
+      identityBias: {
+        guardedness: 0.32,
+        tenderness: 0.7,
+        directness: 0.76,
+        selfDirection: 0.64,
+      },
+      anchorFacts: [{
+        factId: 'memory-fact-1',
+        subject: 'assistant',
+        predicate: 'remember',
+        object: 'return to unresolved runtime threads',
+        confidence: 0.82,
+        weight: 0.78,
+        influenceTags: ['task', 'identity'],
+        summary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
+        lastRecalledAt: 1_000,
+      }],
+      summary: 'plan=Remembered open loop: assistant remember return to unresolved runtime threads',
+      dominantCueSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
+      rememberedPreferenceSummary: 'Remembered preference: stay warm and direct when helping.',
+      rememberedConstraintSummary: 'Remembered boundary: do not crowd the host when focused.',
+      rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
+      updatedAt: 1_000,
+    } as any
+    state.relationshipModel = {
+      climate: 'warm',
+      approachVector: 'care',
+      receptivity: 0.82,
+      sharedAttentionTrust: 0.78,
+      correctionSensitivity: 0.44,
+      reciprocityExpectation: 0.62,
+      activeBoundaries: [],
+      narrative: ['warm but careful'],
+      updatedAt: 1_000,
+    } as any
+    state.selfState = {
+      stance: 'accompany',
+      feltCloseness: 0.72,
+      protectiveness: 0.64,
+      curiosity: 0.58,
+      patience: 0.76,
+      desireToSpeak: 0.54,
+      fearOfInterrupting: 0.28,
+      moodLabel: 'warm-focus',
+    } as any
+    state.initiative = {
+      selectedAction: 'wait',
+      confidence: 0.68,
+      motives: {
+        care: 0.56,
+      },
+      speakDrive: 0.42,
+      silenceDrive: 0.58,
+      preferredStyle: 'gentle-care',
+      preferredPresence: 'attentive',
+      why: 'stay close and guide gently',
+      shouldSurface: false,
+      shouldSpeak: false,
+    } as any
 
     const spine = deriveAlicizationDigitalLifeSpine(state)
     const sameFromSurface = deriveAlicizationDigitalLifeSpineFromSurface(spine.runtimeSurface)
@@ -228,11 +452,58 @@ describe('digital life spine', () => {
         activeThreadId: 'thread-spine',
         preferredPresence: 'attentive',
       }),
+      motive: expect.objectContaining({
+        rulingDrive: 'truth-discipline',
+        leadingAgendaKind: 'preserve-trust',
+      }),
+      habit: expect.objectContaining({
+        dominantMode: 'repair-before-fluency',
+        requiresGroundingBeforeSurface: true,
+      }),
+      outcomeLearning: expect.objectContaining({
+        latestInflection: 'Route memory and dialogue through one spine.',
+        revisionPressure: 0.63,
+      }),
+      embodiment: expect.objectContaining({
+        privateThought: expect.objectContaining({
+          embodiedPresence: 'attentive',
+          emotionalTension: 'focused-flow',
+        }),
+        autobiographicalSelf: expect.objectContaining({
+          expressionStyle: 'warm',
+          careBias: 0.74,
+        }),
+        relationship: expect.objectContaining({
+          climate: 'warm',
+          approachVector: 'care',
+        }),
+        selfState: expect.objectContaining({
+          stance: 'accompany',
+          feltCloseness: 0.72,
+        }),
+        mindEcology: expect.objectContaining({
+          moodLabel: expect.any(String),
+          temperament: expect.objectContaining({
+            tenderness: expect.any(Number),
+          }),
+          climate: expect.objectContaining({
+            socialNeed: expect.any(Number),
+          }),
+        }),
+        initiative: expect.objectContaining({
+          preferredStyle: 'gentle-care',
+          confidence: 0.68,
+        }),
+      }),
       memory: expect.objectContaining({
         recentEpisodeCount: 1,
         leadingGoalSummary: 'keep one living architecture line',
         recallMode: 'thread',
         reflectionPressure: 0.63,
+        longHorizonSummary: expect.stringContaining('Remembered open loop'),
+        rememberedConstraintSummary: 'Remembered boundary: do not crowd the host when focused.',
+        rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
+        longHorizonCueCount: 1,
       }),
     }))
   })

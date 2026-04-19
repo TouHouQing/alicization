@@ -10,6 +10,8 @@ export function scoreSubconsciousSourcePriority(sourceKind: AlicizationSubconsci
       return 6
     case 'fact-ledger':
       return 5
+    case 'autobiographical-episode':
+      return 4.5
     case 'reflection-ledger':
       return 4
     case 'mind-continuity':

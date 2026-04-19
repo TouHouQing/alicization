@@ -185,11 +185,7 @@ describe('stage embodiment presence', () => {
       source: 'dialogue',
       variationToken: 'runtime-variation-1',
     }))
-    expect(enqueueEmotion).toBeCalledWith({
-      name: Emotion.Happy,
-      intensity: 1,
-      suppressLive2DMotion: true,
-    })
+    expect(enqueueEmotion).not.toBeCalled()
 
     runtime.dispose()
   })
@@ -236,11 +232,7 @@ describe('stage embodiment presence', () => {
     }), expect.objectContaining({
       source: 'presence-pulse',
     }))
-    expect(enqueueEmotion).toBeCalledWith({
-      name: Emotion.Think,
-      intensity: 0.7,
-      suppressLive2DMotion: false,
-    })
+    expect(enqueueEmotion).not.toBeCalled()
 
     runtime.dispose()
   })

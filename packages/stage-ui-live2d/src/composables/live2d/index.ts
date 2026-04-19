@@ -1,4 +1,5 @@
 export * from './action-pulse'
 export * from './animation'
 export * from './beat-sync'
+export * from './expression-runtime'
 export * from './motion-manager'

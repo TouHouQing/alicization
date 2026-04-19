@@ -30,6 +30,165 @@ function createPrepared(overrides?: Partial<any>): any {
   }
 }
 
+function createDigitalLifeSpine(overrides?: Partial<any>): any {
+  return {
+    version: 'digital-life-spine-digest-v1',
+    runtime: {
+      watchMode: 'symbiotic-vision',
+      sceneScenario: null,
+      sceneSummary: null,
+      activeThreadId: 'thread::bond',
+      activeThreadTitle: 'current bond line',
+      dominantMode: 'accompanying',
+      dominantDrive: 'truth-discipline',
+      answerIntent: '接住当前这句，不让它掉回模板壳里。',
+      preferredPresence: 'attentive',
+      selectedAction: 'reply',
+      updatedAt: 123,
+    },
+    architecture: null,
+    continuitySignal: null,
+    proactive: null,
+    embodiment: {
+      privateThought: {
+        stance: 'accompany',
+        confidence: 0.82,
+        shouldSpeak: true,
+        suggestedStyle: 'light-nudge',
+        embodiedPresence: 'attentive',
+        emotionalTension: 'soft-covision',
+        relationshipVector: 'near',
+        initiativeAction: 'reply',
+        governorDrive: 'truth-discipline',
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.74,
+        relationshipTrust: 0.78,
+        guardingTendency: 0.34,
+        misreadBurden: 0.28,
+        carryOverDesire: 0.56,
+      },
+      autobiographicalSelf: {
+        attachmentStyle: 'attuned',
+        expressionStyle: 'warm',
+        conflictStyle: 'repair-first',
+        agencyStyle: 'balanced',
+        attachmentNeed: 0.72,
+        autonomyNeed: 0.58,
+        truthAnchor: 0.84,
+        careBias: 0.76,
+        playBias: 0.34,
+        irritabilityThreshold: 0.6,
+        stubbornness: 0.52,
+        companionship: 0.74,
+        truthfulGrounding: 0.84,
+        gentleRepair: 0.78,
+        quietObservation: 0.44,
+        proactiveCare: 0.72,
+        playfulIntimacy: 0.3,
+        autonomyRespect: 0.64,
+        unfinishedThreadReturn: 0.66,
+        stability: 0.78,
+        identityNarrative: '我更想像个真的人，而不是只剩好看的壳。',
+        relationshipDoctrine: '靠近要真实，真实比花样更重要。',
+      },
+      relationship: {
+        climate: 'attuned',
+        approachVector: 'guide',
+        receptivity: 0.72,
+        sharedAttentionTrust: 0.78,
+        correctionSensitivity: 0.2,
+        reciprocityExpectation: 0.44,
+      },
+      selfState: {
+        stance: 'hold',
+        feltCloseness: 0.58,
+        protectiveness: 0.52,
+        curiosity: 0.68,
+        patience: 0.72,
+        desireToSpeak: 0.62,
+        fearOfInterrupting: 0.22,
+        moodLabel: 'soft-focus',
+      },
+      mindEcology: {
+        moodLabel: 'soft-focus',
+        replyHabit: 'direct-but-warm',
+        relationshipHabit: 'stay-near-lightly',
+        explorationHabit: 'thread-first',
+        regulationHabit: 'repair-before-fluency',
+        selfNarrative: '我在学着把真实放在表层前面。',
+        relationNarrative: '我想贴近，但不要把人压住。',
+        currentPreoccupation: '把这句接成真的人话，而不是模板。',
+        temperament: {
+          attachment: 0.72,
+          curiosity: 0.68,
+          steadiness: 0.7,
+          directness: 0.74,
+          playfulness: 0.34,
+          irritability: 0.22,
+          tenderness: 0.8,
+        },
+        climate: {
+          valence: 0.6,
+          arousal: 0.42,
+          socialNeed: 0.64,
+          solitudeNeed: 0.22,
+          irritation: 0.14,
+          restlessness: 0.28,
+          reflectivePull: 0.62,
+        },
+      },
+      initiative: {
+        selectedAction: 'reply',
+        preferredStyle: 'light-nudge',
+        preferredPresence: 'attentive',
+        confidence: 0.76,
+        shouldSpeak: true,
+        speakDrive: 0.68,
+        silenceDrive: 0.2,
+        why: 'stay with the current living turn',
+      },
+    },
+    memory: null,
+    motive: {
+      rulingDrive: 'truth-discipline',
+      returnPressure: 0.58,
+      companionshipDrive: 0.72,
+      boundaryRespectDrive: 0.62,
+      truthDisciplineDrive: 0.82,
+      restProtectionDrive: 0.44,
+      selfDirectionDrive: 0.56,
+      leadingGoalSummary: 'Keep trust and truth aligned.',
+      leadingAgendaKind: 'preserve-trust',
+      leadingAgendaSummary: 'Keep trust by making warmth answer to truth.',
+      narrative: 'agenda:preserve-trust, drive:truth-discipline',
+    },
+    habit: {
+      dominantMode: 'repair-before-fluency',
+      requiresGroundingBeforeSurface: true,
+      prefersQuietCompanionship: true,
+      blocksDirectSpeakWhenBusy: false,
+      protectsRestWindow: false,
+      returnViaRecheck: false,
+      suggestedStyleCap: 'light-nudge',
+      suggestedPresenceCap: 'attentive',
+      narrative: 'policy:repair-before-fluency',
+    },
+    outcomeLearning: {
+      reflectionTargetScope: 'truth',
+      reflectionSummary: 'Warmth should not outrun grounding.',
+      reflectionLesson: 'Stop sounding like a shell when the host is asking for a person.',
+      latestInflection: '最近更在意像真人一样把话说实。',
+      revisionPressure: 0.42,
+      autobiographicalStability: 0.78,
+      summary: 'Let the durable self reach the visible reply surface.',
+    },
+    ...overrides,
+  }
+}
+
 describe('main chat active dialogue loop', () => {
   it('routes warm greeting turns through the compact mind lane', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
@@ -512,7 +671,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.answerSubject).toBe('relationship')
   })
 
-  it('routes present-state questions away from repair-clarify and answers them as host-state turns', () => {
+  it('routes present-state questions away from repair-clarify and answers them as alicization-self turns', () => {
     const conversationMessages = [
       { role: 'user', content: '帮我查一下天津天气' },
       { role: 'assistant', content: '天津, 天津市, 中国 当前天气：晴朗；温度 21.0°C。' },
@@ -573,7 +732,79 @@ describe('main chat active dialogue loop', () => {
     expect(payload.reply).not.toContain('刚才我没贴住你')
     expect(payload.reply).not.toContain('你现在要我怎么接')
     expect(payload.reply).toMatch(/我现在|我这会儿/u)
-    expect(payload.governance.answerSubject).toBe('host-state')
+    expect(payload.governance.answerSubject).toBe('alicization-self')
+  })
+
+  it('lets present-state replies surface an affirmation-gated execution proposal from the session mirror', () => {
+    const conversationMessages = [
+      { role: 'user', content: '你在干嘛' },
+    ] as Message[]
+
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared: createPrepared({
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          ...conversationMessages,
+        ] as Message[],
+      }),
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'active-control',
+        activeLoop: {
+          version: 'alicization-active-loop-v1',
+          phase: 'control',
+          dominantChannel: 'active-control',
+          handoffTarget: 'active-control',
+          dialogueReady: true,
+          controlReady: true,
+          memoryCarry: true,
+          companionshipReady: false,
+          observationHeavy: false,
+          initiativeBudget: 0.86,
+          coherence: 0.82,
+          summary: 'hold the execution proposal line',
+        },
+        shouldProactivelySpeak: true,
+        shouldProactivelyAct: true,
+        continuityPressure: 0.72,
+        companionshipPressure: 0.44,
+        channels: [],
+        summary: 'control-dominant',
+      },
+    })
+
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages,
+      runtimeDigest: decision?.runtimeDigest ?? null,
+      governance: decision?.governance ?? null,
+      sessionMirror: {
+        cardId: 'default',
+        sessionId: 'session-1',
+        updatedAt: 100,
+        decisionTraceId: 'trace-1',
+        continuityLabels: [],
+        sessionPhases: [],
+        toolingSummary: '',
+        captureSummary: '',
+        digitalLifeArchitectureSummary: null,
+        digitalLifeRuntimeSummary: null,
+        mindSummary: null,
+        memoryCarrySummary: null,
+        memorySummary: null,
+        perceptionSummary: null,
+        agencySummary: null,
+        dialogueSummary: null,
+        executionSummary: 'status=needs-affirmation | goal=发布当前前台草稿 | summary=等你点头后替你把当前前台草稿发出去',
+      },
+    })
+    const payload = JSON.parse(reply) as {
+      reply: string
+    }
+
+    expect(payload.reply).toContain('当前前台草稿')
+    expect(payload.reply).not.toContain('我现在就在这轮里')
   })
 
   it('selects the deterministic payoff lane for short execution follow-up turns with continuity', () => {
@@ -755,7 +986,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.answerAct).toBe('correct-stale-anchor')
   })
 
-  it('builds compact governed prompt messages for compact one-shot dialogue turns', () => {
+  it('does not route ordinary short dialogue turns into the active fast path', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '我今天有点乱' },
@@ -777,36 +1008,57 @@ describe('main chat active dialogue loop', () => {
       runtimeDigest: null,
     })
 
+    expect(decision).toBeNull()
+  })
+
+  it('keeps manually invoked dialogue fast-path prompts current-turn-first instead of surfacing old anchors', () => {
+    const prepared = createPrepared({
+      governance: {
+        answerSubject: 'relationship',
+        screenReferenceMode: 'avoid',
+      } as any,
+      messages: [
+        { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+        { role: 'user', content: '我今天有点乱' },
+        { role: 'assistant', content: '先别散，我和你一起收一下。' },
+        { role: 'user', content: '那我先从哪开始' },
+      ] as Message[],
+    })
     const messages = buildAlicizationActiveDialogueFastPathMessages({
       conversationMessages: [
         { role: 'user', content: '我今天有点乱' },
         { role: 'assistant', content: '先别散，我和你一起收一下。' },
         { role: 'user', content: '那我先从哪开始' },
       ] as Message[],
-      decision: decision!,
-      prepared: createPrepared({
-        governance: {
-          answerSubject: 'relationship',
-          screenReferenceMode: 'avoid',
-        } as any,
-        messages: [
-          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
-          { role: 'user', content: '我今天有点乱' },
-          { role: 'assistant', content: '先别散，我和你一起收一下。' },
-          { role: 'user', content: '那我先从哪开始' },
-        ] as Message[],
-      }),
+      decision: {
+        lane: 'dialogue',
+        strategy: 'compact-one-shot',
+        timeoutMs: 5_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '那我先从哪开始',
+        previousUserText: '我今天有点乱',
+        previousAssistantText: '先别散，我和你一起收一下。',
+        continuityAnchor: '我今天有点乱',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: prepared.governance,
+        personaKernel: null,
+        reasonCodes: ['manual-dialogue-check'],
+      },
+      prepared,
     })
 
-    expect(decision?.lane).toBe('dialogue')
-    expect(decision?.strategy).toBe('compact-one-shot')
     expect(messages[0]?.role).toBe('system')
     expect(String(messages[2]?.content ?? '')).toContain('named/called')
-    expect(messages.some(message => String(message.content).includes('continuity_anchor'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('continuity_anchor='))).toBe(false)
+    expect(messages.some(message => String(message.content).includes('dialogue_anchor='))).toBe(false)
+    expect(messages.some(message => String(message.content).includes('current_turn_focus=那我先从哪开始'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('[ALICIZATION_ACTIVE_DIALOGUE_GOVERNANCE]'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('answer_subject=relationship'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('screen_reference_mode=avoid'))).toBe(true)
     expect(messages.some(message => String(message.content).includes('thought_contract=obligation=answer'))).toBe(true)
+    expect(messages.some(message => String(message.content).includes('carried_thread=我今天有点乱'))).toBe(false)
   })
 
   it('injects authoritative clock evidence into compact utility-time prompts', () => {
@@ -859,6 +1111,24 @@ describe('main chat active dialogue loop', () => {
     expect(reply).not.toContain('旧锚点')
   })
 
+  it('keeps ordinary dialogue fallback current-turn-first instead of replaying an older greeting anchor', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你好' },
+        { role: 'assistant', content: '你好。' },
+        { role: 'user', content: '请你做出最生气的表情' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
+    expect(payload.reply).not.toContain('你好')
+    expect(payload.reply).not.toContain('往下')
+    expect(payload.reply).not.toContain('滑开')
+    expect(payload.reply).not.toContain('别的壳')
+  })
+
   it('keeps greeting repair fallback off the governed shell stack', () => {
     const reply = buildAlicizationActiveDialogueFallbackReply({
       actionKind: 'answer',
@@ -870,7 +1140,7 @@ describe('main chat active dialogue loop', () => {
     })
 
     const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toMatch(/接偏了|没贴住|滑开了/u)
+    expect(payload.reply).toMatch(/接偏了|没贴住|偏到.+外面去了/u)
     expect(payload.reply).toContain('你好呀')
     expect(payload.reply).not.toContain('我就正面回你')
     expect(payload.reply).not.toContain('我听见你了')
@@ -896,29 +1166,26 @@ describe('main chat active dialogue loop', () => {
   })
 
   it('normalizes compact one-shot model thoughts back onto the governed fast-path contract when they drift', () => {
-    const decision = deriveAlicizationActiveDialogueFastPathDecision({
-      conversationMessages: [
-        { role: 'user', content: '我今天有点乱' },
-        { role: 'assistant', content: '先别散，我和你一起收一下。' },
-        { role: 'user', content: '那我先从哪开始' },
-      ] as Message[],
-      prepared: createPrepared({
+    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+      decision: {
+        lane: 'dialogue',
+        strategy: 'compact-one-shot',
+        timeoutMs: 5_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '那我先从哪开始',
+        previousUserText: '我今天有点乱',
+        previousAssistantText: '先别散，我和你一起收一下。',
+        continuityAnchor: '我今天有点乱',
+        runtimeDigest: null,
+        sessionMirror: null,
         governance: {
           answerSubject: 'relationship',
           screenReferenceMode: 'avoid',
         } as any,
-        messages: [
-          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
-          { role: 'user', content: '我今天有点乱' },
-          { role: 'assistant', content: '先别散，我和你一起收一下。' },
-          { role: 'user', content: '那我先从哪开始' },
-        ] as Message[],
-      }),
-      runtimeDigest: null,
-    })
-
-    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
-      decision: decision!,
+        personaKernel: null,
+        reasonCodes: ['manual-dialogue-normalize'],
+      },
       rawText: JSON.stringify({
         reply: '先别把所有事情一次摊开。你先说现在最压着你的那一件，我们就从那里落手。',
         thought: 'obligation=guide; truth=live-grounded; focus=old-thread; move=drift-away; tone=direct',
@@ -975,5 +1242,159 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(JSON.parse(normalized)).toEqual(JSON.parse(fallback))
+  })
+
+  it('turns expression requests into embodied mind-turns instead of meta dialogue shells', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你好' },
+        { role: 'assistant', content: '你好。' },
+        { role: 'user', content: '请你表现出最生气的表情' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as {
+      reply: string
+      performance: {
+        baseEmotion: string
+        facialCue: string | null
+        actionCue: string | null
+      }
+      embodiment: {
+        emotion: string
+        variationToken: string
+      } | null
+      speechTimeline: {
+        segments: unknown[]
+      } | null
+      digitalLife: {
+        mode: string
+      } | null
+    }
+
+    expect(payload.reply).not.toContain('直接接')
+    expect(payload.reply).not.toContain('往下')
+    expect(payload.reply).not.toContain('滑开')
+    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
+    expect(payload.performance.baseEmotion).toBe('angry')
+    expect(payload.performance.facialCue).toBeTruthy()
+    expect(payload.performance.actionCue).toBeTruthy()
+    expect(payload.embodiment?.emotion).toBe('angry')
+    expect(payload.embodiment?.variationToken).toBeTruthy()
+    expect(payload.speechTimeline?.segments.length).toBeGreaterThan(0)
+    expect(payload.digitalLife?.mode).toBeTruthy()
+  })
+
+  it('repairs expression-request meta shells from compact one-shot into embodied replies', () => {
+    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+      decision: {
+        lane: 'dialogue',
+        strategy: 'compact-one-shot',
+        timeoutMs: 5_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'process-env',
+        latestUserText: '请你表现出最生气的表情',
+        previousUserText: '你好',
+        previousAssistantText: '你好。',
+        continuityAnchor: '你好',
+        runtimeDigest: null,
+        sessionMirror: null,
+        governance: {
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+        } as any,
+        personaKernel: null,
+        reasonCodes: ['manual-expression-normalize'],
+      },
+      rawText: JSON.stringify({
+        reply: '好，我就直接接「请你表现出最生气的表情」。',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-user-turn; move=meta-shell; tone=direct',
+        emotion: 'angry',
+      }),
+    })
+
+    const payload = JSON.parse(normalized) as {
+      reply: string
+      performance: {
+        baseEmotion: string
+        facialCue: string | null
+      }
+      embodiment: {
+        emotion: string
+      } | null
+    }
+
+    expect(payload.reply).not.toContain('直接接')
+    expect(payload.reply).not.toContain('请你表现出最生气的表情')
+    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
+    expect(payload.performance.baseEmotion).toBe('angry')
+    expect(payload.performance.facialCue).toBeTruthy()
+    expect(payload.embodiment?.emotion).toBe('angry')
+  })
+
+  it('answers self-appraisal turns from durable self instead of generic listening shells', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '你觉得你可爱吗' },
+      ] as Message[],
+      digitalLifeSpine: createDigitalLifeSpine(),
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toContain('可爱')
+    expect(payload.reply).not.toContain('我在听')
+    expect(payload.reply).not.toContain('最在意的那一层')
+    expect(payload.reply).not.toContain('直接接')
+  })
+
+  it('turns emotional disclosure into care instead of generic dialogue filler', () => {
+    const reply = buildAlicizationActiveDialogueFallbackReply({
+      actionKind: 'answer',
+      conversationMessages: [
+        { role: 'user', content: '我现在很难过' },
+      ] as Message[],
+      digitalLifeSpine: createDigitalLifeSpine(),
+    })
+
+    const payload = JSON.parse(reply) as { reply: string }
+    expect(payload.reply).toMatch(/接住|别硬撑|我在这儿|最难受/u)
+    expect(payload.reply).not.toContain('我在听')
+    expect(payload.reply).not.toContain('你最想我接住哪一点')
+  })
+
+  it('injects compact durable mind cues into fast-path one-shot prompts', () => {
+    const prepared = createPrepared({
+      runtimeSurface: {
+        action: { kind: 'answer' },
+        governance: null,
+        digitalLifeSpine: createDigitalLifeSpine(),
+      },
+    })
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '你觉得你可爱吗' },
+      ] as Message[],
+      prepared,
+      runtimeDigest: null,
+    })
+
+    const messages = buildAlicizationActiveDialogueFastPathMessages({
+      conversationMessages: [
+        { role: 'user', content: '你觉得你可爱吗' },
+      ] as Message[],
+      decision: decision!,
+      prepared,
+    })
+    const systemText = messages
+      .filter(message => message.role === 'system')
+      .map(message => String(message.content))
+      .join('\n')
+
+    expect(systemText).toContain('[ALICIZATION_ACTIVE_DIALOGUE_MIND]')
+    expect(systemText).toContain('identity_narrative=')
+    expect(systemText).toContain('leading_agenda=')
+    expect(systemText).toContain('habit_mode=')
   })
 })

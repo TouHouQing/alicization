@@ -330,8 +330,9 @@ describe('buildRecallGovernor', () => {
     }))
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'dialogue-turn', maxItems: 2 },
-      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'fact-ledger', maxItems: 2 },
       { sourceKind: 'reflection-ledger', maxItems: 1 },
+      { sourceKind: 'mind-continuity', maxItems: 2 },
     ]))
   })
 })

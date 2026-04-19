@@ -20,6 +20,7 @@ interface AlicizationDeterministicRequiredToolRecoveryInput {
   messages: Message[]
   tools?: AlicizationDeterministicCallableTool[]
   requiredToolNames: string[]
+  toolInputOverrides?: Record<string, Record<string, unknown>>
   emitToolCall: (payload: {
     cardId: string
     turnId: string
@@ -310,7 +311,8 @@ export async function recoverAlicizationRequiredToolDeterministically(
   }
 
   const userText = readLatestUserText(input.messages)
-  const toolInput = buildDeterministicToolInput(selected.toolName, userText)
+  const toolInput = input.toolInputOverrides?.[selected.toolName]
+    ?? buildDeterministicToolInput(selected.toolName, userText)
   const toolCallId = `required-tool-recovery-${randomUUID()}`
 
   input.emitToolCall({

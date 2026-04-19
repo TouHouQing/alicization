@@ -1,11 +1,15 @@
 import type {
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
+  AlicizationDesireMemorySnapshot,
+  AlicizationGoalStackSnapshot,
   AlicizationInquiryPlannerSnapshot,
   AlicizationIntentionStreamSnapshot,
   AlicizationMindKernelSnapshot,
   AlicizationMindProjectKind,
   AlicizationMindProjectSnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationRelationshipModelSnapshot,
   AlicizationRepairLedgerSnapshot,
   AlicizationSelfGovernorSnapshot,
@@ -13,6 +17,8 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+
+import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 
 const projectLimit = 6
 
@@ -177,6 +183,10 @@ export function buildIntentionStream(input: {
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
   mindKernel?: AlicizationMindKernelSnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  goalStack?: AlicizationGoalStackSnapshot | null
+  desireMemory?: AlicizationDesireMemorySnapshot | null
   previous?: AlicizationIntentionStreamSnapshot | null
 }): AlicizationIntentionStreamSnapshot {
   const concern = governingConcern(input.concernContinuity)
@@ -185,6 +195,14 @@ export function buildIntentionStream(input: {
   const inquiryPlan = activeInquiryPlan(input.inquiryPlanner)
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
+  const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf ?? null)
+  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const leadingGoal = input.goalStack?.alicizationGoals.find(goal => goal.id === input.goalStack?.leadingAlicizationGoalId)
+    ?? input.goalStack?.alicizationGoals[0]
+    ?? null
+  const resurfacingDesire = input.desireMemory?.activeDesires.find(desire => desire.id === input.desireMemory?.resurfacingDesireId)
+    ?? input.desireMemory?.activeDesires[0]
+    ?? null
   const previousProjects = new Map((input.previous?.projects ?? []).map(project => [project.id, project]))
   const projects: AlicizationMindProjectSnapshot[] = []
 
@@ -469,6 +487,71 @@ export function buildIntentionStream(input: {
       targetThoughtThreadId: thoughtThread?.id ?? null,
       targetGovernorIntentionId: governorIntention?.id ?? null,
       previous: previousProjects.get(afterglowProjectId) ?? null,
+    }))
+  }
+
+  const autobiographicalAnchor = sanitizeText(
+    motiveAgenda?.summary
+    ?? autobiographicalGoal?.summary
+    ?? resurfacingDesire?.reason
+    ?? leadingGoal?.label
+    ?? '',
+    180,
+  )
+  if (autobiographicalAnchor) {
+    const autobiographicalKind: AlicizationMindProjectKind
+      = autobiographicalGoal?.kind === 'protect-rest-rhythm'
+        ? 'care-host'
+        : autobiographicalGoal?.kind === 'stay-near-without-crowding'
+            || motiveAgenda?.kind === 'stay-near-lightly'
+          ? 'stay-near'
+          : autobiographicalGoal?.kind === 'grow-shared-language'
+            ? 'witness-afterglow'
+            : 'hold-knot'
+    const autobiographicalProjectId = stableProjectId(autobiographicalKind, autobiographicalAnchor, input.worldModel?.activeThread?.id ?? null)
+    projects.push(createProject({
+      now: input.now,
+      kind: autobiographicalKind,
+      title: autobiographicalGoal?.kind ?? motiveAgenda?.kind ?? 'durable-self-line',
+      summary: autobiographicalAnchor,
+      tension: clamp01(
+        (autobiographicalGoal?.weight ?? 0.22) * 0.34
+        + (motiveAgenda?.weight ?? 0.22) * 0.28
+        + (leadingGoal?.desireWeight ?? 0.18) * 0.14
+        + (resurfacingDesire?.strength ?? 0.18) * 0.14
+        + (input.worldModel?.continuity.afterglowOpen ? 0.08 : 0),
+      ),
+      confidence: clamp01(
+        0.26
+        + (autobiographicalGoal?.weight ?? 0.22) * 0.22
+        + (motiveAgenda?.weight ?? 0.22) * 0.18
+        + (resurfacingDesire?.strength ?? 0.18) * 0.08,
+      ),
+      continuityWeight: clamp01(
+        (autobiographicalGoal?.weight ?? 0.22) * 0.28
+        + (motiveAgenda?.weight ?? 0.22) * 0.22
+        + (input.previous?.carryPressure ?? 0.18) * 0.18
+        + (resurfacingDesire?.strength ?? 0.18) * 0.12,
+      ),
+      speakAffinity: clamp01(
+        autobiographicalKind === 'care-host'
+          ? 0.34
+          : autobiographicalKind === 'stay-near'
+            ? 0.28
+            : autobiographicalKind === 'witness-afterglow'
+              ? 0.22
+              : 0.16,
+      ),
+      sourceTags: [
+        autobiographicalGoal ? `autobio:${autobiographicalGoal.kind}` : '',
+        motiveAgenda ? `motive:${motiveAgenda.kind}` : '',
+        resurfacingDesire ? `desire:${resurfacingDesire.kind}` : '',
+      ].filter(Boolean),
+      targetThreadId: input.worldModel?.activeThread?.id ?? null,
+      targetThoughtThreadId: thoughtThread?.id ?? null,
+      targetGovernorIntentionId: governorIntention?.id ?? null,
+      withheld: input.selfGovernor?.dominantDrive === 'withhold',
+      previous: previousProjects.get(autobiographicalProjectId) ?? null,
     }))
   }
 

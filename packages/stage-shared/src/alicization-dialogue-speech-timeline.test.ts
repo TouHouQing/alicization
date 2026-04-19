@@ -38,6 +38,9 @@ describe('alicization dialogue speech timeline', () => {
     ).toBe(true)
     expect(timeline?.segments.every(segment => segment.emotion)).toBe(true)
     expect(
+      timeline?.segments.every(segment => (segment.rendererHints?.preferredExpressionAliases?.length ?? 0) > 0),
+    ).toBe(true)
+    expect(
       timeline?.segments.every(segment => (segment.rendererHints?.preferredMotionAliases?.length ?? 0) > 0),
     ).toBe(true)
   })

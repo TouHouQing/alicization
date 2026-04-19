@@ -690,6 +690,99 @@ describe('main chat stream meta', () => {
     expect(signatureA).not.toBe(signatureB)
   })
 
+  it('changes the signature when durable memory digest changes', () => {
+    const signatureA = buildAlicizationChatMetaSignature({
+      governance: {
+        decisionTraceId: 'trace-memory-1',
+      } as any,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'mnemonic-passive',
+          sceneScenario: 'coding',
+          sceneSummary: 'runtime diff',
+          activeThreadId: 'thread-1',
+          activeThreadTitle: 'runtime diff',
+          dominantMode: 'tracking',
+          dominantDrive: 'understand',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'wait',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: null,
+        embodiment: null,
+        memory: {
+          summary: 'durable=Remembered open loop: return to the runtime diff',
+          recentEpisodeSummary: null,
+          recentEpisodeCount: 0,
+          focusBeliefStatement: null,
+          focusBeliefConfidence: null,
+          leadingGoalSummary: null,
+          dominantConcernSummary: null,
+          reflectionSummary: null,
+          reflectionPressure: null,
+          recallMode: null,
+          recallSeed: null,
+          thoughtThreadSummary: null,
+          longHorizonSummary: 'Remembered open loop: return to the runtime diff',
+          rememberedPreferenceSummary: 'Remembered preference: keep answers direct.',
+          rememberedConstraintSummary: 'Remembered boundary: do not crowd the host while focused.',
+          rememberedPlanSummary: 'Remembered open loop: return to the runtime diff',
+          longHorizonCueCount: 2,
+        },
+      } as any,
+    })
+    const signatureB = buildAlicizationChatMetaSignature({
+      governance: {
+        decisionTraceId: 'trace-memory-1',
+      } as any,
+      digitalLifeSpine: {
+        version: 'digital-life-spine-digest-v1',
+        runtime: {
+          watchMode: 'mnemonic-passive',
+          sceneScenario: 'coding',
+          sceneSummary: 'runtime diff',
+          activeThreadId: 'thread-1',
+          activeThreadTitle: 'runtime diff',
+          dominantMode: 'tracking',
+          dominantDrive: 'understand',
+          answerIntent: 'guide',
+          preferredPresence: 'attentive',
+          selectedAction: 'wait',
+          updatedAt: 1_000,
+        },
+        architecture: null,
+        continuitySignal: null,
+        proactive: null,
+        embodiment: null,
+        memory: {
+          summary: 'durable=Remembered boundary: stay quiet while the host is focused',
+          recentEpisodeSummary: null,
+          recentEpisodeCount: 0,
+          focusBeliefStatement: null,
+          focusBeliefConfidence: null,
+          leadingGoalSummary: null,
+          dominantConcernSummary: null,
+          reflectionSummary: null,
+          reflectionPressure: null,
+          recallMode: null,
+          recallSeed: null,
+          thoughtThreadSummary: null,
+          longHorizonSummary: 'Remembered boundary: stay quiet while the host is focused',
+          rememberedPreferenceSummary: 'Remembered preference: keep answers direct.',
+          rememberedConstraintSummary: 'Remembered boundary: stay quiet while the host is focused',
+          rememberedPlanSummary: null,
+          longHorizonCueCount: 1,
+        },
+      } as any,
+    })
+
+    expect(signatureA).not.toBe(signatureB)
+  })
+
   it('changes the signature when the last segment settle window changes', () => {
     const basePayload = {
       governance: {

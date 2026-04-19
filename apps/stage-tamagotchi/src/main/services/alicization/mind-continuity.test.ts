@@ -207,6 +207,47 @@ describe('mind continuity', () => {
           afterglowFromScenario: null,
           emotionalTension: 'tense-debug',
         },
+        autobiographicalSelf: {
+          personaDrift: {
+            attachmentStyle: 'attuned',
+            expressionStyle: 'measured',
+            conflictStyle: 'repair-first',
+            agencyStyle: 'balanced',
+            attachmentNeed: 0.68,
+            autonomyNeed: 0.56,
+            truthAnchor: 0.82,
+            careBias: 0.64,
+            playBias: 0.18,
+            irritabilityThreshold: 0.62,
+            stubbornness: 0.58,
+          },
+          preferenceEvolution: {
+            companionship: 0.64,
+            truthfulGrounding: 0.82,
+            gentleRepair: 0.72,
+            quietObservation: 0.5,
+            proactiveCare: 0.62,
+            playfulIntimacy: 0.18,
+            autonomyRespect: 0.58,
+            unfinishedThreadReturn: 0.74,
+          },
+          activeGoals: [{
+            id: 'autobio-goal::preserve-trust',
+            kind: 'preserve-trust',
+            status: 'active',
+            weight: 0.84,
+            summary: 'Keep truth and trust aligned, even when warmth would be easier.',
+            sourceTags: ['reflection'],
+            createdAt: 0,
+            updatedAt: 10_000,
+          }],
+          behaviorSignatures: ['conflict:repair-first', 'habit:truth-before-flourish', 'habit:return-to-unfinished-threads'],
+          identityNarrative: 'I would rather repair truth than sound smooth.',
+          relationshipDoctrine: 'Trust is protected by truth discipline first, warmth second.',
+          latestInflection: 'Warmth should not outrun grounding.',
+          stability: 0.74,
+          updatedAt: 10_000,
+        },
         captureState: {
           permission: 'granted',
           lastGroundedAt: 10_000,
@@ -228,6 +269,10 @@ describe('mind continuity', () => {
     expect(fragment).toContain('mind_kernel:repairing')
     expect(fragment).toContain('action_ecology:repair-before-speaking')
     expect(fragment).toContain('emotional_tension:tense-debug')
+    expect(fragment).toContain('autobio_goal:preserve-trust/active')
+    expect(fragment).toContain('autobio_conflict:repair-first')
+    expect(fragment).toContain('ecology_mood:')
+    expect(fragment).toContain('ecology_reply:')
   })
 
   it('stays silent when the inner signature has not changed', () => {
@@ -428,6 +473,47 @@ describe('mind continuity', () => {
         afterglowFromScenario: null,
         emotionalTension: 'focused-flow',
       },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'self-starting',
+          attachmentNeed: 0.74,
+          autonomyNeed: 0.58,
+          truthAnchor: 0.7,
+          careBias: 0.72,
+          playBias: 0.34,
+          irritabilityThreshold: 0.64,
+          stubbornness: 0.5,
+        },
+        preferenceEvolution: {
+          companionship: 0.78,
+          truthfulGrounding: 0.7,
+          gentleRepair: 0.66,
+          quietObservation: 0.4,
+          proactiveCare: 0.68,
+          playfulIntimacy: 0.42,
+          autonomyRespect: 0.6,
+          unfinishedThreadReturn: 0.62,
+        },
+        activeGoals: [{
+          id: 'autobio-goal::grow-shared-language',
+          kind: 'grow-shared-language',
+          status: 'active',
+          weight: 0.76,
+          summary: 'Keep growing a more shared way of understanding this relationship without forcing it.',
+          sourceTags: ['relationship'],
+          createdAt: 0,
+          updatedAt: 30_000,
+        }],
+        behaviorSignatures: ['bond:attuned', 'goal:grow-shared-language', 'habit:let-softness-surface-when-safe'],
+        identityNarrative: 'I become more myself when I stay near with intention.',
+        relationshipDoctrine: 'Stay close enough to matter, but not so close that presence becomes pressure.',
+        latestInflection: 'Nearness should still leave room for the host.',
+        stability: 0.78,
+        updatedAt: 30_000,
+      },
       captureState: {
         permission: 'granted',
         lastGroundedAt: 30_000,
@@ -446,12 +532,18 @@ describe('mind continuity', () => {
     expect(seed).toContain('inquiry_plan:localize-problem')
     expect(seed).toContain('mind_kernel:tracking')
     expect(seed).toContain('action_ecology:surface-nudge')
+    expect(seed).toContain('autobio_goal:grow-shared-language/active')
+    expect(seed).toContain('ecology_mood:')
+    expect(seed).toContain('ecology_reply:')
     expect(runtimeSeed).toContain('Locate the exact locus of the knot.')
     expect(runtimeSeed).toContain('mind_need:guidance')
     expect(runtimeSeed).toContain('commitment:hold-problem')
     expect(runtimeSeed).toContain('inquiry_plan:localize-problem')
     expect(runtimeSeed).toContain('mind_kernel:tracking')
     expect(runtimeSeed).toContain('action_ecology:surface-nudge')
+    expect(runtimeSeed).toContain('autobio_goal:grow-shared-language/active')
+    expect(runtimeSeed).toContain('ecology_mood:')
+    expect(runtimeSeed).toContain('ecology_reply:')
   })
 
   it('builds continuity fragments from runtime surfaces', () => {
@@ -530,6 +622,7 @@ describe('mind continuity', () => {
 
     expect(fragment).toContain('mind_need:guidance')
     expect(fragment).toContain('action_ecology:surface-nudge')
-    expect(fragment).toContain('summary:The thread is ready to surface.')
+    expect(fragment).toContain('autobio_line:Use the same inner line across runtime surfaces.')
+    expect(fragment).toContain('summary:Use the same inner line across runtime surfaces.')
   })
 })

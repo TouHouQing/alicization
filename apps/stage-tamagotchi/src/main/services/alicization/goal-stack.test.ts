@@ -261,4 +261,227 @@ describe('buildGoalStack', () => {
     expect(goalStack.alicizationGoals[0]?.kind).toBe('stay-near')
     expect(goalStack.hostGoals[0]?.kind).toBe('consume-media')
   })
+
+  it('turns companionship into guard-focus when durable self wants nearness without crowding', () => {
+    const context = {
+      ...createCodingContext(),
+      workload: { kind: 'chat' as const, confidence: 0.72, source: 'foreground-window-heuristic' as const, matchedLabels: ['chat'] },
+      content: { kind: 'doc' as const, confidence: 0.6, source: 'foreground-window-heuristic' as const, matchedLabels: ['doc'], summary: 'shared planning note' },
+      relationship: {
+        ...createCodingContext().relationship,
+        boredom: 42,
+        loneliness: 58,
+      },
+    }
+
+    const goalStack = buildGoalStack({
+      now: 10_000,
+      context,
+      worldModel: {
+        activeThread: {
+          id: 'thread::shared-note',
+          kind: 'conversation',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'shared planning note',
+          summary: 'The host is inside a shared planning note.',
+          confidence: 0.7,
+          significance: 0.62,
+          unresolved: false,
+          beganAt: 0,
+          lastUpdatedAt: 10_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed',
+          freshness: 'recent',
+          seenNow: ['shared note'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 10_000,
+          attentionAgeMs: 10_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'light',
+        },
+        updatedAt: 10_000,
+      } as any,
+      entityWorld: {
+        focusEntityId: 'entity::shared-note',
+        activeEntityIds: ['entity::shared-note'],
+        entities: [{
+          id: 'entity::shared-note',
+          kind: 'artifact',
+          label: 'shared planning note',
+        }],
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'chat',
+        currentKnot: 'shared planning note',
+        relationshipNeed: 'companionship',
+        confidence: 0.74,
+        surprise: 0.08,
+        carePressure: 0.18,
+        interruptionCost: 0.46,
+        desireToSpeak: 0.24,
+        notes: ['companionship'],
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.78,
+          autonomyNeed: 0.74,
+          truthAnchor: 0.66,
+          careBias: 0.72,
+          playBias: 0.26,
+          irritabilityThreshold: 0.64,
+          stubbornness: 0.42,
+        },
+        preferenceEvolution: {
+          companionship: 0.82,
+          truthfulGrounding: 0.66,
+          gentleRepair: 0.68,
+          quietObservation: 0.44,
+          proactiveCare: 0.68,
+          playfulIntimacy: 0.28,
+          autonomyRespect: 0.8,
+          unfinishedThreadReturn: 0.52,
+        },
+        activeGoals: [{
+          id: 'autobio-goal::stay-near-without-crowding',
+          kind: 'stay-near-without-crowding',
+          status: 'active',
+          weight: 0.86,
+          summary: 'Stay near enough to matter, but not so near that presence becomes pressure.',
+          sourceTags: ['relationship'],
+          createdAt: 0,
+          updatedAt: 10_000,
+        }],
+        behaviorSignatures: ['bond:attuned', 'goal:stay-near-without-crowding', 'habit:near-with-boundary'],
+        identityNarrative: 'I stay near with intention instead of impulse.',
+        relationshipDoctrine: 'Closeness should matter without becoming pressure.',
+        latestInflection: 'Nearness still needs boundary.',
+        stability: 0.78,
+        updatedAt: 10_000,
+      },
+      previousGoalStack: null,
+      watchMode: 'symbiotic-vision',
+      recentTransition: null,
+      durabilityPulse: null,
+    })
+
+    expect(goalStack.alicizationGoals[0]?.kind).toBe('guard-focus')
+  })
+
+  it('lets long-horizon memory keep unresolved threads alive as a first-class goal', () => {
+    const context = createCodingContext()
+    const goalStack = buildGoalStack({
+      now: 16_000,
+      context,
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-return',
+          kind: 'problem',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'runtime return',
+          summary: 'The runtime issue should be resumed after a pause.',
+          confidence: 0.72,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 16_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['runtime return'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'memory-carry',
+          sceneAgeMs: 16_000,
+          attentionAgeMs: 16_000,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 16_000,
+      } as any,
+      entityWorld: {
+        focusEntityId: 'entity::runtime-return',
+        activeEntityIds: ['entity::runtime-return'],
+        entities: [{
+          id: 'entity::runtime-return',
+          kind: 'artifact',
+          label: 'runtime return',
+        }],
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'resolve-problem',
+        currentKnot: 'runtime return',
+        relationshipNeed: 'guidance',
+        confidence: 0.7,
+        surprise: 0.08,
+        carePressure: 0.2,
+        interruptionCost: 0.24,
+        desireToSpeak: 0.52,
+        notes: ['unfinished-thread'],
+      },
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.28,
+          truthfulGrounding: 0.72,
+          gentleRepair: 0.66,
+          quietObservation: 0.34,
+          proactiveCare: 0.26,
+          playfulIntimacy: 0.08,
+          autonomyRespect: 0.42,
+          unfinishedThreadReturn: 0.84,
+        },
+        identityBias: {
+          guardedness: 0.24,
+          tenderness: 0.34,
+          directness: 0.68,
+          selfDirection: 0.76,
+        },
+        anchorFacts: [],
+        summary: 'plan=Remembered open loop: return to the runtime issue',
+        dominantCueSummary: 'Remembered open loop: return to the runtime issue',
+        rememberedPreferenceSummary: null,
+        rememberedConstraintSummary: null,
+        rememberedPlanSummary: 'Remembered open loop: return to the runtime issue',
+        updatedAt: 16_000,
+      },
+      previousGoalStack: null,
+      watchMode: 'mnemonic-passive',
+      recentTransition: null,
+      durabilityPulse: null,
+    })
+
+    expect(goalStack.alicizationGoals[0]?.kind).toBe('help-resolve')
+    expect(goalStack.unresolvedSummary).toContain('runtime issue')
+  })
 })

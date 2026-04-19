@@ -56,6 +56,7 @@ export interface StageEmbodimentSpeechStyleProfile {
 interface StageEmbodimentEmotionProfile {
   stageEmotion: StageEmbodimentLegacyEmotion
   speechStyle: StageEmbodimentSpeechStyleProfile
+  live2dExpressionAliases: string[]
   live2dMotionAliases: string[]
   vrmBaseExpressionCandidates: string[]
   facialCueCandidates: string[]
@@ -91,6 +92,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   neutral: {
     stageEmotion: 'neutral',
     speechStyle: { pitchDelta: 0, rateMultiplier: 1 },
+    live2dExpressionAliases: ['neutral', 'normal', 'default', 'calm', 'relaxed'],
     live2dMotionAliases: ['Idle', 'Neutral', 'Default'],
     vrmBaseExpressionCandidates: ['neutral'],
     facialCueCandidates: ['relaxed', 'focus', 'soft-gaze'],
@@ -99,6 +101,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   happy: {
     stageEmotion: 'happy',
     speechStyle: { pitchDelta: 8, rateMultiplier: 1.06 },
+    live2dExpressionAliases: ['happy', 'joy', 'cheer', 'smile', 'bright', 'grin'],
     live2dMotionAliases: ['Happy', 'Joy', 'Cheer', 'Smile'],
     vrmBaseExpressionCandidates: ['happy'],
     facialCueCandidates: ['smile', 'bright-smile', 'relaxed'],
@@ -107,6 +110,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   sad: {
     stageEmotion: 'sad',
     speechStyle: { pitchDelta: -20, rateMultiplier: 0.82 },
+    live2dExpressionAliases: ['sad', 'downcast', 'frown', 'soft', 'melancholy'],
     live2dMotionAliases: ['Sad', 'Down', 'Gloom'],
     vrmBaseExpressionCandidates: ['sad', 'relaxed'],
     facialCueCandidates: ['frown', 'relaxed', 'downcast'],
@@ -115,6 +119,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   angry: {
     stageEmotion: 'angry',
     speechStyle: { pitchDelta: -12, rateMultiplier: 1.1 },
+    live2dExpressionAliases: ['angry', 'mad', 'glare', 'stern', 'firm', 'furrow'],
     live2dMotionAliases: ['Angry', 'Mad', 'Firm'],
     vrmBaseExpressionCandidates: ['angry'],
     facialCueCandidates: ['glare', 'focus', 'frown'],
@@ -123,6 +128,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   concerned: {
     stageEmotion: 'question',
     speechStyle: { pitchDelta: 3, rateMultiplier: 1.02 },
+    live2dExpressionAliases: ['concerned', 'worry', 'soft', 'care', 'comfort', 'gentle'],
     live2dMotionAliases: ['Question', 'Concerned', 'Concern', 'Observe'],
     vrmBaseExpressionCandidates: ['sad', 'relaxed'],
     facialCueCandidates: ['frown', 'soft-gaze', 'relaxed'],
@@ -131,6 +137,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   tired: {
     stageEmotion: 'sad',
     speechStyle: { pitchDelta: -20, rateMultiplier: 0.82 },
+    live2dExpressionAliases: ['tired', 'sleepy', 'drowsy', 'half', 'relaxed'],
     live2dMotionAliases: ['Idle', 'Tired', 'Relax'],
     vrmBaseExpressionCandidates: ['relaxed', 'neutral'],
     facialCueCandidates: ['relaxed', 'half-lid', 'slow-blink'],
@@ -139,6 +146,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   apologetic: {
     stageEmotion: 'awkward',
     speechStyle: { pitchDelta: -6, rateMultiplier: 0.92 },
+    live2dExpressionAliases: ['apologetic', 'sorry', 'shy', 'downcast', 'soft'],
     live2dMotionAliases: ['Awkward', 'Apology', 'Sorry', 'Shy'],
     vrmBaseExpressionCandidates: ['relaxed', 'sad'],
     facialCueCandidates: ['downcast', 'relaxed', 'frown'],
@@ -147,6 +155,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   surprised: {
     stageEmotion: 'surprised',
     speechStyle: { pitchDelta: 10, rateMultiplier: 1.1 },
+    live2dExpressionAliases: ['surprised', 'surprise', 'shock', 'wide', 'alert'],
     live2dMotionAliases: ['Surprise', 'Shock'],
     vrmBaseExpressionCandidates: ['surprised', 'happy'],
     facialCueCandidates: ['shock', 'wide-eye', 'glance'],
@@ -155,6 +164,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   thinking: {
     stageEmotion: 'think',
     speechStyle: { pitchDelta: -2, rateMultiplier: 0.97 },
+    live2dExpressionAliases: ['thinking', 'think', 'focus', 'focused', 'inspect', 'observe'],
     live2dMotionAliases: ['Think', 'Thinking', 'Inspect', 'Observe'],
     vrmBaseExpressionCandidates: ['relaxed', 'neutral'],
     facialCueCandidates: ['focus', 'glance', 'relaxed'],
@@ -163,6 +173,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   awkward: {
     stageEmotion: 'awkward',
     speechStyle: { pitchDelta: -6, rateMultiplier: 0.92 },
+    live2dExpressionAliases: ['awkward', 'shy', 'embarrassed', 'pout', 'downcast'],
     live2dMotionAliases: ['Awkward', 'Shy', 'Embarrassed'],
     vrmBaseExpressionCandidates: ['relaxed', 'sad'],
     facialCueCandidates: ['downcast', 'relaxed', 'frown'],
@@ -171,6 +182,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   question: {
     stageEmotion: 'question',
     speechStyle: { pitchDelta: 3, rateMultiplier: 1.02 },
+    live2dExpressionAliases: ['question', 'wonder', 'glance', 'soft', 'focus'],
     live2dMotionAliases: ['Question', 'Concern', 'Observe'],
     vrmBaseExpressionCandidates: ['relaxed', 'surprised'],
     facialCueCandidates: ['glance', 'soft-gaze', 'focus'],
@@ -179,6 +191,7 @@ const stageEmbodimentEmotionProfiles: Record<StageEmbodimentCanonicalEmotion, St
   curious: {
     stageEmotion: 'curious',
     speechStyle: { pitchDelta: 4, rateMultiplier: 1.04 },
+    live2dExpressionAliases: ['curious', 'interest', 'observe', 'inspect', 'bright'],
     live2dMotionAliases: ['Curious', 'Inspect', 'Observe'],
     vrmBaseExpressionCandidates: ['relaxed', 'surprised'],
     facialCueCandidates: ['focus', 'bright-smile', 'glance'],
@@ -403,6 +416,15 @@ export function resolveStageEmbodimentLive2DMotionAliases(rawEmotion: unknown) {
   return [
     ...stageEmbodimentEmotionProfiles[normalizeStageEmbodimentEmotion(rawEmotion)].live2dMotionAliases,
   ]
+}
+
+export function resolveStageEmbodimentLive2DExpressionAliases(rawEmotion: unknown) {
+  const emotionProfile = stageEmbodimentEmotionProfiles[normalizeStageEmbodimentEmotion(rawEmotion)]
+
+  return dedupeStrings([
+    ...emotionProfile.live2dExpressionAliases,
+    ...emotionProfile.facialCueCandidates,
+  ])
 }
 
 export function resolveStageEmbodimentPreferredLive2DMotionName(rawEmotion: unknown) {

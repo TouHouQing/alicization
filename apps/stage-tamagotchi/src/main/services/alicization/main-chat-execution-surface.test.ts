@@ -912,6 +912,85 @@ describe('main chat execution surface', () => {
     }))
   })
 
+  it('resumes an existing pending thread when threadId is provided to an executor tool', async () => {
+    const executeTaskThread = vi.fn(async () => {
+      throw new Error('should not plan a new thread')
+    })
+    const resumeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-resume-1',
+        selectedChannel: 'codex',
+      },
+      plan: {
+        state: 'routed',
+        proposedChannel: 'codex',
+      },
+      summary: 'resumed existing thread',
+      output: null,
+    } satisfies MainGatewayExecutionTaskThreadResult))
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 5,
+      nextTickAt: 10,
+      sample: {
+        collectedAt: 1,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 8,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 2048,
+          totalMB: 8192,
+          usagePercent: 75,
+        },
+      },
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(getSensorySnapshot),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-resume-1',
+        decisionTraceId: 'trace-resume-1',
+        sessionId: 'session-resume-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread,
+      resumeTaskThread,
+      getSensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const codexTool = tools.find((entry: any) => String(entry?.function?.name) === 'executor_run_codex') as any
+    const result = await codexTool.execute({
+      threadId: 'thread-resume-1',
+      prompt: 'ignored because thread resume takes priority',
+    })
+
+    expect(result.summary).toBe('resumed existing thread')
+    expect(resumeTaskThread).toHaveBeenCalledWith({
+      context: {
+        cardId: 'default',
+        turnId: 'turn-resume-1',
+        decisionTraceId: 'trace-resume-1',
+        sessionId: 'session-resume-1',
+      },
+      threadId: 'thread-resume-1',
+    })
+    expect(executeTaskThread).not.toHaveBeenCalled()
+  })
+
   it('defaults Claude Code edit dispatches to tool-enabled mutate execution', async () => {
     const executeTaskThread = vi.fn(async () => ({
       ok: true,

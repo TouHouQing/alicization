@@ -4,12 +4,155 @@ import {
   buildAlicizationRuntimeSystemBlock,
   deriveAlicizationAgentRuntimeTelemetryFromSession,
   deriveAlicizationRuntimeSnapshot,
+  projectAlicizationRuntimeDigest,
 } from './alicization-runtime-architecture'
 import { commitAlicizationDigitalLifeMindState } from './digital-life-kernel'
 import { deriveAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('alicization runtime architecture', () => {
+  it('lets autonomy govern act readiness without falsely turning it into proactive speech', () => {
+    const state = commitAlicizationDigitalLifeMindState({
+      now: 8_000,
+      previousState: createDefaultVisualPresenceState(7_000),
+      watchMode: 'symbiotic-vision',
+      scene: {
+        workloadKind: 'coding',
+        contentKind: 'general',
+        scenario: 'coding',
+        summary: 'returning to an unresolved task thread',
+        source: 'screen-semantic-summary',
+        confidence: 0.88,
+        beganAt: 7_200,
+        lastSeenAt: 8_000,
+      } as any,
+      attention: null,
+      mindState: {
+        worldModel: {
+          activeThread: {
+            id: 'thread-follow-through',
+            kind: 'problem',
+            title: 'follow through quietly',
+            summary: 'keep the unresolved implementation line alive',
+            status: 'active',
+            significance: 0.82,
+            confidence: 0.8,
+            unresolved: true,
+          },
+          epistemicState: {
+            certainty: 'grounded',
+            freshness: 'fresh',
+            seenNow: ['implementation-thread'],
+            inferredNow: [],
+            openQuestions: [],
+            staleRisks: [],
+          },
+          continuity: {
+            label: 'same-thread',
+            sceneAgeMs: 400,
+            attentionAgeMs: 400,
+            sameSceneAsBefore: true,
+            sameAttentionAsBefore: true,
+            afterglowOpen: false,
+          },
+          hostState: {
+            availability: 'focused',
+            burden: 'moderate',
+          },
+          updatedAt: 8_000,
+        } as any,
+        privateThought: {
+          stance: 'observe',
+          shouldSpeak: true,
+          confidence: 0.74,
+          suggestedStyle: 'light-nudge',
+          embodiedPresence: 'attentive',
+          thoughtText: 'the thread should be followed through, but not surfaced yet',
+          rationaleTags: ['follow-through'],
+          emotionalTension: 'focused-flow',
+          afterglowFromScenario: null,
+          expiresAt: 10_000,
+          updatedAt: 8_000,
+        } as any,
+        initiative: {
+          selectedAction: 'speak',
+          confidence: 0.7,
+          motives: {},
+          speakDrive: 0.78,
+          silenceDrive: 0.18,
+          preferredStyle: 'light-nudge',
+          preferredPresence: 'attentive',
+          why: 'the open loop is strong',
+          shouldSurface: true,
+          shouldSpeak: true,
+        } as any,
+        autonomy: {
+          selectedMode: 'prepare-act',
+          visibleAction: 'hover',
+          shouldSurface: true,
+          shouldSpeak: false,
+          shouldAct: false,
+          speakReadiness: 0.24,
+          actReadiness: 0.86,
+          inhibition: 0.34,
+          confidence: 0.82,
+          deferReason: 'busy-host',
+          guardReasons: ['busy-host', 'respect-boundary'],
+          whyNow: 'keep the unresolved thread warm without interrupting the host',
+          executionIntent: {
+            kind: 'follow-through',
+            summary: 'follow the unresolved thread through quietly',
+            targetThreadId: 'thread-follow-through',
+          },
+          updatedAt: 8_000,
+        } as any,
+        actionEcology: {
+          mode: 'return-later',
+          selectedThreadId: 'thread-follow-through',
+          readiness: 0.78,
+          surfacePressure: 0.28,
+          silencePressure: 0.62,
+          suggestedStyle: 'silent-observe',
+          embodiedPresence: 'attentive',
+          shouldSurface: true,
+          shouldSpeak: false,
+          why: 'action should stay quiet until a better opening appears',
+          updatedAt: 8_000,
+        } as any,
+      },
+      captureState: {
+        permission: 'granted',
+        health: 'healthy',
+        lastGroundedAt: 8_000,
+      },
+      durabilityPulse: null,
+      recentTransition: null,
+      nextSuggestedProbeMs: 25_000,
+    })
+
+    const snapshot = deriveAlicizationRuntimeSnapshot({
+      spine: deriveAlicizationDigitalLifeSpine(state),
+    })
+    const digest = projectAlicizationRuntimeDigest(snapshot)
+
+    expect(snapshot?.autonomy).toEqual(expect.objectContaining({
+      selectedMode: 'prepare-act',
+      visibleAction: 'hover',
+      shouldSpeak: false,
+      shouldAct: false,
+      executionIntentKind: 'follow-through',
+    }))
+    expect(snapshot?.shouldProactivelyAct).toBe(true)
+    expect(snapshot?.shouldProactivelySpeak).toBe(false)
+    expect(snapshot?.channels['active-control'].summary).toContain('autonomy=prepare-act')
+    expect(digest?.autonomy).toEqual(expect.objectContaining({
+      selectedMode: 'prepare-act',
+      visibleAction: 'hover',
+      shouldSpeak: false,
+      actReadiness: 0.86,
+    }))
+  })
+
   it('projects Alicization into an eight-channel active-life runtime snapshot', () => {
     const state = commitAlicizationDigitalLifeMindState({
       now: 12_000,

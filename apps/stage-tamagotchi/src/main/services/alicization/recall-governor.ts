@@ -1,14 +1,21 @@
 import type {
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationAnswerCompilerSnapshot,
   AlicizationConversationStateSnapshot,
+  AlicizationDesireMemorySnapshot,
   AlicizationDialogueWorldThreadSnapshot,
+  AlicizationGoalStackSnapshot,
+  AlicizationLongHorizonMemorySnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationReplyDeliberationSnapshot,
   AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
+import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
+import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
@@ -46,9 +53,10 @@ function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapsh
   if (mode === 'self-continuity') {
     return [
       { sourceKind: 'dialogue-turn', maxItems: 2 },
-      { sourceKind: 'fact-ledger', maxItems: 1 },
+      { sourceKind: 'autobiographical-episode', maxItems: 2 },
+      { sourceKind: 'fact-ledger', maxItems: 2 },
       { sourceKind: 'reflection-ledger', maxItems: 1 },
-      { sourceKind: 'mind-continuity', maxItems: 1 },
+      { sourceKind: 'mind-continuity', maxItems: 2 },
       { sourceKind: 'dream-fragment', maxItems: 0 },
       { sourceKind: 'visual-sediment', maxItems: 0 },
     ]
@@ -56,6 +64,7 @@ function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapsh
 
   if (mode === 'emotional-resonance') {
     return [
+      { sourceKind: 'autobiographical-episode', maxItems: 1 },
       { sourceKind: 'reflection-ledger', maxItems: 2 },
       { sourceKind: 'dialogue-turn', maxItems: 1 },
       { sourceKind: 'fact-ledger', maxItems: 1 },
@@ -76,6 +85,7 @@ function resolveMode(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounter | null
   primaryTurnAnchor?: string | null
+  autobiographicalContinuityActive?: boolean
 }) {
   if (!input.dialogueWorldThread || !input.conversationState)
     return 'none' as const
@@ -117,6 +127,21 @@ function resolveMode(input: {
   }
 
   if (
+    input.autobiographicalContinuityActive
+    && (
+      input.answerCompiler?.answerSubject === 'alicization-self'
+      || input.answerCompiler?.answerSubject === 'relationship'
+      || input.dialogueEncounter?.subject === 'alicization-self'
+      || input.dialogueEncounter?.subject === 'relationship'
+      || input.replyDeliberation?.selectedMotive === 'attune'
+      || input.privateThought?.stance === 'accompany'
+      || input.privateThought?.stance === 'care'
+    )
+  ) {
+    return 'self-continuity' as const
+  }
+
+  if (
     input.replyDeliberation?.selectedMotive === 'attune'
     || input.conversationState.memoryMode === 'dialogue-carry'
   ) {
@@ -142,6 +167,12 @@ export function buildRecallGovernor(input: {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounter | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+  goalStack?: AlicizationGoalStackSnapshot | null
+  desireMemory?: AlicizationDesireMemorySnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  mindEcology?: AlicizationMindEcologySnapshot | null
 }): AlicizationRecallGovernorSnapshot | null {
   const dialogueWorldThread = input.dialogueWorldThread ?? null
   const conversationState = input.conversationState ?? null
@@ -155,6 +186,14 @@ export function buildRecallGovernor(input: {
     dialogueWorldThread.currentQuestion,
     dialogueWorldThread.activeThread,
   ) || null
+  const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
+    autobiographicalSelf: input.autobiographicalSelf ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+    goalStack: input.goalStack ?? null,
+    desireMemory: input.desireMemory ?? null,
+    privateThought: input.privateThought ?? null,
+    mindEcology: input.mindEcology ?? null,
+  })
   const mode = resolveMode({
     dialogueWorldThread,
     conversationState,
@@ -163,6 +202,7 @@ export function buildRecallGovernor(input: {
     privateThought: input.privateThought ?? null,
     dialogueEncounter: input.dialogueEncounter ?? null,
     primaryTurnAnchor,
+    autobiographicalContinuityActive: autobiographicalContinuityLines.length > 0,
   })
   const suppressAssociativeRecall = Boolean(
     input.answerCompiler?.suppressAssociativeRecall
@@ -190,6 +230,9 @@ export function buildRecallGovernor(input: {
     input.dialogueEncounter?.summary,
     dialogueWorldThread.activeThread,
     dialogueWorldThread.currentQuestion,
+    ...autobiographicalContinuityLines,
+    input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
+    input.motiveEngine?.longTermGoals[0]?.summary ?? null,
     ...dialogueWorldThread.recallKeys,
     ...conversationState.memoryQueryHints,
     input.privateThought?.emotionalTension ? `emotional_tension:${input.privateThought.emotionalTension}` : null,
@@ -204,7 +247,9 @@ export function buildRecallGovernor(input: {
         : mode === 'emotional-resonance'
           ? 'Allow memory with matching emotional color because the host is still inside a felt continuity.'
           : mode === 'self-continuity'
-            ? 'Carry dialogue/self continuity without pretending old scene residue is live.'
+            ? autobiographicalContinuityLines.length > 0
+                ? 'Carry autobiographical continuity and remembered self-line because this turn is genuinely about Alicization or the bond, not a fresh screen claim.'
+                : 'Carry dialogue/self continuity without pretending old scene residue is live.'
             : 'Do not admit memory unless the living turn explicitly earns it.'
 
   return {

@@ -83,6 +83,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
   const latestReflection = latestReflectionEntry(surface)
   const recallGovernor = surface.memory.recallGovernor ?? null
   const thoughtThread = pickForegroundThoughtThread(surface)
+  const longHorizonMemory = surface.memory.longHorizonMemory ?? null
 
   const recentEpisodeSummary = sanitizeText(recentEpisode?.summary, 180) || null
   const focusBeliefStatement = sanitizeText(focusBelief?.statement, 160) || null
@@ -95,6 +96,16 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     firstNonEmptyText(thoughtThread?.summary, thoughtThread?.title, thoughtThread?.question),
     160,
   ) || null
+  const longHorizonSummary = sanitizeText(
+    firstNonEmptyText(longHorizonMemory?.summary, longHorizonMemory?.dominantCueSummary),
+    180,
+  ) || null
+  const rememberedPreferenceSummary = sanitizeText(longHorizonMemory?.rememberedPreferenceSummary, 180) || null
+  const rememberedConstraintSummary = sanitizeText(longHorizonMemory?.rememberedConstraintSummary, 180) || null
+  const rememberedPlanSummary = sanitizeText(longHorizonMemory?.rememberedPlanSummary, 180) || null
+  const longHorizonCueCount = Array.isArray(longHorizonMemory?.anchorFacts)
+    ? longHorizonMemory.anchorFacts.length
+    : 0
 
   return {
     summary: [
@@ -105,6 +116,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
       reflectionSummary ? `reflection=${sanitizeText(reflectionSummary, 72)}` : '',
       recallMode ? `recall=${recallMode}` : '',
       thoughtThreadSummary ? `thread=${sanitizeText(thoughtThreadSummary, 72)}` : '',
+      longHorizonSummary ? `durable=${sanitizeText(longHorizonSummary, 72)}` : '',
     ].filter(Boolean).join(' | ') || null,
     recentEpisodeSummary,
     recentEpisodeCount: asArray(surface.memory.workingMemoryEpisodes).length,
@@ -117,5 +129,10 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     recallMode,
     recallSeed,
     thoughtThreadSummary,
+    longHorizonSummary,
+    rememberedPreferenceSummary,
+    rememberedConstraintSummary,
+    rememberedPlanSummary,
+    longHorizonCueCount,
   }
 }

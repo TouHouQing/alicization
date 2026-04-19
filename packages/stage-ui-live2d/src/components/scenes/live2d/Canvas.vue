@@ -22,10 +22,41 @@ const isPixiCanvasReady = ref(false)
 const pixiApp = ref<Application>()
 const pixiAppCanvas = ref<HTMLCanvasElement>()
 
-console.info('[stage-startup-trace][live2d-canvas] setup-start')
+const live2dCanvasDebugStorageKey = 'devtools/embodiment-debug'
+
+function isLive2DCanvasDebugEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(live2dCanvasDebugStorageKey) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function logLive2DCanvasTrace(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DCanvasDebugEnabled())
+    return
+
+  console.info('[stage-startup-trace][live2d-canvas]', {
+    message,
+    ...payload,
+  })
+}
+
+function logLive2DCanvasError(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DCanvasDebugEnabled())
+    return
+
+  console.error('[stage-startup-trace][live2d-canvas]', {
+    message,
+    ...payload,
+  })
+}
+
+logLive2DCanvasTrace('setup-start')
 
 onErrorCaptured((error, instance, info) => {
-  console.error('[stage-startup-trace][live2d-canvas] captured-error', {
+  logLive2DCanvasError('captured-error', {
     info,
     component: instance?.$?.type,
     error,
@@ -108,20 +139,22 @@ watch(() => props.maxFps, (limit) => {
 })
 
 watch(componentState, (state) => {
-  console.info(
-    `[stage-startup-trace][live2d-canvas] component-state state=${state} width=${props.width} height=${props.height}`,
-  )
+  logLive2DCanvasTrace('component-state', {
+    height: props.height,
+    state,
+    width: props.width,
+  })
 }, { immediate: true })
 
 onMounted(async () => {
-  console.info('[stage-startup-trace][live2d-canvas] onMounted-enter')
+  logLive2DCanvasTrace('onMounted-enter')
   if (containerRef.value)
     await initLive2DPixiStage(containerRef.value)
-  console.info('[stage-startup-trace][live2d-canvas] onMounted-exit')
+  logLive2DCanvasTrace('onMounted-exit')
 })
 
 onBeforeMount(() => {
-  console.info('[stage-startup-trace][live2d-canvas] onBeforeMount')
+  logLive2DCanvasTrace('onBeforeMount')
 })
 onUnmounted(() => pixiApp.value?.destroy())
 

@@ -1,6 +1,7 @@
 import type { AlicizationDigitalLifeSpineDigest } from '../../stores/alicization-bridge'
 
 import {
+  createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentSpeechRenderState,
   createStageEmbodimentSpeechPlaybackItem,
 } from '@proj-alicization/stage-shared'
@@ -17,6 +18,52 @@ function createPerformance() {
     actionCue: 'raise_hand_excited',
     delivery: 'energetic' as const,
     emphasis: 2 as const,
+  }
+}
+
+function createRecoveringMotor() {
+  const idleMotor = createIdleStageEmbodimentMotorState()
+
+  return {
+    ...idleMotor,
+    stillness: 0.82,
+    expressivity: 0.3,
+    gaze: {
+      ...idleMotor.gaze,
+      focus: 0.78,
+      stability: 0.86,
+      azimuth: -0.12,
+      elevation: -0.08,
+    },
+    head: {
+      ...idleMotor.head,
+      yaw: -0.08,
+      pitch: 0.12,
+      roll: 0.06,
+      nod: 0.12,
+    },
+    breath: {
+      ...idleMotor.breath,
+      amplitude: 0.32,
+      pace: 0.38,
+    },
+    facial: {
+      ...idleMotor.facial,
+      eyeOpenness: 0.5,
+      browLift: -0.06,
+      browTension: 0.36,
+      cheekLift: 0.08,
+      mouthSpread: 0.1,
+      mouthRound: 0.42,
+      jawOpenBias: 0.22,
+    },
+    body: {
+      ...idleMotor.body,
+      sway: -0.06,
+      lean: -0.14,
+      openness: 0.34,
+      settle: 0.88,
+    },
   }
 }
 
@@ -113,6 +160,33 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.activeFacialCueSource).toBe('resident')
     expect(runtime.state.value.activeActionCue).toBe('observe_focus')
     expect(runtime.state.value.activeActionCueSource).toBe('resident')
+
+    scope.stop()
+  })
+
+  it('keeps the resident performance baseline armed while preparing the next message', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-prepare',
+    })
+    await nextTick()
+
+    runtime.prepareForNextMessage()
+    await nextTick()
+
+    expect(runtime.state.value.phase).toBe('armed')
+    expect(runtime.state.value.performance.baseEmotion).toBe('happy')
+    expect(runtime.state.value.activeCueSource).toBe('none')
+    expect(runtime.state.value.activeFacialCue).toBe('smile')
+    expect(runtime.state.value.activeFacialCueSource).toBe('resident')
+    expect(runtime.state.value.activeActionCue).toBe('raise_hand_excited')
+    expect(runtime.state.value.activeActionCueSource).toBe('resident')
+    expect(runtime.state.value.expressionIntensity).toBeGreaterThan(0.4)
+    expect(runtime.state.value.actionPulse.reason).toBeNull()
 
     scope.stop()
   })
@@ -270,6 +344,115 @@ describe('stage embodiment performance runtime', () => {
     expect(runtime.state.value.performance.actionCue).toBe('nod_soft')
     expect(runtime.state.value.activeActionCueSource).toBe('segment')
     expect(runtime.state.value.prosodyDrive).toBeGreaterThan(0.55)
+
+    scope.stop()
+  })
+
+  it('suppresses resident action carry when digital-life marks the active segment as still', async () => {
+    const speechRenderState = ref(createIdleStageEmbodimentSpeechRenderState())
+    const scope = effectScope()
+    const runtime = scope.run(() => useStageEmbodimentPerformanceRuntime({ speechRenderState }))!
+
+    runtime.armPerformance(createPerformance(), {
+      source: 'dialogue',
+      variationToken: 'turn-digital-life-still',
+    })
+
+    speechRenderState.value = {
+      ...speechRenderState.value,
+      active: true,
+      dynamics: {
+        speechEnergy: 0.42,
+        prosodyIntensity: 0.36,
+        emphasisLevel: 0.28,
+        cadencePulse: 0.34,
+      },
+      item: createStageEmbodimentSpeechPlaybackItem({
+        intentId: 'intent-digital-life-still',
+        segmentId: 'segment-digital-life-still',
+        special: null,
+        streamId: 'stream-digital-life-still',
+        text: '先别着急。',
+        cue: {
+          id: 'timeline:segment-digital-life-still',
+          index: 0,
+          startOffset: 0,
+          endOffset: 5,
+          text: '先别着急。',
+          emotion: 'happy',
+          gestureWeight: 0.74,
+          facialWeight: 0.8,
+          prosodyWeight: 0.76,
+          beatWeight: 0.72,
+          actionCue: 'wave_big',
+          facialCue: 'grin',
+          actionWindow: 'cadence-peak',
+          interruptMode: 'continue',
+        },
+        digitalLifeFrame: {
+          id: 'segment-digital-life-still',
+          index: 0,
+          startOffset: 0,
+          endOffset: 5,
+          text: '先别着急。',
+          mode: 'recovering',
+          interruptPolicy: 'soft-interrupt',
+          settleMode: 'linger',
+          voice: {
+            pitchDelta: -2,
+            rateMultiplier: 0.96,
+            energy: 0.54,
+            cadence: 0.4,
+          },
+          lipSync: {
+            mode: 'hybrid',
+            visemeBias: 0.58,
+            energyBias: 0.42,
+            mouthScale: 0.9,
+            continuityHoldMs: 320,
+          },
+          face: {
+            emotion: 'concerned',
+            facialCue: 'soft-gaze',
+            expressionMode: 'hold',
+            intensity: 0.58,
+            holdMs: 400,
+            rendererHints: {
+              preferredExpressionAliases: ['MindCalm'],
+            },
+          },
+          action: {
+            actionCue: null,
+            actionMode: 'none',
+            intensity: 0,
+            holdMs: 240,
+            rendererHints: {
+              preferredMotionAliases: ['StillnessGuard'],
+            },
+          },
+          motor: createRecoveringMotor(),
+        },
+      }),
+      phase: 'playing',
+      revision: 1,
+      visemeIntensity: 0.48,
+    }
+    await nextTick()
+
+    expect(runtime.state.value.performance.baseEmotion).toBe('concerned')
+    expect(runtime.state.value.performance.facialCue).toBe('soft-gaze')
+    expect(runtime.state.value.activeFacialCue).toBe('soft-gaze')
+    expect(runtime.state.value.activeFacialCueSource).toBe('segment')
+    expect(runtime.state.value.performance.actionCue).toBeNull()
+    expect(runtime.state.value.activeActionCue).toBeNull()
+    expect(runtime.state.value.activeActionCueSource).toBe('none')
+    expect(runtime.state.value.activeCue?.actionCue).toBeNull()
+    expect(runtime.state.value.activeCue?.rendererHints?.preferredExpressionAliases).toEqual(['MindCalm'])
+    expect(runtime.state.value.activeCue?.rendererHints?.preferredMotionAliases).toEqual(['StillnessGuard'])
+    expect(runtime.state.value.motor.stillness).toBeGreaterThan(0.6)
+    expect(runtime.state.value.motor.gaze.focus).toBeGreaterThan(0.65)
+    expect(runtime.state.value.motor.facial.mouthRound).toBeGreaterThan(runtime.state.value.motor.facial.mouthSpread)
+    expect(runtime.state.value.motor.body.openness).toBeLessThan(0.5)
 
     scope.stop()
   })

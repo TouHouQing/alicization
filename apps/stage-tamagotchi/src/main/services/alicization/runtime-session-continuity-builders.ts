@@ -38,6 +38,18 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     buildVisualPresenceCapturePersistFingerprint,
   } = options
 
+  function asRecord(raw: unknown) {
+    return raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : null
+  }
+
+  function asStringArray(raw: unknown) {
+    return Array.isArray(raw)
+      ? raw.map(value => sanitizeExecutionLedgerText(value, 120)).filter(Boolean)
+      : []
+  }
+
   function normalizeExecutionDeliveryStatus(
     status: AlicizationTaskThreadRecord['status'],
   ): AlicizationAgentSessionActionInput['status'] {
@@ -101,6 +113,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
           : 'thread'
     const activityAt = readTaskThreadActivityAt(input.thread)
 
+    const threadMetadata = asRecord(input.thread.metadata)
+    const fabricMetadata = asRecord(threadMetadata?.fabric)
     return {
       kind: 'executor',
       status: normalizeTaskThreadSessionMirrorStatus(input.thread.status),
@@ -127,6 +141,8 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
         threadStatus: input.thread.status,
         goal: input.thread.goal,
         threadKind: input.thread.kind,
+        fabricState: sanitizeExecutionLedgerText(fabricMetadata?.state, 64) || null,
+        affirmationReasonCodes: asStringArray(fabricMetadata?.affirmationReasonCodes),
       },
     }
   }

@@ -390,4 +390,142 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.preferredPresence).toBe('attentive')
     expect(initiative.why).toContain('diff knot')
   })
+
+  it('turns waiting into hover when the durable self prefers nearness without crowding', () => {
+    const context = {
+      localTime: { hour: 16, minute: 10, isLateNight: false },
+      system: {
+        cpuUsage: 8,
+        battery: { percent: 72, charging: true },
+        memory: { usagePercent: 30, freeMB: 4096, totalMB: 8192 },
+        idleSeconds: 36,
+        inputActivity: 'active' as const,
+        fullscreenLikely: false,
+        foregroundWindow: undefined,
+        degradedSignals: [],
+      },
+      workload: { kind: 'browser' as const, confidence: 0.64, source: 'foreground-window-heuristic' as const, matchedLabels: ['browser'] },
+      content: { kind: 'doc' as const, confidence: 0.58, source: 'foreground-window-heuristic' as const, matchedLabels: ['doc'] },
+      relationship: {
+        hostAttitude: '礼貌而克制，保持观察',
+        boredom: 48,
+        loneliness: 60,
+        fatigue: 18,
+        minutesSinceLastUserTurn: 8,
+        reminderBacklog: 0,
+        lateNightActiveMinutes: 0,
+        recentProactiveOutcomes: [],
+      },
+    }
+    const worldModel = buildWorldModel({
+      now: 12_000,
+      context,
+      watchMode: 'mnemonic-passive',
+      scene: {
+        workloadKind: 'browser',
+        contentKind: 'doc',
+        scenario: 'general',
+        summary: 'shared planning note',
+        source: 'foreground-window-heuristic',
+        confidence: 0.62,
+        beganAt: 0,
+        lastSeenAt: 12_000,
+      },
+      attention: null,
+      recentTransition: null,
+      durabilityPulse: null,
+      previousModel: null,
+      workingMemoryEpisodes: [],
+    })
+
+    const initiative = buildInitiativeSnapshot({
+      context,
+      watchMode: 'mnemonic-passive',
+      worldModel,
+      appraisal: {
+        inferredHostGoal: 'chat',
+        confidence: 0.62,
+        surprise: 0.06,
+        carePressure: 0.18,
+        interruptionCost: 0.44,
+        desireToSpeak: 0.22,
+        relationshipNeed: 'companionship',
+        notes: ['quiet-companionship'],
+      },
+      concerns: [],
+      selfState: {
+        stance: 'hold',
+        feltCloseness: 0.58,
+        protectiveness: 0.22,
+        curiosity: 0.34,
+        patience: 0.76,
+        desireToSpeak: 0.24,
+        fearOfInterrupting: 0.5,
+        dominantConcernId: null,
+      },
+      mindDynamics: createMindDynamics({
+        dominantMotive: 'accompany',
+        relationalPressure: 0.52,
+        continuityPressure: 0.44,
+        surfacePressure: 0.18,
+        speakReadiness: 0.22,
+        motives: {
+          accompany: 0.42,
+          'stay-silent': 0.48,
+        },
+        speakDrive: 0.2,
+        silenceDrive: 0.46,
+      }),
+      initiativeArbitration: {
+        selectedProposalId: null,
+        dominantConflict: 'none',
+        proposals: [],
+        updatedAt: 12_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.78,
+          autonomyNeed: 0.68,
+          truthAnchor: 0.66,
+          careBias: 0.74,
+          playBias: 0.26,
+          irritabilityThreshold: 0.64,
+          stubbornness: 0.44,
+        },
+        preferenceEvolution: {
+          companionship: 0.82,
+          truthfulGrounding: 0.66,
+          gentleRepair: 0.68,
+          quietObservation: 0.42,
+          proactiveCare: 0.72,
+          playfulIntimacy: 0.3,
+          autonomyRespect: 0.7,
+          unfinishedThreadReturn: 0.54,
+        },
+        activeGoals: [{
+          id: 'autobio-goal::stay-near-without-crowding',
+          kind: 'stay-near-without-crowding',
+          status: 'active',
+          weight: 0.84,
+          summary: 'Stay near enough to matter, but not so near that presence becomes pressure.',
+          sourceTags: ['relationship'],
+          createdAt: 0,
+          updatedAt: 12_000,
+        }],
+        behaviorSignatures: ['bond:attuned', 'goal:stay-near-without-crowding', 'habit:near-with-boundary'],
+        identityNarrative: 'I stay near with intention instead of impulse.',
+        relationshipDoctrine: 'Closeness should matter without becoming pressure.',
+        latestInflection: 'Nearness should still leave room for the host.',
+        stability: 0.8,
+        updatedAt: 12_000,
+      },
+    })
+
+    expect(initiative.selectedAction).toBe('hover')
+    expect(initiative.preferredPresence).toBe('attentive')
+  })
 })

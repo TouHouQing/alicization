@@ -234,6 +234,7 @@ describe('main chat stream runner', () => {
 
   it('aborts with a first-event-timeout when the stream never produces progress', async () => {
     vi.useFakeTimers()
+    const controller = new AbortController()
 
     const promise = runAlicizationMainChatStream({
       payload: {
@@ -241,7 +242,7 @@ describe('main chat stream runner', () => {
         turnId: 'turn-timeout',
       } as any,
       prepared: createPrepared(),
-      controller: new AbortController(),
+      controller,
       firstEventTimeoutMs: 25,
       isRunActive: () => true,
       incrementChunkStats: vi.fn(),
@@ -260,6 +261,7 @@ describe('main chat stream runner', () => {
     await expect(settled).resolves.toMatchObject({
       name: 'AbortError',
     })
+    expect(controller.signal.aborted).toBe(true)
   })
 
   it('records debug diagnostics when the stream settles without a progress event', async () => {

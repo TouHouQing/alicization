@@ -37,6 +37,8 @@ const executionRoutingToolMap: Record<AlicizationDispatchChannel, AlicizationExe
   'openclaw': 'executor_run_openclaw',
 }
 const continuationCuePattern = /继续|接着|接下来|续上|接上|沿着刚才|按刚才|照刚才|continue|keep\s+going|go\s+on|resume|carry\s+on|pick\s+up\s+where\s+we\s+left\s+off/iu
+const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好(?:的|啊|呀)?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
+const enExecutionAffirmationPattern = /^(?:ok|okay|yes|yeah|yep|sure|goahead|doit|pleasedo|startit|dothat)$/iu
 
 export type AlicizationMainChatActionObligationKind
   = | 'answer'
@@ -45,12 +47,23 @@ export type AlicizationMainChatActionObligationKind
     | 'execute'
     | 'continue-task'
 
+export interface AlicizationPendingAffirmationThreadCandidate {
+  affirmationReasonCodes: string[]
+  goal: string
+  proposedChannel: AlicizationDispatchChannel | null
+  selectedChannel: AlicizationDispatchChannel | null
+  summary: string
+  threadId: string
+}
+
 export interface AlicizationMainChatActionObligation {
   confidence: number
   kind: AlicizationMainChatActionObligationKind
   reasonCodes: string[]
+  resumePendingThreadChannel?: AlicizationDispatchChannel | null
+  resumePendingThreadId?: string | null
   routingIntent: AlicizationExecutionRoutingIntent | null
-  source: 'capability-inquiry' | 'explicit-routing' | 'dialogue-governance'
+  source: 'capability-inquiry' | 'explicit-routing' | 'dialogue-governance' | 'pending-affirmation'
   summary: string
 }
 
@@ -126,9 +139,36 @@ function hasContinuationCue(userText: string) {
   return continuationCuePattern.test(userText)
 }
 
+function normalizeCompactUserText(raw: string) {
+  return sanitizeText(raw, 240)
+    .replace(/[，,。.!！？?？\s]+/g, '')
+    .toLowerCase()
+}
+
+function isExecutionAffirmationTurn(userText: string) {
+  const compact = normalizeCompactUserText(userText)
+  if (!compact)
+    return false
+  return zhExecutionAffirmationPattern.test(compact) || enExecutionAffirmationPattern.test(compact)
+}
+
+function buildPendingAffirmationRoutingIntent(thread: AlicizationPendingAffirmationThreadCandidate) {
+  const channel = thread.selectedChannel ?? thread.proposedChannel
+  if (!channel)
+    return null
+  return buildRoutingIntent({
+    channels: [channel],
+    reasonCodes: [
+      'resume-pending-affirmation-thread',
+      ...thread.affirmationReasonCodes,
+    ],
+  })
+}
+
 export function deriveMainChatActionObligation(input: {
   capabilityInquiry: AlicizationExecutionCapabilityInquiry
   explicitRoutingIntent?: AlicizationExecutionRoutingIntent | null
+  pendingAffirmationThread?: AlicizationPendingAffirmationThreadCandidate | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   userText: string
 }): AlicizationMainChatActionObligation {
@@ -139,6 +179,7 @@ export function deriveMainChatActionObligation(input: {
   const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? null
   const activeThread = runtimeSurface?.world.worldModel?.activeThread ?? null
   const explicitRoutingIntent = input.explicitRoutingIntent ?? null
+  const pendingAffirmationThread = input.pendingAffirmationThread ?? null
   const userText = sanitizeText(input.userText, 320)
   const executionTurnAuthority = analyzeAlicizationExecutionTurnAuthority(userText)
   const userSemanticSignals = executionTurnAuthority.semanticSignals
@@ -166,6 +207,28 @@ export function deriveMainChatActionObligation(input: {
       reasonCodes: unique([
         'capability-question',
         ...input.capabilityInquiry.mentionedChannels.map(channel => `channel:${channel}`),
+      ]),
+    }
+  }
+
+  if (pendingAffirmationThread && isExecutionAffirmationTurn(userText)) {
+    const routingIntent = buildPendingAffirmationRoutingIntent(pendingAffirmationThread)
+    return {
+      kind: 'continue-task',
+      summary: sanitizeText(
+        pendingAffirmationThread.summary
+        || `The host affirmed the pending execution proposal for ${pendingAffirmationThread.goal}.`,
+        180,
+      ) || `The host affirmed the pending execution proposal for ${pendingAffirmationThread.goal}.`,
+      confidence: 0.96,
+      routingIntent,
+      source: 'pending-affirmation',
+      resumePendingThreadId: pendingAffirmationThread.threadId,
+      resumePendingThreadChannel: pendingAffirmationThread.selectedChannel ?? pendingAffirmationThread.proposedChannel ?? null,
+      reasonCodes: unique([
+        'affirmed-pending-execution-proposal',
+        'resume-pending-affirmation-thread',
+        ...pendingAffirmationThread.affirmationReasonCodes,
       ]),
     }
   }

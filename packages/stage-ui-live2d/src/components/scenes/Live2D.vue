@@ -7,6 +7,7 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 import type { Live2DActionPulseBinding } from '../../composables/live2d'
+import type { Live2DRuntimeCapabilitySnapshot } from '../../composables/live2d'
 
 import { useWindowSize } from '@vueuse/core'
 import { onBeforeMount, onErrorCaptured, onMounted, ref, watch } from 'vue'
@@ -25,6 +26,7 @@ withDefaults(defineProps<{
   actionBindings?: Live2DActionPulseBinding[]
   idleMotionPreference?: StageEmbodimentIdleMotionPreference | null
   performanceState?: StageEmbodimentPerformanceState | null
+  preferredExpressionAliases?: string[] | null
   presencePosture?: StageEmbodimentPresencePostureState | null
   speechRenderState?: StageEmbodimentSpeechRenderState | null
   focusAt?: { x: number, y: number }
@@ -56,12 +58,43 @@ withDefaults(defineProps<{
 
 const emits = defineEmits<{
   (e: 'characterHoverChange', hovered: boolean): void
+  (e: 'runtimeCapabilitiesResolved', value: Live2DRuntimeCapabilitySnapshot): void
 }>()
+const live2dSceneDebugStorageKey = 'devtools/embodiment-debug'
 
-console.info('[stage-startup-trace][live2d-scene] setup-start')
+function isLive2DSceneDebugEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(live2dSceneDebugStorageKey) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function logLive2DSceneTrace(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DSceneDebugEnabled())
+    return
+
+  console.info('[stage-startup-trace][live2d-scene]', {
+    message,
+    ...payload,
+  })
+}
+
+function logLive2DSceneError(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DSceneDebugEnabled())
+    return
+
+  console.error('[stage-startup-trace][live2d-scene]', {
+    message,
+    ...payload,
+  })
+}
+
+logLive2DSceneTrace('setup-start')
 
 onErrorCaptured((error, instance, info) => {
-  console.error('[stage-startup-trace][live2d-scene] captured-error', {
+  logLive2DSceneError('captured-error', {
     info,
     component: instance?.$?.type,
     error,
@@ -97,15 +130,17 @@ watch([componentStateModel, componentStateCanvas], () => {
 })
 
 watch(componentState, (state) => {
-  console.info(`[stage-startup-trace][live2d-scene] component-state state=${state}`)
+  logLive2DSceneTrace('component-state', {
+    state,
+  })
 }, { immediate: true })
 
 onMounted(() => {
-  console.info('[stage-startup-trace][live2d-scene] onMounted')
+  logLive2DSceneTrace('onMounted')
 })
 
 onBeforeMount(() => {
-  console.info('[stage-startup-trace][live2d-scene] onBeforeMount')
+  logLive2DSceneTrace('onBeforeMount')
 })
 
 defineExpose({
@@ -145,6 +180,7 @@ defineExpose({
         :action-bindings="actionBindings"
         :idle-motion-preference="idleMotionPreference"
         :performance-state="performanceState"
+        :preferred-expression-aliases="preferredExpressionAliases"
         :presence-posture="presencePosture"
         :speech-render-state="speechRenderState"
         :width="viewportWidth"
@@ -162,6 +198,7 @@ defineExpose({
         :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabled"
         :live2d-shadow-enabled="live2dShadowEnabled"
         @character-hover-change="emits('characterHoverChange', $event)"
+        @runtime-capabilities-resolved="emits('runtimeCapabilitiesResolved', $event)"
       />
     </Live2DCanvas>
   </div>

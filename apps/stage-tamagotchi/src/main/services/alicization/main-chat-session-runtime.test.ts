@@ -1060,6 +1060,126 @@ describe('main chat session runtime', () => {
     expect(String(carryBlock?.content ?? '')).toContain('carry_mirror_memory=true')
   })
 
+  it('skips execution-heavy preparation phases for dialogue-first living turns', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const getPerformanceManifest = vi.fn(async () => ({ rigVersion: 1 } as any))
+    const resolveExecutionCapabilitiesForPrompt = vi.fn(async () => createCapabilities())
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => ['[ORGANIC]'],
+      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest,
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt,
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const reflectivePrelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '我今天有点乱，你先别安慰我，直接陪我把线捋清。',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-dialogue-first-living',
+        messages: [{
+          role: 'user',
+          content: '我今天有点乱，你先别安慰我，直接陪我把线捋清。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: {
+        ...reflectivePrelude,
+        perceptionAugmentation: {
+          ...reflectivePrelude.perceptionAugmentation,
+          chatGovernance: {
+            suppressAssociativeRecall: false,
+            turnMode: 'answer',
+            personaKernelMode: 'full',
+            mindTurnGovernance: {
+              decisionTraceId: 'trace-dialogue-living',
+              turnMode: 'answer',
+              truthState: 'live-observed',
+              answerSubject: 'relationship',
+              screenReferenceMode: 'avoid',
+              answerAct: 'answer',
+              personaKernelMode: 'full',
+            } as any,
+          },
+        },
+      },
+    })
+
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-callbacks')
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-ledger')
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('performance-manifest')
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('tool-registry')
+    expect(result.runtimeSurface.trace.sessionPhases).not.toContain('execution-capabilities')
+    expect(result.runtimeSurface.tooling.allowTools).toBe(false)
+    expect(result.runtimeSurface.tooling.waitForTools).toBe(false)
+    expect(result.tools).toBeUndefined()
+    expect(getPerformanceManifest).not.toHaveBeenCalled()
+    expect(resolveExecutionCapabilitiesForPrompt).not.toHaveBeenCalled()
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_EXECUTION_CALLBACKS]'),
+    )).toBe(false)
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[VESSEL]'),
+    )).toBe(false)
+  })
+
   it('injects an execution-result reply obligation when the host follows up on recent executor output', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,

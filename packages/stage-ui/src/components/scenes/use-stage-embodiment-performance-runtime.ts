@@ -11,9 +11,9 @@ import type {
 } from '../../stores/alicization-bridge'
 
 import {
+  createIdleStageEmbodimentMotorState,
   createIdleStageEmbodimentPerformanceState,
   normalizeAlicizationPerformancePayload,
-
 } from '@proj-alicization/stage-shared'
 import { onScopeDispose, readonly, ref, watch } from 'vue'
 
@@ -43,6 +43,7 @@ const segmentBeatPulseGapMs = 240
 const segmentFacialCueHoldMs = 260
 const segmentActionCueHoldMs = 180
 const segmentEmotionCueHoldMs = 240
+const performanceEmbodimentDebugStorageKey = 'devtools/embodiment-debug'
 
 function clamp01(value: number | null | undefined, fallback: number = 0) {
   if (!Number.isFinite(value))
@@ -68,6 +69,25 @@ function clampFactor(value: number, fallback = 1, bounds: { min: number, max: nu
     return fallback
 
   return Math.min(bounds.max, Math.max(bounds.min, value))
+}
+
+function isPerformanceEmbodimentDebugEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(performanceEmbodimentDebugStorageKey) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function logPerformanceEmbodimentDebug(event: string, payload?: Record<string, unknown>) {
+  if (!isPerformanceEmbodimentDebugEnabled())
+    return
+
+  console.info('[stage-embodiment][performance]', {
+    event,
+    ...payload,
+  })
 }
 
 function resolveSpinePerformanceBias(digest: AlicizationDigitalLifeSpineDigest | null | undefined) {
@@ -235,6 +255,242 @@ function resolvePerformanceFocusBase(performance: AlicizationDialoguePerformance
   }
 }
 
+function roundHundredths(value: number, fallback = 0) {
+  return Number(clamp01(value, fallback).toFixed(2))
+}
+
+function roundSignedHundredths(value: number, fallback = 0) {
+  return Number(clampSigned(value, -1, 1, fallback).toFixed(2))
+}
+
+function mixUnit(from: number, to: number, amount: number) {
+  return roundHundredths(from + (to - from) * clamp01(amount))
+}
+
+function mixSigned(from: number, to: number, amount: number) {
+  return roundSignedHundredths(from + (to - from) * clamp01(amount))
+}
+
+function createDigitalLifeFrameSignature(item: StageEmbodimentSpeechPlaybackItem | null | undefined) {
+  const frame = item?.digitalLifeFrame
+  if (!frame)
+    return ''
+
+  return JSON.stringify([
+    frame.id,
+    frame.mode,
+    frame.face.emotion,
+    frame.face.facialCue ?? null,
+    frame.action.actionCue ?? null,
+    frame.motor.stillness,
+    frame.motor.expressivity,
+    frame.motor.gaze.focus,
+    frame.motor.gaze.stability,
+    frame.motor.gaze.azimuth,
+    frame.motor.gaze.elevation,
+    frame.motor.head.yaw,
+    frame.motor.head.pitch,
+    frame.motor.head.roll,
+    frame.motor.head.nod,
+    frame.motor.breath.amplitude,
+    frame.motor.breath.pace,
+    frame.motor.facial.eyeOpenness,
+    frame.motor.facial.browLift,
+    frame.motor.facial.browTension,
+    frame.motor.facial.cheekLift,
+    frame.motor.facial.mouthSpread,
+    frame.motor.facial.mouthRound,
+    frame.motor.facial.jawOpenBias,
+    frame.motor.body.sway,
+    frame.motor.body.lean,
+    frame.motor.body.openness,
+    frame.motor.body.settle,
+  ])
+}
+
+function resolveFallbackMotorFromPerformance(
+  performance: AlicizationDialoguePerformancePayload,
+) {
+  const idleMotor = createIdleStageEmbodimentMotorState()
+  const emphasis = clamp01(performance.emphasis * 0.5)
+  const deliveryBias = performance.delivery === 'energetic'
+    ? 0.12
+    : performance.delivery === 'firm'
+      ? 0.06
+      : performance.delivery === 'teasing'
+        ? 0.08
+        : performance.delivery === 'hesitant'
+          ? -0.08
+          : performance.delivery === 'gentle'
+            ? -0.04
+            : 0
+  const focusBias = performance.baseEmotion === 'thinking' || performance.baseEmotion === 'concerned'
+    ? 0.12
+    : performance.baseEmotion === 'happy'
+      ? -0.04
+      : 0
+  const stillness = roundHundredths(idleMotor.stillness - deliveryBias * 0.5 + focusBias * 0.4 - emphasis * 0.04, idleMotor.stillness)
+
+  return {
+    ...idleMotor,
+    stillness,
+    expressivity: roundHundredths(idleMotor.expressivity + emphasis * 0.16 + deliveryBias * 0.6, idleMotor.expressivity),
+    gaze: {
+      focus: roundHundredths(idleMotor.gaze.focus + focusBias + emphasis * 0.06, idleMotor.gaze.focus),
+      stability: roundHundredths(idleMotor.gaze.stability + focusBias * 0.5 - deliveryBias * 0.3, idleMotor.gaze.stability),
+      azimuth: roundSignedHundredths(
+        performance.delivery === 'teasing' ? 0.12 : performance.delivery === 'hesitant' ? -0.08 : 0,
+        idleMotor.gaze.azimuth,
+      ),
+      elevation: roundSignedHundredths(
+        performance.baseEmotion === 'sad' || performance.baseEmotion === 'tired'
+          ? -0.12
+          : performance.baseEmotion === 'happy'
+            ? 0.08
+            : 0,
+        idleMotor.gaze.elevation,
+      ),
+    },
+    head: {
+      yaw: roundSignedHundredths(performance.delivery === 'teasing' ? 0.12 : 0, idleMotor.head.yaw),
+      pitch: roundSignedHundredths(
+        performance.baseEmotion === 'thinking'
+          ? 0.06
+          : performance.delivery === 'energetic'
+            ? -0.06
+            : 0,
+        idleMotor.head.pitch,
+      ),
+      roll: roundSignedHundredths(
+        performance.delivery === 'gentle' ? 0.05 : performance.delivery === 'firm' ? -0.03 : 0,
+        idleMotor.head.roll,
+      ),
+      nod: roundHundredths(idleMotor.head.nod + emphasis * 0.12 + Math.max(0, deliveryBias) * 0.4, idleMotor.head.nod),
+    },
+    breath: {
+      amplitude: roundHundredths(idleMotor.breath.amplitude + emphasis * 0.08 + Math.max(0, deliveryBias) * 0.2, idleMotor.breath.amplitude),
+      pace: roundHundredths(idleMotor.breath.pace + deliveryBias * 0.6 + emphasis * 0.08, idleMotor.breath.pace),
+    },
+    facial: {
+      eyeOpenness: roundHundredths(
+        idleMotor.facial.eyeOpenness
+        + (performance.baseEmotion === 'surprised' ? 0.2 : performance.baseEmotion === 'sad' || performance.baseEmotion === 'tired' ? -0.12 : 0),
+        idleMotor.facial.eyeOpenness,
+      ),
+      browLift: roundSignedHundredths(
+        performance.baseEmotion === 'surprised' ? 0.24 : performance.baseEmotion === 'angry' ? -0.18 : 0,
+        idleMotor.facial.browLift,
+      ),
+      browTension: roundHundredths(
+        idleMotor.facial.browTension
+        + (performance.baseEmotion === 'thinking' || performance.baseEmotion === 'concerned' ? 0.12 : 0)
+        + (performance.baseEmotion === 'angry' ? 0.22 : 0),
+        idleMotor.facial.browTension,
+      ),
+      cheekLift: roundHundredths(
+        idleMotor.facial.cheekLift + (performance.baseEmotion === 'happy' ? 0.2 : 0),
+        idleMotor.facial.cheekLift,
+      ),
+      mouthSpread: roundHundredths(
+        idleMotor.facial.mouthSpread + (performance.baseEmotion === 'happy' ? 0.18 : performance.delivery === 'hesitant' ? -0.08 : 0),
+        idleMotor.facial.mouthSpread,
+      ),
+      mouthRound: roundHundredths(
+        idleMotor.facial.mouthRound + (performance.baseEmotion === 'concerned' || performance.baseEmotion === 'apologetic' ? 0.1 : 0),
+        idleMotor.facial.mouthRound,
+      ),
+      jawOpenBias: roundHundredths(idleMotor.facial.jawOpenBias + emphasis * 0.08 + Math.max(0, deliveryBias) * 0.2, idleMotor.facial.jawOpenBias),
+    },
+    body: {
+      sway: roundSignedHundredths(deliveryBias * 0.8, idleMotor.body.sway),
+      lean: roundSignedHundredths(
+        performance.baseEmotion === 'thinking' || performance.baseEmotion === 'angry'
+          ? 0.08
+          : performance.delivery === 'hesitant'
+            ? -0.08
+            : 0,
+        idleMotor.body.lean,
+      ),
+      openness: roundHundredths(
+        idleMotor.body.openness
+        + (performance.baseEmotion === 'happy' ? 0.14 : performance.delivery === 'hesitant' ? -0.1 : 0),
+        idleMotor.body.openness,
+      ),
+      settle: roundHundredths(stillness + 0.06, idleMotor.body.settle),
+    },
+  }
+}
+
+function resolveRuntimeMotor(input: {
+  activeFactor: number
+  cueBeat: number
+  cueFacial: number
+  cueGesture: number
+  cueHead: number
+  motionPulse: number
+  previewAhead: boolean
+  speech: ReturnType<typeof syncSpeechSnapshot>
+  speechDrive: number
+  transientMotor: ReturnType<typeof resolveFallbackMotorFromPerformance>
+}) {
+  const idleMotor = createIdleStageEmbodimentMotorState()
+  const base = input.transientMotor
+  const activity = input.previewAhead ? input.activeFactor * 0.78 : input.activeFactor
+  const dynamicExpressivity = clamp01(
+    base.expressivity * 0.72
+    + input.speechDrive * 0.14
+    + input.motionPulse * 0.18
+    + input.cueGesture * 0.12
+    + input.cueFacial * 0.08
+    + input.speech.dynamics.cadencePulse * 0.08,
+    base.expressivity,
+  )
+  const dynamicStillness = clamp01(
+    base.stillness * 0.88
+    - dynamicExpressivity * 0.08
+    - input.motionPulse * 0.06
+    + (1 - input.speech.dynamics.cadencePulse) * 0.04
+    + (input.previewAhead ? 0.06 : 0),
+    base.stillness,
+  )
+
+  return {
+    stillness: mixUnit(idleMotor.stillness, dynamicStillness, activity),
+    expressivity: mixUnit(idleMotor.expressivity, dynamicExpressivity, activity),
+    gaze: {
+      focus: mixUnit(idleMotor.gaze.focus, clamp01(base.gaze.focus + input.cueHead * 0.06 + input.cueFacial * 0.04), activity),
+      stability: mixUnit(idleMotor.gaze.stability, clamp01(base.gaze.stability + dynamicStillness * 0.08 - input.cueBeat * 0.04), activity),
+      azimuth: mixSigned(idleMotor.gaze.azimuth, clampSigned(base.gaze.azimuth + input.cueHead * 0.12, -1, 1), activity),
+      elevation: mixSigned(idleMotor.gaze.elevation, clampSigned(base.gaze.elevation + (input.speech.dynamics.speechEnergy - 0.5) * 0.12, -1, 1), activity),
+    },
+    head: {
+      yaw: mixSigned(idleMotor.head.yaw, clampSigned(base.head.yaw + input.cueHead * 0.16 + input.cueGesture * 0.08, -1, 1), activity),
+      pitch: mixSigned(idleMotor.head.pitch, clampSigned(base.head.pitch + (input.speech.dynamics.cadencePulse - 0.5) * 0.14, -1, 1), activity),
+      roll: mixSigned(idleMotor.head.roll, clampSigned(base.head.roll + input.motionPulse * 0.06, -1, 1), activity),
+      nod: mixUnit(idleMotor.head.nod, clamp01(base.head.nod + input.cueBeat * 0.16 + input.speech.dynamics.cadencePulse * 0.14), activity),
+    },
+    breath: {
+      amplitude: mixUnit(idleMotor.breath.amplitude, clamp01(base.breath.amplitude + input.speech.dynamics.speechEnergy * 0.12 + input.cueBeat * 0.06), activity),
+      pace: mixUnit(idleMotor.breath.pace, clamp01(base.breath.pace + input.speech.dynamics.cadencePulse * 0.18), activity),
+    },
+    facial: {
+      eyeOpenness: mixUnit(idleMotor.facial.eyeOpenness, clamp01(base.facial.eyeOpenness + input.cueFacial * 0.04), activity),
+      browLift: mixSigned(idleMotor.facial.browLift, clampSigned(base.facial.browLift + input.cueFacial * 0.08 - input.cueBeat * 0.04, -1, 1), activity),
+      browTension: mixUnit(idleMotor.facial.browTension, clamp01(base.facial.browTension + input.cueFacial * 0.08 + input.cueHead * 0.04), activity),
+      cheekLift: mixUnit(idleMotor.facial.cheekLift, clamp01(base.facial.cheekLift + input.speech.dynamics.speechEnergy * 0.06), activity),
+      mouthSpread: mixUnit(idleMotor.facial.mouthSpread, clamp01(base.facial.mouthSpread + input.speechDrive * 0.06), activity),
+      mouthRound: mixUnit(idleMotor.facial.mouthRound, clamp01(base.facial.mouthRound + (1 - input.speechDrive) * 0.04), activity),
+      jawOpenBias: mixUnit(idleMotor.facial.jawOpenBias, clamp01(base.facial.jawOpenBias + input.speechDrive * 0.12), activity),
+    },
+    body: {
+      sway: mixSigned(idleMotor.body.sway, clampSigned(base.body.sway + input.motionPulse * 0.12 + input.cueGesture * 0.08, -1, 1), activity),
+      lean: mixSigned(idleMotor.body.lean, clampSigned(base.body.lean + input.cueHead * 0.08, -1, 1), activity),
+      openness: mixUnit(idleMotor.body.openness, clamp01(base.body.openness + dynamicExpressivity * 0.08 - dynamicStillness * 0.04), activity),
+      settle: mixUnit(idleMotor.body.settle, clamp01(base.body.settle + dynamicStillness * 0.1 - input.motionPulse * 0.04), activity),
+    },
+  }
+}
+
 function syncSpeechSnapshot(speech: {
   active: boolean
   dynamics: {
@@ -320,6 +576,10 @@ function shouldAllowDenseActionPulsePair(
 
 export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodimentPerformanceRuntimeOptions) {
   const state = ref(createIdleStageEmbodimentPerformanceState())
+  const debugState = {
+    lastSnapshotAt: 0,
+    lastSnapshotSignature: '',
+  }
   let lastTickAt = 0
   let lastActionPulseAt: number | null = null
   let lastActionPulseReason: StageEmbodimentPerformanceActionPulseReason = null
@@ -346,10 +606,8 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     }
   }
 
-  function reset(now = performance.now()) {
-    clearCooldownTimer()
+  function clearTransientSpeechCarry(now: number) {
     lastTickAt = now
-    lastArmSignature = ''
     lastActionPulseAt = null
     lastActionPulseReason = null
     lastSegmentId = ''
@@ -362,6 +620,12 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     heldSegmentActionCueUntil = 0
     heldSegmentCue = null
     heldSegmentCueUntil = 0
+  }
+
+  function reset(now = performance.now()) {
+    clearCooldownTimer()
+    clearTransientSpeechCarry(now)
+    lastArmSignature = ''
     state.value = {
       ...createIdleStageEmbodimentPerformanceState(),
       revision: state.value.revision + 1,
@@ -427,6 +691,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       heldUntil: number
       residentCue: string | null
       segmentCue: string | null
+      suppressResidentCue?: boolean
     },
   ) {
     const segmentCue = options.segmentCue?.trim() ?? ''
@@ -438,6 +703,15 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
         source: 'segment' as const,
         heldCue: segmentCue,
         heldUntil: now + options.holdMs,
+      }
+    }
+
+    if (options.suppressResidentCue) {
+      return {
+        cue: null,
+        source: 'none' as const,
+        heldCue: null,
+        heldUntil: 0,
       }
     }
 
@@ -583,13 +857,51 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     }
     lastCadencePeakActive = cadencePeakActive
 
-    const facialCueLayer = previewAhead && previewCue?.facialCue
-      ? {
-          cue: previewCue.facialCue,
-          source: 'preview' as const,
-          heldCue: null,
-          heldUntil: 0,
-        }
+    const segmentSuppressResidentFacialCue = Boolean(
+      speech.active
+      && segmentLife
+      && segmentLife.face.expressionMode === 'recover'
+      && !segmentCue?.facialCue,
+    )
+    const previewSuppressResidentFacialCue = Boolean(
+      previewAhead
+      && previewLife
+      && previewLife.face.expressionMode === 'recover'
+      && !previewCue?.facialCue,
+    )
+    const segmentSuppressResidentActionCue = Boolean(
+      speech.active
+      && segmentLife
+      && segmentLife.action.actionMode === 'none'
+      && !segmentCue?.actionCue,
+    )
+    const previewSuppressResidentActionCue = Boolean(
+      previewAhead
+      && previewLife
+      && previewLife.action.actionMode === 'none'
+      && !previewCue?.actionCue,
+    )
+
+    const facialCueLayer = previewAhead
+      ? previewCue?.facialCue
+          ? {
+              cue: previewCue.facialCue,
+              source: 'preview' as const,
+              heldCue: null,
+              heldUntil: 0,
+            }
+          : resolveTransientCueLayer(now, {
+              holdMs: resolveSegmentCueHoldMs(
+                previewCue?.facialHoldMs,
+                segmentFacialCueHoldMs,
+                { min: 90, max: 920 },
+              ),
+              heldCue: heldSegmentFacialCue,
+              heldUntil: heldSegmentFacialCueUntil,
+              residentCue: residentPerformance.facialCue ?? null,
+              segmentCue: null,
+              suppressResidentCue: previewSuppressResidentFacialCue,
+            })
       : resolveTransientCueLayer(now, {
           holdMs: resolveSegmentCueHoldMs(
             segmentCue?.facialHoldMs,
@@ -600,17 +912,31 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           heldUntil: heldSegmentFacialCueUntil,
           residentCue: residentPerformance.facialCue ?? null,
           segmentCue: segmentCue?.facialCue ?? null,
+          suppressResidentCue: segmentSuppressResidentFacialCue,
         })
     heldSegmentFacialCue = facialCueLayer.heldCue
     heldSegmentFacialCueUntil = facialCueLayer.heldUntil
 
-    const actionCueLayer = previewAhead && previewCue?.actionCue
-      ? {
-          cue: previewCue.actionCue,
-          source: 'preview' as const,
-          heldCue: null,
-          heldUntil: 0,
-        }
+    const actionCueLayer = previewAhead
+      ? previewCue?.actionCue
+          ? {
+              cue: previewCue.actionCue,
+              source: 'preview' as const,
+              heldCue: null,
+              heldUntil: 0,
+            }
+          : resolveTransientCueLayer(now, {
+              holdMs: resolveSegmentCueHoldMs(
+                previewCue?.actionHoldMs,
+                segmentActionCueHoldMs,
+                { min: 70, max: 720 },
+              ),
+              heldCue: heldSegmentActionCue,
+              heldUntil: heldSegmentActionCueUntil,
+              residentCue: residentPerformance.actionCue ?? null,
+              segmentCue: null,
+              suppressResidentCue: previewSuppressResidentActionCue,
+            })
       : resolveTransientCueLayer(now, {
           holdMs: resolveSegmentCueHoldMs(
             segmentCue?.actionHoldMs,
@@ -621,6 +947,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
           heldUntil: heldSegmentActionCueUntil,
           residentCue: residentPerformance.actionCue ?? null,
           segmentCue: segmentCue?.actionCue ?? null,
+          suppressResidentCue: segmentSuppressResidentActionCue,
         })
     heldSegmentActionCue = actionCueLayer.heldCue
     heldSegmentActionCueUntil = actionCueLayer.heldUntil
@@ -680,6 +1007,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       speech.visemeIntensity * 0.72,
       cueMouth * 0.54,
     ) * voiceEnergyScale)
+    const transientMotor = transientLife?.motor ?? resolveFallbackMotorFromPerformance(performance)
     const focusBase = resolvePerformanceFocusBase(performance)
     const spineBias = resolveSpinePerformanceBias(options.digitalLifeSpineDigest?.value)
     const motionPulse = clamp01(state.value.motionPulse)
@@ -687,6 +1015,18 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       ? clamp01(((state.value.cooldownUntil ?? now) - now) / cooldownMs, 0)
       : 1
     const activeFactor = speech.active ? 1 : state.value.phase === 'idle' ? 0 : releaseFactor
+    const runtimeMotor = resolveRuntimeMotor({
+      activeFactor,
+      cueBeat,
+      cueFacial,
+      cueGesture,
+      cueHead,
+      motionPulse,
+      previewAhead,
+      speech,
+      speechDrive,
+      transientMotor,
+    })
 
     state.value = {
       ...state.value,
@@ -701,14 +1041,53 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
       activeCue: cloneActiveCue(transientCue),
       activeCueSource: activeCueLayer.source,
       activeSegment: speech.item,
-      expressionIntensity: roundTenths(clamp01((baseIntensity + speechDrive * 0.16 + motionPulse * 0.1 + cueFacial * 0.12 + cueMouth * 0.06) * spineBias.expressionBias * activeFactor)),
-      facialCueIntensity: roundTenths(clamp01((baseIntensity * 0.88 + speechDrive * 0.22 + motionPulse * 0.14 + cueFacial * 0.18 + cueMouth * 0.08) * spineBias.expressionBias * activeFactor)),
-      actionIntensity: roundTenths(clamp01((0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14) * spineBias.actionBias * activeFactor)),
+      expressionIntensity: roundTenths(clamp01((baseIntensity + speechDrive * 0.16 + motionPulse * 0.1 + cueFacial * 0.12 + cueMouth * 0.06 + runtimeMotor.expressivity * 0.12 + runtimeMotor.facial.cheekLift * 0.08) * spineBias.expressionBias * activeFactor)),
+      facialCueIntensity: roundTenths(clamp01((baseIntensity * 0.88 + speechDrive * 0.22 + motionPulse * 0.14 + cueFacial * 0.18 + cueMouth * 0.08 + runtimeMotor.expressivity * 0.08 + runtimeMotor.facial.browTension * 0.08) * spineBias.expressionBias * activeFactor)),
+      actionIntensity: roundTenths(clamp01((0.34 + performance.emphasis * 0.12 + motionPulse * 0.18 + cueGesture * 0.16 + cueHead * 0.2 + cueBeat * 0.14 + runtimeMotor.body.openness * 0.08 + (1 - runtimeMotor.stillness) * 0.12) * spineBias.actionBias * activeFactor)),
       motionPulse,
       prosodyDrive: roundTenths(clamp01(Math.max(speechDrive, speech.dynamics.cadencePulse * (0.62 + cueProsody * 0.18), cueProsody * 0.46) * spineBias.prosodyBias * activeFactor)),
-      breathDrive: roundTenths(clamp01((speech.dynamics.cadencePulse * 0.44 + speech.dynamics.speechEnergy * 0.3 + motionPulse * 0.14 + cueBeat * 0.1 + cueMouth * 0.12) * spineBias.breathBias * activeFactor)),
-      focusDrive: roundTenths(clamp01((focusBase + motionPulse * 0.14 + speechDrive * 0.08 + cueFacial * 0.06 + cueHead * 0.08) * spineBias.focusBias * activeFactor)),
+      breathDrive: roundTenths(clamp01((speech.dynamics.cadencePulse * 0.44 + speech.dynamics.speechEnergy * 0.3 + motionPulse * 0.14 + cueBeat * 0.1 + cueMouth * 0.12 + runtimeMotor.breath.amplitude * 0.18 + runtimeMotor.breath.pace * 0.08) * spineBias.breathBias * activeFactor)),
+      focusDrive: roundTenths(clamp01((focusBase + motionPulse * 0.14 + speechDrive * 0.08 + cueFacial * 0.06 + cueHead * 0.08 + runtimeMotor.gaze.focus * 0.12 + runtimeMotor.gaze.stability * 0.08) * spineBias.focusBias * activeFactor)),
+      motor: runtimeMotor,
       updatedAt: now,
+    }
+
+    const debugSnapshotSignature = JSON.stringify([
+      state.value.phase,
+      state.value.speechPhase,
+      state.value.performance.baseEmotion,
+      state.value.performance.delivery,
+      state.value.activeCueSource,
+      state.value.activeFacialCueSource,
+      state.value.activeActionCueSource,
+      state.value.activeSegment?.segmentId ?? '',
+      previewSegmentId,
+    ])
+    if (
+      debugSnapshotSignature !== debugState.lastSnapshotSignature
+      || now - debugState.lastSnapshotAt >= 220
+    ) {
+      debugState.lastSnapshotSignature = debugSnapshotSignature
+      debugState.lastSnapshotAt = now
+      logPerformanceEmbodimentDebug('runtime-drive', {
+        phase: state.value.phase,
+        speechPhase: state.value.speechPhase,
+        emotion: state.value.performance.baseEmotion,
+        delivery: state.value.performance.delivery,
+        variationToken: state.value.variationToken,
+        segmentId: state.value.activeSegment?.segmentId ?? null,
+        previewSegmentId: previewSegmentId || null,
+        activeCueSource: state.value.activeCueSource,
+        activeFacialCue: state.value.activeFacialCue,
+        activeActionCue: state.value.activeActionCue,
+        speechActive: speech.active,
+        speechDrive: Number(speechDrive.toFixed(3)),
+        expressionIntensity: state.value.expressionIntensity,
+        facialCueIntensity: state.value.facialCueIntensity,
+        actionIntensity: state.value.actionIntensity,
+        focusDrive: state.value.focusDrive,
+        breathDrive: state.value.breathDrive,
+      })
     }
   }
 
@@ -737,16 +1116,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     lastArmSignature = signature
     lastArmedAt = now
     clearCooldownTimer()
-    lastSegmentId = ''
-    lastBeatPulseSegmentKey = ''
-    lastPreviewPulseSegmentId = ''
-    lastCadencePeakActive = false
-    heldSegmentFacialCue = null
-    heldSegmentFacialCueUntil = 0
-    heldSegmentActionCue = null
-    heldSegmentActionCueUntil = 0
-    heldSegmentCue = null
-    heldSegmentCueUntil = 0
+    clearTransientSpeechCarry(now)
 
     state.value = {
       ...state.value,
@@ -771,6 +1141,14 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
 
     issueActionPulse(armOptions.source ?? 'dialogue', now, dialogueActionPulseGapMs)
     updateFromSpeech(now)
+    logPerformanceEmbodimentDebug('arm-performance', {
+      source: armOptions.source ?? 'dialogue',
+      emotion: performancePayload.baseEmotion,
+      delivery: performancePayload.delivery,
+      facialCue: performancePayload.facialCue ?? null,
+      actionCue: performancePayload.actionCue ?? null,
+      variationToken: variationToken || null,
+    })
   }
 
   function syncResidentPerformance(
@@ -829,14 +1207,78 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     updateFromSpeech(now)
   }
 
+  function prepareForNextMessage() {
+    const now = performance.now()
+    const residentPerformance = normalizeAlicizationPerformancePayload(
+      state.value.residentPerformance,
+      state.value.residentPerformance.baseEmotion,
+    )
+
+    clearCooldownTimer()
+    clearTransientSpeechCarry(now)
+    lastArmSignature = ''
+
+    state.value = {
+      ...state.value,
+      revision: state.value.revision + 1,
+      phase: 'armed',
+      residentPerformance: {
+        ...residentPerformance,
+      },
+      performance: {
+        ...residentPerformance,
+      },
+      activeFacialCue: residentPerformance.facialCue ?? null,
+      activeFacialCueSource: residentPerformance.facialCue ? 'resident' : 'none',
+      activeActionCue: residentPerformance.actionCue ?? null,
+      activeActionCueSource: residentPerformance.actionCue ? 'resident' : 'none',
+      speechActive: false,
+      speechPhase: 'idle',
+      activeCue: null,
+      activeCueSource: 'none',
+      activeSegment: null,
+      motionPulse: 0,
+      armedAt: now,
+      speakingStartedAt: null,
+      cooldownUntil: null,
+      updatedAt: now,
+      actionPulse: {
+        ...state.value.actionPulse,
+        cue: null,
+        issuedAt: null,
+        reason: null,
+        segmentId: null,
+      },
+    }
+
+    updateFromSpeech(now)
+    logPerformanceEmbodimentDebug('prepare-next-message', {
+      emotion: residentPerformance.baseEmotion,
+      delivery: residentPerformance.delivery,
+      facialCue: residentPerformance.facialCue ?? null,
+      actionCue: residentPerformance.actionCue ?? null,
+      variationToken: state.value.variationToken,
+    })
+  }
+
   watch(
     [
       () => options.speechRenderState.value?.revision ?? 0,
       () => options.upcomingSpeechSegment?.value?.segmentId ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.id ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.emotion ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.facialCue ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.actionCue ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.facialHoldMs ?? 0,
+      () => options.upcomingSpeechSegment?.value?.cue?.actionHoldMs ?? 0,
+      () => options.upcomingSpeechSegment?.value?.cue?.emotionHoldMs ?? 0,
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredExpressionAliases?.join('|') ?? '',
       () => options.upcomingSpeechSegment?.value?.cue?.rendererHints?.preferredMotionAliases?.join('|') ?? '',
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0,
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0,
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmActionFadeMs ?? 0,
+      () => options.upcomingSpeechSegment?.value?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0,
+      () => createDigitalLifeFrameSignature(options.upcomingSpeechSegment?.value),
       () => options.upcomingSpeechSegment?.value?.text ?? '',
       () => options.digitalLifeSpineDigest?.value?.architecture?.operatingMode ?? '',
       () => options.digitalLifeSpineDigest?.value?.architecture?.dominantSystem ?? '',
@@ -861,6 +1303,7 @@ export function useStageEmbodimentPerformanceRuntime(options: UseStageEmbodiment
     armPerformance,
     clear: reset,
     dispose,
+    prepareForNextMessage,
     syncResidentPerformance,
     state: readonly(state) as Readonly<Ref<StageEmbodimentPerformanceState>>,
   }

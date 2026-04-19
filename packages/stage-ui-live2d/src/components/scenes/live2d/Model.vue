@@ -9,6 +9,7 @@ import type {
 import type { Cubism4InternalModel } from 'pixi-live2d-display/cubism4'
 
 import type { Live2DActionPulseBinding, PixiLive2DInternalModel } from '../../../composables/live2d'
+import type { Live2DRuntimeCapabilitySnapshot } from '../../../composables/live2d'
 
 import { listenBeatSyncBeatSignal } from '@proj-alicization/stage-shared/beat-sync'
 import { useTheme } from '@proj-alicization/ui'
@@ -20,7 +21,18 @@ import { DropShadowFilter } from 'pixi-filters'
 import { Live2DFactory, Live2DModel, MotionPriority } from 'pixi-live2d-display/cubism4'
 import { computed, onBeforeMount, onErrorCaptured, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 'vue'
 
-import { createBeatSyncController, resolveLive2DActionPulseBinding, useLive2DMotionManagerUpdate, useMotionUpdatePluginAutoEyeBlink, useMotionUpdatePluginBeatSync, useMotionUpdatePluginIdleDisable, useMotionUpdatePluginIdleFocus, useMotionUpdatePluginPerformanceLayers } from '../../../composables/live2d'
+import {
+  buildLive2DRuntimeCapabilitySnapshot,
+  createBeatSyncController,
+  resolveLive2DActionPulseBinding,
+  resolveLive2DExpressionSelection,
+  useLive2DMotionManagerUpdate,
+  useMotionUpdatePluginAutoEyeBlink,
+  useMotionUpdatePluginBeatSync,
+  useMotionUpdatePluginIdleDisable,
+  useMotionUpdatePluginIdleFocus,
+  useMotionUpdatePluginPerformanceLayers,
+} from '../../../composables/live2d'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
 import { useLive2d } from '../../../stores/live2d'
 
@@ -32,6 +44,7 @@ const props = withDefaults(defineProps<{
   actionBindings?: Live2DActionPulseBinding[]
   idleMotionPreference?: StageEmbodimentIdleMotionPreference | null
   performanceState?: StageEmbodimentPerformanceState | null
+  preferredExpressionAliases?: string[] | null
   presencePosture?: StageEmbodimentPresencePostureState | null
   speechRenderState?: StageEmbodimentSpeechRenderState | null
   width: number
@@ -65,14 +78,55 @@ const emits = defineEmits<{
   (e: 'modelLoaded'): void
   (e: 'error', error: Error): void
   (e: 'characterHoverChange', hovered: boolean): void
+  (e: 'runtimeCapabilitiesResolved', value: Live2DRuntimeCapabilitySnapshot): void
 }>()
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
+const live2dModelDebugStorageKey = 'devtools/embodiment-debug'
 
-console.info('[stage-startup-trace][live2d-model] setup-start')
+function isLive2DModelDebugEnabled() {
+  try {
+    return globalThis.localStorage?.getItem(live2dModelDebugStorageKey) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function logLive2DModelTrace(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DModelDebugEnabled())
+    return
+
+  console.info('[stage-startup-trace][live2d-model]', {
+    message,
+    ...payload,
+  })
+}
+
+function logLive2DModelDebug(event: string, payload?: Record<string, unknown>) {
+  if (!isLive2DModelDebugEnabled())
+    return
+
+  console.info('[stage-embodiment][live2d-model]', {
+    event,
+    ...payload,
+  })
+}
+
+function logLive2DModelError(message: string, payload?: Record<string, unknown>) {
+  if (!isLive2DModelDebugEnabled())
+    return
+
+  console.error('[stage-startup-trace][live2d-model]', {
+    message,
+    ...payload,
+  })
+}
+
+logLive2DModelTrace('setup-start')
 
 onErrorCaptured((error, instance, info) => {
-  console.error('[stage-startup-trace][live2d-model] captured-error', {
+  logLive2DModelError('captured-error', {
     info,
     component: instance?.$?.type,
     error,
@@ -187,10 +241,13 @@ const live2dPresencePosture = toRef(() => props.presencePosture)
 const live2dSpeechRenderState = toRef(() => props.speechRenderState)
 
 const localCurrentMotion = ref<MotionSelection>({ group: 'Idle', index: 0 })
+const availableExpressionNames = ref<string[]>([])
 const characterHovered = ref(false)
 let motionRequestId = 0
 let lastMotionRequestKey = ''
 let inFlightMotionRequestKey = ''
+let expressionRequestId = 0
+let lastExpressionSelectionKey = '__default__'
 const lastAppliedActionPulseRevision = ref(0)
 const preferredIdleMotionSelection = computed<MotionSelection | null>(() => {
   if (props.idleMotionPreference) {
@@ -223,6 +280,125 @@ const beatSync = createBeatSyncController({
   }),
   initialStyle: 'sway-sine',
 })
+
+function emitRuntimeCapabilitiesResolved(expressionNames: string[] = availableExpressionNames.value) {
+  emits('runtimeCapabilitiesResolved', buildLive2DRuntimeCapabilitySnapshot(expressionNames))
+}
+
+function resolveExpressionDefinitionName(definition: Record<string, unknown> | null | undefined) {
+  if (!definition)
+    return ''
+
+  const explicitName = typeof definition.Name === 'string' ? definition.Name.trim() : ''
+  if (explicitName)
+    return explicitName
+
+  const fileReference = typeof definition.File === 'string' ? definition.File.trim() : ''
+  if (!fileReference)
+    return ''
+
+  const normalizedFileName = fileReference.split('/').pop()?.trim() ?? ''
+  return normalizedFileName.replace(/\.exp3\.json$/i, '')
+}
+
+function resolveExpressionDefinitions(internalModel?: PixiLive2DInternalModel) {
+  const expressionManagerDefinitions = Array.isArray(internalModel?.motionManager?.expressionManager?.definitions)
+    ? internalModel?.motionManager?.expressionManager?.definitions
+    : []
+  const settingsExpressions = Array.isArray((internalModel as any)?.settings?.json?.FileReferences?.Expressions)
+    ? (internalModel as any).settings.json.FileReferences.Expressions
+    : []
+
+  return [
+    ...expressionManagerDefinitions,
+    ...settingsExpressions,
+  ]
+}
+
+function syncAvailableExpressions(internalModel?: PixiLive2DInternalModel) {
+  const definitions = resolveExpressionDefinitions(internalModel)
+  const nextNames = [...new Set(
+    definitions
+      .map((definition: any) => resolveExpressionDefinitionName(definition))
+      .filter(Boolean),
+  )].sort((left, right) => left.localeCompare(right))
+
+  availableExpressionNames.value = nextNames
+  lastExpressionSelectionKey = '__default__'
+  logLive2DModelDebug('expressions-discovered', {
+    count: nextNames.length,
+    names: nextNames,
+  })
+  emitRuntimeCapabilitiesResolved(nextNames)
+}
+
+function resolveDesiredExpressionSelection() {
+  return resolveLive2DExpressionSelection({
+    delivery: live2dPerformanceState.value?.performance.delivery ?? null,
+    emotion: live2dPerformanceState.value?.performance.baseEmotion ?? null,
+    expressionIntensity: live2dPerformanceState.value?.expressionIntensity ?? 0,
+    expressionNames: availableExpressionNames.value,
+    facialCue: live2dPerformanceState.value?.activeFacialCue
+      ?? live2dPerformanceState.value?.performance.facialCue
+      ?? null,
+    facialCueIntensity: live2dPerformanceState.value?.facialCueIntensity ?? 0,
+    preferredExpressionAliases: props.preferredExpressionAliases,
+  })
+}
+
+const applyResolvedExpression = async (options?: { force?: boolean }) => {
+  const activeModel = model.value
+  const expressionManager = getInternalModel()?.motionManager?.expressionManager
+  if (!activeModel || !expressionManager)
+    return
+
+  const desiredSelection = resolveDesiredExpressionSelection()
+  const nextSelectionKey = desiredSelection?.name ?? '__default__'
+  if (!options?.force && nextSelectionKey === lastExpressionSelectionKey)
+    return
+
+  const requestId = ++expressionRequestId
+  if (!desiredSelection) {
+    expressionManager.resetExpression()
+    if (requestId !== expressionRequestId)
+      return
+
+    lastExpressionSelectionKey = '__default__'
+    logLive2DModelDebug('expression-reset', {
+      emotion: live2dPerformanceState.value?.performance.baseEmotion ?? 'neutral',
+    })
+    return
+  }
+
+  try {
+    const applied = await activeModel.expression(desiredSelection.name)
+    if (requestId !== expressionRequestId)
+      return
+
+    if (applied)
+      lastExpressionSelectionKey = desiredSelection.name
+
+    logLive2DModelDebug('expression-applied', {
+      applied,
+      emotion: live2dPerformanceState.value?.performance.baseEmotion ?? 'neutral',
+      expressionName: desiredSelection.name,
+      facialCue: live2dPerformanceState.value?.activeFacialCue
+        ?? live2dPerformanceState.value?.performance.facialCue
+        ?? null,
+      reason: desiredSelection.reason,
+      score: desiredSelection.score,
+    })
+  }
+  catch (error) {
+    if (requestId !== expressionRequestId)
+      return
+
+    logLive2DModelError('expression-apply-failed', {
+      error,
+      expressionName: desiredSelection.name,
+    })
+  }
+}
 
 function buildMotionKey(selection: { group?: string | null, index?: number | null } | null | undefined) {
   const group = typeof selection?.group === 'string' ? selection.group.trim() : ''
@@ -327,6 +503,10 @@ async function loadModel() {
       model.value = undefined
     }
 
+    availableExpressionNames.value = []
+    lastExpressionSelectionKey = '__default__'
+    emitRuntimeCapabilitiesResolved([])
+
     if (!modelSrcRef.value) {
       console.warn('No Live2D model source provided.')
       return
@@ -364,6 +544,7 @@ async function loadModel() {
 
     const coreModel = internalModel.coreModel
     const motionManager = internalModel.motionManager
+    syncAvailableExpressions(internalModel)
     const discoveredMotions = Object
       .entries(motionManager.definitions)
       .flatMap(([motionName, definition]) => (definition?.map((motion: any, index: number) => ({
@@ -459,6 +640,7 @@ async function loadModel() {
     coreModel.setParameterValueById('ParamMouthOpenY', modelParameters.value.mouthOpen)
     coreModel.setParameterValueById('ParamBodyAngleZ', modelParameters.value.bodyAngleZ)
 
+    void applyResolvedExpression({ force: true })
     emits('modelLoaded')
     modelLoadSucceeded = true
   }
@@ -789,13 +971,57 @@ watch(focusAt, (value) => {
 })
 
 watch(componentState, (state) => {
-  console.info(
-    `[stage-startup-trace][live2d-model] component-state state=${state} modelId=${props.modelId || '<empty>'} modelSrc=${props.modelSrc || '<empty>'}`,
-  )
+  logLive2DModelTrace('component-state', {
+    state,
+    modelId: props.modelId || '<empty>',
+    modelSrc: props.modelSrc || '<empty>',
+  })
 }, { immediate: true })
 
+watch(
+  [
+    availableExpressionNames,
+    () => props.performanceState?.revision ?? 0,
+    () => props.performanceState?.phase ?? 'idle',
+    () => props.performanceState?.performance.baseEmotion ?? 'neutral',
+    () => props.performanceState?.activeFacialCue ?? props.performanceState?.performance.facialCue ?? '',
+    () => props.performanceState?.facialCueIntensity ?? 0,
+    () => props.performanceState?.expressionIntensity ?? 0,
+    () => props.preferredExpressionAliases?.join('|') ?? '',
+  ],
+  () => {
+    void applyResolvedExpression()
+  },
+  { immediate: true },
+)
+
+watch(
+  [
+    () => props.performanceState?.revision ?? 0,
+    () => props.performanceState?.phase ?? 'idle',
+    () => props.performanceState?.performance.baseEmotion ?? 'neutral',
+    () => props.performanceState?.activeCueSource ?? 'none',
+    () => props.speechRenderState?.revision ?? 0,
+    () => props.speechRenderState?.phase ?? 'idle',
+    () => props.speechRenderState?.item?.segmentId ?? '',
+  ],
+  () => {
+    logLive2DModelDebug('input-state', {
+      performanceRevision: props.performanceState?.revision ?? 0,
+      performancePhase: props.performanceState?.phase ?? 'idle',
+      emotion: props.performanceState?.performance.baseEmotion ?? 'neutral',
+      activeCueSource: props.performanceState?.activeCueSource ?? 'none',
+      preferredExpressionAliases: props.preferredExpressionAliases ?? [],
+      speechRevision: props.speechRenderState?.revision ?? 0,
+      speechPhase: props.speechRenderState?.phase ?? 'idle',
+      speechSegmentId: props.speechRenderState?.item?.segmentId ?? null,
+    })
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
-  console.info('[stage-startup-trace][live2d-model] onMounted-beat-sync')
+  logLive2DModelTrace('onMounted-beat-sync')
   const removeListener = listenBeatSyncBeatSignal(() => beatSync.scheduleBeat())
   onUnmounted(() => removeListener())
 })
@@ -806,17 +1032,20 @@ onUnmounted(() => {
 })
 
 onMounted(async () => {
-  console.info('[stage-startup-trace][live2d-model] onMounted-shadow-enter')
+  logLive2DModelTrace('onMounted-shadow-enter')
   updateDropShadowFilter()
-  console.info('[stage-startup-trace][live2d-model] onMounted-shadow-exit')
+  logLive2DModelTrace('onMounted-shadow-exit')
 })
 
 onBeforeMount(() => {
-  console.info('[stage-startup-trace][live2d-model] onBeforeMount')
+  logLive2DModelTrace('onBeforeMount')
 })
 
 onUnmounted(() => {
   isUnmounted = true
+  availableExpressionNames.value = []
+  lastExpressionSelectionKey = '__default__'
+  emitRuntimeCapabilitiesResolved([])
   disposeShouldUpdateView?.()
 })
 

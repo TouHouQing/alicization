@@ -222,6 +222,15 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
   }
 
   return {
+    armDialoguePerformance: (
+      performancePayload: AlicizationDialoguePerformancePayload,
+      armOptions?: { variationToken?: string | null },
+    ) => {
+      performance.armPerformance(options.clampPerformance(performancePayload), {
+        source: 'dialogue',
+        variationToken: armOptions?.variationToken ?? null,
+      })
+    },
     applyTransientDigitalLifeSpine: visualPresence.applyTransientDigitalLifeSpine,
     applyEmotionSpeechStyle,
     applySyntheticSpeechSegment: (segment: TextSegment) => speech.applySyntheticSpeechSegment(segment),
@@ -241,8 +250,8 @@ export function useStageEmbodimentRuntime(options: UseStageEmbodimentRuntimeOpti
     primeDigitalLifeEnvelope: speech.primeDigitalLifeEnvelope,
     primeSpeechTimeline: speech.primeSpeechTimeline,
     prepareForNextMessage: async () => {
-      performance.clear()
       await speech.prepareForNextMessage()
+      performance.prepareForNextMessage()
     },
     presencePosture: posture.presencePosture,
     speechRenderState: speech.speechRenderState,

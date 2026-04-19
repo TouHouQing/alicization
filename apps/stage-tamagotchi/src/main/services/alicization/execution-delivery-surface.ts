@@ -2,6 +2,8 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
+import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import {
@@ -168,6 +170,42 @@ function normalizeOutcomeSurfaceStatus(raw: AlicizationExecutionOutcomeSurfaceSt
   if (raw === 'running' || raw === 'queued')
     return raw
   return 'not-routed'
+}
+
+function applyExecutionResultDeliveryPolicyToReply(input: {
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
+  reply: string
+  status: AlicizationExecutionOutcomeSurfaceStatus
+}) {
+  const policy = input.policy ?? null
+  if (!policy || policy.mode === 'deliver-now')
+    return input.reply
+
+  const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
+  const baseReply = sanitizeText(input.reply, 220)
+  if (!baseReply)
+    return ''
+
+  if (policy.mode === 'check-availability-first') {
+    if (normalizedStatus === 'completed') {
+      if (policy.companionshipFraming === 'close-carry')
+        return sanitizeText(`你现在要是能接，我把这条结果轻轻接回来给你：${baseReply}`, 220)
+      if (policy.tone === 'direct')
+        return sanitizeText(`你要是现在能接结果，我就直接说：${baseReply}`, 220)
+      if (policy.tone === 'cautious')
+        return sanitizeText(`你现在要是方便，我再把结果直接摊给你：${baseReply}`, 220)
+      return sanitizeText(`你现在要是方便，我把结果直接接给你：${baseReply}`, 220)
+    }
+
+    if (policy.tone === 'cautious')
+      return sanitizeText(`你现在要是方便，我把卡住的地方直接交代给你：${baseReply}`, 220)
+    return sanitizeText(`你现在要是能接，我把这条执行状态直接说清：${baseReply}`, 220)
+  }
+
+  if (policy.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed')
+    return sanitizeText(`我把这条结果接回来了：${baseReply}`, 220)
+
+  return baseReply
 }
 
 function buildExecutionPayoffGovernance(input: {
@@ -366,11 +404,18 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   outcome: string
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }) {
-  return renderExecutionPayoff({
+  const baseReply = renderExecutionPayoff({
     ...input,
     mode: 'inline-execution',
   }).reply
+  return applyExecutionResultDeliveryPolicyToReply({
+    policy: input.policy,
+    reply: baseReply,
+    status: input.status,
+  })
 }
 
 export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
@@ -379,11 +424,18 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   outcome: string
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }) {
-  return renderExecutionPayoff({
+  const baseReply = renderExecutionPayoff({
     ...input,
     mode: 'callback-delivery',
   }).reply
+  return applyExecutionResultDeliveryPolicyToReply({
+    policy: input.policy,
+    reply: baseReply,
+    status: input.status,
+  })
 }
 
 function hasProtocolOrEncodingLeak(reply: string) {
@@ -403,6 +455,8 @@ export function selectAlicizationExecutionDeliveryReply(input: {
   outcome: string
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }): AlicizationExecutionDeliveryReplySelection {
   const deterministicReply = buildAlicizationDeterministicExecutionDeliveryReply({
     channel: input.channel,
@@ -410,6 +464,8 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     status: input.status,
     summary: input.summary,
     outcome: input.outcome,
+    policy: input.policy,
+    selfContinuityAuthority: input.selfContinuityAuthority,
   })
   const detail = sanitizeText(input.outcome || input.summary, 1_200)
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
@@ -454,9 +510,21 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     }
   }
 
+  if (input.policy?.mode === 'check-availability-first' && !/(方便|能接|if you're free|if you have room|if now's a good time)/iu.test(llmReply)) {
+    return {
+      source: 'llm-repaired',
+      reply: deterministicReply,
+      reason: 'missing-availability-check-in',
+    }
+  }
+
   return {
     source: 'llm',
-    reply: llmReply,
+    reply: applyExecutionResultDeliveryPolicyToReply({
+      policy: input.policy,
+      reply: llmReply,
+      status: input.status,
+    }),
   }
 }
 
@@ -467,6 +535,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   outcome: string
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
   userText?: string | null
   trace?: {
     decisionTraceId?: string | null
@@ -480,6 +549,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     focusAnchor?: string | null
     answerIntent?: string | null
   } | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }) {
   const detail = readExecutionDetail({
     summary: input.summary,
@@ -536,8 +606,36 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
           answerIntent: sanitizeText(input.governance.answerIntent, 160) || null,
         })}`
       : '',
+    input.selfContinuityAuthority
+      ? `Self continuity authority JSON: ${JSON.stringify({
+          selfLine: sanitizeText(input.selfContinuityAuthority.selfLine, 160) || null,
+          relationshipLine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 160) || null,
+          motiveLine: sanitizeText(input.selfContinuityAuthority.motiveLine, 160) || null,
+          inwardLine: sanitizeText(input.selfContinuityAuthority.inwardLine, 160) || null,
+          authoritySummary: sanitizeText(input.selfContinuityAuthority.authoritySummary, 180) || null,
+          sourceTags: input.selfContinuityAuthority.sourceTags,
+        })}`
+      : '',
+    input.policy
+      ? `Delivery policy JSON: ${JSON.stringify({
+          mode: input.policy.mode,
+          tone: input.policy.tone,
+          reasonTags: input.policy.reasonTags,
+        })}`
+      : '',
     'Lead with the concrete finished result, not with channel ceremony.',
+    input.selfContinuityAuthority?.authoritySummary
+      ? 'Let the same durable self line color this payoff so it sounds like Alicization, but never let it outrank the concrete finished result.'
+      : '',
     'Carry the feeling that you stayed present through the execution and are now naturally paying it off to the Host.',
+    input.policy?.mode === 'check-availability-first'
+      ? 'Open with a quick check that the Host has room to receive the result, then land the result in the same reply.'
+      : '',
+    input.policy?.tone === 'cautious'
+      ? 'Keep the opening softer and lower-pressure than default.'
+      : input.policy?.tone === 'direct'
+        ? 'Be concise and decisive once you open the result.'
+        : '',
     'Do not say things like "CLI这条任务已经收束", "结果是 Listed entries", or other logger-style lead-ins.',
     'Avoid executor-log syntax like "结果是：" unless it is genuinely the most natural way to finish the sentence.',
     'Do not paste raw shell long-listing rows like total/drwx/-rw, and do not leak URI-encoded names.',
@@ -568,14 +666,22 @@ export function buildAlicizationExecutionPayoffDeterministicStructured(input: {
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   outcome: string
+  policy?: AlicizationExecutionResultDeliveryPolicy | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
 }): AlicizationExecutionPayoffStructured {
   const rendered = renderExecutionPayoff(input)
   const emotion = rendered.emotion
 
   return {
-    thought: rendered.thought,
+    thought: input.selfContinuityAuthority?.authoritySummary
+      ? `${rendered.thought}; self=${sanitizeText(input.selfContinuityAuthority.authoritySummary, 120)}`
+      : rendered.thought,
     emotion,
-    reply: rendered.reply,
+    reply: applyExecutionResultDeliveryPolicyToReply({
+      policy: input.policy,
+      reply: rendered.reply,
+      status: input.status,
+    }),
     performance: buildExecutionPayoffPerformance(emotion),
     parsePath: 'json',
     format: input.mode === 'inline-execution'

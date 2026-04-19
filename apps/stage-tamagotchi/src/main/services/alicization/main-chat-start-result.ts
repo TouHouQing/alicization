@@ -16,6 +16,7 @@ interface ResolveAlicizationMainChatStartResultOptions {
   eagerPreparationBudgetMs: number
   buildEmbodimentMeta: (input: {
     governance: AlicizationChatStartResult['governance']
+    digitalLifeSpine: AlicizationChatStartResult['digitalLifeSpine']
     turnId: string
   }) => {
     embodiment: AlicizationChatStartResult['embodiment']
@@ -98,6 +99,7 @@ export async function resolveAlicizationMainChatStartResult(
       : null
   const eagerEmbodimentMeta = input.buildEmbodimentMeta({
     governance: eagerGovernance,
+    digitalLifeSpine: eagerDigitalLifeSpine,
     turnId: input.turnId,
   })
 

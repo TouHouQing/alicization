@@ -161,18 +161,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
     ].join('|')
   }
 
-  function enqueueLive2dEmotionLayer(input: {
-    emotionName: EmotionPayload['name']
-    intensity: number
-    suppressMotion: boolean
-  }) {
-    options.enqueueEmotion({
-      name: input.emotionName,
-      intensity: input.intensity,
-      suppressLive2DMotion: input.suppressMotion,
-    })
-  }
-
   cleanups.push(watch(options.performanceManifest, async (manifest) => {
     if (!hasAlicizationBridge())
       return
@@ -225,12 +213,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
           index: mappedAction.motionIndex,
         }
       }
-
-      enqueueLive2dEmotionLayer({
-        emotionName,
-        intensity: options.resolvePresenceIntensity(plannedPerformance.emphasis, payload.isFallback ? 0.75 : 0.9),
-        suppressMotion: Boolean(mappedAction),
-      })
     },
     applyPresencePulse: async (payload) => {
       const variationToken = buildPulseVariationToken(payload)
@@ -253,16 +235,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
           index: mappedAction.motionIndex,
         }
       }
-
-      enqueueLive2dEmotionLayer({
-        emotionName,
-        intensity: payload.embodiedPresence === 'concerned'
-          ? 0.82
-          : payload.embodiedPresence === 'attentive'
-            ? 0.7
-            : 0.58,
-        suppressMotion: Boolean(mappedAction),
-      })
     },
   }))
 

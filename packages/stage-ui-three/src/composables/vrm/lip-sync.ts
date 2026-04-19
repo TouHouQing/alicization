@@ -85,6 +85,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       return { A: 0, E: 0, I: 0, O: 0, U: 0 } satisfies Record<LipKey, number>
 
     const digitalLifeLipSync = speech.item?.digitalLifeFrame?.lipSync
+    const motorFacial = speech.item?.digitalLifeFrame?.motor.facial
     if (digitalLifeLipSync?.mode === 'closed')
       return { A: 0, E: 0, I: 0, O: 0, U: 0 } satisfies Record<LipKey, number>
 
@@ -95,15 +96,40 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const emphasisLevel = clampUnit(speech.dynamics.emphasisLevel)
     const cadencePulse = clampUnit(speech.dynamics.cadencePulse)
     const mouthScale = clampRange(digitalLifeLipSync?.mouthScale ?? 1, 0.4, 1.35, 1)
-    const openness = Math.max(mouthOpen, speechEnergy * 0.9, cueMouthWeight * 0.58) * mouthScale
+    const jawOpenBias = clampUnit(motorFacial?.jawOpenBias ?? 0.26, 0.26)
+    const mouthSpread = clampUnit(motorFacial?.mouthSpread ?? 0.18, 0.18)
+    const mouthRound = clampUnit(motorFacial?.mouthRound ?? 0.24, 0.24)
+    const articulation = speech.articulation
+    if (articulation?.active) {
+      const closure = clampUnit(Math.max(
+        articulation.lipClosure,
+        articulation.visemes.closed,
+      ))
+      const openness = clampUnit(Math.max(
+        articulation.openness,
+        articulation.jawOpen * 0.86,
+        mouthOpen * 0.72,
+        speechEnergy * 0.54,
+      )) * mouthScale * (0.82 + jawOpenBias * 0.34)
+      const vowelGain = 1 - closure * 0.78
+      return {
+        A: Math.min(CAP, openness * articulation.visemes.A * (0.78 + articulation.jawOpen * 0.18) * vowelGain),
+        E: Math.min(CAP * 0.84, openness * articulation.visemes.E * (0.68 + articulation.lipSpread * 0.24) * vowelGain),
+        I: Math.min(CAP * 0.84, openness * articulation.visemes.I * (0.66 + articulation.lipSpread * 0.28) * vowelGain),
+        O: Math.min(CAP * 0.8, openness * articulation.visemes.O * (0.7 + articulation.lipRound * 0.24) * vowelGain),
+        U: Math.min(CAP * 0.76, openness * articulation.visemes.U * (0.66 + articulation.lipRound * 0.3) * vowelGain),
+      }
+    }
+
+    const openness = Math.max(mouthOpen, speechEnergy * 0.9, cueMouthWeight * 0.58) * mouthScale * (0.84 + jawOpenBias * 0.36)
     if (openness <= 0.01)
       return { A: 0, E: 0, I: 0, O: 0, U: 0 } satisfies Record<LipKey, number>
 
     const aa = Math.min(CAP, openness * (0.46 + emphasisLevel * 0.28 + cueMouthWeight * 0.1))
-    const ee = Math.min(CAP * 0.72, openness * (0.14 + (1 - cadencePulse) * 0.22 + cueMouthWeight * 0.04))
+    const ee = Math.min(CAP * 0.72, openness * (0.14 + (1 - cadencePulse) * 0.22 + cueMouthWeight * 0.04 + mouthSpread * 0.08))
     const ih = Math.min(CAP * 0.82, openness * (0.2 + cadencePulse * 0.2 + cueMouthWeight * 0.08))
-    const oh = Math.min(CAP * 0.74, openness * (0.15 + prosodyIntensity * 0.18 + cueMouthWeight * 0.06))
-    const ou = Math.min(CAP * 0.68, openness * (0.1 + (1 - emphasisLevel) * 0.16 + cueMouthWeight * 0.04))
+    const oh = Math.min(CAP * 0.74, openness * (0.15 + prosodyIntensity * 0.18 + cueMouthWeight * 0.06 + mouthRound * 0.08))
+    const ou = Math.min(CAP * 0.68, openness * (0.1 + (1 - emphasisLevel) * 0.16 + cueMouthWeight * 0.04 + mouthRound * 0.06))
 
     return { A: aa, E: ee, I: ih, O: oh, U: ou }
   }
@@ -133,6 +159,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const speech = speechRenderState.value
     const fallbackTarget = createFallbackTarget()
     const digitalLifeLipSync = speech?.item?.digitalLifeFrame?.lipSync ?? null
+    const motorFacial = speech?.item?.digitalLifeFrame?.motor.facial ?? null
     const lipSyncMode = digitalLifeLipSync?.mode ?? 'hybrid'
     if (lipSyncMode === 'closed')
       return { active: false, weights: createEmptyWeights() }
@@ -143,6 +170,9 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
     const emphasisLevel = clampUnit(speech?.dynamics.emphasisLevel ?? 0)
     const cueMouthWeight = clampUnit(speech?.item?.cue?.mouthWeight ?? prosodyIntensity)
     const mouthScale = clampRange(digitalLifeLipSync?.mouthScale ?? 1, 0.4, 1.35, 1)
+    const jawOpenBias = clampUnit(motorFacial?.jawOpenBias ?? 0.26, 0.26)
+    const mouthSpread = clampUnit(motorFacial?.mouthSpread ?? 0.18, 0.18)
+    const mouthRound = clampUnit(motorFacial?.mouthRound ?? 0.24, 0.24)
     const visemeBias = lipSyncMode === 'viseme'
       ? 0.82
       : lipSyncMode === 'energy'
@@ -176,7 +206,7 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       speechEnergy * 0.9,
       mouthOpen * (0.55 + prosodyIntensity * 0.16),
       cueMouthWeight * 0.5,
-    ) * mouthScale
+    ) * mouthScale * (0.84 + jawOpenBias * 0.36)
 
     const projected: Record<LipKey, number> = { A: 0, E: 0, I: 0, O: 0, U: 0 }
     for (const raw of RAW_KEYS) {
@@ -220,8 +250,14 @@ export function useVRMLipSync(speechRenderState: Ref<StageEmbodimentSpeechRender
       U: fallbackTarget.U * (0.35 + continuity.drive * 0.06) * energyBias,
     }
     if (speechActive) {
-      target[winner] = Math.max(target[winner], Math.min(CAP, winnerVal * (0.92 + emphasisLevel * 0.16 + cueMouthWeight * 0.08) * visemeBias))
-      target[runner] = Math.max(target[runner], Math.min(CAP * 0.5, runnerVal * (0.54 + prosodyIntensity * 0.18 + cueMouthWeight * 0.04) * visemeBias))
+      const articulationWinnerGate = speech?.articulation?.active
+        ? clampRange(0.18 + fallbackTarget[winner] / CAP, 0.12, 1, 0.38)
+        : 1
+      const articulationRunnerGate = speech?.articulation?.active
+        ? clampRange(0.16 + fallbackTarget[runner] / CAP, 0.1, 0.8, 0.32)
+        : 1
+      target[winner] = Math.max(target[winner], Math.min(CAP, winnerVal * (0.92 + emphasisLevel * 0.16 + cueMouthWeight * 0.08) * visemeBias * articulationWinnerGate))
+      target[runner] = Math.max(target[runner], Math.min(CAP * 0.5, runnerVal * (0.54 + prosodyIntensity * 0.18 + cueMouthWeight * 0.04 + mouthSpread * 0.04 + mouthRound * 0.04) * visemeBias * articulationRunnerGate))
     }
 
     for (const key of LIP_KEYS) {

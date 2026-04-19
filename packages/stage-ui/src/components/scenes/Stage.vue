@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type {
+  Live2DRuntimeCapabilitySnapshot,
+} from '@proj-alicization/stage-ui-live2d'
+import type {
   VrmActionBinding,
   VrmRuntimeCapabilitySnapshot,
 } from '@proj-alicization/stage-ui-three'
@@ -80,6 +83,39 @@ const emit = defineEmits<{
   (e: 'desktopInteractionChange', active: boolean): void
 }>()
 const { t } = useI18n()
+const stageEmbodimentDebugStorageKey = 'devtools/embodiment-debug'
+
+function isStageEmbodimentDebugEnabled() {
+  if (props.debugEmbodiment)
+    return true
+
+  try {
+    return globalThis.localStorage?.getItem(stageEmbodimentDebugStorageKey) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function logStageStartupTrace(message: string, payload?: Record<string, unknown>) {
+  if (!isStageEmbodimentDebugEnabled())
+    return
+
+  console.info('[stage-startup-trace][stage]', {
+    message,
+    ...payload,
+  })
+}
+
+function logStageStartupError(message: string, payload?: Record<string, unknown>) {
+  if (!isStageEmbodimentDebugEnabled())
+    return
+
+  console.error('[stage-startup-trace][stage]', {
+    message,
+    ...payload,
+  })
+}
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 // const transformersProvider = createTransformers({ embedWorkerURL })
@@ -88,16 +124,16 @@ const stageRootRef = ref<HTMLDivElement | null>(null)
 const vrmViewerRef = ref<InstanceType<typeof ThreeScene>>()
 const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
 
-console.info('[stage-startup-trace][stage] setup-start')
+logStageStartupTrace('setup-start')
 queueMicrotask(() => {
-  console.info('[stage-startup-trace][stage] setup-microtask')
+  logStageStartupTrace('setup-microtask')
 })
 setTimeout(() => {
-  console.info('[stage-startup-trace][stage] setup-timeout-1000ms')
+  logStageStartupTrace('setup-timeout-1000ms')
 }, 1_000)
 
 onErrorCaptured((error, instance, info) => {
-  console.error('[stage-startup-trace][stage] captured-error', {
+  logStageStartupError('captured-error', {
     info,
     component: instance?.$?.type,
     error,
@@ -120,9 +156,9 @@ const {
   live2dMaxFps,
 } = storeToRefs(settingsStore)
 const { mouthOpenSize } = storeToRefs(useSpeakingStore())
-console.info('[stage-startup-trace][stage] before-audio-context')
+logStageStartupTrace('before-audio-context')
 const { audioContext } = useAudioContext()
-console.info('[stage-startup-trace][stage] after-audio-context')
+logStageStartupTrace('after-audio-context')
 
 const chatOrchestrator = useChatOrchestratorStore()
 const {
@@ -157,6 +193,7 @@ const {
   modelOffset,
 } = storeToRefs(modelStore)
 const resolvedVrmExternalAnimations = ref<VrmActionBinding[]>([])
+const currentLive2DRuntimeCapabilities = ref<Live2DRuntimeCapabilitySnapshot | null>(null)
 const currentVrmRuntimeCapabilities = ref<VrmRuntimeCapabilitySnapshot | null>(null)
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
@@ -211,7 +248,7 @@ const desktopInteractions = useStageDesktopInteractions({
     directDesktopInteractionActive.value = active
   },
 })
-console.info('[stage-startup-trace][stage] after-desktop-interactions')
+logStageStartupTrace('after-desktop-interactions')
 
 watch(
   () => directDesktopInteractionActive.value || dialoguePanelInteractionActive.value,
@@ -258,11 +295,21 @@ const { ssmlEnabled, activeSpeechProvider, activeSpeechModel, activeSpeechVoice,
 const activeCardId = computed(() => activeCard.value?.name ?? 'default')
 const speechRuntimeStore = useSpeechRuntimeStore()
 const currentChatIntent = ref<ReturnType<typeof speechRuntimeStore.openIntent> | null>(null)
-const debugEmbodimentStorage = useLocalStorage('devtools/embodiment-debug', false)
+const debugEmbodimentStorage = useLocalStorage(stageEmbodimentDebugStorageKey, false)
 const showEmbodimentDiagnostics = computed(() => {
-  return Boolean(props.debugEmbodiment || (import.meta.env.DEV && debugEmbodimentStorage.value))
+  return Boolean(props.debugEmbodiment || debugEmbodimentStorage.value)
 })
 let embodimentRuntime: ReturnType<typeof useStageEmbodimentRuntime> | null = null
+
+function logStageEmbodimentDebug(event: string, payload?: Record<string, unknown>) {
+  if (!showEmbodimentDiagnostics.value)
+    return
+
+  console.info('[stage-embodiment][stage]', {
+    event,
+    ...payload,
+  })
+}
 
 const { currentMotion } = storeToRefs(useLive2d())
 const runtimeTurnExpressionAliasesByEmotion = ref<Partial<Record<string, string[]>>>({})
@@ -303,14 +350,75 @@ function clearRuntimeSegmentMotionFollowThroughTimer() {
   runtimeSegmentMotionFollowThroughTimer = undefined
 }
 
-function clearRuntimeEmbodimentEnvelope() {
-  runtimeTurnExpressionAliasesByEmotion.value = {}
-  runtimeTurnMotionAliasesByEmotion.value = {}
+function clearRuntimeEmbodimentEnvelope(options?: { preserveTurnEnvelope?: boolean }) {
+  if (!options?.preserveTurnEnvelope) {
+    runtimeTurnExpressionAliasesByEmotion.value = {}
+    runtimeTurnMotionAliasesByEmotion.value = {}
+  }
   runtimeDigest.value = null
   clearRuntimeSegmentEmbodimentCue()
   runtimeSegmentMotionActive.value = false
   runtimeSegmentMotionFollowThroughMs = 0
   clearRuntimeSegmentMotionFollowThroughTimer()
+}
+
+function resolveSpeechAudioDurationMs(audio: BrowserSpeechAudioSource | null | undefined) {
+  if (!audio)
+    return null
+
+  if (audio.kind === 'buffer')
+    return Math.round(audio.audio.duration * 1000)
+
+  return null
+}
+
+function resolveSpeechSynthesisMetadata() {
+  const provider = activeSpeechProvider.value?.trim() || null
+  if (!provider || provider === 'speech-noop')
+    return null
+
+  const providerConfig = providersStore.getProviderConfig(provider)
+  let model = activeSpeechModel.value?.trim() || null
+  let voice = activeSpeechVoice.value
+
+  if (provider === 'openai-compatible-audio-speech') {
+    model = typeof providerConfig?.model === 'string' && providerConfig.model.trim()
+      ? providerConfig.model.trim()
+      : model || 'tts-1'
+
+    const configuredVoiceId = typeof providerConfig?.voice === 'string' && providerConfig.voice.trim()
+      ? providerConfig.voice.trim()
+      : voice?.id?.trim() || 'alloy'
+    voice = {
+      id: configuredVoiceId,
+      name: configuredVoiceId,
+      description: configuredVoiceId,
+      previewURL: '',
+      languages: [{ code: 'en', title: 'English' }],
+      provider,
+      gender: 'neutral',
+    }
+  }
+
+  return {
+    provider,
+    model,
+    pitchDelta: embodimentRuntime?.styledPitch.value ?? pitch.value,
+    rateMultiplier: embodimentRuntime?.styledRate.value ?? rate.value,
+    ssmlEnabled: ssmlEnabled.value,
+    voice: voice
+      ? {
+          id: voice.id,
+          name: voice.name,
+          gender: voice.gender ?? null,
+          provider: voice.provider,
+          languages: voice.languages.map(language => ({
+            code: language.code,
+            title: language.title,
+          })),
+        }
+      : null,
+  }
 }
 
 function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<string, unknown> {
@@ -319,6 +427,7 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
     return {
       source: 'stage',
       intentSource,
+      speechSynthesis: resolveSpeechSynthesisMetadata(),
     }
   }
 
@@ -330,6 +439,7 @@ function createSpeechIntentMetadata(intentSource: 'chat' | 'fallback'): Record<s
     source: 'stage',
     intentSource,
     generatedAt: Date.now(),
+    speechSynthesis: resolveSpeechSynthesisMetadata(),
     digitalLifeSpine: {
       runtime: {
         activeThreadId: runtime.activeThreadId,
@@ -416,6 +526,16 @@ function resolvePreferredVrmExpressionAliases(emotion: string) {
     mergePreferredAliases(
       runtimeTurnExpressionAliasesByEmotion.value[emotion],
       stagePerformanceStore.resolveVrmEmotionExpressionAliases(stageModelSelected.value, emotion),
+    ),
+  )
+}
+
+function resolvePreferredLive2DExpressionAliases(emotion: string) {
+  return mergePreferredAliases(
+    runtimeSegmentExpressionAliasesByEmotion.value[emotion],
+    mergePreferredAliases(
+      runtimeTurnExpressionAliasesByEmotion.value[emotion],
+      stagePerformanceStore.resolveLive2DEmotionExpressionAliases(stageModelSelected.value, emotion),
     ),
   )
 }
@@ -513,6 +633,15 @@ function resolveEmotionPerformanceEmphasis(intensity: number) {
 const emotionsQueue = createQueue<EmotionPayload>({
   handlers: [
     async (ctx) => {
+      if (hasAlicizationBridge()) {
+        logStageEmbodimentDebug('legacy-emotion-token-suppressed', {
+          emotion: ctx.data.name,
+          intensity: ctx.data.intensity,
+          renderer: stageModelRenderer.value,
+        })
+        return
+      }
+
       if (stageModelRenderer.value === 'vrm') {
         const baseEmotion = resolveVrmBaseExpressionName(
           EMOTION_VRMExpressionName_value[ctx.data.name] ?? 'neutral',
@@ -548,6 +677,9 @@ const emotionsQueue = createQueue<EmotionPayload>({
 
 const emotionMessageContentQueue = useEmotionsMessageQueue(emotionsQueue)
 emotionMessageContentQueue.onHandlerEvent('emotion', (emotion) => {
+  if (hasAlicizationBridge())
+    return
+
   embodimentRuntime?.applyEmotionSpeechStyle(emotion.name)
   // eslint-disable-next-line no-console
   console.debug('emotion detected', emotion)
@@ -675,7 +807,7 @@ const speechPipeline = createSpeechPipeline<BrowserSpeechAudioSource>({
   },
   playback: playbackManager,
 })
-console.info('[stage-startup-trace][stage] after-speech-pipeline')
+logStageStartupTrace('after-speech-pipeline')
 
 function resolvePresenceIntensity(emphasis: number | undefined, fallbackIntensity: number) {
   const normalizedEmphasis = typeof emphasis === 'number' && Number.isFinite(emphasis)
@@ -737,6 +869,26 @@ async function refreshResolvedVrmExternalAnimations() {
   resolvedVrmExternalAnimations.value = await stagePerformanceStore.resolveVrmExternalAnimations(stageModelSelected.value, {
     configuredOnly: true,
   })
+}
+
+function syncLive2DRuntimeCapabilities(snapshot?: Live2DRuntimeCapabilitySnapshot | null) {
+  if (stageModelRenderer.value !== 'live2d') {
+    currentLive2DRuntimeCapabilities.value = null
+    return
+  }
+
+  if (!snapshot) {
+    currentLive2DRuntimeCapabilities.value = null
+    return
+  }
+
+  currentLive2DRuntimeCapabilities.value = {
+    supportedExpressionNames: [...new Set(snapshot.supportedExpressionNames
+      .map(name => name.trim())
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right)),
+    supportedBaseEmotions: [...new Set(snapshot.supportedBaseEmotions)],
+    supportedFacialCues: dedupeCapabilityItemsByKey(snapshot.supportedFacialCues),
+  }
 }
 
 function syncVrmRuntimeCapabilities(snapshot?: VrmRuntimeCapabilitySnapshot | null) {
@@ -864,9 +1016,17 @@ const currentPerformanceEmbodimentHints = computed(() => {
   const explicitActionCuePreferences = stagePerformanceStore.listEmotionActionCuePreferences(stageModelSelected.value)
 
   if (stageModelRenderer.value === 'live2d') {
+    const explicitExpressionAliases = stagePerformanceStore.listLive2DEmotionExpressionAliases(stageModelSelected.value)
     const explicitMotionAliases = stagePerformanceStore.listLive2DEmotionMotionAliases(stageModelSelected.value)
     const embodimentHintsByEmotion = new Map<string, Record<string, string[]>>()
 
+    Object.entries(explicitExpressionAliases)
+      .filter(([, aliases]) => Array.isArray(aliases) && aliases.length > 0)
+      .forEach(([emotion, aliases]) => {
+        const current = embodimentHintsByEmotion.get(emotion) ?? {}
+        current.preferredExpressionAliases = aliases
+        embodimentHintsByEmotion.set(emotion, current)
+      })
     Object.entries(explicitMotionAliases)
       .filter(([, aliases]) => Array.isArray(aliases) && aliases.length > 0)
       .forEach(([emotion, aliases]) => {
@@ -924,10 +1084,17 @@ const currentPerformanceEmbodimentHints = computed(() => {
 
 const currentPerformanceManifest = computed(() => {
   if (stageModelRenderer.value === 'live2d') {
+    const runtimeSupportedBaseEmotions = currentLive2DRuntimeCapabilities.value?.supportedBaseEmotions ?? []
+    const runtimeSupportedFacialCues = currentLive2DRuntimeCapabilities.value?.supportedFacialCues ?? []
+
     return {
       renderer: 'live2d' as const,
-      supportedBaseEmotions: [...alicizationEmotionWhitelist],
-      supportedFacialCues: listStageEmbodimentLive2DFacialCapabilities(),
+      supportedBaseEmotions: runtimeSupportedBaseEmotions.length > 0
+        ? runtimeSupportedBaseEmotions
+        : [...alicizationEmotionWhitelist],
+      supportedFacialCues: runtimeSupportedFacialCues.length > 0
+        ? runtimeSupportedFacialCues
+        : listStageEmbodimentLive2DFacialCapabilities(),
       supportedActions: currentLive2DResolvedActionCapabilities.value,
       supportsLookAt: !live2dDisableFocus.value,
       supportsVisemeLipSync: true,
@@ -974,6 +1141,8 @@ watch([stageModelRenderer, stageModelSelected, currentStoredVrmExternalAnimation
 }, { immediate: true, deep: true })
 
 watch([stageModelRenderer, stageModelSelected], ([renderer]) => {
+  currentLive2DRuntimeCapabilities.value = null
+
   if (renderer !== 'vrm') {
     currentVrmRuntimeCapabilities.value = null
     return
@@ -1021,8 +1190,9 @@ embodimentRuntime = useStageEmbodimentRuntime({
   stageModelRenderer,
   vrmActionBindings: currentVrmActionBindings,
 })
-console.info('[stage-startup-trace][stage] after-embodiment-runtime')
+logStageStartupTrace('after-embodiment-runtime')
 const {
+  armDialoguePerformance,
   bindPlaybackManager,
   diagnostics: embodimentDiagnostics,
   live2dFocusAt,
@@ -1035,27 +1205,74 @@ const {
   vrmIdleActionPreference,
   vrmLookAtScreenPoint,
 } = embodimentRuntime
-console.info('[stage-startup-trace][stage] after-embodiment-destructure')
+logStageStartupTrace('after-embodiment-destructure')
 
-console.info('[stage-startup-trace][stage] before-watch-component-state')
+const currentLive2DPreferredExpressionAliases = computed(() => {
+  if (stageModelRenderer.value !== 'live2d')
+    return []
+
+  const emotion = performanceState.value?.activeCue?.emotion
+    ?? performanceState.value?.performance.baseEmotion
+    ?? runtimeResidentEmotion.value
+  return emotion ? resolvePreferredLive2DExpressionAliases(emotion) : []
+})
+
+logStageStartupTrace('before-watch-component-state')
 watch(componentState, (state) => {
-  console.info(
-    `[stage-startup-trace][stage] component-state state=${state} renderer=${stageModelRenderer.value || '<empty>'} modelId=${stageModelSelected.value || '<empty>'} modelUrl=${stageModelSelectedUrl.value ? 'available' : 'missing'}`,
-  )
+  logStageStartupTrace('component-state', {
+    state,
+    renderer: stageModelRenderer.value || '<empty>',
+    modelId: stageModelSelected.value || '<empty>',
+    modelUrl: stageModelSelectedUrl.value ? 'available' : 'missing',
+  })
 }, { immediate: true })
-console.info('[stage-startup-trace][stage] after-watch-component-state')
+logStageStartupTrace('after-watch-component-state')
 
-console.info('[stage-startup-trace][stage] before-watch-resident-emotion')
+logStageStartupTrace('before-watch-resident-emotion')
 watch(
-  () => performanceState.value?.performance.baseEmotion ?? '',
+  () => performanceState.value?.residentPerformance.baseEmotion
+    ?? performanceState.value?.performance.baseEmotion
+    ?? '',
   (emotion) => {
     runtimeResidentEmotion.value = typeof emotion === 'string' ? emotion.trim() : ''
   },
   { immediate: true },
 )
-console.info('[stage-startup-trace][stage] after-watch-resident-emotion')
+logStageStartupTrace('after-watch-resident-emotion')
 
-console.info('[stage-startup-trace][stage] before-watch-active-cue')
+watch(
+  [
+    () => stageModelRenderer.value,
+    () => stageModelSelected.value,
+    () => runtimeResidentEmotion.value,
+    () => runtimeSegmentMotionActive.value,
+    () => runtimeTurnMotionAliasesByEmotion.value[runtimeResidentEmotion.value]?.join('|') ?? '',
+  ],
+  () => {
+    if (stageModelRenderer.value !== 'live2d' || runtimeSegmentMotionActive.value)
+      return
+
+    const residentEmotion = runtimeResidentEmotion.value
+    if (!residentEmotion)
+      return
+
+    const resolvedResidentMotion = live2dStore.resolveEmotionMotionSelection(stageModelSelected.value, residentEmotion, {
+      preferredMotionAliases: resolvePreferredLive2DMotionAliases(residentEmotion),
+    })
+    if (!resolvedResidentMotion)
+      return
+
+    setCurrentMotionIfChanged(resolvedResidentMotion)
+    logStageEmbodimentDebug('resident-motion-sync', {
+      emotion: residentEmotion,
+      group: resolvedResidentMotion.group,
+      index: resolvedResidentMotion.index ?? null,
+    })
+  },
+  { immediate: true },
+)
+
+logStageStartupTrace('before-watch-active-cue')
 watch(
   [
     () => performanceState.value?.activeCue?.id ?? '',
@@ -1079,9 +1296,9 @@ watch(
   },
   { immediate: true },
 )
-console.info('[stage-startup-trace][stage] after-watch-active-cue')
+logStageStartupTrace('after-watch-active-cue')
 
-console.info('[stage-startup-trace][stage] before-speech-pipeline-hooks')
+logStageStartupTrace('before-speech-pipeline-hooks')
 speechPipeline.on('onSpecial', (segment) => {
   if (segment.special)
     playSpecialToken(segment.special)
@@ -1094,6 +1311,13 @@ speechPipeline.on('onTtsRequest', (request) => {
   if (!request.text.trim())
     return
 
+  logStageEmbodimentDebug('tts-request-preview', {
+    intentId: request.intentId,
+    streamId: request.streamId,
+    segmentId: request.segmentId,
+    text: request.text.slice(0, 96),
+  })
+
   embodimentRuntime.previewSpeechSegment({
     intentId: request.intentId,
     streamId: request.streamId,
@@ -1101,6 +1325,7 @@ speechPipeline.on('onTtsRequest', (request) => {
     text: request.text,
     special: request.special,
     continuityHoldMs: request.continuityHoldMs,
+    metadata: request.metadata ?? null,
   })
 })
 
@@ -1111,6 +1336,14 @@ speechPipeline.on('onTtsResult', (result) => {
   if (!result.text.trim())
     return
 
+  logStageEmbodimentDebug('tts-result-preview', {
+    intentId: result.intentId,
+    streamId: result.streamId,
+    segmentId: result.segmentId,
+    playbackDurationMs: resolveSpeechAudioDurationMs(result.audio),
+    text: result.text.slice(0, 96),
+  })
+
   embodimentRuntime.previewSpeechSegment({
     intentId: result.intentId,
     streamId: result.streamId,
@@ -1118,10 +1351,17 @@ speechPipeline.on('onTtsResult', (result) => {
     text: result.text,
     special: result.special,
     continuityHoldMs: result.continuityHoldMs,
+    metadata: result.metadata ?? null,
+    playbackDurationMs: resolveSpeechAudioDurationMs(result.audio),
   })
 })
 
 speechPipeline.on('onTtsSkipped', (event) => {
+  logStageEmbodimentDebug('tts-skipped', {
+    segmentId: event.request.segmentId,
+    intentId: event.request.intentId,
+    streamId: event.request.streamId,
+  })
   embodimentRuntime?.discardPreviewSpeechSegment(event.request.segmentId)
 })
 
@@ -1130,6 +1370,12 @@ speechPipeline.on('onSegment', (segment) => {
     return
   if (!segment.text.trim())
     return
+  logStageEmbodimentDebug('synthetic-segment', {
+    intentId: segment.intentId,
+    streamId: segment.streamId,
+    segmentId: segment.segmentId,
+    text: segment.text.slice(0, 96),
+  })
   embodimentRuntime?.previewSpeechSegment({
     intentId: segment.intentId,
     streamId: segment.streamId,
@@ -1137,22 +1383,30 @@ speechPipeline.on('onSegment', (segment) => {
     text: segment.text,
     special: segment.special,
     continuityHoldMs: segment.continuityHoldMs,
+    metadata: segment.metadata ?? null,
   })
   embodimentRuntime?.applySyntheticSpeechSegment(segment)
 })
-console.info('[stage-startup-trace][stage] after-speech-pipeline-hooks')
+logStageStartupTrace('after-speech-pipeline-hooks')
 
-console.info('[stage-startup-trace][stage] before-bind-playback-manager')
+logStageStartupTrace('before-bind-playback-manager')
 bindPlaybackManager(playbackManager)
-console.info('[stage-startup-trace][stage] after-bind-playback-manager')
+logStageStartupTrace('after-bind-playback-manager')
 
-console.info('[stage-startup-trace][stage] before-chat-hook-register')
+logStageStartupTrace('before-chat-hook-register')
 
 chatHookCleanups.push(onPlaybackEvent((event) => {
   if (event.type === 'playback-start') {
     const item = event.state.item
     if (!item)
       return
+
+    logStageEmbodimentDebug('playback-start', {
+      segmentId: item.segmentId,
+      intentId: item.intentId,
+      streamId: item.streamId,
+      text: item.text.slice(0, 96),
+    })
 
     // NOTICE: postCaption and postPresent may throw errors if the BroadcastChannel is closed
     // (e.g., when navigating away from the page). We wrap these in try-catch to prevent
@@ -1163,15 +1417,33 @@ chatHookCleanups.push(onPlaybackEvent((event) => {
     return
   }
 
+  if (event.type === 'playback-stop') {
+    logStageEmbodimentDebug('playback-stop', {
+      segmentId: event.state.item?.segmentId ?? null,
+      stopReason: event.state.stopReason,
+      special: event.state.item?.special ?? null,
+    })
+  }
+
   if (event.type === 'playback-stop' && event.state.stopReason === null && event.state.item?.special)
     playSpecialToken(event.state.item.special)
 }))
 
 chatHookCleanups.push(onBeforeMessageComposed(async () => {
+  const prepareStartedAt = performance.now()
   speechRuntimeStore.cancelOwner(activeCardId.value, 'new-message')
-  clearRuntimeEmbodimentEnvelope()
+  clearRuntimeEmbodimentEnvelope({ preserveTurnEnvelope: true })
+  logStageEmbodimentDebug('before-message-composed-start', {
+    renderer: stageModelRenderer.value,
+    previousEmotion: runtimeResidentEmotion.value || null,
+    currentIntentId: currentChatIntent.value?.intentId ?? null,
+  })
 
   await prepareForNextMessage()
+  logStageEmbodimentDebug('before-message-composed-prepared', {
+    renderer: stageModelRenderer.value,
+    durationMs: Math.round(performance.now() - prepareStartedAt),
+  })
   // Reset assistant caption for a new message
   assistantCaption.value = ''
   captionPoster.post({ type: 'caption-assistant', text: '' })
@@ -1202,11 +1474,27 @@ chatHookCleanups.push(onEmbodimentMeta(async (meta) => {
   if (!meta.embodiment || !embodimentRuntime)
     return
 
+  armDialoguePerformance(meta.embodiment.performance, {
+    variationToken: meta.embodiment.variationToken ?? null,
+  })
   applyRuntimeEmbodimentEnvelope(meta.embodiment)
   embodimentRuntime.applyEmotionSpeechStyle(
     embodimentRuntime.normalizePresenceEmotionName(meta.embodiment.emotion),
     meta.embodiment.speechStyle,
   )
+  logStageEmbodimentDebug('embodiment-meta', {
+    emotion: meta.embodiment.emotion,
+    delivery: meta.embodiment.performance.delivery,
+    facialCue: meta.embodiment.performance.facialCue ?? null,
+    actionCue: meta.embodiment.performance.actionCue ?? null,
+    variationToken: meta.embodiment.variationToken ?? null,
+    hasSpeechTimeline: Boolean(meta.speechTimeline?.segments.length),
+    hasDigitalLife: Boolean(meta.digitalLife?.frames.length),
+    speechTimelineSegments: meta.speechTimeline?.segments.length ?? 0,
+    speechTimelineLastSegmentId: meta.speechTimeline?.segments.at(-1)?.id ?? null,
+    digitalLifeFrames: meta.digitalLife?.frames.length ?? 0,
+    digitalLifeLastFrameId: meta.digitalLife?.frames.at(-1)?.id ?? null,
+  })
 }))
 
 chatHookCleanups.push(onTokenLiteral(async (literal) => {
@@ -1234,7 +1522,7 @@ chatHookCleanups.push(onAssistantResponseEnd(async (_message) => {
   // await db.value?.execute(`INSERT INTO memory_test (vec) VALUES (${JSON.stringify(res.embedding)});`)
 }))
 
-console.info('[stage-startup-trace][stage] after-chat-hook-register')
+logStageStartupTrace('after-chat-hook-register')
 
 // Resume audio context on first user interaction (browser requirement)
 let audioContextResumed = false
@@ -1256,18 +1544,18 @@ if (typeof window !== 'undefined') {
 }
 
 onMounted(async () => {
-  console.info('[stage-startup-trace][stage] onMounted-enter')
+  logStageStartupTrace('onMounted-enter')
   // NOTICE: Speech runtime bus setup is non-critical for first paint.
   // Deferring host registration keeps the stage mount path free from cross-window
   // transport initialization on packaged Electron `file://` startup.
   void speechRuntimeStore.registerHost(speechPipeline).catch((error) => {
     console.warn('[Stage] Failed to register speech runtime host.', error)
   })
-  console.info('[stage-startup-trace][stage] onMounted-exit')
+  logStageStartupTrace('onMounted-exit')
 })
 
 onBeforeMount(() => {
-  console.info('[stage-startup-trace][stage] onBeforeMount')
+  logStageStartupTrace('onBeforeMount')
 })
 
 function canvasElement() {
@@ -1478,6 +1766,7 @@ defineExpose({
         :idle-motion-preference="live2dIdleMotionPreference"
         :paused="paused"
         :performance-state="performanceState"
+        :preferred-expression-aliases="currentLive2DPreferredExpressionAliases"
         :x-offset="xOffset"
         :y-offset="yOffset"
         :scale="scale"
@@ -1490,6 +1779,7 @@ defineExpose({
         :live2d-shadow-enabled="live2dShadowEnabled"
         :live2d-max-fps="live2dMaxFps"
         @character-hover-change="setStageCharacterHovered"
+        @runtime-capabilities-resolved="syncLive2DRuntimeCapabilities"
       />
       <ThreeScene
         v-if="stageModelRenderer === 'vrm' && showStage"

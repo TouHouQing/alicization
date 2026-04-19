@@ -231,6 +231,7 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       resolvedDigitalLife = buildAlicizationDigitalLifeEnvelope({
         embodiment: resolvedEmbodiment,
         speechTimeline: resolvedSpeechTimeline,
+        digitalLifeSpine: payload.structured?.digitalLifeSpine ?? null,
       })
     }
 

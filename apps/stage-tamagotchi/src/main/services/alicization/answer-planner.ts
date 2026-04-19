@@ -34,6 +34,7 @@ import type { AlicizationProactiveLayeredContext } from './proactive-layered-con
 
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
+import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -669,6 +670,7 @@ export function buildAnswerPlanner(input: {
   const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const selfContinuityAuthority = buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
   const ownership = dialogueEncounter?.ownership ?? input.ownership ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
   const dialogueObligation = dialogueEncounter?.obligation ?? input.dialogueObligation ?? null
@@ -689,6 +691,7 @@ export function buildAnswerPlanner(input: {
   if (answerCompiler) {
     const focus = sanitizeText(
       pickUserFacingAnchor(
+        selfContinuityAuthority?.authoritySummary,
         replyDeliberation?.whyThisReplyNow,
         conversationState?.primaryTurnAnchor,
         discourseState?.primaryTurnAnchor,
@@ -721,6 +724,9 @@ export function buildAnswerPlanner(input: {
       openingMove: replyDeliberation?.openingBeat ?? answerCompiler.openingDirective,
       answerIntent: sanitizeText(
         pickUserFacingAnchor(
+          (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
+            ? selfContinuityAuthority?.authoritySummary
+            : '',
           conversationState?.primaryTurnAnchor,
           discourseState?.primaryTurnAnchor,
           conversationState?.hostMove,
@@ -822,6 +828,40 @@ export function buildAnswerPlanner(input: {
     dialogueWorldThread,
     replyDeliberation,
   })
+  const normalizedFocus = (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
+    && selfContinuityAuthority?.authoritySummary
+    ? sanitizeText(`${focus} | ${selfContinuityAuthority.authoritySummary}`, 220)
+    : focus
+  const normalizedAnswerIntent = (turnProfile.subject === 'alicization-self' || turnProfile.subject === 'relationship')
+    && selfContinuityAuthority?.selfLine
+    ? sanitizeText(`${answerIntent({
+      act,
+      worldModel,
+      concernContinuity,
+      repairLedger,
+      dialogueObligation,
+      dialogueSemantics,
+      dialogueFocus,
+      discourseState,
+      conversationState,
+      turnProfile,
+      dialogueWorldThread,
+      replyDeliberation,
+    })} ${selfContinuityAuthority.selfLine}`, 220)
+    : answerIntent({
+      act,
+      worldModel,
+      concernContinuity,
+      repairLedger,
+      dialogueObligation,
+      dialogueSemantics,
+      dialogueFocus,
+      discourseState,
+      conversationState,
+      turnProfile,
+      dialogueWorldThread,
+      replyDeliberation,
+    })
 
   return {
     act,
@@ -836,27 +876,14 @@ export function buildAnswerPlanner(input: {
       + Math.max(0, selectedReflection?.confidenceShift ?? 0) * 0.08
       + (selectedInquiry ? 0.08 : 0.04),
     ),
-    governingFocus: focus,
+    governingFocus: normalizedFocus,
     openingMove: openingMove({
       act,
       evidenceMode: mode,
       dialogueObligation,
       replyDeliberation: input.replyDeliberation,
     }),
-    answerIntent: answerIntent({
-      act,
-      worldModel,
-      concernContinuity,
-      repairLedger,
-      dialogueObligation,
-      dialogueSemantics,
-      dialogueFocus,
-      discourseState,
-      conversationState,
-      turnProfile,
-      dialogueWorldThread,
-      replyDeliberation,
-    }),
+    answerIntent: normalizedAnswerIntent,
     relationshipPosture: posture,
     shouldAskForGrounding,
     shouldAcknowledgeRepair,
@@ -895,7 +922,7 @@ export function buildAnswerPlanner(input: {
       executiveCycle?.phase ? `executive_phase:${executiveCycle.phase}` : '',
       selectedProject ? `mind_project:${selectedProject.kind}` : '',
       selectedReflection ? `reflection:${selectedReflection.outcome}` : '',
-      focus,
+      normalizedFocus,
     ],
     updatedAt: input.now,
   } satisfies AlicizationAnswerPlannerSnapshot

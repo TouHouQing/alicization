@@ -19,7 +19,11 @@ export interface AlicizationDigitalLifeMindStateCommitShape {
   concerns?: AlicizationVisualPresenceStateSnapshot['concerns']
   concernContinuity?: AlicizationVisualPresenceStateSnapshot['concernContinuity']
   relationshipModel?: AlicizationVisualPresenceStateSnapshot['relationshipModel']
+  longHorizonMemory?: AlicizationVisualPresenceStateSnapshot['longHorizonMemory']
   selfContinuity?: AlicizationVisualPresenceStateSnapshot['selfContinuity']
+  autobiographicalSelf?: AlicizationVisualPresenceStateSnapshot['autobiographicalSelf']
+  motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
+  habitPolicy?: AlicizationVisualPresenceStateSnapshot['habitPolicy']
   selfState?: AlicizationVisualPresenceStateSnapshot['selfState']
   selfGovernor?: AlicizationVisualPresenceStateSnapshot['selfGovernor']
   inquiryLoop?: AlicizationVisualPresenceStateSnapshot['inquiryLoop']
@@ -38,6 +42,7 @@ export interface AlicizationDigitalLifeMindStateCommitShape {
   actionEcology?: AlicizationVisualPresenceStateSnapshot['actionEcology']
   initiativeArbitration?: AlicizationVisualPresenceStateSnapshot['initiativeArbitration']
   initiative?: AlicizationVisualPresenceStateSnapshot['initiative']
+  autonomy?: AlicizationVisualPresenceStateSnapshot['autonomy']
   desireMemory?: AlicizationVisualPresenceStateSnapshot['desireMemory']
   discourseState?: AlicizationVisualPresenceStateSnapshot['discourseState']
   dialogueEncounter?: AlicizationVisualPresenceStateSnapshot['dialogueEncounter']
@@ -72,9 +77,13 @@ export interface AlicizationDigitalLifeRuntimeSurface {
   perception: Pick<AlicizationVisualPresenceStateSnapshot, 'watchMode' | 'currentScene' | 'attention' | 'captureState' | 'durabilityPulse' | 'recentTransition' | 'nextSuggestedProbeMs' | 'updatedAt'>
   world: Pick<AlicizationVisualPresenceStateSnapshot, 'worldModel' | 'worldOntology' | 'entityWorld' | 'livingWorldState' | 'relationshipModel'>
   cognition: Pick<AlicizationVisualPresenceStateSnapshot, 'mindTurnFrame' | 'subjectiveInference' | 'appraisal' | 'beliefLedger' | 'beliefRevision' | 'hypothesisGraph' | 'mindDynamics' | 'mindKernel' | 'privateThought'>
-  memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'selfContinuity' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'>
+  memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'longHorizonMemory' | 'selfContinuity' | 'autobiographicalSelf' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'> & {
+    motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
+  }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
-  agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative'>
+  agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
+    habitPolicy?: AlicizationVisualPresenceStateSnapshot['habitPolicy']
+  }
 }
 
 export interface AlicizationDigitalLifeProactiveSelection {
@@ -105,13 +114,16 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   hypothesisGraph: AlicizationDigitalLifeRuntimeSurface['cognition']['hypothesisGraph']
   privateThought: AlicizationDigitalLifeRuntimeSurface['cognition']['privateThought']
   relationshipModel: AlicizationDigitalLifeRuntimeSurface['world']['relationshipModel']
+  motiveEngine: AlicizationDigitalLifeRuntimeSurface['memory']['motiveEngine']
   selfGovernor: AlicizationDigitalLifeRuntimeSurface['agency']['selfGovernor']
+  habitPolicy: AlicizationDigitalLifeRuntimeSurface['agency']['habitPolicy']
   inquiryLoop: AlicizationDigitalLifeRuntimeSurface['agency']['inquiryLoop']
   deliberationState: AlicizationDigitalLifeRuntimeSurface['agency']['deliberationState']
   threadRuntime: AlicizationDigitalLifeRuntimeSurface['memory']['threadRuntime']
   thoughtThreads: AlicizationDigitalLifeRuntimeSurface['memory']['thoughtThreads']
   actionEcology: AlicizationDigitalLifeRuntimeSurface['agency']['actionEcology']
   initiative: AlicizationDigitalLifeRuntimeSurface['agency']['initiative']
+  autonomy: AlicizationDigitalLifeRuntimeSurface['agency']['autonomy']
   durabilityPulse: AlicizationDigitalLifeRuntimeSurface['perception']['durabilityPulse']
 }
 
@@ -146,6 +158,8 @@ function buildDigitalLifeContinuitySummary(surface: AlicizationDigitalLifeRuntim
   const answerPlanner = surface.dialogue.answerPlanner ?? null
   const privateThought = surface.cognition.privateThought ?? null
   const initiative = surface.agency.initiative ?? null
+  const motiveEngine = surface.memory.motiveEngine ?? null
+  const habitPolicy = surface.agency.habitPolicy ?? null
   const currentScene = surface.perception.currentScene ?? null
 
   const parts = [
@@ -153,6 +167,8 @@ function buildDigitalLifeContinuitySummary(surface: AlicizationDigitalLifeRuntim
     currentScene?.scenario ? `scene=${sanitizeDigitalLifeText(currentScene.scenario, 48)}` : '',
     mindKernel?.dominantMode ? `mode=${sanitizeDigitalLifeText(mindKernel.dominantMode, 48)}` : '',
     mindKernel?.dominantDrive ? `drive=${sanitizeDigitalLifeText(mindKernel.dominantDrive, 48)}` : '',
+    motiveEngine?.rulingDrive ? `motive=${sanitizeDigitalLifeText(motiveEngine.rulingDrive, 48)}` : '',
+    habitPolicy?.dominantMode ? `habit=${sanitizeDigitalLifeText(habitPolicy.dominantMode, 48)}` : '',
     activeThread?.title
       ? `thread=${sanitizeDigitalLifeText(activeThread.title, 72)}`
       : activeThread?.kind
@@ -194,7 +210,11 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
     concerns: input.mindState.concerns,
     concernContinuity: input.mindState.concernContinuity,
     relationshipModel: input.mindState.relationshipModel,
+    longHorizonMemory: input.mindState.longHorizonMemory,
     selfContinuity: input.mindState.selfContinuity,
+    autobiographicalSelf: input.mindState.autobiographicalSelf,
+    motiveEngine: input.mindState.motiveEngine,
+    habitPolicy: input.mindState.habitPolicy,
     selfState: input.mindState.selfState,
     selfGovernor: input.mindState.selfGovernor,
     inquiryLoop: input.mindState.inquiryLoop,
@@ -213,6 +233,7 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
     actionEcology: input.mindState.actionEcology,
     initiativeArbitration: input.mindState.initiativeArbitration,
     initiative: input.mindState.initiative,
+    autonomy: input.mindState.autonomy,
     desireMemory: input.mindState.desireMemory,
     discourseState: input.mindState.discourseState,
     dialogueEncounter: input.mindState.dialogueEncounter,
@@ -274,7 +295,10 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       goalStack: state.goalStack ?? null,
       concerns: state.concerns,
       concernContinuity: state.concernContinuity ?? null,
+      longHorizonMemory: state.longHorizonMemory ?? null,
       selfContinuity: state.selfContinuity ?? null,
+      autobiographicalSelf: state.autobiographicalSelf ?? null,
+      motiveEngine: state.motiveEngine ?? null,
       threadRuntime: state.threadRuntime ?? null,
       commitmentLedger: state.commitmentLedger ?? null,
       inquiryPlanner: state.inquiryPlanner ?? null,
@@ -302,12 +326,14 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     agency: {
       selfState: state.selfState ?? null,
       selfGovernor: state.selfGovernor ?? null,
+      habitPolicy: state.habitPolicy ?? null,
       inquiryLoop: state.inquiryLoop ?? null,
       deliberationState: state.deliberationState ?? null,
       counterfactualDeliberation: state.counterfactualDeliberation ?? null,
       actionEcology: state.actionEcology ?? null,
       initiativeArbitration: state.initiativeArbitration ?? null,
       initiative: state.initiative ?? null,
+      autonomy: state.autonomy ?? null,
     },
   }
 }
@@ -421,13 +447,16 @@ export function buildAlicizationDigitalLifeProactivePolicySnapshot(
     hypothesisGraph: surface.cognition.hypothesisGraph,
     privateThought: surface.cognition.privateThought,
     relationshipModel: surface.world.relationshipModel,
+    motiveEngine: surface.memory.motiveEngine ?? null,
     selfGovernor: surface.agency.selfGovernor,
+    habitPolicy: surface.agency.habitPolicy ?? null,
     inquiryLoop: surface.agency.inquiryLoop,
     deliberationState: surface.agency.deliberationState,
     threadRuntime: surface.memory.threadRuntime,
     thoughtThreads: surface.memory.thoughtThreads,
     actionEcology: surface.agency.actionEcology,
     initiative: surface.agency.initiative,
+    autonomy: surface.agency.autonomy ?? null,
     durabilityPulse: surface.perception.durabilityPulse,
   }
 }

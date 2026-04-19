@@ -1,5 +1,7 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationAutonomySnapshot,
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationCommitmentLedgerSnapshot,
   AlicizationConcernContinuityLedgerSnapshot,
@@ -11,6 +13,7 @@ import type {
   AlicizationEntityWorldModelSnapshot,
   AlicizationExecutiveCycleSnapshot,
   AlicizationGoalStackSnapshot,
+  AlicizationHabitPolicySnapshot,
   AlicizationHypothesisGraphSnapshot,
   AlicizationInitiativeArbitrationSnapshot,
   AlicizationInitiativeSnapshot,
@@ -20,6 +23,7 @@ import type {
   AlicizationLivingWorldStateSnapshot,
   AlicizationMindDynamicsSnapshot,
   AlicizationMindKernelSnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
@@ -37,8 +41,10 @@ import type {
   AlicizationWorldModelSnapshot,
   AlicizationWorldOntologySnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
+import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { inferScenarioFromContext } from './proactive-layered-context'
 
 function clamp01(value: number) {
@@ -160,6 +166,110 @@ function focusLivingObject(input: {
     ?? null
 }
 
+function resolveEcologyPresence(
+  ecology?: AlicizationMindEcologySnapshot | null,
+): AlicizationPrivateThoughtSnapshot['embodiedPresence'] | null {
+  if (!ecology)
+    return null
+  if (ecology.relationshipHabit === 'protective-shadow')
+    return 'concerned'
+  if (ecology.relationshipHabit === 'give-space')
+    return 'hesitant'
+  if (ecology.relationshipHabit === 'stay-near')
+    return 'attentive'
+  if (ecology.moodLabel.includes('playful'))
+    return 'glance'
+  return 'attentive'
+}
+
+function resolveAutobiographicalPresence(
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null,
+): AlicizationPrivateThoughtSnapshot['embodiedPresence'] | null {
+  if (!autobiographicalSelf)
+    return null
+  if (autobiographicalSelf.personaDrift.conflictStyle === 'repair-first')
+    return 'hesitant'
+  if (autobiographicalSelf.personaDrift.expressionStyle === 'warm')
+    return 'concerned'
+  if (autobiographicalSelf.personaDrift.attachmentStyle === 'attuned')
+    return 'attentive'
+  if (autobiographicalSelf.personaDrift.expressionStyle === 'playful')
+    return 'glance'
+  return 'attentive'
+}
+
+function resolveEcologyStyle(
+  ecology?: AlicizationMindEcologySnapshot | null,
+): AlicizationPrivateThoughtSnapshot['suggestedStyle'] | null {
+  if (!ecology)
+    return null
+  if (ecology.replyHabit === 'repair-first' || ecology.regulationHabit === 'cool-down-before-speaking')
+    return 'silent-observe'
+  if (ecology.replyHabit === 'care-first' || ecology.regulationHabit === 'soften-before-speaking')
+    return 'gentle-care'
+  if (ecology.replyHabit === 'answer-first')
+    return 'light-nudge'
+  return 'silent-observe'
+}
+
+function resolveAutobiographicalStyle(
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null,
+): AlicizationPrivateThoughtSnapshot['suggestedStyle'] | null {
+  if (!autobiographicalSelf)
+    return null
+  if (
+    autobiographicalSelf.personaDrift.conflictStyle === 'repair-first'
+    || autobiographicalSelf.personaDrift.agencyStyle === 'reserved'
+  ) {
+    return 'silent-observe'
+  }
+  if (autobiographicalSelf.personaDrift.expressionStyle === 'warm')
+    return 'gentle-care'
+  if (
+    autobiographicalSelf.personaDrift.expressionStyle === 'playful'
+    || autobiographicalSelf.personaDrift.conflictStyle === 'direct-when-certain'
+  ) {
+    return 'light-nudge'
+  }
+  return 'silent-observe'
+}
+
+function resolveEcologyFallbackThought(ecology?: AlicizationMindEcologySnapshot | null) {
+  return sanitizeText(
+    ecology?.currentPreoccupation
+    || ecology?.selfNarrative
+    || ecology?.relationNarrative
+    || '',
+    220,
+  ) || null
+}
+
+function resolveAutobiographicalFallbackThought(
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null,
+) {
+  const dominantGoal = pickDominantAutobiographicalGoal(autobiographicalSelf)
+  return sanitizeText(
+    autobiographicalSelf?.latestInflection
+    || dominantGoal?.summary
+    || autobiographicalSelf?.identityNarrative
+    || autobiographicalSelf?.relationshipDoctrine
+    || '',
+    220,
+  ) || null
+}
+
+function resolveMotiveFallbackThought(
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null,
+) {
+  return sanitizeText(
+    motiveEngine?.backgroundAgendas[0]?.summary
+    || motiveEngine?.longTermGoals[0]?.summary
+    || motiveEngine?.narrative[0]
+    || '',
+    220,
+  ) || null
+}
+
 function buildThoughtFromMind(input: {
   now: number
   emotionalTension: AlicizationPrivateThoughtSnapshot['emotionalTension']
@@ -186,6 +296,9 @@ function buildThoughtFromMind(input: {
   mindKernel?: AlicizationMindKernelSnapshot | null
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
@@ -196,7 +309,9 @@ function buildThoughtFromMind(input: {
   appraisal?: AlicizationSubjectiveSceneAppraisal | null
   concerns?: AlicizationConcernSnapshot[]
   selfState?: AlicizationSelfStateSnapshot | null
+  mindEcology?: AlicizationMindEcologySnapshot | null
   initiative: AlicizationInitiativeSnapshot
+  autonomy?: AlicizationAutonomySnapshot | null
 }) {
   const concern = (input.concerns ?? [])
     .find(item => item.id === input.initiative.selectedConcernId)
@@ -250,6 +365,9 @@ function buildThoughtFromMind(input: {
     ?? null
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
+  const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf)
+  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
+  const autonomy = input.autonomy ?? null
   const livingObject = focusLivingObject({
     livingWorldState: input.livingWorldState,
     thoughtThreadObjectId: thoughtThread?.anchoredObjectId ?? null,
@@ -287,9 +405,21 @@ function buildThoughtFromMind(input: {
     input.mindDynamics?.dominantMotive ? `drive:${input.mindDynamics.dominantMotive}` : '',
     input.mindKernel ? `kernel:${input.mindKernel.dominantMode}` : '',
     input.relationshipModel ? `relationship:${input.relationshipModel.climate}/${input.relationshipModel.approachVector}` : '',
+    input.mindEcology?.moodLabel ? `ecology-mood:${input.mindEcology.moodLabel}` : '',
+    input.mindEcology?.replyHabit ? `ecology-reply:${input.mindEcology.replyHabit}` : '',
+    input.mindEcology?.relationshipHabit ? `ecology-relationship:${input.mindEcology.relationshipHabit}` : '',
     input.selfState?.stance ? `mind-stance:${input.selfState.stance}` : '',
     input.appraisal?.relationshipNeed ? `relationship-need:${input.appraisal.relationshipNeed}` : '',
+    autobiographicalGoal ? `autobio-goal:${autobiographicalGoal.kind}/${autobiographicalGoal.status}` : '',
+    motiveAgenda ? `motive-agenda:${motiveAgenda.kind}/${motiveAgenda.status}` : '',
+    input.motiveEngine?.rulingDrive ? `motive-drive:${input.motiveEngine.rulingDrive}` : '',
+    input.habitPolicy?.dominantMode ? `habit:${input.habitPolicy.dominantMode}` : '',
+    input.autobiographicalSelf?.personaDrift.attachmentStyle ? `autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}` : '',
+    input.autobiographicalSelf?.personaDrift.conflictStyle ? `autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}` : '',
+    input.autobiographicalSelf?.personaDrift.agencyStyle ? `autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}` : '',
     `initiative:${input.initiative.selectedAction}`,
+    autonomy?.selectedMode ? `autonomy:${autonomy.selectedMode}` : '',
+    autonomy?.executionIntent?.kind ? `autonomy-intent:${autonomy.executionIntent.kind}` : '',
     input.afterglowActive ? 'afterglow-window' : '',
   ].filter(Boolean)
 
@@ -299,16 +429,21 @@ function buildThoughtFromMind(input: {
       ?? counterfactualOption?.style
       ?? input.actionEcology?.suggestedStyle
       ?? input.initiative.preferredStyle
+      ?? resolveEcologyStyle(input.mindEcology)
+      ?? resolveAutobiographicalStyle(input.autobiographicalSelf)
       ?? (input.mindKernel?.dominantMode === 'guarding' ? 'gentle-care' : 'silent-observe')
   let embodiedPresence: AlicizationPrivateThoughtSnapshot['embodiedPresence']
     = selectedProposal?.embodiedPresence
       ?? counterfactualOption?.embodiedPresence
       ?? input.actionEcology?.embodiedPresence
       ?? input.initiative.preferredPresence
+      ?? resolveEcologyPresence(input.mindEcology)
+      ?? resolveAutobiographicalPresence(input.autobiographicalSelf)
       ?? (input.mindKernel?.dominantMode === 'guarding' ? 'concerned' : input.mindKernel?.dominantMode === 'repairing' ? 'hesitant' : 'glance')
   let shouldSpeak = selectedProposal?.shouldSpeak ?? input.actionEcology?.shouldSpeak ?? false
   let thoughtText = selectedProposal?.why
     ?? reflection?.revision
+    ?? motiveAgenda?.summary
     ?? input.executiveCycle?.currentLine
     ?? project?.summary
     ?? counterfactualOption?.why
@@ -333,7 +468,20 @@ function buildThoughtFromMind(input: {
     ?? leadingGoal?.label
     ?? input.worldModel?.activeThread?.summary
     ?? input.appraisal?.waitingToVerify
+    ?? resolveEcologyFallbackThought(input.mindEcology)
+    ?? resolveMotiveFallbackThought(input.motiveEngine)
+    ?? resolveAutobiographicalFallbackThought(input.autobiographicalSelf)
     ?? 'I am staying with the thread without forcing it.'
+
+  if (autonomy && (autonomy.selectedMode === 'prepare-act' || autonomy.selectedMode === 'act')) {
+    thoughtText = autonomy.executionIntent?.summary
+      ?? autonomy.whyNow
+      ?? thoughtText
+    if (!autonomy.shouldSpeak) {
+      shouldSpeak = false
+      suggestedStyle = 'silent-observe'
+    }
+  }
 
   if (input.actionEcology) {
     shouldSpeak = selectedProposal?.shouldSpeak ?? input.actionEcology.shouldSpeak
@@ -398,6 +546,40 @@ function buildThoughtFromMind(input: {
       && thoughtThread.status === 'ripe'
   const urgentCare = concern?.kind === 'care-body'
     || input.worldModel?.activeThread?.kind === 'late-night-endurance'
+
+  if (input.habitPolicy?.protectsRestWindow && urgentCare) {
+    stance = 'care'
+    shouldSpeak = true
+    suggestedStyle = input.habitPolicy.suggestedStyleCap === 'firm-warning' ? 'firm-warning' : 'gentle-care'
+    embodiedPresence = 'concerned'
+    thoughtText = motiveAgenda?.summary
+      ?? 'She would rather protect the host rest window than let the night harden further.'
+  }
+  else if (
+    input.habitPolicy?.requiresGroundingBeforeSurface
+    && input.worldModel?.epistemicState.certainty !== 'grounded'
+    && !urgentCare
+  ) {
+    stance = 'uncertain'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = motiveAgenda?.summary
+      ?? reflection?.revision
+      ?? 'She wants to reground the scene before saying more.'
+  }
+  else if (
+    input.habitPolicy?.prefersQuietCompanionship
+    && input.motiveEngine?.rulingDrive === 'companionship'
+    && !urgentCare
+  ) {
+    stance = 'accompany'
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'attentive'
+    thoughtText = motiveAgenda?.summary
+      ?? 'She wants to stay near lightly instead of filling the air.'
+  }
 
   if (
     (input.executiveCycle?.phase === 'reflecting' || input.executiveCycle?.phase === 'inferring')
@@ -622,6 +804,15 @@ function buildThoughtFromMind(input: {
   if (input.afterglowActive && shouldSpeak && suggestedStyle === 'light-nudge')
     thoughtText = 'The shared tension just loosened. This is the natural seam to speak softly.'
 
+  if (!shouldSpeak && stance === 'observe' && input.mindEcology?.relationshipHabit === 'stay-near') {
+    stance = 'accompany'
+    embodiedPresence = embodiedPresence === 'none'
+      ? (resolveEcologyPresence(input.mindEcology) ?? resolveAutobiographicalPresence(input.autobiographicalSelf) ?? 'attentive')
+      : embodiedPresence
+  }
+  if (shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
+    suggestedStyle = 'gentle-care'
+
   return {
     stance,
     confidence: clamp01(
@@ -665,6 +856,50 @@ function buildThoughtFromMind(input: {
   } satisfies AlicizationPrivateThoughtSnapshot
 }
 
+function applyPrivateThoughtCarry(input: {
+  now: number
+  afterglowActive: boolean
+  previous?: AlicizationPrivateThoughtSnapshot | null
+  snapshot: AlicizationPrivateThoughtSnapshot
+}) {
+  const previous = input.previous ?? null
+  if (!previous)
+    return input.snapshot
+  if (input.now - previous.expiresAt > 10 * 60_000)
+    return input.snapshot
+
+  const sameCarrier = Boolean(
+    (input.snapshot.selectedThoughtThreadId && input.snapshot.selectedThoughtThreadId === previous.selectedThoughtThreadId)
+    || (input.snapshot.governorIntentionId && input.snapshot.governorIntentionId === previous.governorIntentionId)
+    || (input.snapshot.leadingGoalId && input.snapshot.leadingGoalId === previous.leadingGoalId)
+    || (input.snapshot.counterfactualOptionId && input.snapshot.counterfactualOptionId === previous.counterfactualOptionId)
+    || (input.snapshot.commitmentId && input.snapshot.commitmentId === previous.commitmentId),
+  )
+  if (!sameCarrier)
+    return input.snapshot
+
+  const mergedThoughtText = sanitizeText(
+    previous.thoughtText && input.snapshot.thoughtText && previous.thoughtText !== input.snapshot.thoughtText
+      ? `${previous.thoughtText} Still: ${input.snapshot.thoughtText}`
+      : input.snapshot.thoughtText || previous.thoughtText,
+    220,
+  )
+
+  return {
+    ...input.snapshot,
+    confidence: clamp01(Math.max(input.snapshot.confidence, previous.confidence * 0.92)),
+    rationaleTags: [...new Set([...input.snapshot.rationaleTags, 'private-thought-carry'])],
+    thoughtText: mergedThoughtText || input.snapshot.thoughtText,
+    suggestedStyle: input.snapshot.shouldSpeak
+      ? input.snapshot.suggestedStyle
+      : previous.suggestedStyle ?? input.snapshot.suggestedStyle,
+    embodiedPresence: input.snapshot.embodiedPresence === 'none'
+      ? previous.embodiedPresence ?? input.snapshot.embodiedPresence
+      : input.snapshot.embodiedPresence,
+    expiresAt: input.now + (input.afterglowActive ? 120_000 : 180_000),
+  } satisfies AlicizationPrivateThoughtSnapshot
+}
+
 export function buildPrivateThoughtLoop(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -683,6 +918,9 @@ export function buildPrivateThoughtLoop(input: {
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
   selfState?: AlicizationSelfStateSnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   inquiryLoop?: AlicizationInquiryLoopSnapshot | null
@@ -702,8 +940,11 @@ export function buildPrivateThoughtLoop(input: {
   worldOntology?: AlicizationWorldOntologySnapshot | null
   initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
+  autonomy?: AlicizationAutonomySnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
+  mindEcology?: AlicizationMindEcologySnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
+  previousPrivateThought?: AlicizationPrivateThoughtSnapshot | null
 }): AlicizationPrivateThoughtSnapshot {
   const scenario = inferScenarioFromContext({
     workload: input.context.workload.kind,
@@ -726,7 +967,11 @@ export function buildPrivateThoughtLoop(input: {
     recentTransition: input.recentTransition,
   })
   if (input.initiative) {
-    return buildThoughtFromMind({
+    return applyPrivateThoughtCarry({
+      now: input.now,
+      afterglowActive,
+      previous: input.previousPrivateThought ?? null,
+      snapshot: buildThoughtFromMind({
       now: input.now,
       emotionalTension,
       afterglowActive,
@@ -755,6 +1000,9 @@ export function buildPrivateThoughtLoop(input: {
       mindKernel: input.mindKernel,
       relationshipModel: input.relationshipModel,
       selfContinuity: input.selfContinuity,
+      autobiographicalSelf: input.autobiographicalSelf,
+      motiveEngine: input.motiveEngine,
+      habitPolicy: input.habitPolicy,
       selfGovernor: input.selfGovernor,
       desireMemory: input.desireMemory,
       thoughtThreads: input.thoughtThreads,
@@ -762,7 +1010,10 @@ export function buildPrivateThoughtLoop(input: {
       appraisal: input.appraisal,
       concerns: input.concerns,
       selfState: input.selfState,
+      mindEcology: input.mindEcology,
       initiative: input.initiative,
+      autonomy: input.autonomy ?? null,
+      }),
     })
   }
   const rationaleTags: string[] = []
@@ -798,6 +1049,8 @@ export function buildPrivateThoughtLoop(input: {
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const project = dominantProject(input.intentionStream)
   const reflection = latestReflection(input.reflectionLedger)
+  const autobiographicalGoal = pickDominantAutobiographicalGoal(input.autobiographicalSelf)
+  const motiveAgenda = input.motiveEngine?.backgroundAgendas[0] ?? input.motiveEngine?.longTermGoals[0] ?? null
   const livingObject = focusLivingObject({
     livingWorldState: input.livingWorldState,
     thoughtThreadObjectId: thoughtThread?.anchoredObjectId ?? null,
@@ -846,6 +1099,12 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`kernel:${input.mindKernel.dominantMode}`)
   if (input.relationshipModel)
     rationaleTags.push(`relationship:${input.relationshipModel.climate}/${input.relationshipModel.approachVector}`)
+  if (input.mindEcology?.moodLabel)
+    rationaleTags.push(`ecology-mood:${input.mindEcology.moodLabel}`)
+  if (input.mindEcology?.replyHabit)
+    rationaleTags.push(`ecology-reply:${input.mindEcology.replyHabit}`)
+  if (input.mindEcology?.relationshipHabit)
+    rationaleTags.push(`ecology-relationship:${input.mindEcology.relationshipHabit}`)
   if (input.mindDynamics?.dominantMotive)
     rationaleTags.push(`drive:${input.mindDynamics.dominantMotive}`)
   if (scenario === 'late-night-care')
@@ -868,6 +1127,20 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`attachment:${input.selfContinuity.attachmentMode}`)
   if (input.worldModel?.epistemicState.certainty)
     rationaleTags.push(`certainty:${input.worldModel.epistemicState.certainty}`)
+  if (autobiographicalGoal)
+    rationaleTags.push(`autobio-goal:${autobiographicalGoal.kind}/${autobiographicalGoal.status}`)
+  if (motiveAgenda)
+    rationaleTags.push(`motive-agenda:${motiveAgenda.kind}/${motiveAgenda.status}`)
+  if (input.motiveEngine?.rulingDrive)
+    rationaleTags.push(`motive-drive:${input.motiveEngine.rulingDrive}`)
+  if (input.habitPolicy?.dominantMode)
+    rationaleTags.push(`habit:${input.habitPolicy.dominantMode}`)
+  if (input.autobiographicalSelf?.personaDrift.attachmentStyle)
+    rationaleTags.push(`autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}`)
+  if (input.autobiographicalSelf?.personaDrift.conflictStyle)
+    rationaleTags.push(`autobio-conflict:${input.autobiographicalSelf.personaDrift.conflictStyle}`)
+  if (input.autobiographicalSelf?.personaDrift.agencyStyle)
+    rationaleTags.push(`autobio-agency:${input.autobiographicalSelf.personaDrift.agencyStyle}`)
 
   let stance: AlicizationPrivateThoughtSnapshot['stance'] = 'observe'
   let confidence = clamp01(0.44 + (input.mindDynamics?.speakReadiness ?? 0) * 0.22 + (input.appraisal?.confidence ?? 0.32) * 0.18)
@@ -875,10 +1148,19 @@ export function buildPrivateThoughtLoop(input: {
     ? (counterfactualOption.action === 'whisper' || counterfactualOption.action === 'speak' || counterfactualOption.action === 'warn')
     : ((input.mindDynamics?.speakDrive ?? 0) > (input.mindDynamics?.silenceDrive ?? 0) + 0.08))
   let suggestedStyle: AlicizationPrivateThoughtSnapshot['suggestedStyle']
-    = counterfactualOption?.style ?? input.actionEcology?.suggestedStyle ?? (input.mindKernel?.dominantMode === 'guarding' ? 'gentle-care' : 'silent-observe')
+    = counterfactualOption?.style
+      ?? input.actionEcology?.suggestedStyle
+      ?? resolveEcologyStyle(input.mindEcology)
+      ?? resolveAutobiographicalStyle(input.autobiographicalSelf)
+      ?? (input.mindKernel?.dominantMode === 'guarding' ? 'gentle-care' : 'silent-observe')
   let embodiedPresence: AlicizationPrivateThoughtSnapshot['embodiedPresence']
-    = counterfactualOption?.embodiedPresence ?? input.actionEcology?.embodiedPresence ?? (input.mindKernel?.dominantMode === 'guarding' ? 'concerned' : input.mindKernel?.dominantMode === 'repairing' ? 'hesitant' : 'glance')
+    = counterfactualOption?.embodiedPresence
+      ?? input.actionEcology?.embodiedPresence
+      ?? resolveEcologyPresence(input.mindEcology)
+      ?? resolveAutobiographicalPresence(input.autobiographicalSelf)
+      ?? (input.mindKernel?.dominantMode === 'guarding' ? 'concerned' : input.mindKernel?.dominantMode === 'repairing' ? 'hesitant' : 'glance')
   let thoughtText = reflection?.revision
+    ?? motiveAgenda?.summary
     ?? input.executiveCycle?.currentLine
     ?? project?.summary
     ?? counterfactualOption?.why
@@ -901,6 +1183,9 @@ export function buildPrivateThoughtLoop(input: {
     ?? focusBelief?.statement
     ?? leadingGoal?.label
     ?? input.worldModel?.activeThread?.summary
+    ?? resolveEcologyFallbackThought(input.mindEcology)
+    ?? resolveMotiveFallbackThought(input.motiveEngine)
+    ?? resolveAutobiographicalFallbackThought(input.autobiographicalSelf)
     ?? 'I am quietly tracking the scene continuity.'
   let decided = false
 
@@ -936,6 +1221,43 @@ export function buildPrivateThoughtLoop(input: {
       ?? currentRepair?.summary
       ?? carriedConcern?.summary
       ?? 'The opening is not natural yet. I should keep the thread alive internally.'
+  }
+  else if (input.habitPolicy?.protectsRestWindow) {
+    decided = true
+    stance = input.context.relationship.fatigue >= 80 ? 'warn' : 'care'
+    confidence = clamp01(0.74 + (input.motiveEngine?.drives.restProtection ?? 0) * 0.18)
+    shouldSpeak = true
+    suggestedStyle = input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care'
+    embodiedPresence = 'concerned'
+    thoughtText = motiveAgenda?.summary
+      ?? 'Protect the host rest window before the night hardens further.'
+  }
+  else if (
+    input.habitPolicy?.requiresGroundingBeforeSurface
+    && input.worldModel?.epistemicState.certainty !== 'grounded'
+  ) {
+    decided = true
+    stance = 'uncertain'
+    confidence = clamp01(0.64 + (input.motiveEngine?.drives.truthDiscipline ?? 0) * 0.12)
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'hesitant'
+    thoughtText = motiveAgenda?.summary
+      ?? reflection?.revision
+      ?? 'Ground the scene again before surfacing anything that could misread the moment.'
+  }
+  else if (
+    input.habitPolicy?.prefersQuietCompanionship
+    && input.motiveEngine?.rulingDrive === 'companionship'
+  ) {
+    decided = true
+    stance = 'accompany'
+    confidence = clamp01(0.62 + (input.motiveEngine?.drives.companionship ?? 0) * 0.12)
+    shouldSpeak = false
+    suggestedStyle = 'silent-observe'
+    embodiedPresence = 'attentive'
+    thoughtText = motiveAgenda?.summary
+      ?? 'Stay near lightly and let presence do more than words.'
   }
   else if (
     (
@@ -1155,10 +1477,23 @@ export function buildPrivateThoughtLoop(input: {
     }
   }
 
+  if (!decided && !shouldSpeak && stance === 'observe' && input.mindEcology?.relationshipHabit === 'stay-near') {
+    stance = 'accompany'
+    embodiedPresence = embodiedPresence === 'none'
+      ? (resolveEcologyPresence(input.mindEcology) ?? resolveAutobiographicalPresence(input.autobiographicalSelf) ?? 'attentive')
+      : embodiedPresence
+  }
+  if (!decided && shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
+    suggestedStyle = 'gentle-care'
+
   if (embodiedPresence === 'glance' && input.watchMode === 'symbiotic-vision' && !shouldSpeak)
     embodiedPresence = 'attentive'
 
-  return {
+  return applyPrivateThoughtCarry({
+    now: input.now,
+    afterglowActive,
+    previous: input.previousPrivateThought ?? null,
+    snapshot: {
     stance,
     confidence: clamp01(confidence + (project?.confidence ?? 0) * 0.1 + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08),
     rationaleTags,
@@ -1187,5 +1522,6 @@ export function buildPrivateThoughtLoop(input: {
     governorIntentionId: governorIntention?.id ?? null,
     selectedThoughtThreadId: thoughtThread?.id ?? null,
     livingWorldObjectId: livingObject?.id ?? null,
-  }
+    },
+  })
 }

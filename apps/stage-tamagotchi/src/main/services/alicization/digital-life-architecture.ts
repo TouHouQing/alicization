@@ -117,6 +117,14 @@ function formatSubsystemState(state: AlicizationDigitalLifeSubsystemState) {
   return 'IDLE'
 }
 
+function isAutonomyActionMode(mode: string | null | undefined) {
+  return mode === 'prepare-act' || mode === 'act'
+}
+
+function isAutonomySpeechMode(mode: string | null | undefined) {
+  return mode === 'whisper' || mode === 'speak' || mode === 'warn'
+}
+
 function buildPerceptionSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): AlicizationDigitalLifeSubsystemSnapshot {
   const scene = surface.perception.currentScene
   const attention = surface.perception.attention
@@ -202,16 +210,24 @@ function buildDialogueSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): 
 function buildProactiveSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): AlicizationDigitalLifeSubsystemSnapshot {
   const privateThought = surface.cognition.privateThought
   const initiative = surface.agency.initiative
+  const autonomy = surface.agency.autonomy
   const concern = pickDominantConcern(surface)
   const desire = pickResurfacingDesire(surface)
   const score = clamp01(Math.max(
     privateThought?.shouldSpeak ? privateThought.confidence : 0,
     initiative?.shouldSpeak ? Math.max(initiative.confidence, initiative.speakDrive ?? 0) : 0,
+    autonomy?.shouldSpeak
+      ? Math.max(autonomy.speakReadiness, autonomy.confidence)
+      : isAutonomySpeechMode(autonomy?.selectedMode)
+        ? Math.max(autonomy?.speakReadiness ?? 0, 0.66)
+        : 0,
     concern ? Math.max(concern.tension, concern.careWeight) * 0.88 : 0,
     desire ? desire.strength * 0.82 : 0,
     surface.agency.selfState?.desireToSpeak ?? 0,
   ))
   const focus = firstNonEmptyText(
+    autonomy?.whyNow,
+    autonomy?.executionIntent?.summary,
     privateThought?.thoughtText,
     concern?.summary,
     desire?.reason,
@@ -224,6 +240,7 @@ function buildProactiveSubsystem(surface: AlicizationDigitalLifeRuntimeSurface):
     score,
     focus,
     summary: [
+      autonomy?.selectedMode ? `autonomy=${autonomy.selectedMode}` : '',
       initiative?.selectedAction ? `action=${initiative.selectedAction}` : '',
       initiative?.preferredStyle ? `style=${initiative.preferredStyle}` : '',
       concern ? `concern=${sanitizeText(concern.summary, 64)}` : '',
@@ -231,6 +248,7 @@ function buildProactiveSubsystem(surface: AlicizationDigitalLifeRuntimeSurface):
       privateThought?.shouldSpeak ? 'private-thought=surface' : '',
     ].filter(Boolean).join(' | '),
     reasons: [
+      autonomy?.selectedMode ? `autonomy:${autonomy.selectedMode}` : 'autonomy:none',
       initiative?.shouldSpeak ? 'initiative:speak' : 'initiative:hold',
       concern ? `concern:${concern.kind}` : 'concern:none',
       desire ? `desire:${desire.kind}` : 'desire:none',
@@ -240,17 +258,27 @@ function buildProactiveSubsystem(surface: AlicizationDigitalLifeRuntimeSurface):
 
 function buildControlSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): AlicizationDigitalLifeSubsystemSnapshot {
   const initiative = surface.agency.initiative
+  const autonomy = surface.agency.autonomy
   const actionEcology = surface.agency.actionEcology
   const primaryInquiry = pickPrimaryInquiry(surface)
   const intention = pickDominantIntention(surface)
   const score = clamp01(Math.max(
     actionEcology?.readiness ?? 0,
     surface.agency.deliberationState?.readiness ?? 0,
+    isAutonomyActionMode(autonomy?.selectedMode)
+      ? Math.max(
+          autonomy?.actReadiness ?? 0,
+          autonomy?.confidence ?? 0,
+          autonomy?.shouldAct ? 0.92 : 0.74,
+        )
+      : 0,
     initiative?.selectedAction && initiative.selectedAction !== 'wait' ? initiative.confidence : 0,
     intention ? Math.max(intention.urgency, intention.confidence) * 0.9 : 0,
     primaryInquiry ? primaryInquiry.confidence * 0.78 : 0,
   ))
   const focus = firstNonEmptyText(
+    autonomy?.executionIntent?.summary,
+    autonomy?.whyNow,
     intention?.summary,
     actionEcology?.why,
     primaryInquiry?.question,
@@ -263,13 +291,16 @@ function buildControlSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): A
     score,
     focus,
     summary: [
+      autonomy?.selectedMode ? `autonomy=${autonomy.selectedMode}` : '',
       initiative?.selectedAction ? `action=${initiative.selectedAction}` : '',
+      autonomy?.executionIntent?.kind ? `intent=${sanitizeText(autonomy.executionIntent.kind, 56)}` : '',
       actionEcology?.mode ? `ecology=${actionEcology.mode}` : '',
       intention ? `intention=${sanitizeText(intention.title, 56)}` : '',
       primaryInquiry ? `inquiry=${sanitizeText(primaryInquiry.question, 56)}` : '',
       actionEcology ? `surface=${actionEcology.shouldSurface ? 'true' : 'false'}` : '',
     ].filter(Boolean).join(' | '),
     reasons: [
+      autonomy?.selectedMode ? `autonomy:${autonomy.selectedMode}` : 'autonomy:none',
       actionEcology ? `ecology:${actionEcology.mode}` : 'ecology:none',
       intention ? `drive:${intention.drive}` : 'drive:none',
       primaryInquiry ? `inquiry:${primaryInquiry.kind}` : 'inquiry:none',
@@ -402,13 +433,19 @@ function buildRuntimeSubsystem(surface: AlicizationDigitalLifeRuntimeSurface): A
 function deriveOperatingMode(input: {
   dominantSystem: AlicizationDigitalLifeSubsystemId
   systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot>
+  surface: AlicizationDigitalLifeRuntimeSurface
 }) {
   const { dominantSystem, systems } = input
   const dialogue = systems.dialogue
   const control = systems.control
   const memory = systems.memory
   const perception = systems.perception
+  const autonomy = input.surface.agency.autonomy
 
+  if (isAutonomyActionMode(autonomy?.selectedMode))
+    return 'acting' as const
+  if (autonomy?.shouldSpeak || isAutonomySpeechMode(autonomy?.selectedMode))
+    return 'speaking' as const
   if (dialogue.score >= 0.72)
     return 'speaking' as const
   if (control.score >= 0.72)
@@ -428,6 +465,7 @@ function rankSubsystems(systems: Record<AlicizationDigitalLifeSubsystemId, Alici
 
 function resolveDominantSubsystem(
   systems: Record<AlicizationDigitalLifeSubsystemId, AlicizationDigitalLifeSubsystemSnapshot>,
+  autonomy: AlicizationDigitalLifeRuntimeSurface['agency']['autonomy'],
 ) {
   const ranked = rankSubsystems(systems)
   const top = ranked[0]
@@ -443,6 +481,12 @@ function resolveDominantSubsystem(
   // Likewise, once an action/control loop is materially live, it should be
   // allowed to dominate over adjacent cognitive systems instead of being
   // flattened into generic "mind" activity.
+  if (
+    isAutonomyActionMode(autonomy?.selectedMode)
+    && systems.control.score >= top.score - 0.08
+  ) {
+    return systems.control
+  }
   if (systems.control.score >= 0.72 && systems.control.score >= top.score - 0.05)
     return systems.control
 
@@ -503,7 +547,7 @@ export function buildAlicizationDigitalLifeArchitecture(
     runtime: buildRuntimeSubsystem(surface),
   }
   const ranked = rankSubsystems(systems)
-  const dominant = resolveDominantSubsystem(systems)
+  const dominant = resolveDominantSubsystem(systems, surface.agency.autonomy)
   if (!dominant)
     return null
 
@@ -520,6 +564,7 @@ export function buildAlicizationDigitalLifeArchitecture(
   const operatingMode = deriveOperatingMode({
     dominantSystem: dominant.id,
     systems,
+    surface,
   })
   const governingFocus = dominant.focus
     ?? ranked.find(system => system.focus)?.focus

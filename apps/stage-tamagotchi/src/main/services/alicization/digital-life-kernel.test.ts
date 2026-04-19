@@ -166,6 +166,44 @@ describe('digital life kernel', () => {
           narrative: ['tracking is governing the current inner line.'],
           updatedAt: 5_000,
         } as any,
+        motiveEngine: {
+          rulingDrive: 'unfinished-thread-return',
+          drives: {
+            companionship: 0.42,
+            boundaryRespect: 0.46,
+            truthDiscipline: 0.72,
+            restProtection: 0.24,
+            unfinishedThreadReturn: 0.84,
+            selfDirection: 0.68,
+          },
+          longTermGoals: [],
+          backgroundAgendas: [{
+            id: 'agenda::return-open-loop',
+            kind: 'return-open-loop',
+            status: 'foreground',
+            weight: 0.82,
+            summary: 'Do not let the unfinished runtime thread dissolve.',
+            sourceTags: ['open-loop'],
+            targetGoalKind: 'clarify-scene',
+            createdAt: 0,
+            updatedAt: 5_000,
+          }],
+          returnPressure: 0.8,
+          narrative: ['agenda:return-open-loop'],
+          updatedAt: 5_000,
+        } as any,
+        habitPolicy: {
+          dominantMode: 'return-with-proof',
+          requiresGroundingBeforeSurface: true,
+          prefersQuietCompanionship: false,
+          blocksDirectSpeakWhenBusy: true,
+          protectsRestWindow: false,
+          returnViaRecheck: true,
+          suggestedStyleCap: 'silent-observe',
+          suggestedPresenceCap: 'hesitant',
+          narrative: ['policy:return-with-proof'],
+          updatedAt: 5_000,
+        } as any,
         replyDeliberation: {
           shouldSpeak: true,
           shouldLabelHypothesis: false,
@@ -206,6 +244,8 @@ describe('digital life kernel', () => {
     expect(surface.cognition.privateThought?.thoughtText).toContain('legible')
     expect(surface.dialogue.replyDeliberation).toEqual(state.replyDeliberation)
     expect(surface.memory.workingMemoryEpisodes).toEqual(state.workingMemoryEpisodes)
+    expect(surface.memory.motiveEngine).toEqual(state.motiveEngine)
+    expect(surface.agency.habitPolicy).toEqual(state.habitPolicy)
     expect(surface.agency.initiative).toEqual(state.initiative)
   })
 

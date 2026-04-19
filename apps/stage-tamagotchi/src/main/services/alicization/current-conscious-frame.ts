@@ -14,6 +14,8 @@ import type {
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import { buildAlicizationDialogueGrowthProfile, type AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
+import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 
 function clamp01(value: number) {
@@ -26,6 +28,16 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function stripTrailingPunctuation(text: string) {
+  return text.replace(/[.。!！?？;；:：]+$/u, '').trim()
+}
+
+function lowerFirst(text: string) {
+  if (!text)
+    return ''
+  return text.slice(0, 1).toLowerCase() + text.slice(1)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -162,15 +174,19 @@ function resolveConsciousNeed(input: {
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   primaryAnchor: string | null
+  growthProfile: AlicizationDialogueGrowthProfile
 }) {
+  const surfaceNeed = pickSurfaceText(
+    input.conversationState?.owedRepair,
+    input.answerCompiler.uncertaintyBoundary,
+    input.mindSynthesis?.uncertainties?.[0]?.summary,
+    input.dialogueEncounter?.summary,
+  )
   switch (input.centerOfGravity) {
     case 'repair':
-      return pickSurfaceText(
-        input.conversationState?.owedRepair,
-        input.answerCompiler.uncertaintyBoundary,
-        input.mindSynthesis?.uncertainties?.[0]?.summary,
-        input.dialogueEncounter?.summary,
-      ) || 'Repair the truth seam before continuing.'
+      return surfaceNeed
+        ? `The seam still feels off around ${lowerFirst(stripTrailingPunctuation(surfaceNeed))}, and I need to steady it before I keep going.`
+        : 'The seam still feels off, and I need to steady it before I keep going.'
     case 'guide':
       return pickSurfaceText(
         input.primaryAnchor,
@@ -178,14 +194,33 @@ function resolveConsciousNeed(input: {
         input.conversationState?.activeCommitments?.[0],
         input.answerCompiler.nextMove,
         input.mindSynthesis?.commitments?.[0]?.summary,
-      ) || 'Move the active knot one step closer to resolution.'
+      )
+        ? `The knot I need to keep my hands on is ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+            input.primaryAnchor,
+            input.conversationState?.unansweredQuestion,
+            input.conversationState?.activeCommitments?.[0],
+            input.answerCompiler.nextMove,
+            input.mindSynthesis?.commitments?.[0]?.summary,
+          )))}.`
+        : 'The knot wants my hands on it, not a speech around it.'
     case 'care':
       return pickSurfaceText(
         input.primaryAnchor,
         input.answerCompiler.careVector,
         input.conversationState?.hostMove,
         input.mindSynthesis?.concerns?.[0]?.summary,
-      ) || 'Stay close to the host’s present state without drifting away.'
+      )
+        ? `What I need to stay close to is ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+            input.primaryAnchor,
+            input.answerCompiler.careVector,
+            input.conversationState?.hostMove,
+            input.mindSynthesis?.concerns?.[0]?.summary,
+          )))}.`
+        : input.growthProfile.companionshipStyle === 'close-hold'
+            ? 'I need to stay close enough for the host to feel me there, but still leave them room to breathe.'
+            : input.growthProfile.autonomyRespect >= 0.58
+            ? 'I need to stay close to the host’s present state without leaning too hard on it.'
+            : 'I need to stay close to the host’s present state without drifting away.'
     case 'attune':
     case 'answer':
       return pickSurfaceText(
@@ -193,15 +228,28 @@ function resolveConsciousNeed(input: {
         input.conversationState?.hostMove,
         input.dialogueEncounter?.summary,
         input.answerCompiler.openingClaim,
-      ) || 'Answer from the live dialogue subject itself.'
+      )
+        ? `The live center I need to answer from is ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+            input.primaryAnchor,
+            input.conversationState?.hostMove,
+            input.dialogueEncounter?.summary,
+            input.answerCompiler.openingClaim,
+          )))}.`
+        : 'I need to answer from the live dialogue subject itself.'
     case 'witness':
       return pickSurfaceText(
         input.answerCompiler.supportingReality?.[0],
         input.answerCompiler.openingClaim,
         input.dialogueEncounter?.summary,
-      ) || 'Start from what is actually visible before naming a larger story.'
+      )
+        ? `What I need to stay with first is ${lowerFirst(stripTrailingPunctuation(pickSurfaceText(
+            input.answerCompiler.supportingReality?.[0],
+            input.answerCompiler.openingClaim,
+            input.dialogueEncounter?.summary,
+          )))}.`
+        : 'I need to start from what is actually visible before I widen into a larger story.'
     default:
-      return 'Do not flood the turn with more than it can hold.'
+      return 'I need to keep the turn small enough to stay true instead of flooding it with more than it can hold.'
   }
 }
 
@@ -212,24 +260,35 @@ function resolveSpeakingIntention(input: {
   mindSynthesis?: AlicizationMindSynthesisSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
+  growthProfile: AlicizationDialogueGrowthProfile
 }) {
   if (input.truthDiscipline === 'repair-first')
-    return 'Let the answer visibly revise the old read before it tries to sound intelligent.'
+    return input.growthProfile.repairGentleness >= 0.58
+      ? 'I want the revision to land cleanly and gently, not just correctly.'
+      : input.growthProfile.irritability >= 0.58
+      ? 'I want the answer to show the revision cleanly before tension makes it sound sharper than it needs to.'
+      : 'I want the answer to show the revision first, before it tries to sound intelligent.'
   if (input.truthDiscipline === 'observe-then-hypothesize')
-    return 'Separate what is visible now from what is only a guess, and keep the guess soft.'
+    return 'I can lean on what is visible now, but anything beyond that has to stay soft and named as a guess.'
   if (input.truthDiscipline === 'memory-labeled')
-    return 'Carry continuity only as memory or residue, never as literal current perception.'
+    return 'If continuity enters, I need to let it in as memory or residue, never as literal current perception.'
   if (input.truthDiscipline === 'dialogue-first')
-    return 'Stay inside the living dialogue subject before dragging in screen context or old carry.'
+    return input.growthProfile.companionshipStyle === 'close-hold'
+      ? 'I want to stay with the live dialogue subject closely enough to feel present, but never so hard that it crowds the host.'
+      : input.growthProfile.autonomyRespect >= 0.58
+      ? 'I want to stay with the live dialogue subject and let closeness land without crowding it.'
+      : 'I want to stay with the live dialogue subject before screen context or old carry crowd in.'
   if (input.centerOfGravity === 'guide')
-    return 'Stay with the active knot and move it one honest step closer to resolution.'
+    return input.growthProfile.unfinishedThreadReturn >= 0.58
+      ? 'I want to keep the active knot in my hands and not let the thread fall slack before it lands.'
+      : 'I want to keep my hands on the active knot and move it one honest step closer to resolution.'
 
   return pickSurfaceText(
     input.mindSynthesis?.openingIntent,
     input.answerCompiler.openingDirective,
     input.privateThought?.thoughtText,
     input.initiative?.why,
-  ) || 'Speak from the present center of gravity instead of default helpfulness.'
+  ) || 'I want the reply to come from the present center of gravity instead of default helpfulness.'
 }
 
 export function buildCurrentConsciousFrame(input: {
@@ -253,6 +312,16 @@ export function buildCurrentConsciousFrame(input: {
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const initiative = runtimeSurface?.agency.initiative ?? input.initiative ?? null
   const desireMemory = runtimeSurface?.memory.desireMemory ?? input.desireMemory ?? null
+  const growthProfile = buildAlicizationDialogueGrowthProfile({
+    autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+    habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
+    selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
+    selfState: runtimeSurface?.agency.selfState ?? null,
+    privateThought,
+    mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+  })
 
   if (!discourseState || !answerCompiler)
     return null
@@ -301,14 +370,20 @@ export function buildCurrentConsciousFrame(input: {
     mindSynthesis,
     dialogueEncounter,
     primaryAnchor,
+    growthProfile,
   })
-  const consciousTension = pickSurfaceText(
+  const surfaceTension = pickSurfaceText(
     strongestMindStatement(mindSynthesis?.concerns)?.summary,
     strongestMindStatement(mindSynthesis?.uncertainties)?.summary,
     privateThought?.thoughtText,
     initiative?.why,
     desireMemory?.activeDesires?.[0]?.reason,
-  ) || 'Keep the visible answer aligned with the real inner pressure of this turn.'
+  )
+  const consciousTension = surfaceTension
+    ? `What is tugging hardest inside me is ${lowerFirst(stripTrailingPunctuation(surfaceTension))}.`
+    : growthProfile.unfinishedThreadReturn >= 0.58
+        ? 'What is tugging hardest inside me is not letting the thread I am holding go slack between turns.'
+        : 'What is tugging hardest inside me is keeping the visible answer aligned with the real pressure of this turn.'
   const speakingIntention = resolveSpeakingIntention({
     truthDiscipline,
     centerOfGravity,
@@ -316,11 +391,12 @@ export function buildCurrentConsciousFrame(input: {
     mindSynthesis,
     privateThought,
     initiative,
+    growthProfile,
   })
   const withheldImpulse = shouldWithholdSpecificity
-    ? 'Do not collapse coarse visual evidence into file, class, or field certainty.'
+    ? 'The impulse I need to hold back is collapsing coarse visual evidence into file, class, or field certainty.'
     : shouldSelfRevise
-      ? 'Do not defend an older interpretation just to preserve continuity.'
+      ? 'The impulse I need to hold back is defending an older interpretation just to preserve continuity.'
       : null
 
   return {
@@ -366,13 +442,13 @@ export function buildCurrentConsciousFrameSystemBlock(
     `Subject: ${frame.subject}.`,
     `Center of gravity: ${frame.centerOfGravity}.`,
     `Truth discipline: ${frame.truthDiscipline}.`,
-    `Conscious need: ${frame.consciousNeed}.`,
-    `Conscious tension: ${frame.consciousTension}.`,
-    `Speaking intention: ${frame.speakingIntention}.`,
+    `What the turn needs from me: ${frame.consciousNeed}.`,
+    `What is pulling inside the answer: ${frame.consciousTension}.`,
+    `How I want the reply to come out: ${frame.speakingIntention}.`,
     `Focus anchor: ${frame.focusAnchor ?? 'none'}.`,
     `Withhold specificity: ${frame.shouldWithholdSpecificity ? 'yes' : 'no'}.`,
     `Self revision required: ${frame.shouldSelfRevise ? 'yes' : 'no'}.`,
-    `Withheld impulse: ${frame.withheldImpulse ?? 'none'}.`,
+    `What I am holding back: ${frame.withheldImpulse ?? 'none'}.`,
     `Reason tags: ${frame.reasonTags.join(' | ') || 'none'}.`,
   ].join('\n')
 }

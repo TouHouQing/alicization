@@ -13,6 +13,7 @@ import {
 } from './alicization-performance-contracts'
 import {
   resolveStageEmbodimentCueCandidates,
+  resolveStageEmbodimentLive2DExpressionAliases,
   resolveStageEmbodimentLive2DMotionAliases,
   resolveStageEmbodimentSpeechStyle,
   resolveStageEmbodimentVrmBaseExpressionCandidates,
@@ -208,7 +209,7 @@ function inferEncounter(input: {
       || input.governance?.turnMode === 'accompany',
     firmSignal: /必须|立刻|马上|务必|stop|must|need to/i.test(reply)
       || /tone=\s*direct/.test(thought)
-      || (input.governance?.repairState !== 'none'),
+      || (input.governance?.repairState != null && input.governance.repairState !== 'none'),
     energeticSignal: /[!！]{2,}|太好了|真棒|awesome|great|wow/i.test(reply),
     uncertaintySignal: /也许|可能|不确定|我想|我觉得|maybe|perhaps|i think/i.test(reply)
       || obligation === 'ask-reground',
@@ -249,6 +250,8 @@ function resolveBaseEmotion(input: {
       || encounter.questionSignal
 
   if (!strongSignal && resolved === previousEmotion) {
+    if (encounter.dialogueFirst && (resolved === 'concerned' || resolved === 'thinking'))
+      return resolved
     if (resolved === 'neutral')
       resolved = 'thinking'
     else if (resolved === 'thinking')
@@ -281,6 +284,8 @@ function resolveDelivery(input: {
     resolved = 'hesitant'
 
   if (previousDelivery === resolved) {
+    if (encounter.dialogueFirst && (resolved === 'gentle' || resolved === 'hesitant'))
+      return resolved
     if (resolved === 'calm')
       resolved = input.emotion === 'thinking' ? 'hesitant' : 'gentle'
     else if (resolved === 'hesitant')
@@ -351,7 +356,7 @@ function resolvePostureHint(input: {
     || input.delivery === 'firm'
     || input.delivery === 'energetic'
     || input.encounter.dialogueFirst
-    || governance?.repairState !== 'none'
+    || (governance?.repairState != null && governance.repairState !== 'none')
   ) {
     return 'attentive'
   }
@@ -363,6 +368,7 @@ function resolveSpeechStyle(input: {
   delivery: AlicizationPerformanceDelivery
   emotion: AlicizationEmotion
   emphasis: 0 | 1 | 2
+  encounter?: DialogueEncounterSnapshot
 }) {
   const baseStyle = resolveStageEmbodimentSpeechStyle(input.emotion)
   const emphasisPitch = input.emphasis === 2 ? 1 : 0
@@ -371,17 +377,25 @@ function resolveSpeechStyle(input: {
     : input.emphasis === 1
       ? 1.02
       : 1
+  const dialogueFirstSoften = input.encounter?.dialogueFirst === true
+    && (input.emotion === 'concerned' || input.emotion === 'apologetic' || input.delivery === 'gentle')
+  const reflectiveSlowdown = input.encounter?.dialogueFirst === true
+    && input.emotion === 'thinking'
+    && input.delivery === 'hesitant'
 
   return {
     pitchDelta: clampPitchDelta(
       baseStyle.pitchDelta
       + deliveryPitchAdjustments[input.delivery]
+      + (dialogueFirstSoften ? -2 : 0)
       + emphasisPitch,
     ),
     rateMultiplier: clampRateMultiplier(
       baseStyle.rateMultiplier
       * deliveryRateAdjustments[input.delivery]
-      * emphasisRate,
+      * emphasisRate
+      * (dialogueFirstSoften ? 0.96 : 1)
+      * (reflectiveSlowdown ? 0.98 : 1),
     ),
   } satisfies StageEmbodimentSpeechStyleProfile
 }
@@ -393,6 +407,7 @@ function resolveDialogueEmbodimentRendererHints(input: {
   const manifestHints = input.performanceManifest?.embodimentHints?.[input.emotion]
   const preferredExpressionAliases = dedupeCues([
     ...(manifestHints?.preferredExpressionAliases ?? []),
+    ...resolveStageEmbodimentLive2DExpressionAliases(input.emotion),
     ...resolveStageEmbodimentVrmBaseExpressionCandidates(input.emotion),
   ])
   const preferredMotionAliases = dedupeCues([
@@ -436,6 +451,7 @@ export function normalizeAlicizationDialogueEmbodimentEnvelope(
         delivery: performance.delivery,
         emotion: normalizedEmotion,
         emphasis: performance.emphasis,
+        encounter: undefined,
       })
   const postureHint = (() => {
     const rawPostureHint = typeof candidate.postureHint === 'string'
@@ -542,6 +558,7 @@ export function resolveAlicizationDialogueEmbodiment(
       delivery,
       emotion,
       emphasis,
+      encounter,
     }),
     rendererHints: resolveDialogueEmbodimentRendererHints({
       emotion,

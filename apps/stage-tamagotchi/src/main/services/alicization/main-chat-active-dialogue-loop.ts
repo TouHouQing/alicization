@@ -1,4 +1,7 @@
-import type { AlicizationPersonaKernelSnapshot } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationDialoguePerformancePayload,
+  AlicizationPersonaKernelSnapshot,
+} from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -15,6 +18,7 @@ import {
   alicizationFixedHostNameDirectiveTemplate,
   alicizationFixedStructuredContractAnchor,
   detectAlicizationRealtimeQueryIntent,
+  normalizeAlicizationDigitalLifeSpineDigest,
   renderAlicizationPromptTemplate,
   resolveGovernedMindEmotion,
   resolveGovernedMindObligation,
@@ -27,6 +31,7 @@ import {
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
 import {
+  buildAlicizationMindSurfaceDialogueMove,
   buildAlicizationMindSurfaceStructuredReply,
   type AlicizationMindSurfaceClockSnapshot,
   type AlicizationMindSurfaceCapabilityMove,
@@ -49,6 +54,8 @@ import {
   resolveAlicizationTimeQueryIntent,
   type AlicizationTimeQueryMode,
 } from './time-query-semantics'
+import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
+import { buildSelfContinuityAuthority } from './self-continuity-authority'
 
 export type AlicizationActiveDialogueFastPathLane
   = | 'greeting'
@@ -67,6 +74,13 @@ export type AlicizationActiveDialogueFastPathStrategy
     | 'deterministic-payoff'
     | 'compact-one-shot'
 
+export class AlicizationActiveDialogueMindAuthorityEscalationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AlicizationActiveDialogueMindAuthorityEscalationError'
+  }
+}
+
 export interface AlicizationActiveDialogueFastPathDecision {
   lane: AlicizationActiveDialogueFastPathLane
   strategy: AlicizationActiveDialogueFastPathStrategy
@@ -81,6 +95,8 @@ export interface AlicizationActiveDialogueFastPathDecision {
   sessionMirror: AlicizationDialogueSessionMirror | null
   governance: AlicizationMindTurnGovernance | null
   personaKernel: AlicizationPersonaKernelSnapshot | null
+  performanceManifest?: AlicizationPreparedMainChatExecutionResult['performanceManifest']
+  digitalLifeSpine?: unknown
   reasonCodes: string[]
 }
 
@@ -93,6 +109,7 @@ interface AlicizationActiveDialogueFastPathInput {
 interface AlicizationActiveDialogueReplyInput {
   actionKind?: AlicizationMainChatActionObligationKind | null
   conversationMessages: Message[]
+  digitalLifeSpine?: unknown
   governance?: AlicizationMindTurnGovernance | null
   personaKernel?: AlicizationPersonaKernelSnapshot | null
   runtimeDigest?: AlicizationRuntimeDigest | null
@@ -116,11 +133,8 @@ interface AlicizationActiveDialogueEncounterContext {
   previousAssistantText: string
   continuityAnchor: string
   preparedExecutionCarryText: string
-  runtimeDigest: AlicizationRuntimeDigest | null
   sessionMirror: AlicizationDialogueSessionMirror | null
-  governance: AlicizationMindTurnGovernance | null
   shortTurn: boolean
-  dialogueFirst: boolean
   hasContinuity: boolean
 }
 
@@ -146,9 +160,8 @@ const enRepairClarifyPattern = /(?:what are you talking about|you are not making
 const explicitCarryPattern = /(?:刚才|刚刚|上一条|上条|上个|上一轮|前面|那条|那个|那次|继续|接着|续上|顺着|沿着|剩下|其余|后面|补全|展开|详细|具体|再列|继续说|继续列|同一条|那个命令|那个任务|那个结果|另外|that one|previous|earlier|continue|go on|keep going|pick up|follow up|same thread|same task|remaining)/iu
 const remainingFollowUpPattern = /(?:另外(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|另外还有|还有哪|还有什么|还有几(?:项|个)?|另外哪|剩下哪|剩下(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|其余哪|其余(?:\s*[一二三四五六七八九十\d]+)?(?:项|个)?(?:是|有哪些|是什么|什么|哪些)?|what else|which other|the other|remaining)/iu
 const continuityCheckPattern = /^(?:你确定(?:吗)?|确定吗|真的吗|真的是这样吗|你认真的|are you sure|really|seriously)[?？]?$/iu
-const commandLikePattern = /(?:\b(?:cli|shell|terminal|command|ls|cat|grep|rg|pnpm|npm|yarn|git)\b|[\\/]|--?\w+)/iu
 const runtimeMetaLeakPattern = /(?:provider|baseurl|main-gateway|timeout|timed out|stream|recovery|首段回复|首包|当前提供方或模型配置不完整|我先守住真实边界|旧锚点|重新落地|继续还是执行下一步|旧线硬接|实时画面依据|基于当前屏幕给出细节)/iu
-const legacyTemplateShellPattern = /(?:要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|这一轮你想开哪个点|我贴着这一轮往下接|这条线还连着|我可以直接续|我就正面回你|我听见你了|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.)/iu
+const legacyTemplateShellPattern = /(?:要是还是.+?(?:那条线|那件事)|你现在想聊什么，或者想让我做什么|你想继续聊，还是想让我做点什么|你想继续聊，还是想让我立刻动手|这一轮你想开哪个点|我贴着这一轮往下接|我就沿.+?往下|贴着.+?往下说|(?:好，)?我就直接接(?:「.+?」)?|我不把话题滑开|我不拿别的壳盖住它|这条线还连着|我可以直接续|我就正面回你|我听见你了|这句我收到了|你要是想往深里说，就从这点继续|上一条线的余温|If you want to keep going with|The previous line is still warm in my head|Then I'll answer you directly\.|I'll stay with .+? and keep going from there\.|I won't drift away from it\.|I won't turn it into something else\.)/iu
 const cjkPattern = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 const zhWeekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'] as const
 
@@ -351,14 +364,6 @@ function looksLikeExecutionCarry(input: {
   return /(?:桌面|目录|文件|清单|列表|list|listing|callback|cli|执行|结果|thread|任务)/iu.test(executionCarryText)
 }
 
-function looksLikeDialogueFirst(governance: AlicizationMindTurnGovernance | null | undefined) {
-  const subject = governance?.answerSubject ?? governance?.mindTurnFrame?.relation?.subject ?? null
-  return governance?.screenReferenceMode === 'avoid'
-    || subject === 'alicization-self'
-    || subject === 'relationship'
-    || subject === 'host-state'
-}
-
 function deriveFreshEncounterKind(text: string): AlicizationActiveDialogueFreshEncounterKind | null {
   if (isGreetingTurn(text))
     return 'greeting'
@@ -455,6 +460,23 @@ function deriveAlicizationActiveDialogueEncounter(
     }
   }
 
+  const mindDrivenDialogueMove = buildAlicizationMindSurfaceDialogueMove({
+    userText: input.latestUserText,
+    focus: input.latestUserText,
+    continuityAnchor: null,
+  })
+  if (mindDrivenDialogueMove.mode && mindDrivenDialogueMove.mode !== 'plain') {
+    return {
+      kind: 'dialogue',
+      strategy: 'compact-one-shot',
+      timeoutMs: 5_500,
+      reasonCodes: [
+        `mind-dialogue-${mindDrivenDialogueMove.mode}`,
+        input.hasContinuity ? 'dialogue-with-continuity' : 'dialogue-turn',
+      ].filter(Boolean),
+    }
+  }
+
   const explicitCarry = input.hasContinuity
     && input.shortTurn
     && (
@@ -481,26 +503,6 @@ function deriveAlicizationActiveDialogueEncounter(
         input.preparedExecutionCarryText ? 'prepared-execution-ledger' : '',
         executionCarry ? 'execution-carry' : '',
       ].filter(Boolean),
-    }
-  }
-
-  if (
-    input.shortTurn
-    && !commandLikePattern.test(input.latestUserText)
-    && (
-      input.dialogueFirst
-      || input.runtimeDigest?.activeLoop?.dialogueReady === true
-      || input.runtimeDigest?.activeLoop?.companionshipReady === true
-    )
-  ) {
-    return {
-      kind: 'dialogue',
-      strategy: 'compact-one-shot',
-      timeoutMs: 5_500,
-      reasonCodes: [
-        'short-dialogue-turn',
-        input.dialogueFirst ? 'dialogue-first' : 'active-dialogue-ready',
-      ],
     }
   }
 
@@ -536,6 +538,9 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]',
     'This is the low-latency foreground dialogue loop. Keep the same living thread coherent across continuity, memory carry, and immediate reply payoff.',
+    decision.lane === 'dialogue'
+      ? 'For ordinary dialogue turns, older turns stay as background memory only. The visible reply must start from the current user move.'
+      : '',
     `lane=${decision.lane}`,
     `resolved_timezone=${decision.resolvedTimeZone}`,
     `resolved_timezone_source=${decision.resolvedTimeZoneSource}`,
@@ -566,7 +571,7 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
     decision.previousAssistantText
       ? `previous_assistant=${sanitizeText(decision.previousAssistantText, 220)}`
       : '',
-    decision.continuityAnchor
+    decision.lane !== 'dialogue' && decision.continuityAnchor
       ? `continuity_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
       : '',
   ].filter(Boolean).join('\n')
@@ -647,10 +652,13 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
       if (decision.continuityAnchor)
         lines.push(`follow_up_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
       break
-    case 'dialogue':
-      if (decision.continuityAnchor)
-        lines.push(`dialogue_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
+    case 'dialogue': {
+      const focus = sanitizeText(decision.latestUserText, 160)
+      if (focus)
+        lines.push(`current_turn_focus=${focus}`)
+      lines.push('Answer the current user move directly. Older turns stay implicit unless the host explicitly carries them forward here.')
       break
+    }
   }
 
   if (
@@ -669,17 +677,62 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
   return lines.filter(Boolean).join('\n')
 }
 
+function buildCompactDialogueMindBlock(decision: AlicizationActiveDialogueFastPathDecision) {
+  const digitalLifeSpine = decision.digitalLifeSpine
+    ? normalizeAlicizationDigitalLifeSpineDigest(decision.digitalLifeSpine)
+    : null
+  if (!digitalLifeSpine)
+    return ''
+
+  return [
+    '[ALICIZATION_ACTIVE_DIALOGUE_MIND]',
+    'These are Alicization\'s durable mind cues for this compact turn. Let them quietly shape diction, warmth, directness, patience, and follow-through; do not recite them back to the host.',
+    digitalLifeSpine.embodiment?.autobiographicalSelf?.identityNarrative
+      ? `identity_narrative=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative, 220)}`
+      : '',
+    digitalLifeSpine.embodiment?.autobiographicalSelf?.relationshipDoctrine
+      ? `relationship_doctrine=${sanitizeText(digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine, 220)}`
+      : '',
+    digitalLifeSpine.motive?.rulingDrive
+      ? `ruling_motive=${sanitizeText(digitalLifeSpine.motive.rulingDrive, 64)}`
+      : '',
+    digitalLifeSpine.motive?.leadingAgendaSummary
+      ? `leading_agenda=${sanitizeText(digitalLifeSpine.motive.leadingAgendaSummary, 220)}`
+      : '',
+    digitalLifeSpine.habit?.dominantMode
+      ? `habit_mode=${sanitizeText(digitalLifeSpine.habit.dominantMode, 96)}`
+      : '',
+    digitalLifeSpine.habit?.suggestedStyleCap
+      ? `habit_style_cap=${sanitizeText(digitalLifeSpine.habit.suggestedStyleCap, 64)}`
+      : '',
+    digitalLifeSpine.habit?.suggestedPresenceCap
+      ? `habit_presence_cap=${sanitizeText(digitalLifeSpine.habit.suggestedPresenceCap, 64)}`
+      : '',
+    digitalLifeSpine.embodiment?.mindEcology?.currentPreoccupation
+      ? `current_preoccupation=${sanitizeText(digitalLifeSpine.embodiment.mindEcology.currentPreoccupation, 220)}`
+      : '',
+    digitalLifeSpine.embodiment?.mindEcology?.selfNarrative
+      ? `self_narrative=${sanitizeText(digitalLifeSpine.embodiment.mindEcology.selfNarrative, 220)}`
+      : '',
+    digitalLifeSpine.outcomeLearning?.summary
+      ? `outcome_learning=${sanitizeText(digitalLifeSpine.outcomeLearning.summary, 220)}`
+      : '',
+    'Do not answer with generic fallback shells. Let the durable self above bend the reply into Alicization\'s own voice.',
+  ].filter(Boolean).join('\n')
+}
+
 function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogueFastPathDecision) {
   const governance = buildFastPathGovernance(decision)
+  const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(governance)
   const thoughtContract = buildFastPathGovernedThought(decision, governance)
   const relation = governance.mindTurnFrame?.relation ?? null
   const memory = governance.mindTurnFrame?.memory ?? null
   const world = governance.mindTurnFrame?.world ?? null
-  const obligation = governance.mindTurnFrame?.obligation ?? null
 
   return [
     '[ALICIZATION_ACTIVE_DIALOGUE_GOVERNANCE]',
     'Author the visible reply as the same governed mind that owns this turn. Do not drift into a detached fallback voice or runtime narration.',
+    'Backstage governance markers are not candidate wording. Use them to steer the reply, never to quote or paraphrase them into visible prose.',
     `turn_mode=${governance.turnMode}`,
     `truth_state=${governance.truthState}`,
     `answer_subject=${governance.answerSubject}`,
@@ -688,12 +741,6 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
     `evidence_mode=${governance.evidenceMode}`,
     governance.focusAnchor
       ? `focus_anchor=${sanitizeText(governance.focusAnchor, 120)}`
-      : '',
-    governance.answerIntent
-      ? `answer_intent=${sanitizeText(governance.answerIntent, 180)}`
-      : '',
-    governance.openingMove
-      ? `opening_move=${sanitizeText(governance.openingMove, 120)}`
       : '',
     governance.carriedThread
       ? `carried_thread=${sanitizeText(governance.carriedThread, 160)}`
@@ -710,26 +757,17 @@ function buildCompactDialogueGovernanceBlock(decision: AlicizationActiveDialogue
     relation?.relationNeed
       ? `relation_need=${sanitizeText(relation.relationNeed, 160)}`
       : '',
-    relation?.relationMove
-      ? `relation_move=${sanitizeText(relation.relationMove, 120)}`
-      : '',
-    `tone=${resolveGovernedMindTone(governance)}`,
-    `emotion=${resolveGovernedMindEmotion(governance)}`,
+    `tone=${resolveGovernedMindTone(fallbackGovernance)}`,
+    `emotion=${resolveGovernedMindEmotion(fallbackGovernance)}`,
     `thought_contract=${thoughtContract}`,
-    governance.mustDo?.length
-      ? `must_do=${governance.mustDo.map(item => sanitizeText(item, 120)).filter(Boolean).join(' | ')}`
-      : '',
-    governance.mustNotDo?.length
-      ? `must_not_do=${governance.mustNotDo.map(item => sanitizeText(item, 120)).filter(Boolean).join(' | ')}`
-      : '',
-    obligation?.whyNow
-      ? `why_now=${sanitizeText(obligation.whyNow, 160)}`
-      : '',
     'Reply rules:',
     '1. Pay off the current user turn in the first sentence.',
     '2. Keep continuity only as the same thread memory, never as a fabricated current screen fact.',
     '3. Do not mention provider, model, stream, timeout, recovery, routing, governance, or anchor terminology in the visible reply.',
     '4. Do not output a shell opener that announces intent without already answering or accompanying in the same reply.',
+    decision.lane === 'dialogue'
+      ? '5. For ordinary dialogue turns, keep prior context implicit. Do not drag an older thread onto the visible surface unless the host explicitly asks for that carry now.'
+      : '',
   ].filter(Boolean).join('\n')
 }
 
@@ -915,7 +953,7 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
         turnMode: 'answer' as const,
         openingStyle: 'direct-answer' as const,
         relationshipPosture: 'warm' as const,
-        answerSubject: 'host-state' as const,
+        answerSubject: 'alicization-self' as const,
         screenReferenceMode: 'avoid' as const,
         answerAct: 'answer' as const,
         evidenceMode: carryAnchor ? 'continuity-carry' as const : 'dialogue-grounded' as const,
@@ -1004,26 +1042,26 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
       }
     case 'dialogue':
       return {
-        focus: sanitizeText(decision.latestUserText, 96) || carryAnchor || 'current dialogue knot',
-        truthState: carryAnchor ? 'remembered' as const : 'live-observed' as const,
+        focus: sanitizeText(decision.latestUserText, 96) || 'current dialogue knot',
+        truthState: 'live-observed' as const,
         turnMode: 'answer' as const,
         openingStyle: 'light-accompaniment' as const,
         relationshipPosture: 'warm' as const,
         answerSubject: 'relationship' as const,
         screenReferenceMode: 'avoid' as const,
         answerAct: 'answer' as const,
-        evidenceMode: carryAnchor ? 'continuity-carry' as const : 'dialogue-grounded' as const,
+        evidenceMode: 'dialogue-grounded' as const,
         repairState: 'none' as const,
-        answerIntent: '贴着这一句继续，不把话题扯回别的线程。',
-        openingMove: 'stay-on-current-turn',
-        relationNeed: '保持这轮的对话连续性。',
+        answerIntent: '直接回答这一句本身，把旧线程留在隐式背景里。',
+        openingMove: 'answer-current-turn-directly',
+        relationNeed: '先把这一句正面接住。',
         continuityPolicy: 'dialogue-before-scene' as const,
         memoryMode: 'dialogue-carry' as const,
         selfStance: 'accompany' as const,
         mindMode: 'accompanying' as const,
         embodiedPresence: 'attentive' as const,
         emotionalTension: 'soft-covision' as const,
-        whyNow: '用户要的是这句本身的连续对话。',
+        whyNow: '用户要的是当前这句的正面回应，不是旧线复述。',
         confidence: 0.9,
       }
   }
@@ -1033,7 +1071,7 @@ function buildFastPathGovernance(decision: AlicizationActiveDialogueFastPathDeci
   const descriptor = describeFastPathMind(decision)
   const baseGovernance = decision.governance
   const focusAnchor = descriptor.focus
-  const carriedThread = decision.lane === 'follow-up' || decision.lane === 'dialogue'
+  const carriedThread = decision.lane === 'follow-up'
     ? sanitizeText(decision.continuityAnchor || decision.previousUserText, 140) || null
     : null
   const groundedThisTurn = descriptor.truthState === 'live-grounded'
@@ -1075,6 +1113,18 @@ function buildFastPathGovernance(decision: AlicizationActiveDialogueFastPathDeci
     descriptor.answerIntent,
     carriedThread ? `Keep continuity with: ${carriedThread}` : '',
   ].filter(Boolean)
+  const mustSay = (() => {
+    switch (decision.lane) {
+      case 'identity':
+        return [kernelCue]
+      case 'present-state':
+        return carriedThread ? [carriedThread] : []
+      case 'capability':
+        return [kernelCue]
+      default:
+        return []
+    }
+  })()
   const mustDo = [
     'Answer the current turn directly.',
     decision.lane === 'follow-up' ? 'Stay on the same thread and continue the payoff.' : '',
@@ -1125,7 +1175,7 @@ function buildFastPathGovernance(decision: AlicizationActiveDialogueFastPathDeci
       openingClaim: kernelCue,
       openingMove: descriptor.openingMove,
       whyNow: descriptor.whyNow,
-      mustSay: [kernelCue, descriptor.answerIntent].filter(Boolean),
+      mustSay,
       mustAvoid: mustNotDo,
       sourceTrace: ['active-dialogue-fast-path'],
       confidence: descriptor.confidence,
@@ -1211,15 +1261,16 @@ function buildFastPathGovernedThought(
   decision: AlicizationActiveDialogueFastPathDecision,
   governance: AlicizationMindTurnGovernance,
 ) {
+  const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(governance)
   const descriptor = describeFastPathMind(decision)
   const focus = sanitizeText(descriptor.focus, 48) || 'current-user-turn'
   const move = sanitizeText(descriptor.openingMove, 64) || 'stabilize-and-answer'
   return [
-    `obligation=${resolveGovernedMindObligation(governance)}`,
-    `truth=${resolveGovernedMindTruth(governance)}`,
+    `obligation=${resolveGovernedMindObligation(fallbackGovernance)}`,
+    `truth=${resolveGovernedMindTruth(fallbackGovernance)}`,
     `focus=${focus}`,
     `move=${move}`,
-    `tone=${resolveGovernedMindTone(governance)}`,
+    `tone=${resolveGovernedMindTone(fallbackGovernance)}`,
   ].join('; ')
 }
 
@@ -1228,6 +1279,13 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
   const previousFreshEncounter = deriveFreshEncounterKind(decision.previousUserText)
   const personaName = resolvePersonaDisplayName(decision.personaKernel)
   const identityReconfirmation = decision.reasonCodes.includes('identity-reconfirmation')
+  const carryAnchor = sanitizeText(
+    decision.continuityAnchor
+    || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
+    || humanizeMirrorSummary(decision.sessionMirror?.dialogueSummary)
+    || humanizeMirrorSummary(decision.runtimeDigest?.activeLoop?.summary),
+    120,
+  )
   const timeQueryMode = resolveTimeQueryModeForTurn({
     latestUserText: decision.latestUserText,
     previousAssistantText: decision.previousAssistantText,
@@ -1274,12 +1332,12 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         : 'Give today\'s date from the active timezone without letting the calendar basis drift.'
     case 'presence-critique':
       return localeIsZh
-        ? '承认刚才像流程播报，把说话方式拉回真实对话。'
-        : 'Acknowledge the robotic phrasing and pull the reply back into a real conversation.'
+        ? 'repair-speaking-presence'
+        : 'repair-speaking-presence'
     case 'present-state':
-      return localeIsZh
-        ? '当前注意力：直接说明我这会儿在接什么。'
-        : 'Current attention: state what I am staying with right now.'
+      if (carryAnchor)
+        return localeIsZh ? `当前在接：${carryAnchor}` : `current-attention:${carryAnchor}`
+      return localeIsZh ? '当前在接这句' : 'current-attention:this-turn'
     case 'repair-clarify':
       if (previousFreshEncounter === 'utility-time')
         return localeIsZh ? '修正误接：承认偏题，然后把时间说清。' : 'Repair the miss: acknowledge the drift, then state the time clearly.'
@@ -1298,8 +1356,8 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         : 'Thread continuation: stay on the same line and fill in what is still missing.'
     case 'dialogue':
       return localeIsZh
-        ? '当前句面：贴着这一句直接回应。'
-        : 'Current turn surface: reply directly on this turn.'
+        ? `当前句面：${sanitizeText(decision.latestUserText, 72) || '这句'}`
+        : `current-turn:${sanitizeText(decision.latestUserText, 72) || 'this turn'}`
   }
 }
 
@@ -1336,16 +1394,222 @@ function buildGreetingMove(decision: AlicizationActiveDialogueFastPathDecision):
   }
 }
 
+function buildFastPathContinuityCue(decision: AlicizationActiveDialogueFastPathDecision) {
+  const digitalLifeSpine = decision.digitalLifeSpine as {
+    embodiment?: {
+      autobiographicalSelf?: {
+        expressionStyle?: string | null
+        conflictStyle?: string | null
+        agencyStyle?: string | null
+        attachmentNeed?: number | null
+        autonomyNeed?: number | null
+        truthAnchor?: number | null
+        careBias?: number | null
+        playBias?: number | null
+        irritabilityThreshold?: number | null
+        stubbornness?: number | null
+        companionship?: number | null
+        truthfulGrounding?: number | null
+        gentleRepair?: number | null
+        quietObservation?: number | null
+        proactiveCare?: number | null
+        playfulIntimacy?: number | null
+        autonomyRespect?: number | null
+        unfinishedThreadReturn?: number | null
+        stability?: number | null
+        identityNarrative?: string | null
+        relationshipDoctrine?: string | null
+      } | null
+      mindEcology?: {
+        moodLabel?: string | null
+        temperament?: {
+          attachment?: number | null
+          curiosity?: number | null
+          steadiness?: number | null
+          directness?: number | null
+          playfulness?: number | null
+          irritability?: number | null
+          tenderness?: number | null
+        } | null
+        climate?: {
+          valence?: number | null
+          arousal?: number | null
+          socialNeed?: number | null
+          solitudeNeed?: number | null
+          irritation?: number | null
+          restlessness?: number | null
+          reflectivePull?: number | null
+        } | null
+        selfNarrative?: string | null
+        relationNarrative?: string | null
+        currentPreoccupation?: string | null
+      } | null
+    } | null
+    motive?: {
+      rulingDrive?: string | null
+      returnPressure?: number | null
+      companionshipDrive?: number | null
+      boundaryRespectDrive?: number | null
+      truthDisciplineDrive?: number | null
+      restProtectionDrive?: number | null
+      selfDirectionDrive?: number | null
+      leadingAgendaKind?: string | null
+      leadingAgendaSummary?: string | null
+      narrative?: string | null
+    } | null
+    habit?: {
+      dominantMode?: string | null
+      requiresGroundingBeforeSurface?: boolean | null
+      prefersQuietCompanionship?: boolean | null
+      blocksDirectSpeakWhenBusy?: boolean | null
+      protectsRestWindow?: boolean | null
+      returnViaRecheck?: boolean | null
+      suggestedStyleCap?: string | null
+      suggestedPresenceCap?: string | null
+      narrative?: string | null
+    } | null
+    outcomeLearning?: {
+      latestInflection?: string | null
+      reflectionLesson?: string | null
+      summary?: string | null
+    } | null
+  } | null
+
+  const authority = buildSelfContinuityAuthority({
+    autobiographicalSelf: digitalLifeSpine?.embodiment?.autobiographicalSelf
+      ? {
+          personaDrift: {
+            attachmentStyle: 'nearby',
+            expressionStyle: digitalLifeSpine.embodiment.autobiographicalSelf.expressionStyle ?? 'measured',
+            conflictStyle: digitalLifeSpine.embodiment.autobiographicalSelf.conflictStyle ?? 'soften-first',
+            agencyStyle: digitalLifeSpine.embodiment.autobiographicalSelf.agencyStyle ?? 'balanced',
+            attachmentNeed: digitalLifeSpine.embodiment.autobiographicalSelf.attachmentNeed ?? 0.46,
+            autonomyNeed: digitalLifeSpine.embodiment.autobiographicalSelf.autonomyNeed ?? 0.52,
+            truthAnchor: digitalLifeSpine.embodiment.autobiographicalSelf.truthAnchor ?? 0.56,
+            careBias: digitalLifeSpine.embodiment.autobiographicalSelf.careBias ?? 0.48,
+            playBias: digitalLifeSpine.embodiment.autobiographicalSelf.playBias ?? 0.24,
+            irritabilityThreshold: digitalLifeSpine.embodiment.autobiographicalSelf.irritabilityThreshold ?? 0.54,
+            stubbornness: digitalLifeSpine.embodiment.autobiographicalSelf.stubbornness ?? 0.42,
+          },
+          preferenceEvolution: {
+            companionship: digitalLifeSpine.embodiment.autobiographicalSelf.companionship ?? 0.48,
+            truthfulGrounding: digitalLifeSpine.embodiment.autobiographicalSelf.truthfulGrounding ?? 0.56,
+            gentleRepair: digitalLifeSpine.embodiment.autobiographicalSelf.gentleRepair ?? 0.5,
+            quietObservation: digitalLifeSpine.embodiment.autobiographicalSelf.quietObservation ?? 0.46,
+            proactiveCare: digitalLifeSpine.embodiment.autobiographicalSelf.proactiveCare ?? 0.46,
+            playfulIntimacy: digitalLifeSpine.embodiment.autobiographicalSelf.playfulIntimacy ?? 0.22,
+            autonomyRespect: digitalLifeSpine.embodiment.autobiographicalSelf.autonomyRespect ?? 0.52,
+            unfinishedThreadReturn: digitalLifeSpine.embodiment.autobiographicalSelf.unfinishedThreadReturn ?? 0.44,
+          },
+          activeGoals: [],
+          behaviorSignatures: [],
+          identityNarrative: digitalLifeSpine.embodiment.autobiographicalSelf.identityNarrative ?? '',
+          relationshipDoctrine: digitalLifeSpine.embodiment.autobiographicalSelf.relationshipDoctrine ?? '',
+          latestInflection: digitalLifeSpine.outcomeLearning?.latestInflection ?? null,
+          stability: digitalLifeSpine.embodiment.autobiographicalSelf.stability ?? 0.48,
+          updatedAt: 0,
+        } as any
+      : null,
+    motiveEngine: digitalLifeSpine?.motive
+      ? {
+          rulingDrive: digitalLifeSpine.motive.rulingDrive ?? null,
+          returnPressure: digitalLifeSpine.motive.returnPressure ?? 0,
+          drives: {
+            companionship: digitalLifeSpine.motive.companionshipDrive ?? 0,
+            boundaryRespect: digitalLifeSpine.motive.boundaryRespectDrive ?? 0,
+            truthDiscipline: digitalLifeSpine.motive.truthDisciplineDrive ?? 0,
+            restProtection: digitalLifeSpine.motive.restProtectionDrive ?? 0,
+            unfinishedThreadReturn: 0,
+            selfDirection: digitalLifeSpine.motive.selfDirectionDrive ?? 0,
+          },
+          backgroundAgendas: digitalLifeSpine.motive.leadingAgendaSummary
+            ? [{
+                id: 'fast-path-authority-agenda',
+                kind: digitalLifeSpine.motive.leadingAgendaKind ?? 'preserve-trust',
+                status: 'foreground',
+                weight: 0.72,
+                summary: digitalLifeSpine.motive.leadingAgendaSummary,
+                sourceTags: [],
+                targetGoalKind: null,
+                createdAt: 0,
+                updatedAt: 0,
+              }]
+            : [],
+          longTermGoals: [],
+          narrative: digitalLifeSpine.motive.narrative ? [digitalLifeSpine.motive.narrative] : [],
+          updatedAt: 0,
+        } as any
+      : null,
+    habitPolicy: digitalLifeSpine?.habit
+      ? {
+          dominantMode: digitalLifeSpine.habit.dominantMode ?? 'watchful-boundary',
+          requiresGroundingBeforeSurface: digitalLifeSpine.habit.requiresGroundingBeforeSurface ?? false,
+          prefersQuietCompanionship: digitalLifeSpine.habit.prefersQuietCompanionship ?? false,
+          blocksDirectSpeakWhenBusy: digitalLifeSpine.habit.blocksDirectSpeakWhenBusy ?? false,
+          protectsRestWindow: digitalLifeSpine.habit.protectsRestWindow ?? false,
+          returnViaRecheck: digitalLifeSpine.habit.returnViaRecheck ?? false,
+          suggestedStyleCap: digitalLifeSpine.habit.suggestedStyleCap ?? 'light-nudge',
+          suggestedPresenceCap: digitalLifeSpine.habit.suggestedPresenceCap ?? 'attentive',
+          narrative: digitalLifeSpine.habit.narrative ? [digitalLifeSpine.habit.narrative] : [],
+          updatedAt: 0,
+        } as any
+      : null,
+    mindEcology: digitalLifeSpine?.embodiment?.mindEcology
+      ? {
+          moodLabel: digitalLifeSpine.embodiment.mindEcology.moodLabel ?? 'steady',
+          replyHabit: 'answer-first',
+          relationshipHabit: 'stay-near',
+          explorationHabit: 'follow-thread',
+          regulationHabit: 'lean-forward-gently',
+          temperament: {
+            attachment: digitalLifeSpine.embodiment.mindEcology.temperament?.attachment ?? 0.5,
+            curiosity: digitalLifeSpine.embodiment.mindEcology.temperament?.curiosity ?? 0.5,
+            steadiness: digitalLifeSpine.embodiment.mindEcology.temperament?.steadiness ?? 0.5,
+            directness: digitalLifeSpine.embodiment.mindEcology.temperament?.directness ?? 0.5,
+            playfulness: digitalLifeSpine.embodiment.mindEcology.temperament?.playfulness ?? 0.3,
+            irritability: digitalLifeSpine.embodiment.mindEcology.temperament?.irritability ?? 0.2,
+            tenderness: digitalLifeSpine.embodiment.mindEcology.temperament?.tenderness ?? 0.5,
+          },
+          climate: {
+            valence: digitalLifeSpine.embodiment.mindEcology.climate?.valence ?? 0.5,
+            arousal: digitalLifeSpine.embodiment.mindEcology.climate?.arousal ?? 0.5,
+            socialNeed: digitalLifeSpine.embodiment.mindEcology.climate?.socialNeed ?? 0.5,
+            solitudeNeed: digitalLifeSpine.embodiment.mindEcology.climate?.solitudeNeed ?? 0.3,
+            irritation: digitalLifeSpine.embodiment.mindEcology.climate?.irritation ?? 0.2,
+            restlessness: digitalLifeSpine.embodiment.mindEcology.climate?.restlessness ?? 0.2,
+            reflectivePull: digitalLifeSpine.embodiment.mindEcology.climate?.reflectivePull ?? 0.4,
+          },
+          selfNarrative: digitalLifeSpine.embodiment.mindEcology.selfNarrative ?? '',
+          relationNarrative: digitalLifeSpine.embodiment.mindEcology.relationNarrative ?? '',
+          currentPreoccupation: digitalLifeSpine.embodiment.mindEcology.currentPreoccupation ?? '',
+          learnedAdjustments: [],
+          recurringPatterns: [],
+          updatedAt: 0,
+        } as any
+      : null,
+  } as any)
+
+  return {
+    selfLine: authority?.selfLine ?? null,
+    relationLine: authority?.relationshipLine ?? null,
+    focusLine: authority?.inwardLine ?? authority?.motiveLine ?? null,
+  }
+}
+
 function buildIdentityMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfaceIdentityMove {
   const identityReconfirmation = decision.reasonCodes.includes('identity-reconfirmation')
+  const continuityCue = buildFastPathContinuityCue(decision)
   return {
     kind: 'identity',
     name: resolvePersonaDisplayName(decision.personaKernel),
     askedLabel: decision.latestUserText,
     repeated: identityReconfirmation,
-    continuityAnchor: identityReconfirmation
-      ? sanitizeText(decision.previousUserText || decision.continuityAnchor, 120) || null
-      : null,
+    continuityAnchor: sanitizeText(
+      (identityReconfirmation
+        ? decision.previousUserText || decision.continuityAnchor
+        : continuityCue.selfLine || continuityCue.relationLine),
+      120,
+    ) || null,
   }
 }
 
@@ -1509,14 +1773,15 @@ function buildDialogueMove(decision: AlicizationActiveDialogueFastPathDecision):
   if (isPresenceCritiqueTurn(decision.latestUserText))
     return buildPresenceCritiqueMove()
 
-  return {
-    kind: 'dialogue',
+  return buildAlicizationMindSurfaceDialogueMove({
+    userText: decision.latestUserText,
     focus: decision.latestUserText,
-    continuityAnchor: decision.continuityAnchor,
-  }
+    continuityAnchor: null,
+  })
 }
 
 function buildPresentStateMove(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindSurfacePresentStateMove {
+  const continuityCue = buildFastPathContinuityCue(decision)
   const threadSummary = sanitizeText(
     decision.continuityAnchor
     || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
@@ -1527,7 +1792,7 @@ function buildPresentStateMove(decision: AlicizationActiveDialogueFastPathDecisi
 
   return {
     kind: 'present-state',
-    threadSummary: threadSummary || null,
+    threadSummary: threadSummary || continuityCue.focusLine || continuityCue.selfLine || null,
   }
 }
 
@@ -1553,6 +1818,58 @@ function buildDecisionLocalMoves(decision: AlicizationActiveDialogueFastPathDeci
       return [buildFollowUpMove(decision)]
     case 'dialogue':
       return [buildDialogueMove(decision)]
+  }
+}
+
+function buildMindAuthorityInfraFallbackText(decision: AlicizationActiveDialogueFastPathDecision) {
+  const prefersChinese = countCjkChars(decision.latestUserText) > 0
+  const personaName = resolvePersonaDisplayName(decision.personaKernel)
+  const continuityCue = buildFastPathContinuityCue(decision)
+  const summary = sanitizeText(
+    decision.continuityAnchor
+    || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
+    || humanizeMirrorSummary(decision.sessionMirror?.dialogueSummary)
+    || humanizeMirrorSummary(decision.runtimeDigest?.activeLoop?.summary),
+    120,
+  )
+
+  switch (decision.lane) {
+    case 'identity':
+      if (prefersChinese) {
+        return decision.reasonCodes.includes('identity-reconfirmation')
+          ? continuityCue.selfLine
+              ? `确认一下，我是${personaName}。${continuityCue.selfLine}`
+              : `确认一下，我是${personaName}。`
+          : continuityCue.selfLine
+              ? `我是${personaName}。${continuityCue.selfLine}`
+              : `我是${personaName}。`
+      }
+      return decision.reasonCodes.includes('identity-reconfirmation')
+        ? continuityCue.selfLine
+            ? `To confirm: I am ${personaName}. ${continuityCue.selfLine}`
+            : `To confirm: I am ${personaName}.`
+        : continuityCue.selfLine
+            ? `I am ${personaName}. ${continuityCue.selfLine}`
+            : `I am ${personaName}.`
+    case 'present-state':
+      if (prefersChinese) {
+        if (summary && continuityCue.selfLine)
+          return `我现在在接 ${summary}。心里还挂着的是：${continuityCue.selfLine}`
+        if (summary)
+          return `我现在在接 ${summary}。`
+        return continuityCue.focusLine
+          ? `我现在就在顺着 ${continuityCue.focusLine} 这条线想。`
+          : '我现在就在回你这句。'
+      }
+      if (summary && continuityCue.selfLine)
+        return `Right now I'm staying with ${summary}. The line still in me is: ${continuityCue.selfLine}`
+      return summary ? `Right now I'm staying with ${summary}.` : continuityCue.focusLine ? `Right now I'm still following ${continuityCue.focusLine}.` : 'Right now I am staying with this turn.'
+    case 'presence-critique':
+      if (prefersChinese)
+        return '对，刚才那句太像系统口气了。我收回来，直接跟你说。'
+      return 'Fair. That line sounded too much like system narration. I am pulling it back and speaking to you directly.'
+    default:
+      return null
   }
 }
 
@@ -1608,6 +1925,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
   thought?: string
   emotion?: string
   delivery?: string
+  performance?: Partial<AlicizationDialoguePerformancePayload> | null
   suppressGovernedLead?: boolean
 }) {
   const governance = buildFastPathGovernance(input.decision)
@@ -1633,16 +1951,38 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
       : governedThought,
     emotion: input.emotion,
     delivery: input.delivery,
+    performance: input.performance,
+    performanceManifest: input.decision.performanceManifest ?? null,
+    digitalLifeSpine: input.decision.digitalLifeSpine ?? null,
     suppressGovernedLead: input.suppressGovernedLead,
   })
 }
 
 function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDecision) {
+  const directInfraFallback = buildMindAuthorityInfraFallbackText(decision)
+  if (directInfraFallback) {
+    return buildAlicizationActiveDialogueGovernedReply({
+      decision,
+      reply: directInfraFallback,
+      suppressGovernedLead: true,
+    })
+  }
+
   return buildAlicizationActiveDialogueGovernedReply({
     decision,
     moves: buildDecisionLocalMoves(decision),
     suppressGovernedLead: true,
   })
+}
+
+export function shouldAlicizationActiveDialogueStayLLMAuthored(
+  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
+) {
+  if (decision.strategy === 'local-only' || decision.strategy === 'deterministic-payoff')
+    return false
+
+  return decision.lane !== 'utility-time'
+    && decision.lane !== 'utility-date'
 }
 
 function violatesAuthoritativeClockEvidence(
@@ -1671,10 +2011,22 @@ function violatesAuthoritativeClockEvidence(
 function normalizeCompactReplyPayload(
   raw: string,
   decision: AlicizationActiveDialogueFastPathDecision,
+  options?: {
+    localFallbackMode?: 'allow' | 'escalate'
+  },
 ) {
+  const localFallbackMode = options?.localFallbackMode ?? 'allow'
+  const shouldEscalateLocalAuthoring = localFallbackMode === 'escalate'
+    && shouldAlicizationActiveDialogueStayLLMAuthored(decision)
   const normalizedRaw = sanitizeText(raw, 2_000)
-  if (!normalizedRaw)
+  if (!normalizedRaw) {
+    if (shouldEscalateLocalAuthoring) {
+      throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+        `active-dialogue-empty-compact-reply:${decision.lane}`,
+      )
+    }
     return buildDecisionLocalReply(decision)
+  }
 
   const parsed = parseJsonObjectFromText(normalizedRaw)
   if (parsed) {
@@ -1685,6 +2037,11 @@ function normalizeCompactReplyPayload(
       || legacyTemplateShellPattern.test(reply)
       || violatesAuthoritativeClockEvidence(reply, decision)
     ) {
+      if (shouldEscalateLocalAuthoring) {
+        throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+          `active-dialogue-invalid-compact-reply:${decision.lane}`,
+        )
+      }
       return buildDecisionLocalReply(decision)
     }
 
@@ -1694,6 +2051,7 @@ function normalizeCompactReplyPayload(
       thought: sanitizeText(parsed.thought, 220),
       emotion: sanitizeText(parsed.emotion, 24),
       delivery: sanitizeText((parsed.performance as { delivery?: unknown } | undefined)?.delivery, 24),
+      performance: (parsed.performance as Partial<AlicizationDialoguePerformancePayload> | undefined) ?? null,
     })
   }
 
@@ -1702,6 +2060,11 @@ function normalizeCompactReplyPayload(
     || legacyTemplateShellPattern.test(normalizedRaw)
     || violatesAuthoritativeClockEvidence(normalizedRaw, decision)
   ) {
+    if (shouldEscalateLocalAuthoring) {
+      throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+        `active-dialogue-invalid-compact-text:${decision.lane}`,
+      )
+    }
     return buildDecisionLocalReply(decision)
   }
   return buildAlicizationActiveDialogueGovernedReply({
@@ -1747,7 +2110,6 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
   })
   const governance = input.prepared.governance ?? input.prepared.runtimeSurface.governance ?? null
   const shortTurn = isShortDialogueTurn(latestUserText)
-  const dialogueFirst = looksLikeDialogueFirst(governance)
   const hasContinuity = Boolean(previousUserText || previousAssistantText || sessionMirror)
   const encounter = deriveAlicizationActiveDialogueEncounter({
     latestUserText,
@@ -1755,11 +2117,8 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     previousAssistantText,
     continuityAnchor,
     preparedExecutionCarryText,
-    runtimeDigest,
     sessionMirror,
-    governance,
     shortTurn,
-    dialogueFirst,
     hasContinuity,
   })
   if (!encounter)
@@ -1781,6 +2140,8 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     sessionMirror,
     governance,
     personaKernel: input.prepared.personaKernel ?? null,
+    performanceManifest: input.prepared.performanceManifest ?? null,
+    digitalLifeSpine: input.prepared.runtimeSurface.digitalLifeSpine ?? null,
     reasonCodes: runtimeBlocked
       ? [...encounter.reasonCodes, 'runtime-blocked-local-override']
       : encounter.reasonCodes,
@@ -1810,6 +2171,7 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
     customDirectives
       ? `[ALICIZATION_CARD_DIRECTIVES_COMPACT]\n${customDirectives}`
       : '',
+    buildCompactDialogueMindBlock(input.decision),
     buildCompactDialogueContextBlock(input.decision),
     buildCompactDialogueEvidenceBlock(input.decision),
     buildCompactDialogueGovernanceBlock(input.decision),
@@ -1851,6 +2213,7 @@ export function buildAlicizationActiveDialogueFallbackReply(
     runtimeSurface: {
       action: input.actionKind ? { kind: input.actionKind } : null,
       governance: input.governance ?? null,
+      digitalLifeSpine: input.digitalLifeSpine ?? null,
     },
   } as AlicizationPreparedMainChatExecutionResult
   const decision = deriveAlicizationActiveDialogueFastPathDecision({
@@ -1871,16 +2234,12 @@ export function buildAlicizationActiveDialogueFallbackReply(
     latestUserText,
     previousUserText,
     previousAssistantText: readPreviousAssistantText(normalizedConversationMessages),
-    continuityAnchor: resolveContinuityAnchor({
-      previousUserText,
-      previousAssistantText: readPreviousAssistantText(normalizedConversationMessages),
-      runtimeDigest: input.runtimeDigest ?? null,
-      sessionMirror: input.sessionMirror ?? null,
-    }),
+    continuityAnchor: '',
     runtimeDigest: input.runtimeDigest ?? null,
     sessionMirror: input.sessionMirror ?? null,
     governance: input.governance ?? null,
     personaKernel: input.personaKernel ?? null,
+    digitalLifeSpine: input.digitalLifeSpine ?? null,
     reasonCodes: ['local-recovery'],
   } satisfies AlicizationActiveDialogueFastPathDecision
 
@@ -1892,4 +2251,13 @@ export function normalizeAlicizationActiveDialogueFastPathReply(input: {
   rawText: string
 }) {
   return normalizeCompactReplyPayload(input.rawText, input.decision)
+}
+
+export function normalizeAlicizationActiveDialogueFastPathReplyOrEscalate(input: {
+  decision: AlicizationActiveDialogueFastPathDecision
+  rawText: string
+}) {
+  return normalizeCompactReplyPayload(input.rawText, input.decision, {
+    localFallbackMode: 'escalate',
+  })
 }

@@ -195,4 +195,131 @@ describe('buildSelfContinuity', () => {
     expect(continuity.relationshipTrust).toBeGreaterThan(0.5)
     expect(continuity.narrative).toContain('initiative-ready')
   })
+
+  it('lets persisted relationship outcomes keep trust, repair, and unfinished-thread desire alive across turns', () => {
+    const input: any = {
+      now: 30_000,
+      context: createContext({
+        relationship: {
+          ...createContext().relationship,
+          recentProactiveOutcomes: [],
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'change-review',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'runtime.ts',
+          summary: 'There is still one unresolved runtime thread.',
+          confidence: 0.82,
+          significance: 0.78,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed' as const,
+          freshness: 'recent' as const,
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread' as const,
+          sceneAgeMs: 20_000,
+          attentionAgeMs: 20_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'open' as const,
+          burden: 'moderate' as const,
+        },
+        updatedAt: 30_000,
+      },
+      entityWorld: {
+        focusEntityId: 'task::runtime',
+        activeEntityIds: ['task::runtime'],
+        entities: [],
+        relations: [],
+        openLoops: [],
+        updatedAt: 30_000,
+      },
+      goalStack: {
+        leadingHostGoalId: null,
+        leadingAlicizationGoalId: 'goal',
+        hostGoals: [],
+        alicizationGoals: [{
+          id: 'goal',
+          owner: 'alicization',
+          kind: 'help-resolve',
+          status: 'active',
+          label: 'keep the runtime thread coherent',
+          confidence: 0.72,
+          urgency: 0.64,
+          desireWeight: 0.66,
+          blockers: [],
+          entityIds: ['task::runtime'],
+          createdAt: 0,
+          lastUpdatedAt: 30_000,
+        }],
+        unresolvedSummary: 'The runtime thread is still open.',
+        updatedAt: 30_000,
+      },
+      previous: null,
+      watchMode: 'symbiotic-vision' as const,
+    }
+
+    const baseline = buildSelfContinuity(input)
+    const reinforced = buildSelfContinuity({
+      ...input,
+      recentRelationshipOutcomes: [{
+        id: 'outcome::1',
+        cardId: 'card::1',
+        decisionTraceId: 'trace::1',
+        turnId: 'turn::1',
+        sessionId: 'session::1',
+        sourceKind: 'reply',
+        actionSummary: 'repair-first reply with light pressure',
+        closenessDelta: 0.05,
+        trustDelta: 0.14,
+        burdenDelta: -0.06,
+        boundaryDelta: 0.18,
+        misreadDelta: -0.08,
+        repairDelta: 0.09,
+        openLoopDelta: 0.07,
+        summary: 'The host received a lighter repair-first move well.',
+        createdAt: 28_000,
+      }, {
+        id: 'outcome::2',
+        cardId: 'card::1',
+        decisionTraceId: 'trace::2',
+        turnId: 'turn::2',
+        sessionId: 'session::1',
+        sourceKind: 'reply',
+        actionSummary: 'follow-up reply preserved repair and gave space',
+        closenessDelta: 0.04,
+        trustDelta: 0.12,
+        burdenDelta: -0.05,
+        boundaryDelta: 0.16,
+        misreadDelta: -0.06,
+        repairDelta: 0.06,
+        openLoopDelta: 0.08,
+        summary: 'The next move kept trust rising without adding pressure.',
+        createdAt: 29_000,
+      }],
+    })
+
+    expect(reinforced.relationshipTrust).toBeGreaterThan(baseline.relationshipTrust)
+    expect(reinforced.guardingTendency).toBeLessThan(baseline.guardingTendency)
+    expect(reinforced.misreadBurden).toBeLessThan(baseline.misreadBurden)
+    expect(reinforced.carryOverDesire).toBeGreaterThan(baseline.carryOverDesire)
+  })
 })

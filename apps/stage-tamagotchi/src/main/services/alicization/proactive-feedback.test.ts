@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createDefaultProactiveLoopState,
   proactiveDismissCooldownMs,
+  recoverProactiveRhythmAfterDream,
   registerProactiveDelivery,
   reportExplicitProactiveFeedback,
   settleExpiredProactiveOutcomes,
@@ -92,5 +93,20 @@ describe('proactive feedback loop state', () => {
     expect(continuedAgain.lateNightActiveMinutes).toBe(18)
     expect(reset.lateNightActiveMinutes).toBe(0)
     expect(reset.state.lateNightActivityStartedAt).toBeNull()
+  })
+
+  it('lets dream recovery cool momentum without erasing initiative trust', () => {
+    const recovered = recoverProactiveRhythmAfterDream({
+      ...createDefaultProactiveLoopState(1_000),
+      openingMomentum: 0.74,
+      initiativeTrust: 0.62,
+      lateNightActivityStartedAt: 100,
+      lateNightActivityLastActiveAt: 900,
+    }, 5_000)
+
+    expect(recovered.openingMomentum).toBeLessThan(0.74)
+    expect(recovered.initiativeTrust).toBeGreaterThan(0.5)
+    expect(recovered.lateNightActivityStartedAt).toBeNull()
+    expect(recovered.lateNightActivityLastActiveAt).toBeNull()
   })
 })

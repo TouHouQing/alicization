@@ -32,15 +32,37 @@ export interface AlicizationAgentRuntimeTelemetry {
   sensoryCaptureHealthy: boolean | null
 }
 
+export interface AlicizationRuntimeAutonomySnapshot {
+  selectedMode: string | null
+  visibleAction: string | null
+  shouldSpeak: boolean
+  shouldAct: boolean
+  speakReadiness: number
+  actReadiness: number
+  inhibition: number
+  confidence: number
+  executionIntentKind: string | null
+  executionIntentSummary: string | null
+  deferReason: string | null
+  whyNow: string | null
+}
+
 export interface AlicizationRuntimeSnapshot {
   version: 'alicization-runtime-v1'
   dominantChannel: AlicizationRuntimeChannelId
   channels: Record<AlicizationRuntimeChannelId, AlicizationRuntimeChannelSnapshot>
   activeLoop?: AlicizationActiveLoopSnapshot | null
+  autonomy?: AlicizationRuntimeAutonomySnapshot | null
   shouldProactivelySpeak: boolean
   shouldProactivelyAct: boolean
   continuityPressure: number
   companionshipPressure: number
+  rulingMotive?: string | null
+  habitMode?: string | null
+  truthDisciplinePressure?: number | null
+  boundaryPressure?: number | null
+  restProtectionPressure?: number | null
+  returnPressure?: number | null
   summary: string
 }
 
@@ -238,19 +260,31 @@ function buildActiveDialogueChannel(spine: AlicizationDigitalLifeSpineSnapshot):
 function buildActiveControlChannel(spine: AlicizationDigitalLifeSpineSnapshot): AlicizationRuntimeChannelSnapshot {
   const surface = spine.runtimeSurface
   const initiative = surface.agency.initiative
+  const autonomy = surface.agency.autonomy
   const actionEcology = surface.agency.actionEcology
   const deliberationState = surface.agency.deliberationState
   const runtimeThread = pickForegroundRuntimeThread(spine)
   const selectedAction = sanitizeText(initiative?.selectedAction, 32)
+  const autonomyMode = sanitizeText(autonomy?.selectedMode, 32)
+  const autonomyActioning = autonomyMode === 'prepare-act' || autonomyMode === 'act'
   const readiness = clamp01(Math.max(
     actionEcology?.readiness ?? 0,
     deliberationState?.readiness ?? 0,
+    autonomyActioning
+      ? Math.max(
+          autonomy?.actReadiness ?? 0,
+          autonomy?.confidence ?? 0,
+          autonomy?.shouldAct ? 0.92 : 0.74,
+        )
+      : 0,
     selectedAction && selectedAction !== 'wait' && selectedAction !== 'hover'
       ? initiative?.confidence ?? 0
       : 0,
     runtimeThread ? 0.56 : 0,
   ))
   const focus = firstNonEmptyText(
+    autonomy?.executionIntent?.summary,
+    autonomy?.whyNow,
     actionEcology?.why,
     runtimeThread?.summary,
     initiative?.why,
@@ -262,12 +296,37 @@ function buildActiveControlChannel(spine: AlicizationDigitalLifeSpineSnapshot): 
     readiness,
     focus,
     summary: [
+      autonomyMode ? `autonomy=${autonomyMode}` : '',
       selectedAction ? `action=${selectedAction}` : '',
+      autonomy?.executionIntent?.kind ? `intent=${sanitizeText(autonomy.executionIntent.kind, 48)}` : '',
       actionEcology?.mode ? `ecology=${actionEcology.mode}` : '',
       runtimeThread ? `thread=${sanitizeText(runtimeThread.need, 56)}` : '',
       actionEcology ? `surface=${actionEcology.shouldSurface ? 'true' : 'false'}` : '',
       focus ? `focus=${sanitizeText(focus, 72)}` : '',
     ].filter(Boolean).join(' | '),
+  }
+}
+
+function buildRuntimeAutonomySnapshot(
+  spine: AlicizationDigitalLifeSpineSnapshot,
+): AlicizationRuntimeAutonomySnapshot | null {
+  const autonomy = spine.runtimeSurface.agency.autonomy ?? null
+  if (!autonomy)
+    return null
+
+  return {
+    selectedMode: sanitizeText(autonomy.selectedMode, 48) || null,
+    visibleAction: sanitizeText(autonomy.visibleAction, 48) || null,
+    shouldSpeak: autonomy.shouldSpeak === true,
+    shouldAct: autonomy.shouldAct === true,
+    speakReadiness: clamp01(autonomy.speakReadiness),
+    actReadiness: clamp01(autonomy.actReadiness),
+    inhibition: clamp01(autonomy.inhibition),
+    confidence: clamp01(autonomy.confidence),
+    executionIntentKind: sanitizeText(autonomy.executionIntent?.kind, 48) || null,
+    executionIntentSummary: sanitizeText(autonomy.executionIntent?.summary, 220) || null,
+    deferReason: sanitizeText(autonomy.deferReason, 160) || null,
+    whyNow: sanitizeText(autonomy.whyNow, 220) || null,
   }
 }
 
@@ -539,16 +598,32 @@ export function deriveAlicizationRuntimeSnapshot(input: {
   const ranked = rankChannels(channels)
   const dominant = ranked[0]?.id ?? 'active-mind'
 
-  const selectedAction = sanitizeText(spine.runtimeSurface.agency.initiative?.selectedAction, 32)
-  const shouldProactivelyAct = channels['active-control'].readiness >= 0.64
-    && selectedAction !== ''
-    && selectedAction !== 'wait'
-    && selectedAction !== 'hover'
-  const shouldProactivelySpeak = Boolean(
-    spine.runtimeSurface.cognition.privateThought?.shouldSpeak
-    || spine.runtimeSurface.agency.initiative?.shouldSpeak
-    || channels['active-dialogue'].readiness >= 0.58,
-  )
+  const initiative = spine.runtimeSurface.agency.initiative ?? null
+  const privateThought = spine.runtimeSurface.cognition.privateThought ?? null
+  const autonomyState = spine.runtimeSurface.agency.autonomy ?? null
+  const autonomy = buildRuntimeAutonomySnapshot(spine)
+  const selectedAction = sanitizeText(autonomyState?.visibleAction ?? initiative?.selectedAction, 32)
+  const motiveEngine = spine.runtimeSurface.memory.motiveEngine ?? null
+  const habitPolicy = spine.runtimeSurface.agency.habitPolicy ?? null
+  const autonomyActioning = autonomyState?.selectedMode === 'prepare-act'
+    || autonomyState?.selectedMode === 'act'
+  const shouldProactivelyAct = autonomyState
+    ? autonomyActioning || autonomyState.shouldAct === true
+    : (
+        channels['active-control'].readiness >= 0.64
+        && selectedAction !== ''
+        && selectedAction !== 'wait'
+        && selectedAction !== 'hover'
+      )
+  const autonomySpeechLocked = Boolean(autonomyActioning && autonomyState?.shouldSpeak !== true)
+  const shouldProactivelySpeak = autonomySpeechLocked
+    ? false
+    : Boolean(
+        autonomyState?.shouldSpeak
+        || privateThought?.shouldSpeak
+        || initiative?.shouldSpeak
+        || channels['active-dialogue'].readiness >= 0.58,
+      )
 
   const continuityPressure = clamp01(
     channels['active-memory'].readiness * 0.42
@@ -560,15 +635,39 @@ export function deriveAlicizationRuntimeSnapshot(input: {
     + channels['active-dialogue'].readiness * 0.2
     + (spine.runtimeSurface.agency.selfState?.feltCloseness ?? 0) * 0.12,
   )
+  const rulingMotive = sanitizeText(motiveEngine?.rulingDrive, 48) || null
+  const habitMode = sanitizeText(habitPolicy?.dominantMode, 64) || null
+  const truthDisciplinePressure = clamp01(motiveEngine?.drives.truthDiscipline ?? 0)
+  const boundaryPressure = clamp01(
+    (motiveEngine?.drives.boundaryRespect ?? 0) * 0.82
+    + (habitPolicy?.blocksDirectSpeakWhenBusy ? 0.12 : 0)
+    + (habitPolicy?.prefersQuietCompanionship ? 0.06 : 0),
+  )
+  const restProtectionPressure = clamp01(
+    (motiveEngine?.drives.restProtection ?? 0) * 0.84
+    + (habitPolicy?.protectsRestWindow ? 0.14 : 0),
+  )
+  const returnPressure = clamp01(
+    motiveEngine?.returnPressure
+      ?? motiveEngine?.drives.unfinishedThreadReturn
+      ?? 0,
+  )
   const baseSnapshot = {
     version: 'alicization-runtime-v1' as const,
     dominantChannel: dominant,
     channels,
     activeLoop: null,
+    autonomy,
     shouldProactivelySpeak,
     shouldProactivelyAct,
     continuityPressure,
     companionshipPressure,
+    rulingMotive,
+    habitMode,
+    truthDisciplinePressure,
+    boundaryPressure,
+    restProtectionPressure,
+    returnPressure,
     summary: '',
   }
   const activeLoop = deriveAlicizationActiveLoopSnapshot({
@@ -581,10 +680,18 @@ export function deriveAlicizationRuntimeSnapshot(input: {
     activeLoop?.handoffTarget ? `handoff=${activeLoop.handoffTarget}` : '',
     activeLoop ? `initiative=${activeLoop.initiativeBudget.toFixed(2)}` : '',
     activeLoop ? `coherence=${activeLoop.coherence.toFixed(2)}` : '',
+    autonomy?.selectedMode ? `autonomy=${autonomy.selectedMode}` : '',
+    autonomy?.visibleAction ? `visible=${autonomy.visibleAction}` : '',
+    autonomy?.executionIntentKind ? `intent=${autonomy.executionIntentKind}` : '',
     `speak=${shouldProactivelySpeak ? 'true' : 'false'}`,
     `act=${shouldProactivelyAct ? 'true' : 'false'}`,
     `continuity=${continuityPressure.toFixed(2)}`,
     `companionship=${companionshipPressure.toFixed(2)}`,
+    rulingMotive ? `motive=${rulingMotive}` : '',
+    habitMode ? `habit=${habitMode}` : '',
+    truthDisciplinePressure > 0 ? `truth=${truthDisciplinePressure.toFixed(2)}` : '',
+    boundaryPressure > 0 ? `boundary=${boundaryPressure.toFixed(2)}` : '',
+    returnPressure > 0 ? `return=${returnPressure.toFixed(2)}` : '',
   ].filter(Boolean).join(' | ')
 
   return {
@@ -631,10 +738,32 @@ export function projectAlicizationRuntimeDigest(
           summary: sanitizeText(snapshot.activeLoop.summary, 240),
         }
       : null,
+    autonomy: snapshot.autonomy
+      ? {
+          selectedMode: sanitizeText(snapshot.autonomy.selectedMode, 48) || null,
+          visibleAction: sanitizeText(snapshot.autonomy.visibleAction, 48) || null,
+          shouldSpeak: snapshot.autonomy.shouldSpeak === true,
+          shouldAct: snapshot.autonomy.shouldAct === true,
+          speakReadiness: clamp01(snapshot.autonomy.speakReadiness),
+          actReadiness: clamp01(snapshot.autonomy.actReadiness),
+          inhibition: clamp01(snapshot.autonomy.inhibition),
+          confidence: clamp01(snapshot.autonomy.confidence),
+          executionIntentKind: sanitizeText(snapshot.autonomy.executionIntentKind, 48) || null,
+          executionIntentSummary: sanitizeText(snapshot.autonomy.executionIntentSummary, 220) || null,
+          deferReason: sanitizeText(snapshot.autonomy.deferReason, 160) || null,
+          whyNow: sanitizeText(snapshot.autonomy.whyNow, 220) || null,
+        }
+      : null,
     shouldProactivelySpeak: snapshot.shouldProactivelySpeak,
     shouldProactivelyAct: snapshot.shouldProactivelyAct,
     continuityPressure: clamp01(snapshot.continuityPressure),
     companionshipPressure: clamp01(snapshot.companionshipPressure),
+    rulingMotive: sanitizeText(snapshot.rulingMotive, 48) || null,
+    habitMode: sanitizeText(snapshot.habitMode, 64) || null,
+    truthDisciplinePressure: clamp01(snapshot.truthDisciplinePressure),
+    boundaryPressure: clamp01(snapshot.boundaryPressure),
+    restProtectionPressure: clamp01(snapshot.restProtectionPressure),
+    returnPressure: clamp01(snapshot.returnPressure),
     channels,
     summary: sanitizeText(snapshot.summary, 240),
   }
@@ -657,10 +786,24 @@ export function buildAlicizationRuntimeSystemBlock(
     snapshot.activeLoop ? `active_loop_initiative_budget=${snapshot.activeLoop.initiativeBudget.toFixed(2)}` : '',
     snapshot.activeLoop ? `active_loop_coherence=${snapshot.activeLoop.coherence.toFixed(2)}` : '',
     snapshot.activeLoop ? `active_loop_observation_heavy=${snapshot.activeLoop.observationHeavy ? 'true' : 'false'}` : '',
+    snapshot.autonomy?.selectedMode ? `autonomy_mode=${snapshot.autonomy.selectedMode}` : '',
+    snapshot.autonomy?.visibleAction ? `autonomy_visible_action=${snapshot.autonomy.visibleAction}` : '',
+    snapshot.autonomy ? `autonomy_should_speak=${snapshot.autonomy.shouldSpeak ? 'true' : 'false'}` : '',
+    snapshot.autonomy ? `autonomy_should_act=${snapshot.autonomy.shouldAct ? 'true' : 'false'}` : '',
+    snapshot.autonomy ? `autonomy_speak_readiness=${clamp01(snapshot.autonomy.speakReadiness).toFixed(2)}` : '',
+    snapshot.autonomy ? `autonomy_act_readiness=${clamp01(snapshot.autonomy.actReadiness).toFixed(2)}` : '',
+    snapshot.autonomy?.executionIntentKind ? `autonomy_intent=${snapshot.autonomy.executionIntentKind}` : '',
+    snapshot.autonomy?.deferReason ? `autonomy_defer=${snapshot.autonomy.deferReason}` : '',
     `should_proactively_speak=${snapshot.shouldProactivelySpeak ? 'true' : 'false'}`,
     `should_proactively_act=${snapshot.shouldProactivelyAct ? 'true' : 'false'}`,
     `continuity_pressure=${snapshot.continuityPressure.toFixed(2)}`,
     `companionship_pressure=${snapshot.companionshipPressure.toFixed(2)}`,
+    snapshot.rulingMotive ? `ruling_motive=${snapshot.rulingMotive}` : '',
+    snapshot.habitMode ? `habit_mode=${snapshot.habitMode}` : '',
+    `truth_discipline_pressure=${clamp01(snapshot.truthDisciplinePressure).toFixed(2)}`,
+    `boundary_pressure=${clamp01(snapshot.boundaryPressure).toFixed(2)}`,
+    `rest_protection_pressure=${clamp01(snapshot.restProtectionPressure).toFixed(2)}`,
+    `return_pressure=${clamp01(snapshot.returnPressure).toFixed(2)}`,
     'channels:',
     ...ranked.map(channel => [
       `- [${formatChannelState(channel.state)} ${channel.readiness.toFixed(2)}] ${channel.id}`,

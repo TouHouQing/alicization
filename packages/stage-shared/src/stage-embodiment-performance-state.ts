@@ -1,11 +1,13 @@
 import type { AlicizationDialogueSpeechTimelineSegment } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDialoguePerformancePayload } from './alicization-performance-contracts'
+import type { StageEmbodimentMotorState } from './stage-embodiment-motor-state'
 import type {
   StageEmbodimentSpeechPlaybackItem,
   StageEmbodimentSpeechRenderPhase,
 } from './stage-embodiment-speech-playback'
 
 import { normalizeAlicizationPerformancePayload } from './alicization-performance-contracts'
+import { createIdleStageEmbodimentMotorState } from './stage-embodiment-motor-state'
 
 export type StageEmbodimentPerformancePhase = 'idle' | 'armed' | 'speaking' | 'cooldown'
 export type StageEmbodimentPerformanceCueSource = 'none' | 'resident' | 'segment' | 'preview'
@@ -48,6 +50,7 @@ export interface StageEmbodimentPerformanceState {
   prosodyDrive: number
   breathDrive: number
   focusDrive: number
+  motor: StageEmbodimentMotorState
   armedAt: number | null
   speakingStartedAt: number | null
   cooldownUntil: number | null
@@ -80,6 +83,7 @@ export function createIdleStageEmbodimentPerformanceState(): StageEmbodimentPerf
     prosodyDrive: 0,
     breathDrive: 0,
     focusDrive: 0,
+    motor: createIdleStageEmbodimentMotorState(),
     armedAt: null,
     speakingStartedAt: null,
     cooldownUntil: null,

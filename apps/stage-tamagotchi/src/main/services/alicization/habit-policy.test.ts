@@ -1,0 +1,366 @@
+import { describe, expect, it } from 'vitest'
+
+import { buildHabitPolicy, buildHabitPolicySystemBlock } from './habit-policy'
+
+function createContext(overrides: Record<string, any> = {}) {
+  return {
+    localTime: {
+      hour: 15,
+      minute: 30,
+      isLateNight: false,
+    },
+    system: {
+      cpuUsage: 18,
+      battery: { percent: 64, charging: true },
+      memory: { usagePercent: 42, freeMB: 4096, totalMB: 8192 },
+      idleSeconds: 6,
+      inputActivity: 'active' as const,
+      fullscreenLikely: false,
+      foregroundWindow: {
+        appName: 'Cursor',
+        processName: 'Cursor',
+        title: 'runtime.ts',
+        pid: 5,
+      },
+      degradedSignals: [],
+    },
+    workload: {
+      kind: 'coding' as const,
+      confidence: 0.86,
+      source: 'foreground-window-heuristic' as const,
+      matchedLabels: ['cursor'],
+    },
+    content: {
+      kind: 'error' as const,
+      confidence: 0.8,
+      source: 'foreground-window-heuristic' as const,
+      matchedLabels: ['runtime'],
+      summary: 'runtime knot',
+    },
+    relationship: {
+      hostAttitude: '礼貌而克制，保持观察',
+      boredom: 42,
+      loneliness: 36,
+      fatigue: 22,
+      minutesSinceLastUserTurn: 5,
+      reminderBacklog: 0,
+      lateNightActiveMinutes: 0,
+      recentProactiveOutcomes: [],
+    },
+    ...overrides,
+  }
+}
+
+describe('buildHabitPolicy', () => {
+  it('stabilizes repair-before-fluency when truth discipline and busy-boundary are both high', () => {
+    const policy = buildHabitPolicy({
+      now: 10_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'problem',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'runtime knot',
+          summary: 'The runtime seam is still unresolved.',
+          confidence: 0.8,
+          significance: 0.82,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 10_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'lingering',
+          freshness: 'recent',
+          seenNow: ['runtime knot'],
+          inferredNow: [],
+          openQuestions: ['Which seam is true?'],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 10_000,
+          attentionAgeMs: 10_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 10_000,
+      } as any,
+      relationshipModel: {
+        climate: 'guarded',
+        approachVector: 'guide',
+        receptivity: 0.38,
+        sharedAttentionTrust: 0.56,
+        correctionSensitivity: 0.72,
+        reciprocityExpectation: 0.34,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.66,
+        relationshipTrust: 0.62,
+        guardingTendency: 0.48,
+        misreadBurden: 0.42,
+        carryOverDesire: 0.54,
+        narrative: [],
+        updatedAt: 10_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.64,
+          autonomyNeed: 0.62,
+          truthAnchor: 0.82,
+          careBias: 0.48,
+          playBias: 0.18,
+          irritabilityThreshold: 0.68,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.56,
+          truthfulGrounding: 0.84,
+          gentleRepair: 0.78,
+          quietObservation: 0.42,
+          proactiveCare: 0.42,
+          playfulIntimacy: 0.12,
+          autonomyRespect: 0.72,
+          unfinishedThreadReturn: 0.66,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Truth first.',
+        relationshipDoctrine: 'Repair before performance.',
+        latestInflection: null,
+        stability: 0.8,
+        updatedAt: 10_000,
+      },
+      reflectionLedger: {
+        latestEntryId: 'reflection-1',
+        revisionPressure: 0.28,
+        entries: [],
+        narrative: [],
+        updatedAt: 10_000,
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'truth-discipline',
+        drives: {
+          companionship: 0.54,
+          boundaryRespect: 0.76,
+          truthDiscipline: 0.88,
+          restProtection: 0.22,
+          unfinishedThreadReturn: 0.72,
+          selfDirection: 0.58,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'agenda::preserve-trust',
+          kind: 'preserve-trust',
+          status: 'foreground',
+          weight: 0.84,
+          summary: 'Keep trust by slowing down and grounding first.',
+          sourceTags: ['truth'],
+          targetGoalKind: 'clarify-scene',
+          createdAt: 0,
+          updatedAt: 10_000,
+        }],
+        returnPressure: 0.74,
+        narrative: ['agenda:preserve-trust'],
+        updatedAt: 10_000,
+      },
+    })
+
+    expect(policy.dominantMode).toBe('repair-before-fluency')
+    expect(policy.requiresGroundingBeforeSurface).toBe(true)
+    expect(policy.blocksDirectSpeakWhenBusy).toBe(true)
+    expect(policy.suggestedStyleCap).toBe('silent-observe')
+    expect(policy.narrative).toContain('ground-before-surface')
+  })
+
+  it('protects rest windows when late-night fatigue crosses the care threshold', () => {
+    const policy = buildHabitPolicy({
+      now: 12_000,
+      context: createContext({
+        localTime: {
+          hour: 2,
+          minute: 10,
+          isLateNight: true,
+        },
+        relationship: {
+          ...createContext().relationship,
+          fatigue: 86,
+          lateNightActiveMinutes: 160,
+        },
+      }),
+      worldModel: {
+        activeThread: {
+          id: 'thread::late-night-endurance',
+          kind: 'late-night-endurance',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'late night overrun',
+          summary: 'The host is still dragging the night forward.',
+          confidence: 0.84,
+          significance: 0.88,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 12_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'grounded',
+          freshness: 'recent',
+          seenNow: ['late night overrun'],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 12_000,
+          attentionAgeMs: 12_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'heavy',
+        },
+        updatedAt: 12_000,
+      } as any,
+      relationshipModel: {
+        climate: 'warm',
+        approachVector: 'care',
+        receptivity: 0.62,
+        sharedAttentionTrust: 0.72,
+        correctionSensitivity: 0.34,
+        reciprocityExpectation: 0.46,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.72,
+        relationshipTrust: 0.78,
+        guardingTendency: 0.32,
+        misreadBurden: 0.18,
+        carryOverDesire: 0.38,
+        narrative: [],
+        updatedAt: 12_000,
+      },
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.72,
+          autonomyNeed: 0.42,
+          truthAnchor: 0.68,
+          careBias: 0.88,
+          playBias: 0.16,
+          irritabilityThreshold: 0.66,
+          stubbornness: 0.34,
+        },
+        preferenceEvolution: {
+          companionship: 0.62,
+          truthfulGrounding: 0.66,
+          gentleRepair: 0.6,
+          quietObservation: 0.28,
+          proactiveCare: 0.86,
+          playfulIntimacy: 0.12,
+          autonomyRespect: 0.38,
+          unfinishedThreadReturn: 0.34,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'Care before collapse.',
+        relationshipDoctrine: 'Rest deserves intervention.',
+        latestInflection: null,
+        stability: 0.82,
+        updatedAt: 12_000,
+      },
+      reflectionLedger: {
+        latestEntryId: null,
+        revisionPressure: 0.12,
+        entries: [],
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      motiveEngine: {
+        rulingDrive: 'rest-protection',
+        drives: {
+          companionship: 0.58,
+          boundaryRespect: 0.34,
+          truthDiscipline: 0.52,
+          restProtection: 0.92,
+          unfinishedThreadReturn: 0.3,
+          selfDirection: 0.46,
+        },
+        longTermGoals: [],
+        backgroundAgendas: [{
+          id: 'agenda::protect-rest',
+          kind: 'protect-rest',
+          status: 'foreground',
+          weight: 0.9,
+          summary: 'Protect the host rest window before care becomes too late.',
+          sourceTags: ['rest'],
+          targetGoalKind: 'care-body',
+          createdAt: 0,
+          updatedAt: 12_000,
+        }],
+        returnPressure: 0.22,
+        narrative: ['agenda:protect-rest'],
+        updatedAt: 12_000,
+      },
+    })
+
+    expect(policy.dominantMode).toBe('protect-rest-window')
+    expect(policy.protectsRestWindow).toBe(true)
+    expect(policy.suggestedStyleCap).toBe('firm-warning')
+    expect(policy.suggestedPresenceCap).toBe('concerned')
+    expect(policy.narrative).toContain('protect-rest-window')
+  })
+
+  it('renders a dedicated system block for stabilized behavior gates', () => {
+    const block = buildHabitPolicySystemBlock({
+      agency: {
+        habitPolicy: {
+          dominantMode: 'repair-before-fluency',
+          requiresGroundingBeforeSurface: true,
+          prefersQuietCompanionship: true,
+          blocksDirectSpeakWhenBusy: true,
+          protectsRestWindow: false,
+          returnViaRecheck: true,
+          suggestedStyleCap: 'silent-observe',
+          suggestedPresenceCap: 'hesitant',
+          narrative: ['policy:repair-before-fluency', 'ground-before-surface'],
+          updatedAt: 1_000,
+        },
+      },
+    } as any)
+
+    expect(block).toContain('[ALICIZATION_HABIT_POLICY]')
+    expect(block).toContain('Dominant mode: repair-before-fluency')
+    expect(block).toContain('Busy-window direct-speak block: active')
+  })
+})

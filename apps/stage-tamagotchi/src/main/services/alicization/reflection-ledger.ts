@@ -260,10 +260,13 @@ export function buildReflectionLedger(input: {
   intentionStream?: AlicizationIntentionStreamSnapshot | null
   previousIntentionStream?: AlicizationIntentionStreamSnapshot | null
   previousAnswerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  persistedEntries?: AlicizationReflectionEntrySnapshot[] | null
   previous?: AlicizationReflectionLedgerSnapshot | null
 }): AlicizationReflectionLedgerSnapshot {
-  const previousEntries = (input.previous?.entries ?? [])
+  const previousEntries = [...(input.persistedEntries ?? []), ...(input.previous?.entries ?? [])]
     .filter(entry => input.now - entry.createdAt <= reflectionTtlMs)
+    .filter((entry, index, entries) => entries.findIndex(candidate => candidate.id === entry.id) === index)
+    .sort((left, right) => right.createdAt - left.createdAt)
   const previousReflection = latestEntry(input.previous)
   const previousProject = dominantProject(input.previousIntentionStream)
 

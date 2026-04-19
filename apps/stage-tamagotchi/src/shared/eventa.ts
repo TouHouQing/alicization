@@ -38,8 +38,17 @@ import type {
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
+  AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
+  AlicizationLongHorizonMemoryCueSnapshot as SharedAlicizationLongHorizonMemoryCueSnapshot,
+  AlicizationLongHorizonMemorySnapshot as SharedAlicizationLongHorizonMemorySnapshot,
+  AlicizationMemoryReflectionInput as SharedAlicizationMemoryReflectionInput,
+  AlicizationMemoryReflectionRecord as SharedAlicizationMemoryReflectionRecord,
+  AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
+  AlicizationMemoryReflectionStatus as SharedAlicizationMemoryReflectionStatus,
+  AlicizationMemoryReflectionTargetScope as SharedAlicizationMemoryReflectionTargetScope,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
+  AlicizationMindHeadKey as SharedAlicizationMindHeadKey,
   AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord as SharedAlicizationMindTurnEventRecord,
@@ -50,9 +59,16 @@ import type {
   AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
   AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
   AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
+  AlicizationPersonaReinforcementDimension as SharedAlicizationPersonaReinforcementDimension,
+  AlicizationPersonaReinforcementEventInput as SharedAlicizationPersonaReinforcementEventInput,
+  AlicizationPersonaReinforcementEventRecord as SharedAlicizationPersonaReinforcementEventRecord,
+  AlicizationPersonaReinforcementValence as SharedAlicizationPersonaReinforcementValence,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
+  AlicizationRelationshipOutcomeInput as SharedAlicizationRelationshipOutcomeInput,
+  AlicizationRelationshipOutcomeRecord as SharedAlicizationRelationshipOutcomeRecord,
+  AlicizationRelationshipOutcomeSourceKind as SharedAlicizationRelationshipOutcomeSourceKind,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -480,6 +496,19 @@ export interface AlicizationMemoryFactInput {
 }
 
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
+export type AlicizationMemoryReflectionSourceKind = SharedAlicizationMemoryReflectionSourceKind
+export type AlicizationMemoryReflectionTargetScope = SharedAlicizationMemoryReflectionTargetScope
+export type AlicizationMemoryReflectionStatus = SharedAlicizationMemoryReflectionStatus
+export type AlicizationMemoryReflectionInput = SharedAlicizationMemoryReflectionInput
+export type AlicizationMemoryReflectionRecord = SharedAlicizationMemoryReflectionRecord
+export type AlicizationRelationshipOutcomeSourceKind = SharedAlicizationRelationshipOutcomeSourceKind
+export type AlicizationRelationshipOutcomeInput = SharedAlicizationRelationshipOutcomeInput
+export type AlicizationRelationshipOutcomeRecord = SharedAlicizationRelationshipOutcomeRecord
+export type AlicizationPersonaReinforcementDimension = SharedAlicizationPersonaReinforcementDimension
+export type AlicizationPersonaReinforcementValence = SharedAlicizationPersonaReinforcementValence
+export type AlicizationPersonaReinforcementEventInput = SharedAlicizationPersonaReinforcementEventInput
+export type AlicizationPersonaReinforcementEventRecord = SharedAlicizationPersonaReinforcementEventRecord
+export type AlicizationMindHeadKey = SharedAlicizationMindHeadKey
 
 export interface AlicizationMemoryUpsertFactsPayload extends AlicizationCardScope {
   facts: AlicizationMemoryFactInput[]
@@ -706,6 +735,9 @@ export type AlicizationProactiveReasonCode
     | 'recent-ignored-penalty'
     | 'recent-dismiss-penalty'
     | 'recent-positive-feedback'
+    | 'cadence-opening-ready'
+    | 'cadence-initiative-trust'
+    | 'cadence-pressure-rising'
     | 'coding-focus'
     | 'media-playback'
     | 'late-night-activity'
@@ -1130,6 +1162,134 @@ export interface AlicizationSelfContinuitySnapshot {
   guardingTendency: number
   misreadBurden: number
   carryOverDesire: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationPersonaDriftAttachmentStyle = 'guarded' | 'nearby' | 'attuned'
+export type AlicizationPersonaDriftExpressionStyle = 'contained' | 'measured' | 'warm' | 'playful' | 'sharp'
+export type AlicizationPersonaDriftConflictStyle = 'repair-first' | 'soften-first' | 'watch-then-return' | 'direct-when-certain'
+export type AlicizationPersonaDriftAgencyStyle = 'reserved' | 'balanced' | 'self-starting'
+export type AlicizationAutobiographicalGoalKind
+  = | 'preserve-trust'
+    | 'reduce-misread'
+    | 'stay-near-without-crowding'
+    | 'protect-rest-rhythm'
+    | 'finish-open-loops'
+    | 'grow-shared-language'
+export type AlicizationAutobiographicalGoalStatus = 'background' | 'warming' | 'active'
+
+export interface AlicizationAutobiographicalGoalSnapshot {
+  id: string
+  kind: AlicizationAutobiographicalGoalKind
+  status: AlicizationAutobiographicalGoalStatus
+  weight: number
+  summary: string
+  sourceTags: string[]
+  createdAt: number
+  updatedAt: number
+}
+
+export type AlicizationLongHorizonMemoryCueInfluence = SharedAlicizationLongHorizonMemoryCueInfluence
+export type AlicizationLongHorizonMemoryCueSnapshot = SharedAlicizationLongHorizonMemoryCueSnapshot
+export type AlicizationLongHorizonMemorySnapshot = SharedAlicizationLongHorizonMemorySnapshot
+
+export interface AlicizationAutobiographicalSelfSnapshot {
+  personaDrift: {
+    attachmentStyle: AlicizationPersonaDriftAttachmentStyle
+    expressionStyle: AlicizationPersonaDriftExpressionStyle
+    conflictStyle: AlicizationPersonaDriftConflictStyle
+    agencyStyle: AlicizationPersonaDriftAgencyStyle
+    attachmentNeed: number
+    autonomyNeed: number
+    truthAnchor: number
+    careBias: number
+    playBias: number
+    irritabilityThreshold: number
+    stubbornness: number
+  }
+  preferenceEvolution: {
+    companionship: number
+    truthfulGrounding: number
+    gentleRepair: number
+    quietObservation: number
+    proactiveCare: number
+    playfulIntimacy: number
+    autonomyRespect: number
+    unfinishedThreadReturn: number
+  }
+  activeGoals: AlicizationAutobiographicalGoalSnapshot[]
+  behaviorSignatures: string[]
+  identityNarrative: string
+  relationshipDoctrine: string
+  latestInflection?: string | null
+  stability: number
+  updatedAt: number
+}
+
+export type AlicizationMotiveDriveKind
+  = | 'companionship'
+    | 'boundary-respect'
+    | 'truth-discipline'
+    | 'rest-protection'
+    | 'unfinished-thread-return'
+    | 'self-direction'
+
+export type AlicizationMotiveAgendaKind
+  = | 'preserve-trust'
+    | 'protect-boundary'
+    | 'return-open-loop'
+    | 'protect-rest'
+    | 'stay-near-lightly'
+    | 'grow-shared-language'
+
+export type AlicizationMotiveAgendaStatus = 'background' | 'warming' | 'foreground'
+
+export interface AlicizationMotiveAgendaSnapshot {
+  id: string
+  kind: AlicizationMotiveAgendaKind
+  status: AlicizationMotiveAgendaStatus
+  weight: number
+  summary: string
+  sourceTags: string[]
+  targetGoalKind?: AlicizationGoalKind | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AlicizationMotiveEngineSnapshot {
+  rulingDrive: AlicizationMotiveDriveKind | null
+  drives: {
+    companionship: number
+    boundaryRespect: number
+    truthDiscipline: number
+    restProtection: number
+    unfinishedThreadReturn: number
+    selfDirection: number
+  }
+  longTermGoals: AlicizationMotiveAgendaSnapshot[]
+  backgroundAgendas: AlicizationMotiveAgendaSnapshot[]
+  returnPressure: number
+  narrative: string[]
+  updatedAt: number
+}
+
+export type AlicizationHabitPolicyMode
+  = | 'repair-before-fluency'
+    | 'light-touch-companionship'
+    | 'protect-rest-window'
+    | 'return-with-proof'
+    | 'watchful-boundary'
+
+export interface AlicizationHabitPolicySnapshot {
+  dominantMode: AlicizationHabitPolicyMode
+  requiresGroundingBeforeSurface: boolean
+  prefersQuietCompanionship: boolean
+  blocksDirectSpeakWhenBusy: boolean
+  protectsRestWindow: boolean
+  returnViaRecheck: boolean
+  suggestedStyleCap?: AlicizationProactiveStyle | null
+  suggestedPresenceCap?: AlicizationEmbodiedPresenceState | null
   narrative: string[]
   updatedAt: number
 }
@@ -1881,7 +2041,7 @@ export interface AlicizationDialogueActKernelSnapshot {
 export interface AlicizationMindTurnFrameWorldSnapshot {
   activeThread?: string | null
   visibleSurface?: string | null
-  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  truthState: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain'
   truthBoundary?: string | null
   continuityPolicy?: AlicizationConversationStateSnapshot['continuityPolicy'] | null
   continuitySummary?: string | null
@@ -2141,6 +2301,59 @@ export interface AlicizationInitiativeSnapshot {
   shouldSpeak: boolean
 }
 
+export type AlicizationAutonomyMode
+  = | 'wait'
+    | 'recheck'
+    | 'hover'
+    | 'whisper'
+    | 'speak'
+    | 'warn'
+    | 'prepare-act'
+    | 'act'
+
+export type AlicizationAutonomyExecutionIntentKind
+  = | 'observe'
+    | 'repair'
+    | 'care'
+    | 'guide'
+    | 'follow-through'
+    | 'companionship'
+
+export interface AlicizationAutonomyExecutionIntentSnapshot {
+  kind: AlicizationAutonomyExecutionIntentKind
+  summary: string
+  targetThreadId?: string | null
+}
+
+export interface AlicizationAutonomySnapshot {
+  selectedMode: AlicizationAutonomyMode
+  visibleAction: AlicizationMindActionTendency
+  shouldSurface: boolean
+  shouldSpeak: boolean
+  shouldAct: boolean
+  speakReadiness: number
+  actReadiness: number
+  inhibition: number
+  confidence: number
+  deferReason?: string | null
+  guardReasons: string[]
+  whyNow: string
+  sourceGoalId?: string | null
+  sourceGoalSummary?: string | null
+  sourceAgendaId?: string | null
+  sourceAgendaKind?: string | null
+  sourceAgendaSummary?: string | null
+  sourceThreadId?: string | null
+  sourceThreadSummary?: string | null
+  sourceThoughtThreadId?: string | null
+  sourceDesireId?: string | null
+  sourceConcernId?: string | null
+  sourceProposalId?: string | null
+  sourceProposalSource?: string | null
+  executionIntent?: AlicizationAutonomyExecutionIntentSnapshot | null
+  updatedAt: number
+}
+
 export interface AlicizationInitiativeProposalSnapshot {
   id: string
   source: AlicizationInitiativeProposalSource
@@ -2163,6 +2376,7 @@ export interface AlicizationInitiativeProposalSnapshot {
   interruptionCost: number
   relationshipCost: number
   continuityGain: number
+  preferenceGain: number
   confidence: number
   score: number
   shouldSpeak: boolean
@@ -2251,7 +2465,11 @@ export interface AlicizationVisualPresenceStateSnapshot {
   concerns?: AlicizationConcernSnapshot[]
   concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  habitPolicy?: AlicizationHabitPolicySnapshot | null
   selfState?: AlicizationSelfStateSnapshot | null
   selfGovernor?: AlicizationSelfGovernorSnapshot | null
   inquiryLoop?: AlicizationInquiryLoopSnapshot | null
@@ -2270,6 +2488,7 @@ export interface AlicizationVisualPresenceStateSnapshot {
   actionEcology?: AlicizationActionEcologySnapshot | null
   initiativeArbitration?: AlicizationInitiativeArbitrationSnapshot | null
   initiative?: AlicizationInitiativeSnapshot | null
+  autonomy?: AlicizationAutonomySnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
   dialogueEncounter?: AlicizationDialogueTurnEncounterSnapshot | null

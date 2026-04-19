@@ -225,4 +225,25 @@ describe('buildReflectionLedger', () => {
     expect(ledger.entries[0]?.revision).toContain('truth repair ahead of fluency')
     expect(ledger.revisionPressure).toBeGreaterThan(0)
   })
+
+  it('keeps persisted reflections alive so revision pressure survives beyond a single turn', () => {
+    const ledger = buildReflectionLedger({
+      now: 60_000,
+      persistedEntries: [{
+        id: 'reflection::persisted',
+        summary: 'A prior approach crowded the host while the window was closed.',
+        expectation: 'Space should come before closeness in closed windows.',
+        observedOutcome: 'Pressure rose faster than trust.',
+        outcome: 'missed',
+        revision: 'Remember the boundary lesson even when the current turn has not produced a new reflection yet.',
+        confidenceShift: 0.18,
+        createdAt: 56_000,
+      }],
+      previous: null,
+    })
+
+    expect(ledger.latestEntryId).toBe('reflection::persisted')
+    expect(ledger.entries[0]?.revision).toContain('boundary lesson')
+    expect(ledger.revisionPressure).toBeGreaterThan(0.2)
+  })
 })

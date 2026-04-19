@@ -3,6 +3,8 @@ import type {
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
+import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
@@ -58,11 +60,22 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     outcome: string
     status: AlicizationTaskThreadRecord['status']
     summary: string
+    deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
+    selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   }) => {
     reply: string
     source: 'llm' | 'llm-repaired' | 'deterministic'
     reason?: string
   }
+  resolveExecutionResultDeliveryPolicy: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+    status: AlicizationTaskThreadRecord['status']
+  }) => Promise<AlicizationExecutionResultDeliveryPolicy>
+  resolveExecutionSelfContinuityAuthority?: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) => Promise<AlicizationSelfContinuityAuthority | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
@@ -425,6 +438,45 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       if (await skipIfInlineSurfaced('pre-generate'))
         return true
 
+      const deliveryPolicy = await options.resolveExecutionResultDeliveryPolicy({
+        agentTurn,
+        cardId: options.getActiveCardId(),
+        status: pendingDelivery.status,
+      })
+      const selfContinuityAuthority = options.resolveExecutionSelfContinuityAuthority
+        ? await options.resolveExecutionSelfContinuityAuthority({
+            agentTurn,
+            cardId: options.getActiveCardId(),
+          })
+        : null
+      if (deliveryPolicy.mode === 'hold-for-opening') {
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        await options.persistExecutionDeliveryState(options.getActiveCardId())
+        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-hold:${pendingDelivery.threadId}`, 3 * 60_000)
+        await options.appendRuntimeDebugLine('execution-delivery.held-for-opening', {
+          trigger,
+          cardId: options.getActiveCardId(),
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          status: pendingDelivery.status,
+          policy: deliveryPolicy,
+        })
+        await options.appendAuditLog({
+          level: 'notice',
+          category: 'alicization.executor.delivery',
+          action: 'held-for-opening',
+          message: 'Deferred execution-result delivery because the current opening is too tight for this learned delivery profile.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+            policy: deliveryPolicy,
+          },
+        })
+        return false
+      }
+
       const llmStructured = await options.generateExecutionCallbackStructuredWithGateway({
         cardId: options.getActiveCardId(),
         channel: pendingDelivery.channel,
@@ -442,6 +494,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           turnId: firedTurnId,
           decisionTraceId: pendingDelivery.decisionTraceId,
         },
+        deliveryPolicy,
+        selfContinuityAuthority,
       })
       const deterministicStructured = options.buildExecutionDeliveryDeterministicStructured({
         channel: pendingDelivery.channel,
@@ -449,6 +503,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         outcome: pendingDelivery.outcome,
         status: pendingDelivery.status,
         summary: pendingDelivery.summary,
+        policy: deliveryPolicy,
+        selfContinuityAuthority,
       })
       const selectedReply = options.selectExecutionDeliveryReplySurface({
         channel: pendingDelivery.channel,
@@ -457,6 +513,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         outcome: pendingDelivery.outcome,
         status: pendingDelivery.status,
         summary: pendingDelivery.summary,
+        deliveryPolicy,
+        selfContinuityAuthority,
       })
       const structured = selectedReply.source === 'llm' && llmStructured
         ? {
@@ -476,6 +534,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         status: pendingDelivery.status,
         source: deliverySource,
         surfaceReason: selectedReply.reason ?? null,
+        policy: deliveryPolicy,
       })
 
       if (await skipIfInlineSurfaced('pre-persist'))
