@@ -46,6 +46,12 @@ function pickRecallAnchor(...values: unknown[]) {
   return ''
 }
 
+function clamp01(value: number) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
 function buildRecalledFragmentSourceBudget(mode: AlicizationRecallGovernorSnapshot['mode']): Array<{
   sourceKind: AlicizationSubconsciousFragmentSourceKind
   maxItems: number
@@ -224,18 +230,48 @@ export function buildRecallGovernor(input: {
     || mode === 'self-continuity'
     || mode === 'emotional-resonance',
   )
-  const recallSeed = uniqueList([
+  const threadAnchors = uniqueList([
     primaryTurnAnchor,
     input.dialogueEncounter?.taskAnchor,
     input.dialogueEncounter?.summary,
     dialogueWorldThread.activeThread,
     dialogueWorldThread.currentQuestion,
+    ...dialogueWorldThread.recallKeys,
+    ...conversationState.memoryQueryHints,
+  ], 8)
+  const affectAnchors = uniqueList([
+    input.privateThought?.emotionalTension ? `emotional_tension:${input.privateThought.emotionalTension}` : null,
+    input.replyDeliberation?.selectedMotive ? `reply_motive:${input.replyDeliberation.selectedMotive}` : null,
+    input.privateThought?.stance ? `stance:${input.privateThought.stance}` : null,
+    input.mindEcology?.moodLabel ? `mood:${input.mindEcology.moodLabel}` : null,
+    input.motiveEngine?.rulingDrive ? `drive:${input.motiveEngine.rulingDrive}` : null,
+  ], 6)
+  const relationshipAnchors = uniqueList([
+    conversationState.relationFrame ? `relation:${conversationState.relationFrame}` : null,
+    dialogueWorldThread.relationDrift ? `drift:${dialogueWorldThread.relationDrift}` : null,
+    input.dialogueEncounter?.subject === 'relationship' ? 'relationship-turn' : null,
+    input.answerCompiler?.answerSubject ? `subject:${input.answerCompiler.answerSubject}` : null,
+    input.privateThought?.stance === 'care' ? 'care' : null,
+    input.replyDeliberation?.selectedMotive === 'attune' ? 'attune' : null,
+  ], 6)
+  const salienceBias = clamp01(
+    mode === 'emotional-resonance'
+      ? 0.82
+      : mode === 'self-continuity'
+        ? 0.74
+        : mode === 'thread'
+          ? 0.58
+          : mode === 'scene'
+            ? 0.24
+            : 0.4,
+  )
+  const recallSeed = uniqueList([
+    ...threadAnchors,
     ...autobiographicalContinuityLines,
     input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
     input.motiveEngine?.longTermGoals[0]?.summary ?? null,
-    ...dialogueWorldThread.recallKeys,
-    ...conversationState.memoryQueryHints,
-    input.privateThought?.emotionalTension ? `emotional_tension:${input.privateThought.emotionalTension}` : null,
+    ...affectAnchors,
+    ...relationshipAnchors,
   ], 10).join(' | ')
 
   const rationale = mode === 'scene'
@@ -255,6 +291,11 @@ export function buildRecallGovernor(input: {
   return {
     mode,
     recallSeed,
+    threadAnchors,
+    affectAnchors,
+    relationshipAnchors,
+    salienceBias,
+    sceneAnchor: primaryTurnAnchor,
     suppressAssociativeRecall,
     allowActiveThoughts,
     allowRecalledFragments,
@@ -287,6 +328,11 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     'This block decides whether old memory may enter the current answer at all.',
     `Mode: ${state.mode}.`,
     `Recall seed: ${state.recallSeed || 'none'}.`,
+    `Thread anchors: ${state.threadAnchors && state.threadAnchors.length > 0 ? state.threadAnchors.join(', ') : 'none'}.`,
+    `Affect anchors: ${state.affectAnchors && state.affectAnchors.length > 0 ? state.affectAnchors.join(', ') : 'none'}.`,
+    `Relationship anchors: ${state.relationshipAnchors && state.relationshipAnchors.length > 0 ? state.relationshipAnchors.join(', ') : 'none'}.`,
+    `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
+    `Scene anchor: ${state.sceneAnchor || 'none'}.`,
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
     `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,

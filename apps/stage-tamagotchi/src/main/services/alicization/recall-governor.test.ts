@@ -154,6 +154,11 @@ describe('buildRecallGovernor', () => {
       allowRecalledFragments: true,
       recalledFragmentCap: 3,
     }))
+    expect(governor?.affectAnchors).toEqual(expect.arrayContaining([
+      'emotional_tension:late-night-drain',
+      'reply_motive:care',
+    ]))
+    expect(governor?.salienceBias).toBeGreaterThan(0.7)
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'reflection-ledger', maxItems: 2 },
       { sourceKind: 'dialogue-turn', maxItems: 1 },

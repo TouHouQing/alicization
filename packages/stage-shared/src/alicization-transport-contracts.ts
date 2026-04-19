@@ -18,6 +18,149 @@ export type AlicizationSubconsciousFragmentSourceKind
     | 'dialogue-turn'
     | 'fact-ledger'
 
+export type AlicizationMemoryProvenance
+  = | 'observed'
+    | 'remembered'
+    | 'dreamt'
+    | 'inferred'
+    | 'reconstructed'
+
+export type AlicizationEpisodicEventSourceKind
+  = | 'reply'
+    | 'dialogue-feedback'
+    | 'execution-proposal'
+    | 'execution-result'
+    | 'proactive'
+    | 'dream'
+    | 'dream-reforge'
+    | 'reflection'
+    | 'maintenance'
+
+export interface AlicizationRelationshipShiftSnapshot {
+  closenessDelta: number
+  trustDelta: number
+  burdenDelta: number
+  boundaryDelta: number
+  misreadDelta: number
+  repairDelta: number
+  openLoopDelta: number
+}
+
+export interface AlicizationDerivedMemoryReference {
+  kind:
+    | 'turn'
+    | 'mind-turn-event'
+    | 'relationship-outcome'
+    | 'reinforcement-event'
+    | 'memory-fact'
+    | 'reflection'
+    | 'dream'
+    | 'episodic-event'
+    | 'task-thread'
+    | 'execution-event'
+    | 'scene'
+  id?: string | null
+  label?: string | null
+}
+
+export interface AlicizationEpisodicReconsolidationSnapshot {
+  at: number
+  provenance: AlicizationMemoryProvenance
+  confidence: number
+  reason: string
+  emotionTags: string[]
+  relationshipMeaning?: string | null
+  lesson?: string | null
+}
+
+export interface AlicizationEpisodicEventInput {
+  id?: string | null
+  cardId: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  sourceKind: AlicizationEpisodicEventSourceKind
+  provenance: AlicizationMemoryProvenance
+  occurredAt?: number
+  whereSummary?: string | null
+  withWhom?: string[] | null
+  threadAnchor?: string | null
+  whatHappened: string
+  felt?: string | null
+  emotionTags?: string[] | null
+  whatChanged?: string | null
+  relationshipMeaning?: string | null
+  lesson?: string | null
+  sourceSummary?: string | null
+  confidence: number
+  salience?: number | null
+  sceneAttachment?: number | null
+  consolidationPriority?: number | null
+  relationshipShift?: AlicizationRelationshipShiftSnapshot | null
+  derivedFrom?: AlicizationDerivedMemoryReference[] | null
+  tags?: string[] | null
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface AlicizationEpisodicEventRecord {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  sourceKind: AlicizationEpisodicEventSourceKind
+  provenance: AlicizationMemoryProvenance
+  occurredAt: number
+  whereSummary: string | null
+  withWhom: string[]
+  threadAnchor: string | null
+  whatHappened: string
+  felt: string | null
+  emotionTags: string[]
+  whatChanged: string | null
+  relationshipMeaning: string | null
+  lesson: string | null
+  sourceSummary: string | null
+  confidence: number
+  salience: number
+  sceneAttachment: number
+  consolidationPriority: number
+  relationshipShift: AlicizationRelationshipShiftSnapshot | null
+  derivedFrom: AlicizationDerivedMemoryReference[]
+  tags: string[]
+  createdAt: number
+  updatedAt: number
+  lastRecalledAt: number | null
+  recallCount: number
+  reconsolidationCount: number
+  latestReconsolidation: AlicizationEpisodicReconsolidationSnapshot | null
+}
+
+export interface AlicizationHostPersonClosenessPreference {
+  context: string
+  preference: string
+  confidence: number
+}
+
+export interface AlicizationHostPersonTrustLadderSnapshot {
+  stage: 'guarded' | 'cautious-open' | 'warming' | 'trusted'
+  score: number
+  rationale: string
+}
+
+export interface AlicizationHostPersonModelSnapshot {
+  summary: string
+  routines: string[]
+  sensitivities: string[]
+  repairTriggers: string[]
+  trustLadder: AlicizationHostPersonTrustLadderSnapshot
+  preferredClosenessByContext: AlicizationHostPersonClosenessPreference[]
+  recurrentBurdens: string[]
+  narrative: string[]
+  updatedAt: number
+}
+
 export interface AlicizationMemoryUpsertTrace {
   decisionTraceId?: string | null
   turnId?: string | null

@@ -45,6 +45,12 @@ import type {
 } from './runtime-soul'
 
 import {
+  emptyAlicizationExecutionCallbackContext,
+} from './execution-callback-runtime'
+import {
+  emptyAlicizationExecutionLedgerContext,
+} from './memory-ledger-runtime'
+import {
   buildAlicizationDialogueMemoryCarrySystemBlock,
   deriveAlicizationDialogueMemoryCarryPolicy,
 } from './dialogue-memory-governor'
@@ -142,6 +148,8 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   resolveOrganicMemoryPromptContext: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
+    sessionId?: string | null
+    turnId?: string | null
   }) => Promise<OrganicMemoryPromptContext>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
@@ -253,23 +261,32 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       hasVisualGrounding: provisionalHasVisualGrounding,
     })
     const dialogueFirstLeanRuntime = dialogueFirstLeanRuntimeBase
-      && payload.supportsTools !== true
       && payload.waitForTools !== true
+      && !routingRequired
+    const skipExecutionPhaseTracking = dialogueFirstLeanRuntime && !routingRequired
     const [contextualString, executionCallbackContext, executionLedgerContext] = await Promise.all([
       agentTurn.trackPhase('contextual-memory', async () => await prelude.contextualStringPromise, {
         turnId: payload.turnId,
       }),
-      agentTurn.trackPhase('execution-callbacks', async () => {
-        const context = await prelude.executionCallbackContextPromise
-        agentTurn.ingestContinuitySignals(context.continuitySignals)
-        agentTurn.ingestRuntimeActions(context.actions)
-        return context
-      }, {
-        sessionId: agentTurn.conversationSessionId,
-      }),
-      agentTurn.trackPhase('execution-ledger', async () => await prelude.executionLedgerContextPromise, {
-        routingRequired,
-      }),
+      skipExecutionPhaseTracking
+        ? prelude.executionCallbackContextPromise.then((context) => {
+            agentTurn.ingestContinuitySignals(context.continuitySignals)
+            agentTurn.ingestRuntimeActions(context.actions)
+            return context
+          }).catch(() => emptyAlicizationExecutionCallbackContext)
+        : agentTurn.trackPhase('execution-callbacks', async () => {
+            const context = await prelude.executionCallbackContextPromise
+            agentTurn.ingestContinuitySignals(context.continuitySignals)
+            agentTurn.ingestRuntimeActions(context.actions)
+            return context
+          }, {
+            sessionId: agentTurn.conversationSessionId,
+          }),
+      skipExecutionPhaseTracking
+        ? prelude.executionLedgerContextPromise.catch(() => emptyAlicizationExecutionLedgerContext)
+        : agentTurn.trackPhase('execution-ledger', async () => await prelude.executionLedgerContextPromise, {
+            routingRequired,
+          }),
       agentTurn.trackPhase('session-continuity', async () => {
         const signals = await options.resolveSessionContinuitySignals?.({
           cardId: payload.cardId,
@@ -300,6 +317,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             memoryCarryPolicy.recallSeed,
           ].filter(Boolean).join('\n'),
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+          turnId: payload.turnId,
         }),
         suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -542,10 +560,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         executionRoutingEnforcementSystemBlock: effectiveExecutionRoutingIntent
           ? buildExecutionRoutingEnforcementSystemBlock(effectiveExecutionRoutingIntent)
           : undefined,
-        executionCallbackSystemBlocks: executionCallbackContext.systemBlock
+        executionCallbackSystemBlocks: (!dialogueFirstLeanRuntime || Boolean(executionReplyObligation)) && executionCallbackContext.systemBlock
           ? [executionCallbackContext.systemBlock]
           : [],
-        executionLedgerSystemBlocks: executionLedgerContext.systemBlock
+        executionLedgerSystemBlocks: (!dialogueFirstLeanRuntime || Boolean(executionReplyObligation)) && executionLedgerContext.systemBlock
           ? [executionLedgerContext.systemBlock]
           : [],
         executionReplyObligationSystemBlock: executionReplyObligation

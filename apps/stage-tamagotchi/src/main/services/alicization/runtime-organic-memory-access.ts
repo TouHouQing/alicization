@@ -1,5 +1,7 @@
 import type {
   AlicizationActiveThought,
+  AlicizationEpisodicEventRecord,
+  AlicizationHostPersonModelSnapshot,
   AlicizationOrganicMemorySnapshot,
   AlicizationRecallGovernorSnapshot,
   AlicizationSoulSnapshot,
@@ -23,6 +25,7 @@ import {
   alicizationDreamLastRunMetaKey,
   alicizationPerformanceManifestMetaKey,
 } from './runtime-soul'
+import { buildHostPersonModelSnapshot } from './humanlike-memory'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 
 interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
@@ -35,6 +38,20 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   replaceActiveThoughts: (items: Array<{ text: string }>) => Promise<void>
   setMetaValue: (key: string, value: string) => Promise<void>
   searchSubconsciousFragments: (query: string, limit: number) => Promise<AlicizationSubconsciousFragment[]>
+  listRecentEpisodicEvents: (limit: number) => Promise<AlicizationEpisodicEventRecord[]>
+  searchEpisodicEvents: (input: {
+    recallSeed: string
+    limit?: number
+    sessionId?: string | null
+    turnId?: string | null
+    threadAnchors?: string[]
+    affectAnchors?: string[]
+    relationshipAnchors?: string[]
+    sceneAnchor?: string | null
+    salienceBias?: number | null
+    carryAsMemory?: boolean
+    allowDream?: boolean
+  }) => Promise<AlicizationEpisodicEventRecord[]>
   listConversationTurnsBySession: (sessionId: string, options: { limit: number }) => Promise<Array<{
     userText?: string | null
     assistantText?: string | null
@@ -120,6 +137,48 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     })
   }
 
+  async function recallEpisodicEventsWithGovernor(input: {
+    recallSeed: string
+    sessionId?: string | null
+    turnId?: string | null
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  }) {
+    const recallSeed = normalizeOrganicRecallText(input.recallSeed)
+    if (!recallSeed || input.recallGovernor?.mode === 'scene')
+      return []
+
+    return await options.searchEpisodicEvents({
+      recallSeed,
+      limit: input.recallGovernor?.mode === 'emotional-resonance' ? 4 : 3,
+      sessionId: input.sessionId ?? null,
+      turnId: input.turnId ?? null,
+      threadAnchors: input.recallGovernor?.threadAnchors ?? [],
+      affectAnchors: input.recallGovernor?.affectAnchors ?? [],
+      relationshipAnchors: input.recallGovernor?.relationshipAnchors ?? [],
+      sceneAnchor: input.recallGovernor?.sceneAnchor ?? null,
+      salienceBias: input.recallGovernor?.salienceBias ?? 0.5,
+      carryAsMemory: input.recallGovernor?.carryAsMemory ?? false,
+      allowDream: input.recallGovernor?.mode === 'self-continuity' || input.recallGovernor?.mode === 'emotional-resonance',
+    }).catch(() => [])
+  }
+
+  async function buildHostPersonModel(input?: {
+    now?: number
+  }): Promise<AlicizationHostPersonModelSnapshot | null> {
+    const now = Number.isFinite(input?.now) ? Number(input?.now) : Date.now()
+    const [events] = await Promise.all([
+      options.listRecentEpisodicEvents(18).catch(() => []),
+    ])
+    if (events.length === 0)
+      return null
+    return buildHostPersonModelSnapshot({
+      events,
+      facts: [],
+      relationshipDynamics: null,
+      now,
+    })
+  }
+
   async function resolveRecentContextualTurns(sessionId: string, turnCount: number) {
     if (!sessionId)
       return []
@@ -140,6 +199,8 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     setPerformanceManifest,
     searchOrganicSubconsciousFragments,
     recallSubconsciousFragmentsWithGovernor,
+    recallEpisodicEventsWithGovernor,
+    buildHostPersonModel,
     resolveRecentContextualTurns,
   }
 }

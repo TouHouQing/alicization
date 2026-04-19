@@ -8,8 +8,10 @@ import type {
   AlicizationChatStartResult,
   AlicizationChatStreamDispatchPayload,
   AlicizationDialogueRespondedPayload,
+  AlicizationEpisodicEventRecord,
   AlicizationDialogueStructuredFormat,
   AlicizationGender,
+  AlicizationHostPersonModelSnapshot,
   AlicizationMemoryFact,
   AlicizationPersonalityState,
   AlicizationSoulFrontmatter,
@@ -160,6 +162,8 @@ export interface OrganicMemoryPromptContext {
   activeThoughts: AlicizationActiveThought[]
   retrievedFacts: AlicizationMemoryFact[]
   recalledFragments: AlicizationSubconsciousFragment[]
+  recalledEpisodes?: AlicizationEpisodicEventRecord[]
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
 }
 

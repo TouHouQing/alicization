@@ -86,6 +86,7 @@ const dbStub = {
   }),
   upsertMemoryFacts: vi.fn().mockResolvedValue(undefined),
   appendRelationshipOutcomes: vi.fn().mockResolvedValue(undefined),
+  appendEpisodicEvents: vi.fn().mockResolvedValue(undefined),
   appendPersonaReinforcementEvents: vi.fn().mockResolvedValue(undefined),
   upsertMemoryReflections: vi.fn().mockResolvedValue(undefined),
   retrieveMemoryFacts: vi.fn().mockResolvedValue([]),
@@ -212,6 +213,8 @@ function resetDbStubMocks() {
   dbStub.upsertMemoryFacts.mockResolvedValue(undefined)
   dbStub.appendRelationshipOutcomes.mockReset()
   dbStub.appendRelationshipOutcomes.mockResolvedValue(undefined)
+  dbStub.appendEpisodicEvents.mockReset()
+  dbStub.appendEpisodicEvents.mockResolvedValue(undefined)
   dbStub.appendPersonaReinforcementEvents.mockReset()
   dbStub.appendPersonaReinforcementEvents.mockResolvedValue(undefined)
   dbStub.upsertMemoryReflections.mockReset()

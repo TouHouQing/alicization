@@ -49,6 +49,39 @@ const executionEvents: Array<{
   payload_json: string | null
   created_at: number
 }> = []
+const episodicEvents = new Map<string, {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: string
+  provenance: string
+  occurred_at: number
+  where_summary: string | null
+  with_whom_json: string | null
+  thread_anchor: string | null
+  what_happened: string
+  felt: string | null
+  emotion_tags_json: string | null
+  what_changed: string | null
+  relationship_meaning: string | null
+  lesson: string | null
+  source_summary: string | null
+  confidence: number
+  salience: number
+  scene_attachment: number
+  consolidation_priority: number
+  relationship_shift_json: string | null
+  derived_from_json: string | null
+  tags_json: string | null
+  created_at: number
+  updated_at: number
+  last_recalled_at: number | null
+  recall_count: number
+  reconsolidation_count: number
+  latest_reconsolidation_json: string | null
+}>()
 const executorSessions = new Map<string, {
   id: string
   channel: string
@@ -169,6 +202,119 @@ class FakeSqliteDatabase {
       })
     }
 
+    if (sql.includes('INSERT INTO episodic_events')) {
+      const [
+        id,
+        cardId,
+        decisionTraceId,
+        turnId,
+        sessionId,
+        sourceKind,
+        provenance,
+        occurredAt,
+        whereSummary,
+        withWhomJson,
+        threadAnchor,
+        whatHappened,
+        felt,
+        emotionTagsJson,
+        whatChanged,
+        relationshipMeaning,
+        lesson,
+        sourceSummary,
+        confidence,
+        salience,
+        sceneAttachment,
+        consolidationPriority,
+        relationshipShiftJson,
+        derivedFromJson,
+        tagsJson,
+        createdAt,
+        updatedAt,
+      ] = actualParams as [
+        string,
+        string,
+        string | null,
+        string | null,
+        string | null,
+        string,
+        string,
+        number,
+        string | null,
+        string | null,
+        string | null,
+        string,
+        string | null,
+        string | null,
+        string | null,
+        string | null,
+        string | null,
+        string | null,
+        number,
+        number,
+        number,
+        number,
+        string | null,
+        string | null,
+        string | null,
+        number,
+        number,
+      ]
+      const existing = episodicEvents.get(id)
+      episodicEvents.set(id, {
+        id,
+        card_id: cardId,
+        decision_trace_id: decisionTraceId ?? null,
+        turn_id: turnId ?? null,
+        session_id: sessionId ?? null,
+        source_kind: sourceKind,
+        provenance,
+        occurred_at: occurredAt,
+        where_summary: whereSummary ?? null,
+        with_whom_json: withWhomJson ?? null,
+        thread_anchor: threadAnchor ?? null,
+        what_happened: whatHappened,
+        felt: felt ?? null,
+        emotion_tags_json: emotionTagsJson ?? null,
+        what_changed: whatChanged ?? null,
+        relationship_meaning: relationshipMeaning ?? null,
+        lesson: lesson ?? null,
+        source_summary: sourceSummary ?? null,
+        confidence,
+        salience,
+        scene_attachment: sceneAttachment,
+        consolidation_priority: consolidationPriority,
+        relationship_shift_json: relationshipShiftJson ?? null,
+        derived_from_json: derivedFromJson ?? null,
+        tags_json: tagsJson ?? null,
+        created_at: existing?.created_at ?? createdAt,
+        updated_at: updatedAt,
+        last_recalled_at: existing?.last_recalled_at ?? null,
+        recall_count: existing?.recall_count ?? 0,
+        reconsolidation_count: existing?.reconsolidation_count ?? 0,
+        latest_reconsolidation_json: existing?.latest_reconsolidation_json ?? null,
+      })
+    }
+    else if (sql.includes('UPDATE episodic_events')) {
+      const [confidence, emotionTagsJson, relationshipMeaning, lesson, updatedAt, lastRecalledAt, recallCount, reconsolidationCount, latestReconsolidationJson, id]
+        = actualParams as [number, string | null, string | null, string | null, number, number | null, number, number, string | null, string]
+      const event = episodicEvents.get(id)
+      if (!event) {
+        changes = 0
+      }
+      else {
+        event.confidence = confidence
+        event.emotion_tags_json = emotionTagsJson ?? null
+        event.relationship_meaning = relationshipMeaning ?? null
+        event.lesson = lesson ?? null
+        event.updated_at = updatedAt
+        event.last_recalled_at = lastRecalledAt ?? null
+        event.recall_count = recallCount
+        event.reconsolidation_count = reconsolidationCount
+        event.latest_reconsolidation_json = latestReconsolidationJson ?? null
+      }
+    }
+
     if (sql.includes('INSERT INTO executor_sessions')) {
       const [id, channel, affinityKey, externalSessionId, status, summary, metadataJson, createdAt, updatedAt, lastUsedAt]
         = actualParams as [string, string, string, string | null, 'active' | 'running' | 'failed' | 'suspended', string | null, string | null, number, number, number | null]
@@ -283,6 +429,9 @@ class FakeSqliteDatabase {
     }
     else if (sql.includes('DELETE FROM executor_events')) {
       executionEvents.length = 0
+    }
+    else if (sql.includes('DELETE FROM episodic_events')) {
+      episodicEvents.clear()
     }
     else if (sql.includes('DELETE FROM executor_sessions')) {
       executorSessions.clear()
@@ -570,6 +719,18 @@ class FakeSqliteDatabase {
       actualCallback?.(null, rows)
       return this
     }
+    if (_sql.includes('FROM episodic_events')) {
+      const limit = Number(actualParams.at(-1) ?? 240)
+      const rows = [...episodicEvents.values()]
+        .sort((a, b) => {
+          if (a.occurred_at !== b.occurred_at)
+            return b.occurred_at - a.occurred_at
+          return b.created_at - a.created_at
+        })
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
     actualCallback?.(null, [])
     return this
   }
@@ -591,6 +752,15 @@ const { setupAlicizationDb } = await import('./db')
 
 describe('alicization sqlite dao', () => {
   afterEach(async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+    episodicEvents.clear()
+    executorSessions.clear()
+    capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
       const dir = sandboxDirs.pop()
       if (!dir)
@@ -632,6 +802,60 @@ describe('alicization sqlite dao', () => {
     expect(runCalls.some(sql => sql.includes('DELETE FROM executor_events'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM scheduled_tasks'))).toBe(true)
     await db.close()
+  })
+
+  it('stores and reconsolidates episodic events through hybrid recall search', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        cardId: 'card-1',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: 1_000,
+        whereSummary: 'focused coding window',
+        withWhom: ['host'],
+        threadAnchor: 'debug knot',
+        whatHappened: 'I stayed light while the host was focused on the runtime bug.',
+        felt: 'careful and restrained',
+        emotionTags: ['respect-space', 'repair'],
+        whatChanged: 'trust up 0.05, boundary firmer 0.04',
+        relationshipMeaning: 'Focused windows need more space first.',
+        lesson: 'Busy work should be met with lighter touch.',
+        sourceSummary: 'reply turn',
+        confidence: 0.82,
+        salience: 0.78,
+        sceneAttachment: 0.6,
+        consolidationPriority: 0.7,
+        relationshipShift: {
+          closenessDelta: 0.03,
+          trustDelta: 0.05,
+          burdenDelta: -0.02,
+          boundaryDelta: 0.04,
+          misreadDelta: -0.03,
+          repairDelta: 0.04,
+          openLoopDelta: 0.02,
+        },
+        tags: ['dialogue', 'focused-window'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: 'the host is still debugging and focused',
+      sessionId: 'session-1',
+      threadAnchors: ['debug knot', 'runtime bug'],
+      affectAnchors: ['repair', 'respect-space'],
+      relationshipAnchors: ['relation:repair'],
+      salienceBias: 0.8,
+      carryAsMemory: true,
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.whatHappened).toContain('focused on the runtime bug')
+    expect(rows[0]?.recallCount).toBe(1)
+    expect(rows[0]?.reconsolidationCount).toBe(1)
+    expect(rows[0]?.latestReconsolidation?.emotionTags).toContain('repair')
   })
 
   it('runs legacy migration only once with marker', async () => {

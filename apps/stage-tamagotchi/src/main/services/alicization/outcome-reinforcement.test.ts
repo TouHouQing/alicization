@@ -54,6 +54,12 @@ describe('outcome reinforcement closure', () => {
     expect(closure.relationshipOutcomes[0]?.misreadDelta).toBeLessThan(0)
     expect(closure.reinforcementEvents.some(event => event.dimension === 'autonomy-respect' && event.valence === 'reinforce')).toBe(true)
     expect(closure.memoryFacts.some(fact => fact.predicate === 'boundary')).toBe(true)
+    expect(closure.episodicEvents[0]).toEqual(expect.objectContaining({
+      sourceKind: 'reply',
+      provenance: 'observed',
+      withWhom: ['host'],
+    }))
+    expect(closure.episodicEvents[0]?.whatHappened).toContain('hover')
   })
 
   it('suppresses companionship and strengthens space-respect after dismissed proactive feedback', () => {
@@ -72,6 +78,10 @@ describe('outcome reinforcement closure', () => {
     expect(closure.reinforcementEvents.some(event => event.dimension === 'autonomy-respect' && event.valence === 'reinforce')).toBe(true)
     expect(closure.reinforcementEvents.some(event => event.dimension === 'companionship' && event.valence === 'suppress')).toBe(true)
     expect(closure.memoryFacts[0]?.object).toContain('more space')
+    expect(closure.episodicEvents[0]).toEqual(expect.objectContaining({
+      sourceKind: 'proactive',
+      provenance: 'observed',
+    }))
   })
 
   it('synthesizes reflections from persisted closure results', () => {

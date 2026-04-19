@@ -4,6 +4,10 @@ import type {
   AlicizationChannelCapabilityManifestRecord,
   AlicizationChannelCapabilityManifestUpsertInput,
   AlicizationConversationTurnInput,
+  AlicizationDerivedMemoryReference,
+  AlicizationEpisodicEventInput,
+  AlicizationEpisodicEventRecord,
+  AlicizationEpisodicReconsolidationSnapshot,
   AlicizationExecutionChannel,
   AlicizationExecutionEventInput,
   AlicizationExecutionEventKind,
@@ -21,6 +25,7 @@ import type {
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
+  AlicizationMemoryProvenance,
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionStatus,
@@ -46,6 +51,9 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
+
+import { deriveMemoryInterferencePenalty } from './humanlike-memory'
+import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 
 const dayMs = 24 * 60 * 60 * 1000
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -119,6 +127,40 @@ interface DbRelationshipOutcomeRow {
   open_loop_delta: number
   summary: string
   created_at: number
+}
+
+interface DbEpisodicEventRow {
+  id: string
+  card_id: string
+  decision_trace_id: string | null
+  turn_id: string | null
+  session_id: string | null
+  source_kind: AlicizationEpisodicEventRecord['sourceKind']
+  provenance: AlicizationMemoryProvenance
+  occurred_at: number
+  where_summary: string | null
+  with_whom_json: string | null
+  thread_anchor: string | null
+  what_happened: string
+  felt: string | null
+  emotion_tags_json: string | null
+  what_changed: string | null
+  relationship_meaning: string | null
+  lesson: string | null
+  source_summary: string | null
+  confidence: number
+  salience: number
+  scene_attachment: number
+  consolidation_priority: number
+  relationship_shift_json: string | null
+  derived_from_json: string | null
+  tags_json: string | null
+  created_at: number
+  updated_at: number
+  last_recalled_at: number | null
+  recall_count: number
+  reconsolidation_count: number
+  latest_reconsolidation_json: string | null
 }
 
 interface DbPersonaReinforcementEventRow {
@@ -422,6 +464,22 @@ function parseJsonStringArray(raw: string | null) {
   }
 }
 
+function parseJsonObjectArray(raw: string | null) {
+  if (!raw)
+    return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed))
+      return []
+    return parsed
+      .filter(item => item && typeof item === 'object')
+      .map(item => item as Record<string, unknown>)
+  }
+  catch {
+    return []
+  }
+}
+
 function clamp01(value: number) {
   if (Number.isNaN(value))
     return 0
@@ -445,6 +503,23 @@ function tokenize(text: string) {
       .map(token => token.trim())
       .filter(token => token.length >= 2),
   )
+}
+
+function uniqueStringArray(values: Array<string | null | undefined>, maxItems = 12) {
+  const result: string[] = []
+  for (const value of values) {
+    if (typeof value !== 'string')
+      continue
+    const normalized = value.trim()
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
 }
 
 function scoreFact(queryTokens: Set<string>, fact: AlicizationMemoryFact, currentTs: number) {
@@ -487,6 +562,7 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     updatedAt: row.updated_at,
     lastAccessAt: typeof row.last_access_at === 'number' ? row.last_access_at : null,
     accessCount: Math.max(0, Math.floor(row.access_count)),
+    provenance: mapMemorySourceToProvenance(row.source),
   }
 }
 
@@ -533,6 +609,84 @@ function mapRelationshipOutcomeRow(row: DbRelationshipOutcomeRow): AlicizationRe
   }
 }
 
+function mapDerivedMemoryReferences(raw: string | null): AlicizationDerivedMemoryReference[] {
+  const result: AlicizationDerivedMemoryReference[] = []
+  for (const item of parseJsonObjectArray(raw)) {
+    const kind = typeof item.kind === 'string' ? item.kind.trim() : ''
+    if (!kind)
+      continue
+    result.push({
+      kind: kind as AlicizationDerivedMemoryReference['kind'],
+      id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : null,
+      label: typeof item.label === 'string' && item.label.trim() ? item.label.trim() : null,
+    })
+  }
+  return result
+}
+
+function mapEpisodicReconsolidation(raw: string | null): AlicizationEpisodicReconsolidationSnapshot | null {
+  const parsed = parseJsonObject(raw)
+  if (!parsed)
+    return null
+  const at = Number(parsed.at)
+  const provenance = parsed.provenance
+  const confidence = Number(parsed.confidence)
+  const reason = typeof parsed.reason === 'string' ? parsed.reason.trim() : ''
+  if (!Number.isFinite(at) || !reason)
+    return null
+  return {
+    at: Math.max(0, Math.floor(at)),
+    provenance: provenance === 'observed' || provenance === 'remembered' || provenance === 'dreamt' || provenance === 'inferred' || provenance === 'reconstructed'
+      ? provenance
+      : 'reconstructed',
+    confidence: clamp01(confidence),
+    reason,
+    emotionTags: parseJsonStringArray(JSON.stringify(parsed.emotionTags ?? [])),
+    relationshipMeaning: typeof parsed.relationshipMeaning === 'string' && parsed.relationshipMeaning.trim()
+      ? parsed.relationshipMeaning.trim()
+      : null,
+    lesson: typeof parsed.lesson === 'string' && parsed.lesson.trim()
+      ? parsed.lesson.trim()
+      : null,
+  }
+}
+
+function mapEpisodicEventRow(row: DbEpisodicEventRow): AlicizationEpisodicEventRecord {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    decisionTraceId: row.decision_trace_id,
+    turnId: row.turn_id,
+    sessionId: row.session_id,
+    sourceKind: row.source_kind,
+    provenance: row.provenance,
+    occurredAt: Math.max(0, Math.floor(row.occurred_at)),
+    whereSummary: row.where_summary,
+    withWhom: parseJsonStringArray(row.with_whom_json),
+    threadAnchor: row.thread_anchor,
+    whatHappened: row.what_happened,
+    felt: row.felt,
+    emotionTags: parseJsonStringArray(row.emotion_tags_json),
+    whatChanged: row.what_changed,
+    relationshipMeaning: row.relationship_meaning,
+    lesson: row.lesson,
+    sourceSummary: row.source_summary,
+    confidence: clamp01(row.confidence),
+    salience: clamp01(row.salience),
+    sceneAttachment: clamp01(row.scene_attachment),
+    consolidationPriority: clamp01(row.consolidation_priority),
+    relationshipShift: parseJsonObject(row.relationship_shift_json) as AlicizationEpisodicEventRecord['relationshipShift'],
+    derivedFrom: mapDerivedMemoryReferences(row.derived_from_json),
+    tags: parseJsonStringArray(row.tags_json),
+    createdAt: Math.max(0, Math.floor(row.created_at)),
+    updatedAt: Math.max(0, Math.floor(row.updated_at)),
+    lastRecalledAt: typeof row.last_recalled_at === 'number' ? Math.max(0, Math.floor(row.last_recalled_at)) : null,
+    recallCount: Math.max(0, Math.floor(row.recall_count)),
+    reconsolidationCount: Math.max(0, Math.floor(row.reconsolidation_count)),
+    latestReconsolidation: mapEpisodicReconsolidation(row.latest_reconsolidation_json),
+  }
+}
+
 function mapPersonaReinforcementEventRow(row: DbPersonaReinforcementEventRow): AlicizationPersonaReinforcementEventRecord {
   return {
     id: row.id,
@@ -566,6 +720,7 @@ function mapSubconsciousFragmentRow(row: DbSubconsciousFragmentRow): Alicization
     createdAt: row.created_at,
     lastRecalledAt: typeof row.last_recalled_at === 'number' ? row.last_recalled_at : null,
     recallCount: Math.max(0, Math.floor(row.recall_count)),
+    provenance: mapFragmentSourceKindToProvenance(row.source_kind),
   }
 }
 
@@ -862,6 +1017,21 @@ export interface AlicizationDbService {
     limit?: number
     turnId?: string
   }) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  appendEpisodicEvents: (events: AlicizationEpisodicEventInput[]) => Promise<AlicizationEpisodicEventRecord[]>
+  listRecentEpisodicEvents: (limit?: number) => Promise<AlicizationEpisodicEventRecord[]>
+  searchEpisodicEvents: (input: {
+    recallSeed: string
+    limit?: number
+    sessionId?: string | null
+    turnId?: string | null
+    threadAnchors?: string[]
+    affectAnchors?: string[]
+    relationshipAnchors?: string[]
+    sceneAnchor?: string | null
+    salienceBias?: number | null
+    carryAsMemory?: boolean
+    allowDream?: boolean
+  }) => Promise<AlicizationEpisodicEventRecord[]>
   appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listPersonaReinforcementEvents: (input: {
     cardId: string
@@ -1002,6 +1172,46 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_relationship_outcomes_card_created_at ON relationship_outcomes(card_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_relationship_outcomes_turn_created_at ON relationship_outcomes(turn_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS episodic_events (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        decision_trace_id TEXT,
+        turn_id TEXT,
+        session_id TEXT,
+        source_kind TEXT NOT NULL,
+        provenance TEXT NOT NULL,
+        occurred_at INTEGER NOT NULL,
+        where_summary TEXT,
+        with_whom_json TEXT,
+        thread_anchor TEXT,
+        what_happened TEXT NOT NULL,
+        felt TEXT,
+        emotion_tags_json TEXT,
+        what_changed TEXT,
+        relationship_meaning TEXT,
+        lesson TEXT,
+        source_summary TEXT,
+        confidence REAL NOT NULL,
+        salience REAL NOT NULL,
+        scene_attachment REAL NOT NULL DEFAULT 0,
+        consolidation_priority REAL NOT NULL DEFAULT 0,
+        relationship_shift_json TEXT,
+        derived_from_json TEXT,
+        tags_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_recalled_at INTEGER,
+        recall_count INTEGER NOT NULL DEFAULT 0,
+        reconsolidation_count INTEGER NOT NULL DEFAULT 0,
+        latest_reconsolidation_json TEXT
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_occurred_at ON episodic_events(occurred_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_source_kind_occurred_at ON episodic_events(source_kind, occurred_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_thread_anchor_occurred_at ON episodic_events(thread_anchor, occurred_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_session_occurred_at ON episodic_events(session_id, occurred_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS persona_reinforcement_events (
@@ -2406,6 +2616,7 @@ export async function setupAlicizationDb(
     await enqueueWrite(async () => await runInTransaction(database, async () => {
       await run(database, 'DELETE FROM memory_reflections')
       await run(database, 'DELETE FROM relationship_outcomes')
+      await run(database, 'DELETE FROM episodic_events')
       await run(database, 'DELETE FROM persona_reinforcement_events')
       await run(database, 'DELETE FROM conversation_turns')
       await run(database, 'DELETE FROM mind_turn_events')
@@ -3007,6 +3218,450 @@ export async function setupAlicizationDb(
       params,
     )
     return rows.map(mapRelationshipOutcomeRow)
+  }
+
+  function normalizeDerivedMemoryReferences(raw: AlicizationEpisodicEventInput['derivedFrom']) {
+    const result: AlicizationDerivedMemoryReference[] = []
+    for (const item of raw ?? []) {
+      const kind = typeof item?.kind === 'string' ? item.kind.trim() : ''
+      if (!kind)
+        continue
+      result.push({
+        kind: kind as AlicizationDerivedMemoryReference['kind'],
+        id: typeof item?.id === 'string' && item.id.trim() ? item.id.trim() : null,
+        label: normalizeOrganicMemoryText(item?.label, 160) || null,
+      })
+    }
+    return result
+  }
+
+  async function appendEpisodicEvents(events: AlicizationEpisodicEventInput[]) {
+    if (events.length === 0)
+      return []
+
+    const prepared = events
+      .map((event) => {
+        const cardId = event.cardId.trim()
+        const whatHappened = normalizeOrganicMemoryText(event.whatHappened, 320)
+        if (!cardId || !whatHappened)
+          return null
+        const occurredAt = Number.isFinite(event.occurredAt) ? Math.max(0, Math.floor(Number(event.occurredAt))) : now()
+        const createdAt = Number.isFinite(event.createdAt) ? Math.max(0, Math.floor(Number(event.createdAt))) : occurredAt
+        const updatedAt = Number.isFinite(event.updatedAt) ? Math.max(0, Math.floor(Number(event.updatedAt))) : createdAt
+        const provenance = event.provenance === 'observed' || event.provenance === 'remembered' || event.provenance === 'dreamt' || event.provenance === 'inferred' || event.provenance === 'reconstructed'
+          ? event.provenance
+          : 'remembered'
+        const relationshipShift = event.relationshipShift
+          ? {
+              closenessDelta: clampRelationshipDelta(Number(event.relationshipShift.closenessDelta ?? 0), 0.24),
+              trustDelta: clampRelationshipDelta(Number(event.relationshipShift.trustDelta ?? 0), 0.24),
+              burdenDelta: clampRelationshipDelta(Number(event.relationshipShift.burdenDelta ?? 0), 0.24),
+              boundaryDelta: clampRelationshipDelta(Number(event.relationshipShift.boundaryDelta ?? 0), 0.24),
+              misreadDelta: clampRelationshipDelta(Number(event.relationshipShift.misreadDelta ?? 0), 0.24),
+              repairDelta: clampRelationshipDelta(Number(event.relationshipShift.repairDelta ?? 0), 0.24),
+              openLoopDelta: clampRelationshipDelta(Number(event.relationshipShift.openLoopDelta ?? 0), 0.24),
+            }
+          : null
+
+        return {
+          id: event.id?.trim() || randomUUID(),
+          cardId,
+          decisionTraceId: event.decisionTraceId?.trim() || null,
+          turnId: event.turnId?.trim() || null,
+          sessionId: event.sessionId?.trim() || null,
+          sourceKind: event.sourceKind,
+          provenance,
+          occurredAt,
+          whereSummary: normalizeOrganicMemoryText(event.whereSummary, 200) || null,
+          withWhomJson: JSON.stringify((event.withWhom ?? []).map(item => normalizeOrganicMemoryText(item, 80)).filter(Boolean)),
+          threadAnchor: normalizeOrganicMemoryText(event.threadAnchor, 180) || null,
+          whatHappened,
+          felt: normalizeOrganicMemoryText(event.felt, 220) || null,
+          emotionTagsJson: JSON.stringify((event.emotionTags ?? []).map(item => normalizeOrganicMemoryText(item, 48)).filter(Boolean)),
+          whatChanged: normalizeOrganicMemoryText(event.whatChanged, 220) || null,
+          relationshipMeaning: normalizeOrganicMemoryText(event.relationshipMeaning, 220) || null,
+          lesson: normalizeOrganicMemoryText(event.lesson, 220) || null,
+          sourceSummary: normalizeOrganicMemoryText(event.sourceSummary, 180) || null,
+          confidence: clamp01(event.confidence),
+          salience: clamp01(Number(event.salience ?? 0.56)),
+          sceneAttachment: clamp01(Number(event.sceneAttachment ?? 0.18)),
+          consolidationPriority: clamp01(Number(event.consolidationPriority ?? 0.22)),
+          relationshipShiftJson: relationshipShift ? JSON.stringify(relationshipShift) : null,
+          derivedFromJson: JSON.stringify(normalizeDerivedMemoryReferences(event.derivedFrom)),
+          tagsJson: JSON.stringify((event.tags ?? []).map(item => normalizeOrganicMemoryText(item, 64)).filter(Boolean)),
+          createdAt,
+          updatedAt,
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+
+    if (prepared.length === 0)
+      return []
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const event of prepared) {
+          await run(
+            database,
+            `
+            INSERT INTO episodic_events (
+              id,
+              card_id,
+              decision_trace_id,
+              turn_id,
+              session_id,
+              source_kind,
+              provenance,
+              occurred_at,
+              where_summary,
+              with_whom_json,
+              thread_anchor,
+              what_happened,
+              felt,
+              emotion_tags_json,
+              what_changed,
+              relationship_meaning,
+              lesson,
+              source_summary,
+              confidence,
+              salience,
+              scene_attachment,
+              consolidation_priority,
+              relationship_shift_json,
+              derived_from_json,
+              tags_json,
+              created_at,
+              updated_at,
+              last_recalled_at,
+              recall_count,
+              reconsolidation_count,
+              latest_reconsolidation_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, NULL)
+            ON CONFLICT(id)
+            DO UPDATE SET
+              decision_trace_id = excluded.decision_trace_id,
+              turn_id = excluded.turn_id,
+              session_id = excluded.session_id,
+              source_kind = excluded.source_kind,
+              provenance = excluded.provenance,
+              occurred_at = excluded.occurred_at,
+              where_summary = excluded.where_summary,
+              with_whom_json = excluded.with_whom_json,
+              thread_anchor = excluded.thread_anchor,
+              what_happened = excluded.what_happened,
+              felt = excluded.felt,
+              emotion_tags_json = excluded.emotion_tags_json,
+              what_changed = excluded.what_changed,
+              relationship_meaning = excluded.relationship_meaning,
+              lesson = excluded.lesson,
+              source_summary = excluded.source_summary,
+              confidence = excluded.confidence,
+              salience = excluded.salience,
+              scene_attachment = excluded.scene_attachment,
+              consolidation_priority = excluded.consolidation_priority,
+              relationship_shift_json = excluded.relationship_shift_json,
+              derived_from_json = excluded.derived_from_json,
+              tags_json = excluded.tags_json,
+              updated_at = excluded.updated_at
+            `,
+            [
+              event.id,
+              event.cardId,
+              event.decisionTraceId,
+              event.turnId,
+              event.sessionId,
+              event.sourceKind,
+              event.provenance,
+              event.occurredAt,
+              event.whereSummary,
+              event.withWhomJson,
+              event.threadAnchor,
+              event.whatHappened,
+              event.felt,
+              event.emotionTagsJson,
+              event.whatChanged,
+              event.relationshipMeaning,
+              event.lesson,
+              event.sourceSummary,
+              event.confidence,
+              event.salience,
+              event.sceneAttachment,
+              event.consolidationPriority,
+              event.relationshipShiftJson,
+              event.derivedFromJson,
+              event.tagsJson,
+              event.createdAt,
+              event.updatedAt,
+            ],
+          )
+        }
+      })
+    })
+
+    return prepared.map(event => mapEpisodicEventRow({
+      id: event.id,
+      card_id: event.cardId,
+      decision_trace_id: event.decisionTraceId,
+      turn_id: event.turnId,
+      session_id: event.sessionId,
+      source_kind: event.sourceKind,
+      provenance: event.provenance,
+      occurred_at: event.occurredAt,
+      where_summary: event.whereSummary,
+      with_whom_json: event.withWhomJson,
+      thread_anchor: event.threadAnchor,
+      what_happened: event.whatHappened,
+      felt: event.felt,
+      emotion_tags_json: event.emotionTagsJson,
+      what_changed: event.whatChanged,
+      relationship_meaning: event.relationshipMeaning,
+      lesson: event.lesson,
+      source_summary: event.sourceSummary,
+      confidence: event.confidence,
+      salience: event.salience,
+      scene_attachment: event.sceneAttachment,
+      consolidation_priority: event.consolidationPriority,
+      relationship_shift_json: event.relationshipShiftJson,
+      derived_from_json: event.derivedFromJson,
+      tags_json: event.tagsJson,
+      created_at: event.createdAt,
+      updated_at: event.updatedAt,
+      last_recalled_at: null,
+      recall_count: 0,
+      reconsolidation_count: 0,
+      latest_reconsolidation_json: null,
+    }))
+  }
+
+  async function listRecentEpisodicEvents(limit = 12) {
+    const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)))
+    const rows = await all<DbEpisodicEventRow>(
+      database,
+      `
+      SELECT *
+      FROM episodic_events
+      ORDER BY occurred_at DESC, created_at DESC
+      LIMIT ?
+      `,
+      [safeLimit],
+    )
+    return rows.map(mapEpisodicEventRow)
+  }
+
+  function scoreTokenOverlap(tokens: Set<string>, text: string) {
+    if (tokens.size === 0)
+      return 0
+    const haystack = tokenize(text)
+    if (haystack.size === 0)
+      return 0
+    let overlap = 0
+    for (const token of haystack) {
+      if (tokens.has(token))
+        overlap += 1
+    }
+    return overlap / haystack.size
+  }
+
+  async function searchEpisodicEvents(input: {
+    recallSeed: string
+    limit?: number
+    sessionId?: string | null
+    turnId?: string | null
+    threadAnchors?: string[]
+    affectAnchors?: string[]
+    relationshipAnchors?: string[]
+    sceneAnchor?: string | null
+    salienceBias?: number | null
+    carryAsMemory?: boolean
+    allowDream?: boolean
+  }) {
+    const recallSeed = input.recallSeed.trim()
+    if (!recallSeed)
+      return []
+
+    const safeLimit = Math.max(1, Math.min(12, Math.floor(input.limit ?? 4)))
+    const rows = await all<DbEpisodicEventRow>(
+      database,
+      `
+      SELECT *
+      FROM episodic_events
+      ORDER BY occurred_at DESC, created_at DESC
+      LIMIT 240
+      `,
+    )
+    const nowTs = now()
+    const threadTokens = tokenize((input.threadAnchors ?? []).join(' '))
+    const affectTokens = tokenize((input.affectAnchors ?? []).join(' '))
+    const relationshipTokens = tokenize((input.relationshipAnchors ?? []).join(' '))
+    const sceneTokens = tokenize(input.sceneAnchor ?? '')
+    const recallTokens = tokenize(recallSeed)
+    const allowDream = input.allowDream === true
+    const salienceBias = clamp01(Number(input.salienceBias ?? 0.5))
+
+    const ranked = rows
+      .map(mapEpisodicEventRow)
+      .filter((event) => {
+        if (!allowDream && event.provenance === 'dreamt')
+          return false
+        if ((event.provenance === 'dreamt' || event.latestReconsolidation?.provenance === 'dreamt') && !allowDream)
+          return false
+        return true
+      })
+      .map((event) => {
+        const memoryText = [
+          event.threadAnchor,
+          event.whereSummary,
+          event.whatHappened,
+          event.felt,
+          event.whatChanged,
+          event.relationshipMeaning,
+          event.lesson,
+          event.sourceSummary,
+          ...event.withWhom,
+          ...event.emotionTags,
+          ...event.tags,
+        ].filter(Boolean).join(' ')
+        const lexicalScore = scoreTokenOverlap(recallTokens, memoryText)
+        const threadScore = scoreTokenOverlap(threadTokens, `${event.threadAnchor ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`)
+        const affectScore = scoreTokenOverlap(affectTokens, `${event.felt ?? ''} ${event.emotionTags.join(' ')} ${event.whatChanged ?? ''}`)
+        const relationshipScore = scoreTokenOverlap(relationshipTokens, `${event.withWhom.join(' ')} ${event.relationshipMeaning ?? ''} ${event.whatChanged ?? ''}`)
+        const sceneScore = scoreTokenOverlap(sceneTokens, `${event.whereSummary ?? ''} ${event.threadAnchor ?? ''}`)
+        const recencyScore = Math.exp(-Math.max(0, nowTs - event.occurredAt) / (28 * dayMs))
+        const familiarityScore = clamp01(event.sceneAttachment * 0.55 + Math.min(0.45, event.recallCount / 10))
+        const emotionalAmplification = affectScore > 0.24
+          ? Math.min(0.14, event.salience * 0.18 + affectScore * 0.12)
+          : 0
+        const sessionBoost = input.sessionId && event.sessionId === input.sessionId ? 0.06 : 0
+        const turnBoost = input.turnId && event.turnId === input.turnId ? 0.04 : 0
+        const carryBoost = input.carryAsMemory && (event.provenance === 'remembered' || event.provenance === 'observed') ? 0.04 : 0
+        const provenancePenalty = event.provenance === 'dreamt'
+          ? 0.06
+          : event.provenance === 'reconstructed'
+            ? 0.03
+            : 0
+
+        const score
+          = lexicalScore * 0.18
+            + threadScore * 0.26
+            + affectScore * 0.18
+            + relationshipScore * 0.17
+            + sceneScore * 0.07
+            + event.salience * (0.12 + salienceBias * 0.08)
+            + recencyScore * 0.08
+            + familiarityScore * 0.06
+            + emotionalAmplification
+            + sessionBoost
+            + turnBoost
+            + carryBoost
+            - provenancePenalty
+
+        return {
+          event,
+          score,
+          affectScore,
+          relationshipScore,
+          falseMemoryRisk: threadScore < 0.12 && affectScore > 0.24 && relationshipScore < 0.08,
+        }
+      })
+      .filter(item => item.score >= 0.18)
+      .sort((left, right) => {
+        if (left.score !== right.score)
+          return right.score - left.score
+        if (left.event.salience !== right.event.salience)
+          return right.event.salience - left.event.salience
+        return right.event.occurredAt - left.event.occurredAt
+      })
+
+    const selected = ranked
+      .map((item, index) => ({
+        ...item,
+        interferencePenalty: deriveMemoryInterferencePenalty({
+          current: item.event,
+          strongerMatches: ranked.slice(0, index).map(candidate => candidate.event),
+        }),
+      }))
+      .map((item) => ({
+        ...item,
+        adjustedScore: item.score - item.interferencePenalty,
+      }))
+      .filter(item => item.adjustedScore >= 0.15)
+      .slice(0, safeLimit)
+
+    if (selected.length === 0)
+      return []
+
+    const recalledAt = nowTs
+    const returned = selected.map((item) => {
+      const mergedEmotionTags = uniqueStringArray([
+        ...item.event.emotionTags,
+        ...(input.affectAnchors ?? []),
+      ], 8)
+      const nextConfidence = clamp01(
+        item.falseMemoryRisk
+          ? item.event.confidence * 0.82 + item.adjustedScore * 0.12
+          : item.event.confidence * 0.88 + item.adjustedScore * 0.18,
+      )
+      const reconsolidation: AlicizationEpisodicReconsolidationSnapshot = {
+        at: recalledAt,
+        provenance: item.falseMemoryRisk ? 'reconstructed' : item.event.provenance,
+        confidence: nextConfidence,
+        reason: item.falseMemoryRisk
+          ? 'Affect-heavy recall needed reconstruction because the thread anchor was weak.'
+          : 'Recall re-bound this memory to the current thread, affect, and relationship context.',
+        emotionTags: mergedEmotionTags,
+        relationshipMeaning: item.event.relationshipMeaning || normalizeOrganicMemoryText((input.relationshipAnchors ?? []).join(' / '), 180) || null,
+        lesson: item.event.lesson || (input.carryAsMemory ? 'This memory still matters to the current bond and should shape tone with care.' : null),
+      }
+      return {
+        ...item.event,
+        confidence: nextConfidence,
+        emotionTags: mergedEmotionTags,
+        relationshipMeaning: reconsolidation.relationshipMeaning ?? null,
+        lesson: reconsolidation.lesson ?? null,
+        updatedAt: recalledAt,
+        lastRecalledAt: recalledAt,
+        recallCount: item.event.recallCount + 1,
+        reconsolidationCount: item.event.reconsolidationCount + 1,
+        latestReconsolidation: reconsolidation,
+      } satisfies AlicizationEpisodicEventRecord
+    })
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const event of returned) {
+          await run(
+            database,
+            `
+            UPDATE episodic_events
+            SET confidence = ?,
+                emotion_tags_json = ?,
+                relationship_meaning = ?,
+                lesson = ?,
+                updated_at = ?,
+                last_recalled_at = ?,
+                recall_count = ?,
+                reconsolidation_count = ?,
+                latest_reconsolidation_json = ?
+            WHERE id = ?
+            `,
+            [
+              event.confidence,
+              JSON.stringify(event.emotionTags),
+              event.relationshipMeaning,
+              event.lesson,
+              event.updatedAt,
+              event.lastRecalledAt,
+              event.recallCount,
+              event.reconsolidationCount,
+              JSON.stringify(event.latestReconsolidation),
+              event.id,
+            ],
+          )
+        }
+      })
+    })
+
+    return returned
   }
 
   async function appendPersonaReinforcementEvents(events: AlicizationPersonaReinforcementEventInput[]) {
@@ -3698,6 +4353,9 @@ export async function setupAlicizationDb(
     listMemoryReflections,
     appendRelationshipOutcomes,
     listRelationshipOutcomes,
+    appendEpisodicEvents,
+    listRecentEpisodicEvents,
+    searchEpisodicEvents,
     appendPersonaReinforcementEvents,
     listPersonaReinforcementEvents,
     readMindHead,

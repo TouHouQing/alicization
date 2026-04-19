@@ -490,6 +490,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
     setMetaValue: async (key, value) => await alicizationDb.setMetaValue(key, value),
     searchSubconsciousFragments: async (query, limit) => await alicizationDb.searchSubconsciousFragments(query, limit),
+    listRecentEpisodicEvents: async limit => await alicizationDb.listRecentEpisodicEvents(limit),
+    searchEpisodicEvents: async input => await alicizationDb.searchEpisodicEvents(input),
     listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
   })
   const {
@@ -498,6 +500,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     setPerformanceManifest,
     searchOrganicSubconsciousFragments,
     recallSubconsciousFragmentsWithGovernor,
+    recallEpisodicEventsWithGovernor,
+    buildHostPersonModel,
     resolveRecentContextualTurns,
   } = organicMemoryAccessRuntime
   const organicMemoryPromptRuntime = createAlicizationOrganicMemoryPromptRuntime({
@@ -507,6 +511,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getLatestRelationshipDynamics: async () => await alicizationDb.getLatestRelationshipDynamics().catch(() => null),
     retrieveMemoryFacts: async (recallSeed, limit) => await alicizationDb.retrieveMemoryFacts(recallSeed, limit).catch(() => []),
     recallSubconsciousFragmentsWithGovernor,
+    recallEpisodicEventsWithGovernor,
+    buildHostPersonModel,
     isPersonaResidueMemoryText,
   })
   const {
@@ -1721,6 +1727,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       && closure.reinforcementEvents.length === 0
       && closure.memoryFacts.length === 0
       && closure.reflections.length === 0
+      && closure.episodicEvents.length === 0
     ) {
       return
     }
@@ -1728,6 +1735,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const task = async () => {
       if (closure.relationshipOutcomes.length > 0)
         await alicizationDb.appendRelationshipOutcomes(closure.relationshipOutcomes)
+      if (closure.episodicEvents.length > 0)
+        await alicizationDb.appendEpisodicEvents(closure.episodicEvents)
       if (closure.reinforcementEvents.length > 0)
         await alicizationDb.appendPersonaReinforcementEvents(closure.reinforcementEvents)
       if (closure.reflections.length > 0)
@@ -1758,6 +1767,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           cardId,
           reason: errorMessageFrom(error) ?? 'unknown-error',
           relationshipOutcomes: closure.relationshipOutcomes.length,
+          episodicEvents: closure.episodicEvents.length,
           reinforcementEvents: closure.reinforcementEvents.length,
           reflections: closure.reflections.length,
           memoryFacts: closure.memoryFacts.length,

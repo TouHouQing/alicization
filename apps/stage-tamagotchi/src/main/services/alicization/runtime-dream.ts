@@ -1,6 +1,7 @@
 import type {
   AlicizationAuditLogInput,
   AlicizationDreamMetabolismPayload,
+  AlicizationEpisodicEventInput,
   AlicizationPersonalityState,
   AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
@@ -11,6 +12,7 @@ import type { AlicizationProactiveLoopState } from './proactive-feedback'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { computeEpisodicEventSalience, sanitizeHumanlikeMemoryText } from './humanlike-memory'
 import {
   clamp01,
   normalizeCoreIncarnation,
@@ -298,6 +300,115 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
 
     const previousCoreIncarnation = normalizeCoreIncarnation(dreamSoul.frontmatter.core_incarnation)
     const nextCoreIncarnation = reforgedCoreIncarnation || previousCoreIncarnation
+    const dreamEvents: AlicizationEpisodicEventInput[] = [{
+      cardId: dreamCardId,
+      turnId: dreamTurnId,
+      sessionId: null,
+      sourceKind: 'dream',
+      provenance: 'dreamt',
+      occurredAt: Date.now(),
+      whereSummary: 'sleep consolidation',
+      withWhom: ['host', 'self'],
+      threadAnchor: sanitizeHumanlikeMemoryText(serializedTurns.at(-1) ?? '', 140) || reason,
+      whatHappened: sanitizeHumanlikeMemoryText(
+        [
+          llmMetabolism ? 'Dream metabolism consolidated recent dialogue.' : 'Heuristic dream metabolism consolidated recent dialogue.',
+          shatteringEventText ? `Shattering cue: ${shatteringEventText}` : '',
+          attitudeShiftFragment || '',
+        ].filter(Boolean).join(' '),
+        320,
+      ),
+      felt: sanitizeHumanlikeMemoryText(
+        shatteringEventText
+          ? 'The dream pulled a high-tension memory back up and forced a deeper rewrite.'
+          : 'The dream quietly settled lingering threads, fatigue, and bond pressure.',
+        220,
+      ),
+      emotionTags: [
+        shatteringEventText ? 'shattering' : 'consolidation',
+        hostAttitude !== normalizedPreviousHostAttitude ? 'attitude-shift' : 'continuity',
+      ],
+      whatChanged: sanitizeHumanlikeMemoryText(
+        [
+          attitudeShiftFragment || '',
+          obedienceDelta !== 0 ? `obedience ${obedienceDelta >= 0 ? '+' : ''}${obedienceDelta.toFixed(2)}` : '',
+          livelinessDelta !== 0 ? `liveliness ${livelinessDelta >= 0 ? '+' : ''}${livelinessDelta.toFixed(2)}` : '',
+          sensibilityDelta !== 0 ? `sensibility ${sensibilityDelta >= 0 ? '+' : ''}${sensibilityDelta.toFixed(2)}` : '',
+        ].filter(Boolean).join(', '),
+        220,
+      ) || null,
+      relationshipMeaning: sanitizeHumanlikeMemoryText(
+        hostAttitude !== normalizedPreviousHostAttitude
+          ? `My sense of the host shifted from "${normalizedPreviousHostAttitude}" toward "${hostAttitude}".`
+          : 'The dream mainly consolidated ongoing bond pressure and unfinished feeling.',
+        220,
+      ),
+      lesson: sanitizeHumanlikeMemoryText(
+        shatteringEventText
+          ? 'Strong dream tension should consolidate first because it can rewrite the bond line.'
+          : 'Dream time should consolidate the unresolved line before it turns into stale residue.',
+        220,
+      ),
+      sourceSummary: llmMetabolism ? 'dream metabolism via main gateway' : 'heuristic dream metabolism',
+      confidence: llmMetabolism ? 0.72 : 0.58,
+      salience: computeEpisodicEventSalience({
+        confidence: llmMetabolism ? 0.72 : 0.58,
+        sourceKind: 'dream',
+        emotionalWeight: shatteringEventText ? 1 : 0.4,
+        existing: shatteringEventText ? 0.86 : 0.62,
+      }),
+      sceneAttachment: 0.16,
+      consolidationPriority: shatteringEventText ? 0.94 : 0.76,
+      derivedFrom: [
+        { kind: 'dream', id: dreamTurnId, label: reason },
+      ],
+      tags: [
+        'dream',
+        llmMetabolism ? 'llm' : 'heuristic',
+        shatteringEventText ? 'shattering' : 'quiet-consolidation',
+      ],
+    }]
+    if (reforgedCoreIncarnation && reforgedCoreIncarnation !== previousCoreIncarnation) {
+      dreamEvents.push({
+        cardId: dreamCardId,
+        turnId: `${dreamTurnId}:reforge`,
+        sessionId: null,
+        sourceKind: 'dream-reforge',
+        provenance: 'reconstructed',
+        occurredAt: Date.now(),
+        whereSummary: 'core-incarnation reforge',
+        withWhom: ['self'],
+        threadAnchor: shatteringEventText || 'core incarnation reforge',
+        whatHappened: 'A strong dream event forced a reforge of the core incarnation.',
+        felt: 'The self-line had to be rewritten instead of merely archived.',
+        emotionTags: ['dream-reforge', 'identity-rewrite'],
+        whatChanged: 'Core incarnation was rewritten after a shattering dream event.',
+        relationshipMeaning: 'The bond history became strong enough to alter the enduring self-line.',
+        lesson: 'Severe dream pressure should be allowed to rewrite the stable self narrative.',
+        sourceSummary: 'dream reforge',
+        confidence: 0.64,
+        salience: 0.92,
+        sceneAttachment: 0.08,
+        consolidationPriority: 1,
+        derivedFrom: [
+          { kind: 'dream', id: dreamTurnId, label: 'dream metabolism' },
+        ],
+        tags: ['dream', 'identity', 'reforge'],
+      })
+    }
+    await getAlicizationDb().appendEpisodicEvents(dreamEvents).catch(async (error: unknown) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.dream',
+        action: 'episodic-event-write-failed',
+        message: 'Failed to persist dream episodic events.',
+        payload: {
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+          count: dreamEvents.length,
+        },
+      })
+    })
+
     if (
       obedienceDelta !== 0
       || livelinessDelta !== 0

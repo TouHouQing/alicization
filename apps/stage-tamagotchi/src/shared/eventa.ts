@@ -18,11 +18,16 @@ import type {
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
+  AlicizationDerivedMemoryReference as SharedAlicizationDerivedMemoryReference,
   AlicizationDigitalLifeEnvelope as SharedAlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
   AlicizationDigitalLifeSpineMemoryDigest as SharedAlicizationDigitalLifeSpineMemoryDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult as SharedAlicizationDispatchTaskThreadResult,
+  AlicizationEpisodicEventInput as SharedAlicizationEpisodicEventInput,
+  AlicizationEpisodicEventRecord as SharedAlicizationEpisodicEventRecord,
+  AlicizationEpisodicReconsolidationSnapshot as SharedAlicizationEpisodicReconsolidationSnapshot,
+  AlicizationEpisodicEventSourceKind as SharedAlicizationEpisodicEventSourceKind,
   AlicizationEmotion as SharedAlicizationEmotion,
   AlicizationExecutionChannel as SharedAlicizationExecutionChannel,
   AlicizationExecutionEventInput as SharedAlicizationExecutionEventInput,
@@ -33,6 +38,7 @@ import type {
   AlicizationExecutorSessionRecord as SharedAlicizationExecutorSessionRecord,
   AlicizationExecutorSessionStatus as SharedAlicizationExecutorSessionStatus,
   AlicizationExecutorSessionUpsertInput as SharedAlicizationExecutorSessionUpsertInput,
+  AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
   AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
@@ -46,6 +52,7 @@ import type {
   AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
   AlicizationMemoryReflectionStatus as SharedAlicizationMemoryReflectionStatus,
   AlicizationMemoryReflectionTargetScope as SharedAlicizationMemoryReflectionTargetScope,
+  AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
   AlicizationMindHeadKey as SharedAlicizationMindHeadKey,
@@ -469,6 +476,13 @@ export interface AlicizationMemoryStats {
 }
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
+export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
+export type AlicizationDerivedMemoryReference = SharedAlicizationDerivedMemoryReference
+export type AlicizationEpisodicEventSourceKind = SharedAlicizationEpisodicEventSourceKind
+export type AlicizationEpisodicReconsolidationSnapshot = SharedAlicizationEpisodicReconsolidationSnapshot
+export type AlicizationEpisodicEventInput = SharedAlicizationEpisodicEventInput
+export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
+export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
 
 export interface AlicizationMemoryFact {
   id: string
@@ -482,6 +496,7 @@ export interface AlicizationMemoryFact {
   updatedAt: number
   lastAccessAt: number | null
   accessCount: number
+  provenance?: AlicizationMemoryProvenance | null
 }
 
 export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
@@ -545,6 +560,7 @@ export interface AlicizationSubconsciousFragment {
   createdAt: number
   lastRecalledAt: number | null
   recallCount: number
+  provenance?: AlicizationMemoryProvenance | null
 }
 
 export interface AlicizationOrganicMemorySnapshot {
@@ -1909,6 +1925,11 @@ export interface AlicizationDialogueWorldThreadSnapshot {
 export interface AlicizationRecallGovernorSnapshot {
   mode: 'none' | 'thread' | 'scene' | 'emotional-resonance' | 'self-continuity'
   recallSeed: string
+  threadAnchors?: string[]
+  affectAnchors?: string[]
+  relationshipAnchors?: string[]
+  salienceBias?: number
+  sceneAnchor?: string | null
   suppressAssociativeRecall: boolean
   allowActiveThoughts: boolean
   allowRecalledFragments: boolean

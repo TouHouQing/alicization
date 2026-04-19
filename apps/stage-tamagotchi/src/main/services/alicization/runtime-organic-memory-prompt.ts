@@ -1,8 +1,12 @@
 import type {
+  AlicizationEpisodicEventRecord,
+  AlicizationHostPersonModelSnapshot,
   AlicizationRecallGovernorSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+
+import { formatMemoryProvenanceLabel } from './humanlike-memory'
 
 interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
   normalizeOrganicRecallText: (raw: string) => string
@@ -23,6 +27,15 @@ interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recalledFragmentCap?: number
     recalledFragmentSourceBudget?: AlicizationRecallGovernorSnapshot['recalledFragmentSourceBudget']
   }) => Promise<OrganicMemoryPromptContext['recalledFragments']>
+  recallEpisodicEventsWithGovernor: (input: {
+    recallSeed: string
+    sessionId?: string | null
+    turnId?: string | null
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  }) => Promise<AlicizationEpisodicEventRecord[]>
+  buildHostPersonModel: (input?: {
+    now?: number
+  }) => Promise<AlicizationHostPersonModelSnapshot | null>
   isPersonaResidueMemoryText: (text: string) => boolean
 }
 
@@ -34,6 +47,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     getLatestRelationshipDynamics,
     retrieveMemoryFacts,
     recallSubconsciousFragmentsWithGovernor,
+    recallEpisodicEventsWithGovernor,
+    buildHostPersonModel,
     isPersonaResidueMemoryText,
   } = options
 
@@ -76,7 +91,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         'These semantic memory facts are durable carry-over context, not proof of the current scene.',
         'If you reuse them, present them as memory, continuity, or previously learned truth rather than fresh observation.',
         ...context.retrievedFacts.map((fact) => {
-          return `- ${fact.subject} ${fact.predicate} ${fact.object} | confidence=${fact.confidence.toFixed(2)} | source=${fact.source}`
+          return `- ${fact.subject} ${fact.predicate} ${fact.object} | confidence=${fact.confidence.toFixed(2)} | source=${fact.source} | provenance=${formatMemoryProvenanceLabel(fact.provenance ?? 'remembered')}`
         }),
       ].join('\n'))
     }
@@ -102,6 +117,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           ...autobiographicalEpisodes.map(item => `[自传回想：${JSON.stringify({
             sourceKind: item.sourceKind,
             text: item.text,
+            provenance: formatMemoryProvenanceLabel(item.provenance ?? 'remembered'),
           })}]`),
         ].join('\n'))
       }
@@ -113,9 +129,67 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           ...otherFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
             sourceKind: item.sourceKind,
             text: item.text,
+            provenance: formatMemoryProvenanceLabel(item.provenance ?? 'remembered'),
           })}]`),
         ].join('\n'))
       }
+    }
+
+    if ((context.recalledEpisodes ?? []).length > 0) {
+      blocks.push([
+        '[ALICIZATION_EVENT_GRAPH_RECALL]',
+        'These are structured autobiographical events, not loose fragments. Treat them as lived history with explicit provenance.',
+        'Observed/remembered events may support continuity. Dreamt/inferred/reconstructed events must be labeled as such if surfaced.',
+        ...(context.recalledEpisodes ?? []).map((event) => {
+          const provenance = event.latestReconsolidation?.provenance ?? event.provenance
+          return `- when=${new Date(event.occurredAt).toISOString()} | where=${event.whereSummary ?? 'unspecified'} | with=${event.withWhom.join(', ') || 'host'} | what=${event.whatHappened} | felt=${event.felt ?? 'n/a'} | changed=${event.whatChanged ?? 'n/a'} | source=${event.sourceKind} | provenance=${formatMemoryProvenanceLabel(provenance)} | confidence=${event.confidence.toFixed(2)}`
+        }),
+      ].join('\n'))
+    }
+
+    if (context.hostPersonModel) {
+      blocks.push([
+        '[ALICIZATION_HOST_PERSON_MODEL]',
+        'This is the long-horizon host model derived from repeated autobiographical episodes.',
+        'Use it as relational memory, not as proof of the current moment.',
+        context.hostPersonModel.summary
+          ? `summary=${context.hostPersonModel.summary}`
+          : '',
+        `trust_ladder=${context.hostPersonModel.trustLadder.stage} (${context.hostPersonModel.trustLadder.score.toFixed(2)})`,
+        context.hostPersonModel.routines.length > 0
+          ? `routines=${context.hostPersonModel.routines.join(' ; ')}`
+          : '',
+        context.hostPersonModel.sensitivities.length > 0
+          ? `sensitivities=${context.hostPersonModel.sensitivities.join(' ; ')}`
+          : '',
+        context.hostPersonModel.repairTriggers.length > 0
+          ? `repair_triggers=${context.hostPersonModel.repairTriggers.join(' ; ')}`
+          : '',
+        context.hostPersonModel.preferredClosenessByContext.length > 0
+          ? `preferred_closeness=${context.hostPersonModel.preferredClosenessByContext.map(item => `${item.context}:${item.preference} (${item.confidence.toFixed(2)})`).join(' | ')}`
+          : '',
+        context.hostPersonModel.recurrentBurdens.length > 0
+          ? `recurrent_burdens=${context.hostPersonModel.recurrentBurdens.join(' ; ')}`
+          : '',
+      ].filter(Boolean).join('\n'))
+    }
+
+    const recallProvenances = Array.from(new Set([
+      ...context.retrievedFacts.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
+      ...context.recalledFragments.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
+      ...(context.recalledEpisodes ?? []).map(item => formatMemoryProvenanceLabel(item.latestReconsolidation?.provenance ?? item.provenance)),
+    ]))
+    if (recallProvenances.length > 0) {
+      blocks.push([
+        '[ALICIZATION_MEMORY_PROVENANCE]',
+        'Every recalled item carries provenance and reply wording must respect it.',
+        'observed = something Alicization actually went through or directly witnessed.',
+        'remembered = durable continuity memory from earlier real interaction.',
+        'dreamt = dream-only material; never present it as real-world proof.',
+        'inferred = learned pattern or abstraction, not direct scene evidence.',
+        'reconstructed = partial or interference-prone recall; surface with uncertainty if used.',
+        `active_provenances=${recallProvenances.join(', ')}`,
+      ].join('\n'))
     }
 
     if (context.relationshipDynamics) {
@@ -179,6 +253,16 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             input.personaKernelMode === 'backgrounded'
               ? Math.max(1, Math.min(2, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))))
               : Math.max(1, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))),
+          )
+        : [],
+      recalledEpisodes: allowRecalledFragments
+        ? (input.context.recalledEpisodes ?? []).slice(
+            0,
+            input.personaKernelMode === 'muted'
+              ? 1
+              : input.personaKernelMode === 'backgrounded'
+                ? 2
+                : 3,
           )
         : [],
     } satisfies OrganicMemoryPromptContext
@@ -252,9 +336,14 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
   async function resolveOrganicMemoryPromptContext(options?: {
     recallSeed?: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    sessionId?: string | null
+    turnId?: string | null
   }): Promise<OrganicMemoryPromptContext> {
     const snapshot = await getOrganicMemorySnapshot()
-    const relationshipDynamics = await getLatestRelationshipDynamics()
+    const [relationshipDynamics, hostPersonModel] = await Promise.all([
+      getLatestRelationshipDynamics(),
+      buildHostPersonModel().catch(() => null),
+    ])
     const recallSeed = options?.recallGovernor?.recallSeed || options?.recallSeed || ''
     const retrievedFacts = recallSeed
       ? await retrieveMemoryFacts(recallSeed, 4)
@@ -271,6 +360,14 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           })
         ).filter(fragment => !isPersonaResidueMemoryText(fragment.text))
       : []
+    const recalledEpisodes = allowRecalledFragments && recallSeed
+      ? await recallEpisodicEventsWithGovernor({
+          recallSeed,
+          sessionId: options?.sessionId ?? null,
+          turnId: options?.turnId ?? null,
+          recallGovernor: options?.recallGovernor ?? null,
+        })
+      : []
     const activeThoughts = options?.recallGovernor?.allowActiveThoughts === false
       ? []
       : selectPromptActiveThoughts({
@@ -285,6 +382,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       activeThoughts,
       retrievedFacts,
       recalledFragments,
+      recalledEpisodes,
+      hostPersonModel,
       relationshipDynamics,
     }
   }

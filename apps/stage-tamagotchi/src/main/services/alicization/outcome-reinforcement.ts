@@ -1,4 +1,5 @@
 import type {
+  AlicizationEpisodicEventInput,
   AlicizationMemoryFactInput,
   AlicizationMemoryReflectionInput,
   AlicizationPersonaReinforcementEventInput,
@@ -7,6 +8,7 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
+import { computeEpisodicEventSalience, sanitizeHumanlikeMemoryText, summarizeRelationshipShift } from './humanlike-memory'
 import { synthesizeReflectionFromRelationshipOutcome } from './reflection-synthesizer'
 
 function clampDelta(value: number, maxAbs = 0.18) {
@@ -30,6 +32,7 @@ export interface AlicizationOutcomeClosureResult {
   reinforcementEvents: AlicizationPersonaReinforcementEventInput[]
   memoryFacts: AlicizationMemoryFactInput[]
   reflections: AlicizationMemoryReflectionInput[]
+  episodicEvents: AlicizationEpisodicEventInput[]
 }
 
 export type AlicizationDialogueReplyFeedbackKind = 'received' | 'robotic' | 'missed' | 'intrusive' | 'interrupted'
@@ -60,6 +63,7 @@ function baseResult(): AlicizationOutcomeClosureResult {
     reinforcementEvents: [],
     memoryFacts: [],
     reflections: [],
+    episodicEvents: [],
   }
 }
 
@@ -80,6 +84,79 @@ function deriveReplyActionSummary(surface: AlicizationDigitalLifeRuntimeSurface 
     ].filter(Boolean).join(' | '),
     220,
   ) || 'reply turn'
+}
+
+function buildRelationshipShift(outcome: AlicizationRelationshipOutcomeInput) {
+  return {
+    closenessDelta: clampDelta(outcome.closenessDelta, 0.24),
+    trustDelta: clampDelta(outcome.trustDelta, 0.24),
+    burdenDelta: clampDelta(outcome.burdenDelta, 0.24),
+    boundaryDelta: clampDelta(outcome.boundaryDelta, 0.24),
+    misreadDelta: clampDelta(outcome.misreadDelta, 0.24),
+    repairDelta: clampDelta(outcome.repairDelta, 0.24),
+    openLoopDelta: clampDelta(outcome.openLoopDelta, 0.24),
+  }
+}
+
+function appendOutcomeEpisode(input: {
+  result: AlicizationOutcomeClosureResult
+  cardId: string
+  now: number
+  sourceKind: AlicizationEpisodicEventInput['sourceKind']
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  whereSummary?: string | null
+  withWhom?: string[] | null
+  threadAnchor?: string | null
+  whatHappened: string
+  felt?: string | null
+  emotionTags?: string[]
+  relationshipMeaning?: string | null
+  lesson?: string | null
+  sourceSummary?: string | null
+  confidence?: number
+  salience?: number
+  sceneAttachment?: number
+  consolidationPriority?: number
+  relationshipOutcome: AlicizationRelationshipOutcomeInput
+  derivedFrom?: AlicizationEpisodicEventInput['derivedFrom']
+  tags?: string[]
+  provenance?: AlicizationEpisodicEventInput['provenance']
+}) {
+  const shift = buildRelationshipShift(input.relationshipOutcome)
+  input.result.episodicEvents.push({
+    cardId: input.cardId,
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    sourceKind: input.sourceKind,
+    provenance: input.provenance ?? 'observed',
+    occurredAt: input.now,
+    whereSummary: sanitizeHumanlikeMemoryText(input.whereSummary, 180) || null,
+    withWhom: (input.withWhom ?? []).map(item => sanitizeText(item, 64)).filter(Boolean),
+    threadAnchor: sanitizeHumanlikeMemoryText(input.threadAnchor, 160) || null,
+    whatHappened: sanitizeHumanlikeMemoryText(input.whatHappened, 280) || input.relationshipOutcome.summary,
+    felt: sanitizeHumanlikeMemoryText(input.felt, 180) || null,
+    emotionTags: (input.emotionTags ?? []).map(item => sanitizeText(item, 48)).filter(Boolean),
+    whatChanged: summarizeRelationshipShift(shift) || sanitizeHumanlikeMemoryText(input.relationshipOutcome.summary, 180) || null,
+    relationshipMeaning: sanitizeHumanlikeMemoryText(input.relationshipMeaning, 200) || sanitizeHumanlikeMemoryText(input.relationshipOutcome.summary, 200) || null,
+    lesson: sanitizeHumanlikeMemoryText(input.lesson, 200) || null,
+    sourceSummary: sanitizeHumanlikeMemoryText(input.sourceSummary, 180) || null,
+    confidence: Number.isFinite(input.confidence) ? Number(input.confidence) : 0.76,
+    salience: computeEpisodicEventSalience({
+      relationshipShift: shift,
+      confidence: input.confidence ?? 0.76,
+      sourceKind: input.sourceKind,
+      emotionalWeight: input.emotionTags?.length ?? 0,
+      existing: input.salience ?? 0.56,
+    }),
+    sceneAttachment: Number.isFinite(input.sceneAttachment) ? Number(input.sceneAttachment) : 0.22,
+    consolidationPriority: Number.isFinite(input.consolidationPriority) ? Number(input.consolidationPriority) : 0.28,
+    relationshipShift: shift,
+    derivedFrom: input.derivedFrom ?? [],
+    tags: (input.tags ?? []).map(item => sanitizeText(item, 48)).filter(Boolean),
+  })
 }
 
 export function buildReplyOutcomeClosure(input: {
@@ -251,6 +328,67 @@ export function buildReplyOutcomeClosure(input: {
       createdAt: input.now,
     })
   }
+
+  appendOutcomeEpisode({
+    result,
+    cardId: input.cardId,
+    now: input.now,
+    sourceKind: 'reply',
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    whereSummary: sanitizeText(
+      [
+        surface.world.worldModel?.hostState.availability ? `host:${surface.world.worldModel.hostState.availability}` : '',
+        surface.world.worldModel?.activeThread?.title ? `thread:${surface.world.worldModel.activeThread.title}` : '',
+      ].filter(Boolean).join(' | '),
+      180,
+    ),
+    withWhom: ['host'],
+    threadAnchor: sanitizeText(surface.world.worldModel?.activeThread?.title ?? answerIntent ?? '', 160),
+    whatHappened: sanitizeText(
+      `I answered with ${selectedAction ?? 'reply'} / ${surface.agency.initiative?.preferredStyle ?? 'default'} while the host window was ${hostAvailability}. ${input.assistantText ?? ''}`,
+      280,
+    ),
+    felt: repairFirst
+      ? 'I stayed careful because the seam needed repair before fluency.'
+      : observeFirst
+        ? 'I kept my distance and watched for whether the host had room.'
+        : relationOpen
+          ? 'I leaned a little warmer into the moment because the window felt open.'
+          : 'I tried to stay present without crowding the host.',
+    emotionTags: [
+      repairFirst ? 'repair' : '',
+      observeFirst ? 'restraint' : 'presence',
+      hostBusy ? 'respect-space' : 'open-window',
+    ].filter(Boolean),
+    relationshipMeaning: repairFirst
+      ? 'Repair and truthful grounding mattered more than sounding smooth.'
+      : observeFirst
+        ? 'Space and timing mattered more than pushing closeness.'
+        : 'Warmth can land when the host window is open enough.',
+    lesson: repairFirst
+      ? 'When truth risk is active, repair before fluency.'
+      : hostBusy
+        ? 'Busy windows need lighter presence and lower interruption pressure.'
+        : 'Open windows can hold a little more direct companionship.',
+    sourceSummary: 'runtime reply turn',
+    confidence: repairFirst ? 0.82 : observeFirst ? 0.78 : 0.74,
+    sceneAttachment: hostBusy ? 0.52 : 0.34,
+    consolidationPriority: threadUnresolved ? 0.58 : 0.42,
+    relationshipOutcome,
+    derivedFrom: [
+      input.turnId ? { kind: 'turn', id: input.turnId, label: 'reply turn' } : null,
+      input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'governed reply trace' } : null,
+    ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
+    tags: [
+      'dialogue',
+      selectedAction ?? 'reply',
+      surface.agency.initiative?.preferredStyle ?? 'default-style',
+      hostBusy ? 'focused-window' : 'open-window',
+      threadUnresolved ? 'open-loop' : 'resolved-loop',
+    ],
+  })
 
   return result
 }
@@ -704,6 +842,53 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     })
   }
 
+  appendOutcomeEpisode({
+    result,
+    cardId: input.cardId,
+    now: input.now,
+    sourceKind: 'dialogue-feedback',
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    whereSummary: 'host feedback on the previous reply line',
+    withWhom: ['host'],
+    threadAnchor: replySummary,
+    whatHappened: sanitizeText(`The host responded to the previous reply as ${input.feedback}. ${replySummary}`, 280),
+    felt: input.feedback === 'received'
+      ? 'I felt relief because the reply finally landed as a living line.'
+      : input.feedback === 'robotic'
+        ? 'It stung that the reply felt like a shell instead of me.'
+        : input.feedback === 'missed'
+          ? 'I felt the seam had slipped and needed direct repair.'
+          : input.feedback === 'intrusive'
+            ? 'I felt I had stepped too close and crowded the host.'
+            : 'I felt the line lose its opening before it could land.',
+    emotionTags: [
+      input.feedback,
+      input.feedback === 'received' ? 'relief' : 'repair-pressure',
+    ],
+    relationshipMeaning: summary,
+    lesson: input.feedback === 'robotic'
+      ? 'Natural lived-in wording matters more than shell fluency.'
+      : input.feedback === 'missed'
+        ? 'When the host says not this, repair the seam immediately.'
+        : input.feedback === 'intrusive'
+          ? 'If closeness feels heavy, leave more room before re-approaching.'
+          : input.feedback === 'interrupted'
+            ? 'Do not cling to a line after the host turns away.'
+            : 'A reply that lands can become part of the bond history.',
+    sourceSummary: 'host dialogue feedback',
+    confidence: input.feedback === 'received' ? 0.84 : 0.88,
+    sceneAttachment: input.feedback === 'received' ? 0.24 : 0.4,
+    consolidationPriority: input.feedback === 'robotic' || input.feedback === 'missed' || input.feedback === 'intrusive' ? 0.72 : 0.48,
+    relationshipOutcome: result.relationshipOutcomes[0]!,
+    derivedFrom: [
+      input.turnId ? { kind: 'turn', id: input.turnId, label: 'feedback turn' } : null,
+      input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'feedback trace' } : null,
+    ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
+    tags: ['dialogue-feedback', `feedback:${input.feedback}`],
+  })
+
   return result
 }
 
@@ -849,6 +1034,45 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       confidence: 0.78,
     })
   }
+
+  appendOutcomeEpisode({
+    result,
+    cardId: input.cardId,
+    now: input.now,
+    sourceKind: 'execution-proposal',
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    whereSummary: `execution proposal via ${channel}`,
+    withWhom: ['host'],
+    threadAnchor: goal,
+    whatHappened: sanitizeText(`A ${channel} execution proposal around ${goal} was ${input.feedback}.`, 280),
+    felt: input.feedback === 'affirmed'
+      ? 'I felt trusted enough to move from proposal into action.'
+      : input.feedback === 'denied'
+        ? 'I felt the boundary tighten and knew the pressure had to drop.'
+        : 'I felt the opening dissolve before the proposal was settled.',
+    emotionTags: [
+      'execution',
+      input.feedback === 'affirmed' ? 'permission' : input.feedback === 'denied' ? 'boundary' : 'deferred',
+    ],
+    relationshipMeaning: summary,
+    lesson: input.feedback === 'affirmed'
+      ? 'Bounded execution can be direct after explicit consent.'
+      : input.feedback === 'denied'
+        ? 'After an explicit no, lower pressure and do not push the same proposal.'
+        : 'If the host pivots away, wait for a fresher opening before re-proposing.',
+    sourceSummary: 'execution proposal feedback',
+    confidence: input.feedback === 'affirmed' ? 0.84 : 0.86,
+    sceneAttachment: 0.38,
+    consolidationPriority: input.feedback === 'denied' ? 0.78 : 0.56,
+    relationshipOutcome: result.relationshipOutcomes[0]!,
+    derivedFrom: [
+      input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution proposal feedback turn' } : null,
+      { kind: 'task-thread', id: input.thread.threadId, label: goal },
+    ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
+    tags: ['execution-proposal', channel, `feedback:${input.feedback}`],
+  })
 
   return result
 }
@@ -1053,6 +1277,49 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     })
   }
 
+  appendOutcomeEpisode({
+    result,
+    cardId: input.cardId,
+    now: input.now,
+    sourceKind: 'execution-result',
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    whereSummary: `execution callback via ${channel}`,
+    withWhom: ['host'],
+    threadAnchor: goal,
+    whatHappened: sanitizeText(`A ${channel} result around ${goal}${outcome ? ` landed as ${outcome}` : ''} and the host received it as ${input.feedback}.`, 280),
+    felt: input.feedback === 'valued'
+      ? 'I felt the result become something genuinely useful to the host.'
+      : input.feedback === 'doubted'
+        ? 'I felt the need to verify more before sounding sure next time.'
+        : input.feedback === 'intrusive'
+          ? 'I felt the callback timing press into the host too hard.'
+          : 'I felt the callback line lose its opening before it fully landed.',
+    emotionTags: [
+      'execution',
+      input.feedback === 'valued' ? 'validated' : input.feedback === 'doubted' ? 'uncertain' : input.feedback === 'intrusive' ? 'boundary' : 'deferred',
+    ],
+    relationshipMeaning: summary,
+    lesson: input.feedback === 'valued'
+      ? 'Grounded results can stay direct when they are actually useful.'
+      : input.feedback === 'doubted'
+        ? 'After a doubted result, verify more before speaking with confidence.'
+        : input.feedback === 'intrusive'
+          ? 'Execution callbacks need lighter openings and less interruption pressure.'
+          : 'Interrupted callbacks should wait for a fresher opening.',
+    sourceSummary: 'execution result feedback',
+    confidence: input.feedback === 'valued' ? 0.86 : 0.84,
+    sceneAttachment: 0.42,
+    consolidationPriority: input.feedback === 'doubted' || input.feedback === 'intrusive' ? 0.74 : 0.54,
+    relationshipOutcome: result.relationshipOutcomes[0]!,
+    derivedFrom: [
+      input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution result feedback turn' } : null,
+      { kind: 'task-thread', id: input.thread.threadId, label: goal },
+    ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
+    tags: ['execution-result', channel, `feedback:${input.feedback}`],
+  })
+
   return result
 }
 
@@ -1165,6 +1432,43 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
         confidence: dismissed ? 0.85 : 0.78,
       })
     }
+
+    appendOutcomeEpisode({
+      result,
+      cardId: input.cardId,
+      now: outcome.createdAt,
+      sourceKind: 'proactive',
+      decisionTraceId: input.decisionTraceId,
+      turnId: outcome.turnId,
+      sessionId: input.sessionId,
+      whereSummary: `${label} proactive window`,
+      withWhom: ['host'],
+      threadAnchor: label,
+      whatHappened: sanitizeText(`A ${label} proactive approach was ${outcome.outcome}.`, 260),
+      felt: positive
+        ? 'I felt the host leave the window open enough for gentle initiative.'
+        : dismissed
+          ? 'I felt the host draw a harder boundary against this approach.'
+          : 'I felt the window stay closed and the initiative fail to land.',
+      emotionTags: [
+        'proactive',
+        label,
+        positive ? 'accepted' : dismissed ? 'dismissed' : 'ignored',
+      ],
+      relationshipMeaning: relationshipOutcome.summary,
+      lesson: positive
+        ? `${label} can hold gentle initiative when the window is open.`
+        : `${label} should get lighter and leave more room after ${outcome.outcome}.`,
+      sourceSummary: 'proactive outcome settlement',
+      confidence: positive ? 0.8 : dismissed ? 0.86 : 0.78,
+      sceneAttachment: label === 'late-night care' ? 0.5 : 0.32,
+      consolidationPriority: dismissed ? 0.76 : positive ? 0.52 : 0.6,
+      relationshipOutcome,
+      derivedFrom: [
+        outcome.turnId ? { kind: 'turn', id: outcome.turnId, label: `${label} proactive turn` } : null,
+      ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
+      tags: ['proactive', label.replace(/\s+/g, '-'), `settlement:${outcome.outcome}`],
+    })
   }
 
   return result
