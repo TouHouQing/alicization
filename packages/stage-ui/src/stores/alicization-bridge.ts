@@ -1288,7 +1288,7 @@ export interface AlicizationDialogueActKernelSnapshot {
 export interface AlicizationMindTurnFrameWorldSnapshot {
   activeThread?: string | null
   visibleSurface?: string | null
-  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  truthState: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain'
   truthBoundary?: string | null
   continuityPolicy?: 'stay-on-thread' | 'answer-then-carry' | 'scene-before-memory' | 'dialogue-before-scene' | null
   continuitySummary?: string | null

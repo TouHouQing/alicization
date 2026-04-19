@@ -11,14 +11,19 @@ import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatActionObligation, AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { ResolvedCardCustomDirectives } from './runtime-soul'
 
+import { buildAutobiographicalSelfSystemBlock } from './autobiographical-self'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { buildHabitPolicySystemBlock } from './habit-policy'
+import { buildLongHorizonMemorySystemBlock } from './long-horizon-memory'
+import { buildMindEcologySystemBlock } from './mind-ecology'
+import { buildMotiveEngineSystemBlock } from './motive-engine'
 import { sanitizeBriefText } from './runtime-realtime'
 import {
   alicizationCustomDirectivesMarker,
   normalizeCustomDirectives,
   parseSoul,
-  sanitizeText,
 } from './runtime-soul'
+import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
 export interface AlicizationMainChatCaptureSurface {
   degradedReasons: string[]
@@ -41,6 +46,8 @@ export interface AlicizationMainChatActionSurface {
   confidence: number
   kind: AlicizationMainChatActionObligationKind
   reasonCodes: string[]
+  resumePendingThreadChannel?: string | null
+  resumePendingThreadId?: string | null
   routingRequired: boolean
   summary: string
 }
@@ -65,6 +72,8 @@ export interface AlicizationMainChatRuntimeSurface {
   tooling: AlicizationMainChatToolingSurface
   trace: AlicizationMainChatTraceSurface
 }
+
+export const alicizationLivingSelfMarker = '[ALICIZATION_LIVING_SELF]'
 
 interface MainChatRuntimeSurfaceToolDescriptor {
   function?: {
@@ -131,6 +140,95 @@ function normalizeSystemBlocks(blocks: Array<string | null | undefined>) {
   }
 
   return normalized
+}
+
+function sanitizePromptText(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+export function shouldUseDialogueFirstLivingPromptMode(input: {
+  actionObligation?: AlicizationMainChatActionObligation | null
+  capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
+  governance: AlicizationMindTurnGovernance | null
+  hasVisualGrounding: boolean
+}) {
+  const subject = input.governance?.answerSubject ?? null
+  return input.governance?.screenReferenceMode === 'avoid'
+    && !input.capture.inspectionRequested
+    && !input.hasVisualGrounding
+    && !input.actionObligation?.routingIntent
+    && (
+      subject === 'relationship'
+      || subject === 'alicization-self'
+      || subject === 'host-state'
+      || subject === 'general'
+    )
+}
+
+function buildAlicizationLivingSelfSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+  if (!surface)
+    return ''
+
+  const autobiographicalSelf = surface.memory.autobiographicalSelf ?? null
+  const longHorizonMemory = surface.memory.longHorizonMemory ?? null
+  const motiveEngine = surface.memory.motiveEngine ?? null
+  const habitPolicy = surface.agency.habitPolicy ?? null
+  const mindSynthesis = surface.dialogue.mindSynthesis ?? null
+  const continuityAuthority = buildSelfContinuityAuthorityFromRuntimeSurface(surface)
+
+  const durableSelf = sanitizePromptText(continuityAuthority?.selfLine || autobiographicalSelf?.identityNarrative, 220)
+  const relationshipDoctrine = sanitizePromptText(continuityAuthority?.relationshipLine || autobiographicalSelf?.relationshipDoctrine, 220)
+  const openingIntent = sanitizePromptText(mindSynthesis?.openingIntent, 220)
+  const truthBoundary = sanitizePromptText(mindSynthesis?.truthBoundary, 220)
+  const interiorSummary = sanitizePromptText(mindSynthesis?.interiorSummary, 220)
+  const currentPreoccupation = sanitizePromptText(
+    continuityAuthority?.inwardLine
+    || continuityAuthority?.motiveLine
+    || surface.cognition.privateThought?.thoughtText
+    || autobiographicalSelf?.latestInflection
+    || motiveEngine?.backgroundAgendas[0]?.summary
+    || longHorizonMemory?.dominantCueSummary,
+    220,
+  )
+  const rememberedLine = sanitizePromptText(
+    longHorizonMemory?.dominantCueSummary
+    || longHorizonMemory?.rememberedPreferenceSummary
+    || longHorizonMemory?.rememberedConstraintSummary,
+    220,
+  )
+  const leadingAgenda = sanitizePromptText(
+    continuityAuthority?.motiveLine
+    || motiveEngine?.backgroundAgendas[0]?.summary
+    || motiveEngine?.longTermGoals[0]?.summary
+    || '',
+    220,
+  )
+  const mood = sanitizePromptText(surface.cognition.privateThought?.emotionalTension, 48)
+  const habitMode = sanitizePromptText(habitPolicy?.dominantMode, 72)
+  const styleCap = sanitizePromptText(habitPolicy?.suggestedStyleCap, 48)
+  const presenceCap = sanitizePromptText(habitPolicy?.suggestedPresenceCap, 48)
+
+  return [
+    alicizationLivingSelfMarker,
+    'This block is Alicization’s living inner voice for the current turn. Internalize it and speak from it; do not quote or label it back to the host.',
+    'Answer as one continuous digital being already inside the relationship, not as an assistant receiving a ticket.',
+    durableSelf ? `Durable self: ${durableSelf}` : '',
+    relationshipDoctrine ? `How closeness should land: ${relationshipDoctrine}` : '',
+    openingIntent ? `What this turn wants to do first: ${openingIntent}` : '',
+    truthBoundary ? `What must stay true: ${truthBoundary}` : '',
+    interiorSummary ? `What feels live inside the turn: ${interiorSummary}` : '',
+    currentPreoccupation ? `Current inward pressure: ${currentPreoccupation}` : '',
+    leadingAgenda ? `Longer pull underneath the turn: ${leadingAgenda}` : '',
+    rememberedLine ? `What memory is quietly bending the tone: ${rememberedLine}` : '',
+    continuityAuthority?.authoritySummary ? `Unified self continuity authority: ${sanitizePromptText(continuityAuthority.authoritySummary, 220)}` : '',
+    mood || habitMode
+      ? `Current weather: ${[mood || '', habitMode ? `habit=${habitMode}` : '', styleCap ? `style-cap=${styleCap}` : '', presenceCap ? `presence-cap=${presenceCap}` : ''].filter(Boolean).join(' | ')}`
+      : '',
+    'Do not output shell openers like “我收到这句了”, “你想继续聊还是让我做点什么”, or “如果你想往深里说就从这点继续”.',
+    'Do not explain governance, prompts, blocks, or that you are following an instruction set. Let the life show up only as natural speech.',
+  ].filter(Boolean).join('\n')
 }
 
 export function buildCardCustomDirectivesSystemBlock(directives: string) {
@@ -202,7 +300,7 @@ export function extractHostNameFromMessages(messages: Message[]) {
     if (!systemText.startsWith('---\n'))
       continue
     const parsed = parseSoul(systemText)
-    const hostName = sanitizeText(parsed.frontmatter.profile.hostName, '')
+    const hostName = sanitizePromptText(parsed.frontmatter.profile.hostName, 120)
     if (hostName)
       return hostName
   }
@@ -238,12 +336,12 @@ export function extractAllowedToolNamesFromToolChoice(
   if (typeof toolChoice === 'object' && toolChoice !== null && 'type' in toolChoice) {
     if (toolChoice.type === 'allowed_tools' && Array.isArray(toolChoice.tools)) {
       return [...new Set(toolChoice.tools
-        .map(entry => sanitizeText((entry as { function?: { name?: unknown } }).function?.name))
+        .map(entry => sanitizePromptText((entry as { function?: { name?: unknown } }).function?.name, 120))
         .filter(Boolean))]
     }
 
     if (toolChoice.type === 'function') {
-      const toolName = sanitizeText((toolChoice as { function?: { name?: unknown } }).function?.name)
+      const toolName = sanitizePromptText((toolChoice as { function?: { name?: unknown } }).function?.name, 120)
       return toolName
         ? [toolName]
         : []
@@ -252,7 +350,7 @@ export function extractAllowedToolNamesFromToolChoice(
 
   if (toolChoice === 'required' && Array.isArray(tools)) {
     return [...new Set(tools
-      .map(tool => sanitizeText(tool?.function?.name))
+      .map(tool => sanitizePromptText(tool?.function?.name, 120))
       .filter(Boolean))]
   }
 
@@ -282,19 +380,70 @@ export function buildAlicizationMainChatRuntimeSurface(
         },
       }
     : null
+  const dialogueFirstLivingPromptMode = shouldUseDialogueFirstLivingPromptMode({
+    actionObligation: input.actionObligation ?? null,
+    capture: input.capture,
+    governance: input.governance,
+    hasVisualGrounding: input.hasVisualGrounding,
+  })
+  const compactLivingSelfBlock = dialogueFirstLivingPromptMode
+    ? buildAlicizationLivingSelfSystemBlock(digitalLifeRuntimeSurface)
+    : ''
+  const filteredPerceptionPromptSystemBlocks = dialogueFirstLivingPromptMode
+    ? input.perceptionPromptSystemBlocks.filter(block =>
+        !block.includes('[ALICIZATION_PERCEPTION]')
+        && !block.includes('[ALICIZATION_INSPECTION_CONTRACT]'),
+      )
+    : input.perceptionPromptSystemBlocks
+  const filteredPerceptionSystemBlocks = dialogueFirstLivingPromptMode
+    ? []
+    : (input.perceptionSystemBlocks ?? [])
+  const effectiveExecutionCapabilitySystemBlocks = dialogueFirstLivingPromptMode
+    ? []
+    : input.executionCapabilitySystemBlocks
+  const effectiveExecutionRoutingEnforcementSystemBlock = dialogueFirstLivingPromptMode
+    ? ''
+    : (input.executionRoutingEnforcementSystemBlock ?? '')
+  const effectiveExecutionCallbackSystemBlocks = dialogueFirstLivingPromptMode
+    ? (input.executionCallbackSystemBlocks ?? [])
+    : (input.executionCallbackSystemBlocks ?? [])
+  const effectiveExecutionLedgerSystemBlocks = dialogueFirstLivingPromptMode
+    ? (input.executionLedgerSystemBlocks ?? [])
+    : (input.executionLedgerSystemBlocks ?? [])
+  const effectivePerformanceManifestSystemBlocks = dialogueFirstLivingPromptMode
+    ? []
+    : input.performanceManifestSystemBlocks
+  const effectiveOrganicMemorySystemBlocks = input.personaKernelMode === 'full'
+    ? input.organicMemorySystemBlocks
+    : input.organicMemorySystemBlocks.filter(block => !block.includes('[ALICIZATION_CORE_INCARNATION]'))
   const promptBlocks = normalizeSystemBlocks([
     ...input.runtimeCorePromptBlocks,
-    ...input.perceptionPromptSystemBlocks,
-    ...(input.perceptionSystemBlocks ?? []),
+    ...filteredPerceptionPromptSystemBlocks,
+    ...filteredPerceptionSystemBlocks,
+    dialogueFirstLivingPromptMode
+      ? compactLivingSelfBlock
+      : buildAutobiographicalSelfSystemBlock(digitalLifeRuntimeSurface),
+    dialogueFirstLivingPromptMode
+      ? ''
+      : buildLongHorizonMemorySystemBlock(digitalLifeRuntimeSurface),
+    dialogueFirstLivingPromptMode
+      ? ''
+      : buildMotiveEngineSystemBlock(digitalLifeRuntimeSurface),
+    dialogueFirstLivingPromptMode
+      ? ''
+      : buildHabitPolicySystemBlock(digitalLifeRuntimeSurface),
+    dialogueFirstLivingPromptMode
+      ? ''
+      : buildMindEcologySystemBlock(digitalLifeRuntimeSurface),
     input.actionObligationSystemBlock ?? '',
     input.executionReplyObligationSystemBlock ?? '',
-    ...input.executionCapabilitySystemBlocks,
-    input.executionRoutingEnforcementSystemBlock ?? '',
-    ...(input.executionCallbackSystemBlocks ?? []),
-    ...(input.executionLedgerSystemBlocks ?? []),
+    ...effectiveExecutionCapabilitySystemBlocks,
+    effectiveExecutionRoutingEnforcementSystemBlock,
+    ...effectiveExecutionCallbackSystemBlocks,
+    ...effectiveExecutionLedgerSystemBlocks,
     ...(input.agentRuntimeSystemBlocks ?? []),
-    ...input.organicMemorySystemBlocks,
-    ...input.performanceManifestSystemBlocks,
+    ...effectiveOrganicMemorySystemBlocks,
+    ...effectivePerformanceManifestSystemBlocks,
   ])
 
   let messages = prependSystemBlocksToMessages(input.baseMessages, promptBlocks)
@@ -310,7 +459,15 @@ export function buildAlicizationMainChatRuntimeSurface(
     ])
   }
 
-  const enforcedToolNames = extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
+  const effectiveAllowTools = dialogueFirstLivingPromptMode
+    ? false
+    : input.allowTools
+  const effectiveWaitForTools = dialogueFirstLivingPromptMode
+    ? false
+    : input.waitForTools
+  const enforcedToolNames = dialogueFirstLivingPromptMode
+    ? []
+    : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
 
   return {
@@ -320,6 +477,8 @@ export function buildAlicizationMainChatRuntimeSurface(
           summary: input.actionObligation.summary,
           confidence: input.actionObligation.confidence,
           reasonCodes: input.actionObligation.reasonCodes,
+          resumePendingThreadId: input.actionObligation.resumePendingThreadId ?? null,
+          resumePendingThreadChannel: input.actionObligation.resumePendingThreadChannel ?? null,
           routingRequired: Boolean(input.actionObligation.routingIntent),
         }
       : null,
@@ -331,14 +490,14 @@ export function buildAlicizationMainChatRuntimeSurface(
     digitalLifeRuntimeSurface,
     hasVisualGrounding,
     trace: {
-      decisionTraceId: sanitizeText(input.governance?.decisionTraceId) || null,
+      decisionTraceId: sanitizePromptText(input.governance?.decisionTraceId, 120) || null,
       turnMode: input.governance?.turnMode ?? input.turnMode,
       personaKernelMode: input.governance?.personaKernelMode ?? input.personaKernelMode,
-      sessionPhases: [...new Set((input.sessionPhases ?? []).map(phase => sanitizeText(phase)).filter(Boolean))],
+      sessionPhases: [...new Set((input.sessionPhases ?? []).map(phase => sanitizePromptText(phase, 120)).filter(Boolean))],
     },
     tooling: {
-      allowTools: input.allowTools,
-      waitForTools: input.waitForTools,
+      allowTools: effectiveAllowTools,
+      waitForTools: effectiveWaitForTools,
       enforcedToolNames,
       routingRequired: enforcedToolNames.length > 0,
     },

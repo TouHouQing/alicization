@@ -209,39 +209,6 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
         timeoutRecoveryMode: input.timeoutRecoveryMode,
         nonProgressEventTypes: input.nonProgressEventTypes,
       })
-      let gatewayUnreachableReason: string | undefined
-      const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
-      if (!reachability.reachable) {
-        gatewayUnreachableReason = reachability.code ?? reachability.reason ?? 'gateway-unreachable'
-        await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
-          level: 'warning',
-          category: 'alicization.main-gateway',
-          action: 'stream-gateway-unreachable-advisory',
-          message: 'Timeout path detected an unreachable main gateway; recovery will still attempt one-shot fallback.',
-          payload: {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            providerId: input.payload.providerId,
-            model: input.payload.model,
-            dispatchBound: input.dispatchBound,
-            cached: reachability.cached ?? false,
-            code: reachability.code,
-            reason: reachability.reason,
-          },
-        }))
-        await input.appendRuntimeDebugLine('chat-stream.gateway-unreachable-advisory', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          dispatchBound: input.dispatchBound,
-          cached: reachability.cached ?? false,
-          code: reachability.code,
-          reason: reachability.reason ?? reachability.formattedReason,
-          timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
-          timeoutRecoveryMode: input.timeoutRecoveryMode,
-          nonProgressEventTypes: [...input.nonProgressEventTypes],
-        })
-      }
-
       try {
         const recoveryResult = await input.recoverFromTimeout({
           chatConfig: input.chatConfig,
@@ -293,6 +260,30 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
         }
       }
       catch (recoveryError) {
+        let gatewayUnreachableReason: string | undefined
+        try {
+          const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
+          if (!reachability.reachable) {
+            gatewayUnreachableReason = reachability.code ?? reachability.reason ?? 'gateway-unreachable'
+            await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+              level: 'warning',
+              category: 'alicization.main-gateway',
+              action: 'stream-gateway-unreachable-advisory',
+              message: 'Timeout path detected an unreachable main gateway; recovery fallback also failed.',
+              payload: {
+                cardId: input.payload.cardId,
+                turnId: input.payload.turnId,
+                providerId: input.payload.providerId,
+                model: input.payload.model,
+                dispatchBound: input.dispatchBound,
+                cached: reachability.cached ?? false,
+                code: reachability.code,
+                reason: reachability.reason,
+              },
+            }))
+          }
+        }
+        catch {}
         if (shouldRecordAlicizationMainGatewayGenerationTimeout(recoveryError))
           await Promise.resolve(input.recordMainGatewayGenerationTimeout(input.mainGateway, recoveryError))
         await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {

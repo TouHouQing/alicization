@@ -110,6 +110,37 @@ interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConvers
   structured?: Record<string, unknown>
 }
 
+interface BrowserMindTurnEventRecord extends AlicizationMindTurnEventRecord {}
+
+type BrowserProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
+type BrowserProactiveOutcome = 'positive' | 'dismiss' | 'ignored' | 'reply-within-120s'
+
+interface BrowserPendingProactiveOutcome {
+  turnId: string
+  scenario: BrowserProactiveScenario
+  deliveredAt: number
+  feedbackWindowMs: number
+}
+
+interface BrowserRecentProactiveOutcome {
+  turnId: string
+  scenario: BrowserProactiveScenario
+  outcome: BrowserProactiveOutcome
+  createdAt: number
+}
+
+interface BrowserProactiveLoopState {
+  globalCooldownUntil: number
+  scenarioBias: Record<BrowserProactiveScenario, number>
+  consecutiveIgnored: Record<BrowserProactiveScenario, number>
+  initiativeTrust: number
+  openingMomentum: number
+  lastProactiveTurnAt: number | null
+  pendingOutcomes: BrowserPendingProactiveOutcome[]
+  recentOutcomes: BrowserRecentProactiveOutcome[]
+  updatedAt: number
+}
+
 const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
@@ -1212,6 +1243,14 @@ function buildConversationTurnsKey(cardId: string) {
   return `${buildCardBaseKey(cardId)}/conversation-turns`
 }
 
+function buildMindTurnEventsKey(cardId: string) {
+  return `${buildCardBaseKey(cardId)}/mind-turn-events`
+}
+
+function buildProactiveLoopStateKey(cardId: string) {
+  return `${buildCardBaseKey(cardId)}/proactive-loop-state`
+}
+
 function buildAuditLogKey(cardId: string) {
   return `${buildCardBaseKey(cardId)}/audit-log`
 }
@@ -1307,6 +1346,136 @@ async function readConversationTurns(cardId: string) {
 async function writeConversationTurns(cardId: string, turns: BrowserConversationTurnRecord[]) {
   await ensureCardRegistered(cardId)
   await storage.setItemRaw(buildConversationTurnsKey(cardId), turns.slice(-maxConversationTurns))
+}
+
+async function readMindTurnEvents(cardId: string) {
+  await ensureCardRegistered(cardId)
+  return await storage.getItemRaw<BrowserMindTurnEventRecord[]>(buildMindTurnEventsKey(cardId)) ?? []
+}
+
+async function writeMindTurnEvents(cardId: string, events: BrowserMindTurnEventRecord[]) {
+  await ensureCardRegistered(cardId)
+  await storage.setItemRaw(buildMindTurnEventsKey(cardId), events.slice(-(maxConversationTurns * 4)))
+}
+
+function createDefaultBrowserProactiveLoopState(): BrowserProactiveLoopState {
+  return {
+    globalCooldownUntil: 0,
+    scenarioBias: {
+      coding: 0,
+      media: 0,
+      'late-night-care': 0,
+      general: 0,
+    },
+    consecutiveIgnored: {
+      coding: 0,
+      media: 0,
+      'late-night-care': 0,
+      general: 0,
+    },
+    initiativeTrust: 0.5,
+    openingMomentum: 0,
+    lastProactiveTurnAt: null,
+    pendingOutcomes: [],
+    recentOutcomes: [],
+    updatedAt: now(),
+  }
+}
+
+async function readProactiveLoopState(cardId: string) {
+  await ensureCardRegistered(cardId)
+  return await storage.getItemRaw<BrowserProactiveLoopState>(buildProactiveLoopStateKey(cardId)) ?? createDefaultBrowserProactiveLoopState()
+}
+
+async function writeProactiveLoopState(cardId: string, state: BrowserProactiveLoopState) {
+  await ensureCardRegistered(cardId)
+  await storage.setItemRaw(buildProactiveLoopStateKey(cardId), state)
+}
+
+function normalizeBrowserProactiveScenario(raw: unknown): BrowserProactiveScenario {
+  return raw === 'coding' || raw === 'media' || raw === 'late-night-care' ? raw : 'general'
+}
+
+function trimBrowserRecentProactiveOutcomes(outcomes: BrowserRecentProactiveOutcome[]) {
+  return outcomes
+    .slice(-16)
+    .sort((left, right) => left.createdAt - right.createdAt)
+}
+
+function applyBrowserProactiveOutcome(
+  state: BrowserProactiveLoopState,
+  entry: BrowserPendingProactiveOutcome,
+  outcome: BrowserProactiveOutcome,
+  at: number,
+) {
+  const nextScenarioBias = { ...state.scenarioBias }
+  const nextConsecutiveIgnored = { ...state.consecutiveIgnored }
+
+  if (outcome === 'positive' || outcome === 'reply-within-120s') {
+    nextScenarioBias[entry.scenario] = Math.max(-0.15, Number((nextScenarioBias[entry.scenario] - 0.05).toFixed(2)))
+    nextConsecutiveIgnored[entry.scenario] = 0
+  }
+
+  if (outcome === 'dismiss') {
+    nextScenarioBias[entry.scenario] = Math.min(0.75, Number((nextScenarioBias[entry.scenario] + 0.15).toFixed(2)))
+    nextConsecutiveIgnored[entry.scenario] = 0
+  }
+
+  if (outcome === 'ignored') {
+    const nextIgnoredCount = nextConsecutiveIgnored[entry.scenario] + 1
+    nextConsecutiveIgnored[entry.scenario] = nextIgnoredCount
+    if (nextIgnoredCount >= 3)
+      nextScenarioBias[entry.scenario] = Math.min(0.75, Number((nextScenarioBias[entry.scenario] + 0.10).toFixed(2)))
+  }
+
+  const nextOutcome: BrowserRecentProactiveOutcome = {
+    turnId: entry.turnId,
+    scenario: entry.scenario,
+    outcome,
+    createdAt: at,
+  }
+
+  return {
+    ...state,
+    globalCooldownUntil: outcome === 'dismiss'
+      ? Math.max(state.globalCooldownUntil, at + 30 * 60_000)
+      : state.globalCooldownUntil,
+    scenarioBias: nextScenarioBias,
+    consecutiveIgnored: nextConsecutiveIgnored,
+    initiativeTrust: clamp01(
+      state.initiativeTrust
+      + (outcome === 'positive' ? 0.08 : 0)
+      + (outcome === 'reply-within-120s' ? 0.04 : 0)
+      - (outcome === 'dismiss' ? 0.12 : 0)
+      - (outcome === 'ignored' ? 0.06 : 0),
+    ),
+    openingMomentum: clamp01(
+      state.openingMomentum
+      * (outcome === 'dismiss' ? 0.42 : outcome === 'ignored' ? 0.68 : 0.74),
+    ),
+    recentOutcomes: trimBrowserRecentProactiveOutcomes([...state.recentOutcomes, nextOutcome]),
+    updatedAt: at,
+  } satisfies BrowserProactiveLoopState
+}
+
+async function settleBrowserPendingProactiveOutcomesFromUserTurn(cardId: string, at: number) {
+  const state = await readProactiveLoopState(cardId)
+  let nextState = {
+    ...state,
+    pendingOutcomes: [...state.pendingOutcomes],
+  }
+  let changed = false
+
+  for (const entry of state.pendingOutcomes) {
+    if (at - entry.deliveredAt > 120_000)
+      continue
+    nextState.pendingOutcomes = nextState.pendingOutcomes.filter(candidate => candidate.turnId !== entry.turnId)
+    nextState = applyBrowserProactiveOutcome(nextState, entry, 'reply-within-120s', at)
+    changed = true
+  }
+
+  if (changed)
+    await writeProactiveLoopState(cardId, nextState)
 }
 
 async function readMemoryFacts(cardId: string) {
@@ -1480,11 +1649,84 @@ async function removeCardStorage(cardId: string) {
     storage.removeItem(buildMemoryArchiveKey(cardId)),
     storage.removeItem(buildMemoryMetaKey(cardId)),
     storage.removeItem(buildConversationTurnsKey(cardId)),
+    storage.removeItem(buildMindTurnEventsKey(cardId)),
     storage.removeItem(buildAuditLogKey(cardId)),
     storage.removeItem(buildPerformanceManifestKey(cardId)),
     storage.removeItem(buildActiveSessionKey(cardId)),
     storage.removeItem(buildVisualPresenceKey(cardId)),
+    storage.removeItem(buildProactiveLoopStateKey(cardId)),
   ])
+}
+
+function buildBrowserMindTurnTraceEvents(input: {
+  record: BrowserConversationTurnRecord
+}) {
+  const structured = input.record.structured ?? {}
+  const governance = structured.governance && typeof structured.governance === 'object'
+    ? structured.governance as Record<string, unknown>
+    : null
+  const decisionTraceId = typeof governance?.decisionTraceId === 'string' && governance.decisionTraceId.trim()
+    ? governance.decisionTraceId.trim()
+    : typeof structured.decisionTraceId === 'string' && structured.decisionTraceId.trim()
+      ? structured.decisionTraceId.trim()
+      : ''
+  if (!decisionTraceId)
+    return [] as BrowserMindTurnEventRecord[]
+
+  const origin = input.record.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn'
+  const events: BrowserMindTurnEventRecord[] = [{
+    id: nanoid(),
+    decisionTraceId,
+    turnId: input.record.turnId,
+    sessionId: input.record.sessionId,
+    origin,
+    kind: 'governance-normalized',
+    payload: {
+      turnMode: typeof governance?.turnMode === 'string' ? governance.turnMode : null,
+      truthState: typeof governance?.truthState === 'string' ? governance.truthState : null,
+      repairState: typeof governance?.repairState === 'string' ? governance.repairState : null,
+      answerSubject: typeof governance?.answerSubject === 'string' ? governance.answerSubject : null,
+      screenReferenceMode: typeof governance?.screenReferenceMode === 'string' ? governance.screenReferenceMode : null,
+      format: typeof structured.format === 'string' ? structured.format : null,
+    },
+    createdAt: input.record.createdAt,
+  }, {
+    id: nanoid(),
+    decisionTraceId,
+    turnId: input.record.turnId,
+    sessionId: input.record.sessionId,
+    origin,
+    kind: 'persistence-written',
+    payload: {
+      format: typeof structured.format === 'string' ? structured.format : null,
+      parsePath: typeof structured.parsePath === 'string' ? structured.parsePath : null,
+      emotion: typeof structured.emotion === 'string' ? structured.emotion : null,
+      replyExcerpt: sanitizeBriefText(String(structured.reply ?? input.record.assistantText ?? ''), 240) || null,
+      assistantExcerpt: sanitizeBriefText(input.record.assistantText, 240) || null,
+    },
+    createdAt: input.record.createdAt,
+  }]
+
+  if (origin === 'subconscious-proactive') {
+    events.push({
+      id: nanoid(),
+      decisionTraceId,
+      turnId: input.record.turnId,
+      sessionId: input.record.sessionId,
+      origin,
+      kind: 'dialogue-emitted',
+      payload: {
+        format: typeof structured.format === 'string' ? structured.format : null,
+        emotion: typeof structured.emotion === 'string' ? structured.emotion : null,
+        proactive: structured.proactive && typeof structured.proactive === 'object'
+          ? structured.proactive
+          : null,
+      },
+      createdAt: input.record.createdAt,
+    })
+  }
+
+  return events
 }
 
 async function setActiveThoughtFromUserTurn(cardId: string, userText: string) {
@@ -1884,6 +2126,35 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       }
 
       await writeMemoryFacts(cardId, next)
+      const decisionTraceId = typeof payload.trace?.decisionTraceId === 'string' ? payload.trace.decisionTraceId.trim() : ''
+      if (decisionTraceId) {
+        const events = await readMindTurnEvents(cardId)
+        events.push({
+          id: nanoid(),
+          decisionTraceId,
+          turnId: typeof payload.trace?.turnId === 'string' && payload.trace.turnId.trim()
+            ? payload.trace.turnId.trim()
+            : null,
+          sessionId: typeof payload.trace?.sessionId === 'string' && payload.trace.sessionId.trim()
+            ? payload.trace.sessionId.trim()
+            : null,
+          origin: payload.trace?.origin === 'subconscious-proactive'
+            ? 'subconscious-proactive'
+            : payload.trace?.origin === 'system'
+              ? 'system'
+              : 'user-turn',
+          kind: 'memory-facts-upserted',
+          payload: {
+            factInputCount: payload.facts.length,
+            source: payload.source,
+            trigger: payload.trace?.trigger ?? null,
+            batchSize: payload.trace?.batchSize ?? null,
+            extractedCount: payload.trace?.extractedCount ?? null,
+          },
+          createdAt: currentTs,
+        })
+        await writeMindTurnEvents(cardId, events)
+      }
     },
     importLegacyMemory: async (payload: AlicizationMemoryLegacySnapshot): Promise<AlicizationMemoryMigrationResult> => {
       const cardId = resolveActiveCardId()
@@ -1971,6 +2242,36 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       turns.push(record)
       await writeConversationTurns(cardId, turns)
 
+      if (record.origin === 'user-turn' && record.userText)
+        await settleBrowserPendingProactiveOutcomesFromUserTurn(cardId, currentTs)
+
+      if (record.origin === 'subconscious-proactive') {
+        const proactive = record.structured?.proactive
+        if (proactive && typeof proactive === 'object') {
+          const nextState = await readProactiveLoopState(cardId)
+          const feedbackWindowMs = Number((proactive as Record<string, unknown>).feedbackWindowMs)
+          nextState.pendingOutcomes = [
+            ...nextState.pendingOutcomes.filter(entry => entry.turnId !== record.turnId),
+            {
+              turnId: record.turnId,
+              scenario: normalizeBrowserProactiveScenario((proactive as Record<string, unknown>).scenario),
+              deliveredAt: currentTs,
+              feedbackWindowMs: Number.isFinite(feedbackWindowMs) ? Math.max(1_000, Math.floor(feedbackWindowMs)) : 120_000,
+            },
+          ].slice(-12)
+          nextState.lastProactiveTurnAt = currentTs
+          nextState.updatedAt = currentTs
+          await writeProactiveLoopState(cardId, nextState)
+        }
+      }
+
+      const traceEvents = buildBrowserMindTurnTraceEvents({ record })
+      if (traceEvents.length > 0) {
+        const events = await readMindTurnEvents(cardId)
+        events.push(...traceEvents)
+        await writeMindTurnEvents(cardId, events)
+      }
+
       if (record.userText)
         await setActiveThoughtFromUserTurn(cardId, record.userText)
 
@@ -1979,11 +2280,41 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         await appendSubconsciousFragment(cardId, fragmentText, 'dream-fragment')
     },
     listMindTurnEvents: async (_payload: AlicizationListMindTurnEventsPayload): Promise<AlicizationMindTurnEventRecord[]> => {
-      // NOTICE: Browser fallback runtime has no persistent mind_turn_events ledger.
-      // Keep interface parity with Electron runtime and return an empty replay chain.
-      return []
+      const cardId = resolveActiveCardId()
+      const decisionTraceId = _payload.decisionTraceId?.trim() || ''
+      const turnId = _payload.turnId?.trim() || ''
+      if (!decisionTraceId && !turnId)
+        return []
+      const limit = Number.isFinite(Number(_payload.limit))
+        ? Math.max(1, Math.min(5_000, Math.floor(Number(_payload.limit))))
+        : 300
+      const events = await readMindTurnEvents(cardId)
+      return events
+        .filter((event) => {
+          if (decisionTraceId && turnId)
+            return event.decisionTraceId === decisionTraceId && event.turnId === turnId
+          if (decisionTraceId)
+            return event.decisionTraceId === decisionTraceId
+          return event.turnId === turnId
+        })
+        .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
+        .slice(-limit)
     },
-    reportProactiveFeedback: async () => {},
+    reportProactiveFeedback: async (payload) => {
+      const cardId = resolveActiveCardId()
+      const turnId = payload.turnId.trim()
+      if (!turnId)
+        return
+      const state = await readProactiveLoopState(cardId)
+      const entry = state.pendingOutcomes.find(candidate => candidate.turnId === turnId)
+      if (!entry)
+        return
+      const nextState = applyBrowserProactiveOutcome({
+        ...state,
+        pendingOutcomes: state.pendingOutcomes.filter(candidate => candidate.turnId !== turnId),
+      }, entry, payload.feedback === 'dismiss' ? 'dismiss' : 'positive', now())
+      await writeProactiveLoopState(cardId, nextState)
+    },
     setActiveSession: async (payload) => {
       const cardId = resolveActiveCardId()
       await ensureCardRegistered(cardId)

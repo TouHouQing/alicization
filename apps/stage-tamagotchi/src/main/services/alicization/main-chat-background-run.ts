@@ -34,11 +34,15 @@ import {
   normalizeAlicizationExecutionPayoffPerformance,
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
+import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import {
   type AlicizationActiveDialogueFastPathDecision,
+  AlicizationActiveDialogueMindAuthorityEscalationError,
   buildAlicizationActiveDialogueFastPathMessages,
   deriveAlicizationActiveDialogueFastPathDecision,
   normalizeAlicizationActiveDialogueFastPathReply,
+  normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
+  shouldAlicizationActiveDialogueStayLLMAuthored,
 } from './main-chat-active-dialogue-loop'
 import {
   generateAlicizationMainChatNonStreaming,
@@ -315,6 +319,7 @@ export async function runAlicizationMainChatBackground(
   let timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode = 'original'
   let timeoutRecoveryMs = mainChatTimeoutRecoveryMs
   const nonProgressEventTypes = new Set<string>()
+  let pendingAffirmationToolInputOverrides: Record<string, Record<string, unknown>> | undefined
   const resolveDigitalLifeSpineFromPrepared = () => {
     const runtimeSurface = prepared?.runtimeSurface
     if (!runtimeSurface)
@@ -415,6 +420,7 @@ export async function runAlicizationMainChatBackground(
     error?: unknown
     origin: 'execution-first' | 'stream' | 'timeout-recovery'
     requiredToolNames?: string[]
+    toolInputOverrides?: Record<string, Record<string, unknown>>
   }) => {
     if (!prepared || !input.isRunActive())
       return null
@@ -466,6 +472,7 @@ export async function runAlicizationMainChatBackground(
       messages,
       tools: prepared.tools as never,
       requiredToolNames,
+      toolInputOverrides: recoveryInput.toolInputOverrides,
       emitToolCall: payload => emitToolCall(payload),
       emitToolResult: payload => emitToolResult(payload),
     })
@@ -517,6 +524,7 @@ export async function runAlicizationMainChatBackground(
       status: surfaceInput.status,
       summary: surfaceInput.summary,
       outcome: surfaceInput.outcome,
+      selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
     })
 
     try {
@@ -544,6 +552,7 @@ export async function runAlicizationMainChatBackground(
               answerIntent: prepared.runtimeSurface.governance.answerIntent,
             }
           : null,
+        selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
       })
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-started', {
         cardId: input.payload.cardId,
@@ -576,6 +585,7 @@ export async function runAlicizationMainChatBackground(
         outcome: surfaceInput.outcome,
         status: surfaceInput.status,
         summary: surfaceInput.summary,
+        selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
       })
       const emotion = normalizeAlicizationExecutionPayoffEmotion(
         parsed.emotion,
@@ -625,6 +635,28 @@ export async function runAlicizationMainChatBackground(
     input.runStateController.setSessionTraceGetter(input.key, prepared.getSessionTrace)
     const runtimeSurface = prepared.runtimeSurface
     const enforcedExecutionTools = extractAllowedToolNamesFromToolChoice(toolChoice, tools)
+    pendingAffirmationToolInputOverrides = (() => {
+      const threadId = sanitizeText(runtimeSurface.action?.resumePendingThreadId, '')
+      if (!threadId)
+        return undefined
+      const channel = sanitizeText(runtimeSurface.action?.resumePendingThreadChannel, '')
+      const requiredToolName = channel === 'cli'
+        ? 'executor_run_cli'
+        : channel === 'codex'
+          ? 'executor_run_codex'
+          : channel === 'claude-code'
+            ? 'executor_run_claude_code'
+            : channel === 'openclaw'
+              ? 'executor_run_openclaw'
+              : ''
+      if (!requiredToolName)
+        return undefined
+      return {
+        [requiredToolName]: {
+          threadId,
+        },
+      } satisfies Record<string, Record<string, unknown>>
+    })()
     timeoutRecoveryMode = !toolChoice && Array.isArray(tools) && tools.length > 0
       ? 'tools-disabled'
       : 'original'
@@ -700,6 +732,7 @@ export async function runAlicizationMainChatBackground(
         const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
           origin: 'execution-first',
           requiredToolNames: enforcedExecutionTools,
+          toolInputOverrides: pendingAffirmationToolInputOverrides,
         })
         if (deterministicRecovery) {
           const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
@@ -738,7 +771,16 @@ export async function runAlicizationMainChatBackground(
       prepared,
       runtimeDigest: resolveRuntimeDigestFromPrepared(),
     })
-    if (activeDialogueDecision) {
+    if (activeDialogueDecision && shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)) {
+      await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deferred-to-main-runtime', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        lane: activeDialogueDecision.lane,
+        strategy: activeDialogueDecision.strategy,
+        reasonCodes: activeDialogueDecision.reasonCodes,
+      })
+    }
+    if (activeDialogueDecision && !shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)) {
       const resolveActiveDialogueMindReply = async (decision: AlicizationActiveDialogueFastPathDecision) => {
         if (decision.strategy === 'local-only') {
           await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-only-direct', {
@@ -776,7 +818,7 @@ export async function runAlicizationMainChatBackground(
           timeoutMs: oneShotTimeoutMs,
           maxSteps: 2,
         })
-        return normalizeAlicizationActiveDialogueFastPathReply({
+        return normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
           decision,
           rawText: compactReply,
         })
@@ -804,7 +846,7 @@ export async function runAlicizationMainChatBackground(
           input.emitChunk({
             cardId: input.payload.cardId,
             turnId: input.payload.turnId,
-            text: visibleDeterministicReply,
+            text: deterministicReply,
           })
           await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-finished', {
             cardId: input.payload.cardId,
@@ -855,15 +897,6 @@ export async function runAlicizationMainChatBackground(
         return
       }
       catch (error) {
-        const localReply = buildAlicizationMainGatewayTimeoutFallbackReply({
-          messages: conversationMessages,
-          turnId: input.payload.turnId,
-          actionKind: prepared.runtimeSurface.action?.kind ?? null,
-          governance: prepared.governance ?? prepared.runtimeSurface.governance ?? null,
-          personaKernel: prepared.personaKernel ?? null,
-          runtimeDigest: activeDialogueDecision.runtimeDigest,
-          sessionMirror: prepared.sessionMirror ?? null,
-        })
         await input.appendRuntimeDebugLine('chat-stream.active-dialogue-fast-failed', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
@@ -871,25 +904,14 @@ export async function runAlicizationMainChatBackground(
           strategy: activeDialogueDecision.strategy,
           reason: error instanceof Error ? error.message : String(error),
         })
-        const visibleLocalReply = deriveAlicizationVisibleReplyText(localReply) || localReply
-        emitStreamEmbodimentMeta(visibleLocalReply)
-        input.emitChunk({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          text: visibleLocalReply,
-        })
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-fallback', {
+        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-escalated-to-main-runtime', {
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           lane: activeDialogueDecision.lane,
-          fullTextChars: localReply.length,
+          strategy: activeDialogueDecision.strategy,
+          escalationReason: error instanceof Error ? error.message : String(error),
+          mindAuthorityEscalation: error instanceof AlicizationActiveDialogueMindAuthorityEscalationError,
         })
-        input.runStateController.finishRun(input.key, {
-          status: 'completed',
-          finishReason: 'active-dialogue-local-fallback',
-          fullText: localReply,
-        })
-        return
       }
     }
     const streamResult = await runAlicizationMainChatStream({
@@ -970,6 +992,7 @@ export async function runAlicizationMainChatBackground(
         const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
           error,
           origin: 'stream',
+          toolInputOverrides: pendingAffirmationToolInputOverrides,
         })
         if (deterministicRecovery) {
           const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
@@ -1032,6 +1055,7 @@ export async function runAlicizationMainChatBackground(
             const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
               origin: 'timeout-recovery',
               requiredToolNames: effectiveRequiredToolNames,
+              toolInputOverrides: pendingAffirmationToolInputOverrides,
             })
             if (deterministicRecovery) {
               const payoffText = await attemptInlineExecutionPayoff(deterministicRecovery)
@@ -1076,7 +1100,47 @@ export async function runAlicizationMainChatBackground(
               runtimeDigest: resolveRuntimeDigestFromPrepared(),
             })
           : null
-        if (!toolingRequired && timeoutActiveDialogueDecision) {
+        const timeoutActiveDialogueNeedsCompactRecovery
+          = !toolingRequired
+            && timeoutActiveDialogueDecision?.strategy === 'compact-one-shot'
+        if (!toolingRequired && timeoutActiveDialogueDecision && shouldAlicizationActiveDialogueStayLLMAuthored(timeoutActiveDialogueDecision)) {
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deferred', {
+            cardId: normalizedCardId,
+            turnId: normalizedTurnId,
+            lane: timeoutActiveDialogueDecision.lane,
+            strategy: timeoutActiveDialogueDecision.strategy,
+            reasonCodes: timeoutActiveDialogueDecision.reasonCodes,
+          })
+        }
+        if (timeoutActiveDialogueNeedsCompactRecovery && timeoutActiveDialogueDecision) {
+          const oneShotTimeoutMs = Math.max(
+            timeoutActiveDialogueDecision.timeoutMs,
+            6_500,
+          )
+          recoveryAttempts.push({
+            mode: 'active-dialogue-compact',
+            input: {
+              ...recoveryInput,
+              messages: buildAlicizationActiveDialogueFastPathMessages({
+                conversationMessages: recoveryConversationMessages,
+                decision: timeoutActiveDialogueDecision,
+                prepared: preparedExecution,
+              }),
+              tools: undefined,
+              toolChoice: undefined,
+              timeoutMs: Math.max(
+                oneShotTimeoutMs,
+                Math.min(recoveryInput.timeoutMs, 9_000),
+              ),
+              maxSteps: 2,
+            },
+            normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
+              decision: timeoutActiveDialogueDecision,
+              rawText,
+            }),
+          })
+        }
+        if (!toolingRequired && timeoutActiveDialogueDecision && !shouldAlicizationActiveDialogueStayLLMAuthored(timeoutActiveDialogueDecision)) {
           if (timeoutActiveDialogueDecision.strategy === 'deterministic-payoff') {
             const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
               conversationMessages: recoveryConversationMessages,
@@ -1115,8 +1179,11 @@ export async function runAlicizationMainChatBackground(
           }
 
           if (
-            timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
-            || timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
+            timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
+            || (
+              timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+              && !timeoutActiveDialogueNeedsCompactRecovery
+            )
           ) {
             const oneShotTimeoutMs = Math.max(
               timeoutActiveDialogueDecision.timeoutMs,
@@ -1147,7 +1214,7 @@ export async function runAlicizationMainChatBackground(
                 ),
                 maxSteps: 2,
               },
-              normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReply({
+              normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
                 decision: timeoutActiveDialogueDecision,
                 rawText,
               }),
@@ -1255,6 +1322,7 @@ export async function runAlicizationMainChatBackground(
                 const deterministicRecovery = await attemptDeterministicRequiredToolRecovery({
                   error,
                   origin: 'timeout-recovery',
+                  toolInputOverrides: pendingAffirmationToolInputOverrides,
                 })
                 if (deterministicRecovery) {
                   await suppressInlineExecutionDeliveries()
@@ -1297,6 +1365,7 @@ export async function runAlicizationMainChatBackground(
             : recoveryInput.messages,
           turnId: normalizedTurnId,
           actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+          digitalLifeSpine: preparedExecution.runtimeSurface.digitalLifeSpine ?? null,
           governance: preparedExecution.governance ?? preparedExecution.runtimeSurface.governance ?? null,
           personaKernel: preparedExecution.personaKernel ?? null,
           runtimeDigest: resolveRuntimeDigestFromPrepared(),

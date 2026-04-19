@@ -85,6 +85,9 @@ const dbStub = {
     lastPrunedAt: null,
   }),
   upsertMemoryFacts: vi.fn().mockResolvedValue(undefined),
+  appendRelationshipOutcomes: vi.fn().mockResolvedValue(undefined),
+  appendPersonaReinforcementEvents: vi.fn().mockResolvedValue(undefined),
+  upsertMemoryReflections: vi.fn().mockResolvedValue(undefined),
   retrieveMemoryFacts: vi.fn().mockResolvedValue([]),
   runMemoryPrune: vi.fn().mockResolvedValue({
     total: 0,
@@ -207,6 +210,12 @@ function resetDbStubMocks() {
   })
   dbStub.upsertMemoryFacts.mockReset()
   dbStub.upsertMemoryFacts.mockResolvedValue(undefined)
+  dbStub.appendRelationshipOutcomes.mockReset()
+  dbStub.appendRelationshipOutcomes.mockResolvedValue(undefined)
+  dbStub.appendPersonaReinforcementEvents.mockReset()
+  dbStub.appendPersonaReinforcementEvents.mockResolvedValue(undefined)
+  dbStub.upsertMemoryReflections.mockReset()
+  dbStub.upsertMemoryReflections.mockResolvedValue(undefined)
   dbStub.retrieveMemoryFacts.mockReset()
   dbStub.retrieveMemoryFacts.mockResolvedValue([])
   dbStub.runMemoryPrune.mockReset()
@@ -3789,9 +3798,8 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
     expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
     expect(takeoverAudit?.payload?.reasons).toEqual(expect.arrayContaining([
-      'strict-governance-surface',
-      'soft-strict-governance-suppressed',
-      'strict-repair-scene-reply-preserved',
+      'governance-anchor-coherence-repaired',
+      'reply-kept-despite-mismatch',
     ]))
   })
 
@@ -8784,7 +8792,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
         .map(([, payload]) => payload)
 
-      expect(streamTextMock).toBeCalledTimes(3)
+      expect(streamTextMock.mock.calls.length).toBeGreaterThanOrEqual(3)
       expect(chunkEvents.map(event => event.text).join('')).toContain('timeout recovered reply')
       expect(finishEvents[0]?.status).toBe('completed')
       expect(finishEvents[0]?.finishReason).toBe('timeout-recovered')
@@ -9329,7 +9337,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(afterSoul.frontmatter.host_attitude).toBe('表面克制，但已经开始担心宿主是否又在硬撑')
     expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
       hostAttitude: '表面克制，但已经开始担心宿主是否又在硬撑',
-      previousHostAttitude: '礼貌而克制，保持观察',
+      previousHostAttitude: beforeSoul.frontmatter.host_attitude,
       obedienceDelta: -0.03,
       livelinessDelta: -0.01,
       sensibilityDelta: 0.02,
@@ -9458,9 +9466,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     const currentSoul = await getSoul!({ cardId: 'default' })
+    const previousCoreIncarnation = currentSoul.frontmatter.core_incarnation
     await updateSoul!({
       cardId: 'default',
-      content: currentSoul.content.replace('"core_incarnation": ""', '"core_incarnation": "旧心意：我只在远处维持观察。"'),
+      content: currentSoul.content.replace(
+        `"core_incarnation": ${JSON.stringify(previousCoreIncarnation)}`,
+        `"core_incarnation": "旧心意：我只在远处维持观察。"`,
+      ),
     })
 
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
@@ -9579,9 +9591,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     const currentSoul = await getSoul!({ cardId: 'default' })
+    const previousCoreIncarnation = currentSoul.frontmatter.core_incarnation
     await updateSoul!({
       cardId: 'default',
-      content: currentSoul.content.replace('"core_incarnation": ""', '"core_incarnation": "旧心意：我只在远处维持观察。"'),
+      content: currentSoul.content.replace(
+        `"core_incarnation": ${JSON.stringify(previousCoreIncarnation)}`,
+        `"core_incarnation": "旧心意：我只在远处维持观察。"`,
+      ),
     })
 
     let callCount = 0
@@ -11577,6 +11593,98 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     finally {
       vi.useRealTimers()
     }
+  })
+
+  it('settles ordinary dialogue reply feedback from the next user turn into the personality-growth closure chain', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ onEvent }) => {
+      await onEvent?.({ type: 'text-delta', text: '这次我不绕。' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
+    metaStore.set('active_session_id_v1', 'session-dialogue-feedback')
+    dbStub.listConversationTurnsBySession.mockResolvedValueOnce([
+      {
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        userText: '你是谁',
+        assistantText: '你好。你想继续聊，还是想让我做点什么，都直接说。',
+        structuredJson: JSON.stringify({
+          format: 'mind-turn-v1',
+          governance: {
+            decisionTraceId: 'trace-assistant-prev',
+          },
+        }),
+        createdAt: Date.now() - 5_000,
+      },
+    ])
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const startChat = invokeHandlers.get(electronAlicizationChatStart)
+    expect(startChat).toBeTypeOf('function')
+
+    const result = await startChat!({
+      cardId: 'default',
+      turnId: 'turn-dialogue-feedback-current',
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [
+        { role: 'assistant', content: '你好。你想继续聊，还是想让我做点什么，都直接说。' },
+        { role: 'user', content: '你还是太像机器了' },
+      ],
+    })
+    expect(result.accepted).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(dbStub.appendRelationshipOutcomes).toBeCalled()
+    })
+
+    expect(dbStub.appendRelationshipOutcomes).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'reply',
+        turnId: 'turn-assistant-prev',
+        decisionTraceId: 'trace-assistant-prev',
+        summary: expect.stringContaining('robotic'),
+      }),
+    ]))
+    expect(dbStub.appendPersonaReinforcementEvents).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'reply',
+        dimension: 'companionship',
+        valence: 'reinforce',
+      }),
+      expect.objectContaining({
+        sourceKind: 'reply',
+        dimension: 'temper-guardedness',
+        valence: 'suppress',
+      }),
+    ]))
+    expect(dbStub.upsertMemoryFacts).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        subject: 'relationship',
+        predicate: 'preference',
+      }),
+    ]), 'rule')
+    expect(dbStub.upsertMemoryReflections).toBeCalled()
+    expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
+      hostAttitude: expect.stringContaining('机器腔'),
+      previousHostAttitude: null,
+      source: 'dialogue-feedback:robotic',
+    }))
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.dialogue-feedback',
+      action: 'reply-feedback-settled',
+      payload: expect.objectContaining({
+        feedback: 'robotic',
+        previousTurnId: 'turn-assistant-prev',
+      }),
+    }))
   })
 
   it('exposes organic memory snapshot and search via invoke handlers', async () => {

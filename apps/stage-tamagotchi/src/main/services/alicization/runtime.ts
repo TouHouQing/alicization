@@ -18,6 +18,7 @@ import type {
   AlicizationDreamRunResult,
   AlicizationDurabilityPulseSnapshot,
   AlicizationGenesisInput,
+  AlicizationMindHeadKey,
   AlicizationPersonalityState,
   AlicizationPresencePulsePayload,
   AlicizationProactiveMetadata,
@@ -124,6 +125,7 @@ import {
 } from './digital-life-kernel'
 import {
   commitAlicizationDigitalLifeSpine,
+  deriveAlicizationDigitalLifeSpineFromSurface,
   deriveAlicizationDigitalLifeSpine,
 } from './digital-life-spine'
 import {
@@ -146,6 +148,11 @@ import {
   buildAlicizationExecutionPayoffPrompt,
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
+import {
+  type AlicizationExecutionResultDeliveryPolicy,
+  deriveExecutionResultDeliveryPolicy,
+} from './execution-interaction-learning'
+import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
@@ -174,12 +181,25 @@ import {
   proactiveDismissCooldownMs,
   proactiveImplicitIgnoredAfterMs,
   proactiveReplyWindowMs,
+  recoverProactiveRhythmAfterDream,
   registerProactiveDelivery,
   reportExplicitProactiveFeedback,
   settleExpiredProactiveOutcomes,
   settleProactiveOutcomesOnUserTurnStart,
   updateLateNightActivityState,
 } from './proactive-feedback'
+import { progressProactiveCadenceState } from './proactive-cadence'
+import {
+  attachSynthesizedReflections,
+  buildDialogueReplyFeedbackOutcomeClosure,
+  buildExecutionProposalFeedbackOutcomeClosure,
+  buildExecutionResultFeedbackOutcomeClosure,
+  buildProactiveFeedbackOutcomeClosure,
+  buildReplyOutcomeClosure,
+  deriveDialogueReplyFeedbackKind,
+  deriveExecutionProposalFeedbackKind,
+  deriveExecutionResultFeedbackKind,
+} from './outcome-reinforcement'
 import {
   buildProactiveLayeredContext,
   inferScenarioFromContext,
@@ -254,6 +274,7 @@ import {
   alicizationCardActiveSessionMetaKey,
   alicizationCardKillSwitchMetaKey,
   alicizationDialogueAckStateMetaKey,
+  alicizationDialogueReplyFeedbackAckMetaKey,
   alicizationDreamLastRunMetaKey,
   alicizationExecutionDeliveryStateMetaKey,
   alicizationPerceptionStateMetaKey,
@@ -378,6 +399,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const turnWriteAbortControllers = new Map<string, AbortController>()
   const activeSessionIdByCard = new Map<string, string>()
   const dialogueAckByCard = new Map<string, Map<string, number>>()
+  const dialogueReplyFeedbackAckByCard = new Map<string, string>()
   const pendingDialogueDeliveries = new Map<string, PendingDialogueDeliveryState>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
   const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
@@ -639,6 +661,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     ensureActiveOrLatestSessionId,
     buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
     buildExecutionLedgerContext: input => memoryLedgerRuntime.buildExecutionLedgerContext(input),
+    listTaskThreadsBySession: input => alicizationDb.listTaskThreads(input),
     resolveRecentContextualTurns,
     shouldExtendContextualRecall,
     resolveInspectionIntentFromMessageHistory: input => resolveInspectionIntentFromMessageHistory(input),
@@ -647,6 +670,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const {
     buildMainChatExecutionCallbackContext,
     buildMainChatExecutionLedgerContext,
+    buildMainChatPendingAffirmationThread,
     buildMainChatContextualString,
     readLatestUserMessageText,
     readLatestAssistantMessageText,
@@ -668,6 +692,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildMainGatewayAgentTurnId,
     readLatestAssistantMessageText,
     readTransportContentAsText,
+    retrieveMemoryFacts: async (query, limit) => await alicizationDb.retrieveMemoryFacts(query, limit).catch(() => []),
+    listRelationshipOutcomes: async (cardId, limit) => await alicizationDb.listRelationshipOutcomes({ cardId, limit }).catch(() => []),
+    listPersonaReinforcementEvents: async (cardId, limit) => await alicizationDb.listPersonaReinforcementEvents({ cardId, limit }).catch(() => []),
+    listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),
+    readMindHead: async <T>(cardId: string, key: AlicizationMindHeadKey) => await alicizationDb.readMindHead<T>(cardId, key).catch((): T | null => null),
   })
   const {
     buildDigitalLifeMindState,
@@ -742,6 +771,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     dialogueSessionManager,
     executionCapabilityChannels: alicizationExecutionCapabilityChannels,
     executeMainGatewayTaskThread,
+    resumeMainGatewayTaskThread,
     getPerformanceManifest,
     getSensorySnapshot: async () => sensoryBus.getSnapshot(),
     latestUserMessageContainsVisualInput,
@@ -981,6 +1011,43 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     catch {
       return setMap(new Map())
     }
+  }
+
+  async function ensureDialogueReplyFeedbackAck(cardIdRaw: unknown) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const existing = dialogueReplyFeedbackAckByCard.get(cardId)
+    if (typeof existing === 'string')
+      return existing
+
+    const apply = (raw: unknown) => {
+      const normalized = sanitizeText(raw, '')
+      dialogueReplyFeedbackAckByCard.set(cardId, normalized)
+      return normalized
+    }
+
+    if (cardId !== activeCardId) {
+      return await withCardScope(cardId, async () => {
+        return apply(await alicizationDb.getMetaValue(alicizationDialogueReplyFeedbackAckMetaKey).catch(() => undefined))
+      }, {
+        label: `dialogue-reply-feedback-ack.restore:${cardId}`,
+      })
+    }
+
+    return apply(await alicizationDb.getMetaValue(alicizationDialogueReplyFeedbackAckMetaKey).catch(() => undefined))
+  }
+
+  async function persistDialogueReplyFeedbackAck(cardIdRaw: unknown, ack: string) {
+    const cardId = normalizeCardId(cardIdRaw)
+    dialogueReplyFeedbackAckByCard.set(cardId, ack)
+    if (cardId === activeCardId) {
+      await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, ack).catch(() => {})
+      return
+    }
+    await withCardScope(cardId, async () => {
+      await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, ack).catch(() => {})
+    }, {
+      label: `dialogue-reply-feedback-ack.persist:${cardId}`,
+    })
   }
 
   function createPendingDialogueDeliveryKey(payload: Pick<AlicizationDialogueRespondedPayload, 'cardId' | 'sessionId' | 'turnId'>) {
@@ -1611,6 +1678,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
 
     rememberVisualPresencePersistMeta(cardId, state, now)
+    await persistMindHeadsFromVisualState(cardId, state)
     if (cardId === activeCardId) {
       await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, JSON.stringify(state)).catch(() => {})
       emitVisualPresenceState(cardId, state)
@@ -1622,6 +1690,80 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       label: `visual-presence.persist:${cardId}`,
     })
     emitVisualPresenceState(cardId, state)
+  }
+
+  async function persistMindHeadsFromVisualState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const task = async () => {
+      await alicizationDb.upsertMindHead(cardId, 'autobiographical-self', state.autobiographicalSelf ?? null)
+      await alicizationDb.upsertMindHead(cardId, 'reflection-ledger', state.reflectionLedger ?? null)
+      await alicizationDb.upsertMindHead(cardId, 'motive-engine', state.motiveEngine ?? null)
+      await alicizationDb.upsertMindHead(cardId, 'habit-policy', state.habitPolicy ?? null)
+    }
+
+    if (cardId === activeCardId) {
+      await task().catch(() => {})
+      return
+    }
+
+    await withCardScope(cardId, async () => {
+      await task().catch(() => {})
+    }, {
+      label: `mind-heads.persist:${cardId}`,
+    })
+  }
+
+  async function persistOutcomeClosure(cardIdRaw: unknown, input: ReturnType<typeof attachSynthesizedReflections>) {
+    const cardId = normalizeCardId(cardIdRaw)
+    const closure = attachSynthesizedReflections(input)
+    if (
+      closure.relationshipOutcomes.length === 0
+      && closure.reinforcementEvents.length === 0
+      && closure.memoryFacts.length === 0
+      && closure.reflections.length === 0
+    ) {
+      return
+    }
+
+    const task = async () => {
+      if (closure.relationshipOutcomes.length > 0)
+        await alicizationDb.appendRelationshipOutcomes(closure.relationshipOutcomes)
+      if (closure.reinforcementEvents.length > 0)
+        await alicizationDb.appendPersonaReinforcementEvents(closure.reinforcementEvents)
+      if (closure.reflections.length > 0)
+        await alicizationDb.upsertMemoryReflections(closure.reflections)
+      if (closure.memoryFacts.length > 0)
+        await alicizationDb.upsertMemoryFacts(closure.memoryFacts, 'rule')
+    }
+
+    try {
+      if (cardId === activeCardId) {
+        await task()
+      }
+      else {
+        await withCardScope(cardId, async () => {
+          await task()
+        }, {
+          label: `outcome-closure.persist:${cardId}`,
+        })
+      }
+    }
+    catch (error) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'outcome-closure-persist-failed',
+        message: 'Failed to persist mind-memory closure records from a runtime outcome.',
+        payload: {
+          cardId,
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+          relationshipOutcomes: closure.relationshipOutcomes.length,
+          reinforcementEvents: closure.reinforcementEvents.length,
+          reflections: closure.reflections.length,
+          memoryFacts: closure.memoryFacts.length,
+        },
+      }, cardId)
+    }
   }
 
   async function restoreVisualPresenceState(cardIdRaw: unknown) {
@@ -1806,8 +1948,383 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         outcomes: settled.appliedOutcomes,
       },
     }, cardId)
+    await persistOutcomeClosure(cardId, buildProactiveFeedbackOutcomeClosure({
+      now: at,
+      cardId,
+      outcomes: settled.appliedOutcomes,
+    }))
     queueSubconsciousWake(cardId, 'feedback:user-turn-settlement', 600)
     return settled.state
+  }
+
+  function parseStoredConversationStructured(raw: unknown) {
+    if (typeof raw !== 'string' || !raw.trim())
+      return null
+    try {
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null
+    }
+    catch {
+      return null
+    }
+  }
+
+  function isOrdinaryDialogueConversationRow(row: {
+    turnId?: string | null
+    structuredJson?: string | null
+  }) {
+    const turnId = sanitizeText(row.turnId, '')
+    if (turnId.startsWith('reminder:') || turnId.startsWith('subconscious:') || turnId.startsWith('execution-callback:'))
+      return false
+
+    const structured = parseStoredConversationStructured(row.structuredJson)
+    const format = sanitizeText(structured?.format, '').toLowerCase()
+    return format !== 'subconscious-proactive-v1'
+      && format !== 'subconscious-proactive-llm-v1'
+      && format !== 'subconscious-reminder-v1'
+  }
+
+  function buildDialogueReplyFeedbackAckKey(row: {
+    turnId?: string | null
+    sessionId: string
+    createdAt: number
+  }) {
+    const normalizedTurnId = sanitizeText(row.turnId, '')
+    return normalizedTurnId
+      ? `${row.sessionId}::${normalizedTurnId}`
+      : `${row.sessionId}::${Math.max(0, Math.floor(Number(row.createdAt) || 0))}`
+  }
+
+  async function settleRecentDialogueReplyFeedbackFromUserTurn(
+    payload: AlicizationChatStartPayload,
+    at: number,
+    source: string,
+  ) {
+    const cardId = normalizeCardId(payload.cardId)
+    const userText = readLatestUserMessageText(payload.messages)
+    if (!userText)
+      return null
+
+    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
+    if (!sessionId)
+      return null
+
+    const turns = await withCardScope(cardId, async () => await alicizationDb.listConversationTurnsBySession(sessionId, {
+      limit: 12,
+    }).catch(() => []), {
+      label: `dialogue-reply-feedback.list:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
+    const latest = turns
+      .slice()
+      .reverse()
+      .find((row) => {
+        return sanitizeText(row.assistantText, '').length > 0
+          && isOrdinaryDialogueConversationRow(row)
+      }) ?? null
+    if (!latest)
+      return null
+
+    const ackKey = buildDialogueReplyFeedbackAckKey({
+      turnId: latest.turnId,
+      sessionId: latest.sessionId,
+      createdAt: latest.createdAt,
+    })
+    const settledAck = await ensureDialogueReplyFeedbackAck(cardId)
+    if (settledAck === ackKey)
+      return null
+
+    const feedback = deriveDialogueReplyFeedbackKind({
+      previousAssistantText: latest.assistantText ?? '',
+      userText,
+    })
+    if (!feedback)
+      return null
+
+    const structured = parseStoredConversationStructured(latest.structuredJson)
+    const governance = structured?.governance && typeof structured.governance === 'object' && !Array.isArray(structured.governance)
+      ? structured.governance as Record<string, unknown>
+      : null
+    const decisionTraceId = sanitizeText(governance?.decisionTraceId, '') || null
+    const closure = attachSynthesizedReflections(buildDialogueReplyFeedbackOutcomeClosure({
+      now: at,
+      cardId,
+      sessionId,
+      decisionTraceId,
+      turnId: sanitizeText(latest.turnId, '') || null,
+      feedback,
+      previousAssistantText: latest.assistantText ?? '',
+    }))
+    await persistOutcomeClosure(cardId, closure)
+    const previousDynamics = await alicizationDb.getLatestRelationshipDynamics().catch(() => null)
+    const hostAttitude = feedback === 'received'
+      ? '开始更愿意把 Alicization 当作真的在接话的人，而不是只剩一层壳。'
+      : feedback === 'robotic'
+        ? '开始对 Alicization 的机器腔和模板壳失去耐心，希望她更像真的人在说话。'
+        : feedback === 'missed'
+          ? '开始怀疑 Alicization 是否真的抓住了这句的中心，更想让她先修正再继续。'
+          : feedback === 'intrusive'
+            ? '开始觉得 Alicization 靠得太重，想让她留出更多空间和分寸。'
+            : '暂时把这条回复线放开，不想让 Alicization 继续缠在同一处。'
+    await alicizationDb.appendRelationshipDynamics({
+      hostAttitude,
+      previousHostAttitude: previousDynamics?.hostAttitude ?? null,
+      obedienceDelta: 0,
+      livelinessDelta: feedback === 'received' ? 0.01 : feedback === 'robotic' ? -0.01 : 0,
+      sensibilityDelta: feedback === 'received'
+        ? 0.02
+        : feedback === 'robotic' || feedback === 'missed' || feedback === 'intrusive'
+          ? 0.03
+          : 0.01,
+      source: `dialogue-feedback:${feedback}`,
+      createdAt: at,
+    }).catch(() => {})
+    await persistDialogueReplyFeedbackAck(cardId, ackKey)
+
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.dialogue-feedback',
+      action: 'reply-feedback-settled',
+      message: 'Settled host feedback on the latest ordinary Alicization reply.',
+      payload: {
+        source,
+        cardId,
+        sessionId,
+        previousTurnId: latest.turnId ?? null,
+        feedback,
+        userText,
+      },
+    }, cardId)
+    return feedback
+  }
+
+  async function settlePendingExecutionProposalFeedbackFromUserTurn(
+    payload: AlicizationChatStartPayload,
+    at: number,
+    source: string,
+  ) {
+    const cardId = normalizeCardId(payload.cardId)
+    const userText = readLatestUserMessageText(payload.messages)
+    if (!userText)
+      return null
+
+    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
+    if (!sessionId)
+      return null
+
+    const threads = await withCardScope(cardId, async () => await alicizationDb.listTaskThreads({
+      sessionId,
+      status: ['needs-affirmation'],
+      limit: 6,
+    }).catch(() => []), {
+      label: `execution-proposal-feedback.list:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
+    const latest = threads
+      .slice()
+      .sort((left, right) =>
+        Math.max(
+          Number(right.completedAt ?? 0),
+          Number(right.lastEventAt ?? 0),
+          Number(right.updatedAt ?? 0),
+          Number(right.createdAt ?? 0),
+        ) - Math.max(
+          Number(left.completedAt ?? 0),
+          Number(left.lastEventAt ?? 0),
+          Number(left.updatedAt ?? 0),
+          Number(left.createdAt ?? 0),
+        ),
+      )[0] ?? null
+    if (!latest)
+      return null
+
+    const fabric = (latest.metadata && typeof latest.metadata === 'object' && !Array.isArray(latest.metadata) && latest.metadata.fabric && typeof latest.metadata.fabric === 'object' && !Array.isArray(latest.metadata.fabric))
+      ? latest.metadata.fabric as { affirmationReasonCodes?: unknown }
+      : null
+    const feedback = deriveExecutionProposalFeedbackKind({
+      userText,
+      thread: {
+        threadId: latest.id,
+        goal: latest.goal,
+        summary: latest.summary ?? '',
+        proposedChannel: latest.proposedChannel ?? null,
+        selectedChannel: latest.selectedChannel ?? null,
+        affirmationReasonCodes: Array.isArray(fabric?.affirmationReasonCodes)
+          ? fabric!.affirmationReasonCodes as string[]
+          : [],
+      },
+    })
+    if (!feedback)
+      return null
+
+    const closure = attachSynthesizedReflections(buildExecutionProposalFeedbackOutcomeClosure({
+      now: at,
+      cardId,
+      sessionId,
+      decisionTraceId: latest.decisionTraceId ?? null,
+      turnId: sanitizeText(payload.turnId) || null,
+      feedback,
+      thread: {
+        threadId: latest.id,
+        goal: latest.goal,
+        summary: latest.summary ?? '',
+        proposedChannel: latest.proposedChannel ?? null,
+        selectedChannel: latest.selectedChannel ?? null,
+        affirmationReasonCodes: Array.isArray(fabric?.affirmationReasonCodes)
+          ? fabric!.affirmationReasonCodes as string[]
+          : [],
+      },
+    }))
+    await persistOutcomeClosure(cardId, closure)
+
+    if (feedback === 'denied' || feedback === 'interrupted') {
+      const nextStatus = feedback === 'denied' ? 'cancelled' : 'paused'
+      await withCardScope(cardId, async () => {
+        await alicizationDb.upsertTaskThread({
+          ...latest,
+          status: nextStatus,
+          summary: feedback === 'denied'
+            ? 'The host explicitly declined this proactive execution proposal.'
+            : 'The host turned away from this proactive execution proposal before confirming it.',
+          updatedAt: at,
+          lastEventAt: at,
+          completedAt: feedback === 'denied' ? at : latest.completedAt ?? null,
+        })
+      }, {
+        label: `execution-proposal-feedback.thread-update:${cardId}`,
+        skipQueueWhenScopeAlreadyActive: true,
+      })
+    }
+
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.execution-proposal',
+      action: 'proposal-feedback-settled',
+      message: 'Settled host feedback for a pending proactive execution proposal.',
+      payload: {
+        source,
+        cardId,
+        sessionId,
+        threadId: latest.id,
+        feedback,
+        userText,
+      },
+    }, cardId)
+    return feedback
+  }
+
+  async function settleRecentExecutionResultFeedbackFromUserTurn(
+    payload: AlicizationChatStartPayload,
+    at: number,
+    source: string,
+  ) {
+    const cardId = normalizeCardId(payload.cardId)
+    const userText = readLatestUserMessageText(payload.messages)
+    if (!userText)
+      return null
+
+    const previousAssistantText = readLatestAssistantMessageText(payload.messages as any)
+    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
+    if (!sessionId)
+      return null
+
+    const threads = await withCardScope(cardId, async () => await alicizationDb.listTaskThreads({
+      sessionId,
+      status: ['completed', 'failed', 'blocked', 'cancelled'],
+      limit: 8,
+    }).catch(() => []), {
+      label: `execution-result-feedback.list:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
+    const latest = threads
+      .filter(thread => thread.origin === 'subconscious-proactive')
+      .filter((thread) => {
+        const executionMetadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
+          && thread.metadata.execution && typeof thread.metadata.execution === 'object' && !Array.isArray(thread.metadata.execution)
+          ? thread.metadata.execution as { resultFeedbackSettledAt?: unknown }
+          : null
+        return !Number.isFinite(Number(executionMetadata?.resultFeedbackSettledAt))
+      })
+      .filter(thread => at - readTaskThreadActivityAt(thread) <= 30 * 60_000)
+      .sort((left, right) => readTaskThreadActivityAt(right) - readTaskThreadActivityAt(left))[0] ?? null
+    if (!latest)
+      return null
+
+    const feedback = deriveExecutionResultFeedbackKind({
+      previousAssistantText,
+      userText,
+      thread: {
+        threadId: latest.id,
+        goal: latest.goal,
+        summary: latest.summary ?? '',
+        outcome: latest.summary ?? '',
+        proposedChannel: latest.proposedChannel ?? null,
+        selectedChannel: latest.selectedChannel ?? null,
+      },
+    })
+    if (!feedback)
+      return null
+
+    const closure = attachSynthesizedReflections(buildExecutionResultFeedbackOutcomeClosure({
+      now: at,
+      cardId,
+      sessionId,
+      decisionTraceId: latest.decisionTraceId ?? null,
+      turnId: sanitizeText(payload.turnId) || null,
+      feedback,
+      thread: {
+        threadId: latest.id,
+        goal: latest.goal,
+        summary: latest.summary ?? '',
+        outcome: latest.summary ?? '',
+        proposedChannel: latest.proposedChannel ?? null,
+        selectedChannel: latest.selectedChannel ?? null,
+      },
+    }))
+    await persistOutcomeClosure(cardId, closure)
+
+    await withCardScope(cardId, async () => {
+      const metadata = latest.metadata && typeof latest.metadata === 'object' && !Array.isArray(latest.metadata)
+        ? latest.metadata as Record<string, unknown>
+        : {}
+      const executionMetadata = metadata.execution && typeof metadata.execution === 'object' && !Array.isArray(metadata.execution)
+        ? metadata.execution as Record<string, unknown>
+        : {}
+      await alicizationDb.upsertTaskThread({
+        ...latest,
+        metadata: {
+          ...metadata,
+          execution: {
+            ...executionMetadata,
+            resultFeedbackKind: feedback,
+            resultFeedbackSettledAt: at,
+            resultFeedbackTurnId: sanitizeText(payload.turnId) || null,
+          },
+        },
+        updatedAt: at,
+      })
+    }, {
+      label: `execution-result-feedback.thread-update:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
+
+    await appendAuditLog({
+      level: 'notice',
+      category: 'alicization.execution-result',
+      action: 'result-feedback-settled',
+      message: 'Settled host feedback for a finished proactive execution result.',
+      payload: {
+        source,
+        cardId,
+        sessionId,
+        threadId: latest.id,
+        feedback,
+        userText,
+      },
+    }, cardId)
+    return feedback
   }
 
   async function settleExpiredPendingProactiveOutcomes(cardIdRaw: unknown, at: number, source: string) {
@@ -1834,6 +2351,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         outcomes: settled.appliedOutcomes,
       },
     }, cardId)
+    await persistOutcomeClosure(cardId, buildProactiveFeedbackOutcomeClosure({
+      now: at,
+      cardId,
+      outcomes: settled.appliedOutcomes,
+    }))
     return settled.state
   }
 
@@ -1946,12 +2468,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         await alicizationDb.clearConversationData()
         await alicizationDb.setMetaValue(alicizationCardActiveSessionMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, '{}').catch(() => {})
+        await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationExecutionDeliveryStateMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, '').catch(() => {})
         await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, '').catch(() => {})
         activeSessionIdByCard.delete(cardId)
         dialogueAckByCard.delete(cardId)
+        dialogueReplyFeedbackAckByCard.delete(cardId)
         proactiveLoopStateByCard.delete(cardId)
         perceptionStateByCard.delete(cardId)
         visualPresenceStateByCard.delete(cardId)
@@ -2016,6 +2540,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     clearQueuedSubconsciousWake()
     activeSessionIdByCard.clear()
     dialogueAckByCard.clear()
+    dialogueReplyFeedbackAckByCard.clear()
     subconsciousStateByCard.clear()
     proactiveLoopStateByCard.clear()
     perceptionStateByCard.clear()
@@ -2259,7 +2784,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await next
   }
 
-  type ReminderScheduleSource = 'tool' | 'manual-fallback'
+  type ReminderScheduleSource = 'tool' | 'manual-fallback' | 'autonomy'
 
   async function scheduleReminderTask(
     cardId: string,
@@ -2270,7 +2795,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
     source: ReminderScheduleSource,
   ): Promise<AlicizationReminderScheduleResult> {
-    const debugPrefix = source === 'tool' ? 'reminder.tool-execute' : 'reminder.manual-schedule'
+    const debugPrefix = source === 'tool'
+      ? 'reminder.tool-execute'
+      : source === 'autonomy'
+        ? 'reminder.autonomy-schedule'
+        : 'reminder.manual-schedule'
     await appendRuntimeDebugLine(`${debugPrefix}-requested`, {
       cardId,
       minutes: input.minutes,
@@ -2346,6 +2875,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }), {
       label: source === 'tool'
         ? `tool:set-reminder:${cardId}`
+        : source === 'autonomy'
+          ? `autonomy:set-reminder:${cardId}`
         : `manual:set-reminder:${cardId}`,
     })
 
@@ -2369,6 +2900,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       action: 'alicization.reminder.task.created',
       message: source === 'tool'
         ? 'Created reminder task via main gateway top-level tool.'
+        : source === 'autonomy'
+          ? 'Created reminder task from the subconscious autonomy loop.'
         : 'Created reminder task via deterministic fallback scheduler.',
       payload: {
         taskId: record.taskId,
@@ -3331,6 +3864,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         })
       }
 
+      const runtimeSurfaceForOutcome = persistedDialogueState
+        ? buildAlicizationDigitalLifeRuntimeSurface(persistedDialogueState)
+        : visualPresenceState
+          ? buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState)
+          : null
+      if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.assistantText).length > 0) {
+        await persistOutcomeClosure(activeCardId, buildReplyOutcomeClosure({
+          now: normalizedCreatedAt,
+          cardId: activeCardId,
+          turnId: normalizedPayload.turnId,
+          sessionId: normalizedPayload.sessionId,
+          decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
+          runtimeSurface: runtimeSurfaceForOutcome,
+          assistantText: normalizedPayload.assistantText,
+        }))
+      }
+
       if (signal?.aborted || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(activeCardId).state === 'SUSPENDED') {
         await appendMindTurnTraceEvents(null)
         await appendAuditLog({
@@ -4069,6 +4619,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     outcome: string
     status: AlicizationTaskThreadRecord['status']
     summary: string
+    policy?: AlicizationExecutionResultDeliveryPolicy | null
+    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
   }) {
     return buildAlicizationExecutionPayoffDeterministicStructured({
       mode: 'callback-delivery',
@@ -4077,6 +4629,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       status: input.status,
       summary: input.summary,
       outcome: input.outcome,
+      policy: input.policy,
+      selfContinuityAuthority: input.selfContinuityAuthority,
     })
   }
 
@@ -4087,8 +4641,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     outcome: string
     status: AlicizationTaskThreadRecord['status']
     summary: string
+    deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
+    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
   }) {
-    return selectAlicizationExecutionDeliveryReply(input)
+    return selectAlicizationExecutionDeliveryReply({
+      ...input,
+      policy: input.deliveryPolicy,
+      selfContinuityAuthority: input.selfContinuityAuthority,
+    })
   }
 
   async function generateExecutionCallbackStructuredWithGateway(input: {
@@ -4103,6 +4663,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     summary: string
     threadId: string
     turnId?: string | null
+    deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
+    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -4116,6 +4678,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       goal: sanitizeExecutionLedgerText(input.goal, 180) || 'the current task',
       summary: sanitizeExecutionLedgerText(input.summary, 220),
       outcome: sanitizeExecutionLedgerText(input.outcome, 240),
+      policy: input.deliveryPolicy,
+      selfContinuityAuthority: input.selfContinuityAuthority,
       trace: {
         decisionTraceId: input.decisionTraceId,
         turnMode: 'answer',
@@ -4160,6 +4724,39 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       parsePath: 'json',
       format: 'subconscious-proactive-llm-v1' as const,
     }
+  }
+
+  async function resolveExecutionResultDeliveryPolicyForRuntime(input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+    status: AlicizationTaskThreadRecord['status']
+  }) {
+    const spineFromTurn = input.agentTurn?.getSessionSnapshot().digitalLifeSpine ?? null
+    const state = spineFromTurn
+      ? null
+      : await ensureVisualPresenceState(input.cardId).catch(() => null)
+    const spine = spineFromTurn
+      ?? (state ? deriveAlicizationDigitalLifeSpineFromSurface(buildAlicizationDigitalLifeRuntimeSurface(state)) : null)
+
+    return deriveExecutionResultDeliveryPolicy({
+      digitalLifeSpine: spine,
+      status: input.status === 'completed' || input.status === 'failed' || input.status === 'blocked' || input.status === 'cancelled'
+        ? input.status
+        : 'completed',
+    })
+  }
+
+  async function resolveExecutionSelfContinuityAuthorityForRuntime(input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) {
+    const spineFromTurn = input.agentTurn?.getSessionSnapshot().digitalLifeSpine ?? null
+    const state = spineFromTurn
+      ? null
+      : await ensureVisualPresenceState(input.cardId).catch(() => null)
+    const runtimeSurface = spineFromTurn?.runtimeSurface
+      ?? (state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null)
+    return buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
   }
 
   async function generateReminderStructuredWithGateway(
@@ -4257,6 +4854,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     generateExecutionCallbackStructuredWithGateway,
     buildExecutionDeliveryDeterministicStructured,
     selectExecutionDeliveryReplySurface,
+    resolveExecutionResultDeliveryPolicy: resolveExecutionResultDeliveryPolicyForRuntime,
+    resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,
     persistExecutionDeliveryState: async cardId => await persistExecutionDeliveryState(cardId),
     queueSubconsciousWake,
     executionCallbackRuntime,
@@ -4400,6 +4999,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     isResidueBackedScreenSemanticSummary,
     buildProactiveLayeredContext,
     buildProactivePerceptionSignals,
+    progressProactiveCadenceState,
     inferScenarioFromContext,
     consumeDurabilityPulse,
     probeForegroundPidLiveness,
@@ -4445,6 +5045,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     syncAgentTurnSessionMirror,
     buildPendingProactiveContinuitySignal,
     ensureActiveOrLatestSessionId,
+    resolveTaskPlanningCapabilities,
+    scheduleAutonomyReminder: async (cardId: string, payload: {
+      minutes: unknown
+      message: unknown
+      sourceTurnId?: string
+    }) => await scheduleReminderTask(cardId, payload, 'autonomy'),
+    planAutonomyTaskThread,
+    dispatchAutonomyTaskThread: async (payload: any) => await dispatchTaskThreadWithExecutionDelivery({
+      port: {
+        getTaskThread: alicizationDb.getTaskThread,
+        upsertTaskThread: alicizationDb.upsertTaskThread,
+        upsertExecutorSession: alicizationDb.upsertExecutorSession,
+        appendExecutionEvents: alicizationDb.appendExecutionEvents,
+        appendAuditLog,
+      },
+      input: payload,
+    }),
+    workspaceRoot: process.cwd(),
+    buildDefaultDialoguePerformancePayload,
+    buildProactiveMetadataFromDecision,
     alicizationSubconsciousPersistMs,
     persistProactiveLoopState,
     persistSubconsciousState,
@@ -4489,6 +5109,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   const { runDreamForCurrentCard } = createAlicizationDreamRuntime({
     ensureSubconsciousState,
+    ensureProactiveLoopState,
     getAlicizationDb: () => alicizationDb,
     getSoulSnapshot: () => soulSnapshot,
     bootstrap,
@@ -4508,6 +5129,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     queueSoulMutation,
     snapshotFromContent,
     persistSubconsciousState,
+    persistProactiveLoopState,
+    recoverProactiveRhythmAfterDream,
     clampNeed,
     dreamMaxTurns,
     dreamMaxCharsPerAssistantTurn,
@@ -4580,6 +5203,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await executorRuntime.executeMainGatewayTaskThread(input)
   }
 
+  async function resumeMainGatewayTaskThread(input: {
+    context: MainGatewayExecutionToolContext
+    threadId: string
+  }) {
+    return await executorRuntime.resumeMainGatewayTaskThread(input)
+  }
+
   const { prepareMainChatPrelude, prepareMainChatExecution } = createAlicizationMainChatPreludeRuntime({
     readLatestUserMessageText,
     senderWebContentsIdFromInvokeOptions,
@@ -4587,6 +5217,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildMainChatContextualString,
     buildMainChatExecutionCallbackContext,
     buildMainChatExecutionLedgerContext,
+    buildMainChatPendingAffirmationThread,
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution: async input => await mainChatSessionRuntime.prepareExecution(input),
   })
@@ -4612,6 +5243,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       getExistingRun: key => chatRuns.get(key),
       registerRun: (key, runState) => chatRuns.set(key, runState),
       mainChatRunState,
+      settleRecentDialogueReplyFeedbackFromUserTurn,
+      settleRecentExecutionResultFeedbackFromUserTurn,
+      settlePendingExecutionProposalFeedbackFromUserTurn,
       settlePendingProactiveOutcomesFromUserTurn,
       resolveMainGatewayConfig,
       rememberMainGatewayRoute,
@@ -4743,6 +5377,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function resolveTaskPlanningCapabilities(capabilities?: AlicizationChannelCapability[]) {
     return await executorRuntime.resolveTaskPlanningCapabilities(capabilities)
+  }
+
+  async function planAutonomyTaskThread(
+    cardId: string,
+    input: Parameters<typeof executorRuntime.planTaskThread>[0],
+  ) {
+    const result = await executorRuntime.planTaskThread(input)
+    await syncSessionMirrorFromCurrentCardState({
+      cardId,
+      decisionTraceId: result.thread.decisionTraceId,
+      sessionId: result.thread.sessionId,
+      source: 'task-planning',
+      turnId: result.thread.turnId,
+      taskThread: result.thread,
+    })
+    return result
   }
 
   async function resolveExecutionCapabilitiesForPrompt() {

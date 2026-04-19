@@ -66,6 +66,7 @@ export type AlicizationGovernedMindTurnMode
 export type AlicizationGovernedMindTruthState
   = | 'live-grounded'
     | 'live-observed'
+    | 'dialogue-grounded'
     | 'remembered'
     | 'imagined'
     | 'uncertain'
@@ -581,14 +582,17 @@ function buildDialogueFirstFallbackBodies(input: {
     if (subject === 'relationship') {
       sentences.push(t('mind-fallback.accompany-body'))
     }
-    else {
+    else if (input.governance.repairState !== 'none') {
       sentences.push(
-        input.governance.repairState !== 'none'
-          ? t('mind-fallback.answer-repair-body')
-          : t('mind-fallback.answer-dialogue-body'),
+        t('mind-fallback.answer-repair-body'),
       )
     }
-    if (unstableTruth)
+    else {
+      sentences.push(
+        t('mind-fallback.answer-repair-body'),
+      )
+    }
+    if (sentences.length > 0 && unstableTruth)
       sentences.push(t('mind-fallback.dialogue-boundary-memory'))
     return uniqueSentences(sentences, 2)
   }

@@ -43,6 +43,7 @@ import {
   shouldPreserveDialogueFirstVisibleReply,
   translateGovernedMindFallback as translateGovernedMindFallbackShared,
 } from '@proj-alicization/stage-shared'
+import { coerceAlicizationGovernanceForMindFallback } from './governed-mind-fallback-compat'
 import {
   clampAlicizationPerformancePayloadToManifest,
   normalizeAlicizationEmotion,
@@ -287,6 +288,7 @@ export interface AlicizationChatStreamEmbodimentMeta {
 
 export function buildAlicizationChatStreamEmbodimentMeta(input: {
   governance?: unknown
+  digitalLifeSpine?: AlicizationDialogueStructuredPayload['digitalLifeSpine']
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   residentPerformance?: AlicizationResidentPerformanceSnapshot | null
   reply?: string
@@ -335,6 +337,7 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     digitalLife: buildAlicizationDigitalLifeEnvelope({
       embodiment,
       speechTimeline,
+      digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(input.digitalLifeSpine),
       performanceManifest: input.performanceManifest,
     }),
   }
@@ -452,7 +455,7 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
       'accompany',
       'answer',
     ].includes(turnMode)
-    || !['live-grounded', 'live-observed', 'remembered', 'imagined', 'uncertain'].includes(truthState)
+    || !['live-grounded', 'live-observed', 'dialogue-grounded', 'remembered', 'imagined', 'uncertain'].includes(truthState)
     || !['full', 'backgrounded', 'muted'].includes(personaKernelMode)
     || ![
       'direct-observation',
@@ -622,6 +625,7 @@ export function resolveMindGovernanceTruth(governance: AlicizationMindTurnGovern
 
   switch (governance.mindTurnFrame?.world.truthState ?? governance.truthState) {
     case 'live-grounded':
+    case 'dialogue-grounded':
       return 'grounded'
     case 'live-observed':
       return 'coarse'
@@ -1504,17 +1508,18 @@ export function coerceConversationTurnToMindGovernedPayload(
     decisionTraceId: ensureMindGovernanceDecisionTraceId(governedAnchorRepair.governance.decisionTraceId),
   } satisfies AlicizationMindTurnGovernance
   const executionFirstGovernance = normalizeExecutionFirstGovernance({
-    governance: anchorCoherentGovernance,
+    governance: coerceAlicizationGovernanceForMindFallback(anchorCoherentGovernance),
     userText: input.userText,
   })
   const coherentGovernance = (executionFirstGovernance.governance ?? anchorCoherentGovernance) as AlicizationMindTurnGovernance
+  const fallbackGovernance = coerceAlicizationGovernanceForMindFallback(coherentGovernance)
   const normalizedEmotion = resolveMindGovernanceEmotion(
     coherentGovernance,
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
   )
   const thoughtConflict = thoughtConflictsWithMindGovernance(thought, coherentGovernance)
   const initialGovernedSurface = buildMindGovernedFallbackSurface({
-    governance: coherentGovernance,
+    governance: fallbackGovernance,
     userText: input.userText,
     translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
   })
@@ -1566,9 +1571,9 @@ export function coerceConversationTurnToMindGovernedPayload(
     preserveDialogueFirstVisibleReply
     && dialogueFirstVisibleReply.contaminated,
   )
-  const governedSurface = (dialogueFirstOverrideRequired && !initialGovernedSurface?.reply)
+  const governedSurface = dialogueFirstOverrideRequired
     ? buildMindGovernedFallbackSurface({
-        governance: coherentGovernance,
+        governance: fallbackGovernance,
         userText: input.userText,
         translate: (path, params) => translateGovernedMindFallback(path, params, input.userText),
         forceDialogueAnswerFallback: true,
@@ -1576,16 +1581,16 @@ export function coerceConversationTurnToMindGovernedPayload(
     : initialGovernedSurface
   const dispatchOnlyVisibleOverride = governedSurface?.visibleReplyMode === 'dispatch-only'
   const thinGovernedShell = governedSurface
-    ? replyLooksThinGovernedShell(candidateReply, governedSurface.reply, coherentGovernance, governedSurface.thinShellCue)
+    ? replyLooksThinGovernedShell(candidateReply, governedSurface.reply, fallbackGovernance, governedSurface.thinShellCue)
     : false
   const coherentSceneReply = replyLooksCoherentSceneAnswer({
     reply: candidateReply,
-    governance: coherentGovernance,
+    governance: fallbackGovernance,
     userText: input.userText,
   })
   const organicDirectReply = replyLooksOrganicDirectAnswer({
     reply: candidateReply,
-    governance: coherentGovernance,
+    governance: fallbackGovernance,
     userText: input.userText,
     thinShellCue: governedSurface?.thinShellCue,
   })
@@ -1652,12 +1657,25 @@ export function coerceConversationTurnToMindGovernedPayload(
     reasons.push(coherentSceneReply
       ? 'strict-repair-scene-reply-preserved'
       : 'strict-repair-organic-reply-preserved')
+  const overrideCandidateNeeded = Boolean(
+    hardOverrideRequired
+    || thinShellOverrideRequired
+    || (strictOverrideRequired && !softStrictOverrideSuppressed),
+  )
+  const renderedOverrideSurface = overrideCandidateNeeded
+    ? renderAlicizationMindSurface({
+        governance: coherentGovernance,
+        userText: input.userText,
+        moves: [],
+        forceDialogueAnswerFallback: dialogueFirstOverrideRequired,
+      })
+    : null
   const shouldOverrideVisibleReply = Boolean(
-    governedSurface && (dispatchOnlyVisibleOverride || governedSurface.reply)
+    overrideCandidateNeeded
     && (
-      hardOverrideRequired
-      || thinShellOverrideRequired
-      || (strictOverrideRequired && !softStrictOverrideSuppressed)
+      dispatchOnlyVisibleOverride
+      || Boolean(renderedOverrideSurface?.reply)
+      || Boolean(governedSurface?.reply)
     ),
   )
   const replyKeptDespiteMismatch = Boolean(
@@ -1687,14 +1705,6 @@ export function coerceConversationTurnToMindGovernedPayload(
         dialogueFirstOverrideRequired ? 'dialogue-first-visible-reply-contaminated' : '',
       ].find(Boolean) ?? 'hard-governance-fallback'
     : null
-  const renderedOverrideSurface = shouldOverrideVisibleReply
-    ? renderAlicizationMindSurface({
-        governance: coherentGovernance,
-        userText: input.userText,
-        moves: [],
-        forceDialogueAnswerFallback: dialogueFirstOverrideRequired && !initialGovernedSurface?.reply,
-      })
-    : null
   const finalReply = shouldOverrideVisibleReply
     ? (dispatchOnlyVisibleOverride ? '' : (renderedOverrideSurface?.reply ?? candidateReply))
     : candidateReply
@@ -1703,11 +1713,12 @@ export function coerceConversationTurnToMindGovernedPayload(
     : (missingMindThought || thoughtConflict)
         ? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
         : thought
-  const finalEmotion = normalizeAlicizationEmotion(
+  const finalEmotion = resolveMindGovernanceEmotion(
+    coherentGovernance,
     shouldOverrideVisibleReply && renderedOverrideSurface
       ? renderedOverrideSurface.emotion
       : normalizedEmotion,
-  ).emotion
+  )
   const finalPerformance = shouldOverrideVisibleReply && renderedOverrideSurface
     ? alignDialoguePerformanceEmotion(
         structuredPayload.performance ?? renderedOverrideSurface.performance,
@@ -1754,8 +1765,12 @@ export function coerceConversationTurnToMindGovernedPayload(
     embodiment: finalEmbodiment,
     performanceManifest,
   })
+  const finalDigitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(
+    (structuredPayload as Record<string, unknown>).digitalLifeSpine,
+  )
   const finalDigitalLife = buildAlicizationDigitalLifeEnvelope({
     embodiment: finalEmbodiment,
+    digitalLifeSpine: finalDigitalLifeSpine,
     speechTimeline: finalSpeechTimeline,
     performanceManifest,
   })
@@ -2037,16 +2052,17 @@ export function normalizeDialogueRespondedPayload(
     (structuredPayload as Record<string, unknown>).digitalLife,
     embodiment.emotion,
   )
+  const digitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(
+    (structuredPayload as Record<string, unknown>).digitalLifeSpine,
+  )
   const digitalLife = normalizedDigitalLife && !residentSeeded
     ? normalizedDigitalLife
     : buildAlicizationDigitalLifeEnvelope({
         embodiment,
+        digitalLifeSpine,
         speechTimeline,
         performanceManifest,
       })
-  const digitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(
-    (structuredPayload as Record<string, unknown>).digitalLifeSpine,
-  )
   const isFallback = contractFailed || !['json', 'repair-json'].includes(parsePath)
   const origin = input.origin === 'subconscious-proactive'
     ? 'subconscious-proactive'

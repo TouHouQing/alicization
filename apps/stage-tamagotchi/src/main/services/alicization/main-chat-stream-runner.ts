@@ -123,7 +123,7 @@ export async function runAlicizationMainChatStream(
   let firstEventGraceApplied = false
   const firstEventGraceTimeoutMs = Math.max(
     1_000,
-    Math.min(30_000, Math.floor(input.firstEventTimeoutMs * 0.65)),
+    Math.min(12_000, Math.floor(input.firstEventTimeoutMs * 0.2)),
   )
   appendStreamDebugLine('chat-stream.invoke-stream-text', {
     elapsedMs: 0,
@@ -201,7 +201,12 @@ export async function runAlicizationMainChatStream(
           lastEventType: lastEventType || null,
           nonProgressEventTypes: [...input.nonProgressEventTypes],
         })
-        reject(createAbortError('chat-first-event-timeout'))
+        const timeoutError = createAbortError('chat-first-event-timeout')
+        if (!input.controller.signal.aborted) {
+          input.controller.abort(timeoutError)
+          return
+        }
+        rejectOnce(timeoutError)
       }, delayMs)
     }
     armFirstEventTimeout(input.firstEventTimeoutMs, 'initial')

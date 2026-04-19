@@ -21,6 +21,9 @@ interface AcceptAlicizationMainChatStartOptions {
   getExistingRun: (key: string) => ChatRunState | undefined
   registerRun: (key: string, runState: ChatRunState) => void
   mainChatRunState: AlicizationMainChatRunStateReadFacade
+  settleRecentDialogueReplyFeedbackFromUserTurn?: (payload: AlicizationChatStartPayload, now: number, trigger: string) => Promise<unknown>
+  settleRecentExecutionResultFeedbackFromUserTurn?: (payload: AlicizationChatStartPayload, now: number, trigger: string) => Promise<unknown>
+  settlePendingExecutionProposalFeedbackFromUserTurn?: (payload: AlicizationChatStartPayload, now: number, trigger: string) => Promise<unknown>
   settlePendingProactiveOutcomesFromUserTurn: (cardId: string, now: number, trigger: string) => Promise<unknown>
   resolveMainGatewayConfig: (options?: {
     cardId?: string
@@ -99,7 +102,11 @@ export async function acceptAlicizationMainChatStart(
     }
   }
 
-  await input.settlePendingProactiveOutcomesFromUserTurn(input.payload.cardId, Date.now(), 'chat-start')
+  const feedbackNow = Date.now()
+  await input.settleRecentDialogueReplyFeedbackFromUserTurn?.(input.payload, feedbackNow, 'chat-start')
+  await input.settleRecentExecutionResultFeedbackFromUserTurn?.(input.payload, feedbackNow, 'chat-start')
+  await input.settlePendingExecutionProposalFeedbackFromUserTurn?.(input.payload, feedbackNow, 'chat-start')
+  await input.settlePendingProactiveOutcomesFromUserTurn(input.payload.cardId, feedbackNow, 'chat-start')
 
   const mainGateway = input.resolveMainGatewayConfig({
     cardId: input.payload.cardId,
@@ -124,7 +131,6 @@ export async function acceptAlicizationMainChatStart(
       },
     }
   }
-
   const llmConfigState = await input.syncMainGatewayConfigFromChatStart({
     mainGateway,
     providerConfig: input.payload.providerConfig,
@@ -136,26 +142,6 @@ export async function acceptAlicizationMainChatStart(
     model: llmConfigState.activeModelId,
     persistedConfigKeys: llmConfigState.persistedConfigKeys,
   })
-
-  const reachability = await input.ensureMainGatewayReachable(mainGateway, {
-    ignoreChatTimeoutCache: true,
-  })
-  const gatewayReachabilityDegraded = !reachability.reachable
-    ? {
-        cached: reachability.cached ?? false,
-        code: reachability.code,
-        reason: reachability.formattedReason
-          ?? reachability.reason
-          ?? 'Main gateway connectivity check failed.',
-      }
-    : null
-  if (gatewayReachabilityDegraded) {
-    await input.appendRuntimeDebugLine('chat-start.gateway-unreachable-advisory', {
-      cardId: input.payload.cardId,
-      turnId: input.payload.turnId,
-      ...gatewayReachabilityDegraded,
-    })
-  }
 
   input.rememberMainGatewayRoute({
     cardId: input.payload.cardId,
@@ -180,11 +166,11 @@ export async function acceptAlicizationMainChatStart(
     turnId: runState.turnId,
     providerId: input.payload.providerId,
     model: input.payload.model,
-    senderId: runState.sender?.id ?? null,
-    preparationDeferred: true,
-    gatewayReachable: !gatewayReachabilityDegraded,
-    gatewayReachabilityCode: gatewayReachabilityDegraded?.code ?? null,
-  })
+      senderId: runState.sender?.id ?? null,
+      preparationDeferred: true,
+      gatewayReachable: null,
+      gatewayReachabilityCode: null,
+    })
 
   return {
     accepted: true,

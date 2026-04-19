@@ -32,6 +32,7 @@ import type { AlicizationMainChatActionObligation } from './main-chat-action-obl
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type {
   BuildMainGatewayToolsOptions,
+  MainGatewayExecutionToolContext,
 } from './main-chat-execution-surface'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
@@ -61,7 +62,10 @@ import {
   buildMainGatewayExecutionRoutingToolChoice,
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
-import { buildAlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
+import {
+  buildAlicizationMainChatRuntimeSurface,
+  shouldUseDialogueFirstLivingPromptMode,
+} from './main-chat-runtime-surface'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -121,6 +125,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   dialogueSessionMirrorTtlMs?: number
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   executeMainGatewayTaskThread: BuildMainGatewayToolsOptions['executeTaskThread']
+  resumeMainGatewayTaskThread?: BuildMainGatewayToolsOptions['resumeTaskThread']
   getNow?: () => number
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   getSensorySnapshot: () => Promise<AlicizationSensoryCacheSnapshot> | AlicizationSensoryCacheSnapshot
@@ -233,6 +238,23 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     const memoryCarrySystemBlock = buildAlicizationDialogueMemoryCarrySystemBlock(memoryCarryPolicy)
 
+    const provisionalHasVisualGrounding = !effectiveExecutionRoutingIntent && options.latestUserMessageContainsVisualInput(messages)
+    const dialogueFirstLeanRuntimeBase = shouldUseDialogueFirstLivingPromptMode({
+      actionObligation: prelude.actionObligation ?? null,
+      capture: {
+        inspectionRequested: prelude.perceptionAugmentation.capture.inspectionRequested,
+        groundedThisTurn: prelude.perceptionAugmentation.capture.groundedThisTurn,
+        health: prelude.perceptionAugmentation.capture.snapshot?.health ?? null,
+        permission: prelude.perceptionAugmentation.capture.snapshot?.permission ?? null,
+        fallbackReason: prelude.perceptionAugmentation.capture.fallbackReason,
+        degradedReasons: prelude.perceptionAugmentation.capture.snapshot?.degradedReasons ?? [],
+      },
+      governance: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance ?? null,
+      hasVisualGrounding: provisionalHasVisualGrounding,
+    })
+    const dialogueFirstLeanRuntime = dialogueFirstLeanRuntimeBase
+      && payload.supportsTools !== true
+      && payload.waitForTools !== true
     const [contextualString, executionCallbackContext, executionLedgerContext] = await Promise.all([
       agentTurn.trackPhase('contextual-memory', async () => await prelude.contextualStringPromise, {
         turnId: payload.turnId,
@@ -299,13 +321,18 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     // NOTICE: Execution-routing intents are execution-governed turns. Do not allow
     // renderer payload flags to silently downgrade them into tool-disabled responses.
-    const allowTools = payload.supportsTools !== false || routingRequired
-    const waitForTools = payload.waitForTools === true || routingRequired
-    const toolChoice = allowTools && effectiveExecutionRoutingIntent
+    const allowTools = dialogueFirstLeanRuntime
+      ? false
+      : (payload.supportsTools !== false || routingRequired)
+    const waitForTools = dialogueFirstLeanRuntime
+      ? false
+      : (payload.waitForTools === true || routingRequired)
+    const toolChoice = !dialogueFirstLeanRuntime && allowTools && effectiveExecutionRoutingIntent
       ? buildMainGatewayExecutionRoutingToolChoice(effectiveExecutionRoutingIntent)
       : undefined
 
     const sessionBoundToolOptions: Pick<BuildMainGatewayToolsOptions, 'executeTaskThread'
+      | 'resumeTaskThread'
       | 'buildExecutionRuntimeContext'
       | 'getSensorySnapshot'
       | 'invokeMcpCallTool'
@@ -336,6 +363,25 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             kind: nextInput.task.kind,
           },
           run: async () => await options.executeMainGatewayTaskThread(nextInput),
+          summarizeSuccess: result => result.summary,
+        })
+      },
+      resumeTaskThread: async (nextInput: { context: MainGatewayExecutionToolContext, threadId: string }) => {
+        const phaseSuffix = sanitizeToolPhaseSegment(nextInput.threadId)
+        if (!options.resumeMainGatewayTaskThread)
+          throw new Error('resumeMainGatewayTaskThread is not configured.')
+        return await agentTurn.trackTool({
+          phaseId: `tool:executor-resume:${phaseSuffix || 'thread'}`,
+          kind: 'executor',
+          label: 'executor:resume-thread',
+          metadata: {
+            threadId: nextInput.threadId,
+          },
+          traceMetadata: {
+            turnId: nextInput.context.turnId,
+            threadId: nextInput.threadId,
+          },
+          run: async () => await options.resumeMainGatewayTaskThread!(nextInput),
           summarizeSuccess: result => result.summary,
         })
       },
@@ -412,9 +458,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
 
     const [performanceManifest, customDirectivesResolution, hostName, personaKernel, builtTools, executionCapabilities] = await Promise.all([
-      agentTurn.trackPhase('performance-manifest', async () => await options.getPerformanceManifest(), {
-        cardId: payload.cardId,
-      }),
+      dialogueFirstLeanRuntime
+        ? Promise.resolve(null)
+        : agentTurn.trackPhase('performance-manifest', async () => await options.getPerformanceManifest(), {
+            cardId: payload.cardId,
+          }),
       agentTurn.trackPhase('card-directives', async () => await options.resolveCardCustomDirectives(payload.cardId, { messages }), {
         cardId: payload.cardId,
       }),
@@ -434,6 +482,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             },
             buildExecutionRuntimeContext: sessionBoundToolOptions.buildExecutionRuntimeContext,
             executeTaskThread: sessionBoundToolOptions.executeTaskThread,
+            resumeTaskThread: sessionBoundToolOptions.resumeTaskThread,
             executionCapabilityChannels: options.executionCapabilityChannels,
             getSensorySnapshot: sessionBoundToolOptions.getSensorySnapshot,
             resolveTaskPlanningCapabilities: sessionBoundToolOptions.resolveTaskPlanningCapabilities,
@@ -444,9 +493,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             routingRequired,
           })
         : Promise.resolve(undefined),
-      agentTurn.trackPhase('execution-capabilities', async () => await options.resolveExecutionCapabilitiesForPrompt(), {
-        inquiryActive: prelude.executionCapabilityInquiry.active,
-      }),
+      dialogueFirstLeanRuntime
+        ? Promise.resolve([])
+        : agentTurn.trackPhase('execution-capabilities', async () => await options.resolveExecutionCapabilitiesForPrompt(), {
+            inquiryActive: prelude.executionCapabilityInquiry.active,
+          }),
     ])
     const tools = filterMainGatewayToolsForRoutingIntent(builtTools, effectiveExecutionRoutingIntent)
 
@@ -454,7 +505,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       hostName,
       personaKernel,
     })
-    const hasVisualGrounding = !effectiveExecutionRoutingIntent && options.latestUserMessageContainsVisualInput(messages)
+    const hasVisualGrounding = provisionalHasVisualGrounding
     const sessionPhases = normalizeSessionPhases([
       ...agentTurn.snapshot().phaseOrder,
       'runtime-surface',

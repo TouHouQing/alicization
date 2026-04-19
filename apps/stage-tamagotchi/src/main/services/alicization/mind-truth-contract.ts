@@ -2,7 +2,7 @@ import type { AlicizationVisualPresenceStateSnapshot } from '../../../shared/eve
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 export interface AlicizationMindTruthContract {
-  truthState: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+  truthState: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain'
   canDescribeCurrentSceneAsFact: boolean
   shouldLabelMemory: boolean
   rationale: string

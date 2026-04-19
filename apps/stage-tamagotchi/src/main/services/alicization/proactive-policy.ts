@@ -1,5 +1,6 @@
 import type {
   AlicizationActionEcologySnapshot,
+  AlicizationAutonomySnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationCommitmentLedgerSnapshot,
@@ -11,6 +12,7 @@ import type {
   AlicizationInquiryPlannerSnapshot,
   AlicizationLivingWorldStateSnapshot,
   AlicizationMindKernelSnapshot,
+  AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
   AlicizationProactiveDecision,
   AlicizationProactiveReasonCode,
@@ -34,6 +36,7 @@ import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { deriveAlicizationRuntimeProactiveSignals } from './alicization-active-loop'
+import { deriveProactiveCadenceSignal } from './proactive-cadence'
 import { inferScenarioFromContext } from './proactive-layered-context'
 
 export const proactivePolicyVersion = 'epoch4.1-v1'
@@ -293,6 +296,8 @@ export function evaluateProactivePolicy(input: {
   threadRuntime?: AlicizationThreadRuntimeStateSnapshot | null
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
   actionEcology?: AlicizationActionEcologySnapshot | null
+  motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  autonomy?: AlicizationAutonomySnapshot | null
   worldModel?: AlicizationWorldModelSnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
   runtimeDigest?: AlicizationRuntimeSnapshot | null
@@ -385,6 +390,8 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('thoughtThreads.foreground', 'thoughtThreads.unresolvedCount')
   if (input.actionEcology)
     consideredSignals.push('actionEcology.mode', 'actionEcology.pressures')
+  if (input.autonomy)
+    consideredSignals.push('autonomy.selectedMode', 'autonomy.speakReadiness', 'autonomy.actReadiness', 'autonomy.inhibition')
   if (input.worldModel) {
     consideredSignals.push(
       'worldModel.threadKind',
@@ -417,6 +424,18 @@ export function evaluateProactivePolicy(input: {
       )
     }
   }
+  const cadence = deriveProactiveCadenceSignal({
+    state: proactiveState,
+    context,
+    motiveEngine: input.motiveEngine ?? null,
+    initiative: input.initiative ?? null,
+    autonomy: input.autonomy ?? null,
+    privateThought: input.privateThought ?? null,
+    threadRuntime: input.threadRuntime ?? null,
+    thoughtThreads: input.thoughtThreads ?? null,
+    actionEcology: input.actionEcology ?? null,
+  })
+  consideredSignals.push('proactiveCadence.openingMomentum', 'proactiveCadence.initiativeTrust', 'proactiveCadence.cadencePressure')
   const ignoredSignals = [
     'battery',
     'memory',
@@ -448,6 +467,13 @@ export function evaluateProactivePolicy(input: {
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads)
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const livingWorldOpenLoop = input.livingWorldState?.openLoops[0] ?? null
+  const autonomy = input.autonomy ?? null
+  const autonomyActioning = autonomy?.selectedMode === 'act'
+    || (
+      autonomy?.selectedMode === 'prepare-act'
+      && autonomy?.shouldAct === true
+    )
+  const autonomySpeechLocked = Boolean(autonomyActioning && autonomy?.shouldSpeak !== true)
   const runtimeSignals = deriveAlicizationRuntimeProactiveSignals({
     architecture: input.architecture,
     runtime: input.runtimeDigest,
@@ -529,6 +555,9 @@ export function evaluateProactivePolicy(input: {
     if (!input.architecture && !input.runtimeDigest)
       return style
 
+    if (autonomySpeechLocked)
+      return 'silent-observe' as const
+
     if (runtimeDominantChannelStyle === 'silent-observe')
       return 'silent-observe' as const
 
@@ -583,6 +612,18 @@ export function evaluateProactivePolicy(input: {
       return preferredInteractiveStyle ?? runtimeDominantChannelStyle
     }
 
+    if (
+      style === 'silent-observe'
+      && cadence.openingMomentum >= 0.62
+      && cadence.cadencePressure >= 0.56
+      && context.system.inputActivity !== 'active'
+      && !context.system.fullscreenLikely
+    ) {
+      return preferredInteractiveStyle
+        ?? runtimeDominantChannelStyle
+        ?? (scenario === 'late-night-care' ? 'gentle-care' as const : 'light-nudge' as const)
+    }
+
     if (style === 'light-nudge' && runtimeControlReady && scenario === 'late-night-care')
       return 'gentle-care' as const
 
@@ -610,13 +651,37 @@ export function evaluateProactivePolicy(input: {
     loneliness: context.relationship.loneliness,
     durabilityPulse: input.durabilityPulse,
   })
-  const privateThoughtReady = input.privateThought?.shouldSpeak === true
+  const fallbackExpressionReadiness = !autonomySpeechLocked && (
+    isSeriousDurabilityPulse(input.durabilityPulse)
+    || afterglowWindow
+    || cadence.cadencePressure >= 0.62
+    || runtimeDialogueReady
+    || runtimeControlReady
+    || (
+      scenario === 'coding'
+      && context.system.inputActivity !== 'active'
+      && (context.content.kind === 'error' || context.content.kind === 'diff')
+    )
+    || (
+      scenario === 'late-night-care'
+      && context.relationship.fatigue >= 70
+    )
+    || (
+      context.system.inputActivity !== 'active'
+      && (context.relationship.boredom >= 90 || context.relationship.loneliness >= 82)
+    )
+  )
+  const privateThoughtReady = autonomySpeechLocked
+    ? false
+    : autonomy?.shouldSpeak === true
+      ? true
+      : input.privateThought?.shouldSpeak === true || fallbackExpressionReadiness
   const relationalTension = clamp01(
     context.relationship.boredom * 0.005
     + context.relationship.loneliness * 0.005
     + context.relationship.fatigue * (scenario === 'late-night-care' ? 0.003 : 0.0015),
   )
-  const initiativeSpeakDrive = input.initiative?.speakDrive
+  let initiativeSpeakDrive = input.initiative?.speakDrive
     ?? clamp01(
       (privateThoughtReady ? 0.46 : 0.18)
       + Math.max(0, (input.privateThought?.confidence ?? 0.5) - 0.5) * 0.45
@@ -624,12 +689,20 @@ export function evaluateProactivePolicy(input: {
       + (context.content.kind === 'diff' ? 0.06 : 0)
       + (scenario === 'late-night-care' && context.relationship.fatigue >= 55 ? 0.08 : 0),
     )
-  const initiativeSilenceDrive = input.initiative?.silenceDrive
+  let initiativeSilenceDrive = input.initiative?.silenceDrive
     ?? clamp01(
       (runtimeAwareStyle === 'silent-observe' ? 0.5 : 0.18)
       + (input.privateThought?.stance === 'uncertain' ? 0.22 : 0)
       + (context.system.inputActivity === 'active' ? 0.1 : 0),
     )
+  if (autonomy) {
+    if (autonomy.shouldSpeak)
+      initiativeSpeakDrive = Math.max(initiativeSpeakDrive, clamp01(autonomy.speakReadiness))
+    if (autonomySpeechLocked) {
+      initiativeSpeakDrive = Math.min(initiativeSpeakDrive, clamp01((autonomy.speakReadiness ?? 0) * 0.35))
+      initiativeSilenceDrive = Math.max(initiativeSilenceDrive, clamp01(0.58 + autonomy.inhibition * 0.24))
+    }
+  }
   const governorWithholdActive = input.selfGovernor?.dominantDrive === 'withhold'
     || governorIntention?.status === 'withheld'
     || thoughtThread?.status === 'waiting'
@@ -747,7 +820,7 @@ export function evaluateProactivePolicy(input: {
     baseScore -= 0.1
   if (input.runtimeDigest?.shouldProactivelySpeak)
     baseScore += 0.04
-  if (input.runtimeDigest?.shouldProactivelyAct)
+  if (input.runtimeDigest?.shouldProactivelyAct && !autonomySpeechLocked)
     baseScore += 0.02
   if (isRuntimeDialogueDominantChannel(runtimeDominantChannel))
     baseScore += 0.04
@@ -765,6 +838,11 @@ export function evaluateProactivePolicy(input: {
     if (activeLoopObservePhase && !runtimeDialogueReady && !runtimeControlReady)
       baseScore -= 0.1
   }
+  baseScore += cadence.cadencePressure * 0.16
+  if (cadence.openingMomentum >= 0.62 && context.system.inputActivity !== 'active')
+    baseScore += 0.04
+  if (cadence.initiativeTrust >= 0.58)
+    baseScore += 0.03
 
   let threshold = buildBaseThreshold(scenario)
     + feedbackBias
@@ -813,7 +891,7 @@ export function evaluateProactivePolicy(input: {
     threshold += 0.08
   if (runtimeDialogueReady)
     threshold -= 0.03
-  if (runtimeControlReady)
+  if (runtimeControlReady && !autonomySpeechLocked)
     threshold -= 0.02
   if (afterglowWindow && runtimeMemoryCarry)
     threshold -= 0.02
@@ -828,10 +906,15 @@ export function evaluateProactivePolicy(input: {
     if (activeLoopObservePhase && !runtimeDialogueReady && !runtimeControlReady)
       threshold += 0.04
   }
+  threshold -= cadence.cadencePressure * 0.08
+  threshold -= Math.max(0, cadence.initiativeTrust - 0.5) * 0.06
 
-  const initiativeReady = input.initiative
-    ? input.initiative.shouldSpeak
-    : input.actionEcology?.shouldSpeak ?? input.runtimeDigest?.shouldProactivelySpeak ?? privateThoughtReady
+  const initiativeReady = autonomy
+    ? autonomy.shouldSpeak === true
+      || (!autonomy.shouldAct && fallbackExpressionReadiness)
+    : input.initiative
+      ? input.initiative.shouldSpeak || fallbackExpressionReadiness
+      : input.actionEcology?.shouldSpeak ?? input.runtimeDigest?.shouldProactivelySpeak ?? privateThoughtReady
   const governorAllowsSpeaking = !governorWithholdActive
     && (!repairIntentActive || input.worldModel?.epistemicState.certainty === 'grounded')
   const activeLoopAllowsSpeaking = !activeLoop
@@ -861,6 +944,9 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'recent-dismiss-penalty', feedbackBias >= 0.15)
   pushReason(reasonCodes, 'recent-positive-feedback', feedbackBias < 0)
   pushReason(reasonCodes, 'recent-ignored-penalty', proactiveState.consecutiveIgnored[scenario] >= 3)
+  pushReason(reasonCodes, 'cadence-opening-ready', cadence.openingMomentum >= 0.56)
+  pushReason(reasonCodes, 'cadence-initiative-trust', cadence.initiativeTrust >= 0.58)
+  pushReason(reasonCodes, 'cadence-pressure-rising', cadence.cadencePressure >= 0.52)
   pushReason(reasonCodes, 'high-loneliness', context.relationship.loneliness >= 90)
   pushReason(reasonCodes, 'high-boredom', context.relationship.boredom >= 90)
   pushReason(reasonCodes, 'user-idle', context.system.inputActivity === 'idle')
@@ -947,6 +1033,8 @@ export function evaluateProactivePolicy(input: {
         return '她当前的主动控制通道已进入可执行态，继续只观察会让已经成形的靠近动作失去时机。'
       if (input.runtimeDigest && afterglowWindow && runtimeMemoryCarry)
         return '共视余温还挂在主动记忆链上，现在回应最容易保持连续性与温度。'
+      if (cadence.openingMomentum >= 0.62 && cadence.initiativeTrust >= 0.56)
+        return '她这段时间一直在积累开口冲动，而且历史反馈没有把这股主动性打散，现在这个 opening 足够自然。'
       if (
         input.runtimeDigest
         && companionshipPressure >= 0.74
@@ -986,6 +1074,13 @@ export function evaluateProactivePolicy(input: {
       return '刚收到负反馈后的冷却窗口仍在生效。'
     if (suppressBusy)
       return '宿主仍处于忙碌或高沉浸状态。'
+    if (cadence.openingMomentum >= 0.42 && runtimeAwareStyle === 'silent-observe')
+      return '她其实已经在慢慢积累开口冲动了，但当前 opening 还不够松，贸然说出来会显得挤。'
+    if (autonomySpeechLocked) {
+      return autonomy?.deferReason
+        ? `她当前更想先把动作线收紧在「${autonomy.deferReason}」，而不是把这股执行冲动说出来。`
+        : '她当前已经转入更偏执行的内在线，不该把动作准备误报成主动搭话。'
+    }
     if (
       activeLoop
       && activeLoopObservePhase
@@ -1043,6 +1138,10 @@ export function evaluateProactivePolicy(input: {
       return '等忙碌态解除或退出全屏后再重新评估。'
     if (cooldownActive)
       return '至少等冷却结束后再看是否还存在同类信号。'
+    if (cadence.openingMomentum >= 0.42)
+      return '先让 opening 再松一点，等这股持续积累的开口冲动不需要硬挤出来时再说。'
+    if (autonomySpeechLocked)
+      return '先让她把这条执行线继续准备或落地，等 autonomy 明确转回可说状态后再判断。'
     if (
       activeLoop
       && activeLoopObservePhase

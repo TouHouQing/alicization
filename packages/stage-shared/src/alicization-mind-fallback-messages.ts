@@ -242,7 +242,7 @@ export const governedMindFallbackMessageFallbacks = {
       '我还缺这一轮更新的现场根据，所以不会把前面的延续硬拧成现在这幕。',
     ],
     'mind-fallback.dialogue-boundary-memory': [
-      '这句我就贴着你刚说的回，不把前一轮影子压回来。',
+      '这句我就贴着你刚说的回，不把前一段影子压回来。',
       '这句我就留在你现在这条线上，不把上一幕再压回来。',
       '这句我先守在你刚说的这里，前一轮那层影子不往这句上盖。',
     ],
@@ -297,9 +297,9 @@ export const governedMindFallbackMessageFallbacks = {
       '我先贴着这一下待住。',
     ],
     'mind-fallback.observation-opening': [
-      '我现在能确实看见的是：{focus}。',
-      '我这轮能落稳的是：{focus}。',
-      '我现在能拿准的这一层是：{focus}。',
+      '我现在看到的是：{focus}。',
+      '我现在看到的是：{focus}。',
+      '我现在看到的是：{focus}。',
     ],
     'mind-fallback.observation-opening-plain': [
       '我先贴住这轮能确认的东西。',
@@ -308,7 +308,7 @@ export const governedMindFallbackMessageFallbacks = {
     ],
     'mind-fallback.answer-opening': [
       '就按你现在问的这点说：{focus}。',
-      '我就把回答收在这点上：{focus}。',
+      '我就把回答重新落地在这点上：{focus}。',
       '这句我就沿这点正面说：{focus}。',
     ],
     'mind-fallback.answer-opening-plain': [
@@ -322,9 +322,9 @@ export const governedMindFallbackMessageFallbacks = {
       '我记着上一条线里的 {carry}，不过我把它当延续带着，不当成你眼前现在的实况。',
     ],
     'mind-fallback.reground-note': [
-      '你要我咬到当前屏幕细节，就给我这一轮新的画面根据，我按它说。',
-      '你要我落到当前屏幕细节，就把这轮新的画面根据给我，我按它咬住。',
-      '你要我说到眼前这幕的细节，就给我这轮新的现场根据，我按它落。',
+      '你要我咬到当前屏幕细节，就给我这一轮新的画面根据，我按它重新落地来说。',
+      '你要我落到当前屏幕细节，就把这轮新的画面根据给我，我按它重新落地咬住。',
+      '你要我说到眼前这幕的细节，就给我这轮新的现场根据，我按它重新落地。',
     ],
     'mind-repair.internal-leak': [
       '刚才那版把后台执行残片带到台面上了，我已经压住那层噪声。你再接一句，我就正面回你。',

@@ -252,7 +252,7 @@ export function createAlicizationExecutionFollowUpPayoffResolver(
         channel: thread.selectedChannel ?? thread.proposedChannel ?? 'executor',
         decision: input.decision,
       })
-      if (typeof genericReply === 'string' && genericReply.length > 0)
+      if (genericReply)
         return genericReply
     }
 

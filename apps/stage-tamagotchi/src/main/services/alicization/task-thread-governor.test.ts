@@ -95,7 +95,7 @@ describe('task-thread governor', () => {
         kind: 'plan',
         threadStatus: 'needs-affirmation',
         payload: expect.objectContaining({
-          affirmationReasonCodes: expect.arrayContaining(['proactive-side-effects-require-explicit-consent']),
+          affirmationReasonCodes: expect.arrayContaining(['medium-risk-proactive-action-requires-affirmation']),
         }),
       }),
     ])

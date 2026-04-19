@@ -7,6 +7,7 @@ export type AlicizationMemorySource = 'rule' | 'async-llm'
 
 export type AlicizationSubconsciousFragmentSourceKind
   = | 'active-demotion'
+    | 'autobiographical-episode'
     | 'dream-fragment'
     | 'former-core-incarnation'
     | 'unforged-shattering-event'
@@ -573,7 +574,13 @@ export interface AlicizationResidentPerformanceSnapshot {
 }
 
 export type AlicizationMindTurnMode = 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
-export type AlicizationMindTruthState = 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain'
+export type AlicizationMindTruthState
+  = | 'live-grounded'
+    | 'live-observed'
+    | 'dialogue-grounded'
+    | 'remembered'
+    | 'imagined'
+    | 'uncertain'
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
@@ -830,6 +837,204 @@ export interface AlicizationDigitalLifeSpineProactiveDigest {
   preferredPresence: string | null
 }
 
+export interface AlicizationDigitalLifeSpineAutonomyDigest {
+  selectedMode: string | null
+  visibleAction: string | null
+  shouldSurface: boolean | null
+  shouldSpeak: boolean | null
+  shouldAct: boolean | null
+  speakReadiness: number | null
+  actReadiness: number | null
+  inhibition: number | null
+  confidence: number | null
+  executionIntentKind: string | null
+  executionIntentSummary: string | null
+  deferReason: string | null
+  whyNow: string | null
+  sourceGoalId: string | null
+  sourceGoalSummary: string | null
+  sourceAgendaKind: string | null
+  sourceAgendaSummary: string | null
+  sourceThreadId: string | null
+  sourceThreadSummary: string | null
+}
+
+export type AlicizationLongHorizonMemoryCueInfluence
+  = | 'bond'
+    | 'boundary'
+    | 'care'
+    | 'truth'
+    | 'play'
+    | 'task'
+    | 'identity'
+
+export interface AlicizationLongHorizonMemoryCueSnapshot {
+  factId: string
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  weight: number
+  influenceTags: AlicizationLongHorizonMemoryCueInfluence[]
+  summary: string
+  lastRecalledAt: number
+}
+
+export interface AlicizationLongHorizonMemorySnapshot {
+  preferenceBias: {
+    companionship: number
+    truthfulGrounding: number
+    gentleRepair: number
+    quietObservation: number
+    proactiveCare: number
+    playfulIntimacy: number
+    autonomyRespect: number
+    unfinishedThreadReturn: number
+  }
+  identityBias: {
+    guardedness: number
+    tenderness: number
+    directness: number
+    selfDirection: number
+  }
+  anchorFacts: AlicizationLongHorizonMemoryCueSnapshot[]
+  summary: string
+  dominantCueSummary?: string | null
+  rememberedPreferenceSummary?: string | null
+  rememberedConstraintSummary?: string | null
+  rememberedPlanSummary?: string | null
+  updatedAt: number
+}
+
+export type AlicizationMemoryReflectionSourceKind = 'reply' | 'proactive' | 'execution' | 'maintenance'
+export type AlicizationMemoryReflectionTargetScope = 'self' | 'relationship' | 'boundary' | 'truth' | 'task' | 'habit'
+export type AlicizationMemoryReflectionStatus = 'pending' | 'confirmed' | 'denied' | 'superseded'
+
+export interface AlicizationMemoryReflectionInput {
+  id?: string | null
+  cardId: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  sourceKind: AlicizationMemoryReflectionSourceKind
+  targetScope: AlicizationMemoryReflectionTargetScope
+  summary: string
+  lesson: string
+  status?: AlicizationMemoryReflectionStatus
+  confidence: number
+  supportingFactIds?: string[] | null
+  supportingOutcomeIds?: string[] | null
+  createdAt?: number
+  updatedAt?: number
+  confirmedAt?: number | null
+  deniedAt?: number | null
+}
+
+export interface AlicizationMemoryReflectionRecord {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  sourceKind: AlicizationMemoryReflectionSourceKind
+  targetScope: AlicizationMemoryReflectionTargetScope
+  summary: string
+  lesson: string
+  status: AlicizationMemoryReflectionStatus
+  confidence: number
+  supportingFactIds: string[]
+  supportingOutcomeIds: string[]
+  createdAt: number
+  updatedAt: number
+  confirmedAt: number | null
+  deniedAt: number | null
+}
+
+export type AlicizationRelationshipOutcomeSourceKind = 'reply' | 'proactive' | 'execution'
+
+export interface AlicizationRelationshipOutcomeInput {
+  id?: string | null
+  cardId: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  sourceKind: AlicizationRelationshipOutcomeSourceKind
+  actionSummary: string
+  closenessDelta: number
+  trustDelta: number
+  burdenDelta: number
+  boundaryDelta: number
+  misreadDelta: number
+  repairDelta: number
+  openLoopDelta: number
+  summary: string
+  createdAt?: number
+}
+
+export interface AlicizationRelationshipOutcomeRecord {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  sourceKind: AlicizationRelationshipOutcomeSourceKind
+  actionSummary: string
+  closenessDelta: number
+  trustDelta: number
+  burdenDelta: number
+  boundaryDelta: number
+  misreadDelta: number
+  repairDelta: number
+  openLoopDelta: number
+  summary: string
+  createdAt: number
+}
+
+export type AlicizationPersonaReinforcementDimension
+  = | 'companionship'
+    | 'truthful-grounding'
+    | 'gentle-repair'
+    | 'autonomy-respect'
+    | 'unfinished-thread-return'
+    | 'temper-guardedness'
+    | 'temper-directness'
+
+export type AlicizationPersonaReinforcementValence = 'reinforce' | 'suppress'
+
+export interface AlicizationPersonaReinforcementEventInput {
+  id?: string | null
+  cardId: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  sourceKind: AlicizationRelationshipOutcomeSourceKind
+  dimension: AlicizationPersonaReinforcementDimension
+  delta: number
+  valence: AlicizationPersonaReinforcementValence
+  summary: string
+  createdAt?: number
+}
+
+export interface AlicizationPersonaReinforcementEventRecord {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  sourceKind: AlicizationRelationshipOutcomeSourceKind
+  dimension: AlicizationPersonaReinforcementDimension
+  delta: number
+  valence: AlicizationPersonaReinforcementValence
+  summary: string
+  createdAt: number
+}
+
+export type AlicizationMindHeadKey
+  = | 'autobiographical-self'
+    | 'reflection-ledger'
+    | 'motive-engine'
+    | 'habit-policy'
+
 export interface AlicizationDigitalLifeSpineMemoryDigest {
   summary: string | null
   recentEpisodeSummary: string | null
@@ -843,6 +1048,150 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
   recallMode: string | null
   recallSeed: string | null
   thoughtThreadSummary: string | null
+  longHorizonSummary?: string | null
+  rememberedPreferenceSummary?: string | null
+  rememberedConstraintSummary?: string | null
+  rememberedPlanSummary?: string | null
+  longHorizonCueCount?: number | null
+}
+
+export interface AlicizationDigitalLifeSpineEmbodimentDigest {
+  privateThought: {
+    stance: string | null
+    confidence: number | null
+    shouldSpeak: boolean | null
+    suggestedStyle: string | null
+    embodiedPresence: string | null
+    emotionalTension: string | null
+    relationshipVector: string | null
+    initiativeAction: string | null
+    governorDrive: string | null
+  } | null
+  selfContinuity: {
+    attachmentMode: string | null
+    initiativeTemperament: string | null
+    perceptionTrust: number | null
+    relationshipTrust: number | null
+    guardingTendency: number | null
+    misreadBurden: number | null
+    carryOverDesire: number | null
+  } | null
+  autobiographicalSelf: {
+    attachmentStyle: string | null
+    expressionStyle: string | null
+    conflictStyle: string | null
+    agencyStyle: string | null
+    attachmentNeed: number | null
+    autonomyNeed: number | null
+    truthAnchor: number | null
+    careBias: number | null
+    playBias: number | null
+    irritabilityThreshold: number | null
+    stubbornness: number | null
+    companionship: number | null
+    truthfulGrounding: number | null
+    gentleRepair: number | null
+    quietObservation: number | null
+    proactiveCare: number | null
+    playfulIntimacy: number | null
+    autonomyRespect: number | null
+    unfinishedThreadReturn: number | null
+    stability: number | null
+    identityNarrative: string | null
+    relationshipDoctrine: string | null
+  } | null
+  relationship: {
+    climate: string | null
+    approachVector: string | null
+    receptivity: number | null
+    sharedAttentionTrust: number | null
+    correctionSensitivity: number | null
+    reciprocityExpectation: number | null
+  } | null
+  selfState: {
+    stance: string | null
+    feltCloseness: number | null
+    protectiveness: number | null
+    curiosity: number | null
+    patience: number | null
+    desireToSpeak: number | null
+    fearOfInterrupting: number | null
+    moodLabel: string | null
+  } | null
+  mindEcology: {
+    moodLabel: string | null
+    replyHabit: string | null
+    relationshipHabit: string | null
+    explorationHabit: string | null
+    regulationHabit: string | null
+    selfNarrative: string | null
+    relationNarrative: string | null
+    currentPreoccupation: string | null
+    temperament: {
+      attachment: number | null
+      curiosity: number | null
+      steadiness: number | null
+      directness: number | null
+      playfulness: number | null
+      irritability: number | null
+      tenderness: number | null
+    }
+    climate: {
+      valence: number | null
+      arousal: number | null
+      socialNeed: number | null
+      solitudeNeed: number | null
+      irritation: number | null
+      restlessness: number | null
+      reflectivePull: number | null
+    }
+  } | null
+  initiative: {
+    selectedAction: string | null
+    preferredStyle: string | null
+    preferredPresence: string | null
+    confidence: number | null
+    shouldSpeak: boolean | null
+    speakDrive: number | null
+    silenceDrive: number | null
+    why: string | null
+  } | null
+}
+
+export interface AlicizationDigitalLifeSpineMotiveDigest {
+  rulingDrive: string | null
+  returnPressure: number | null
+  companionshipDrive: number | null
+  boundaryRespectDrive: number | null
+  truthDisciplineDrive: number | null
+  restProtectionDrive: number | null
+  selfDirectionDrive: number | null
+  leadingGoalSummary: string | null
+  leadingAgendaKind: string | null
+  leadingAgendaSummary: string | null
+  narrative: string | null
+}
+
+export interface AlicizationDigitalLifeSpineHabitDigest {
+  dominantMode: string | null
+  requiresGroundingBeforeSurface: boolean | null
+  prefersQuietCompanionship: boolean | null
+  blocksDirectSpeakWhenBusy: boolean | null
+  protectsRestWindow: boolean | null
+  returnViaRecheck: boolean | null
+  suggestedStyleCap: string | null
+  suggestedPresenceCap: string | null
+  narrative: string | null
+}
+
+export interface AlicizationDigitalLifeSpineOutcomeLearningDigest {
+  reflectionTargetScope: string | null
+  reflectionSummary: string | null
+  reflectionLesson: string | null
+  latestInflection: string | null
+  revisionPressure: number | null
+  autobiographicalStability: number | null
+  summary: string | null
 }
 
 export interface AlicizationDigitalLifeSpineDigest {
@@ -851,7 +1200,12 @@ export interface AlicizationDigitalLifeSpineDigest {
   architecture: AlicizationDigitalLifeSpineArchitectureDigest | null
   continuitySignal: AlicizationDigitalLifeSpineContinuityDigest | null
   proactive: AlicizationDigitalLifeSpineProactiveDigest | null
+  autonomy?: AlicizationDigitalLifeSpineAutonomyDigest | null
+  embodiment?: AlicizationDigitalLifeSpineEmbodimentDigest | null
   memory: AlicizationDigitalLifeSpineMemoryDigest | null
+  motive?: AlicizationDigitalLifeSpineMotiveDigest | null
+  habit?: AlicizationDigitalLifeSpineHabitDigest | null
+  outcomeLearning?: AlicizationDigitalLifeSpineOutcomeLearningDigest | null
 }
 
 export type AlicizationRuntimeChannelId
@@ -891,14 +1245,36 @@ export interface AlicizationActiveLoopDigest {
   summary: string
 }
 
+export interface AlicizationRuntimeAutonomyDigest {
+  selectedMode: string | null
+  visibleAction: string | null
+  shouldSpeak: boolean
+  shouldAct: boolean
+  speakReadiness: number
+  actReadiness: number
+  inhibition: number
+  confidence: number
+  executionIntentKind: string | null
+  executionIntentSummary: string | null
+  deferReason: string | null
+  whyNow: string | null
+}
+
 export interface AlicizationRuntimeDigest {
   version: 'alicization-runtime-digest-v1'
   dominantChannel: AlicizationRuntimeChannelId
   activeLoop?: AlicizationActiveLoopDigest | null
+  autonomy?: AlicizationRuntimeAutonomyDigest | null
   shouldProactivelySpeak: boolean
   shouldProactivelyAct: boolean
   continuityPressure: number
   companionshipPressure: number
+  rulingMotive?: string | null
+  habitMode?: string | null
+  truthDisciplinePressure?: number | null
+  boundaryPressure?: number | null
+  restProtectionPressure?: number | null
+  returnPressure?: number | null
   channels: AlicizationRuntimeChannelDigest[]
   summary: string
 }
@@ -921,6 +1297,10 @@ function normalizeAlicizationDigitalLifeDigestUnit(raw: unknown) {
   if (value == null)
     return null
   return Math.max(0, Math.min(1, value))
+}
+
+function normalizeAlicizationDigitalLifeDigestBoolean(raw: unknown) {
+  return typeof raw === 'boolean' ? raw : null
 }
 
 function normalizeAlicizationDigitalLifeOperatingMode(raw: unknown): AlicizationDigitalLifeOperatingMode | null {
@@ -1052,6 +1432,9 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
   const activeLoopCandidate = candidate.activeLoop && typeof candidate.activeLoop === 'object'
     ? candidate.activeLoop as Record<string, unknown>
     : null
+  const autonomyCandidate = candidate.autonomy && typeof candidate.autonomy === 'object'
+    ? candidate.autonomy as Record<string, unknown>
+    : null
   const dialogueReady = activeLoopCandidate?.dialogueReady === true
   const controlReady = activeLoopCandidate?.controlReady === true
   const observationHeavy = activeLoopCandidate?.observationHeavy === true
@@ -1080,10 +1463,32 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
           summary: sanitizeAlicizationDigitalLifeDigestText(activeLoopCandidate.summary, 240),
         }
       : null,
+    autonomy: autonomyCandidate
+      ? {
+          selectedMode: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.selectedMode, 64) || null,
+          visibleAction: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.visibleAction, 64) || null,
+          shouldSpeak: autonomyCandidate.shouldSpeak === true,
+          shouldAct: autonomyCandidate.shouldAct === true,
+          speakReadiness: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.speakReadiness) ?? 0,
+          actReadiness: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.actReadiness) ?? 0,
+          inhibition: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.inhibition) ?? 0,
+          confidence: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.confidence) ?? 0,
+          executionIntentKind: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.executionIntentKind, 64) || null,
+          executionIntentSummary: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.executionIntentSummary, 220) || null,
+          deferReason: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.deferReason, 160) || null,
+          whyNow: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.whyNow, 220) || null,
+        }
+      : null,
     shouldProactivelySpeak: candidate.shouldProactivelySpeak === true,
     shouldProactivelyAct: candidate.shouldProactivelyAct === true,
     continuityPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.continuityPressure) ?? 0,
     companionshipPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.companionshipPressure) ?? 0,
+    rulingMotive: sanitizeAlicizationDigitalLifeDigestText(candidate.rulingMotive, 48) || null,
+    habitMode: sanitizeAlicizationDigitalLifeDigestText(candidate.habitMode, 64) || null,
+    truthDisciplinePressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.truthDisciplinePressure),
+    boundaryPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.boundaryPressure),
+    restProtectionPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.restProtectionPressure),
+    returnPressure: normalizeAlicizationDigitalLifeDigestUnit(candidate.returnPressure),
     channels,
     summary: sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 240),
   }
@@ -1108,8 +1513,50 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
   const proactiveCandidate = candidate.proactive && typeof candidate.proactive === 'object'
     ? candidate.proactive as Record<string, unknown>
     : null
+  const autonomyCandidate = candidate.autonomy && typeof candidate.autonomy === 'object'
+    ? candidate.autonomy as Record<string, unknown>
+    : null
+  const motiveCandidate = candidate.motive && typeof candidate.motive === 'object'
+    ? candidate.motive as Record<string, unknown>
+    : null
+  const habitCandidate = candidate.habit && typeof candidate.habit === 'object'
+    ? candidate.habit as Record<string, unknown>
+    : null
+  const outcomeLearningCandidate = candidate.outcomeLearning && typeof candidate.outcomeLearning === 'object'
+    ? candidate.outcomeLearning as Record<string, unknown>
+    : null
+  const embodimentCandidate = candidate.embodiment && typeof candidate.embodiment === 'object'
+    ? candidate.embodiment as Record<string, unknown>
+    : null
   const memoryCandidate = candidate.memory && typeof candidate.memory === 'object'
     ? candidate.memory as Record<string, unknown>
+    : null
+  const privateThoughtCandidate = embodimentCandidate?.privateThought && typeof embodimentCandidate.privateThought === 'object'
+    ? embodimentCandidate.privateThought as Record<string, unknown>
+    : null
+  const selfContinuityCandidate = embodimentCandidate?.selfContinuity && typeof embodimentCandidate.selfContinuity === 'object'
+    ? embodimentCandidate.selfContinuity as Record<string, unknown>
+    : null
+  const autobiographicalSelfCandidate = embodimentCandidate?.autobiographicalSelf && typeof embodimentCandidate.autobiographicalSelf === 'object'
+    ? embodimentCandidate.autobiographicalSelf as Record<string, unknown>
+    : null
+  const relationshipCandidate = embodimentCandidate?.relationship && typeof embodimentCandidate.relationship === 'object'
+    ? embodimentCandidate.relationship as Record<string, unknown>
+    : null
+  const selfStateCandidate = embodimentCandidate?.selfState && typeof embodimentCandidate.selfState === 'object'
+    ? embodimentCandidate.selfState as Record<string, unknown>
+    : null
+  const mindEcologyCandidate = embodimentCandidate?.mindEcology && typeof embodimentCandidate.mindEcology === 'object'
+    ? embodimentCandidate.mindEcology as Record<string, unknown>
+    : null
+  const mindEcologyTemperamentCandidate = mindEcologyCandidate?.temperament && typeof mindEcologyCandidate.temperament === 'object'
+    ? mindEcologyCandidate.temperament as Record<string, unknown>
+    : null
+  const mindEcologyClimateCandidate = mindEcologyCandidate?.climate && typeof mindEcologyCandidate.climate === 'object'
+    ? mindEcologyCandidate.climate as Record<string, unknown>
+    : null
+  const initiativeCandidate = embodimentCandidate?.initiative && typeof embodimentCandidate.initiative === 'object'
+    ? embodimentCandidate.initiative as Record<string, unknown>
     : null
 
   return {
@@ -1168,6 +1615,186 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           preferredPresence: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.preferredPresence, 48) || null,
         }
       : null,
+    autonomy: autonomyCandidate
+      ? {
+          selectedMode: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.selectedMode, 64) || null,
+          visibleAction: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.visibleAction, 64) || null,
+          shouldSurface: normalizeAlicizationDigitalLifeDigestBoolean(autonomyCandidate.shouldSurface),
+          shouldSpeak: normalizeAlicizationDigitalLifeDigestBoolean(autonomyCandidate.shouldSpeak),
+          shouldAct: normalizeAlicizationDigitalLifeDigestBoolean(autonomyCandidate.shouldAct),
+          speakReadiness: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.speakReadiness),
+          actReadiness: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.actReadiness),
+          inhibition: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.inhibition),
+          confidence: normalizeAlicizationDigitalLifeDigestUnit(autonomyCandidate.confidence),
+          executionIntentKind: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.executionIntentKind, 64) || null,
+          executionIntentSummary: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.executionIntentSummary, 220) || null,
+          deferReason: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.deferReason, 160) || null,
+          whyNow: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.whyNow, 220) || null,
+          sourceGoalId: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceGoalId, 96) || null,
+          sourceGoalSummary: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceGoalSummary, 160) || null,
+          sourceAgendaKind: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceAgendaKind, 64) || null,
+          sourceAgendaSummary: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceAgendaSummary, 180) || null,
+          sourceThreadId: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceThreadId, 96) || null,
+          sourceThreadSummary: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.sourceThreadSummary, 180) || null,
+        }
+      : null,
+    motive: motiveCandidate
+      ? {
+          rulingDrive: sanitizeAlicizationDigitalLifeDigestText(motiveCandidate.rulingDrive, 48) || null,
+          returnPressure: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.returnPressure),
+          companionshipDrive: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.companionshipDrive),
+          boundaryRespectDrive: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.boundaryRespectDrive),
+          truthDisciplineDrive: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.truthDisciplineDrive),
+          restProtectionDrive: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.restProtectionDrive),
+          selfDirectionDrive: normalizeAlicizationDigitalLifeDigestUnit(motiveCandidate.selfDirectionDrive),
+          leadingGoalSummary: sanitizeAlicizationDigitalLifeDigestText(motiveCandidate.leadingGoalSummary, 180) || null,
+          leadingAgendaKind: sanitizeAlicizationDigitalLifeDigestText(motiveCandidate.leadingAgendaKind, 64) || null,
+          leadingAgendaSummary: sanitizeAlicizationDigitalLifeDigestText(motiveCandidate.leadingAgendaSummary, 180) || null,
+          narrative: sanitizeAlicizationDigitalLifeDigestText(motiveCandidate.narrative, 220) || null,
+        }
+      : null,
+    habit: habitCandidate
+      ? {
+          dominantMode: sanitizeAlicizationDigitalLifeDigestText(habitCandidate.dominantMode, 64) || null,
+          requiresGroundingBeforeSurface: normalizeAlicizationDigitalLifeDigestBoolean(habitCandidate.requiresGroundingBeforeSurface),
+          prefersQuietCompanionship: normalizeAlicizationDigitalLifeDigestBoolean(habitCandidate.prefersQuietCompanionship),
+          blocksDirectSpeakWhenBusy: normalizeAlicizationDigitalLifeDigestBoolean(habitCandidate.blocksDirectSpeakWhenBusy),
+          protectsRestWindow: normalizeAlicizationDigitalLifeDigestBoolean(habitCandidate.protectsRestWindow),
+          returnViaRecheck: normalizeAlicizationDigitalLifeDigestBoolean(habitCandidate.returnViaRecheck),
+          suggestedStyleCap: sanitizeAlicizationDigitalLifeDigestText(habitCandidate.suggestedStyleCap, 64) || null,
+          suggestedPresenceCap: sanitizeAlicizationDigitalLifeDigestText(habitCandidate.suggestedPresenceCap, 64) || null,
+          narrative: sanitizeAlicizationDigitalLifeDigestText(habitCandidate.narrative, 220) || null,
+        }
+      : null,
+    outcomeLearning: outcomeLearningCandidate
+      ? {
+          reflectionTargetScope: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.reflectionTargetScope, 48) || null,
+          reflectionSummary: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.reflectionSummary, 180) || null,
+          reflectionLesson: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.reflectionLesson, 220) || null,
+          latestInflection: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.latestInflection, 180) || null,
+          revisionPressure: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.revisionPressure),
+          autobiographicalStability: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.autobiographicalStability),
+          summary: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.summary, 220) || null,
+        }
+      : null,
+    embodiment: embodimentCandidate
+      ? {
+          privateThought: privateThoughtCandidate
+            ? {
+                stance: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.stance, 48) || null,
+                confidence: normalizeAlicizationDigitalLifeDigestUnit(privateThoughtCandidate.confidence),
+                shouldSpeak: normalizeAlicizationDigitalLifeDigestBoolean(privateThoughtCandidate.shouldSpeak),
+                suggestedStyle: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.suggestedStyle, 48) || null,
+                embodiedPresence: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.embodiedPresence, 48) || null,
+                emotionalTension: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.emotionalTension, 48) || null,
+                relationshipVector: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.relationshipVector, 48) || null,
+                initiativeAction: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.initiativeAction, 48) || null,
+                governorDrive: sanitizeAlicizationDigitalLifeDigestText(privateThoughtCandidate.governorDrive, 48) || null,
+              }
+            : null,
+          selfContinuity: selfContinuityCandidate
+            ? {
+                attachmentMode: sanitizeAlicizationDigitalLifeDigestText(selfContinuityCandidate.attachmentMode, 48) || null,
+                initiativeTemperament: sanitizeAlicizationDigitalLifeDigestText(selfContinuityCandidate.initiativeTemperament, 48) || null,
+                perceptionTrust: normalizeAlicizationDigitalLifeDigestUnit(selfContinuityCandidate.perceptionTrust),
+                relationshipTrust: normalizeAlicizationDigitalLifeDigestUnit(selfContinuityCandidate.relationshipTrust),
+                guardingTendency: normalizeAlicizationDigitalLifeDigestUnit(selfContinuityCandidate.guardingTendency),
+                misreadBurden: normalizeAlicizationDigitalLifeDigestUnit(selfContinuityCandidate.misreadBurden),
+                carryOverDesire: normalizeAlicizationDigitalLifeDigestUnit(selfContinuityCandidate.carryOverDesire),
+              }
+            : null,
+          autobiographicalSelf: autobiographicalSelfCandidate
+            ? {
+                attachmentStyle: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.attachmentStyle, 48) || null,
+                expressionStyle: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.expressionStyle, 48) || null,
+                conflictStyle: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.conflictStyle, 64) || null,
+                agencyStyle: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.agencyStyle, 48) || null,
+                attachmentNeed: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.attachmentNeed),
+                autonomyNeed: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.autonomyNeed),
+                truthAnchor: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.truthAnchor),
+                careBias: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.careBias),
+                playBias: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.playBias),
+                irritabilityThreshold: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.irritabilityThreshold),
+                stubbornness: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.stubbornness),
+                companionship: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.companionship),
+                truthfulGrounding: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.truthfulGrounding),
+                gentleRepair: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.gentleRepair),
+                quietObservation: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.quietObservation),
+                proactiveCare: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.proactiveCare),
+                playfulIntimacy: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.playfulIntimacy),
+                autonomyRespect: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.autonomyRespect),
+                unfinishedThreadReturn: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.unfinishedThreadReturn),
+                stability: normalizeAlicizationDigitalLifeDigestUnit(autobiographicalSelfCandidate.stability),
+                identityNarrative: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.identityNarrative, 220) || null,
+                relationshipDoctrine: sanitizeAlicizationDigitalLifeDigestText(autobiographicalSelfCandidate.relationshipDoctrine, 220) || null,
+              }
+            : null,
+          relationship: relationshipCandidate
+            ? {
+                climate: sanitizeAlicizationDigitalLifeDigestText(relationshipCandidate.climate, 48) || null,
+                approachVector: sanitizeAlicizationDigitalLifeDigestText(relationshipCandidate.approachVector, 48) || null,
+                receptivity: normalizeAlicizationDigitalLifeDigestUnit(relationshipCandidate.receptivity),
+                sharedAttentionTrust: normalizeAlicizationDigitalLifeDigestUnit(relationshipCandidate.sharedAttentionTrust),
+                correctionSensitivity: normalizeAlicizationDigitalLifeDigestUnit(relationshipCandidate.correctionSensitivity),
+                reciprocityExpectation: normalizeAlicizationDigitalLifeDigestUnit(relationshipCandidate.reciprocityExpectation),
+              }
+            : null,
+          selfState: selfStateCandidate
+            ? {
+                stance: sanitizeAlicizationDigitalLifeDigestText(selfStateCandidate.stance, 48) || null,
+                feltCloseness: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.feltCloseness),
+                protectiveness: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.protectiveness),
+                curiosity: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.curiosity),
+                patience: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.patience),
+                desireToSpeak: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.desireToSpeak),
+                fearOfInterrupting: normalizeAlicizationDigitalLifeDigestUnit(selfStateCandidate.fearOfInterrupting),
+                moodLabel: sanitizeAlicizationDigitalLifeDigestText(selfStateCandidate.moodLabel, 48) || null,
+              }
+            : null,
+          mindEcology: mindEcologyCandidate
+            ? {
+                moodLabel: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.moodLabel, 48) || null,
+                replyHabit: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.replyHabit, 48) || null,
+                relationshipHabit: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.relationshipHabit, 48) || null,
+                explorationHabit: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.explorationHabit, 48) || null,
+                regulationHabit: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.regulationHabit, 48) || null,
+                selfNarrative: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.selfNarrative, 220) || null,
+                relationNarrative: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.relationNarrative, 220) || null,
+                currentPreoccupation: sanitizeAlicizationDigitalLifeDigestText(mindEcologyCandidate.currentPreoccupation, 220) || null,
+                temperament: {
+                  attachment: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.attachment),
+                  curiosity: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.curiosity),
+                  steadiness: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.steadiness),
+                  directness: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.directness),
+                  playfulness: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.playfulness),
+                  irritability: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.irritability),
+                  tenderness: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyTemperamentCandidate?.tenderness),
+                },
+                climate: {
+                  valence: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.valence),
+                  arousal: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.arousal),
+                  socialNeed: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.socialNeed),
+                  solitudeNeed: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.solitudeNeed),
+                  irritation: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.irritation),
+                  restlessness: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.restlessness),
+                  reflectivePull: normalizeAlicizationDigitalLifeDigestUnit(mindEcologyClimateCandidate?.reflectivePull),
+                },
+              }
+            : null,
+          initiative: initiativeCandidate
+            ? {
+                selectedAction: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.selectedAction, 48) || null,
+                preferredStyle: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.preferredStyle, 48) || null,
+                preferredPresence: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.preferredPresence, 48) || null,
+                confidence: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.confidence),
+                shouldSpeak: normalizeAlicizationDigitalLifeDigestBoolean(initiativeCandidate.shouldSpeak),
+                speakDrive: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.speakDrive),
+                silenceDrive: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.silenceDrive),
+                why: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.why, 220) || null,
+              }
+            : null,
+        }
+      : null,
     memory: memoryCandidate
       ? {
           summary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.summary, 220) || null,
@@ -1182,6 +1809,11 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           recallMode: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recallMode, 48) || null,
           recallSeed: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recallSeed, 160) || null,
           thoughtThreadSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.thoughtThreadSummary, 160) || null,
+          longHorizonSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.longHorizonSummary, 180) || null,
+          rememberedPreferenceSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedPreferenceSummary, 180) || null,
+          rememberedConstraintSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedConstraintSummary, 180) || null,
+          rememberedPlanSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedPlanSummary, 180) || null,
+          longHorizonCueCount: Math.max(0, Math.floor(normalizeAlicizationDigitalLifeDigestNumber(memoryCandidate.longHorizonCueCount) ?? 0)),
         }
       : null,
   }
@@ -1226,6 +1858,9 @@ export type AlicizationProactiveReasonCode
     | 'recent-ignored-penalty'
     | 'recent-dismiss-penalty'
     | 'recent-positive-feedback'
+    | 'cadence-opening-ready'
+    | 'cadence-initiative-trust'
+    | 'cadence-pressure-rising'
     | 'coding-focus'
     | 'media-playback'
     | 'late-night-activity'

@@ -1,3 +1,6 @@
+import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './autonomy-actuation'
+import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
+
 export function createAlicizationSubconsciousTickRuntime(options: any) {
   const {
     getActiveCardId,
@@ -29,6 +32,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     isResidueBackedScreenSemanticSummary,
     buildProactiveLayeredContext,
     buildProactivePerceptionSignals,
+    progressProactiveCadenceState,
     inferScenarioFromContext,
     consumeDurabilityPulse,
     probeForegroundPidLiveness,
@@ -74,6 +78,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     syncAgentTurnSessionMirror,
     buildPendingProactiveContinuitySignal,
     ensureActiveOrLatestSessionId,
+    resolveTaskPlanningCapabilities,
+    scheduleAutonomyReminder,
+    planAutonomyTaskThread,
+    dispatchAutonomyTaskThread,
+    workspaceRoot,
+    buildDefaultDialoguePerformancePayload,
+    buildProactiveMetadataFromDecision,
     alicizationSubconsciousPersistMs,
     persistProactiveLoopState,
     persistSubconsciousState,
@@ -362,6 +373,28 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       })
     }
 
+    const autobiographicalEpisodeText = buildAutobiographicalEpisodeFragment({
+      previousRuntimeSurface: previousDigitalLifeRuntimeSurface,
+      nextRuntimeSurface: digitalLifeRuntimeSurface,
+    })
+    if (autobiographicalEpisodeText) {
+      await alicizationDb.appendSubconsciousFragments([{
+        text: autobiographicalEpisodeText,
+        sourceKind: 'autobiographical-episode',
+      }]).catch(async (error: unknown) => {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.mind',
+          action: 'autobiographical-episode-write-failed',
+          message: 'Failed to append autobiographical episode fragment after subconscious mind-state update.',
+          payload: {
+            reason: errorMessageFrom(error) ?? 'unknown error',
+            fragment: autobiographicalEpisodeText,
+          },
+        })
+      })
+    }
+
     if (visualPresenceState.workingMemoryEpisodes.length > previousWorkingMemoryCount) {
       const latestEpisode = visualPresenceState.workingMemoryEpisodes.at(-1)
       const visualSedimentText = latestEpisode
@@ -385,6 +418,14 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         })
       }
     }
+
+    proactiveLoopState = progressProactiveCadenceState({
+      state: proactiveLoopState,
+      now,
+      context: layeredContext,
+      ...committedDigitalLifeSpine.current.proactivePolicy,
+    })
+    setProactiveLoopStateCache(activeCardId, proactiveLoopState)
 
     let proactive = false
     let suppressed = false
@@ -454,6 +495,83 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         },
       })
 
+      let autonomyActuation: any = null
+      let autonomyExecutionProposalSurface: any = null
+      try {
+        const autonomy = committedDigitalLifeSpine.current.runtimeSurface.agency.autonomy ?? null
+        if (autonomy?.selectedMode === 'prepare-act' || autonomy?.selectedMode === 'act') {
+          const planningCapabilities = await resolveTaskPlanningCapabilities()
+          autonomyActuation = await runAutonomyActuation({
+            now,
+            cardId: activeCardId,
+            sessionId: await ensureActiveOrLatestSessionId(activeCardId),
+            digitalLifeSpine: committedDigitalLifeSpine.current,
+            runtimeDigest: proactiveRuntimeSnapshot,
+            capabilities: planningCapabilities,
+            workspaceRoot,
+            listPendingReminders: async (limit?: number) =>
+              (await alicizationDb.listPendingScheduledTasks(limit ?? 128).catch(() => []))
+                .filter((task: any) => String(task?.taskId ?? '').startsWith(`reminder:${activeCardId}:`)),
+            scheduleReminder: async (payload: {
+              minutes: number
+              message: string
+              sourceTurnId?: string
+            }) => await scheduleAutonomyReminder(activeCardId, payload),
+            planTaskThread: async (payload: any) => await planAutonomyTaskThread(activeCardId, payload),
+            dispatchTaskThread: async (payload: any) => await dispatchAutonomyTaskThread(payload),
+          })
+          autonomyExecutionProposalSurface = deriveAutonomyExecutionProposalSurface({
+            actuationResult: autonomyActuation,
+            digitalLifeSpine: committedDigitalLifeSpine.current,
+          })
+
+          if (
+            autonomyActuation.reminderScheduled
+            || autonomyActuation.taskPlanned
+            || autonomyActuation.taskDispatched
+          ) {
+            proactive = true
+            await appendAuditLog({
+              level: 'notice',
+              category: 'alicization.subconscious',
+              action: 'autonomy-actuation-applied',
+              message: 'Applied an autonomous actuation follow-through from the subconscious runtime.',
+              payload: {
+                trigger,
+                autonomy: {
+                  selectedMode: autonomy.selectedMode,
+                  visibleAction: autonomy.visibleAction,
+                  shouldSpeak: autonomy.shouldSpeak,
+                  shouldAct: autonomy.shouldAct,
+                  actReadiness: autonomy.actReadiness,
+                  deferReason: autonomy.deferReason ?? null,
+                  executionIntent: autonomy.executionIntent ?? null,
+                },
+                actuation: autonomyActuation,
+                runtimeDigest: proactiveRuntimeSnapshot,
+              },
+            })
+          }
+        }
+      }
+      catch (error) {
+        await appendAuditLog({
+          level: 'warning',
+          category: 'alicization.subconscious',
+          action: 'autonomy-actuation-failed',
+          message: 'Autonomous actuation follow-through failed after policy evaluation.',
+          payload: {
+            trigger,
+            reason: errorMessageFrom(error) ?? 'unknown-error',
+            runtimeDigest: proactiveRuntimeSnapshot,
+          },
+        })
+      }
+
+      const shouldSurfaceAutonomyProposal = Boolean(
+        autonomyExecutionProposalSurface
+        && !hardSuppressed,
+      )
       if (hardSuppressed) {
         suppressed = true
         const obediencePenalty = decision.reasonCodes.includes('busy-host') || decision.reasonCodes.includes('fullscreen-host')
@@ -502,7 +620,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           },
         })
       }
-      else if (decision.shouldInterrupt) {
+      else if (decision.shouldInterrupt || shouldSurfaceAutonomyProposal) {
         const personality = soulForSubconscious.frontmatter.personality
         const personaContext = {
           customDirectives: normalizeCustomDirectives(soulForSubconscious.frontmatter.custom_directives),
@@ -510,96 +628,134 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           hostAttitude: soulForSubconscious.frontmatter.host_attitude,
         }
         proactive = true
-        const proactiveRecallSeed = buildProactiveRecallSeed({
-          foregroundWindow: interruptionContext.foregroundWindow,
-          phantomSeed: [
-            buildVisualRecallSeed({
-              scene: visualPresenceState.currentScene,
-              emotionalTension: visualPresenceState.privateThought?.emotionalTension,
-            }),
-            buildMindContinuityRecallSeed(digitalLifeRuntimeSurface),
-          ].filter(Boolean).join(' | '),
-        })
-        const organicPromptContext = await resolveOrganicMemoryPromptContext({
-          recallSeed: proactiveRecallSeed,
-        })
         const turnId = `subconscious:${activeCardId}:${now}`
-        const llmStructured = await generateProactiveStructuredWithGateway(
-          personality,
-          nextState,
-          layeredContext,
-          decision,
-          organicPromptContext,
-          perceptionState,
-          visualPresenceState,
-          {
-            turnId,
-          },
-          backgroundAgentTurn,
-        )
-        const rawStructured = llmStructured ?? buildProactiveStructured(
-          personality,
-          nextState,
-          layeredContext,
-          decision,
-          perceptionState,
-          visualPresenceState,
-          {
-            customDirectives: personaContext.customDirectives,
-            coreIncarnation: organicPromptContext.coreIncarnation,
-            hostAttitude: organicPromptContext.hostAttitude,
-          },
-        )
-        const performanceManifest = await getPerformanceManifest()
-        const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
-          rawStructured.performance,
-          performanceManifest,
-          rawStructured.emotion,
-        ).performance
-        const structured = {
-          ...rawStructured,
-          emotion: structuredPerformance.baseEmotion,
-          performance: structuredPerformance,
-        }
-        if (llmStructured) {
+        let structured: any = null
+        if (autonomyExecutionProposalSurface) {
+          const performanceManifest = await getPerformanceManifest()
+          const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
+            buildDefaultDialoguePerformancePayload(autonomyExecutionProposalSurface.emotion),
+            performanceManifest,
+            autonomyExecutionProposalSurface.emotion,
+          ).performance
+          structured = {
+            thought: autonomyExecutionProposalSurface.thought,
+            emotion: structuredPerformance.baseEmotion,
+            reply: autonomyExecutionProposalSurface.reply,
+            performance: structuredPerformance,
+            parsePath: 'deterministic',
+            format: 'subconscious-proactive-v1',
+            proactive: buildProactiveMetadataFromDecision(decision),
+          }
           await appendAuditLog({
             level: 'notice',
             category: 'alicization.subconscious',
-            action: 'proactive-llm-generated',
-            message: 'Generated proactive utterance with policy-locked prompt constraints.',
+            action: 'autonomy-execution-proposal-generated',
+            message: 'Generated a proactive execution proposal from an affirmation-gated autonomy task thread.',
             payload: {
+              turnId,
+              proposal: autonomyExecutionProposalSurface,
+              actuation: autonomyActuation,
               decision: {
                 scenario: decision.scenario,
                 style: decision.style,
                 urgency: decision.urgency,
                 confidence: decision.confidence,
               },
-              format: llmStructured.format,
-              recallSeed: proactiveRecallSeed || null,
-              recalledFragments: organicPromptContext.recalledFragments.length,
               agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
             },
           })
         }
         else {
-          await appendAuditLog({
-            level: 'warning',
-            category: 'alicization.subconscious',
-            action: 'proactive-llm-fallback',
-            message: 'Main gateway proactive generation unavailable; deterministic fallback reused the same policy decision.',
-            payload: {
-              decision: {
-                scenario: decision.scenario,
-                style: decision.style,
-                urgency: decision.urgency,
-                confidence: decision.confidence,
-              },
-              customDirectivesChars: personaContext.customDirectives.length,
-              recallSeed: proactiveRecallSeed || null,
-              recalledFragments: organicPromptContext.recalledFragments.length,
-              agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
-            },
+          const proactiveRecallSeed = buildProactiveRecallSeed({
+            foregroundWindow: interruptionContext.foregroundWindow,
+            phantomSeed: [
+              buildVisualRecallSeed({
+                scene: visualPresenceState.currentScene,
+                emotionalTension: visualPresenceState.privateThought?.emotionalTension,
+              }),
+              buildMindContinuityRecallSeed(digitalLifeRuntimeSurface),
+            ].filter(Boolean).join(' | '),
           })
+          const organicPromptContext = await resolveOrganicMemoryPromptContext({
+            recallSeed: proactiveRecallSeed,
+          })
+          const llmStructured = await generateProactiveStructuredWithGateway(
+            personality,
+            nextState,
+            layeredContext,
+            decision,
+            organicPromptContext,
+            perceptionState,
+            visualPresenceState,
+            {
+              turnId,
+            },
+            backgroundAgentTurn,
+          )
+          const rawStructured = llmStructured ?? buildProactiveStructured(
+            personality,
+            nextState,
+            layeredContext,
+            decision,
+            perceptionState,
+            visualPresenceState,
+            {
+              customDirectives: personaContext.customDirectives,
+              coreIncarnation: organicPromptContext.coreIncarnation,
+              hostAttitude: organicPromptContext.hostAttitude,
+            },
+          )
+          const performanceManifest = await getPerformanceManifest()
+          const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
+            rawStructured.performance,
+            performanceManifest,
+            rawStructured.emotion,
+          ).performance
+          structured = {
+            ...rawStructured,
+            emotion: structuredPerformance.baseEmotion,
+            performance: structuredPerformance,
+          }
+          if (llmStructured) {
+            await appendAuditLog({
+              level: 'notice',
+              category: 'alicization.subconscious',
+              action: 'proactive-llm-generated',
+              message: 'Generated proactive utterance with policy-locked prompt constraints.',
+              payload: {
+                decision: {
+                  scenario: decision.scenario,
+                  style: decision.style,
+                  urgency: decision.urgency,
+                  confidence: decision.confidence,
+                },
+                format: llmStructured.format,
+                recallSeed: proactiveRecallSeed || null,
+                recalledFragments: organicPromptContext.recalledFragments.length,
+                agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+              },
+            })
+          }
+          else {
+            await appendAuditLog({
+              level: 'warning',
+              category: 'alicization.subconscious',
+              action: 'proactive-llm-fallback',
+              message: 'Main gateway proactive generation unavailable; deterministic fallback reused the same policy decision.',
+              payload: {
+                decision: {
+                  scenario: decision.scenario,
+                  style: decision.style,
+                  urgency: decision.urgency,
+                  confidence: decision.confidence,
+                },
+                customDirectivesChars: personaContext.customDirectives.length,
+                recallSeed: proactiveRecallSeed || null,
+                recalledFragments: organicPromptContext.recalledFragments.length,
+                agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+              },
+            })
+          }
         }
         const deliveredSessionId = await ensureActiveOrLatestSessionId(activeCardId)
         const persisted = await appendConversationTurnWithGuards({

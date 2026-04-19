@@ -90,6 +90,18 @@ function takeTailUnique(values: unknown[], limit: number, maxChars = 120) {
   return normalized.reverse()
 }
 
+function asRecord(raw: unknown) {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+}
+
+function asStringArray(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw.map(value => sanitizeText(value, 120)).filter(Boolean)
+    : []
+}
+
 function cloneMirror(mirror: AlicizationDialogueSessionMirror): AlicizationDialogueSessionMirror {
   return {
     ...mirror,
@@ -315,20 +327,65 @@ function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessio
   if (executorTasks.length === 0)
     return ''
 
+  const normalizeExecutionMirrorStatus = (raw: unknown) => {
+    const status = sanitizeText(raw, 32) || 'unknown'
+    if (status === 'planned' || status === 'needs-affirmation' || status === 'running')
+      return 'pending'
+    return status
+  }
+
+  const latestTask = executorTasks.at(-1) ?? null
   const recentExecutions = takeTailUnique(
     executorTasks.map((task) => {
       const label = sanitizeText(task.label, 72) || 'executor'
-      const status = sanitizeText(task.status, 24) || 'unknown'
+      const metadata = asRecord(task.metadata)
+      const status = normalizeExecutionMirrorStatus(
+        sanitizeText(metadata?.threadStatus, 32) || sanitizeText(task.status, 24) || 'unknown',
+      )
       return `${label}:${status}`
     }),
     3,
     96,
   )
-  const latestSummary = sanitizeText(executorTasks.at(-1)?.summary ?? '', 160)
+  const latestMetadata = asRecord(latestTask?.metadata)
+  const latestStatus = normalizeExecutionMirrorStatus(
+    sanitizeText(latestMetadata?.threadStatus, 32) || sanitizeText(latestTask?.status, 24) || 'unknown',
+  )
+  const latestGoal = sanitizeText(latestMetadata?.goal, 160)
+  const latestChannel = sanitizeText(
+    latestMetadata?.selectedChannel ?? latestMetadata?.proposedChannel,
+    48,
+  )
+  const latestSummary = sanitizeText(latestTask?.summary ?? '', 160)
+  const latestAffirmationReasonCodes = asStringArray(latestMetadata?.affirmationReasonCodes)
+  const humanSummary = (() => {
+    if (latestStatus === 'needs-affirmation' && latestGoal) {
+      return latestChannel
+        ? `waiting-confirmation before ${latestChannel} can act on ${latestGoal}`
+        : `waiting-confirmation before acting on ${latestGoal}`
+    }
+    if (latestStatus === 'planned' && latestGoal) {
+      return latestChannel
+        ? `planned ${latestChannel} path for ${latestGoal}`
+        : `planned execution path for ${latestGoal}`
+    }
+    if (latestStatus === 'running' && latestGoal) {
+      return latestChannel
+        ? `${latestChannel} is already carrying ${latestGoal}`
+        : `execution is already carrying ${latestGoal}`
+    }
+    return latestSummary
+  })()
 
   return [
     `recent=${recentExecutions.join(',') || 'none'}`,
-    latestSummary ? `summary=${latestSummary}` : '',
+    latestStatus ? `status=${latestStatus}` : '',
+    latestGoal ? `goal=${latestGoal}` : '',
+    latestChannel ? `channel=${latestChannel}` : '',
+    humanSummary ? `summary=${humanSummary}` : '',
+    latestAffirmationReasonCodes.length > 0
+      ? `affirmation=${latestAffirmationReasonCodes.join(',')}`
+      : '',
   ].filter(Boolean).join(' ')
 }
 

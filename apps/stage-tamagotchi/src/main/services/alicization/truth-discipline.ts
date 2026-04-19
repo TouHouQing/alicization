@@ -43,7 +43,7 @@ function resolveMode(input: {
   consciousTruthDiscipline?: AlicizationCurrentConsciousFrameSnapshot['truthDiscipline'] | null
   answerSubject?: AlicizationDialogueAnswerSubject | null
   screenReferenceMode?: AlicizationDialogueScreenReferenceMode | null
-  truthState?: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain' | null
+  truthState?: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain' | null
   turnMode?: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer' | null
   repairState?: 'none' | 'stale-anchor' | 'need-reground' | null
   evidenceMode?: AlicizationAnswerEvidenceMode | null
@@ -88,7 +88,7 @@ function resolveMode(input: {
 export function deriveAlicizationTruthDiscipline(input: {
   answerSubject?: AlicizationDialogueAnswerSubject | null
   screenReferenceMode?: AlicizationDialogueScreenReferenceMode | null
-  truthState?: 'live-grounded' | 'live-observed' | 'remembered' | 'imagined' | 'uncertain' | null
+  truthState?: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain' | null
   turnMode?: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer' | null
   repairState?: 'none' | 'stale-anchor' | 'need-reground' | null
   evidenceMode?: AlicizationAnswerEvidenceMode | null
