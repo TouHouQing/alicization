@@ -353,6 +353,7 @@ import {
 import { assessAlicizationTaskRouting } from './task-routing-assessor'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import {
   buildVisualRecallSeed,
   buildVisualSedimentFragment,
@@ -709,6 +710,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     listRelationshipOutcomes: async (cardId, limit) => await alicizationDb.listRelationshipOutcomes({ cardId, limit }).catch(() => []),
     listPersonaReinforcementEvents: async (cardId, limit) => await alicizationDb.listPersonaReinforcementEvents({ cardId, limit }).catch(() => []),
     listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),
+    listMemoryConsolidations: async (limit) => await alicizationDb.listMemoryConsolidations?.(limit).catch(() => []) ?? [],
     readMindHead: async <T>(cardId: string, key: AlicizationMindHeadKey) => await alicizationDb.readMindHead<T>(cardId, key).catch((): T | null => null),
   })
   const {
@@ -4200,6 +4202,172 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     } satisfies NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
   }
 
+  function parseMemoryConsolidationRefinementPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed || !Array.isArray(parsed.consolidations))
+      return null
+
+    const consolidations = parsed.consolidations
+      .map((item) => {
+        if (!item || typeof item !== 'object')
+          return null
+        const candidate = item as Record<string, unknown>
+        const id = sanitizeBriefText(String(candidate.id ?? ''), 120)
+        const summary = sanitizeBriefText(String(candidate.summary ?? ''), 320)
+        if (!id || !summary)
+          return null
+        return {
+          id,
+          summary,
+          lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 220) || null,
+          cues: Array.isArray(candidate.cues)
+            ? candidate.cues.map(value => sanitizeBriefText(String(value ?? ''), 120)).filter(Boolean).slice(0, 5)
+            : [],
+          confidence: clamp01(Number(candidate.confidence ?? 0.68)),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+    return consolidations
+  }
+
+  function parseDreamAutobiographicalSummariesPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed || !Array.isArray(parsed.summaries))
+      return null
+
+    const summaries = parsed.summaries
+      .map((item) => {
+        if (!item || typeof item !== 'object')
+          return null
+        const candidate = item as Record<string, unknown>
+        const summary = sanitizeBriefText(String(candidate.summary ?? ''), 320)
+        if (!summary)
+          return null
+        return {
+          periodKey: sanitizeBriefText(String(candidate.periodKey ?? ''), 96) || '',
+          summary,
+          lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 220) || null,
+          cues: Array.isArray(candidate.cues)
+            ? candidate.cues.map(value => sanitizeBriefText(String(value ?? ''), 120)).filter(Boolean).slice(0, 5)
+            : [],
+          confidence: clamp01(Number(candidate.confidence ?? 0.68)),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+    return summaries
+  }
+
+  async function generateMemoryConsolidationRefinementWithGateway(input: {
+    serializedTurns: string[]
+    consolidations: AlicizationMemoryConsolidationRecord[]
+    hostAttitude: string
+    coreIncarnation: string
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    agentTurnInput?: {
+      turnId: string
+      decisionTraceId?: string | null
+    }
+  }) {
+    if (input.serializedTurns.length === 0 || input.consolidations.length === 0)
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_MEMORY_CONSOLIDATION_REFINEMENT]',
+        'You are Alicization dream-time memory consolidation, not user-facing dialogue.',
+        'Refine the provided deterministic consolidation summaries into more humanlike autobiographical memory summaries without inventing events that never happened.',
+        'Keep the period anchors true. You may sharpen gist, emotional meaning, and lesson, but must stay faithful to provided candidate summaries and recent dialogue context.',
+        'Output valid JSON only with key: consolidations.',
+        'consolidations must be an array of objects with keys: id, summary, lesson, cues, confidence.',
+        'Do not introduce new ids. Do not output more items than provided.',
+      ].join('\n'),
+      user: `Dream consolidation candidate JSON: ${JSON.stringify({
+        recentDialogue: input.serializedTurns.slice(-20),
+        hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
+        coreIncarnation: sanitizeBriefText(input.coreIncarnation, 220),
+        consolidations: input.consolidations.slice(0, 8).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          periodKey: item.periodKey,
+          summary: sanitizeBriefText(item.summary, 220),
+          lesson: sanitizeBriefText(item.lesson ?? '', 180) || undefined,
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 5),
+        })),
+      })}`,
+      timeoutMs: 8_000,
+      source: 'dream',
+      cardId: activeCardId,
+      agentTurn: input.agentTurn,
+      agentTurnInput: input.agentTurnInput,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseMemoryConsolidationRefinementPayload(raw)
+  }
+
+  async function generateDreamAutobiographicalSummariesWithGateway(input: {
+    serializedTurns: string[]
+    consolidations: AlicizationMemoryConsolidationRecord[]
+    hostAttitude: string
+    coreIncarnation: string
+    periodStartedAt: number
+    periodEndedAt: number
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    agentTurnInput?: {
+      turnId: string
+      decisionTraceId?: string | null
+    }
+  }) {
+    if (input.serializedTurns.length === 0)
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]',
+        'You are Alicization dream-time autobiographical memory synthesis, not user-facing dialogue.',
+        'Write short autobiographical summaries that Alicization would retain about this remembered period.',
+        'These are not logs. They should sound like a remembered phase of life or bond history.',
+        'Stay faithful to the provided recent dialogue and existing consolidation candidates. Do not invent events that never happened.',
+        'Output valid JSON only with key: summaries.',
+        'summaries must be an array of up to 3 items with keys: periodKey, summary, lesson, cues, confidence.',
+        'summary should capture what that remembered period was about in Alicization\'s own ongoing continuity.',
+      ].join('\n'),
+      user: `Dream autobiographical synthesis JSON: ${JSON.stringify({
+        periodStartedAt: input.periodStartedAt,
+        periodEndedAt: input.periodEndedAt,
+        hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
+        coreIncarnation: sanitizeBriefText(input.coreIncarnation, 220),
+        recentDialogue: input.serializedTurns.slice(-20),
+        consolidations: input.consolidations.slice(0, 8).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          periodKey: item.periodKey,
+          summary: sanitizeBriefText(item.summary, 220),
+          lesson: sanitizeBriefText(item.lesson ?? '', 180) || undefined,
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 5),
+        })),
+      })}`,
+      timeoutMs: 8_000,
+      source: 'dream',
+      cardId: activeCardId,
+      agentTurn: input.agentTurn,
+      agentTurnInput: input.agentTurnInput,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseDreamAutobiographicalSummariesPayload(raw)
+  }
+
   async function generateMemoryRecollectionPlanWithGateway(input: {
     recallSeed: string
     recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
@@ -5257,6 +5425,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     openAgentTurn: input => agentRuntime.openTurn(input),
     generateDreamMetabolismWithGateway,
     generateCoreIncarnationReforgeWithGateway,
+    generateMemoryConsolidationRefinementWithGateway,
+    generateDreamAutobiographicalSummariesWithGateway,
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
     truncateForDream,

@@ -853,6 +853,102 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.timeoutMs).toBe(0)
   })
 
+  it('escalates recollection-heavy procedural follow-ups back to llm compact-one-shot authoring', () => {
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages: [
+        { role: 'user', content: '继续把那个任务做完' },
+        { role: 'assistant', content: '我上次是先用 cli patch，再 verify，再汇报结果。' },
+        { role: 'user', content: '按之前那样继续做' },
+      ] as Message[],
+      prepared: createPrepared({
+        sessionMirror: {
+          cardId: 'default',
+          sessionId: 'session-1',
+          updatedAt: 100,
+          decisionTraceId: null,
+          continuityLabels: [],
+          sessionPhases: [],
+          toolingSummary: '',
+          captureSummary: '',
+          digitalLifeArchitectureSummary: null,
+          digitalLifeRuntimeSummary: null,
+          mindSummary: null,
+          memoryCarrySummary: null,
+          memorySummary: null,
+          perceptionSummary: null,
+          agencySummary: null,
+          dialogueSummary: null,
+          executionSummary: 'status=completed | goal=runtime continuity repair task | summary=先 cli patch 再 verify 再汇报',
+        },
+        messages: [
+          { role: 'system' as const, content: '---\nprofile:\n  hostName: 青浩洋\ncustom_directives: 保持真实、直接。' },
+          { role: 'system' as const, content: '[ALICIZATION_EXECUTION_LEDGER]\nchannel=cli\nsummary=先 cli patch 再 verify 再汇报\noutcome=runtime continuity repair task completed' },
+          { role: 'user', content: '继续把那个任务做完' },
+          { role: 'assistant', content: '我上次是先用 cli patch，再 verify，再汇报结果。' },
+          { role: 'user', content: '按之前那样继续做' },
+        ] as Message[],
+        runtimeSurface: {
+          action: { kind: 'answer' },
+          governance: null,
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueWorldThread: {
+                activeThread: 'runtime continuity repair task',
+                currentQuestion: null,
+                openLoops: [],
+                recentlyResolvedLoops: [],
+                carriedFacts: [],
+                relationDrift: 'steady',
+                memoryMode: 'task-thread',
+                recallKeys: ['runtime continuity repair task', 'cli', 'patch', 'verify'],
+                lastUserMove: '继续把那个任务做完',
+                lastAssistantMove: '我上次是先用 cli patch，再 verify，再汇报结果。',
+                lastOutcome: 'aligned',
+                confidence: 0.82,
+                narrative: [],
+                updatedAt: 1,
+              },
+              conversationState: {
+                jointThread: 'runtime continuity repair task',
+                hostMove: '按之前那样继续做',
+                activeProject: 'runtime continuity repair task',
+                unansweredQuestion: null,
+                owedRepair: null,
+                activeCommitments: [],
+                relationFrame: 'guide',
+                continuityPolicy: 'stay-on-thread',
+                memoryMode: 'task-thread',
+                memoryQueryHints: ['cli', 'patch', 'verify'],
+                shouldHoldThread: true,
+                confidence: 0.8,
+                narrative: [],
+                updatedAt: 1,
+              },
+              answerCompiler: {
+                answerSubject: 'task-knot',
+              },
+              replyDeliberation: null,
+              dialogueEncounter: null,
+            },
+            cognition: {
+              privateThought: null,
+            },
+            memory: {
+              longHorizonMemory: null,
+              goalStack: null,
+              motiveEngine: null,
+            },
+          },
+        },
+      }),
+      runtimeDigest: null,
+    })
+
+    expect(decision?.lane).toBe('follow-up')
+    expect(decision?.strategy).toBe('compact-one-shot')
+    expect(decision?.reasonCodes).toContain('memory-recollection-llm-authored')
+  })
+
   it('treats direct remaining-item listing questions as execution follow-up carry', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [

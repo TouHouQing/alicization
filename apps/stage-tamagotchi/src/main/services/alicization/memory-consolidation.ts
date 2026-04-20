@@ -4,7 +4,7 @@ import { buildProceduralMemoryAbstractions } from './memory-procedural-abstracti
 
 export interface AlicizationMemoryConsolidationRecord {
   id: string
-  kind: 'daily' | 'weekly' | 'procedural'
+  kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
   periodKey: string
   periodStartedAt: number
   periodEndedAt: number
@@ -221,7 +221,7 @@ export function buildMemoryConsolidationRecords(input: {
   return consolidated
     .sort((left, right) => {
       if (left.kind !== right.kind) {
-        const rank = { daily: 0, weekly: 1, procedural: 2 } as const
+        const rank = { daily: 0, weekly: 1, autobiographical: 2, procedural: 3 } as const
         return rank[left.kind] - rank[right.kind]
       }
       if (left.periodEndedAt !== right.periodEndedAt)
@@ -261,8 +261,11 @@ export function searchMemoryConsolidationRecords(input: {
           lexicalScore += hint.length >= 10 ? 0.6 : 0.24
       }
       const proceduralBoost = intent?.searchProceduralExperience && record.kind === 'procedural' ? 0.28 : 0
+      const autobiographicalBoost = (intent?.mode === 'autobiographical-history' || intent?.mode === 'relationship-history') && record.kind === 'autobiographical'
+        ? 0.24
+        : 0
       const distantBoost = (intent?.temporalFocus === 'cross-session' || intent?.temporalFocus === 'distant') && record.kind !== 'daily' ? 0.18 : 0
-      const score = lexicalScore * 0.52 + record.confidence * 0.32 + proceduralBoost + distantBoost
+      const score = lexicalScore * 0.52 + record.confidence * 0.32 + proceduralBoost + autobiographicalBoost + distantBoost
       return {
         record,
         score,

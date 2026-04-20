@@ -183,7 +183,7 @@ export interface OrganicMemoryPromptContext {
   }>
   consolidatedMemories?: Array<{
     id: string
-    kind: 'daily' | 'weekly' | 'procedural'
+    kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
     periodKey: string
     periodStartedAt: number
     periodEndedAt: number

@@ -30,6 +30,7 @@ import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
+import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
 import {
   buildAlicizationMindSurfaceDialogueMove,
   buildAlicizationMindSurfaceStructuredReply,
@@ -574,6 +575,26 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
     decision.lane !== 'dialogue' && decision.continuityAnchor
       ? `continuity_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
       : '',
+  ].filter(Boolean).join('\n')
+}
+
+function buildCompactDialogueRecollectionBlock(decision: AlicizationActiveDialogueFastPathDecision) {
+  if (!decision.reasonCodes.includes('memory-recollection-llm-authored'))
+    return ''
+
+  return [
+    '[ALICIZATION_RECOLLECTION_PLAN]',
+    'This turn must be answered as a remembered continuity/payoff turn, not a deterministic shortcut.',
+    decision.continuityAnchor
+      ? `recollection_anchor=${sanitizeText(decision.continuityAnchor, 160)}`
+      : '',
+    decision.sessionMirror?.executionSummary
+      ? `remembered_execution=${humanizeMirrorSummary(decision.sessionMirror.executionSummary)}`
+      : '',
+    decision.sessionMirror?.memorySummary
+      ? `remembered_memory=${humanizeMirrorSummary(decision.sessionMirror.memorySummary)}`
+      : '',
+    'Reply from the remembered way Alicization handled this line before, but still sound naturally present in this turn.',
   ].filter(Boolean).join('\n')
 }
 
@@ -1978,7 +1999,7 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
 ) {
-  if (decision.strategy === 'local-only' || decision.strategy === 'deterministic-payoff')
+  if (decision.strategy === 'local-only')
     return false
 
   return decision.lane !== 'utility-time'
@@ -2109,6 +2130,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     sessionMirror,
   })
   const governance = input.prepared.governance ?? input.prepared.runtimeSurface.governance ?? null
+  const runtimeSurface = input.prepared.runtimeSurface.digitalLifeRuntimeSurface ?? null
   const shortTurn = isShortDialogueTurn(latestUserText)
   const hasContinuity = Boolean(previousUserText || previousAssistantText || sessionMirror)
   const encounter = deriveAlicizationActiveDialogueEncounter({
@@ -2123,13 +2145,39 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
   })
   if (!encounter)
     return null
+  const recollectionIntent = buildMemoryRecollectionIntent({
+    userText: latestUserText,
+    dialogueWorldThread: runtimeSurface?.dialogue.dialogueWorldThread ?? null,
+    conversationState: runtimeSurface?.dialogue.conversationState ?? null,
+    answerCompiler: runtimeSurface?.dialogue.answerCompiler ?? null,
+    replyDeliberation: runtimeSurface?.dialogue.replyDeliberation ?? null,
+    privateThought: runtimeSurface?.cognition.privateThought ?? null,
+    dialogueEncounter: runtimeSurface?.dialogue.dialogueEncounter ?? null,
+    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+    goalStack: runtimeSurface?.memory.goalStack ?? null,
+    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+  })
+  const memoryHeavyRecollection = recollectionIntent
+    && recollectionIntent.mode !== 'none'
+    && (recollectionIntent.searchConversations || recollectionIntent.searchProceduralExperience || recollectionIntent.mode === 'autobiographical-history' || recollectionIntent.mode === 'relationship-history')
+  const adjustedEncounter = memoryHeavyRecollection && (
+    encounter.strategy === 'local-only'
+    || encounter.strategy === 'deterministic-payoff'
+  )
+    ? {
+        ...encounter,
+        strategy: 'compact-one-shot' as const,
+        timeoutMs: Math.max(6_500, encounter.timeoutMs),
+        reasonCodes: [...encounter.reasonCodes, 'memory-recollection-llm-authored'],
+      }
+    : encounter
 
   const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages(input.prepared.messages)
 
   return {
-    lane: encounter.kind,
-    strategy: encounter.strategy,
-    timeoutMs: encounter.timeoutMs,
+    lane: adjustedEncounter.kind,
+    strategy: adjustedEncounter.strategy,
+    timeoutMs: adjustedEncounter.timeoutMs,
     resolvedTimeZone: resolvedTimeZone.timezone,
     resolvedTimeZoneSource: resolvedTimeZone.source,
     latestUserText,
@@ -2143,8 +2191,8 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     performanceManifest: input.prepared.performanceManifest ?? null,
     digitalLifeSpine: input.prepared.runtimeSurface.digitalLifeSpine ?? null,
     reasonCodes: runtimeBlocked
-      ? [...encounter.reasonCodes, 'runtime-blocked-local-override']
-      : encounter.reasonCodes,
+      ? [...adjustedEncounter.reasonCodes, 'runtime-blocked-local-override']
+      : adjustedEncounter.reasonCodes,
   }
 }
 
@@ -2173,6 +2221,7 @@ export function buildAlicizationActiveDialogueFastPathMessages(input: {
       : '',
     buildCompactDialogueMindBlock(input.decision),
     buildCompactDialogueContextBlock(input.decision),
+    buildCompactDialogueRecollectionBlock(input.decision),
     buildCompactDialogueEvidenceBlock(input.decision),
     buildCompactDialogueGovernanceBlock(input.decision),
   ]

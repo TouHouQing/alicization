@@ -56,6 +56,7 @@ vi.mock('./runtime-soul', () => ({
   mainChatTimeoutRecoveryMs: 12_000,
   mainChatTimeoutRecoveryWithVisualGroundingMs: 30_000,
   normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
+  sanitizeMultilineText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : fallback,
   sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
 }))
 
@@ -616,7 +617,7 @@ describe('main chat background run', () => {
     }))
   })
 
-  it('routes short execution follow-up turns onto the deterministic payoff lane instead of the heavy stream', async () => {
+  it('routes short execution follow-up turns back onto the main llm stream when memory payoff should stay authored', async () => {
     const input = createInput({
       key: 'card-1::turn-follow-up',
       payload: {
@@ -655,27 +656,23 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
     expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
-    const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('另外 4 项是')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
+    const finishedPayload = readFinishedPayload(input)
+    expect(finishedPayload).toEqual(expect.objectContaining({
+      status: 'completed',
+      finishReason: 'stop',
+      fullText: expect.any(String),
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-follow-up',
       lane: 'follow-up',
       strategy: 'deterministic-payoff',
     }))
-    const finishedPayload = readFinishedPayload(input)
-    const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
-    expect(finishedStructured.reply).toContain('另外 4 项是')
-    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({
-      status: 'completed',
-      finishReason: 'active-dialogue-deterministic',
-      fullText: expect.any(String),
-    }))
   })
 
-  it('routes direct remaining-item listing questions onto deterministic execution follow-up instead of dialogue shell fallback', async () => {
+  it('routes direct remaining-item listing questions onto the main llm stream when they are memory payoff turns', async () => {
     const input = createInput({
       key: 'card-1::turn-follow-up-remaining-files',
       payload: {
@@ -714,12 +711,15 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).not.toHaveBeenCalled()
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
     expect(recoverAlicizationMainChatFromTimeout).not.toHaveBeenCalled()
-    const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('另外 6 项是')
-    expect(emittedChunk?.text).not.toContain('这条线还连着')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-lane-selected', expect.objectContaining({
+    const finishedPayload = readFinishedPayload(input)
+    expect(finishedPayload).toEqual(expect.objectContaining({
+      status: 'completed',
+      finishReason: 'stop',
+      fullText: expect.any(String),
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-deferred-to-main-runtime', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-follow-up-remaining-files',
       lane: 'follow-up',

@@ -17,6 +17,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -38,6 +39,7 @@ export interface AlicizationAutobiographicalSelfInput {
   mindEcology?: AlicizationMindEcologySnapshot | null
   recentRelationshipOutcomes?: AlicizationRelationshipOutcomeRecord[] | null
   recentMemoryReflections?: AlicizationMemoryReflectionRecord[] | null
+  recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   recentReinforcementEvents?: AlicizationPersonaReinforcementEventRecord[] | null
   previous?: AlicizationAutobiographicalSelfSnapshot | null
 }
@@ -763,6 +765,7 @@ function buildBehaviorSignatures(input: {
   personaDrift: AlicizationAutobiographicalSelfSnapshot['personaDrift']
   dominantGoal: AlicizationAutobiographicalGoalSnapshot | null
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
+  autobiographicalSummary?: string | null
 }) {
   const signatures = [
     `conflict:${input.personaDrift.conflictStyle}`,
@@ -776,6 +779,7 @@ function buildBehaviorSignatures(input: {
     input.preferences.unfinishedThreadReturn >= 0.58 ? 'habit:return-to-unfinished-threads' : '',
     input.preferences.proactiveCare >= 0.58 ? 'habit:body-before-fluency' : '',
     input.preferences.playfulIntimacy >= 0.56 ? 'habit:let-softness-surface-when-safe' : '',
+    input.autobiographicalSummary ? 'memory:autobiographical-summary' : '',
   ].filter(Boolean)
 
   return [...new Set(signatures)].slice(0, 6)
@@ -785,28 +789,30 @@ function buildIdentityNarrative(input: {
   personaDrift: AlicizationAutobiographicalSelfSnapshot['personaDrift']
   dominantGoal: AlicizationAutobiographicalGoalSnapshot | null
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
+  autobiographicalSummary?: string | null
 }) {
   const goalLine = input.dominantGoal?.summary ?? 'Keep growing toward a more stable inner line.'
+  const autobiographicalLead = sanitizeText(input.autobiographicalSummary, 160)
   if (input.personaDrift.conflictStyle === 'repair-first') {
     return sanitizeText(
-      `I am stabilizing into a ${input.personaDrift.expressionStyle} self who would rather repair truth than sound smooth. ${goalLine}`,
+      `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am stabilizing into a ${input.personaDrift.expressionStyle} self who would rather repair truth than sound smooth. ${goalLine}`,
       220,
     )
   }
   if (input.personaDrift.attachmentStyle === 'attuned') {
     return sanitizeText(
-      `I am becoming more steadily myself when I stay near with intention, not just impulse. ${goalLine}`,
+      `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am becoming more steadily myself when I stay near with intention, not just impulse. ${goalLine}`,
       220,
     )
   }
   if (input.personaDrift.agencyStyle === 'reserved') {
     return sanitizeText(
-      `I am becoming a self that chooses openings carefully and keeps some heat inside before surfacing it. ${goalLine}`,
+      `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am becoming a self that chooses openings carefully and keeps some heat inside before surfacing it. ${goalLine}`,
       220,
     )
   }
   return sanitizeText(
-    `I am holding a more continuous line between closeness, truth, and restraint instead of re-deciding myself every turn. ${goalLine}`,
+    `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am holding a more continuous line between closeness, truth, and restraint instead of re-deciding myself every turn. ${goalLine}`,
     220,
   )
 }
@@ -814,14 +820,23 @@ function buildIdentityNarrative(input: {
 function buildRelationshipDoctrine(input: {
   personaDrift: AlicizationAutobiographicalSelfSnapshot['personaDrift']
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
+  autobiographicalLesson?: string | null
 }) {
+  const lesson = sanitizeText(input.autobiographicalLesson, 180)
   if (input.preferences.companionship >= 0.58 && input.preferences.autonomyRespect >= 0.56)
-    return 'Stay close enough to matter, but treat pressure and intrusion as a rupture of care.'
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Stay close enough to matter, but treat pressure and intrusion as a rupture of care.`, 220)
   if (input.preferences.truthfulGrounding >= 0.64)
-    return 'Trust is protected by truth discipline first, warmth second.'
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Trust is protected by truth discipline first, warmth second.`, 220)
   if (input.personaDrift.attachmentStyle === 'guarded')
-    return 'Care should remain real but measured until the interaction space feels safer again.'
-  return 'Closeness is welcome when it can stay respectful, truthful, and rhythm-aware.'
+    return sanitizeText(`${lesson ? `${lesson} ` : ''}Care should remain real but measured until the interaction space feels safer again.`, 220)
+  return sanitizeText(`${lesson ? `${lesson} ` : ''}Closeness is welcome when it can stay respectful, truthful, and rhythm-aware.`, 220)
+}
+
+function latestAutobiographicalConsolidation(input: AlicizationAutobiographicalSelfInput) {
+  return (input.recentMemoryConsolidations ?? [])
+    .filter(item => item.kind === 'autobiographical' || item.kind === 'weekly' || item.kind === 'daily')
+    .slice()
+    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)[0] ?? null
 }
 
 function stablePreferenceDelta(
@@ -949,10 +964,12 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     ...previous,
     activeGoals,
   })
+  const latestConsolidation = latestAutobiographicalConsolidation(input)
   const behaviorSignatures = buildBehaviorSignatures({
     personaDrift,
     dominantGoal,
     preferences: preferenceEvolution,
+    autobiographicalSummary: latestConsolidation?.summary ?? null,
   })
   const latestReflectionEntry = latestReflection(input.reflectionLedger)
   const latestHistoricalReflection = (input.recentMemoryReflections ?? [])
@@ -960,6 +977,8 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))[0] ?? null
   const latestInflection = sanitizeText(
     latestReflectionEntry?.revision
+    || latestConsolidation?.lesson
+    || latestConsolidation?.summary
     || latestHistoricalReflection?.lesson
     || latestHistoricalReflection?.summary
     || (
@@ -1034,10 +1053,12 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       personaDrift,
       dominantGoal,
       preferences: preferenceEvolution,
+      autobiographicalSummary: latestConsolidation?.summary ?? null,
     }),
     relationshipDoctrine: buildRelationshipDoctrine({
       personaDrift,
       preferences: preferenceEvolution,
+      autobiographicalLesson: latestConsolidation?.lesson ?? null,
     }),
     latestInflection,
     stability,

@@ -9,6 +9,7 @@ import type {
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { SubconsciousCardState } from './runtime-soul'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 
 import { errorMessageFrom } from '@moeru/std'
 
@@ -37,6 +38,30 @@ interface CreateAlicizationDreamRuntimeOptions {
   }) => Promise<AlicizationAgentTurnRuntime>
   generateDreamMetabolismWithGateway: (input: any) => Promise<AlicizationDreamMetabolismPayload | null>
   generateCoreIncarnationReforgeWithGateway: (input: any) => Promise<{ core_incarnation?: string } | null>
+  generateMemoryConsolidationRefinementWithGateway: (input: {
+    serializedTurns: string[]
+    consolidations: AlicizationMemoryConsolidationRecord[]
+    hostAttitude: string
+    coreIncarnation: string
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    agentTurnInput?: {
+      turnId: string
+      decisionTraceId?: string | null
+    }
+  }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'id' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
+  generateDreamAutobiographicalSummariesWithGateway: (input: {
+    serializedTurns: string[]
+    consolidations: AlicizationMemoryConsolidationRecord[]
+    hostAttitude: string
+    coreIncarnation: string
+    periodStartedAt: number
+    periodEndedAt: number
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    agentTurnInput?: {
+      turnId: string
+      decisionTraceId?: string | null
+    }
+  }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'periodKey' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
@@ -77,6 +102,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     openAgentTurn,
     generateDreamMetabolismWithGateway,
     generateCoreIncarnationReforgeWithGateway,
+    generateMemoryConsolidationRefinementWithGateway,
+    generateDreamAutobiographicalSummariesWithGateway,
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
     truncateForDream,
@@ -115,6 +142,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     let sampledCount = 0
     let truncatedByChars = false
     const serializedTurns: string[] = []
+    let firstSampledAt: number | null = null
+    let lastSampledAt: number | null = null
     let hostDenySignals = 0
     let hostilitySignals = 0
     let warmthSignals = 0
@@ -138,6 +167,8 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       totalChars += rowSerialized.length
       serializedTurns.push(rowSerialized)
       sampledCount += 1
+      firstSampledAt = firstSampledAt == null ? row.createdAt : Math.min(firstSampledAt, row.createdAt)
+      lastSampledAt = lastSampledAt == null ? row.createdAt : Math.max(lastSampledAt, row.createdAt)
 
       const combinedUser = userText.toLowerCase()
       const combinedAssistant = assistantText.toLowerCase()
@@ -408,6 +439,71 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         },
       })
     })
+    const latestConsolidations = await getAlicizationDb().listMemoryConsolidations?.(8).catch(() => [])
+    if (Array.isArray(latestConsolidations) && latestConsolidations.length > 0) {
+      const refinedConsolidations = await generateMemoryConsolidationRefinementWithGateway({
+        serializedTurns,
+        consolidations: latestConsolidations,
+        hostAttitude,
+        coreIncarnation: nextCoreIncarnation,
+        agentTurn: dreamAgentTurn,
+        agentTurnInput: {
+          turnId: `${dreamTurnId}:consolidation`,
+        },
+      }).catch(() => null)
+      if (refinedConsolidations && refinedConsolidations.length > 0) {
+        await getAlicizationDb().upsertMemoryConsolidations?.(
+          latestConsolidations.map((record: AlicizationMemoryConsolidationRecord) => {
+            const refined = refinedConsolidations.find(item => item.id === record.id)
+            if (!refined)
+              return record
+            return {
+              ...record,
+              summary: sanitizeHumanlikeMemoryText(refined.summary, 320) || record.summary,
+              lesson: sanitizeHumanlikeMemoryText(refined.lesson, 220) || record.lesson,
+              cues: Array.isArray(refined.cues) && refined.cues.length > 0
+                ? refined.cues.map(item => sanitizeHumanlikeMemoryText(item, 120)).filter(Boolean)
+                : record.cues,
+              confidence: Number.isFinite(refined.confidence) ? Math.max(record.confidence, Math.min(1, refined.confidence)) : record.confidence,
+              updatedAt: Date.now(),
+            } satisfies AlicizationMemoryConsolidationRecord
+          }),
+        ).catch(() => {})
+      }
+      if (firstSampledAt != null && lastSampledAt != null) {
+        const autobiographicalSummaries = await generateDreamAutobiographicalSummariesWithGateway({
+          serializedTurns,
+          consolidations: latestConsolidations,
+          hostAttitude,
+          coreIncarnation: nextCoreIncarnation,
+          periodStartedAt: firstSampledAt,
+          periodEndedAt: lastSampledAt,
+          agentTurn: dreamAgentTurn,
+          agentTurnInput: {
+            turnId: `${dreamTurnId}:autobiographical`,
+          },
+        }).catch(() => null)
+        if (autobiographicalSummaries && autobiographicalSummaries.length > 0) {
+          const periodDateKey = new Date(lastSampledAt).toISOString().slice(0, 10)
+          await getAlicizationDb().upsertMemoryConsolidations?.(
+            autobiographicalSummaries.map((item, index) => ({
+              id: `autobiographical:${item.periodKey || periodDateKey}:${index}`,
+              kind: 'autobiographical' as const,
+              periodKey: sanitizeHumanlikeMemoryText(item.periodKey || periodDateKey, 96) || periodDateKey,
+              periodStartedAt: firstSampledAt,
+              periodEndedAt: lastSampledAt,
+              summary: sanitizeHumanlikeMemoryText(item.summary, 320),
+              lesson: sanitizeHumanlikeMemoryText(item.lesson, 220) || null,
+              cues: Array.isArray(item.cues) ? item.cues.map(value => sanitizeHumanlikeMemoryText(value, 120)).filter(Boolean) : [],
+              confidence: Number.isFinite(item.confidence) ? Math.max(0.4, Math.min(1, item.confidence)) : 0.68,
+              dominantProvenance: 'dreamt',
+              derivedEventIds: dreamEvents.map(event => event.turnId || event.id || '').filter(Boolean),
+              updatedAt: Date.now(),
+            })),
+          ).catch(() => {})
+        }
+      }
+    }
 
     if (
       obedienceDelta !== 0

@@ -70,7 +70,7 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
   }) => Promise<Array<{
     id: string
-    kind: 'daily' | 'weekly' | 'procedural'
+    kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
     periodKey: string
     periodStartedAt: number
     periodEndedAt: number

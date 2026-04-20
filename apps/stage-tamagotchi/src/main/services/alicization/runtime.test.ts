@@ -9745,7 +9745,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(mainChatSystemText).toContain('ProjectAtlas')
   })
 
-  it('pays off recent short execution-result follow-ups through the deterministic lightweight lane', async () => {
+  it('routes recollection-heavy short execution-result follow-ups through llm compact memory payoff', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -9862,17 +9862,10 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     const chunkEvents = contextEmitMock.mock.calls
       .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === 'turn-execution-ledger-follow-up')
       .map(([, payload]) => payload)
-    const structured = JSON.parse(chunkEvents.map(event => event.text).join('')) as {
-      format: string
-      reply: string
-    }
+    const replyText = chunkEvents.map(event => event.text).join('')
 
-    expect(structured.format).toBe('mind-turn-v1')
-    expect(structured.reply).toMatch(/CLI 那条.*(跑完了|收束了|回来了)/u)
-    expect(structured.reply).toContain('vitest passed on stage-tamagotchi')
-    expect(structured.reply).toContain('pnpm test finished without failures')
-    expect(systemTexts.some(text => text.includes('[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]'))).toBe(false)
-    expect(systemTexts.some(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]'))).toBe(false)
+    expect(replyText).toBe('execution ledger reply')
+    expect(systemTexts.some(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]'))).toBe(true)
   })
 
   it('injects recent execution ledger history into longer main chat turns', async () => {

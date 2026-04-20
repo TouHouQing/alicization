@@ -16,6 +16,7 @@ import type { updateVisualAttentionModel } from './attention-model'
 import type { AlicizationDialogueTurnOwnershipHint } from './dialogue-turn-ownership'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationInspectionTurnState } from './inspection-turn-state-machine'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { buildVisualHeartbeat } from './visual-heartbeat'
 
@@ -133,6 +134,7 @@ interface CreateAlicizationMindStateRuntimeOptions {
   listRelationshipOutcomes: (cardId: string, limit?: number) => Promise<AlicizationRelationshipOutcomeRecord[]>
   listPersonaReinforcementEvents: (cardId: string, limit?: number) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listMemoryReflections: (cardId: string, limit?: number) => Promise<AlicizationMemoryReflectionRecord[]>
+  listMemoryConsolidations?: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
   readMindHead: <T>(cardId: string, key: AlicizationMindHeadKey) => Promise<T | null>
 }
 
@@ -160,6 +162,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     listRelationshipOutcomes,
     listPersonaReinforcementEvents,
     listMemoryReflections,
+    listMemoryConsolidations,
     readMindHead,
   } = options
   function isSeriousDurabilityPulseForMind(durabilityPulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
@@ -978,6 +981,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       recentRelationshipOutcomes,
       recentReinforcementEvents,
       recentMemoryReflections,
+      recentMemoryConsolidations,
     ] = await Promise.all([
       readMindHead<AlicizationVisualPresenceStateSnapshot['autobiographicalSelf']>(input.cardId, 'autobiographical-self').catch(() => null),
       readMindHead<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>(input.cardId, 'reflection-ledger').catch(() => null),
@@ -986,6 +990,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       listRelationshipOutcomes(input.cardId, 12).catch(() => []),
       listPersonaReinforcementEvents(input.cardId, 16).catch(() => []),
       listMemoryReflections(input.cardId, 8).catch(() => []),
+      listMemoryConsolidations?.(8).catch(() => []) ?? Promise.resolve([]),
     ])
     const previousAutobiographicalSelf = input.previousVisualPresenceState.autobiographicalSelf ?? persistedAutobiographicalSelf ?? null
     const previousReflectionLedger = input.previousVisualPresenceState.reflectionLedger ?? persistedReflectionLedger ?? null
@@ -1765,6 +1770,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       actionEcology,
       privateThought,
       mindEcology: provisionalMindEcology,
+      recentMemoryConsolidations,
       recentReinforcementEvents,
       previous: previousAutobiographicalSelf,
     })

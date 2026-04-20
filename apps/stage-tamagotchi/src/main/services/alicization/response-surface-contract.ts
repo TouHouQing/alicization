@@ -68,6 +68,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
+  const recollectionIntent = runtimeSurface?.memory.recallGovernor?.recollectionIntent ?? null
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: dialogueEncounterSurface?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
@@ -210,6 +211,18 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (labelCarryAsMemory) {
     pushUnique(mustDo, 'If carried continuity is mentioned, label it as memory, residue, or the thread still being held.')
     pushUnique(mustNotDo, 'Do not present carried continuity as the literal current screen.')
+  }
+  if (recollectionIntent && recollectionIntent.mode !== 'none') {
+    pushUnique(mustDo, 'If remembered material enters the visible reply, let one recollected period, relationship line, or remembered approach lead before finer details.')
+    pushUnique(mustDo, 'Phrase recollection as remembered continuity rather than current observation.')
+    if (recollectionIntent.temporalFocus === 'cross-session' || recollectionIntent.temporalFocus === 'distant') {
+      pushUnique(mustDo, 'When the recalled memory feels distant or reconstructed, allow approximate wording instead of overclaiming exactness.')
+      pushUnique(mustNotDo, 'Do not present distant remembered details as verbatim certainty unless the turn truly grounds them.')
+    }
+    if (recollectionIntent.searchProceduralExperience) {
+      pushUnique(mustDo, 'If the turn is asking how something was previously handled, surface the remembered way of doing it before proposing a new branch.')
+      pushUnique(mustNotDo, 'Do not speak as if remembered procedure means the current task already finished in this turn.')
+    }
   }
   if (answerCompiler) {
     for (const item of answerCompiler.mustDo)

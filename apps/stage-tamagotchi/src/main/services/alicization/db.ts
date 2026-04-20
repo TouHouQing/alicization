@@ -167,7 +167,7 @@ interface DbEpisodicEventRow {
 
 interface AlicizationMemoryConsolidationRecord {
   id: string
-  kind: 'daily' | 'weekly' | 'procedural'
+  kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
   periodKey: string
   periodStartedAt: number
   periodEndedAt: number
@@ -1060,6 +1060,7 @@ export interface AlicizationDbService {
     createdAt: number
   }>>
   listMemoryConsolidations: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
+  upsertMemoryConsolidations: (records: AlicizationMemoryConsolidationRecord[]) => Promise<AlicizationMemoryConsolidationRecord[]>
   searchMemoryConsolidations: (input: AlicizationMemoryConsolidationSearchInput) => Promise<AlicizationMemoryConsolidationRecord[]>
   appendMindTurnEvents: (events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) => Promise<void>
   listMindTurnEvents: (input: {
@@ -1946,6 +1947,97 @@ export async function setupAlicizationDb(
       [safeLimit],
     )
     return rows.map(mapMemoryConsolidationRow)
+  }
+
+  async function upsertMemoryConsolidations(records: AlicizationMemoryConsolidationRecord[]) {
+    if (records.length === 0)
+      return []
+
+    const prepared = records.map((record) => ({
+      id: record.id.trim(),
+      kind: record.kind,
+      periodKey: normalizeOrganicMemoryText(record.periodKey, 96),
+      periodStartedAt: Math.max(0, Math.floor(record.periodStartedAt)),
+      periodEndedAt: Math.max(0, Math.floor(record.periodEndedAt)),
+      summary: normalizeOrganicMemoryText(record.summary, 320),
+      lesson: normalizeOrganicMemoryText(record.lesson, 220) || null,
+      cuesJson: JSON.stringify(record.cues.map(item => normalizeOrganicMemoryText(item, 120)).filter(Boolean)),
+      confidence: clamp01(record.confidence),
+      dominantProvenance: record.dominantProvenance,
+      derivedEventIdsJson: JSON.stringify(record.derivedEventIds.map(item => normalizeOrganicMemoryText(item, 120)).filter(Boolean)),
+      updatedAt: Math.max(0, Math.floor(record.updatedAt)),
+    })).filter(item => item.id && item.periodKey && item.summary)
+
+    if (prepared.length === 0)
+      return []
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const record of prepared) {
+          await run(
+            database,
+            `
+            INSERT INTO memory_consolidations (
+              id,
+              kind,
+              period_key,
+              period_started_at,
+              period_ended_at,
+              summary,
+              lesson,
+              cues_json,
+              confidence,
+              dominant_provenance,
+              derived_event_ids_json,
+              updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id)
+            DO UPDATE SET
+              kind = excluded.kind,
+              period_key = excluded.period_key,
+              period_started_at = excluded.period_started_at,
+              period_ended_at = excluded.period_ended_at,
+              summary = excluded.summary,
+              lesson = excluded.lesson,
+              cues_json = excluded.cues_json,
+              confidence = excluded.confidence,
+              dominant_provenance = excluded.dominant_provenance,
+              derived_event_ids_json = excluded.derived_event_ids_json,
+              updated_at = excluded.updated_at
+            `,
+            [
+              record.id,
+              record.kind,
+              record.periodKey,
+              record.periodStartedAt,
+              record.periodEndedAt,
+              record.summary,
+              record.lesson,
+              record.cuesJson,
+              record.confidence,
+              record.dominantProvenance,
+              record.derivedEventIdsJson,
+              record.updatedAt,
+            ],
+          )
+        }
+      })
+    })
+
+    return prepared.map((record) => mapMemoryConsolidationRow({
+      id: record.id,
+      kind: record.kind,
+      period_key: record.periodKey,
+      period_started_at: record.periodStartedAt,
+      period_ended_at: record.periodEndedAt,
+      summary: record.summary,
+      lesson: record.lesson,
+      cues_json: record.cuesJson,
+      confidence: record.confidence,
+      dominant_provenance: record.dominantProvenance,
+      derived_event_ids_json: record.derivedEventIdsJson,
+      updated_at: record.updatedAt,
+    }))
   }
 
   async function searchMemoryConsolidations(input: AlicizationMemoryConsolidationSearchInput) {
@@ -4671,6 +4763,7 @@ export async function setupAlicizationDb(
     searchEpisodicEvents,
     listMemoryConsolidations,
     searchMemoryConsolidations,
+    upsertMemoryConsolidations,
     appendPersonaReinforcementEvents,
     listPersonaReinforcementEvents,
     readMindHead,

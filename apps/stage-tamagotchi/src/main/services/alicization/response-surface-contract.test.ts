@@ -387,4 +387,60 @@ describe('response-surface-contract', () => {
     expect(result.systemBlock).toContain('Digital life mode:')
     expect(result.systemBlock).toContain('Digital life architecture:')
   })
+
+  it('adds recollection-visible discipline when runtime memory is answering from remembered continuity', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(90_000),
+      recallGovernor: {
+        mode: 'self-continuity',
+        recallSeed: 'runtime continuity repair',
+        recollectionIntent: {
+          mode: 'execution-procedure',
+          temporalFocus: 'experience-matched',
+          searchEpisodes: true,
+          searchConversations: false,
+          searchProceduralExperience: true,
+          queryHints: ['runtime continuity', 'patch', 'verify'],
+          rationale: 'The host is asking how this was handled before.',
+          confidence: 0.82,
+        },
+      },
+    } as any
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: '',
+        carriedThread: 'runtime continuity repair',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Answer from remembered way of handling the task.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(state),
+    })
+
+    expect(result.contract.mustDo).toContain('If remembered material enters the visible reply, let one recollected period, relationship line, or remembered approach lead before finer details.')
+    expect(result.contract.mustDo).toContain('If the turn is asking how something was previously handled, surface the remembered way of doing it before proposing a new branch.')
+    expect(result.contract.mustNotDo).toContain('Do not speak as if remembered procedure means the current task already finished in this turn.')
+  })
 })
