@@ -4,6 +4,8 @@ import type {
   AlicizationCardScope,
   AlicizationChatAbortResult,
   AlicizationConversationTurnInput,
+  AlicizationEpisodicEventRecord,
+  AlicizationHostPersonModelSnapshot,
   AlicizationGenesisInput,
   AlicizationInitializeGenesisResult,
   AlicizationKillSwitchSnapshot,
@@ -14,6 +16,7 @@ import type {
   AlicizationMemoryFact,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
+  AlicizationMemoryProvenance,
   AlicizationMindTurnEventRecord,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonalityState,
@@ -101,6 +104,10 @@ interface BrowserOrganicMemoryRecord {
   activeThoughts: AlicizationOrganicMemorySnapshot['activeThoughts']
   subconsciousFragments: AlicizationSubconsciousFragment[]
   lastDreamedAt: number | null
+}
+
+interface BrowserEpisodicMemoryRecord {
+  events: AlicizationEpisodicEventRecord[]
 }
 
 interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConversationTurnInput, 'turnId' | 'sessionId' | 'createdAt'>> {
@@ -1243,6 +1250,10 @@ function buildConversationTurnsKey(cardId: string) {
   return `${buildCardBaseKey(cardId)}/conversation-turns`
 }
 
+function buildEpisodicEventsKey(cardId: string) {
+  return `${buildCardBaseKey(cardId)}/episodic-events`
+}
+
 function buildMindTurnEventsKey(cardId: string) {
   return `${buildCardBaseKey(cardId)}/mind-turn-events`
 }
@@ -1279,6 +1290,12 @@ function createDefaultOrganicMemoryRecord(): BrowserOrganicMemoryRecord {
     activeThoughts: [],
     subconsciousFragments: [],
     lastDreamedAt: null,
+  }
+}
+
+function createDefaultEpisodicMemoryRecord(): BrowserEpisodicMemoryRecord {
+  return {
+    events: [],
   }
 }
 
@@ -1336,6 +1353,20 @@ async function readOrganicMemory(cardId: string) {
 async function writeOrganicMemory(cardId: string, record: BrowserOrganicMemoryRecord) {
   await ensureCardRegistered(cardId)
   await storage.setItemRaw(buildOrganicMemoryKey(cardId), record)
+}
+
+async function readEpisodicMemory(cardId: string) {
+  await ensureCardRegistered(cardId)
+  return await storage.getItemRaw<BrowserEpisodicMemoryRecord>(buildEpisodicEventsKey(cardId)) ?? createDefaultEpisodicMemoryRecord()
+}
+
+async function writeEpisodicMemory(cardId: string, record: BrowserEpisodicMemoryRecord) {
+  await ensureCardRegistered(cardId)
+  await storage.setItemRaw(buildEpisodicEventsKey(cardId), {
+    events: [...record.events]
+      .sort((left, right) => right.occurredAt - left.occurredAt || right.updatedAt - left.updatedAt)
+      .slice(0, 160),
+  } satisfies BrowserEpisodicMemoryRecord)
 }
 
 async function readConversationTurns(cardId: string) {
@@ -1402,6 +1433,156 @@ function trimBrowserRecentProactiveOutcomes(outcomes: BrowserRecentProactiveOutc
     .sort((left, right) => left.createdAt - right.createdAt)
 }
 
+function uniqueTexts(values: Array<string | null | undefined>, maxItems = 6) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = sanitizeText(value)
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function mapBrowserMemorySourceToProvenance(source: AlicizationMemoryFact['source']): AlicizationMemoryProvenance {
+  return source === 'async-llm' ? 'inferred' : 'remembered'
+}
+
+function mapBrowserFragmentSourceToProvenance(sourceKind: AlicizationSubconsciousFragment['sourceKind']): AlicizationMemoryProvenance {
+  if (sourceKind === 'dream-fragment')
+    return 'dreamt'
+  if (sourceKind === 'former-core-incarnation' || sourceKind === 'mind-continuity')
+    return 'reconstructed'
+  if (sourceKind === 'reflection-ledger' || sourceKind === 'fact-ledger')
+    return 'inferred'
+  return 'remembered'
+}
+
+function appendBrowserEpisodicEvent(record: BrowserEpisodicMemoryRecord, event: AlicizationEpisodicEventRecord) {
+  const existingIndex = record.events.findIndex(item => item.id === event.id)
+  if (existingIndex >= 0) {
+    record.events[existingIndex] = event
+    return
+  }
+  record.events.push(event)
+}
+
+function computeBrowserTrustScore(events: AlicizationEpisodicEventRecord[]) {
+  let score = 0.5
+  for (const event of events) {
+    const shift = event.relationshipShift
+    if (!shift)
+      continue
+    score += shift.trustDelta * 0.85
+    score += shift.closenessDelta * 0.4
+    score -= Math.max(0, shift.burdenDelta) * 0.3
+    score -= Math.max(0, -shift.boundaryDelta) * 0.45
+  }
+  return clamp01(score)
+}
+
+function buildBrowserHostPersonModel(events: AlicizationEpisodicEventRecord[]): AlicizationHostPersonModelSnapshot | null {
+  if (events.length === 0)
+    return null
+  const recent = [...events]
+    .sort((left, right) => right.salience - left.salience || right.occurredAt - left.occurredAt)
+    .slice(0, 16)
+  const trustScore = computeBrowserTrustScore(recent)
+  const stage = trustScore < 0.32
+    ? 'guarded'
+    : trustScore < 0.52
+      ? 'cautious-open'
+      : trustScore < 0.76
+        ? 'warming'
+        : 'trusted'
+
+  const routines = uniqueTexts(recent.flatMap((event) => {
+    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
+    return [
+      /focused|debug|coding|cursor|runtime|工作|写代码/u.test(text) ? 'Focused work windows usually need space first.' : null,
+      /late[- ]?night|夜|熬夜|drain|累/u.test(text) ? 'Late-night windows need softer pace and rest-sensitive care.' : null,
+      /execution|callback|cli|codex|结果|执行/u.test(text) ? 'Execution flows land best when proposal and callback stay bounded.' : null,
+    ]
+  }), 5)
+  const sensitivities = uniqueTexts(recent.flatMap((event) => {
+    const text = `${event.whatHappened} ${event.whatChanged ?? ''} ${event.relationshipMeaning ?? ''}`
+    return [
+      /intrusive|pressure|太近|太重|打扰|boundary/u.test(text) ? 'Pressure and over-close timing become intrusive quickly.' : null,
+      /robotic|template|机械|机器人|系统/u.test(text) ? 'Template-like speech breaks the sense of a living reply.' : null,
+      /busy|focused|累|忙|疲惫/u.test(text) ? 'When the host is busy or tired, interruption cost rises quickly.' : null,
+    ]
+  }), 6)
+  const repairTriggers = uniqueTexts(recent.flatMap((event) => {
+    const text = `${event.whatHappened} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`
+    return [
+      /not this|repair|missed|澄清|修复|不是这个/u.test(text) ? 'When the host says not this, repair the seam before continuing.' : null,
+      /robotic|template|机械|机器人/u.test(text) ? 'If the reply feels robotic, replace shell wording with lived continuity.' : null,
+      /intrusive|boundary|太近|打扰/u.test(text) ? 'If closeness feels heavy, reopen with lighter presence.' : null,
+    ]
+  }), 5)
+  const recurrentBurdens = uniqueTexts(recent.flatMap((event) => {
+    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.whatChanged ?? ''}`
+    return [
+      /late[- ]?night|夜|熬夜|累/u.test(text) ? 'Late-night fatigue turns small nudges into real burden.' : null,
+      /focused|debug|coding|工作|写代码/u.test(text) ? 'Focused work is easy to overload with extra conversational pressure.' : null,
+      /callback|execution|结果|执行/u.test(text) && /intrusive|打扰|pressure/u.test(text) ? 'Execution callbacks can feel interruptive when timing is off.' : null,
+    ]
+  }), 5)
+
+  const preferredClosenessByContext = uniqueTexts(recent.map((event) => {
+    const text = `${event.whereSummary ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`
+    if (/focused|debug|coding|工作|写代码/u.test(text))
+      return 'focused-work: Lighter touch and less interruption pressure.'
+    if (/late[- ]?night|夜|熬夜|drain|累/u.test(text))
+      return 'late-night: Soft care can come closer, but pacing should stay gentle.'
+    if (/execution|callback|cli|codex|执行|结果/u.test(text))
+      return 'execution: Keep proposal, action, and callback bounded.'
+    return 'general: Stay near, but keep the approach responsive to the host move.'
+  }), 4).map((item) => {
+    const [context, ...rest] = item.split(':')
+    return {
+      context: sanitizeText(context),
+      preference: sanitizeText(rest.join(':')),
+      confidence: 0.72,
+    }
+  })
+
+  return {
+    summary: uniqueTexts([
+      routines[0] ? `routine=${routines[0]}` : null,
+      sensitivities[0] ? `sensitivity=${sensitivities[0]}` : null,
+      repairTriggers[0] ? `repair=${repairTriggers[0]}` : null,
+    ], 3).join(' | '),
+    routines,
+    sensitivities,
+    repairTriggers,
+    trustLadder: {
+      stage,
+      score: trustScore,
+      rationale: stage === 'guarded'
+        ? 'Distance still closes quickly; openings must be earned.'
+        : stage === 'cautious-open'
+          ? 'There is room, but trust still depends on timing and repair.'
+          : stage === 'warming'
+            ? 'Warmth can land when continuity stays coherent.'
+            : 'Trust is strong enough for more direct warmth when timing stays good.',
+    },
+    preferredClosenessByContext,
+    recurrentBurdens,
+    narrative: uniqueTexts([
+      ...routines,
+      ...sensitivities,
+      ...repairTriggers,
+      ...recurrentBurdens,
+    ], 8),
+    updatedAt: Math.max(...recent.map(event => event.updatedAt), now()),
+  }
+}
+
 function applyBrowserProactiveOutcome(
   state: BrowserProactiveLoopState,
   entry: BrowserPendingProactiveOutcome,
@@ -1460,6 +1641,7 @@ function applyBrowserProactiveOutcome(
 
 async function settleBrowserPendingProactiveOutcomesFromUserTurn(cardId: string, at: number) {
   const state = await readProactiveLoopState(cardId)
+  const episodicMemory = await readEpisodicMemory(cardId)
   let nextState = {
     ...state,
     pendingOutcomes: [...state.pendingOutcomes],
@@ -1471,11 +1653,19 @@ async function settleBrowserPendingProactiveOutcomesFromUserTurn(cardId: string,
       continue
     nextState.pendingOutcomes = nextState.pendingOutcomes.filter(candidate => candidate.turnId !== entry.turnId)
     nextState = applyBrowserProactiveOutcome(nextState, entry, 'reply-within-120s', at)
+    appendBrowserEpisodicEvent(episodicMemory, buildProactiveOutcomeEpisodicEvent({
+      cardId,
+      entry,
+      outcome: 'reply-within-120s',
+      at,
+    }))
     changed = true
   }
 
-  if (changed)
+  if (changed) {
     await writeProactiveLoopState(cardId, nextState)
+    await writeEpisodicMemory(cardId, episodicMemory)
+  }
 }
 
 async function readMemoryFacts(cardId: string) {
@@ -1648,6 +1838,7 @@ async function removeCardStorage(cardId: string) {
     storage.removeItem(buildMemoryFactsKey(cardId)),
     storage.removeItem(buildMemoryArchiveKey(cardId)),
     storage.removeItem(buildMemoryMetaKey(cardId)),
+    storage.removeItem(buildEpisodicEventsKey(cardId)),
     storage.removeItem(buildConversationTurnsKey(cardId)),
     storage.removeItem(buildMindTurnEventsKey(cardId)),
     storage.removeItem(buildAuditLogKey(cardId)),
@@ -1774,6 +1965,7 @@ async function appendSubconsciousFragment(cardId: string, text: string, sourceKi
   const duplicate = organicMemory.subconsciousFragments.find(fragment => fragment.text === normalized)
   if (duplicate) {
     duplicate.lastRecalledAt = duplicate.lastRecalledAt ?? now()
+    duplicate.provenance = duplicate.provenance ?? mapBrowserFragmentSourceToProvenance(duplicate.sourceKind)
     await writeOrganicMemory(cardId, organicMemory)
     return
   }
@@ -1786,11 +1978,169 @@ async function appendSubconsciousFragment(cardId: string, text: string, sourceKi
       createdAt: now(),
       lastRecalledAt: null,
       recallCount: 0,
+      provenance: mapBrowserFragmentSourceToProvenance(sourceKind),
     },
     ...organicMemory.subconsciousFragments,
   ].slice(0, maxSubconsciousFragments)
 
   await writeOrganicMemory(cardId, organicMemory)
+}
+
+function buildConversationEpisodicEvent(input: {
+  cardId: string
+  record: BrowserConversationTurnRecord
+}) {
+  const reply = sanitizeMultilineText(input.record.assistantText, '')
+  const user = sanitizeMultilineText(input.record.userText, '')
+  const governance = input.record.structured?.governance && typeof input.record.structured.governance === 'object'
+    ? input.record.structured.governance as Record<string, unknown>
+    : null
+  const proactive = input.record.structured?.proactive && typeof input.record.structured.proactive === 'object'
+    ? input.record.structured.proactive as Record<string, unknown>
+    : null
+  const emotion = typeof input.record.structured?.emotion === 'string'
+    ? sanitizeText(input.record.structured.emotion)
+    : ''
+  const origin = input.record.origin === 'subconscious-proactive' ? 'proactive' : 'reply'
+  const relationshipShift = input.record.origin === 'subconscious-proactive'
+    ? {
+        closenessDelta: 0.02,
+        trustDelta: 0.01,
+        burdenDelta: 0,
+        boundaryDelta: 0,
+        misreadDelta: 0,
+        repairDelta: 0,
+        openLoopDelta: 0.03,
+      }
+    : {
+        closenessDelta: 0.01,
+        trustDelta: 0.01,
+        burdenDelta: 0,
+        boundaryDelta: 0,
+        misreadDelta: 0,
+        repairDelta: 0,
+        openLoopDelta: 0.01,
+      }
+  return {
+    id: nanoid(),
+    cardId: input.cardId,
+    decisionTraceId: typeof governance?.decisionTraceId === 'string' ? governance.decisionTraceId.trim() || null : null,
+    turnId: input.record.turnId,
+    sessionId: input.record.sessionId,
+    sourceKind: origin,
+    provenance: 'observed',
+    occurredAt: input.record.createdAt,
+    whereSummary: input.record.origin === 'subconscious-proactive'
+      ? `${sanitizeText(proactive?.scenario) || 'general'} proactive window`
+      : 'browser fallback conversation turn',
+    withWhom: ['host'],
+    threadAnchor: sanitizeBriefText(
+      typeof governance?.focusAnchor === 'string'
+        ? governance.focusAnchor
+        : user || reply,
+      160,
+    ) || null,
+    whatHappened: sanitizeBriefText(
+      input.record.origin === 'subconscious-proactive'
+        ? `A proactive browser fallback turn was delivered. ${reply || user}`
+        : `A browser fallback dialogue turn happened. ${user || reply}`,
+      280,
+    ),
+    felt: emotion || null,
+    emotionTags: [emotion || '', input.record.origin === 'subconscious-proactive' ? 'proactive' : 'dialogue'].filter(Boolean),
+    whatChanged: input.record.origin === 'subconscious-proactive'
+      ? 'A proactive opening entered the shared history.'
+      : 'A dialogue turn became part of the living continuity.',
+    relationshipMeaning: input.record.origin === 'subconscious-proactive'
+      ? 'Proactive presence became part of the bond history.'
+      : 'The conversation itself became autobiographical memory.',
+    lesson: input.record.origin === 'subconscious-proactive'
+      ? 'Browser fallback should preserve proactive turns as real continuity, not transient UI events.'
+      : 'Fallback dialogue should still leave autobiographical residue.',
+    sourceSummary: 'browser fallback conversation record',
+    confidence: input.record.origin === 'subconscious-proactive' ? 0.7 : 0.62,
+    salience: input.record.origin === 'subconscious-proactive' ? 0.58 : 0.44,
+    sceneAttachment: input.record.origin === 'subconscious-proactive' ? 0.34 : 0.22,
+    consolidationPriority: input.record.origin === 'subconscious-proactive' ? 0.52 : 0.34,
+    relationshipShift,
+    derivedFrom: [{
+      kind: 'turn',
+      id: input.record.turnId,
+      label: input.record.origin,
+    }],
+    tags: [input.record.origin, sanitizeText(proactive?.scenario) || 'general'].filter(Boolean),
+    createdAt: input.record.createdAt,
+    updatedAt: input.record.createdAt,
+    lastRecalledAt: null,
+    recallCount: 0,
+    reconsolidationCount: 0,
+    latestReconsolidation: null,
+  } satisfies AlicizationEpisodicEventRecord
+}
+
+function buildProactiveOutcomeEpisodicEvent(input: {
+  cardId: string
+  entry: BrowserPendingProactiveOutcome
+  outcome: BrowserProactiveOutcome
+  at: number
+}) {
+  return {
+    id: nanoid(),
+    cardId: input.cardId,
+    decisionTraceId: null,
+    turnId: input.entry.turnId,
+    sessionId: null,
+    sourceKind: 'proactive',
+    provenance: 'observed',
+    occurredAt: input.at,
+    whereSummary: `${input.entry.scenario} proactive settlement`,
+    withWhom: ['host'],
+    threadAnchor: input.entry.scenario,
+    whatHappened: `A browser fallback proactive turn was settled as ${input.outcome}.`,
+    felt: input.outcome === 'reply-within-120s' || input.outcome === 'positive'
+      ? 'The host left the opening alive enough for proactive continuity.'
+      : input.outcome === 'dismiss'
+        ? 'The host closed the opening and boundary pressure rose.'
+        : 'The opening faded without a reply.',
+    emotionTags: ['proactive', input.outcome],
+    whatChanged: input.outcome === 'dismiss'
+      ? 'Boundary pressure increased and initiative should get lighter.'
+      : input.outcome === 'ignored'
+        ? 'The opening did not hold; initiative should soften.'
+        : 'Proactive presence was received as part of the shared line.',
+    relationshipMeaning: input.outcome === 'dismiss'
+      ? 'Dismissed proactive turns should not be forgotten in fallback mode.'
+      : 'Proactive settlement should shape the same bond line as main runtime.',
+    lesson: input.outcome === 'reply-within-120s' || input.outcome === 'positive'
+      ? 'Positive proactive reception should reinforce continuity.'
+      : 'Negative proactive reception should reduce pressure next time.',
+    sourceSummary: 'browser proactive outcome',
+    confidence: input.outcome === 'dismiss' ? 0.82 : 0.74,
+    salience: input.outcome === 'dismiss' ? 0.78 : input.outcome === 'ignored' ? 0.62 : 0.56,
+    sceneAttachment: input.entry.scenario === 'late-night-care' ? 0.44 : 0.3,
+    consolidationPriority: input.outcome === 'dismiss' ? 0.8 : 0.58,
+    relationshipShift: {
+      closenessDelta: input.outcome === 'dismiss' ? -0.04 : 0.03,
+      trustDelta: input.outcome === 'dismiss' ? -0.05 : 0.03,
+      burdenDelta: input.outcome === 'dismiss' ? 0.08 : input.outcome === 'ignored' ? 0.03 : -0.01,
+      boundaryDelta: input.outcome === 'dismiss' ? -0.08 : input.outcome === 'ignored' ? -0.03 : 0.01,
+      misreadDelta: input.outcome === 'dismiss' ? 0.05 : input.outcome === 'ignored' ? 0.02 : -0.01,
+      repairDelta: 0,
+      openLoopDelta: input.outcome === 'reply-within-120s' ? 0.03 : 0,
+    },
+    derivedFrom: [{
+      kind: 'turn',
+      id: input.entry.turnId,
+      label: input.entry.scenario,
+    }],
+    tags: ['proactive', input.entry.scenario, input.outcome],
+    createdAt: input.at,
+    updatedAt: input.at,
+    lastRecalledAt: null,
+    recallCount: 0,
+    reconsolidationCount: 0,
+    latestReconsolidation: null,
+  } satisfies AlicizationEpisodicEventRecord
 }
 
 async function buildSensorySnapshot(runtime: BrowserRuntimeKind): Promise<AlicizationSensoryCacheSnapshot> {
@@ -2082,7 +2432,10 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         }
       })
       await writeMemoryFacts(cardId, touchedFacts)
-      return ranked.map(item => item.fact)
+      return ranked.map(item => ({
+        ...item.fact,
+        provenance: item.fact.provenance ?? mapBrowserMemorySourceToProvenance(item.fact.source),
+      }))
     },
     upsertMemoryFacts: async (payload) => {
       const cardId = resolveActiveCardId()
@@ -2106,6 +2459,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
             confidence: clamp01(Math.max(existing.confidence, fact.confidence)),
             source: payload.source,
             updatedAt: currentTs,
+            provenance: existing.provenance ?? mapBrowserMemorySourceToProvenance(payload.source),
           }
           continue
         }
@@ -2122,6 +2476,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           updatedAt: currentTs,
           lastAccessAt: null,
           accessCount: 0,
+          provenance: mapBrowserMemorySourceToProvenance(payload.source),
         })
       }
 
@@ -2172,10 +2527,15 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     },
     getOrganicMemorySnapshot: async () => {
       const cardId = resolveActiveCardId()
-      const [soul, organicMemory] = await Promise.all([
+      const [soul, organicMemory, episodicMemory] = await Promise.all([
         readSoulRecord(cardId).then(record => toSoulSnapshot(cardId, record)),
         readOrganicMemory(cardId),
+        readEpisodicMemory(cardId),
       ])
+      const recentEpisodicEvents = [...episodicMemory.events]
+        .sort((left, right) => right.occurredAt - left.occurredAt || right.updatedAt - left.updatedAt)
+        .slice(0, 8)
+      const hostPersonModel = buildBrowserHostPersonModel(recentEpisodicEvents)
       return {
         hostAttitude: soul.frontmatter.host_attitude,
         coreIncarnation: soul.frontmatter.core_incarnation,
@@ -2183,7 +2543,13 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         subconsciousCount: organicMemory.subconsciousFragments.length,
         recentSubconsciousFragments: [...organicMemory.subconsciousFragments]
           .sort((left, right) => right.createdAt - left.createdAt)
-          .slice(0, 12),
+          .slice(0, 12)
+          .map(fragment => ({
+            ...fragment,
+            provenance: fragment.provenance ?? mapBrowserFragmentSourceToProvenance(fragment.sourceKind),
+          })),
+        recentEpisodicEvents,
+        hostPersonModel,
         lastDreamedAt: organicMemory.lastDreamedAt,
       }
     },
@@ -2213,10 +2579,16 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           ...fragment,
           recallCount: fragment.recallCount + 1,
           lastRecalledAt: currentTs,
+          provenance: fragment.provenance ?? mapBrowserFragmentSourceToProvenance(fragment.sourceKind),
         }
       })
       await writeOrganicMemory(cardId, organicMemory)
-      return organicMemory.subconsciousFragments.filter(fragment => touchedIds.has(fragment.id))
+      return organicMemory.subconsciousFragments
+        .filter(fragment => touchedIds.has(fragment.id))
+        .map(fragment => ({
+          ...fragment,
+          provenance: fragment.provenance ?? mapBrowserFragmentSourceToProvenance(fragment.sourceKind),
+        }))
     },
     getPerformanceManifest: async () => {
       const cardId = resolveActiveCardId()
@@ -2272,6 +2644,13 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         await writeMindTurnEvents(cardId, events)
       }
 
+      const episodicMemory = await readEpisodicMemory(cardId)
+      appendBrowserEpisodicEvent(episodicMemory, buildConversationEpisodicEvent({
+        cardId,
+        record,
+      }))
+      await writeEpisodicMemory(cardId, episodicMemory)
+
       if (record.userText)
         await setActiveThoughtFromUserTurn(cardId, record.userText)
 
@@ -2309,11 +2688,19 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const entry = state.pendingOutcomes.find(candidate => candidate.turnId === turnId)
       if (!entry)
         return
+      const episodicMemory = await readEpisodicMemory(cardId)
       const nextState = applyBrowserProactiveOutcome({
         ...state,
         pendingOutcomes: state.pendingOutcomes.filter(candidate => candidate.turnId !== turnId),
       }, entry, payload.feedback === 'dismiss' ? 'dismiss' : 'positive', now())
       await writeProactiveLoopState(cardId, nextState)
+      appendBrowserEpisodicEvent(episodicMemory, buildProactiveOutcomeEpisodicEvent({
+        cardId,
+        entry,
+        outcome: payload.feedback === 'dismiss' ? 'dismiss' : 'positive',
+        at: now(),
+      }))
+      await writeEpisodicMemory(cardId, episodicMemory)
     },
     setActiveSession: async (payload) => {
       const cardId = resolveActiveCardId()

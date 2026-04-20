@@ -51,7 +51,37 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     salienceBias?: number | null
     carryAsMemory?: boolean
     allowDream?: boolean
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
+  searchConversationTurnsForRecall: (input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+  }) => Promise<Array<{
+    turnId: string | null
+    sessionId: string
+    userText: string
+    assistantText: string
+    createdAt: number
+  }>>
+  searchMemoryConsolidations: (input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+  }) => Promise<Array<{
+    id: string
+    kind: 'daily' | 'weekly' | 'procedural'
+    periodKey: string
+    periodStartedAt: number
+    periodEndedAt: number
+    summary: string
+    lesson: string | null
+    cues: string[]
+    confidence: number
+    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    derivedEventIds: string[]
+    updatedAt: number
+  }>>
   listConversationTurnsBySession: (sessionId: string, options: { limit: number }) => Promise<Array<{
     userText?: string | null
     assistantText?: string | null
@@ -159,6 +189,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       salienceBias: input.recallGovernor?.salienceBias ?? 0.5,
       carryAsMemory: input.recallGovernor?.carryAsMemory ?? false,
       allowDream: input.recallGovernor?.mode === 'self-continuity' || input.recallGovernor?.mode === 'emotional-resonance',
+      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
     }).catch(() => [])
   }
 
@@ -177,6 +208,30 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       relationshipDynamics: null,
       now,
     })
+  }
+
+  async function recallConversationHistory(input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+  }) {
+    return await options.searchConversationTurnsForRecall({
+      query: input.query,
+      limit: input.limit,
+      recollectionIntent: input.recollectionIntent ?? null,
+    }).catch(() => [])
+  }
+
+  async function recallMemoryConsolidations(input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+  }) {
+    return await options.searchMemoryConsolidations({
+      query: input.query,
+      limit: input.limit,
+      recollectionIntent: input.recollectionIntent ?? null,
+    }).catch(() => [])
   }
 
   async function resolveRecentContextualTurns(sessionId: string, turnCount: number) {
@@ -201,6 +256,8 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    recallConversationHistory,
+    recallMemoryConsolidations,
     resolveRecentContextualTurns,
   }
 }

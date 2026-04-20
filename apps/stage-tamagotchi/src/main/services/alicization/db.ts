@@ -53,7 +53,9 @@ import { join } from 'node:path'
 import sqlite3 from 'sqlite3'
 
 import { deriveMemoryInterferencePenalty } from './humanlike-memory'
+import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import { extractOrganicRecallTerms, isRetrospectiveRecallQuery, normalizeOrganicRecallText } from './runtime-organic-recall'
 
 const dayMs = 24 * 60 * 60 * 1000
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -163,6 +165,36 @@ interface DbEpisodicEventRow {
   latest_reconsolidation_json: string | null
 }
 
+interface AlicizationMemoryConsolidationRecord {
+  id: string
+  kind: 'daily' | 'weekly' | 'procedural'
+  periodKey: string
+  periodStartedAt: number
+  periodEndedAt: number
+  summary: string
+  lesson: string | null
+  cues: string[]
+  confidence: number
+  dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+  derivedEventIds: string[]
+  updatedAt: number
+}
+
+interface DbMemoryConsolidationRow {
+  id: string
+  kind: AlicizationMemoryConsolidationRecord['kind']
+  period_key: string
+  period_started_at: number
+  period_ended_at: number
+  summary: string
+  lesson: string | null
+  cues_json: string | null
+  confidence: number
+  dominant_provenance: AlicizationMemoryConsolidationRecord['dominantProvenance']
+  derived_event_ids_json: string | null
+  updated_at: number
+}
+
 interface DbPersonaReinforcementEventRow {
   id: string
   card_id: string
@@ -270,6 +302,23 @@ interface DbSubconsciousFragmentRow {
   created_at: number
   last_recalled_at: number | null
   recall_count: number
+}
+
+interface AlicizationMemoryRecollectionIntentLike {
+  mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+  temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+  searchEpisodes: boolean
+  searchConversations: boolean
+  searchProceduralExperience: boolean
+  queryHints: string[]
+  rationale: string
+  confidence: number
+}
+
+interface AlicizationMemoryConsolidationSearchInput {
+  query: string
+  limit?: number
+  recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
 }
 
 export interface AlicizationRelationshipDynamicsState {
@@ -687,6 +736,23 @@ function mapEpisodicEventRow(row: DbEpisodicEventRow): AlicizationEpisodicEventR
   }
 }
 
+function mapMemoryConsolidationRow(row: DbMemoryConsolidationRow): AlicizationMemoryConsolidationRecord {
+  return {
+    id: row.id,
+    kind: row.kind,
+    periodKey: row.period_key,
+    periodStartedAt: row.period_started_at,
+    periodEndedAt: row.period_ended_at,
+    summary: row.summary,
+    lesson: row.lesson,
+    cues: parseJsonStringArray(row.cues_json),
+    confidence: clamp01(row.confidence),
+    dominantProvenance: row.dominant_provenance,
+    derivedEventIds: parseJsonStringArray(row.derived_event_ids_json),
+    updatedAt: row.updated_at,
+  }
+}
+
 function mapPersonaReinforcementEventRow(row: DbPersonaReinforcementEventRow): AlicizationPersonaReinforcementEventRecord {
   return {
     id: row.id,
@@ -982,6 +1048,19 @@ export interface AlicizationDbService {
     structuredJson: string | null
     createdAt: number
   }>>
+  searchConversationTurnsForRecall: (input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+  }) => Promise<Array<{
+    turnId: string | null
+    sessionId: string
+    userText: string
+    assistantText: string
+    createdAt: number
+  }>>
+  listMemoryConsolidations: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
+  searchMemoryConsolidations: (input: AlicizationMemoryConsolidationSearchInput) => Promise<AlicizationMemoryConsolidationRecord[]>
   appendMindTurnEvents: (events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) => Promise<void>
   listMindTurnEvents: (input: {
     decisionTraceId?: string
@@ -1031,6 +1110,7 @@ export interface AlicizationDbService {
     salienceBias?: number | null
     carryAsMemory?: boolean
     allowDream?: boolean
+    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
   appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listPersonaReinforcementEvents: (input: {
@@ -1212,6 +1292,25 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_source_kind_occurred_at ON episodic_events(source_kind, occurred_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_thread_anchor_occurred_at ON episodic_events(thread_anchor, occurred_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_episodic_events_session_occurred_at ON episodic_events(session_id, occurred_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_consolidations (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        period_started_at INTEGER NOT NULL,
+        period_ended_at INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        lesson TEXT,
+        cues_json TEXT,
+        confidence REAL NOT NULL,
+        dominant_provenance TEXT NOT NULL,
+        derived_event_ids_json TEXT,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_kind_period ON memory_consolidations(kind, period_ended_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_updated_at ON memory_consolidations(updated_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS persona_reinforcement_events (
@@ -1668,6 +1767,195 @@ export async function setupAlicizationDb(
       structuredJson: row.structured_json,
       createdAt: row.created_at,
     }))
+  }
+
+  async function searchConversationTurnsForRecall(input: {
+    query: string
+    limit?: number
+    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+  }) {
+    const query = normalizeOrganicRecallText(input.query)
+    if (!query)
+      return []
+
+    const safeLimit = Math.max(1, Math.min(12, Math.floor(input.limit ?? 6)))
+    const rows = await all<DbConversationTurnRow>(
+      database,
+      `
+      SELECT
+        turn_id,
+        session_id,
+        user_text,
+        assistant_text,
+        structured_json,
+        created_at
+      FROM conversation_turns
+      ORDER BY created_at DESC
+      LIMIT 4000
+      `,
+    )
+    if (rows.length === 0)
+      return []
+
+    const terms = extractOrganicRecallTerms(query)
+    const recollectionIntent = input.recollectionIntent ?? null
+    const retrospective = recollectionIntent?.temporalFocus === 'cross-session'
+      || recollectionIntent?.mode === 'conversation-history'
+      || recollectionIntent?.mode === 'relationship-history'
+      || recollectionIntent?.mode === 'autobiographical-history'
+      || isRetrospectiveRecallQuery(query)
+    const nowTs = now()
+
+    const ranked = rows
+      .map((row) => {
+        const userText = normalizeOrganicRecallText(row.user_text ?? '')
+        const assistantText = normalizeOrganicRecallText(row.assistant_text ?? '')
+        const combined = `${userText} ${assistantText}`.trim()
+        if (!combined)
+          return null
+        const combinedLower = combined.toLowerCase()
+        let lexicalScore = 0
+        for (const term of terms) {
+          const normalizedTerm = normalizeOrganicRecallText(term).toLowerCase()
+          if (!normalizedTerm)
+            continue
+          if (combinedLower.includes(normalizedTerm))
+            lexicalScore += normalizedTerm.length >= 6 ? 2.5 : 1
+        }
+        let intentScore = 0
+        for (const hint of recollectionIntent?.queryHints ?? []) {
+          const normalizedHint = normalizeOrganicRecallText(hint).toLowerCase()
+          if (!normalizedHint)
+            continue
+          if (combinedLower.includes(normalizedHint))
+            intentScore += normalizedHint.length >= 10 ? 1.8 : 0.8
+        }
+        const ageHours = Math.max(0, (nowTs - row.created_at) / (60 * 60 * 1000))
+        const recencyScore = Math.exp(-ageHours / (24 * 7))
+        const oldMemoryBoost = retrospective && ageHours >= 18 ? 0.28 : 0
+        const antiRecentPenalty = retrospective && ageHours < 6 ? 0.2 : 0
+        const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageHours >= 12 ? 0.16 : 0
+        const score = lexicalScore * 0.44 + intentScore * 0.28 + recencyScore * 0.14 + oldMemoryBoost + experienceMatchedBoost - antiRecentPenalty
+        return {
+          turnId: row.turn_id,
+          sessionId: row.session_id,
+          userText,
+          assistantText,
+          createdAt: row.created_at,
+          score,
+        }
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .filter(row => row.score > (retrospective ? -0.01 : 0.08))
+      .sort((left, right) => {
+        if (left.score !== right.score)
+          return right.score - left.score
+        return right.createdAt - left.createdAt
+      })
+
+    const results: Array<{
+      turnId: string | null
+      sessionId: string
+      userText: string
+      assistantText: string
+      createdAt: number
+    }> = []
+    const seenDayKeys = new Set<string>()
+    for (const row of ranked) {
+      const dayKey = new Date(row.createdAt).toISOString().slice(0, 10)
+      if (retrospective && seenDayKeys.has(dayKey))
+        continue
+      seenDayKeys.add(dayKey)
+      results.push({
+        turnId: row.turnId,
+        sessionId: row.sessionId,
+        userText: row.userText,
+        assistantText: row.assistantText,
+        createdAt: row.createdAt,
+      })
+      if (results.length >= safeLimit)
+        break
+    }
+    return results
+  }
+
+  async function rebuildMemoryConsolidationsFromEvents(cardId: string) {
+    const rows = await all<DbEpisodicEventRow>(
+      database,
+      `
+      SELECT *
+      FROM episodic_events
+      WHERE card_id = ?
+      ORDER BY occurred_at DESC, created_at DESC
+      LIMIT 4000
+      `,
+      [cardId],
+    )
+    const records = buildMemoryConsolidationRecords({
+      events: rows.map(mapEpisodicEventRow),
+      now: now(),
+    })
+    await run(database, 'DELETE FROM memory_consolidations')
+    for (const record of records) {
+      await run(
+        database,
+        `
+        INSERT INTO memory_consolidations (
+          id,
+          kind,
+          period_key,
+          period_started_at,
+          period_ended_at,
+          summary,
+          lesson,
+          cues_json,
+          confidence,
+          dominant_provenance,
+          derived_event_ids_json,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          record.id,
+          record.kind,
+          record.periodKey,
+          record.periodStartedAt,
+          record.periodEndedAt,
+          record.summary,
+          record.lesson,
+          JSON.stringify(record.cues),
+          record.confidence,
+          record.dominantProvenance,
+          JSON.stringify(record.derivedEventIds),
+          record.updatedAt,
+        ],
+      )
+    }
+  }
+
+  async function listMemoryConsolidations(limit = 16) {
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)))
+    const rows = await all<DbMemoryConsolidationRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_consolidations
+      ORDER BY period_ended_at DESC, updated_at DESC
+      LIMIT ?
+      `,
+      [safeLimit],
+    )
+    return rows.map(mapMemoryConsolidationRow)
+  }
+
+  async function searchMemoryConsolidations(input: AlicizationMemoryConsolidationSearchInput) {
+    const records = await listMemoryConsolidations(48)
+    return searchMemoryConsolidationRecords({
+      query: input.query,
+      records,
+      limit: input.limit,
+      recollectionIntent: input.recollectionIntent ?? null,
+    })
   }
 
   async function appendMindTurnEvents(events: AlicizationMindTurnEventInput[], options?: DbWriteOptions) {
@@ -2617,6 +2905,7 @@ export async function setupAlicizationDb(
       await run(database, 'DELETE FROM memory_reflections')
       await run(database, 'DELETE FROM relationship_outcomes')
       await run(database, 'DELETE FROM episodic_events')
+      await run(database, 'DELETE FROM memory_consolidations')
       await run(database, 'DELETE FROM persona_reinforcement_events')
       await run(database, 'DELETE FROM conversation_turns')
       await run(database, 'DELETE FROM mind_turn_events')
@@ -3395,6 +3684,8 @@ export async function setupAlicizationDb(
             ],
           )
         }
+        for (const cardId of [...new Set(prepared.map(event => event.cardId))])
+          await rebuildMemoryConsolidationsFromEvents(cardId)
       })
     })
 
@@ -3474,6 +3765,7 @@ export async function setupAlicizationDb(
     salienceBias?: number | null
     carryAsMemory?: boolean
     allowDream?: boolean
+    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
   }) {
     const recallSeed = input.recallSeed.trim()
     if (!recallSeed)
@@ -3486,7 +3778,7 @@ export async function setupAlicizationDb(
       SELECT *
       FROM episodic_events
       ORDER BY occurred_at DESC, created_at DESC
-      LIMIT 240
+      LIMIT 4000
       `,
     )
     const nowTs = now()
@@ -3497,6 +3789,7 @@ export async function setupAlicizationDb(
     const recallTokens = tokenize(recallSeed)
     const allowDream = input.allowDream === true
     const salienceBias = clamp01(Number(input.salienceBias ?? 0.5))
+    const recollectionIntent = input.recollectionIntent ?? null
 
     const ranked = rows
       .map(mapEpisodicEventRow)
@@ -3526,7 +3819,22 @@ export async function setupAlicizationDb(
         const affectScore = scoreTokenOverlap(affectTokens, `${event.felt ?? ''} ${event.emotionTags.join(' ')} ${event.whatChanged ?? ''}`)
         const relationshipScore = scoreTokenOverlap(relationshipTokens, `${event.withWhom.join(' ')} ${event.relationshipMeaning ?? ''} ${event.whatChanged ?? ''}`)
         const sceneScore = scoreTokenOverlap(sceneTokens, `${event.whereSummary ?? ''} ${event.threadAnchor ?? ''}`)
+        const intentScore = scoreTokenOverlap(
+          tokenize((recollectionIntent?.queryHints ?? []).join(' ')),
+          `${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''} ${event.relationshipMeaning ?? ''} ${event.tags.join(' ')}`,
+        )
         const recencyScore = Math.exp(-Math.max(0, nowTs - event.occurredAt) / (28 * dayMs))
+        const ageDays = Math.max(0, (nowTs - event.occurredAt) / dayMs)
+        const distantBoost = recollectionIntent?.temporalFocus === 'cross-session' && ageDays >= 2 ? 0.12 : 0
+        const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageDays >= 1 ? 0.1 : 0
+        const proceduralBoost = recollectionIntent?.searchProceduralExperience
+          && (
+            event.sourceKind === 'execution-proposal'
+            || event.sourceKind === 'execution-result'
+            || /execution|proposal|result|cli|codex|claude|patch|fix|workflow|步骤/iu.test(`${event.whatHappened} ${event.lesson ?? ''}`)
+          )
+          ? 0.14
+          : 0
         const familiarityScore = clamp01(event.sceneAttachment * 0.55 + Math.min(0.45, event.recallCount / 10))
         const emotionalAmplification = affectScore > 0.24
           ? Math.min(0.14, event.salience * 0.18 + affectScore * 0.12)
@@ -3546,6 +3854,7 @@ export async function setupAlicizationDb(
             + affectScore * 0.18
             + relationshipScore * 0.17
             + sceneScore * 0.07
+            + intentScore * 0.14
             + event.salience * (0.12 + salienceBias * 0.08)
             + recencyScore * 0.08
             + familiarityScore * 0.06
@@ -3553,6 +3862,9 @@ export async function setupAlicizationDb(
             + sessionBoost
             + turnBoost
             + carryBoost
+            + distantBoost
+            + experienceMatchedBoost
+            + proceduralBoost
             - provenancePenalty
 
         return {
@@ -4332,6 +4644,7 @@ export async function setupAlicizationDb(
     getLatestConversationSessionId,
     listConversationTurnsSince,
     listConversationTurnsBySession,
+    searchConversationTurnsForRecall,
     appendMindTurnEvents,
     listMindTurnEvents,
     getTaskThread,
@@ -4356,6 +4669,8 @@ export async function setupAlicizationDb(
     appendEpisodicEvents,
     listRecentEpisodicEvents,
     searchEpisodicEvents,
+    listMemoryConsolidations,
+    searchMemoryConsolidations,
     appendPersonaReinforcementEvents,
     listPersonaReinforcementEvents,
     readMindHead,

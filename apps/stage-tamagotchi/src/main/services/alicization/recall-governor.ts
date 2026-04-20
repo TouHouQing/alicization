@@ -17,6 +17,7 @@ import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
+import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -167,6 +168,7 @@ function resolveMode(input: {
 
 export function buildRecallGovernor(input: {
   now: number
+  userText?: string | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   conversationState?: AlicizationConversationStateSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
@@ -265,9 +267,22 @@ export function buildRecallGovernor(input: {
             ? 0.24
             : 0.4,
   )
+  const recollectionIntent = buildMemoryRecollectionIntent({
+    userText: input.userText ?? null,
+    dialogueWorldThread,
+    conversationState,
+    answerCompiler: input.answerCompiler ?? null,
+    replyDeliberation: input.replyDeliberation ?? null,
+    privateThought: input.privateThought ?? null,
+    dialogueEncounter: input.dialogueEncounter ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+    goalStack: input.goalStack ?? null,
+    motiveEngine: input.motiveEngine ?? null,
+  })
   const recallSeed = uniqueList([
     ...threadAnchors,
     ...autobiographicalContinuityLines,
+    ...(recollectionIntent?.queryHints ?? []),
     input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
     input.motiveEngine?.longTermGoals[0]?.summary ?? null,
     ...affectAnchors,
@@ -296,6 +311,7 @@ export function buildRecallGovernor(input: {
     relationshipAnchors,
     salienceBias,
     sceneAnchor: primaryTurnAnchor,
+    recollectionIntent,
     suppressAssociativeRecall,
     allowActiveThoughts,
     allowRecalledFragments,
@@ -333,6 +349,7 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     `Relationship anchors: ${state.relationshipAnchors && state.relationshipAnchors.length > 0 ? state.relationshipAnchors.join(', ') : 'none'}.`,
     `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
     `Scene anchor: ${state.sceneAnchor || 'none'}.`,
+    `Recollection intent: ${state.recollectionIntent ? `${state.recollectionIntent.mode} / ${state.recollectionIntent.temporalFocus} / ${state.recollectionIntent.rationale}` : 'none'}.`,
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,
     `Allow recalled fragments: ${state.allowRecalledFragments ? 'yes' : 'no'}.`,

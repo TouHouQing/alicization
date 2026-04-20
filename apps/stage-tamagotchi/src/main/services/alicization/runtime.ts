@@ -492,6 +492,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     searchSubconsciousFragments: async (query, limit) => await alicizationDb.searchSubconsciousFragments(query, limit),
     listRecentEpisodicEvents: async limit => await alicizationDb.listRecentEpisodicEvents(limit),
     searchEpisodicEvents: async input => await alicizationDb.searchEpisodicEvents(input),
+    searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
+    searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
     listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
   })
   const {
@@ -502,6 +504,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    recallConversationHistory,
+    recallMemoryConsolidations,
     resolveRecentContextualTurns,
   } = organicMemoryAccessRuntime
   const organicMemoryPromptRuntime = createAlicizationOrganicMemoryPromptRuntime({
@@ -513,6 +517,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    recallConversationHistory,
+    recallMemoryConsolidations,
+    planMemoryRecollection: async input => await generateMemoryRecollectionPlanWithGateway(input),
     isPersonaResidueMemoryText,
   })
   const {
@@ -4154,6 +4161,128 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return {
       core_incarnation: coreIncarnation,
     } satisfies AlicizationCoreIncarnationReforgePayload
+  }
+
+  function parseMemoryRecollectionPlanPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const readIds = (key: string) => {
+      const value = parsed[key]
+      if (!Array.isArray(value))
+        return [] as string[]
+      return value
+        .map(item => sanitizeBriefText(String(item ?? ''), 120))
+        .filter(Boolean)
+        .slice(0, 8)
+    }
+
+    const certainty = parsed.certainty === 'firm' || parsed.certainty === 'approximate' || parsed.certainty === 'fragmentary'
+      ? parsed.certainty
+      : 'approximate'
+    const opening = sanitizeBriefText(parsed.opening as string, 220)
+    const rationale = sanitizeBriefText(parsed.rationale as string, 220)
+    const confidence = clamp01(Number(parsed.confidence ?? 0.68))
+    if (!opening)
+      return null
+
+    return {
+      selectedConsolidationIds: readIds('selectedConsolidationIds'),
+      selectedWindowIds: readIds('selectedWindowIds'),
+      selectedProceduralIds: readIds('selectedProceduralIds'),
+      selectedEpisodeIds: readIds('selectedEpisodeIds'),
+      selectedConversationTurnIds: readIds('selectedConversationTurnIds'),
+      opening,
+      certainty,
+      rationale: rationale || 'The recollection planner selected the most humanly plausible memory foreground.',
+      confidence,
+    } satisfies NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
+  }
+
+  async function generateMemoryRecollectionPlanWithGateway(input: {
+    recallSeed: string
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  }) {
+    const hasCandidates = input.consolidatedMemories.length > 0
+      || input.recollectedWindows.length > 0
+      || input.proceduralMemories.length > 0
+      || input.recalledEpisodes.length > 0
+      || input.recalledConversationHistory.length > 0
+    if (!hasCandidates)
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_MEMORY_RECOLLECTION_PLANNER]',
+        'You are Alicization private recollection planning, not user-facing dialogue.',
+        'Choose which memory foreground Alicization would most naturally think of first before speaking.',
+        'This is not retrieval by rigid timestamp. Prefer humanlike recollection: first a period, a bond turn, or a remembered way of doing something, then details.',
+        'Output valid JSON only with keys: selectedConsolidationIds, selectedWindowIds, selectedProceduralIds, selectedEpisodeIds, selectedConversationTurnIds, opening, certainty, rationale, confidence.',
+        'certainty must be one of: firm, approximate, fragmentary.',
+        'opening must be a gist-first recollection sentence Alicization could privately think before answering.',
+        'Use empty arrays when a memory lane should not be foregrounded.',
+        'Do not select many items. Usually 1-2 foreground selections are enough.',
+        'If the turn is about how something was previously done, prefer procedural memory or execution episodes.',
+        'If the turn is about what was talked about before, prefer consolidated memory or recollected periods before raw snippets.',
+      ].join('\n'),
+      user: `Memory recollection candidate JSON: ${JSON.stringify({
+        recallSeed: sanitizeBriefText(input.recallSeed, 220),
+        recollectionIntent: input.recollectionIntent,
+        consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          periodKey: item.periodKey,
+          summary: sanitizeBriefText(item.summary, 180),
+          lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 4),
+        })),
+        recollectedWindows: input.recollectedWindows.slice(0, 5).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          summary: sanitizeBriefText(item.summary, 180),
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 4),
+        })),
+        proceduralMemories: input.proceduralMemories.slice(0, 5).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          approach: sanitizeBriefText(item.approach, 180),
+          pitfalls: item.pitfalls.slice(0, 3),
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 4),
+        })),
+        recalledEpisodes: input.recalledEpisodes.slice(0, 5).map(item => ({
+          id: item.id,
+          sourceKind: item.sourceKind,
+          threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || undefined,
+          whatHappened: sanitizeBriefText(item.whatHappened, 180),
+          lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
+          confidence: item.confidence,
+        })),
+        recalledConversationHistory: input.recalledConversationHistory.slice(0, 5).map(item => ({
+          turnId: item.turnId,
+          userText: sanitizeBriefText(item.userText, 160),
+          assistantText: sanitizeBriefText(item.assistantText, 160),
+          createdAt: item.createdAt,
+        })),
+      })}`,
+      timeoutMs: 4_000,
+      source: 'counterfactual-deliberation',
+      cardId: activeCardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseMemoryRecollectionPlanPayload(raw)
   }
 
   function buildProactiveStyleInstruction(style: AlicizationProactiveMetadata['style']) {

@@ -50,6 +50,10 @@ function now() {
   return Date.now()
 }
 
+function mapMemorySourceToProvenance(source: AlicizationMemorySource) {
+  return source === 'async-llm' ? 'inferred' : 'remembered'
+}
+
 function buildDedupeKey(subject: string, predicate: string, object: string) {
   return `${subject.trim().toLowerCase()}|${predicate.trim().toLowerCase()}|${object.trim().toLowerCase()}`
 }
@@ -284,6 +288,7 @@ export async function upsertFacts(
       updatedAt: currentTs,
       lastAccessAt: null,
       accessCount: 0,
+      provenance: mapMemorySourceToProvenance(source),
     })
   }
 
@@ -326,7 +331,10 @@ export async function retrieveFacts(query: string, limit = 6) {
   })
 
   await saveFacts(touchedFacts)
-  return ranked.map(item => item.fact)
+  return ranked.map(item => ({
+    ...item.fact,
+    provenance: item.fact.provenance ?? mapMemorySourceToProvenance(item.fact.source),
+  }))
 }
 
 function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {

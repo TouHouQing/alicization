@@ -82,6 +82,20 @@ const episodicEvents = new Map<string, {
   reconsolidation_count: number
   latest_reconsolidation_json: string | null
 }>()
+const memoryConsolidations = new Map<string, {
+  id: string
+  kind: 'daily' | 'weekly' | 'procedural'
+  period_key: string
+  period_started_at: number
+  period_ended_at: number
+  summary: string
+  lesson: string | null
+  cues_json: string | null
+  confidence: number
+  dominant_provenance: string
+  derived_event_ids_json: string | null
+  updated_at: number
+}>()
 const executorSessions = new Map<string, {
   id: string
   channel: string
@@ -315,6 +329,25 @@ class FakeSqliteDatabase {
       }
     }
 
+    if (sql.includes('INSERT INTO memory_consolidations')) {
+      const [id, kind, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, updatedAt]
+        = actualParams as [string, 'daily' | 'weekly' | 'procedural', string, number, number, string, string | null, string | null, number, string, string | null, number]
+      memoryConsolidations.set(id, {
+        id,
+        kind,
+        period_key: periodKey,
+        period_started_at: periodStartedAt,
+        period_ended_at: periodEndedAt,
+        summary,
+        lesson: lesson ?? null,
+        cues_json: cuesJson ?? null,
+        confidence,
+        dominant_provenance: dominantProvenance,
+        derived_event_ids_json: derivedEventIdsJson ?? null,
+        updated_at: updatedAt,
+      })
+    }
+
     if (sql.includes('INSERT INTO executor_sessions')) {
       const [id, channel, affinityKey, externalSessionId, status, summary, metadataJson, createdAt, updatedAt, lastUsedAt]
         = actualParams as [string, string, string, string | null, 'active' | 'running' | 'failed' | 'suspended', string | null, string | null, number, number, number | null]
@@ -432,6 +465,9 @@ class FakeSqliteDatabase {
     }
     else if (sql.includes('DELETE FROM episodic_events')) {
       episodicEvents.clear()
+    }
+    else if (sql.includes('DELETE FROM memory_consolidations')) {
+      memoryConsolidations.clear()
     }
     else if (sql.includes('DELETE FROM executor_sessions')) {
       executorSessions.clear()
@@ -720,12 +756,35 @@ class FakeSqliteDatabase {
       return this
     }
     if (_sql.includes('FROM episodic_events')) {
-      const limit = Number(actualParams.at(-1) ?? 240)
+      let cursor = 0
+      const cardId = _sql.includes('card_id = ?')
+        ? String(actualParams[cursor++] ?? '')
+        : ''
+      const limit = _sql.includes('LIMIT ?')
+        ? Number(actualParams.at(-1) ?? 240)
+        : 4000
       const rows = [...episodicEvents.values()]
+        .filter((event) => {
+          if (cardId && event.card_id !== cardId)
+            return false
+          return true
+        })
         .sort((a, b) => {
           if (a.occurred_at !== b.occurred_at)
             return b.occurred_at - a.occurred_at
           return b.created_at - a.created_at
+        })
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM memory_consolidations')) {
+      const limit = Number(actualParams.at(-1) ?? 48)
+      const rows = [...memoryConsolidations.values()]
+        .sort((a, b) => {
+          if (a.period_ended_at !== b.period_ended_at)
+            return b.period_ended_at - a.period_ended_at
+          return b.updated_at - a.updated_at
         })
         .slice(0, limit)
       actualCallback?.(null, rows)
@@ -759,6 +818,7 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
     episodicEvents.clear()
+    memoryConsolidations.clear()
     executorSessions.clear()
     capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
@@ -856,6 +916,52 @@ describe('alicization sqlite dao', () => {
     expect(rows[0]?.recallCount).toBe(1)
     expect(rows[0]?.reconsolidationCount).toBe(1)
     expect(rows[0]?.latestReconsolidation?.emotionTags).toContain('repair')
+  })
+
+  it('rebuilds and retrieves consolidated memory summaries from episodic events', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        cardId: 'card-1',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: new Date('2026-04-17T09:00:00Z').getTime(),
+        whereSummary: 'runtime continuity thread',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'We kept returning to runtime continuity and proactive closure.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'trust up 0.04',
+        relationshipMeaning: 'Task continuity strengthened the shared line.',
+        lesson: 'Keep the thread coherent across sessions.',
+        sourceSummary: 'reply turn',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.34,
+        consolidationPriority: 0.72,
+      },
+    ])
+
+    const rows = await db.searchMemoryConsolidations({
+      query: 'what were we doing around runtime continuity',
+      recollectionIntent: {
+        mode: 'conversation-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['runtime continuity', 'proactive closure'],
+        rationale: 'Need long-range gist.',
+        confidence: 0.84,
+      },
+    })
+
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.some(row => row.kind === 'daily')).toBe(true)
+    expect(rows[0]?.summary).toContain('runtime continuity')
   })
 
   it('runs legacy migration only once with marker', async () => {

@@ -382,6 +382,8 @@ function createEmptyOrganicMemorySnapshot(hostAttitude = '礼貌而克制，保�
     activeThoughts: [],
     subconsciousCount: 0,
     recentSubconsciousFragments: [],
+    recentEpisodicEvents: [],
+    hostPersonModel: null,
     lastDreamedAt: null,
   }
 }

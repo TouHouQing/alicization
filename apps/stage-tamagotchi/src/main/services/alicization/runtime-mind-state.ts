@@ -2049,6 +2049,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     })
     const recallGovernor = buildRecallGovernor({
       now: input.now,
+      userText: input.userText,
       dialogueWorldThread,
       conversationState: conversationState ?? input.previousVisualPresenceState.conversationState ?? null,
       answerCompiler,

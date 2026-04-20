@@ -21,6 +21,7 @@ import type {
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult as SharedAlicizationDispatchTaskThreadResult,
+  AlicizationEpisodicEventRecord as SharedAlicizationEpisodicEventRecord,
   AlicizationEmotion as SharedAlicizationEmotion,
   AlicizationExecutionChannel as SharedAlicizationExecutionChannel,
   AlicizationExecutionEventKind as SharedAlicizationExecutionEventKind,
@@ -34,6 +35,8 @@ import type {
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
+  AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
+  AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
@@ -169,7 +172,10 @@ export interface AlicizationMemoryStats {
 }
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
+export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
+export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
+export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
 
 export interface AlicizationMemoryFact {
   id: string
@@ -183,6 +189,7 @@ export interface AlicizationMemoryFact {
   updatedAt: number
   lastAccessAt: number | null
   accessCount: number
+  provenance?: SharedAlicizationMemoryProvenance | null
 }
 
 export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
@@ -225,6 +232,7 @@ export interface AlicizationSubconsciousFragment {
   createdAt: number
   lastRecalledAt: number | null
   recallCount: number
+  provenance?: SharedAlicizationMemoryProvenance | null
 }
 
 export interface AlicizationOrganicMemorySnapshot {
@@ -233,6 +241,8 @@ export interface AlicizationOrganicMemorySnapshot {
   activeThoughts: AlicizationActiveThought[]
   subconsciousCount: number
   recentSubconsciousFragments: AlicizationSubconsciousFragment[]
+  recentEpisodicEvents?: SharedAlicizationEpisodicEventRecord[]
+  hostPersonModel?: SharedAlicizationHostPersonModelSnapshot | null
   lastDreamedAt: number | null
 }
 

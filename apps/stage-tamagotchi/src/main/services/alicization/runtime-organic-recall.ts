@@ -19,6 +19,15 @@ export function shouldExtendContextualRecall(userText: string) {
   return /^(?:对啊|然后呢|继续|是吗|嗯+|哦+|好的|好吧|对|然后|继续说|还有呢|再说|细说|展开讲讲|行|ok|okay|yes|yeah|right|andthen)$/i.test(compact)
 }
 
+const retrospectiveRecallPattern = /几天前|前几天|前天|昨天|上周|前一阵|之前聊过|之前说过|还记得我们聊过|记不记得我们聊过|what did we talk about|what were we talking about|remember what we talked about|days ago|last week|earlier conversation/i
+
+export function isRetrospectiveRecallQuery(text: string) {
+  const normalized = normalizeOrganicRecallText(text)
+  if (!normalized)
+    return false
+  return retrospectiveRecallPattern.test(normalized)
+}
+
 function escapeFts5Phrase(value: string) {
   return value.replace(/"/g, '""')
 }

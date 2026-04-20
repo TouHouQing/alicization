@@ -163,6 +163,74 @@ export interface OrganicMemoryPromptContext {
   retrievedFacts: AlicizationMemoryFact[]
   recalledFragments: AlicizationSubconsciousFragment[]
   recalledEpisodes?: AlicizationEpisodicEventRecord[]
+  recalledConversationHistory?: Array<{
+    turnId: string | null
+    sessionId: string
+    userText: string
+    assistantText: string
+    createdAt: number
+    provenance: 'reconstructed'
+  }>
+  recollectedWindows?: Array<{
+    id: string
+    label: string
+    summary: string
+    startedAt: number
+    endedAt: number
+    confidence: number
+    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    cues: string[]
+  }>
+  consolidatedMemories?: Array<{
+    id: string
+    kind: 'daily' | 'weekly' | 'procedural'
+    periodKey: string
+    periodStartedAt: number
+    periodEndedAt: number
+    summary: string
+    lesson: string | null
+    cues: string[]
+    confidence: number
+    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    derivedEventIds: string[]
+    updatedAt: number
+  }>
+  recollectionNarratives?: Array<{
+    mode: 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    opening: string
+    supportCues: string[]
+    confidence: number
+  }>
+  recollectionPlan?: {
+    selectedConsolidationIds: string[]
+    selectedWindowIds: string[]
+    selectedProceduralIds: string[]
+    selectedEpisodeIds: string[]
+    selectedConversationTurnIds: string[]
+    opening: string
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    rationale: string
+    confidence: number
+  } | null
+  proceduralMemories?: Array<{
+    id: string
+    label: string
+    approach: string
+    pitfalls: string[]
+    confidence: number
+    cues: string[]
+  }>
+  recollectionIntent?: {
+    mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+    searchEpisodes: boolean
+    searchConversations: boolean
+    searchProceduralExperience: boolean
+    queryHints: string[]
+    rationale: string
+    confidence: number
+  } | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
 }
