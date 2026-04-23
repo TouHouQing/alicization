@@ -177,6 +177,34 @@ function parseStructuredMindTurn(text: string) {
   }
 }
 
+function buildAuthoritativeShanghaiTimeReply() {
+  const now = new Date()
+  const timeText = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Shanghai',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(now)
+  const weekdayText = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    weekday: 'long',
+  }).format(now)
+
+  return JSON.stringify({
+    format: 'mind-turn-v1',
+    thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+    emotion: 'thinking',
+    reply: `现在是 ${timeText}，${weekdayText}。`,
+    performance: {
+      baseEmotion: 'thinking',
+      facialCue: null,
+      actionCue: null,
+      delivery: 'calm',
+      emphasis: 0,
+    },
+  })
+}
+
 function readFinishedPayload(input: Parameters<typeof runAlicizationMainChatBackground>[0]) {
   return vi.mocked(input.runStateController.finishRun).mock.calls[0]?.[1]
 }
@@ -189,20 +217,14 @@ describe('main chat background run', () => {
       const latestUserMessage = [...messages].reverse().find((message: any) => message?.role === 'user')
       const latestUserText = String(latestUserMessage?.content ?? '')
 
-      if (/几点|时间|几时/.test(latestUserText)) {
-        return JSON.stringify({
-          format: 'mind-turn-v1',
-          thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
-          emotion: 'thinking',
-          reply: '现在是 10:30，星期二。',
-          performance: {
-            baseEmotion: 'thinking',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
-          },
-        })
+      if (
+        /几点|时间|几时/.test(latestUserText)
+        || (
+          /确定吗|真的吗|are you sure/i.test(latestUserText)
+          && messages.some((message: any) => typeof message?.content === 'string' && /几点|时间|几时/.test(String(message.content)))
+        )
+      ) {
+        return buildAuthoritativeShanghaiTimeReply()
       }
 
       if (/你是谁|叫什么/.test(latestUserText)) {
@@ -351,6 +373,90 @@ describe('main chat background run', () => {
     })
   })
 
+  it('passes prepared organic memory trace to runtime before streaming', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue({
+      finishReason: 'stop',
+      fullText: '我按之前那套节奏继续。',
+    })
+    const recordPreparedMindTrace = vi.fn(async () => {})
+    const input = createInput({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-memory-telemetry',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '继续按之前那样做' },
+        ],
+      } as any,
+      recordPreparedMindTrace,
+      preparationPromise: Promise.resolve(createPrepared({
+        organicMemoryContext: {
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: ['procedure-1'],
+            selectedEpisodeIds: [],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: ['这种时候先接结果'],
+            selectedPeriods: [],
+            selectedEpisodes: [],
+            selectedProcedures: [{
+              id: 'procedure-1',
+              label: 'patch -> verify',
+              approach: '先 patch 再 verify',
+            }],
+            selectedBundles: [],
+            selectedChains: [],
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.82,
+            whyNow: 'same task context',
+            inwardLine: 'remember the procedure before speaking',
+            visibleLine: '按之前那样继续',
+          },
+          recollectionIntent: {
+            mode: 'execution-procedure',
+            temporalFocus: 'experience-matched',
+            searchEpisodes: true,
+            searchConversations: true,
+            searchProceduralExperience: true,
+            queryHints: ['patch', 'verify'],
+            rationale: 'same task context',
+            confidence: 0.8,
+          },
+          recollectionSpeechPlan: {
+            shouldSurface: true,
+            surfaceMode: 'procedural-carry',
+            placement: 'inside-payoff',
+            certainty: 'approximate',
+            internalLead: 'remember the procedure',
+            visibleLead: '按之前那样继续',
+            styleNote: 'brief',
+            rationale: 'same task context',
+            confidence: 0.78,
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(recordPreparedMindTrace).toHaveBeenCalledWith({
+      payload: input.payload,
+      prepared: expect.objectContaining({
+        organicMemoryContext: expect.objectContaining({
+          memoryDeliberation: expect.objectContaining({
+            shouldRecall: true,
+            surfacePolicy: 'procedural-carry',
+          }),
+        }),
+      }),
+    })
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
+  })
+
   it('lets simple greeting turns stay on the main stream path instead of the active dialogue fast lane', async () => {
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
       finishReason: 'stop',
@@ -445,6 +551,70 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
+    })
+  })
+
+  it('escalates invalid compact utility replies back to the main runtime instead of silently localizing the answer', async () => {
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValueOnce(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+      emotion: 'thinking',
+      reply: '现在是 99:99，星期二。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+    }))
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: '现在是 10:30，星期二。',
+    })
+
+    const input = createInput({
+      key: 'card-1::turn-time-escalated',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-time-escalated',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '现在几点了？' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(createPrepared({
+        messages: [
+          { role: 'user' as const, content: '现在几点了？' },
+        ] as Message[],
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(1)
+    expect(runAlicizationMainChatStream).toHaveBeenCalledTimes(1)
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-fast-failed', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-escalated',
+      lane: 'utility-time',
+      strategy: 'compact-one-shot',
+      reason: 'active-dialogue-invalid-compact-reply:utility-time',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.active-dialogue-escalated-to-main-runtime', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-escalated',
+      lane: 'utility-time',
+      strategy: 'compact-one-shot',
+      escalationReason: 'active-dialogue-invalid-compact-reply:utility-time',
+      mindAuthorityEscalation: true,
+    }))
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
+      status: 'completed',
+      finishReason: 'stop',
+      fullText: '现在是 10:30，星期二。',
     })
   })
 
@@ -668,7 +838,7 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-follow-up',
       lane: 'follow-up',
-      strategy: 'deterministic-payoff',
+      strategy: 'compact-one-shot',
     }))
   })
 
@@ -723,7 +893,7 @@ describe('main chat background run', () => {
       cardId: 'card-1',
       turnId: 'turn-follow-up-remaining-files',
       lane: 'follow-up',
-      strategy: 'deterministic-payoff',
+      strategy: 'compact-one-shot',
     }))
   })
 
@@ -1193,6 +1363,73 @@ describe('main chat background run', () => {
         { role: 'assistant', content: '先别散，我和你一起收一下。' },
         { role: 'user', content: '那我先从哪开始' },
       ],
+    }))
+  })
+
+  it('escalates invalid compact utility timeout recoveries into the generic non-streaming retry chain', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
+    vi.mocked(recoverAlicizationMainChatFromTimeout)
+      .mockImplementationOnce(async () => JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+        emotion: 'thinking',
+        reply: '现在是 99:99，星期二。',
+      }))
+      .mockImplementationOnce(async () => JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+        emotion: 'thinking',
+        reply: '现在是 99:99，星期二。',
+      }))
+      .mockImplementationOnce(async () => buildAuthoritativeShanghaiTimeReply())
+
+    const input = createInput({
+      key: 'card-1::turn-time-timeout-escalated',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-time-timeout-escalated',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '现在几点了？' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(createPrepared({
+        messages: [
+          { role: 'user' as const, content: '现在几点了？' },
+        ] as Message[],
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0]
+    const recoveryResult = await failureInput?.recoverFromTimeout({
+      chatConfig: createPrepared().chatConfig,
+      messages: [
+        { role: 'user', content: '现在几点了？' },
+      ] as Message[],
+      headers: input.headers,
+      tools: undefined,
+      toolChoice: undefined,
+      timeoutMs: 1_500,
+    })
+
+    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
+    expect(recoveryResult?.recoveryMode).toBe('non-streaming')
+    expect(recoveryPayload.reply).toMatch(/现在是 \d{2}:\d{2}，星期/u)
+    expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(3)
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-attempt-failed', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-timeout-escalated',
+      recoveryMode: 'active-dialogue-compact',
+      reason: 'active-dialogue-invalid-compact-reply:utility-time',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-finished', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-time-timeout-escalated',
+      recoveryMode: 'non-streaming',
     }))
   })
 

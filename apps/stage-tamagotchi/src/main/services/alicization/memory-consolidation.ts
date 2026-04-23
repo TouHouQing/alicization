@@ -5,6 +5,7 @@ import { buildProceduralMemoryAbstractions } from './memory-procedural-abstracti
 export interface AlicizationMemoryConsolidationRecord {
   id: string
   kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
+  facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
   periodKey: string
   periodStartedAt: number
   periodEndedAt: number
@@ -139,6 +140,7 @@ export function buildMemoryConsolidationRecords(input: {
     consolidated.push({
       id: `daily:${periodKey}`,
       kind: 'daily',
+      facet: null,
       periodKey,
       periodStartedAt: Math.min(...bucketEvents.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...bucketEvents.map(event => event.occurredAt)),
@@ -163,6 +165,7 @@ export function buildMemoryConsolidationRecords(input: {
     consolidated.push({
       id: `weekly:${periodKey}`,
       kind: 'weekly',
+      facet: null,
       periodKey,
       periodStartedAt: Math.min(...bucketEvents.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...bucketEvents.map(event => event.occurredAt)),
@@ -205,6 +208,7 @@ export function buildMemoryConsolidationRecords(input: {
     consolidated.push({
       id: `procedural:${item.id}`,
       kind: 'procedural',
+      facet: null,
       periodKey: item.id,
       periodStartedAt: Math.min(...supporting.map(event => event.occurredAt)),
       periodEndedAt: Math.max(...supporting.map(event => event.occurredAt)),
@@ -264,8 +268,11 @@ export function searchMemoryConsolidationRecords(input: {
       const autobiographicalBoost = (intent?.mode === 'autobiographical-history' || intent?.mode === 'relationship-history') && record.kind === 'autobiographical'
         ? 0.24
         : 0
+      const relationshipEraBoost = intent?.mode === 'relationship-history' && record.facet === 'relationship-era' ? 0.14 : 0
+      const taskEraBoost = (intent?.mode === 'execution-procedure' || intent?.mode === 'experience-pattern') && record.facet === 'task-era' ? 0.14 : 0
+      const selfEraBoost = intent?.mode === 'autobiographical-history' && record.facet === 'self-era' ? 0.14 : 0
       const distantBoost = (intent?.temporalFocus === 'cross-session' || intent?.temporalFocus === 'distant') && record.kind !== 'daily' ? 0.18 : 0
-      const score = lexicalScore * 0.52 + record.confidence * 0.32 + proceduralBoost + autobiographicalBoost + distantBoost
+      const score = lexicalScore * 0.52 + record.confidence * 0.32 + proceduralBoost + autobiographicalBoost + relationshipEraBoost + taskEraBoost + selfEraBoost + distantBoost
       return {
         record,
         score,

@@ -6,6 +6,7 @@ import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
+import type { AlicizationRelationshipDynamicsState } from './db'
 import type { AlicizationDbService } from './db'
 import type { MainGatewayExecutionTaskThreadResult, MainGatewayExecutionToolContext } from './main-chat-execution-surface'
 import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
@@ -16,19 +17,24 @@ import { randomUUID } from 'node:crypto'
 import { env, platform } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
+import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
 
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
 import { probeOpenClawCapability, readOpenClawCapabilitySnapshot } from './executor-adapters/openclaw'
+import { buildHostPersonModelSnapshot } from './humanlike-memory'
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
 type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-payload'
 
 type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecutionEvents'
   | 'getTaskThread'
+  | 'getLatestRelationshipDynamics'
   | 'listChannelCapabilityManifests'
+  | 'listRecentEpisodicEvents'
   | 'listExecutorSessions'
   | 'listTaskThreads'
+  | 'searchMemoryConsolidations'
   | 'upsertChannelCapabilityManifest'
   | 'upsertExecutorSession'
   | 'upsertTaskThread'>
@@ -82,6 +88,172 @@ function mapManifestToPlanningCapability(manifest: AlicizationChannelCapabilityM
     sessionAffinity: manifest.sessionAffinity,
     reason: manifest.reason,
   }
+}
+
+function inferPreferredProcedureChannel(text: string) {
+  const semanticSignals = analyzeAlicizationExecutionSemanticSignals(text)
+  const mentionedChannel = semanticSignals.mentionedChannels.find(channel =>
+    channel === 'cli'
+    || channel === 'codex'
+    || channel === 'claude-code'
+    || channel === 'openclaw',
+  )
+  if (mentionedChannel) {
+    return {
+      channel: mentionedChannel,
+      reason: `remembered-procedure-mentioned-channel:${mentionedChannel}`,
+    } as const
+  }
+
+  if (/terminal|shell|command|cli|补丁|patch|verify|测试|test/iu.test(text)) {
+    return {
+      channel: 'cli' as const,
+      reason: 'remembered-procedure-cli-shape',
+    }
+  }
+  if (/codex/iu.test(text)) {
+    return {
+      channel: 'codex' as const,
+      reason: 'remembered-procedure-codex-shape',
+    }
+  }
+  if (/claude[- ]?code|claude code/iu.test(text)) {
+    return {
+      channel: 'claude-code' as const,
+      reason: 'remembered-procedure-claude-shape',
+    }
+  }
+  if (/browser|page|tab|screen|desktop|window|click/iu.test(text)) {
+    return {
+      channel: 'openclaw' as const,
+      reason: 'remembered-procedure-openclaw-shape',
+    }
+  }
+
+  return null
+}
+
+function inferPlanningHostContexts(goal: string) {
+  const normalized = goal.toLowerCase()
+  const contexts = ['general']
+  if (/runtime|debug|coding|code|patch|fix|verify|test|cursor|terminal|cli/iu.test(normalized))
+    contexts.push('focused-work', 'execution')
+  if (/late|night|fatigue|rest|sleep|tired|熬夜|疲惫|休息/u.test(normalized))
+    contexts.push('late-night')
+  return [...new Set(contexts)]
+}
+
+function normalizeHintText(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function buildHostProcedureHints(input: {
+  contexts: string[]
+  relationshipDynamics: AlicizationRelationshipDynamicsState | null
+  hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null
+}) {
+  const hints: string[] = []
+  const hostPersonModel = input.hostPersonModel
+  if (hostPersonModel) {
+    for (const preference of hostPersonModel.preferredClosenessByContext) {
+      if (!input.contexts.includes(preference.context))
+        continue
+      hints.push(preference.preference)
+    }
+    for (const routine of hostPersonModel.routines)
+      hints.push(routine)
+    for (const trigger of hostPersonModel.repairTriggers)
+      hints.push(trigger)
+    for (const sensitivity of hostPersonModel.sensitivities)
+      hints.push(sensitivity)
+    for (const burden of hostPersonModel.recurrentBurdens)
+      hints.push(burden)
+    hints.push(hostPersonModel.trustLadder.rationale)
+  }
+  if (input.relationshipDynamics?.hostAttitude)
+    hints.push(input.relationshipDynamics.hostAttitude)
+  return [...new Set(hints.map(item => normalizeHintText(item)).filter(Boolean))].slice(0, 12)
+}
+
+function computeRememberedProcedureHostPreferenceBoost(input: {
+  procedureText: string
+  contexts: string[]
+  relationshipDynamics: AlicizationRelationshipDynamicsState | null
+  hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null
+}) {
+  const text = input.procedureText.toLowerCase()
+  let boost = 0
+
+  const trustStage = input.hostPersonModel?.trustLadder.stage ?? 'cautious-open'
+  if ((trustStage === 'guarded' || trustStage === 'cautious-open') && /verify|bounded|consent|lighter|space|room|quiet|repair/iu.test(text))
+    boost += 0.12
+  if ((trustStage === 'warming' || trustStage === 'trusted') && /direct|warm|follow through|keep going|continue/iu.test(text))
+    boost += 0.08
+  if (input.contexts.includes('focused-work') && /verify|quiet|space|bounded|patch|test|cli|codex|claude/iu.test(text))
+    boost += 0.12
+  if (input.contexts.includes('late-night') && /rest|gentle|lighter|wait|quiet/iu.test(text))
+    boost += 0.1
+  if (input.relationshipDynamics?.hostAttitude && /focus|观察|谨慎|克制|space|pressure/iu.test(input.relationshipDynamics.hostAttitude) && /lighter|verify|space|quiet/iu.test(text))
+    boost += 0.08
+
+  return Math.max(0, Math.min(0.3, boost))
+}
+
+function buildRememberedProcedures(
+  sanitizeTextLike: (raw: unknown, fallback?: string) => string,
+  goalText: string,
+  hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null,
+  relationshipDynamics: AlicizationRelationshipDynamicsState | null,
+  records: Awaited<ReturnType<AlicizationExecutorRuntimeDbPort['searchMemoryConsolidations']>>,
+) {
+  const contexts = inferPlanningHostContexts(goalText)
+  return records
+    .filter(record => record.kind === 'procedural' || (record.kind === 'autobiographical' && record.facet === 'task-era'))
+    .map((record) => {
+      const procedureText = [
+        sanitizeTextLike(record.summary),
+        sanitizeTextLike(record.lesson),
+        ...(record.cues ?? []).map(cue => sanitizeTextLike(cue)),
+      ].filter(Boolean).join(' ')
+      const preferenceBoost = computeRememberedProcedureHostPreferenceBoost({
+        procedureText,
+        contexts,
+        relationshipDynamics,
+        hostPersonModel,
+      })
+      return {
+        record,
+        procedureText,
+        preferenceBoost,
+      }
+    })
+    .sort((left, right) => (right.record.confidence + right.preferenceBoost) - (left.record.confidence + left.preferenceBoost))
+    .map((record) => {
+      const preferred = inferPreferredProcedureChannel(record.procedureText)
+      return {
+        id: record.record.id,
+        sourceKind: record.record.kind === 'procedural' ? 'procedural' as const : 'autobiographical' as const,
+        facet: record.record.facet ?? null,
+        label: sanitizeTextLike(record.record.periodKey) || sanitizeTextLike(record.record.summary),
+        approach: sanitizeTextLike(record.record.lesson) || sanitizeTextLike(record.record.summary),
+        pitfalls: [],
+        confidence: Math.max(0, Math.min(1, record.record.confidence + record.preferenceBoost)),
+        cues: [...new Set([
+          ...(record.record.cues ?? []).map(cue => sanitizeTextLike(cue)),
+          ...contexts,
+        ].filter(Boolean))].slice(0, 6),
+        preferredChannel: preferred?.channel ?? null,
+        preferredChannelReason: preferred?.reason
+          ? `${preferred.reason}${record.preferenceBoost > 0 ? ':host-context-biased' : ''}`
+          : record.preferenceBoost > 0
+            ? 'host-context-biased-procedure'
+            : null,
+      }
+    })
+    .filter(item => item.label && item.approach)
+    .slice(0, 4)
 }
 
 export function createAlicizationExecutorRuntime(options: AlicizationExecutorRuntimeOptions) {
@@ -273,7 +445,57 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   async function planTaskThread(input: AlicizationTaskThreadPlanningInput & {
     killSwitchSuspended?: boolean
   }) {
-    return await taskExecutionGovernor.plan(options.getAlicizationDb(), input)
+    const db = options.getAlicizationDb()
+    const planningNow = Number.isFinite(input.now) ? Number(input.now) : Date.now()
+    const [recentEpisodicEvents, relationshipDynamics] = await Promise.all([
+      db.listRecentEpisodicEvents(24).catch(() => []),
+      db.getLatestRelationshipDynamics().catch(() => null),
+    ])
+    const hostPersonModel = recentEpisodicEvents.length > 0
+      ? buildHostPersonModelSnapshot({
+          events: recentEpisodicEvents,
+          facts: [],
+          relationshipDynamics,
+          now: planningNow,
+        })
+      : null
+    const planningContexts = inferPlanningHostContexts(input.task.goal)
+    const procedureQuery = [
+      input.task.goal,
+      ...buildHostProcedureHints({
+        contexts: planningContexts,
+        relationshipDynamics,
+        hostPersonModel,
+      }).slice(0, 4),
+    ].filter(Boolean).join(' ')
+    const proceduralMemories = await db.searchMemoryConsolidations({
+      query: procedureQuery,
+      limit: 6,
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: [input.task.goal, ...planningContexts],
+        rationale: 'Remembered procedure should inform task planning before execution starts.',
+        confidence: 0.84,
+      },
+    }).catch(() => [])
+
+    return await taskExecutionGovernor.plan(db, {
+      ...input,
+      experience: {
+        ...input.experience,
+        rememberedProcedures: buildRememberedProcedures(
+          options.sanitizeText,
+          input.task.goal,
+          hostPersonModel,
+          relationshipDynamics,
+          proceduralMemories,
+        ),
+      },
+    })
   }
 
   async function executeMainGatewayTaskThread(input: {

@@ -131,6 +131,38 @@ describe('execution delivery surface', () => {
     expect(reply).toContain('patched runtime line')
   })
 
+  it('adds a soft availability check from host person model even without an explicit learned delivery policy', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      hostPersonModel: {
+        summary: 'Focused work windows need more room before closeness.',
+        routines: ['Focused work windows usually need space first, then precise follow-up.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: ['If closeness feels heavy, back off first and reopen with lighter presence.'],
+        trustLadder: {
+          stage: 'cautious-open',
+          score: 0.48,
+          rationale: 'Trust is warming, but the host still needs clear room while focused.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+        narrative: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(reply).toContain('你现在要是方便')
+    expect(reply).toContain('patched runtime line')
+  })
+
   it('threads self continuity authority into the payoff prompt surface', () => {
     const prompt = buildAlicizationExecutionPayoffPrompt({
       mode: 'callback-delivery',
@@ -152,5 +184,40 @@ describe('execution delivery surface', () => {
 
     expect(prompt.system).toContain('Self continuity authority JSON')
     expect(prompt.system).toContain('repair truth')
+    expect(prompt.system).toContain('Relationship doctrine JSON')
+  })
+
+  it('threads host person model into the payoff prompt surface', () => {
+    const prompt = buildAlicizationExecutionPayoffPrompt({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      hostPersonModel: {
+        summary: 'Focused work windows need more room before closeness.',
+        routines: ['Focused work windows usually need space first, then precise follow-up.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: ['If closeness feels heavy, back off first and reopen with lighter presence.'],
+        trustLadder: {
+          stage: 'cautious-open',
+          score: 0.48,
+          rationale: 'Trust is warming, but the host still needs clear room while focused.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+        narrative: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(prompt.system).toContain('Host person model JSON')
+    expect(prompt.system).toContain('cautious-open')
+    expect(prompt.system).toContain('lighter touch')
   })
 })

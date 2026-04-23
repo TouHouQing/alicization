@@ -376,6 +376,45 @@ describe('dialogue session manager', () => {
     const mirror = manager.ingestPreparedExecution({
       agentSession: createAgentSessionSnapshot(),
       cardId: 'default',
+      organicMemoryContext: {
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionIntent: {
+          mode: 'execution-procedure',
+          temporalFocus: 'experience-matched',
+          searchEpisodes: true,
+          searchConversations: false,
+          searchProceduralExperience: true,
+          queryHints: ['runtime seam', 'verify'],
+          rationale: 'This turn is carrying the remembered way of handling the runtime seam.',
+          confidence: 0.84,
+        },
+        recollectionPlan: {
+          selectedConsolidationIds: [],
+          selectedWindowIds: [],
+          selectedProceduralIds: ['procedural:runtime'],
+          selectedEpisodeIds: [],
+          selectedConversationTurnIds: [],
+          opening: 'What comes back first is the way the runtime seam was handled before.',
+          certainty: 'approximate',
+          rationale: 'Foreground the remembered procedure first.',
+          confidence: 0.81,
+        },
+        recollectionSpeechPlan: {
+          shouldSurface: false,
+          surfaceMode: 'internal-only',
+          placement: 'internal-only',
+          certainty: 'approximate',
+          internalLead: 'The remembered route is to verify the seam before branching.',
+          visibleLead: null,
+          styleNote: 'Let the remembered procedure quietly bend the answer.',
+          rationale: 'The host needs continuity-shaped help, not a narrated retrospective.',
+          confidence: 0.79,
+        },
+      },
       runtimeSurface: createRuntimeSurface(),
       sessionId: 'session-1',
     })
@@ -392,6 +431,10 @@ describe('dialogue session manager', () => {
     expect(mirror.perceptionSummary).toContain('scene=Viewing a runtime refactor diff')
     expect(mirror.memoryCarrySummary).toContain('mode=reflective-repair')
     expect(mirror.memorySummary).toContain('goal=Refactor dialogue continuity runtime')
+    expect(mirror.recollectionSummary).toContain('mode=execution-procedure')
+    expect(mirror.recollectionSummary).toContain('foreground=What comes back first is the way the runtime seam was handled before.')
+    expect(mirror.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(mirror.recollectionConfidence).toBe(0.81)
     expect(mirror.agencySummary).toContain('action=speak')
 
     const block = manager.buildSessionMirrorSystemBlock({
@@ -407,6 +450,9 @@ describe('dialogue session manager', () => {
     expect(block).toContain('memory_carry=mode=reflective-repair')
     expect(block).toContain('perception=watch=symbiotic-vision | scene=Viewing a runtime refactor diff | attention=runtime.ts | source=attention-anchor')
     expect(block).toContain('memory=recent=carry the refactor thread forward')
+    expect(block).toContain('recollection=mode=execution-procedure | certainty=approximate')
+    expect(block).toContain('recollection_surface=surface=inward | surface_mode=internal-only')
+    expect(block).toContain('recollection_confidence=0.81')
     expect(block).toContain('agency=action=speak | speak=true | style=light-nudge | thread=Refactor dialogue continuity runtime')
     expect(block).toContain('dialogue=turn=answer | persona=full | subject=relationship | answer=reassure while staying grounded')
   })
@@ -437,6 +483,41 @@ describe('dialogue session manager', () => {
   it('ingests one-shot agent session snapshots so active loops can extend continuity', () => {
     const manager = createAlicizationDialogueSessionManager({
       getNow: () => 60,
+    })
+
+    manager.ingestPreparedExecution({
+      agentSession: createAgentSessionSnapshot(),
+      cardId: 'default',
+      organicMemoryContext: {
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionIntent: {
+          mode: 'conversation-history',
+          temporalFocus: 'cross-session',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: false,
+          queryHints: ['runtime spine'],
+          rationale: 'Carry the remembered runtime spine.',
+          confidence: 0.72,
+        },
+        recollectionPlan: {
+          selectedConsolidationIds: ['autobio:phase'],
+          selectedWindowIds: [],
+          selectedProceduralIds: [],
+          selectedEpisodeIds: [],
+          selectedConversationTurnIds: [],
+          opening: 'What comes back first is the same runtime spine we have been carrying.',
+          certainty: 'approximate',
+          rationale: 'Foreground the remembered runtime spine.',
+          confidence: 0.74,
+        },
+      },
+      runtimeSurface: createRuntimeSurface(),
+      sessionId: 'session-1',
     })
 
     const mirror = manager.ingestAgentSessionSnapshot({
@@ -476,6 +557,7 @@ describe('dialogue session manager', () => {
     expect(mirror.mindSummary).toContain('hypothesis=The missing null guard is the current knot.')
     expect(mirror.memoryCarrySummary).toContain('mode=reflective-repair')
     expect(mirror.memorySummary).toContain('reflection=keep one runtime spine')
+    expect(mirror.recollectionSummary).toContain('mode=conversation-history')
     expect(mirror.executionSummary).toContain('callback:cli:completed')
 
     const block = manager.buildSessionMirrorSystemBlock({
@@ -490,6 +572,7 @@ describe('dialogue session manager', () => {
     expect(block).toContain('mind=mode=tracking | drive=understand | need=guidance')
     expect(block).toContain('memory_carry=mode=reflective-repair')
     expect(block).toContain('memory=recent=carry the refactor thread forward')
+    expect(block).toContain('recollection=mode=conversation-history | certainty=approximate')
     expect(block).toContain('execution=recent=callback:cli:completed status=completed summary=cli callback settled')
   })
 
@@ -527,9 +610,9 @@ describe('dialogue session manager', () => {
       source: 'task-planning',
     })
 
-    expect(mirror.executionSummary).toContain('status=needs-affirmation')
+    expect(mirror.executionSummary).toContain('status=pending')
     expect(mirror.executionSummary).toContain('goal=Publish the current foreground draft')
     expect(mirror.executionSummary).toContain('channel=software')
-    expect(mirror.executionSummary).toContain('summary=waiting-confirmation before software can act on Publish the current foreground draft')
+    expect(mirror.executionSummary).toContain('summary=Execution is waiting for affirmation before software can act on Publish the current foreground draft.')
   })
 })

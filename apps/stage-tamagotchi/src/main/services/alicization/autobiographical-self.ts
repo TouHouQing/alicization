@@ -766,6 +766,10 @@ function buildBehaviorSignatures(input: {
   dominantGoal: AlicizationAutobiographicalGoalSnapshot | null
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
   autobiographicalSummary?: string | null
+  phaseSummary?: string | null
+  relationshipEraSummary?: string | null
+  taskEraSummary?: string | null
+  selfEraSummary?: string | null
 }) {
   const signatures = [
     `conflict:${input.personaDrift.conflictStyle}`,
@@ -780,9 +784,13 @@ function buildBehaviorSignatures(input: {
     input.preferences.proactiveCare >= 0.58 ? 'habit:body-before-fluency' : '',
     input.preferences.playfulIntimacy >= 0.56 ? 'habit:let-softness-surface-when-safe' : '',
     input.autobiographicalSummary ? 'memory:autobiographical-summary' : '',
+    input.phaseSummary ? 'memory:phase-era' : '',
+    input.relationshipEraSummary ? 'memory:relationship-era' : '',
+    input.taskEraSummary ? 'memory:task-era' : '',
+    input.selfEraSummary ? 'memory:self-era' : '',
   ].filter(Boolean)
 
-  return [...new Set(signatures)].slice(0, 6)
+  return [...new Set(signatures)].slice(0, 12)
 }
 
 function buildIdentityNarrative(input: {
@@ -790,9 +798,11 @@ function buildIdentityNarrative(input: {
   dominantGoal: AlicizationAutobiographicalGoalSnapshot | null
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
   autobiographicalSummary?: string | null
+  phaseSummary?: string | null
+  selfEraSummary?: string | null
 }) {
   const goalLine = input.dominantGoal?.summary ?? 'Keep growing toward a more stable inner line.'
-  const autobiographicalLead = sanitizeText(input.autobiographicalSummary, 160)
+  const autobiographicalLead = sanitizeText(input.selfEraSummary || input.phaseSummary || input.autobiographicalSummary, 160)
   if (input.personaDrift.conflictStyle === 'repair-first') {
     return sanitizeText(
       `${autobiographicalLead ? `${autobiographicalLead} ` : ''}I am stabilizing into a ${input.personaDrift.expressionStyle} self who would rather repair truth than sound smooth. ${goalLine}`,
@@ -821,8 +831,9 @@ function buildRelationshipDoctrine(input: {
   personaDrift: AlicizationAutobiographicalSelfSnapshot['personaDrift']
   preferences: AlicizationAutobiographicalSelfSnapshot['preferenceEvolution']
   autobiographicalLesson?: string | null
+  relationshipEraLesson?: string | null
 }) {
-  const lesson = sanitizeText(input.autobiographicalLesson, 180)
+  const lesson = sanitizeText(input.relationshipEraLesson || input.autobiographicalLesson, 180)
   if (input.preferences.companionship >= 0.58 && input.preferences.autonomyRespect >= 0.56)
     return sanitizeText(`${lesson ? `${lesson} ` : ''}Stay close enough to matter, but treat pressure and intrusion as a rupture of care.`, 220)
   if (input.preferences.truthfulGrounding >= 0.64)
@@ -832,11 +843,23 @@ function buildRelationshipDoctrine(input: {
   return sanitizeText(`${lesson ? `${lesson} ` : ''}Closeness is welcome when it can stay respectful, truthful, and rhythm-aware.`, 220)
 }
 
-function latestAutobiographicalConsolidation(input: AlicizationAutobiographicalSelfInput) {
-  return (input.recentMemoryConsolidations ?? [])
+function latestAutobiographicalConsolidations(input: AlicizationAutobiographicalSelfInput) {
+  const sorted = (input.recentMemoryConsolidations ?? [])
     .filter(item => item.kind === 'autobiographical' || item.kind === 'weekly' || item.kind === 'daily')
     .slice()
-    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)[0] ?? null
+    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)
+
+  const autobiographical = sorted.filter(item => item.kind === 'autobiographical')
+  const pickFacet = (facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era') =>
+    autobiographical.find(item => item.facet === facet) ?? null
+
+  return {
+    latest: sorted[0] ?? null,
+    phase: pickFacet('phase'),
+    relationshipEra: pickFacet('relationship-era'),
+    taskEra: pickFacet('task-era'),
+    selfEra: pickFacet('self-era'),
+  }
 }
 
 function stablePreferenceDelta(
@@ -964,12 +987,17 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     ...previous,
     activeGoals,
   })
-  const latestConsolidation = latestAutobiographicalConsolidation(input)
+  const facetConsolidations = latestAutobiographicalConsolidations(input)
+  const latestConsolidation = facetConsolidations.latest
   const behaviorSignatures = buildBehaviorSignatures({
     personaDrift,
     dominantGoal,
     preferences: preferenceEvolution,
     autobiographicalSummary: latestConsolidation?.summary ?? null,
+    phaseSummary: facetConsolidations.phase?.summary ?? null,
+    relationshipEraSummary: facetConsolidations.relationshipEra?.summary ?? null,
+    taskEraSummary: facetConsolidations.taskEra?.summary ?? null,
+    selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
   })
   const latestReflectionEntry = latestReflection(input.reflectionLedger)
   const latestHistoricalReflection = (input.recentMemoryReflections ?? [])
@@ -977,7 +1005,14 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))[0] ?? null
   const latestInflection = sanitizeText(
     latestReflectionEntry?.revision
+    || facetConsolidations.selfEra?.lesson
+    || facetConsolidations.taskEra?.lesson
+    || facetConsolidations.relationshipEra?.lesson
     || latestConsolidation?.lesson
+    || facetConsolidations.selfEra?.summary
+    || facetConsolidations.taskEra?.summary
+    || facetConsolidations.relationshipEra?.summary
+    || facetConsolidations.phase?.summary
     || latestConsolidation?.summary
     || latestHistoricalReflection?.lesson
     || latestHistoricalReflection?.summary
@@ -1054,11 +1089,14 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
       dominantGoal,
       preferences: preferenceEvolution,
       autobiographicalSummary: latestConsolidation?.summary ?? null,
+      phaseSummary: facetConsolidations.phase?.summary ?? null,
+      selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
     }),
     relationshipDoctrine: buildRelationshipDoctrine({
       personaDrift,
       preferences: preferenceEvolution,
       autobiographicalLesson: latestConsolidation?.lesson ?? null,
+      relationshipEraLesson: facetConsolidations.relationshipEra?.lesson ?? null,
     }),
     latestInflection,
     stability,

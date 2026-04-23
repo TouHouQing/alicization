@@ -724,6 +724,12 @@ describe('main chat execution surface', () => {
             experience: {
               advisorChannel: 'claude-code',
               advisorConfidence: 0.9,
+              rememberedProcedures: [{
+                id: 'procedural:runtime-seam',
+                label: 'runtime seam repair',
+                approach: 'Use Claude Code first for the patch, then verify before branching.',
+                preferredChannel: 'claude-code',
+              }],
             },
           },
         },
@@ -793,6 +799,12 @@ describe('main chat execution surface', () => {
       routeExperience: expect.objectContaining({
         advisorChannel: 'claude-code',
         advisorConfidence: 0.9,
+        rememberedProcedures: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'procedural:runtime-seam',
+            preferredChannel: 'claude-code',
+          }),
+        ]),
       }),
     }))
   })

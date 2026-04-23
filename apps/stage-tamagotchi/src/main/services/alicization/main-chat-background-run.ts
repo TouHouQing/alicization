@@ -40,7 +40,6 @@ import {
   AlicizationActiveDialogueMindAuthorityEscalationError,
   buildAlicizationActiveDialogueFastPathMessages,
   deriveAlicizationActiveDialogueFastPathDecision,
-  normalizeAlicizationActiveDialogueFastPathReply,
   normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
   shouldAlicizationActiveDialogueStayLLMAuthored,
 } from './main-chat-active-dialogue-loop'
@@ -105,6 +104,10 @@ interface RunAlicizationMainChatBackgroundOptions {
     action: string
     message: string
     payload: Record<string, unknown>
+  }) => Promise<void> | void
+  recordPreparedMindTrace?: (input: {
+    payload: AlicizationChatStartPayload
+    prepared: AlicizationPreparedMainChatExecutionResult
   }) => Promise<void> | void
   suppressInlineExecutionDeliveries?: (input: {
     cardId: string
@@ -525,6 +528,7 @@ export async function runAlicizationMainChatBackground(
       summary: surfaceInput.summary,
       outcome: surfaceInput.outcome,
       selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
+      hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
     })
 
     try {
@@ -553,6 +557,7 @@ export async function runAlicizationMainChatBackground(
             }
           : null,
         selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
+        hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
       })
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-started', {
         cardId: input.payload.cardId,
@@ -586,6 +591,7 @@ export async function runAlicizationMainChatBackground(
         status: surfaceInput.status,
         summary: surfaceInput.summary,
         selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
+        hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
       })
       const emotion = normalizeAlicizationExecutionPayoffEmotion(
         parsed.emotion,
@@ -707,6 +713,19 @@ export async function runAlicizationMainChatBackground(
       captureFallbackReason: runtimeSurface.capture.fallbackReason,
       enforcedExecutionTools,
     })
+    try {
+      await Promise.resolve(input.recordPreparedMindTrace?.({
+        payload: input.payload,
+        prepared,
+      }))
+    }
+    catch (error) {
+      await input.appendRuntimeDebugLine('chat-start.prepared-mind-trace-failed', {
+        cardId: input.runState.cardId,
+        turnId: input.runState.turnId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    }
     await input.appendRuntimeDebugLine('chat-stream.started', {
       cardId: input.runState.cardId,
       turnId: input.runState.turnId,
@@ -771,29 +790,23 @@ export async function runAlicizationMainChatBackground(
       prepared,
       runtimeDigest: resolveRuntimeDigestFromPrepared(),
     })
-    if (activeDialogueDecision && shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)) {
+    const activeDialogueUsesCompactFastPath = activeDialogueDecision
+      && !shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)
+      && activeDialogueDecision.strategy === 'compact-one-shot'
+    if (activeDialogueDecision && !activeDialogueUsesCompactFastPath) {
       await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deferred-to-main-runtime', {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
         lane: activeDialogueDecision.lane,
         strategy: activeDialogueDecision.strategy,
         reasonCodes: activeDialogueDecision.reasonCodes,
+        deferredReason: activeDialogueDecision.strategy !== 'compact-one-shot'
+          ? 'infra-only-strategy'
+          : 'mind-authored-lane',
       })
     }
-    if (activeDialogueDecision && !shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)) {
+    if (activeDialogueDecision && activeDialogueUsesCompactFastPath) {
       const resolveActiveDialogueMindReply = async (decision: AlicizationActiveDialogueFastPathDecision) => {
-        if (decision.strategy === 'local-only') {
-          await input.appendRuntimeDebugLine('chat-stream.active-dialogue-local-only-direct', {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            lane: decision.lane,
-          })
-          return normalizeAlicizationActiveDialogueFastPathReply({
-            decision,
-            rawText: '',
-          })
-        }
-
         const compactMessages = buildAlicizationActiveDialogueFastPathMessages({
           conversationMessages,
           decision,
@@ -834,41 +847,6 @@ export async function runAlicizationMainChatBackground(
         reasonCodes: activeDialogueDecision.reasonCodes,
       })
 
-      if (activeDialogueDecision.strategy === 'deterministic-payoff') {
-        const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
-          conversationMessages,
-          decision: activeDialogueDecision,
-          prepared,
-        }) ?? null)
-        if (deterministicReply) {
-          const visibleDeterministicReply = deriveAlicizationVisibleReplyText(deterministicReply) || deterministicReply
-          emitStreamEmbodimentMeta(visibleDeterministicReply)
-          input.emitChunk({
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            text: deterministicReply,
-          })
-          await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-finished', {
-            cardId: input.payload.cardId,
-            turnId: input.payload.turnId,
-            lane: activeDialogueDecision.lane,
-            fullTextChars: deterministicReply.length,
-          })
-          input.runStateController.finishRun(input.key, {
-            status: 'completed',
-            finishReason: 'active-dialogue-deterministic',
-            fullText: deterministicReply,
-          })
-          return
-        }
-
-        await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deterministic-missed', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          lane: activeDialogueDecision.lane,
-        })
-      }
-
       try {
         const normalizedReply = await resolveActiveDialogueMindReply(activeDialogueDecision)
         const visibleNormalizedReply = deriveAlicizationVisibleReplyText(normalizedReply) || normalizedReply
@@ -887,11 +865,7 @@ export async function runAlicizationMainChatBackground(
         })
         input.runStateController.finishRun(input.key, {
           status: 'completed',
-          finishReason: activeDialogueDecision.strategy === 'compact-one-shot'
-            ? 'active-dialogue-fast-path'
-            : activeDialogueDecision.strategy === 'deterministic-payoff'
-              ? 'active-dialogue-deterministic'
-              : 'active-dialogue-local',
+          finishReason: 'active-dialogue-fast-path',
           fullText: normalizedReply,
         })
         return
@@ -1100,19 +1074,23 @@ export async function runAlicizationMainChatBackground(
               runtimeDigest: resolveRuntimeDigestFromPrepared(),
             })
           : null
-        const timeoutActiveDialogueNeedsCompactRecovery
+        const timeoutActiveDialogueUsesCompactRecovery
           = !toolingRequired
-            && timeoutActiveDialogueDecision?.strategy === 'compact-one-shot'
-        if (!toolingRequired && timeoutActiveDialogueDecision && shouldAlicizationActiveDialogueStayLLMAuthored(timeoutActiveDialogueDecision)) {
+            && !!timeoutActiveDialogueDecision
+            && timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+        if (!toolingRequired && timeoutActiveDialogueDecision && !timeoutActiveDialogueUsesCompactRecovery) {
           await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deferred', {
             cardId: normalizedCardId,
             turnId: normalizedTurnId,
             lane: timeoutActiveDialogueDecision.lane,
             strategy: timeoutActiveDialogueDecision.strategy,
             reasonCodes: timeoutActiveDialogueDecision.reasonCodes,
+            deferredReason: timeoutActiveDialogueDecision.strategy !== 'compact-one-shot'
+              ? 'infra-only-strategy'
+              : 'mind-authored-lane',
           })
         }
-        if (timeoutActiveDialogueNeedsCompactRecovery && timeoutActiveDialogueDecision) {
+        if (timeoutActiveDialogueUsesCompactRecovery && timeoutActiveDialogueDecision) {
           const oneShotTimeoutMs = Math.max(
             timeoutActiveDialogueDecision.timeoutMs,
             6_500,
@@ -1139,87 +1117,6 @@ export async function runAlicizationMainChatBackground(
               rawText,
             }),
           })
-        }
-        if (!toolingRequired && timeoutActiveDialogueDecision && !shouldAlicizationActiveDialogueStayLLMAuthored(timeoutActiveDialogueDecision)) {
-          if (timeoutActiveDialogueDecision.strategy === 'deterministic-payoff') {
-            const deterministicReply = await Promise.resolve(input.resolveActiveDialogueDeterministicReply?.({
-              conversationMessages: recoveryConversationMessages,
-              decision: timeoutActiveDialogueDecision,
-              prepared: preparedExecution,
-            }) ?? null)
-            if (deterministicReply) {
-              await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deterministic', {
-                cardId: normalizedCardId,
-                turnId: normalizedTurnId,
-                lane: timeoutActiveDialogueDecision.lane,
-                recoveredChars: deterministicReply.length,
-              })
-              return {
-                recoveredText: deterministicReply,
-                recoveryMode: 'active-dialogue-deterministic',
-              }
-            }
-          }
-
-          if (timeoutActiveDialogueDecision.strategy === 'local-only') {
-            const localOnlyReply = normalizeAlicizationActiveDialogueFastPathReply({
-              decision: timeoutActiveDialogueDecision,
-              rawText: '',
-            })
-            await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-local-direct', {
-              cardId: normalizedCardId,
-              turnId: normalizedTurnId,
-              lane: timeoutActiveDialogueDecision.lane,
-              recoveredChars: localOnlyReply.length,
-            })
-            return {
-              recoveredText: localOnlyReply,
-              recoveryMode: 'active-dialogue-local',
-            }
-          }
-
-          if (
-            timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
-            || (
-              timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
-              && !timeoutActiveDialogueNeedsCompactRecovery
-            )
-          ) {
-            const oneShotTimeoutMs = Math.max(
-              timeoutActiveDialogueDecision.timeoutMs,
-              timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
-                ? 6_500
-                : timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
-                  ? 8_500
-                  : 9_000,
-            )
-            recoveryAttempts.push({
-              mode: timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
-                ? 'active-dialogue-compact'
-                : timeoutActiveDialogueDecision.strategy === 'deterministic-payoff'
-                  ? 'active-dialogue-deterministic'
-                  : 'active-dialogue-local',
-              input: {
-                ...recoveryInput,
-                messages: buildAlicizationActiveDialogueFastPathMessages({
-                  conversationMessages: recoveryConversationMessages,
-                  decision: timeoutActiveDialogueDecision,
-                  prepared: preparedExecution,
-                }),
-                tools: undefined,
-                toolChoice: undefined,
-                timeoutMs: Math.max(
-                  oneShotTimeoutMs,
-                  Math.min(recoveryInput.timeoutMs, 9_000),
-                ),
-                maxSteps: 2,
-              },
-              normalizeRecoveredText: rawText => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
-                decision: timeoutActiveDialogueDecision,
-                rawText,
-              }),
-            })
-          }
         }
         const effectiveRecoveryInput = timeoutRecoveryMode === 'tools-disabled'
           ? {

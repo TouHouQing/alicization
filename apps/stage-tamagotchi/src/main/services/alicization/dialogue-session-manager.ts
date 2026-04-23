@@ -2,6 +2,7 @@ import type { AlicizationSensoryCacheSnapshot } from '../../../shared/eventa'
 import type { AlicizationAgentSessionSnapshot } from './agent-runtime'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import {
@@ -22,6 +23,9 @@ export interface AlicizationDialogueSessionMirror {
   mindSummary: string | null
   memoryCarrySummary: string | null
   memorySummary: string | null
+  recollectionSummary?: string | null
+  recollectionSurfaceSummary?: string | null
+  recollectionConfidence?: number | null
   perceptionSummary: string | null
   sessionId: string
   sessionPhases: string[]
@@ -47,6 +51,7 @@ export interface AlicizationDialogueSessionManager {
   ingestPreparedExecution: (input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
+    organicMemoryContext?: OrganicMemoryPromptContext | null
     runtimeSurface: AlicizationMainChatRuntimeSurface
     sessionId: string
   }) => AlicizationDialogueSessionMirror
@@ -322,6 +327,54 @@ function summarizeMemoryFromSpine(spine: AlicizationDigitalLifeSpineSnapshot | n
   ].filter(Boolean).join(' | ')
 }
 
+function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | null | undefined) {
+  const deliberation = context?.memoryDeliberation ?? null
+  const intent = context?.recollectionIntent ?? null
+  const plan = context?.recollectionPlan ?? null
+  const speech = context?.recollectionSpeechPlan ?? null
+  const narrative = context?.recollectionNarratives?.[0] ?? null
+  if (!deliberation && !intent && !plan && !speech && !narrative)
+    return null
+
+  const opening = sanitizeText(
+    deliberation?.inwardLine
+    ?? plan?.opening
+    ?? speech?.internalLead
+    ?? narrative?.opening
+    ?? '',
+  180,
+  ) || null
+  const certainty = sanitizeText(speech?.certainty ?? plan?.certainty ?? narrative?.certainty ?? '', 32) || null
+  const confidence = Number.isFinite(deliberation?.confidence)
+    ? Number(deliberation!.confidence)
+    : Number.isFinite(plan?.confidence)
+      ? Number(plan!.confidence)
+    : Number.isFinite(speech?.confidence)
+      ? Number(speech!.confidence)
+      : Number.isFinite(narrative?.confidence)
+        ? Number(narrative!.confidence)
+        : null
+  const mode = sanitizeText(intent?.mode ?? narrative?.mode ?? '', 48) || null
+
+  return {
+    summary: [
+      mode ? `mode=${mode}` : '',
+      certainty ? `certainty=${certainty}` : '',
+      opening ? `foreground=${opening}` : '',
+    ].filter(Boolean).join(' | ') || null,
+    surfaceSummary: deliberation || speech
+      ? [
+          deliberation?.shouldRecall === false || !speech?.shouldSurface ? 'surface=inward' : 'surface=visible',
+          deliberation?.surfacePolicy ? `surface_mode=${sanitizeText(deliberation.surfacePolicy, 48)}` : speech?.surfaceMode ? `surface_mode=${sanitizeText(speech.surfaceMode, 48)}` : '',
+          speech?.placement ? `placement=${sanitizeText(speech.placement, 48)}` : '',
+          deliberation?.visibleLine ? `visible=${sanitizeText(deliberation.visibleLine, 140)}` : speech?.visibleLead ? `visible=${sanitizeText(speech.visibleLead, 140)}` : '',
+          speech?.styleNote ? `style=${sanitizeText(speech.styleNote, 140)}` : '',
+        ].filter(Boolean).join(' | ') || null
+      : null,
+    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, Number(confidence))) : null,
+  }
+}
+
 function summarizeExecutionFromAgentSession(agentSession: AlicizationAgentSessionSnapshot) {
   const executorTasks = agentSession.tasks.filter(task => task.kind === 'executor')
   if (executorTasks.length === 0)
@@ -436,6 +489,7 @@ export function createAlicizationDialogueSessionManager(
   function ingestPreparedExecution(input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
+    organicMemoryContext?: OrganicMemoryPromptContext | null
     runtimeSurface: AlicizationMainChatRuntimeSurface
     sessionId: string
   }) {
@@ -451,6 +505,7 @@ export function createAlicizationDialogueSessionManager(
       ?? (input.runtimeSurface.digitalLifeRuntimeSurface
         ? deriveAlicizationDigitalLifeSpineFromSurface(input.runtimeSurface.digitalLifeRuntimeSurface)
         : null)
+    const recollectionForeground = summarizeRecollectionForeground(input.organicMemoryContext ?? null)
     const mirror: AlicizationDialogueSessionMirror = {
       cardId: normalizedCardId,
       sessionId: normalizedSessionId,
@@ -492,9 +547,21 @@ export function createAlicizationDialogueSessionManager(
         220,
       ) || previousMirror?.memoryCarrySummary || null,
       memorySummary: sanitizeText(
-        summarizeMemoryFromSpine(digitalLifeSpine),
+        [
+          summarizeMemoryFromSpine(digitalLifeSpine),
+          recollectionForeground?.summary ? `recollection=${sanitizeText(recollectionForeground.summary, 120)}` : '',
+        ].filter(Boolean).join(' | '),
         220,
       ) || previousMirror?.memorySummary || null,
+      recollectionSummary: sanitizeText(
+        recollectionForeground?.summary,
+        220,
+      ) || previousMirror?.recollectionSummary || null,
+      recollectionSurfaceSummary: sanitizeText(
+        recollectionForeground?.surfaceSummary,
+        220,
+      ) || previousMirror?.recollectionSurfaceSummary || null,
+      recollectionConfidence: recollectionForeground?.confidence ?? previousMirror?.recollectionConfidence ?? null,
       perceptionSummary: sanitizeText(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
@@ -583,6 +650,9 @@ export function createAlicizationDialogueSessionManager(
         summarizeMemoryFromSpine(digitalLifeSpine),
         220,
       ) || previousMirror?.memorySummary || null,
+      recollectionSummary: previousMirror?.recollectionSummary ?? null,
+      recollectionSurfaceSummary: previousMirror?.recollectionSurfaceSummary ?? null,
+      recollectionConfidence: previousMirror?.recollectionConfidence ?? null,
       perceptionSummary: sanitizeText(
         summarizePerceptionFromSpine(digitalLifeSpine),
         220,
@@ -630,6 +700,13 @@ export function createAlicizationDialogueSessionManager(
       `mind=${mirror.mindSummary ?? 'none'}`,
       `memory_carry=${mirror.memoryCarrySummary ?? 'none'}`,
       `memory=${mirror.memorySummary ?? 'none'}`,
+      `recollection=${mirror.recollectionSummary ?? 'none'}`,
+      mirror.recollectionSurfaceSummary
+        ? `recollection_surface=${mirror.recollectionSurfaceSummary}`
+        : 'recollection_surface=none',
+      typeof mirror.recollectionConfidence === 'number'
+        ? `recollection_confidence=${mirror.recollectionConfidence.toFixed(2)}`
+        : 'recollection_confidence=none',
       `perception=${mirror.perceptionSummary ?? 'none'}`,
       `agency=${mirror.agencySummary ?? 'none'}`,
       `execution=${mirror.executionSummary ?? 'none'}`,

@@ -61,7 +61,7 @@ interface CreateAlicizationDreamRuntimeOptions {
       turnId: string
       decisionTraceId?: string | null
     }
-  }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'periodKey' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
+  }) => Promise<Array<Pick<AlicizationMemoryConsolidationRecord, 'periodKey' | 'facet' | 'summary' | 'lesson' | 'cues' | 'confidence'>> | null>
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   buildAgentRuntimeAuditSnapshot: (agentTurn?: AlicizationAgentTurnRuntime | null) => unknown
   truncateForDream: (value: string | null | undefined, maxChars: number) => string
@@ -487,8 +487,9 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
           const periodDateKey = new Date(lastSampledAt).toISOString().slice(0, 10)
           await getAlicizationDb().upsertMemoryConsolidations?.(
             autobiographicalSummaries.map((item, index) => ({
-              id: `autobiographical:${item.periodKey || periodDateKey}:${index}`,
+              id: `autobiographical:${item.facet ?? 'phase'}:${item.periodKey || periodDateKey}:${index}`,
               kind: 'autobiographical' as const,
+              facet: item.facet ?? 'phase',
               periodKey: sanitizeHumanlikeMemoryText(item.periodKey || periodDateKey, 96) || periodDateKey,
               periodStartedAt: firstSampledAt,
               periodEndedAt: lastSampledAt,

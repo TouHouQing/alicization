@@ -8,6 +8,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { buildHostRhythmModel } from './host-rhythm-model'
@@ -20,6 +21,16 @@ function sanitizeText(raw: unknown, maxChars = 80) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function latestAutobiographicalEra(
+  records: AlicizationMemoryConsolidationRecord[] | null | undefined,
+  facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era',
+) {
+  return (records ?? [])
+    .filter(record => record.kind === 'autobiographical' && record.facet === facet)
+    .slice()
+    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)[0] ?? null
+}
+
 export function buildHabitPolicy(input: {
   now: number
   context: AlicizationProactiveLayeredContext
@@ -27,10 +38,14 @@ export function buildHabitPolicy(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   previous?: AlicizationHabitPolicySnapshot | null
 }): AlicizationHabitPolicySnapshot {
+  const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
+  const taskEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'task-era')
+  const selfEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'self-era')
   const hostRhythm = buildHostRhythmModel({
     context: input.context,
     worldModel: input.worldModel,
@@ -52,6 +67,7 @@ export function buildHabitPolicy(input: {
     = truthDrive >= 0.58
       || revisionPressure >= 0.24
       || misreadBurden >= 0.32
+      || Boolean(selfEra?.lesson)
       || (
         input.autobiographicalSelf?.personaDrift.conflictStyle === 'repair-first'
         && input.worldModel.epistemicState.certainty !== 'grounded'
@@ -63,6 +79,7 @@ export function buildHabitPolicy(input: {
         || busyHost
         || hostRhythm.interruptionSensitivity >= 0.48
         || input.autobiographicalSelf?.personaDrift.attachmentStyle !== 'attuned'
+        || Boolean(relationshipEra?.lesson)
       )
   const blocksDirectSpeakWhenBusy
     = busyHost
@@ -71,6 +88,7 @@ export function buildHabitPolicy(input: {
         || correctionSensitivity >= 0.62
         || hostRhythm.workMode === 'deep-focus'
         || (input.autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0) >= 0.62
+        || Boolean(relationshipEra?.lesson)
       )
   const protectsRestWindow
     = restDrive >= 0.58
@@ -83,6 +101,7 @@ export function buildHabitPolicy(input: {
     = returnDrive >= 0.56
       && input.worldModel.activeThread?.unresolved === true
       && input.worldModel.epistemicState.certainty !== 'grounded'
+      || Boolean(taskEra && input.worldModel.activeThread?.unresolved === true)
 
   let dominantMode: AlicizationHabitPolicySnapshot['dominantMode'] = 'watchful-boundary'
   if (protectsRestWindow)

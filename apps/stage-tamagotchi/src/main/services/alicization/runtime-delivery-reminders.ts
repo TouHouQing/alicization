@@ -1,5 +1,6 @@
 import type {
   AlicizationAuditLogInput,
+  AlicizationHostPersonModelSnapshot,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
@@ -62,6 +63,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     summary: string
     deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+    hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   }) => {
     reply: string
     source: 'llm' | 'llm-repaired' | 'deterministic'
@@ -76,6 +78,10 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
   }) => Promise<AlicizationSelfContinuityAuthority | null>
+  resolveExecutionHostPersonModel?: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) => Promise<AlicizationHostPersonModelSnapshot | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
@@ -449,6 +455,12 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             cardId: options.getActiveCardId(),
           })
         : null
+      const hostPersonModel = options.resolveExecutionHostPersonModel
+        ? await options.resolveExecutionHostPersonModel({
+            agentTurn,
+            cardId: options.getActiveCardId(),
+          })
+        : null
       if (deliveryPolicy.mode === 'hold-for-opening') {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
@@ -496,6 +508,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         },
         deliveryPolicy,
         selfContinuityAuthority,
+        hostPersonModel,
       })
       const deterministicStructured = options.buildExecutionDeliveryDeterministicStructured({
         channel: pendingDelivery.channel,
@@ -505,6 +518,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         summary: pendingDelivery.summary,
         policy: deliveryPolicy,
         selfContinuityAuthority,
+        hostPersonModel,
       })
       const selectedReply = options.selectExecutionDeliveryReplySurface({
         channel: pendingDelivery.channel,
@@ -515,6 +529,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         summary: pendingDelivery.summary,
         deliveryPolicy,
         selfContinuityAuthority,
+        hostPersonModel,
       })
       const structured = selectedReply.source === 'llm' && llmStructured
         ? {

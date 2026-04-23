@@ -63,6 +63,7 @@ function buildRecallSeed(parts: {
   leadingGoal: string
   reflectionSummary: string
   recallMode: string
+  recollectionSummary: string
   mirrorMemorySummary: string
   reflectionPressure: number | null
 }) {
@@ -71,6 +72,7 @@ function buildRecallSeed(parts: {
     parts.leadingGoal ? `memory_goal:${parts.leadingGoal}` : '',
     parts.reflectionSummary ? `memory_reflection:${parts.reflectionSummary}` : '',
     parts.recallMode ? `memory_recall_mode:${parts.recallMode}` : '',
+    parts.recollectionSummary ? `memory_recollection:${parts.recollectionSummary}` : '',
     parts.mirrorMemorySummary ? `mirror_memory:${parts.mirrorMemorySummary}` : '',
     parts.reflectionPressure != null
       ? `memory_reflection_pressure:${parts.reflectionPressure.toFixed(2)}`
@@ -89,6 +91,7 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
   const leadingGoal = sanitizeText(memory?.leadingGoalSummary, 120)
   const reflectionSummary = sanitizeText(memory?.reflectionSummary, 140)
   const reflectionPressure = normalize01(memory?.reflectionPressure)
+  const recollectionSummary = sanitizeText(memory?.recollectionSummary, 180)
   const mirrorMemorySummary = sanitizeText(input.mirror?.memorySummary, 180)
   const now = Number.isFinite(input.now) ? Number(input.now) : Date.now()
   const mirrorUpdatedAt = Number(input.mirror?.updatedAt)
@@ -120,6 +123,7 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
         leadingGoal,
         reflectionSummary,
         recallMode,
+        recollectionSummary,
         mirrorMemorySummary: allowMirrorCarry ? mirrorMemorySummary : '',
         reflectionPressure,
       })
@@ -127,6 +131,7 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
   const reasonTags = compactUnique([
     mode !== 'quiet' ? `mode:${mode}` : '',
     recallMode ? `recall:${recallMode}` : '',
+    recollectionSummary ? `recollection:foreground` : '',
     reflectionPressure != null ? `reflection:${reflectionPressure.toFixed(2)}` : '',
     allowMirrorCarry ? 'mirror:fresh' : mirrorMemorySummary ? 'mirror:stale-or-quiet' : '',
     leadingGoal ? `goal:${leadingGoal}` : '',
@@ -137,6 +142,7 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
     : compactUnique([
         `mode=${mode}`,
         recallMode ? `recall=${recallMode}` : '',
+        recollectionSummary ? `recollection=${recollectionSummary}` : '',
         reflectionPressure != null ? `reflection_pressure=${reflectionPressure.toFixed(2)}` : '',
         allowMirrorCarry ? 'mirror=carry' : '',
         leadingGoal ? `goal=${leadingGoal}` : '',

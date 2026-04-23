@@ -128,6 +128,18 @@ describe('task-thread governor', () => {
         advisorChannel: 'claude-code',
         advisorConfidence: 0.94,
         advisorReason: 'llm-assessor:prefers-claude-code',
+        rememberedProcedures: [{
+          id: 'procedural:runtime-seam',
+          sourceKind: 'procedural',
+          facet: null,
+          label: 'runtime seam repair',
+          approach: 'Use Claude Code first for the patch, then verify before branching.',
+          pitfalls: ['Do not branch before verify.'],
+          confidence: 0.92,
+          cues: ['patch', 'verify'],
+          preferredChannel: 'claude-code',
+          preferredChannelReason: 'remembered-procedure-mentioned-channel:claude-code',
+        }],
         channelOutcomes: {
           'codex': { completed: 1, failed: 3 },
           'claude-code': { completed: 2, running: 1 },
@@ -148,12 +160,23 @@ describe('task-thread governor', () => {
           advisorChannel: 'claude-code',
           advisorConfidence: 0.94,
           advisorReason: 'llm-assessor:prefers-claude-code',
+          rememberedProcedures: [
+            expect.objectContaining({
+              id: 'procedural:runtime-seam',
+              preferredChannel: 'claude-code',
+            }),
+          ],
         }),
       }),
     }))
     expect(draft.events[0]?.payload).toEqual(expect.objectContaining({
       experience: expect.objectContaining({
         advisorChannel: 'claude-code',
+        rememberedProcedures: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'procedural:runtime-seam',
+          }),
+        ]),
       }),
     }))
   })

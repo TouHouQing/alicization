@@ -71,6 +71,7 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   }) => Promise<Array<{
     id: string
     kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
+    facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
     periodKey: string
     periodStartedAt: number
     periodEndedAt: number

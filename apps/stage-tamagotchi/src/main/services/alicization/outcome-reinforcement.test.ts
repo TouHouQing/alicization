@@ -213,11 +213,15 @@ describe('outcome reinforcement closure', () => {
     expect(affirmed.relationshipOutcomes[0]?.trustDelta).toBeGreaterThan(0)
     expect(affirmed.reinforcementEvents.some(event => event.dimension === 'temper-directness' && event.valence === 'reinforce')).toBe(true)
     expect(affirmed.reinforcementEvents.some(event => event.dimension === 'unfinished-thread-return' && event.valence === 'reinforce')).toBe(true)
+    expect(affirmed.memoryFacts.some(fact => fact.predicate === 'procedure' && String(fact.object).includes('explicit host consent'))).toBe(true)
+    expect(affirmed.episodicEvents[0]?.tags).toContain('host-accepts-bounded-proposals')
 
     expect(denied.relationshipOutcomes[0]?.boundaryDelta).toBeLessThan(0)
     expect(denied.reinforcementEvents.some(event => event.dimension === 'autonomy-respect' && event.valence === 'reinforce')).toBe(true)
     expect(denied.reinforcementEvents.some(event => event.dimension === 'temper-guardedness' && event.valence === 'reinforce')).toBe(true)
     expect(denied.reinforcementEvents.some(event => event.dimension === 'temper-directness' && event.valence === 'suppress')).toBe(true)
+    expect(denied.memoryFacts.some(fact => fact.predicate === 'procedure' && String(fact.object).includes('prefers lighter pressure'))).toBe(true)
+    expect(denied.episodicEvents[0]?.tags).toContain('host-prefers-explicit-consent')
   })
 
   it('classifies finished execution result feedback into valued / doubted / intrusive / interrupted', () => {
@@ -285,9 +289,13 @@ describe('outcome reinforcement closure', () => {
     expect(valued.relationshipOutcomes[0]?.trustDelta).toBeGreaterThan(0)
     expect(valued.reinforcementEvents.some(event => event.dimension === 'truthful-grounding' && event.valence === 'reinforce')).toBe(true)
     expect(valued.reinforcementEvents.some(event => event.dimension === 'temper-directness' && event.valence === 'reinforce')).toBe(true)
+    expect(valued.memoryFacts.some(fact => fact.predicate === 'procedure' && String(fact.object).includes('direct callback reporting'))).toBe(true)
+    expect(valued.episodicEvents[0]?.tags).toContain('host-values-direct-useful-results')
 
     expect(intrusive.relationshipOutcomes[0]?.boundaryDelta).toBeLessThan(0)
     expect(intrusive.reinforcementEvents.some(event => event.dimension === 'autonomy-respect' && event.valence === 'reinforce')).toBe(true)
     expect(intrusive.reinforcementEvents.some(event => event.dimension === 'temper-directness' && event.valence === 'suppress')).toBe(true)
+    expect(intrusive.memoryFacts.some(fact => fact.predicate === 'procedure' && String(fact.object).includes('lighter result openings'))).toBe(true)
+    expect(intrusive.episodicEvents[0]?.tags).toContain('host-prefers-lighter-callback')
   })
 })

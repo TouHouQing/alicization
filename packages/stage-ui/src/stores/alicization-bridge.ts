@@ -168,6 +168,16 @@ export interface AlicizationMemoryStats {
   total: number
   active: number
   archived: number
+  tierCounts?: {
+    hot: number
+    warm: number
+    cold: number
+  }
+  pendingSyncCount?: number
+  integrity?: {
+    status: 'ok' | 'degraded'
+    issues: string[]
+  }
   lastPrunedAt: number | null
 }
 
@@ -243,6 +253,58 @@ export interface AlicizationOrganicMemorySnapshot {
   recentSubconsciousFragments: AlicizationSubconsciousFragment[]
   recentEpisodicEvents?: SharedAlicizationEpisodicEventRecord[]
   hostPersonModel?: SharedAlicizationHostPersonModelSnapshot | null
+  memoryConsolidations?: Array<{
+    id: string
+    kind: 'procedural' | 'autobiographical'
+    facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
+    periodKey: string
+    periodStartedAt: number
+    periodEndedAt: number
+    summary: string
+    lesson: string | null
+    cues: string[]
+    confidence: number
+    dominantProvenance: SharedAlicizationMemoryProvenance
+  }>
+  recollectionIntent?: {
+    mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+    searchEpisodes: boolean
+    searchConversations: boolean
+    searchProceduralExperience: boolean
+    queryHints: string[]
+    rationale: string
+    confidence: number
+  } | null
+  recollectionPlan?: {
+    selectedConsolidationIds: string[]
+    selectedWindowIds: string[]
+    selectedProceduralIds: string[]
+    selectedEpisodeIds: string[]
+    selectedConversationTurnIds: string[]
+    opening: string
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    rationale: string
+    confidence: number
+  } | null
+  recollectionSpeechPlan?: {
+    shouldSurface: boolean
+    surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
+    placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    internalLead: string
+    visibleLead: string | null
+    styleNote: string
+    rationale: string
+    confidence: number
+  } | null
+  recollectionForeground?: {
+    mode: 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    summary: string
+    surfaceSummary: string | null
+    confidence: number
+  } | null
   lastDreamedAt: number | null
 }
 

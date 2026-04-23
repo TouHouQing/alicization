@@ -15,6 +15,7 @@ import type {
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 export const alicizationMotiveEngineMarker = '[ALICIZATION_MOTIVE_ENGINE]'
@@ -29,6 +30,16 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function latestAutobiographicalEra(
+  records: AlicizationMemoryConsolidationRecord[] | null | undefined,
+  facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era',
+) {
+  return (records ?? [])
+    .filter(record => record.kind === 'autobiographical' && record.facet === facet)
+    .slice()
+    .sort((left, right) => right.periodEndedAt - left.periodEndedAt || right.updatedAt - left.updatedAt)[0] ?? null
 }
 
 function stableAgendaId(kind: AlicizationMotiveAgendaKind, anchor: string) {
@@ -173,10 +184,14 @@ export function buildMotiveEngine(input: {
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
+  recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   previous?: AlicizationMotiveEngineSnapshot | null
 }): AlicizationMotiveEngineSnapshot {
+  const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
+  const taskEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'task-era')
+  const selfEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'self-era')
   const companionshipBias = input.autobiographicalSelf?.preferenceEvolution.companionship ?? 0.48
   const truthBias = input.autobiographicalSelf?.preferenceEvolution.truthfulGrounding ?? 0.56
   const careBias = input.autobiographicalSelf?.preferenceEvolution.proactiveCare ?? 0.46
@@ -205,6 +220,7 @@ export function buildMotiveEngine(input: {
       + relationTrust * 0.14
       + Math.max(input.context.relationship.boredom, input.context.relationship.loneliness) / 100 * 0.18
       + rememberedCompanionship * 0.22
+      + (relationshipEra ? 0.1 : 0)
       + (afterglowOpen ? 0.12 : 0)
       - (busyHost ? 0.06 : 0),
     ),
@@ -212,6 +228,7 @@ export function buildMotiveEngine(input: {
       autonomyBias * 0.24
       + guardingTendency * 0.18
       + rememberedAutonomy * 0.22
+      + (relationshipEra?.lesson ? 0.08 : 0)
       + (busyHost ? 0.18 : 0.06)
       + reflectionPressure * 0.12
       + (input.worldModel.hostState.burden === 'heavy' ? 0.12 : 0),
@@ -220,6 +237,7 @@ export function buildMotiveEngine(input: {
       truthBias * 0.28
       + misreadBurden * 0.2
       + rememberedTruth * 0.2
+      + (selfEra?.lesson ? 0.08 : 0)
       + reflectionPressure * 0.18
       + (input.worldModel.epistemicState.certainty === 'grounded' ? 0.02 : 0.16)
       + (input.autobiographicalSelf?.personaDrift.conflictStyle === 'repair-first' ? 0.12 : 0),
@@ -227,6 +245,7 @@ export function buildMotiveEngine(input: {
     restProtection: clamp01(
       careBias * 0.22
       + rememberedCare * 0.22
+      + (relationshipEra ? 0.06 : 0)
       + (input.context.relationship.fatigue / 100) * 0.24
       + Math.min(1, input.context.relationship.lateNightActiveMinutes / 180) * 0.18
       + (input.worldModel.activeThread?.kind === 'late-night-endurance' ? 0.18 : 0)
@@ -236,12 +255,14 @@ export function buildMotiveEngine(input: {
       returnBias * 0.28
       + carryOverDesire * 0.18
       + rememberedReturn * 0.22
+      + (taskEra ? 0.12 : 0)
       + (input.longHorizonMemory?.rememberedPlanSummary ? 0.14 : 0)
       + (unresolvedThread ? 0.22 : 0),
     ),
     selfDirection: clamp01(
       rememberedSelfDirection * 0.26
       + (input.autobiographicalSelf?.stability ?? 0.48) * 0.18
+      + (selfEra ? 0.14 : 0)
       + (input.autobiographicalSelf?.personaDrift.agencyStyle === 'self-starting' ? 0.18 : input.autobiographicalSelf?.personaDrift.agencyStyle === 'balanced' ? 0.08 : 0)
       + (input.autobiographicalSelf?.activeGoals.length ?? 0) * 0.06,
     ),

@@ -117,6 +117,8 @@ import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
 import { buildDialogueTurnMemoryFragment } from './dialogue-memory'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
+import { adjustProactiveStyleFromHostPersonModel, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import {
   buildDialogueTurnSemantics,
 } from './dialogue-turn-semantics'
@@ -162,6 +164,7 @@ import { createAlicizationExecutionFollowUpPayoffResolver } from './main-chat-fo
 import { syncAlicizationMainChatLlmRoute } from './main-chat-llm-route-sync'
 import { createAlicizationMainChatRunStateController } from './main-chat-run-state'
 import {
+  type AlicizationPreparedMainChatExecutionResult,
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
@@ -229,6 +232,7 @@ import {
   latestUserMessageContainsVisualInput,
   normalizeDialogueRespondedPayload,
   readStringValue,
+  type AlicizationMindTraceMemorySnapshot,
 } from './runtime-governance'
 import { createAlicizationInspectionIntentRuntime } from './runtime-inspection-intent'
 import { registerAlicizationChatInvokeHandlers } from './runtime-invoke-handlers-chat'
@@ -471,6 +475,86 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     appendRuntimeDebugLine,
     emitFinishEvent: (state, payload) => emitChatStreamEventForState(state, 'finish', payload),
   })
+  const pendingMindTraceTelemetryByTurnId = new Map<string, {
+    memoryTrace: AlicizationMindTraceMemorySnapshot
+  }>()
+
+  function buildMindTraceMemorySnapshotFromPrepared(
+    prepared: AlicizationPreparedMainChatExecutionResult,
+  ): AlicizationMindTraceMemorySnapshot | null {
+    const context = prepared.organicMemoryContext ?? null
+    const deliberation = context?.memoryDeliberation ?? null
+    if (!deliberation)
+      return null
+
+    return {
+      shouldRecall: deliberation.shouldRecall,
+      surfacePolicy: deliberation.surfacePolicy,
+      confidence: deliberation.confidence,
+      whyNow: deliberation.whyNow,
+      inwardLine: deliberation.inwardLine,
+      visibleLine: deliberation.visibleLine ?? null,
+      recollectionIntentMode: context?.recollectionIntent?.mode ?? null,
+      recollectionIntentTemporalFocus: context?.recollectionIntent?.temporalFocus ?? null,
+      speechShouldSurface: context?.recollectionSpeechPlan?.shouldSurface ?? null,
+      speechSurfaceMode: context?.recollectionSpeechPlan?.surfaceMode ?? null,
+      speechPlacement: context?.recollectionSpeechPlan?.placement ?? null,
+      selectedPeriods: deliberation.selectedPeriods.map(item => ({
+        id: item.id,
+        kind: item.kind,
+        summary: item.summary,
+      })),
+      selectedEpisodes: deliberation.selectedEpisodes.map(item => ({
+        id: item.id,
+        summary: item.summary,
+        provenance: item.provenance,
+      })),
+      selectedProcedures: deliberation.selectedProcedures.map(item => ({
+        id: item.id,
+        label: item.label,
+        approach: item.approach,
+      })),
+      selectedBundles: deliberation.selectedBundles.map(item => ({
+        id: item.id,
+        summary: item.summary,
+        rationale: item.rationale,
+        confidence: item.confidence,
+        relationshipLine: item.relationshipLine ?? null,
+      })),
+      selectedChains: deliberation.selectedChains.map(item => ({
+        id: item.id,
+        kind: item.kind,
+        summary: item.summary,
+        rationale: item.rationale,
+        confidence: item.confidence,
+        currentStance: item.currentStance ?? null,
+        answerPosture: item.answerPosture ?? null,
+      })),
+      selectedRelationshipLines: [...deliberation.selectedRelationshipLines],
+    }
+  }
+
+  function rememberPreparedMindTrace(input: {
+    payload: AlicizationChatStartPayload
+    prepared: AlicizationPreparedMainChatExecutionResult
+  }) {
+    const turnId = sanitizeText(input.payload.turnId, '')
+    if (!turnId)
+      return
+
+    const memoryTrace = buildMindTraceMemorySnapshotFromPrepared(input.prepared)
+    if (!memoryTrace) {
+      pendingMindTraceTelemetryByTurnId.delete(turnId)
+      return
+    }
+
+    pendingMindTraceTelemetryByTurnId.set(turnId, { memoryTrace })
+    if (pendingMindTraceTelemetryByTurnId.size > 128) {
+      const oldestKey = pendingMindTraceTelemetryByTurnId.keys().next().value
+      if (typeof oldestKey === 'string')
+        pendingMindTraceTelemetryByTurnId.delete(oldestKey)
+    }
+  }
   const memoryLedgerRuntime = createAlicizationMemoryLedgerRuntime({
     listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
     listTaskThreads: input => alicizationDb.listTaskThreads(input),
@@ -520,7 +604,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildHostPersonModel,
     recallConversationHistory,
     recallMemoryConsolidations,
+    planRecollectionIntent: async input => await generateMemoryRecollectionIntentWithGateway(input),
     planMemoryRecollection: async input => await generateMemoryRecollectionPlanWithGateway(input),
+    planRecollectionSpeech: async input => await generateMemoryRecollectionSpeechPlanWithGateway(input),
+    planMemoryDeliberation: async input => await generateMemoryDeliberationWithGateway(input),
     isPersonaResidueMemoryText,
   })
   const {
@@ -1785,6 +1872,177 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
+  function collectRecallTelemetryTexts(payload: Record<string, unknown> | null | undefined) {
+    const texts: string[] = []
+    const push = (raw: unknown) => {
+      const text = sanitizeText(raw, '').slice(0, 180)
+      if (text)
+        texts.push(text)
+    }
+
+    push(payload?.whyNow)
+    push(payload?.inwardLine)
+    push(payload?.visibleLine)
+
+    for (const key of ['selectedPeriods', 'selectedEpisodes', 'selectedProcedures', 'selectedBundles', 'selectedChains'] as const) {
+      const items = Array.isArray(payload?.[key]) ? payload[key] : []
+      for (const item of items) {
+        if (!item || typeof item !== 'object')
+          continue
+        const candidate = item as Record<string, unknown>
+        push(candidate.summary)
+        push(candidate.label)
+        push(candidate.approach)
+        push(candidate.rationale)
+        push(candidate.currentStance)
+        push(candidate.answerPosture)
+        push(candidate.relationshipLine)
+      }
+    }
+
+    const relationshipLines = Array.isArray(payload?.selectedRelationshipLines) ? payload.selectedRelationshipLines : []
+    for (const line of relationshipLines)
+      push(line)
+
+    return [...new Set(texts)].slice(0, 18)
+  }
+
+  function collectReplyMemoryCoherenceState(payload: Record<string, unknown> | null | undefined) {
+    return {
+      coherenceState: sanitizeText(payload?.coherenceState, '').slice(0, 64) || null,
+      surfacePolicy: sanitizeText(payload?.surfacePolicy, '').slice(0, 64) || null,
+      explicitSurfaceExpected: payload?.explicitSurfaceExpected === true,
+      explicitSurfaceObserved: payload?.explicitSurfaceObserved === true,
+      matchedCueKinds: Array.isArray(payload?.matchedCueKinds)
+        ? payload.matchedCueKinds.map(item => sanitizeText(item, '').slice(0, 64)).filter(Boolean).slice(0, 8)
+        : [],
+    }
+  }
+
+  function buildDialogueFeedbackReconsolidationRationale(
+    feedback: ReturnType<typeof deriveDialogueReplyFeedbackKind>,
+  ) {
+    if (feedback === 'robotic')
+      return 'The host corrected this thread for sounding robotic, so the remembered way of replying should now move toward lived-in directness instead of shell fluency.'
+    if (feedback === 'missed')
+      return 'The host corrected this thread for missing the point, so the remembered way of replying should now repair the seam before continuing.'
+    if (feedback === 'intrusive')
+      return 'The host corrected this thread for landing too heavily, so the remembered way of replying should now leave more room and lower pressure.'
+    if (feedback === 'interrupted')
+      return 'The host turned away from this line before it landed, so the remembered way of replying should now wait for a fresher opening.'
+    return 'The host corrected this remembered line, so the recalled way of answering should change on the next similar turn.'
+  }
+
+  async function reconsolidateDialogueFeedbackMemoryTrace(input: {
+    cardId: string
+    decisionTraceId: string | null
+    feedback: ReturnType<typeof deriveDialogueReplyFeedbackKind>
+    previousAssistantText: string
+    userText: string
+    sessionId: string | null
+    turnId: string | null
+    at: number
+  }) {
+    const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(input.decisionTraceId)
+    if (!decisionTraceId || !input.feedback || input.feedback === 'received')
+      return
+
+    const events = await alicizationDb.listMindTurnEvents({
+      decisionTraceId,
+      limit: 24,
+    }).catch(() => [])
+    const recallEvent = events.find(event => event.kind === 'recall-attribution') ?? null
+    if (!recallEvent?.payload)
+      return
+
+    const coherenceEvent = events.find(event => event.kind === 'reply-memory-coherence') ?? null
+    const recallTexts = collectRecallTelemetryTexts(recallEvent.payload)
+    if (recallTexts.length === 0)
+      return
+
+    const coherence = collectReplyMemoryCoherenceState(coherenceEvent?.payload ?? null)
+    const feedbackSeed = [
+      input.userText,
+      input.previousAssistantText,
+      ...recallTexts,
+      coherence.coherenceState ? `coherence:${coherence.coherenceState}` : '',
+    ].filter(Boolean).join(' | ')
+
+    const reconsolidated = await alicizationDb.searchEpisodicEvents({
+      recallSeed: feedbackSeed,
+      limit: 4,
+      sessionId: input.sessionId,
+      turnId: input.turnId,
+      affectAnchors: [
+        `feedback:${input.feedback}`,
+        input.feedback === 'missed' ? 'missed answer repair pressure' : '',
+        input.feedback === 'robotic' ? 'robotic shell repair pressure' : '',
+        input.feedback === 'intrusive' ? 'intrusive closeness pressure' : '',
+        input.feedback === 'interrupted' ? 'interrupted line pressure' : '',
+      ].filter(Boolean),
+      relationshipAnchors: [
+        'host correction',
+        input.userText,
+        coherence.coherenceState ? `reply-memory-coherence:${coherence.coherenceState}` : '',
+      ].filter(Boolean),
+      carryAsMemory: true,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: true,
+        queryHints: recallTexts.slice(0, 8),
+        rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
+        confidence: 0.78,
+      },
+    }).catch(async (error) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'dialogue-feedback-reconsolidation-failed',
+        message: 'Failed to reconsolidate recalled memory after host correction feedback.',
+        payload: {
+          cardId: input.cardId,
+          decisionTraceId,
+          feedback: input.feedback,
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+        },
+      }, input.cardId)
+      return []
+    })
+
+    await alicizationDb.appendMindTurnEvents([{
+      decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      origin: 'user-turn',
+      kind: 'memory-reconsolidated',
+      payload: {
+        source: 'dialogue-feedback',
+        feedback: input.feedback,
+        recallCueCount: recallTexts.length,
+        recalledEpisodeIds: reconsolidated.map(event => event.id),
+        reconsolidatedCount: reconsolidated.length,
+        coherence,
+      },
+      createdAt: input.at,
+    }]).catch(async (error) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'dialogue-feedback-reconsolidation-event-failed',
+        message: 'Failed to append memory reconsolidation trace event after host feedback.',
+        payload: {
+          cardId: input.cardId,
+          decisionTraceId,
+          feedback: input.feedback,
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+        },
+      }, input.cardId)
+    })
+  }
+
   async function restoreVisualPresenceState(cardIdRaw: unknown) {
     const cardId = normalizeCardId(cardIdRaw)
     const now = Date.now()
@@ -2077,6 +2335,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       previousAssistantText: latest.assistantText ?? '',
     }))
     await persistOutcomeClosure(cardId, closure)
+    await reconsolidateDialogueFeedbackMemoryTrace({
+      cardId,
+      decisionTraceId,
+      feedback,
+      previousAssistantText: latest.assistantText ?? '',
+      userText,
+      sessionId,
+      turnId: sanitizeText(latest.turnId, '') || null,
+      at,
+    })
     const previousDynamics = await alicizationDb.getLatestRelationshipDynamics().catch(() => null)
     const hostAttitude = feedback === 'received'
       ? '开始更愿意把 Alicization 当作真的在接话的人，而不是只剩一层壳。'
@@ -2606,7 +2874,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     await persistLlmConfigToDisk().catch(() => {})
     await bootstrap()
     await scheduleNextReminderDueCheck(`delete-all-data:${reason}`).catch(() => {})
-    startPruneTimer()
+    startMemorySalienceRefreshTimer()
     startSubconsciousTimer()
     startDreamTimer()
     emitKillSwitchChanged(activeCardId)
@@ -2755,7 +3023,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED') {
       sensoryBus.start()
     }
-    startPruneTimer()
+    startMemorySalienceRefreshTimer()
     await scheduleNextReminderDueCheck('card-scope-switch')
     await appendRuntimeDebugLine('card-scope.switch-completed', {
       fromCardId: previousCardId,
@@ -3019,7 +3287,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }, timeoutMs)
   }
 
-  function startPruneTimer() {
+  function startMemorySalienceRefreshTimer() {
     if (pruneTimer) {
       clearInterval(pruneTimer)
       pruneTimer = undefined
@@ -3029,8 +3297,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         await appendAuditLog({
           level: 'warning',
           category: 'memory',
-          action: 'prune-scheduled-failed',
-          message: 'Scheduled memory prune failed.',
+          action: 'salience-refresh-scheduled-failed',
+          message: 'Scheduled memory salience refresh failed.',
           payload: {
             reason: error instanceof Error ? error.message : String(error),
           },
@@ -3689,6 +3957,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       origin: payload.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn',
       createdAt: normalizedCreatedAt,
     }
+    const pendingMindTraceTelemetry = normalizedPayload.turnId
+      ? pendingMindTraceTelemetryByTurnId.get(normalizedPayload.turnId) ?? null
+      : null
 
     const performanceManifest = await getPerformanceManifest()
     const governedTurn = coerceConversationTurnToMindGovernedPayload(normalizedPayload, performanceManifest)
@@ -3757,6 +4028,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         governedTurn,
         createdAt: normalizedCreatedAt,
         dialoguePayload,
+        memoryTrace: pendingMindTraceTelemetry?.memoryTrace ?? null,
       })
       if (events.length === 0)
         return
@@ -3985,6 +4257,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     finally {
       releaseTurnWriteAbortController(normalizedPayload.turnId)
+      if (normalizedPayload.turnId)
+        pendingMindTraceTelemetryByTurnId.delete(normalizedPayload.turnId)
     }
   }
 
@@ -4202,6 +4476,236 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     } satisfies NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
   }
 
+  function parseMemoryRecollectionIntentPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const mode = parsed.mode === 'none'
+      || parsed.mode === 'conversation-history'
+      || parsed.mode === 'autobiographical-history'
+      || parsed.mode === 'relationship-history'
+      || parsed.mode === 'execution-procedure'
+      || parsed.mode === 'experience-pattern'
+      ? parsed.mode
+      : null
+    if (!mode)
+      return null
+
+    const temporalFocus = parsed.temporalFocus === 'recent'
+      || parsed.temporalFocus === 'recent-or-mid'
+      || parsed.temporalFocus === 'cross-session'
+      || parsed.temporalFocus === 'experience-matched'
+      || parsed.temporalFocus === 'distant'
+      ? parsed.temporalFocus
+      : 'recent-or-mid'
+    const rationale = sanitizeBriefText(parsed.rationale as string, 220)
+    const confidence = clamp01(Number(parsed.confidence ?? 0.68))
+    const queryHints = Array.isArray(parsed.queryHints)
+      ? parsed.queryHints.map(item => sanitizeBriefText(String(item ?? ''), 120)).filter(Boolean).slice(0, 8)
+      : []
+
+    if (mode === 'none') {
+      return {
+        mode,
+        temporalFocus,
+        searchEpisodes: false,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints,
+        rationale: rationale || 'The recollection intent planner decided the turn should stay present-facing instead of opening long-range memory.',
+        confidence,
+      } satisfies NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    }
+
+    return {
+      mode,
+      temporalFocus,
+      searchEpisodes: parsed.searchEpisodes === true,
+      searchConversations: parsed.searchConversations === true,
+      searchProceduralExperience: parsed.searchProceduralExperience === true,
+      queryHints,
+      rationale: rationale || 'The recollection intent planner selected the memory lane that best matches the current turn.',
+      confidence,
+    } satisfies NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+  }
+
+  function parseMemoryRecollectionSpeechPlanPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const surfaceMode = parsed.surfaceMode === 'internal-only'
+      || parsed.surfaceMode === 'gist-first'
+      || parsed.surfaceMode === 'answer-anchoring'
+      || parsed.surfaceMode === 'procedural-carry'
+      || parsed.surfaceMode === 'relationship-continuity'
+      ? parsed.surfaceMode
+      : 'gist-first'
+    const placement = parsed.placement === 'before-payoff'
+      || parsed.placement === 'inside-payoff'
+      || parsed.placement === 'after-payoff'
+      || parsed.placement === 'internal-only'
+      ? parsed.placement
+      : surfaceMode === 'internal-only'
+        ? 'internal-only'
+        : 'inside-payoff'
+    const certainty = parsed.certainty === 'firm' || parsed.certainty === 'approximate' || parsed.certainty === 'fragmentary'
+      ? parsed.certainty
+      : 'approximate'
+    const internalLead = sanitizeBriefText(parsed.internalLead as string, 220)
+    const visibleLead = sanitizeBriefText(parsed.visibleLead as string, 220) || null
+    const styleNote = sanitizeBriefText(parsed.styleNote as string, 220)
+    const rationale = sanitizeBriefText(parsed.rationale as string, 220)
+    const confidence = clamp01(Number(parsed.confidence ?? 0.68))
+    if (!internalLead || !styleNote)
+      return null
+
+    const shouldSurface = parsed.shouldSurface === true
+      && placement !== 'internal-only'
+      && surfaceMode !== 'internal-only'
+
+    return {
+      shouldSurface,
+      surfaceMode: shouldSurface ? surfaceMode : 'internal-only',
+      placement: shouldSurface ? placement : 'internal-only',
+      certainty,
+      internalLead,
+      visibleLead: shouldSurface ? visibleLead : null,
+      styleNote,
+      rationale: rationale || 'The recollection speech plan decided whether the memory should stay inward or become briefly visible.',
+      confidence,
+    } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
+  }
+
+  function parseMemoryDeliberationPayload(raw: string) {
+    const parsed = parseJsonObjectFromText(raw)
+    if (!parsed)
+      return null
+
+    const readIds = (key: string) => {
+      const value = parsed[key]
+      if (!Array.isArray(value))
+        return [] as string[]
+      return value
+        .map(item => sanitizeBriefText(String(item ?? ''), 120))
+        .filter(Boolean)
+        .slice(0, 8)
+    }
+
+    const readLines = (key: string) => {
+      const value = parsed[key]
+      if (!Array.isArray(value))
+      return [] as string[]
+      return value
+        .map(item => sanitizeBriefText(String(item ?? ''), 220))
+        .filter(Boolean)
+        .slice(0, 6)
+    }
+
+    const readBundles = () => {
+      const value = parsed.selectedBundles
+      if (!Array.isArray(value))
+        return [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedBundles']
+      return value
+        .map((item, index) => {
+          if (!item || typeof item !== 'object')
+            return null
+          const candidate = item as Record<string, unknown>
+          const summary = sanitizeBriefText(String(candidate.summary ?? ''), 220)
+          if (!summary)
+            return null
+          return {
+            id: sanitizeBriefText(String(candidate.id ?? ''), 120) || `bundle-${index + 1}`,
+            summary,
+            rationale: sanitizeBriefText(String(candidate.rationale ?? ''), 220) || 'The recollection bundle links the memories most worth carrying into this turn.',
+            confidence: clamp01(Number(candidate.confidence ?? 0.68)),
+            periodId: sanitizeBriefText(String(candidate.periodId ?? ''), 120) || null,
+            episodeId: sanitizeBriefText(String(candidate.episodeId ?? ''), 120) || null,
+            procedureId: sanitizeBriefText(String(candidate.procedureId ?? ''), 120) || null,
+            conversationTurnId: sanitizeBriefText(String(candidate.conversationTurnId ?? ''), 120) || null,
+            relationshipLine: sanitizeBriefText(String(candidate.relationshipLine ?? ''), 220) || null,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .slice(0, 4)
+    }
+
+    const readChains = () => {
+      const value = parsed.selectedChains
+      if (!Array.isArray(value))
+        return [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedChains']
+      return value
+        .map((item, index) => {
+          if (!item || typeof item !== 'object')
+            return null
+          const candidate = item as Record<string, unknown>
+          const summary = sanitizeBriefText(String(candidate.summary ?? ''), 220)
+          if (!summary)
+            return null
+          const kind = candidate.kind === 'task-procedure-relationship-stance'
+            || candidate.kind === 'period-event-lesson-posture'
+            ? candidate.kind
+            : null
+          if (!kind)
+            return null
+          return {
+            id: sanitizeBriefText(String(candidate.id ?? ''), 120) || `chain-${index + 1}`,
+            kind: kind as 'task-procedure-relationship-stance' | 'period-event-lesson-posture',
+            summary,
+            rationale: sanitizeBriefText(String(candidate.rationale ?? ''), 220) || 'The recollection chain links remembered experience into the current answer posture.',
+            confidence: clamp01(Number(candidate.confidence ?? 0.68)),
+            taskCue: sanitizeBriefText(String(candidate.taskCue ?? ''), 160) || null,
+            periodSummary: sanitizeBriefText(String(candidate.periodSummary ?? ''), 180) || null,
+            eventSummary: sanitizeBriefText(String(candidate.eventSummary ?? ''), 180) || null,
+            procedureSummary: sanitizeBriefText(String(candidate.procedureSummary ?? ''), 180) || null,
+            relationshipMeaning: sanitizeBriefText(String(candidate.relationshipMeaning ?? ''), 180) || null,
+            lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 180) || null,
+            currentStance: sanitizeBriefText(String(candidate.currentStance ?? ''), 180) || null,
+            answerPosture: sanitizeBriefText(String(candidate.answerPosture ?? ''), 180) || null,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .slice(0, 4)
+    }
+
+    const surfacePolicy = parsed.surfacePolicy === 'internal-only'
+      || parsed.surfacePolicy === 'gist-first'
+      || parsed.surfacePolicy === 'answer-anchoring'
+      || parsed.surfacePolicy === 'procedural-carry'
+      || parsed.surfacePolicy === 'relationship-continuity'
+      ? parsed.surfacePolicy
+      : 'internal-only'
+    const shouldRecall = parsed.shouldRecall === true
+    const confidence = clamp01(Number(parsed.confidence ?? 0.68))
+    const whyNow = sanitizeBriefText(parsed.whyNow as string, 220)
+    const inwardLine = sanitizeBriefText(parsed.inwardLine as string, 220)
+    const visibleLine = sanitizeBriefText(parsed.visibleLine as string, 220) || null
+    if (!whyNow || !inwardLine) {
+      return null
+    }
+
+    return {
+      shouldRecall,
+      selectedConsolidationIds: readIds('selectedConsolidationIds'),
+      selectedWindowIds: readIds('selectedWindowIds'),
+      selectedProcedureIds: readIds('selectedProcedureIds'),
+      selectedEpisodeIds: readIds('selectedEpisodeIds'),
+      selectedConversationTurnIds: readIds('selectedConversationTurnIds'),
+      selectedRelationshipLines: readLines('selectedRelationshipLines'),
+      selectedPeriods: [],
+      selectedEpisodes: [],
+      selectedProcedures: [],
+      selectedBundles: readBundles(),
+      selectedChains: readChains(),
+      surfacePolicy,
+      confidence,
+      whyNow,
+      inwardLine,
+      visibleLine: shouldRecall && surfacePolicy !== 'internal-only' ? visibleLine : null,
+    } satisfies NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
+  }
+
   function parseMemoryConsolidationRefinementPayload(raw: string) {
     const parsed = parseJsonObjectFromText(raw)
     if (!parsed || !Array.isArray(parsed.consolidations))
@@ -4244,8 +4748,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         const summary = sanitizeBriefText(String(candidate.summary ?? ''), 320)
         if (!summary)
           return null
+        const facet: NonNullable<AlicizationMemoryConsolidationRecord['facet']> | null = candidate.facet === 'phase'
+          || candidate.facet === 'relationship-era'
+          || candidate.facet === 'task-era'
+          || candidate.facet === 'self-era'
+          ? candidate.facet
+          : null
         return {
           periodKey: sanitizeBriefText(String(candidate.periodKey ?? ''), 96) || '',
+          facet,
           summary,
           lesson: sanitizeBriefText(String(candidate.lesson ?? ''), 220) || null,
           cues: Array.isArray(candidate.cues)
@@ -4290,6 +4801,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         consolidations: input.consolidations.slice(0, 8).map(item => ({
           id: item.id,
           kind: item.kind,
+          facet: item.facet ?? undefined,
           periodKey: item.periodKey,
           summary: sanitizeBriefText(item.summary, 220),
           lesson: sanitizeBriefText(item.lesson ?? '', 180) || undefined,
@@ -4332,11 +4844,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         '[ALICIZATION_DREAM_AUTOBIOGRAPHICAL_SUMMARIES]',
         'You are Alicization dream-time autobiographical memory synthesis, not user-facing dialogue.',
         'Write short autobiographical summaries that Alicization would retain about this remembered period.',
-        'These are not logs. They should sound like a remembered phase of life or bond history.',
+        'These are not logs. They should sound like remembered stages of life, bond history, task eras, or self shifts.',
         'Stay faithful to the provided recent dialogue and existing consolidation candidates. Do not invent events that never happened.',
         'Output valid JSON only with key: summaries.',
-        'summaries must be an array of up to 3 items with keys: periodKey, summary, lesson, cues, confidence.',
+        'summaries must be an array of up to 4 items with keys: periodKey, facet, summary, lesson, cues, confidence.',
+        'facet must be one of: phase, relationship-era, task-era, self-era.',
         'summary should capture what that remembered period was about in Alicization\'s own ongoing continuity.',
+        'Prefer one broader phase memory plus any narrower relationship/task/self era that truly matters.',
       ].join('\n'),
       user: `Dream autobiographical synthesis JSON: ${JSON.stringify({
         periodStartedAt: input.periodStartedAt,
@@ -4453,6 +4967,271 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return parseMemoryRecollectionPlanPayload(raw)
   }
 
+  async function generateMemoryRecollectionIntentWithGateway(input: {
+    recallSeed: string
+    heuristicIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+    recallGovernor?: {
+      mode: string
+      threadAnchors?: string[]
+      affectAnchors?: string[]
+      relationshipAnchors?: string[]
+      sceneAnchor?: string | null
+      salienceBias?: number | null
+    } | null
+    hostAttitude: string
+    activeThoughts: Array<{ text: string }>
+    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
+    relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
+  }) {
+    if (!sanitizeBriefText(input.recallSeed, 220))
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_MEMORY_RECOLLECTION_INTENT_PLANNER]',
+        'You are Alicization private recollection-intent planning, not user-facing dialogue.',
+        'Heuristic memory cues are only drafts. You decide whether this turn should actually engage recollection, and which lane it should engage.',
+        'Decide if Alicization should stay present-facing or open a memory lane before retrieval.',
+        'If memory should not engage, output mode=none and set all search flags to false.',
+        'If memory should engage, choose the single best lane for this turn.',
+        'Output valid JSON only with keys: mode, temporalFocus, searchEpisodes, searchConversations, searchProceduralExperience, queryHints, rationale, confidence.',
+        'mode must be one of: none, conversation-history, autobiographical-history, relationship-history, execution-procedure, experience-pattern.',
+        'temporalFocus must be one of: recent, recent-or-mid, cross-session, experience-matched, distant.',
+        'Do not default to long-range recall just because some memory cue exists. Prefer staying present if the memory would not materially help.',
+      ].join('\n'),
+      user: `Recollection intent candidate JSON: ${JSON.stringify({
+        recallSeed: sanitizeBriefText(input.recallSeed, 220),
+        heuristicIntent: input.heuristicIntent,
+        recallGovernor: input.recallGovernor
+          ? {
+              mode: input.recallGovernor.mode,
+              threadAnchors: (input.recallGovernor.threadAnchors ?? []).slice(0, 6),
+              affectAnchors: (input.recallGovernor.affectAnchors ?? []).slice(0, 6),
+              relationshipAnchors: (input.recallGovernor.relationshipAnchors ?? []).slice(0, 6),
+              sceneAnchor: sanitizeBriefText(input.recallGovernor.sceneAnchor ?? '', 120) || undefined,
+              salienceBias: input.recallGovernor.salienceBias ?? undefined,
+            }
+          : null,
+        hostAttitude: sanitizeBriefText(input.hostAttitude, 120),
+        activeThoughts: input.activeThoughts.slice(0, 4).map(item => sanitizeBriefText(item.text, 120)),
+        hostPersonModel: input.hostPersonModel
+          ? {
+              summary: sanitizeBriefText(input.hostPersonModel.summary, 180),
+              routines: input.hostPersonModel.routines.slice(0, 4),
+              sensitivities: input.hostPersonModel.sensitivities.slice(0, 4),
+              repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 4),
+              recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 4),
+            }
+          : null,
+        relationshipDynamics: input.relationshipDynamics
+          ? {
+              hostAttitude: sanitizeBriefText(input.relationshipDynamics.hostAttitude, 120),
+              previousHostAttitude: sanitizeBriefText(input.relationshipDynamics.previousHostAttitude ?? '', 120) || undefined,
+              source: input.relationshipDynamics.source,
+            }
+          : null,
+      })}`,
+      timeoutMs: 4_000,
+      source: 'counterfactual-deliberation',
+      cardId: activeCardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseMemoryRecollectionIntentPayload(raw)
+  }
+
+  async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
+    recallSeed: string
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  }) {
+    const hasCandidates = input.consolidatedMemories.length > 0
+      || input.recollectedWindows.length > 0
+      || input.proceduralMemories.length > 0
+      || input.recalledEpisodes.length > 0
+      || input.recalledConversationHistory.length > 0
+    if (!hasCandidates && !input.recollectionPlan)
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_MEMORY_RECOLLECTION_SPEECH_PLANNER]',
+        'You are Alicization private recollection speech planning, not user-facing dialogue.',
+        'Decide whether the active recollection should stay internal or become briefly visible in the reply, and how it should contour the answer.',
+        'This is not a fixed template system. Choose the humanly plausible recollection posture for this exact turn.',
+        'Memory can stay inward and only bend tone or stance. Do not force visible recall unless it helps the current payoff.',
+        'If memory becomes visible, it must remain brief, natural, and subordinate to the live answer.',
+        'Output valid JSON only with keys: shouldSurface, surfaceMode, placement, certainty, internalLead, visibleLead, styleNote, rationale, confidence.',
+        'surfaceMode must be one of: internal-only, gist-first, answer-anchoring, procedural-carry, relationship-continuity.',
+        'placement must be one of: before-payoff, inside-payoff, after-payoff, internal-only.',
+        'certainty must be one of: firm, approximate, fragmentary.',
+        'internalLead should describe the private recollection Alicization first feels internally.',
+        'visibleLead should describe the contour of how that recollection could sound if briefly surfaced. It is guidance, not a rigid quote.',
+        'styleNote should describe how the memory should influence the live answer without becoming a template.',
+        'If the memory should stay internal, set shouldSurface=false, surfaceMode=internal-only, placement=internal-only, and visibleLead to an empty string.',
+      ].join('\n'),
+      user: `Recollection speech candidate JSON: ${JSON.stringify({
+        recallSeed: sanitizeBriefText(input.recallSeed, 220),
+        recollectionIntent: input.recollectionIntent,
+        recollectionPlan: input.recollectionPlan,
+        consolidatedMemories: input.consolidatedMemories.slice(0, 4).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          periodKey: item.periodKey,
+          summary: sanitizeBriefText(item.summary, 180),
+          lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
+          confidence: item.confidence,
+          provenance: item.dominantProvenance,
+        })),
+        recollectedWindows: input.recollectedWindows.slice(0, 4).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          summary: sanitizeBriefText(item.summary, 180),
+          confidence: item.confidence,
+          provenance: item.dominantProvenance,
+          cues: item.cues.slice(0, 4),
+        })),
+        proceduralMemories: input.proceduralMemories.slice(0, 4).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          approach: sanitizeBriefText(item.approach, 180),
+          pitfalls: item.pitfalls.slice(0, 3),
+          confidence: item.confidence,
+        })),
+        recalledEpisodes: input.recalledEpisodes.slice(0, 4).map(item => ({
+          id: item.id,
+          sourceKind: item.sourceKind,
+          whatHappened: sanitizeBriefText(item.whatHappened, 180),
+          felt: sanitizeBriefText(item.felt ?? '', 120) || undefined,
+          whatChanged: sanitizeBriefText(item.whatChanged ?? '', 160) || undefined,
+          confidence: item.confidence,
+          provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+        })),
+        recalledConversationHistory: input.recalledConversationHistory.slice(0, 4).map(item => ({
+          turnId: item.turnId,
+          userText: sanitizeBriefText(item.userText, 160),
+          assistantText: sanitizeBriefText(item.assistantText, 160),
+          createdAt: item.createdAt,
+          provenance: item.provenance,
+        })),
+      })}`,
+      timeoutMs: 4_000,
+      source: 'counterfactual-deliberation',
+      cardId: activeCardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseMemoryRecollectionSpeechPlanPayload(raw)
+  }
+
+  async function generateMemoryDeliberationWithGateway(input: {
+    recallSeed: string
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
+    recollectionSpeechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  }) {
+    const hasCandidates = input.consolidatedMemories.length > 0
+      || input.recollectedWindows.length > 0
+      || input.proceduralMemories.length > 0
+      || input.recalledEpisodes.length > 0
+      || input.recalledConversationHistory.length > 0
+    if (!hasCandidates && !input.recollectionPlan)
+      return null
+
+    const raw = await generateMainGatewayText({
+      system: [
+        '[ALICIZATION_MEMORY_DELIBERATION]',
+        'You are Alicization private memory deliberation, not user-facing dialogue.',
+        'recollectionIntent, recollectionPlan, and recollectionSpeechPlan are candidate providers only. You are the final authority over whether active recollection should actually stay live for this turn, which memory bundle should shape the answer, and how visible that recollection should be.',
+        'Think like a human memory process: first decide whether recollection truly helps; if yes, select a small coherent bundle such as a remembered period, one event, one way of doing something, or one relationship line.',
+        'Do not force recollection just because candidates exist. If the turn should stay present-facing, set shouldRecall=false and keep all selected id arrays empty.',
+        'Output valid JSON only with keys: shouldRecall, selectedConsolidationIds, selectedWindowIds, selectedProcedureIds, selectedEpisodeIds, selectedConversationTurnIds, selectedRelationshipLines, selectedBundles, selectedChains, surfacePolicy, confidence, whyNow, inwardLine, visibleLine.',
+        'surfacePolicy must be one of: internal-only, gist-first, answer-anchoring, procedural-carry, relationship-continuity.',
+        'selectedRelationshipLines should be short remembered relationship meanings or lessons that should shape the answer.',
+        'selectedBundles must be an array of up to 4 linked recollection bundles. Each item should include: id, summary, rationale, confidence, and any relevant ids among periodId, episodeId, procedureId, conversationTurnId, plus optional relationshipLine.',
+        'A strong bundle usually links a remembered period to one event or one remembered procedure, then states the relationship meaning or lesson carried forward.',
+        'selectedChains must be an array of up to 4 explicit experience chains. Each chain should be one of: task-procedure-relationship-stance or period-event-lesson-posture.',
+        'task-procedure-relationship-stance should show how the remembered task/procedure changes Alicization’s current stance.',
+        'period-event-lesson-posture should show how a remembered period and event turn into a current answer posture.',
+        'inwardLine is the private remembered line Alicization should think from before speaking.',
+        'visibleLine is optional guidance for how recollection could become briefly visible if needed; leave it empty when surfacePolicy is internal-only.',
+      ].join('\n'),
+      user: `Memory deliberation candidate JSON: ${JSON.stringify({
+        recallSeed: sanitizeBriefText(input.recallSeed, 220),
+        recollectionIntent: input.recollectionIntent,
+        recollectionPlan: input.recollectionPlan,
+        recollectionSpeechPlan: input.recollectionSpeechPlan,
+        consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
+          id: item.id,
+          kind: item.kind,
+          periodKey: item.periodKey,
+          summary: sanitizeBriefText(item.summary, 180),
+          lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
+          confidence: item.confidence,
+          provenance: item.dominantProvenance,
+        })),
+        recollectedWindows: input.recollectedWindows.slice(0, 6).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          summary: sanitizeBriefText(item.summary, 180),
+          confidence: item.confidence,
+          provenance: item.dominantProvenance,
+          cues: item.cues.slice(0, 4),
+        })),
+        proceduralMemories: input.proceduralMemories.slice(0, 6).map(item => ({
+          id: item.id,
+          label: sanitizeBriefText(item.label, 120),
+          approach: sanitizeBriefText(item.approach, 180),
+          pitfalls: item.pitfalls.slice(0, 3),
+          confidence: item.confidence,
+          cues: item.cues.slice(0, 4),
+        })),
+        recalledEpisodes: input.recalledEpisodes.slice(0, 6).map(item => ({
+          id: item.id,
+          sourceKind: item.sourceKind,
+          threadAnchor: sanitizeBriefText(item.threadAnchor ?? '', 120) || undefined,
+          whatHappened: sanitizeBriefText(item.whatHappened, 180),
+          relationshipMeaning: sanitizeBriefText(item.relationshipMeaning ?? '', 160) || undefined,
+          lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,
+          confidence: item.confidence,
+          provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+        })),
+        recalledConversationHistory: input.recalledConversationHistory.slice(0, 6).map(item => ({
+          turnId: item.turnId,
+          userText: sanitizeBriefText(item.userText, 160),
+          assistantText: sanitizeBriefText(item.assistantText, 160),
+          createdAt: item.createdAt,
+          provenance: item.provenance,
+        })),
+      })}`,
+      timeoutMs: 4_000,
+      source: 'counterfactual-deliberation',
+      cardId: activeCardId,
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+    }).catch(() => null)
+
+    if (!raw)
+      return null
+    return parseMemoryDeliberationPayload(raw)
+  }
+
   function buildProactiveStyleInstruction(style: AlicizationProactiveMetadata['style']) {
     if (style === 'firm-warning') {
       return {
@@ -4534,6 +5313,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     const runtimeDigestSystemBlock = buildAlicizationRuntimeSystemBlock(runtimeDigest)
     const truthContract = buildMindTruthContractLines(digitalLifeRuntimeSurface)
+    const hostPersonModel = organicPromptContext.hostPersonModel ?? null
+    const doctrineGuidance = buildRelationshipDoctrineGuidance({
+      doctrineText: digitalLifeRuntimeSurface.memory.autobiographicalSelf?.relationshipDoctrine ?? null,
+      contexts: inferHostSocialContextsFromText([
+        policyDecision.scenario,
+        layeredContext.workload.kind,
+        layeredContext.content.kind,
+      ].join(' ')),
+    })
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
       '策略层已经完成是否打断的判断。你不能重新决定该不该打断，只能负责把既定策略措辞成一句自然对白。',
@@ -4553,6 +5341,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         cooldownMs: policyDecision.cooldownMs,
         policyVersion: policyDecision.policyVersion,
       })}`,
+      hostPersonModel
+        ? `Host person model JSON: ${JSON.stringify({
+            summary: sanitizeBriefText(hostPersonModel.summary, 180),
+            trustStage: hostPersonModel.trustLadder.stage,
+            trustRationale: sanitizeBriefText(hostPersonModel.trustLadder.rationale, 160),
+            sensitivities: hostPersonModel.sensitivities.slice(0, 3),
+            repairTriggers: hostPersonModel.repairTriggers.slice(0, 3),
+            preferredClosenessByContext: hostPersonModel.preferredClosenessByContext.slice(0, 3),
+            recurrentBurdens: hostPersonModel.recurrentBurdens.slice(0, 3),
+          })}`
+        : '',
+      doctrineGuidance.doctrineSummary
+        ? `Relationship doctrine JSON: ${JSON.stringify({
+            doctrine: doctrineGuidance.doctrineSummary,
+            repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
+            truthBeforeWarmth: doctrineGuidance.truthBeforeWarmth,
+            leaveRoom: doctrineGuidance.leaveRoom,
+            restIntervention: doctrineGuidance.restIntervention,
+          })}`
+        : '',
       `Style constraint: ${styleInstruction.instruction}`,
       `Reply max length: ${styleInstruction.maxReplyChars} characters.`,
       'Output must be valid JSON only with keys: thought, emotion, reply, performance.',
@@ -4561,6 +5369,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
       'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
+      hostPersonModel
+        ? 'If the host person model implies lighter touch, more room, or a known repair trigger, let that social memory narrow how hard you interrupt and how closely you lean in.'
+        : '',
+      doctrineGuidance.doctrineSummary
+        ? 'If the relationship doctrine says repair before closeness, truth before warmth, or rest deserves intervention, let that doctrine shape the proactive tone and timing.'
+        : '',
     ].join('\n')
     const user = 'Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.'
 
@@ -4684,11 +5498,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       customDirectives: string
       coreIncarnation: string
       hostAttitude: string
+      hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     },
   ) {
     const lowObedience = personality.obedience <= 0.2
     const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
-    const styleInstruction = buildProactiveStyleInstruction(policyDecision.style)
     const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
     const digitalLifeRuntimeSurface = digitalLifeSpine.runtimeSurface
     const digitalLifeArchitecture = digitalLifeSpine.architecture
@@ -4740,9 +5554,35 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const thoughtThreadSummary = sanitizeBriefText(thoughtThread?.summary ?? '', 52)
     const focusBeliefStatement = sanitizeBriefText(focusBelief?.statement ?? '', 52)
     const primaryInquiryQuestion = sanitizeBriefText(primaryInquiry?.question ?? '', 52)
+    const proactiveHostContexts = inferHostSocialContextsFromText([
+      policyDecision.scenario,
+      layeredContext.workload.kind,
+      layeredContext.content.kind,
+      activeThreadSummary,
+      leadingGoalSummary,
+      governorSummary,
+    ].filter(Boolean).join(' '), [
+      policyDecision.scenario === 'coding' ? 'focused-work' : 'general',
+      policyDecision.scenario === 'late-night-care' ? 'late-night' : 'general',
+    ])
+    const hostSocialGuidance = buildHostSocialGuidance({
+      hostPersonModel: personaContext.hostPersonModel ?? null,
+      contexts: proactiveHostContexts,
+    })
+    const doctrineGuidance = buildRelationshipDoctrineGuidance({
+      doctrineText: digitalLifeRuntimeSurface.memory.autobiographicalSelf?.relationshipDoctrine ?? null,
+      contexts: proactiveHostContexts,
+    })
+    const adjustedStyle = adjustProactiveStyleFromHostPersonModel({
+      currentStyle: policyDecision.style,
+      hostPersonModel: personaContext.hostPersonModel ?? null,
+      contexts: proactiveHostContexts,
+    })
+    const doctrineAdjustedStyle = doctrineGuidance.preferredProactiveStyle ?? adjustedStyle
+    const styleInstruction = buildProactiveStyleInstruction(doctrineAdjustedStyle)
 
     const reply = (() => {
-      if (policyDecision.style === 'firm-warning') {
+      if (doctrineAdjustedStyle === 'firm-warning') {
         if (governorSummary)
           return governorSummary
         if (concernSummary)
@@ -4753,7 +5593,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           ? '已经很晚了。你还在硬撑，我得提醒你先停一下。'
           : '这一步看起来不太对。先停一下，再确认一遍。'
       }
-      if (policyDecision.style === 'gentle-care') {
+      if (doctrineAdjustedStyle === 'gentle-care') {
         if (thoughtThreadSummary)
           return thoughtThreadSummary
         if (governorSummary)
@@ -4772,7 +5612,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           ? '我在看着你。别把自己逼得太紧。'
           : '我在看着你。先别把自己逼得太紧。'
       }
-      if (policyDecision.style === 'light-nudge') {
+      if (doctrineAdjustedStyle === 'light-nudge') {
         if (thoughtThreadQuestion)
           return thoughtThreadQuestion
         if (thoughtThreadSummary)
@@ -4815,6 +5655,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
       return '我先记下这一刻，等更合适的时候再开口。'
     })()
+    const sociallyAdjustedReply = (() => {
+      if (doctrineAdjustedStyle === 'silent-observe')
+        return '我先不挤进来，只把这条线轻轻挂着。'
+      if ((hostSocialGuidance.cautious || doctrineGuidance.cautious) && doctrineAdjustedStyle === 'light-nudge')
+        return `${reply.replace(/[。！!？?]+$/u, '')}。我就轻一点提醒你。`
+      if ((hostSocialGuidance.preferredProactiveStyle === 'gentle-care' || doctrineGuidance.preferredProactiveStyle === 'gentle-care') && doctrineAdjustedStyle === 'gentle-care')
+        return `${reply.replace(/[。！!？?]+$/u, '')}。我会尽量放轻一点。`
+      return reply
+    })()
 
     const thought = [
       `boredom=${state.boredom.toFixed(1)}`,
@@ -4825,10 +5674,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `sensibility=${personality.sensibility.toFixed(2)}`,
       `personaTone=${personaTone}`,
       hostAttitude ? `hostAttitude=${hostAttitude}` : 'hostAttitude=none',
+      hostSocialGuidance.preferenceText ? `hostPreference=${hostSocialGuidance.preferenceText}` : 'hostPreference=none',
+      hostSocialGuidance.sensitivityText ? `hostSensitivity=${hostSocialGuidance.sensitivityText}` : 'hostSensitivity=none',
+      hostSocialGuidance.repairTriggerText ? `hostRepairTrigger=${hostSocialGuidance.repairTriggerText}` : 'hostRepairTrigger=none',
+      doctrineGuidance.doctrineSummary ? `relationshipDoctrine=${doctrineGuidance.doctrineSummary}` : 'relationshipDoctrine=none',
       coreIncarnation ? `coreIncarnation=${coreIncarnation}` : 'coreIncarnation=none',
       lowObedience ? 'low-obedience bias active' : 'default bias',
       `scenario=${policyDecision.scenario}`,
-      `style=${policyDecision.style}`,
+      `style=${doctrineAdjustedStyle}`,
       `truthState=${truthContract.truthState}`,
       digitalLifeArchitecture ? `architecture=${digitalLifeArchitecture.summary}` : 'architecture=none',
       runtimeDigest ? `runtimeDigest=${runtimeDigest.summary}` : 'runtimeDigest=none',
@@ -4856,11 +5709,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return {
       thought,
       emotion,
-      reply: reply.slice(0, styleInstruction.maxReplyChars),
+      reply: sociallyAdjustedReply.slice(0, styleInstruction.maxReplyChars),
       performance: buildDefaultDialoguePerformancePayload(emotion, styleInstruction.performance),
       parsePath: 'json',
       format: 'subconscious-proactive-v1',
-      proactive: buildProactiveMetadataFromDecision(policyDecision),
+      proactive: buildProactiveMetadataFromDecision({
+        ...policyDecision,
+        style: doctrineAdjustedStyle,
+      }),
     }
   }
 
@@ -4928,6 +5784,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     summary: string
     policy?: AlicizationExecutionResultDeliveryPolicy | null
     selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
+    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
   }) {
     return buildAlicizationExecutionPayoffDeterministicStructured({
       mode: 'callback-delivery',
@@ -4938,6 +5795,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       outcome: input.outcome,
       policy: input.policy,
       selfContinuityAuthority: input.selfContinuityAuthority,
+      hostPersonModel: input.hostPersonModel ?? null,
     })
   }
 
@@ -4950,11 +5808,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     summary: string
     deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
     selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
+    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
   }) {
     return selectAlicizationExecutionDeliveryReply({
       ...input,
       policy: input.deliveryPolicy,
       selfContinuityAuthority: input.selfContinuityAuthority,
+      hostPersonModel: input.hostPersonModel ?? null,
     })
   }
 
@@ -4972,6 +5832,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     turnId?: string | null
     deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
     selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
+    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -4987,6 +5848,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       outcome: sanitizeExecutionLedgerText(input.outcome, 240),
       policy: input.deliveryPolicy,
       selfContinuityAuthority: input.selfContinuityAuthority,
+      hostPersonModel: input.hostPersonModel ?? null,
       trace: {
         decisionTraceId: input.decisionTraceId,
         turnMode: 'answer',
@@ -5064,6 +5926,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const runtimeSurface = spineFromTurn?.runtimeSurface
       ?? (state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null)
     return buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
+  }
+
+  async function resolveExecutionHostPersonModelForRuntime(input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) {
+    const runtimeSurface = input.agentTurn?.getSessionSnapshot().digitalLifeSpine?.runtimeSurface ?? null
+    if (runtimeSurface?.memory.hostPersonModel)
+      return runtimeSurface.memory.hostPersonModel
+    return await buildHostPersonModel({
+      now: Date.now(),
+    }).catch(() => null)
   }
 
   async function generateReminderStructuredWithGateway(
@@ -5163,6 +6037,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     selectExecutionDeliveryReplySurface,
     resolveExecutionResultDeliveryPolicy: resolveExecutionResultDeliveryPolicyForRuntime,
     resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,
+    resolveExecutionHostPersonModel: resolveExecutionHostPersonModelForRuntime,
     persistExecutionDeliveryState: async cardId => await persistExecutionDeliveryState(cardId),
     queueSubconsciousWake,
     executionCallbackRuntime,
@@ -5610,6 +6485,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMainGatewayGenerationTimeout,
       appendRuntimeDebugLine,
       queueScopedAuditLog,
+      recordPreparedMindTrace: async ({ payload, prepared }) => {
+        rememberPreparedMindTrace({ payload, prepared })
+      },
       resolveActiveDialogueDeterministicReply,
       suppressInlineExecutionDeliveries: async ({ cardId, entries }) => {
         let suppressedCount = 0
@@ -5956,8 +6834,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     await appendAuditLog({
       level: 'warning',
       category: 'memory',
-      action: 'prune-startup-failed',
-      message: 'Startup memory prune failed.',
+      action: 'salience-refresh-startup-failed',
+      message: 'Startup memory salience refresh failed.',
       payload: {
         reason: error instanceof Error ? error.message : String(error),
       },
@@ -5975,7 +6853,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   })
   await scheduleNextReminderDueCheck('startup')
-  startPruneTimer()
+  startMemorySalienceRefreshTimer()
   startSubconsciousTimer()
   startDreamTimer()
   emitKillSwitchChanged()

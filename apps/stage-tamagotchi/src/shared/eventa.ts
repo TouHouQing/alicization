@@ -472,6 +472,16 @@ export interface AlicizationMemoryStats {
   total: number
   active: number
   archived: number
+  tierCounts?: {
+    hot: number
+    warm: number
+    cold: number
+  }
+  pendingSyncCount?: number
+  integrity?: {
+    status: 'ok' | 'degraded'
+    issues: string[]
+  }
   lastPrunedAt: number | null
 }
 

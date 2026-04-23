@@ -27,6 +27,73 @@ function trimFactObject(raw: string) {
   return sanitizeText(raw, 180)
 }
 
+function inferExecutionProcedureContextTags(input: {
+  goal: string
+  summary?: string | null
+  outcome?: string | null
+}) {
+  const text = `${input.goal} ${input.summary ?? ''} ${input.outcome ?? ''}`.toLowerCase()
+  const tags: string[] = ['procedure-learning']
+  if (/runtime|debug|coding|cursor|terminal|patch|verify|test|cli/iu.test(text))
+    tags.push('focused-work', 'execution-context')
+  if (/late|night|rest|tired|fatigue|sleep|熬夜|疲惫/u.test(text))
+    tags.push('late-night')
+  if (/browser|screen|desktop|window|tab|click/iu.test(text))
+    tags.push('visual-execution')
+  return [...new Set(tags)]
+}
+
+function executionProcedureLesson(input: {
+  feedback: AlicizationExecutionProposalFeedbackKind | AlicizationExecutionResultFeedbackKind
+  goal: string
+  outcome?: string | null
+  stage: 'proposal' | 'result'
+}) {
+  const goal = sanitizeText(input.goal, 160) || 'this line'
+  const outcome = sanitizeText(input.outcome, 120)
+  if (input.stage === 'proposal') {
+    if (input.feedback === 'affirmed')
+      return `For ${goal}, bounded execution proposals can stay direct after explicit host consent.`
+    if (input.feedback === 'denied')
+      return `For ${goal}, this host prefers lighter pressure and explicit consent before re-approaching the same procedure.`
+    return `For ${goal}, if the host pivots away before confirming, wait for a fresher opening before reusing the same proposal.`
+  }
+
+  if (input.feedback === 'valued')
+    return `For ${goal}${outcome ? ` with outcome ${outcome}` : ''}, direct callback reporting can stay clear when the result is genuinely useful.`
+  if (input.feedback === 'doubted')
+    return `For ${goal}, verify the result before sounding certain; this host does not reward confident callback wording without proof.`
+  if (input.feedback === 'intrusive')
+    return `For ${goal}, this host prefers lighter result openings and less interruption pressure around callbacks.`
+  return `For ${goal}, if the host turns away, wait for a fresher opening before reporting the result in the same way again.`
+}
+
+function executionProcedurePreferenceTags(input: {
+  feedback: AlicizationExecutionProposalFeedbackKind | AlicizationExecutionResultFeedbackKind
+  stage: 'proposal' | 'result'
+}) {
+  const tags = ['procedure-learning']
+  if (input.stage === 'proposal') {
+    if (input.feedback === 'affirmed')
+      tags.push('host-accepts-bounded-proposals')
+    if (input.feedback === 'denied')
+      tags.push('host-prefers-explicit-consent', 'host-prefers-lower-pressure')
+    if (input.feedback === 'interrupted')
+      tags.push('host-prefers-fresher-opening')
+    return tags
+  }
+
+  if (input.feedback === 'valued')
+    tags.push('host-values-direct-useful-results')
+  if (input.feedback === 'doubted')
+    tags.push('host-prefers-verification-first')
+  if (input.feedback === 'intrusive')
+    tags.push('host-prefers-lighter-callback')
+  if (input.feedback === 'interrupted')
+    tags.push('host-prefers-fresher-callback-opening')
+  return tags
+}
+
 export interface AlicizationOutcomeClosureResult {
   relationshipOutcomes: AlicizationRelationshipOutcomeInput[]
   reinforcementEvents: AlicizationPersonaReinforcementEventInput[]
@@ -904,6 +971,15 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
   const result = baseResult()
   const channel = sanitizeText(input.thread.selectedChannel ?? input.thread.proposedChannel ?? 'executor', 48) || 'executor'
   const goal = sanitizeText(input.thread.goal, 180) || 'the proposed execution'
+  const procedureContextTags = inferExecutionProcedureContextTags({
+    goal,
+    summary: input.thread.summary ?? '',
+  })
+  const procedureLesson = executionProcedureLesson({
+    feedback: input.feedback,
+    goal,
+    stage: 'proposal',
+  })
   const summary = input.feedback === 'affirmed'
     ? `The host explicitly allowed a proactive ${channel} execution proposal.`
     : input.feedback === 'denied'
@@ -957,6 +1033,11 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       predicate: 'preference',
       object: trimFactObject(`clear bounded execution proposals around ${goal} can be accepted after explicit consent`),
       confidence: 0.82,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.84,
     })
   }
 
@@ -1000,6 +1081,11 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       predicate: 'boundary',
       object: trimFactObject(`after a denied execution proposal around ${goal}, lower pressure and do not push the same line again immediately`),
       confidence: 0.86,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.86,
     })
   }
 
@@ -1032,6 +1118,11 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       predicate: 'boundary',
       object: trimFactObject(`if an execution proposal around ${goal} is interrupted by another turn, wait for a fresher opening before proposing it again`),
       confidence: 0.78,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.8,
     })
   }
 
@@ -1057,11 +1148,7 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       input.feedback === 'affirmed' ? 'permission' : input.feedback === 'denied' ? 'boundary' : 'deferred',
     ],
     relationshipMeaning: summary,
-    lesson: input.feedback === 'affirmed'
-      ? 'Bounded execution can be direct after explicit consent.'
-      : input.feedback === 'denied'
-        ? 'After an explicit no, lower pressure and do not push the same proposal.'
-        : 'If the host pivots away, wait for a fresher opening before re-proposing.',
+    lesson: procedureLesson,
     sourceSummary: 'execution proposal feedback',
     confidence: input.feedback === 'affirmed' ? 0.84 : 0.86,
     sceneAttachment: 0.38,
@@ -1071,7 +1158,10 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution proposal feedback turn' } : null,
       { kind: 'task-thread', id: input.thread.threadId, label: goal },
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: ['execution-proposal', channel, `feedback:${input.feedback}`],
+    tags: ['execution-proposal', channel, `feedback:${input.feedback}`, ...procedureContextTags, ...executionProcedurePreferenceTags({
+      feedback: input.feedback,
+      stage: 'proposal',
+    })],
   })
 
   return result
@@ -1090,6 +1180,17 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
   const channel = sanitizeText(input.thread.selectedChannel ?? input.thread.proposedChannel ?? 'executor', 48) || 'executor'
   const goal = sanitizeText(input.thread.goal, 180) || 'the finished execution'
   const outcome = sanitizeText(input.thread.outcome ?? input.thread.summary ?? '', 180)
+  const procedureContextTags = inferExecutionProcedureContextTags({
+    goal,
+    summary: input.thread.summary ?? '',
+    outcome,
+  })
+  const procedureLesson = executionProcedureLesson({
+    feedback: input.feedback,
+    goal,
+    outcome,
+    stage: 'result',
+  })
   const summary = input.feedback === 'valued'
     ? `The host treated the proactive ${channel} result as useful and worth repeating.`
     : input.feedback === 'doubted'
@@ -1156,6 +1257,11 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       predicate: 'preference',
       object: trimFactObject(`when the result around ${goal}${outcome ? ` (${outcome})` : ''} is useful, proactive execution reporting can stay direct`),
       confidence: 0.82,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.84,
     })
   }
 
@@ -1199,6 +1305,11 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       predicate: 'habit',
       object: trimFactObject(`after a doubted result around ${goal}, verify more before speaking with confidence`),
       confidence: 0.84,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.86,
     })
   }
 
@@ -1242,6 +1353,11 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       predicate: 'boundary',
       object: trimFactObject(`execution result delivery around ${goal} should use a lighter opening and less interruption pressure`),
       confidence: 0.82,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.84,
     })
   }
 
@@ -1274,6 +1390,11 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       predicate: 'boundary',
       object: trimFactObject(`if the host pivots away after a result around ${goal}, wait for a fresher opening before reporting that way again`),
       confidence: 0.76,
+    }, {
+      subject: 'assistant',
+      predicate: 'procedure',
+      object: trimFactObject(procedureLesson),
+      confidence: 0.8,
     })
   }
 
@@ -1301,13 +1422,7 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       input.feedback === 'valued' ? 'validated' : input.feedback === 'doubted' ? 'uncertain' : input.feedback === 'intrusive' ? 'boundary' : 'deferred',
     ],
     relationshipMeaning: summary,
-    lesson: input.feedback === 'valued'
-      ? 'Grounded results can stay direct when they are actually useful.'
-      : input.feedback === 'doubted'
-        ? 'After a doubted result, verify more before speaking with confidence.'
-        : input.feedback === 'intrusive'
-          ? 'Execution callbacks need lighter openings and less interruption pressure.'
-          : 'Interrupted callbacks should wait for a fresher opening.',
+    lesson: procedureLesson,
     sourceSummary: 'execution result feedback',
     confidence: input.feedback === 'valued' ? 0.86 : 0.84,
     sceneAttachment: 0.42,
@@ -1317,7 +1432,10 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution result feedback turn' } : null,
       { kind: 'task-thread', id: input.thread.threadId, label: goal },
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: ['execution-result', channel, `feedback:${input.feedback}`],
+    tags: ['execution-result', channel, `feedback:${input.feedback}`, ...procedureContextTags, ...executionProcedurePreferenceTags({
+      feedback: input.feedback,
+      stage: 'result',
+    })],
   })
 
   return result

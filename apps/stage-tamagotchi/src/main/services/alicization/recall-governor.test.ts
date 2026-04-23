@@ -167,6 +167,86 @@ describe('buildRecallGovernor', () => {
     expect(buildRecallGovernorSystemBlock(governor)).toContain('[ALICIZATION_RECALL_GOVERNOR]')
   })
 
+  it('injects live scene attachment cues into recall governor for task-thread recollection', () => {
+    const governor = buildRecallGovernor({
+      now: 25_000,
+      dialogueWorldThread: {
+        activeThread: 'Keep repairing the runtime seam in the current diff.',
+        currentQuestion: 'Can you keep doing it the way you did before?',
+        openLoops: ['repair the runtime seam'],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'steady',
+        memoryMode: 'task-thread',
+        recallKeys: ['runtime seam', 'cli patch'],
+        lastUserMove: '继续按之前那样修这个 runtime seam',
+        lastAssistantMove: '我先沿着 diff 和 terminal patch flow 走。',
+        lastOutcome: 'pending',
+        pendingValidation: null,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 25_000,
+      },
+      conversationState: {
+        jointThread: 'repair the runtime seam',
+        hostMove: '继续按之前那样修这个 runtime seam',
+        activeProject: 'runtime seam',
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: ['runtime seam', 'cli patch'],
+        shouldHoldThread: true,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 25_000,
+      },
+      answerCompiler: {
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        recommendedAct: 'answer',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: false,
+      } as any,
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: 'Continue from the known seam.',
+        whyThisReplyNow: 'The host wants the earlier working procedure reused in the same live workspace.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 25_000,
+      },
+      sceneContext: {
+        cueSummary: 'Cursor diff lane with terminal patch flow',
+        appName: 'Cursor',
+        processName: 'Cursor',
+        targetTitle: 'runtime.ts diff',
+        scenario: 'coding',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+      },
+    })
+
+    expect(governor?.sceneAnchor).toContain('Cursor diff lane with terminal patch flow')
+    expect(governor?.sceneAnchor).toContain('runtime.ts diff')
+    expect(governor?.recollectionIntent?.queryHints).toEqual(expect.arrayContaining([
+      'Cursor diff lane with terminal patch flow',
+      'runtime.ts diff',
+      'Cursor',
+      'scene:coding',
+    ]))
+  })
+
   it('keeps dialogue-first attune turns thread-bound unless self-carry is explicitly eligible', () => {
     const governor = buildRecallGovernor({
       now: 30_000,

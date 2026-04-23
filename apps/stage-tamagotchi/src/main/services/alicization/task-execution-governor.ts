@@ -370,6 +370,36 @@ function buildClawFabricExperience(input: {
   }
 }
 
+function mergeClawFabricExperience(
+  derived: AlicizationClawFabricExperience | null,
+  incoming: AlicizationClawFabricExperience | null | undefined,
+) {
+  if (!derived && !incoming)
+    return null
+
+  return {
+    sessionResumeChannel: incoming?.sessionResumeChannel ?? derived?.sessionResumeChannel ?? null,
+    activeChannels: uniqueStrings([
+      ...(derived?.activeChannels ?? []),
+      ...(incoming?.activeChannels ?? []),
+    ]) as AlicizationExecutionChannel[],
+    channelOutcomes: {
+      ...derived?.channelOutcomes,
+      ...incoming?.channelOutcomes,
+    },
+    goalAffinityChannel: incoming?.goalAffinityChannel ?? derived?.goalAffinityChannel ?? null,
+    goalAffinityScore: incoming?.goalAffinityScore ?? derived?.goalAffinityScore ?? null,
+    goalAffinityReason: sanitizeText(incoming?.goalAffinityReason, 220) || sanitizeText(derived?.goalAffinityReason, 220) || null,
+    advisorChannel: incoming?.advisorChannel ?? derived?.advisorChannel ?? null,
+    advisorConfidence: incoming?.advisorConfidence ?? derived?.advisorConfidence ?? null,
+    advisorReason: sanitizeText(incoming?.advisorReason, 220) || sanitizeText(derived?.advisorReason, 220) || null,
+    rememberedProcedures: [
+      ...((incoming?.rememberedProcedures ?? []).filter(Boolean)),
+      ...((derived?.rememberedProcedures ?? []).filter(Boolean)),
+    ].slice(0, 4),
+  } satisfies AlicizationClawFabricExperience
+}
+
 function buildThreadGoalSignature(thread: Pick<AlicizationTaskThreadRecord, 'goal' | 'kind' | 'proposedChannel' | 'selectedChannel'>) {
   const goal = normalizeSignatureText(thread.goal, 240)
   const channel = normalizeSignatureText(thread.proposedChannel ?? thread.selectedChannel, 80) || 'unrouted'
@@ -743,12 +773,13 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
         settledThreads: settledComparableThreads,
       })).catch(() => null)
     }
-    const experience = buildClawFabricExperience({
+    const derivedExperience = buildClawFabricExperience({
       activeThreads: comparableThreads,
       settledThreads: settledComparableThreads,
       task: input.task,
       routingAssessment,
     })
+    const experience = mergeClawFabricExperience(derivedExperience, input.experience)
     const draft = buildTaskThreadPlanningDraft({
       ...input,
       now,

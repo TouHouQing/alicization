@@ -1,4 +1,5 @@
 import type {
+  AlicizationHostPersonModelSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
@@ -15,6 +16,8 @@ import {
   renderAlicizationMindSurface,
   type AlicizationMindSurfaceMove,
 } from './mind-surface-renderer'
+import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 const listingProtocolLeakPattern = /\bListed\s+(?:desktop\s+entries|entries)\s*\(\d+\):/iu
 const shellListingLeakPattern = /(?:^|\s)(?:drwx|total\s+\d+)/iu
 const mechanisticChannelLeadPattern = /^(?:刚才那个|这条)?\s*(?:CLI|Codex|Claude Code|OpenClaw)\b/iu
@@ -176,9 +179,21 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   reply: string
   status: AlicizationExecutionOutcomeSurfaceStatus
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  goal?: string
 }) {
   const policy = input.policy ?? null
-  if (!policy || policy.mode === 'deliver-now')
+  const contexts = inferHostSocialContextsFromText(input.goal ?? '')
+  const hostGuidance = buildHostSocialGuidance({
+    hostPersonModel: input.hostPersonModel ?? null,
+    contexts,
+  })
+  const doctrineGuidance = buildRelationshipDoctrineGuidance({
+    authority: input.selfContinuityAuthority ?? null,
+    contexts,
+  })
+  if ((!policy || policy.mode === 'deliver-now') && !hostGuidance.cautious && !doctrineGuidance.cautious)
     return input.reply
 
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
@@ -186,23 +201,23 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
   if (!baseReply)
     return ''
 
-  if (policy.mode === 'check-availability-first') {
+  if (policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious) {
     if (normalizedStatus === 'completed') {
-      if (policy.companionshipFraming === 'close-carry')
+      if (policy?.companionshipFraming === 'close-carry')
         return sanitizeText(`你现在要是能接，我把这条结果轻轻接回来给你：${baseReply}`, 220)
-      if (policy.tone === 'direct')
+      if (policy?.tone === 'direct')
         return sanitizeText(`你要是现在能接结果，我就直接说：${baseReply}`, 220)
-      if (policy.tone === 'cautious')
+      if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious)
         return sanitizeText(`你现在要是方便，我再把结果直接摊给你：${baseReply}`, 220)
       return sanitizeText(`你现在要是方便，我把结果直接接给你：${baseReply}`, 220)
     }
 
-    if (policy.tone === 'cautious')
+    if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious)
       return sanitizeText(`你现在要是方便，我把卡住的地方直接交代给你：${baseReply}`, 220)
     return sanitizeText(`你现在要是能接，我把这条执行状态直接说清：${baseReply}`, 220)
   }
 
-  if (policy.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed')
+  if (policy?.resultLeadStyle === 'soft-handoff' && normalizedStatus === 'completed')
     return sanitizeText(`我把这条结果接回来了：${baseReply}`, 220)
 
   return baseReply
@@ -406,6 +421,7 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
   const baseReply = renderExecutionPayoff({
     ...input,
@@ -415,6 +431,9 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
     policy: input.policy,
     reply: baseReply,
     status: input.status,
+    hostPersonModel: input.hostPersonModel ?? null,
+    selfContinuityAuthority: input.selfContinuityAuthority ?? null,
+    goal: input.goal,
   })
 }
 
@@ -426,6 +445,7 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
   const baseReply = renderExecutionPayoff({
     ...input,
@@ -435,6 +455,9 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
     policy: input.policy,
     reply: baseReply,
     status: input.status,
+    hostPersonModel: input.hostPersonModel ?? null,
+    selfContinuityAuthority: input.selfContinuityAuthority ?? null,
+    goal: input.goal,
   })
 }
 
@@ -457,6 +480,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
   summary: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }): AlicizationExecutionDeliveryReplySelection {
   const deterministicReply = buildAlicizationDeterministicExecutionDeliveryReply({
     channel: input.channel,
@@ -466,6 +490,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     outcome: input.outcome,
     policy: input.policy,
     selfContinuityAuthority: input.selfContinuityAuthority,
+    hostPersonModel: input.hostPersonModel ?? null,
   })
   const detail = sanitizeText(input.outcome || input.summary, 1_200)
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
@@ -510,7 +535,16 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     }
   }
 
-  if (input.policy?.mode === 'check-availability-first' && !/(方便|能接|if you're free|if you have room|if now's a good time)/iu.test(llmReply)) {
+  const contexts = inferHostSocialContextsFromText(input.goal)
+  const hostGuidance = buildHostSocialGuidance({
+    hostPersonModel: input.hostPersonModel ?? null,
+    contexts,
+  })
+  const doctrineGuidance = buildRelationshipDoctrineGuidance({
+    authority: input.selfContinuityAuthority ?? null,
+    contexts,
+  })
+  if ((input.policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious) && !/(方便|能接|if you're free|if you have room|if now's a good time)/iu.test(llmReply)) {
     return {
       source: 'llm-repaired',
       reply: deterministicReply,
@@ -524,6 +558,9 @@ export function selectAlicizationExecutionDeliveryReply(input: {
       policy: input.policy,
       reply: llmReply,
       status: input.status,
+      hostPersonModel: input.hostPersonModel ?? null,
+      selfContinuityAuthority: input.selfContinuityAuthority ?? null,
+      goal: input.goal,
     }),
   }
 }
@@ -550,6 +587,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     answerIntent?: string | null
   } | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
   const detail = readExecutionDetail({
     summary: input.summary,
@@ -616,6 +654,22 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
           sourceTags: input.selfContinuityAuthority.sourceTags,
         })}`
       : '',
+    input.hostPersonModel
+      ? `Host person model JSON: ${JSON.stringify({
+          summary: sanitizeText(input.hostPersonModel.summary, 180) || null,
+          trustStage: input.hostPersonModel.trustLadder.stage,
+          trustRationale: sanitizeText(input.hostPersonModel.trustLadder.rationale, 160) || null,
+          sensitivities: input.hostPersonModel.sensitivities.slice(0, 3),
+          repairTriggers: input.hostPersonModel.repairTriggers.slice(0, 3),
+          preferredClosenessByContext: input.hostPersonModel.preferredClosenessByContext.slice(0, 3),
+          recurrentBurdens: input.hostPersonModel.recurrentBurdens.slice(0, 3),
+        })}`
+      : '',
+    input.selfContinuityAuthority?.relationshipLine
+      ? `Relationship doctrine JSON: ${JSON.stringify({
+          doctrine: sanitizeText(input.selfContinuityAuthority.relationshipLine, 180) || null,
+        })}`
+      : '',
     input.policy
       ? `Delivery policy JSON: ${JSON.stringify({
           mode: input.policy.mode,
@@ -630,6 +684,12 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     'Carry the feeling that you stayed present through the execution and are now naturally paying it off to the Host.',
     input.policy?.mode === 'check-availability-first'
       ? 'Open with a quick check that the Host has room to receive the result, then land the result in the same reply.'
+      : '',
+    input.hostPersonModel
+      ? 'If the host person model implies lighter touch, lower pressure, or a need for room, let that social memory soften how you hand off the result without becoming vague.'
+      : '',
+    input.selfContinuityAuthority?.relationshipLine
+      ? 'If the relationship doctrine implies repair before closeness, truth before warmth, or that presence should not become pressure, let that doctrine soften and sequence the handoff.'
       : '',
     input.policy?.tone === 'cautious'
       ? 'Keep the opening softer and lower-pressure than default.'
@@ -668,6 +728,7 @@ export function buildAlicizationExecutionPayoffDeterministicStructured(input: {
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }): AlicizationExecutionPayoffStructured {
   const rendered = renderExecutionPayoff(input)
   const emotion = rendered.emotion
@@ -681,6 +742,9 @@ export function buildAlicizationExecutionPayoffDeterministicStructured(input: {
       policy: input.policy,
       reply: rendered.reply,
       status: input.status,
+      hostPersonModel: input.hostPersonModel ?? null,
+      selfContinuityAuthority: input.selfContinuityAuthority ?? null,
+      goal: input.goal,
     }),
     performance: buildExecutionPayoffPerformance(emotion),
     parsePath: 'json',

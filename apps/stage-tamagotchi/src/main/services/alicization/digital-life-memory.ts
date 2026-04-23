@@ -92,6 +92,24 @@ export function buildAlicizationDigitalLifeMemoryDigest(
   const reflectionSummary = sanitizeText(summarizeReflection(latestReflection), 180) || null
   const recallMode = sanitizeText(recallGovernor?.mode, 48) || null
   const recallSeed = sanitizeText(recallGovernor?.recallSeed, 160) || null
+  const recollectionIntent = recallGovernor?.recollectionIntent ?? null
+  const recollectionSummary = recollectionIntent
+    ? [
+        recollectionIntent.mode ? `mode=${sanitizeText(recollectionIntent.mode, 48)}` : '',
+        recollectionIntent.temporalFocus ? `temporal=${sanitizeText(recollectionIntent.temporalFocus, 48)}` : '',
+        recollectionIntent.rationale ? `why=${sanitizeText(recollectionIntent.rationale, 120)}` : '',
+      ].filter(Boolean).join(' | ') || null
+    : null
+  const recollectionSurfaceSummary = recollectionIntent
+    ? [
+        recallGovernor?.carryAsMemory ? 'carry=memory' : 'carry=none',
+        recallGovernor?.allowRecalledFragments ? 'fragments=enabled' : 'fragments=off',
+        recallGovernor?.allowActiveThoughts ? 'active-thoughts=enabled' : 'active-thoughts=off',
+      ].filter(Boolean).join(' | ') || null
+    : null
+  const recollectionConfidence = recollectionIntent
+    ? normalizeUnit(recollectionIntent.confidence)
+    : null
   const thoughtThreadSummary = sanitizeText(
     firstNonEmptyText(thoughtThread?.summary, thoughtThread?.title, thoughtThread?.question),
     160,
@@ -115,6 +133,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
       focusBeliefStatement ? `belief=${sanitizeText(focusBeliefStatement, 72)}` : '',
       reflectionSummary ? `reflection=${sanitizeText(reflectionSummary, 72)}` : '',
       recallMode ? `recall=${recallMode}` : '',
+      recollectionSummary ? `recollection=${sanitizeText(recollectionSummary, 72)}` : '',
       thoughtThreadSummary ? `thread=${sanitizeText(thoughtThreadSummary, 72)}` : '',
       longHorizonSummary ? `durable=${sanitizeText(longHorizonSummary, 72)}` : '',
     ].filter(Boolean).join(' | ') || null,
@@ -128,6 +147,9 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     reflectionPressure: normalizeUnit(surface.memory.reflectionLedger?.revisionPressure),
     recallMode,
     recallSeed,
+    recollectionSummary,
+    recollectionSurfaceSummary,
+    recollectionConfidence,
     thoughtThreadSummary,
     longHorizonSummary,
     rememberedPreferenceSummary,

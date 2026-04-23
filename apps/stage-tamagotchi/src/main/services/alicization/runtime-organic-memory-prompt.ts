@@ -56,6 +56,15 @@ interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
+  planRecollectionIntent?: (input: {
+    recallSeed: string
+    heuristicIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    hostAttitude: string
+    activeThoughts: OrganicMemoryPromptContext['activeThoughts']
+    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
+    relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
+  }) => Promise<OrganicMemoryPromptContext['recollectionIntent'] | null>
   planMemoryRecollection?: (input: {
     recallSeed: string
     recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
@@ -65,6 +74,27 @@ interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>
+  planRecollectionSpeech?: (input: {
+    recallSeed: string
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>
+  planMemoryDeliberation?: (input: {
+    recallSeed: string
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
+    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
+    recollectionSpeechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>
   isPersonaResidueMemoryText: (text: string) => boolean
 }
 
@@ -80,9 +110,109 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     buildHostPersonModel,
     recallConversationHistory,
     recallMemoryConsolidations,
+    planRecollectionIntent,
     planMemoryRecollection,
+    planRecollectionSpeech,
+    planMemoryDeliberation,
     isPersonaResidueMemoryText,
   } = options
+
+  function applyMemoryDeliberationToSpeechPlan(input: {
+    deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null
+    speechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
+  }) {
+    const deliberation = input.deliberation ?? null
+    const speechPlan = input.speechPlan ?? null
+    if (!deliberation)
+      return speechPlan
+
+    const shouldSurface = deliberation.shouldRecall && deliberation.surfacePolicy !== 'internal-only'
+    return {
+      shouldSurface,
+      surfaceMode: shouldSurface ? deliberation.surfacePolicy : 'internal-only',
+      placement: shouldSurface
+        ? (speechPlan?.placement && speechPlan.placement !== 'internal-only'
+            ? speechPlan.placement
+            : deliberation.surfacePolicy === 'gist-first'
+              ? 'before-payoff'
+              : 'inside-payoff')
+        : 'internal-only',
+      certainty: speechPlan?.certainty ?? 'approximate',
+      internalLead: deliberation.inwardLine || speechPlan?.internalLead || '',
+      visibleLead: shouldSurface
+        ? deliberation.visibleLine || speechPlan?.visibleLead || null
+        : null,
+      styleNote: speechPlan?.styleNote || 'Let recollection contour the answer without turning into a rigid reply shell.',
+      rationale: deliberation.whyNow || speechPlan?.rationale || '',
+      confidence: deliberation.confidence,
+    } satisfies NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']>
+  }
+
+  function rankMemoryDeliberationBundles(input: {
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
+    bundles: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedBundles']
+  }) {
+    const intentMode = input.recollectionIntent?.mode ?? 'none'
+    return [...input.bundles]
+      .map((bundle) => {
+        let coherence = 0
+        if (bundle.periodId && bundle.episodeId)
+          coherence += 0.18
+        if (bundle.procedureId && bundle.episodeId)
+          coherence += 0.18
+        if (bundle.relationshipLine)
+          coherence += 0.12
+        if (bundle.conversationTurnId)
+          coherence += 0.1
+        if (bundle.procedureId && (intentMode === 'execution-procedure' || intentMode === 'experience-pattern'))
+          coherence += 0.22
+        if (bundle.conversationTurnId && intentMode === 'conversation-history')
+          coherence += 0.2
+        if (bundle.periodId && (intentMode === 'autobiographical-history' || intentMode === 'relationship-history'))
+          coherence += 0.16
+        if (bundle.relationshipLine && intentMode === 'relationship-history')
+          coherence += 0.18
+        return {
+          bundle,
+          score: bundle.confidence + coherence,
+        }
+      })
+      .sort((left, right) => right.score - left.score)
+      .map(item => item.bundle)
+      .slice(0, 4)
+  }
+
+  function rankMemoryDeliberationChains(input: {
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
+    chains: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedChains']
+  }) {
+    const intentMode = input.recollectionIntent?.mode ?? 'none'
+    return [...input.chains]
+      .map((chain) => {
+        let coherence = 0
+        if (chain.currentStance)
+          coherence += 0.12
+        if (chain.answerPosture)
+          coherence += 0.14
+        if (chain.periodSummary && chain.eventSummary)
+          coherence += 0.16
+        if (chain.procedureSummary && chain.relationshipMeaning)
+          coherence += 0.16
+        if (chain.lesson)
+          coherence += 0.1
+        if (chain.kind === 'task-procedure-relationship-stance' && (intentMode === 'execution-procedure' || intentMode === 'experience-pattern'))
+          coherence += 0.24
+        if (chain.kind === 'period-event-lesson-posture' && (intentMode === 'relationship-history' || intentMode === 'autobiographical-history' || intentMode === 'conversation-history'))
+          coherence += 0.22
+        return {
+          chain,
+          score: chain.confidence + coherence,
+        }
+      })
+      .sort((left, right) => right.score - left.score)
+      .map(item => item.chain)
+      .slice(0, 4)
+  }
 
   function buildProactiveRecallSeed(input: {
     foregroundWindow?: {
@@ -196,7 +326,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         'These are consolidated autobiographical summaries distilled from repeated events over time.',
         'Prefer starting from one of these summaries before unpacking raw memory pieces.',
         ...(context.consolidatedMemories ?? []).map((item) => {
-          return `- kind=${item.kind} | period=${item.periodKey} | confidence=${item.confidence.toFixed(2)} | provenance=${item.dominantProvenance} | summary=${item.summary} | lesson=${item.lesson ?? 'none'} | cues=${item.cues.join(' ; ')}`
+          return `- kind=${item.kind} | facet=${item.facet ?? 'none'} | period=${item.periodKey} | confidence=${item.confidence.toFixed(2)} | provenance=${item.dominantProvenance} | summary=${item.summary} | lesson=${item.lesson ?? 'none'} | cues=${item.cues.join(' ; ')}`
         }),
       ].join('\n'))
     }
@@ -231,6 +361,62 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         `confidence=${context.recollectionPlan.confidence.toFixed(2)}`,
         `rationale=${context.recollectionPlan.rationale}`,
       ].join('\n'))
+    }
+
+    if (context.recollectionSpeechPlan) {
+      blocks.push([
+        '[ALICIZATION_RECOLLECTION_SPEECH_PLAN]',
+        'This block governs how recollection should shape the visible reply.',
+        'It is not a fixed template and must not be copied verbatim. Internalize the contour, then answer naturally.',
+        `should_surface=${context.recollectionSpeechPlan.shouldSurface ? 'yes' : 'no'}`,
+        `surface_mode=${context.recollectionSpeechPlan.surfaceMode}`,
+        `placement=${context.recollectionSpeechPlan.placement}`,
+        `certainty=${context.recollectionSpeechPlan.certainty}`,
+        `confidence=${context.recollectionSpeechPlan.confidence.toFixed(2)}`,
+        `internal_lead=${context.recollectionSpeechPlan.internalLead}`,
+        context.recollectionSpeechPlan.visibleLead
+          ? `visible_contour=${context.recollectionSpeechPlan.visibleLead}`
+          : '',
+        `style_note=${context.recollectionSpeechPlan.styleNote}`,
+        `rationale=${context.recollectionSpeechPlan.rationale}`,
+        context.recollectionSpeechPlan.shouldSurface
+          ? 'If recollection is surfaced, keep it brief and let it serve the current payoff rather than replacing it.'
+          : 'Let recollection stay as inward pressure unless surfacing it is truly needed for the current answer.',
+      ].filter(Boolean).join('\n'))
+    }
+
+    if (context.memoryDeliberation) {
+      blocks.push([
+        '[ALICIZATION_MEMORY_DELIBERATION]',
+        'This is the final internal memory decision for the current turn. It outranks heuristic recall cues and candidate recollection plans.',
+        'Internalize it as mind-state, not as a visible template.',
+        `should_recall=${context.memoryDeliberation.shouldRecall ? 'yes' : 'no'}`,
+        `surface_policy=${context.memoryDeliberation.surfacePolicy}`,
+        `confidence=${context.memoryDeliberation.confidence.toFixed(2)}`,
+        `why_now=${context.memoryDeliberation.whyNow}`,
+        `inward_line=${context.memoryDeliberation.inwardLine}`,
+        context.memoryDeliberation.visibleLine
+          ? `visible_line=${context.memoryDeliberation.visibleLine}`
+          : '',
+        context.memoryDeliberation.selectedPeriods.length > 0
+          ? `selected_periods=${context.memoryDeliberation.selectedPeriods.map(item => `${item.kind}:${item.summary}`).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedEpisodes.length > 0
+          ? `selected_episodes=${context.memoryDeliberation.selectedEpisodes.map(item => `${item.provenance}:${item.summary}`).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedProcedures.length > 0
+          ? `selected_procedures=${context.memoryDeliberation.selectedProcedures.map(item => `${item.label}:${item.approach}`).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedBundles.length > 0
+          ? `selected_bundles=${context.memoryDeliberation.selectedBundles.map(item => `${item.id}:${item.summary}`).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedChains.length > 0
+          ? `selected_chains=${context.memoryDeliberation.selectedChains.map(item => `${item.kind}:${item.summary}`).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedRelationshipLines.length > 0
+          ? `selected_relationship_lines=${context.memoryDeliberation.selectedRelationshipLines.join(' | ')}`
+          : '',
+      ].filter(Boolean).join('\n'))
     }
 
     if ((context.proceduralMemories ?? []).length > 0) {
@@ -386,6 +572,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         ? (input.context.recollectionNarratives ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
         : [],
       recollectionPlan: allowRecalledFragments ? input.context.recollectionPlan ?? null : null,
+      recollectionSpeechPlan: allowRecalledFragments ? input.context.recollectionSpeechPlan ?? null : null,
+      memoryDeliberation: allowRecalledFragments ? input.context.memoryDeliberation ?? null : null,
       proceduralMemories: allowRecalledFragments
         ? (input.context.proceduralMemories ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
         : [],
@@ -469,8 +657,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       buildHostPersonModel().catch(() => null),
     ])
     const recallSeed = options?.recallGovernor?.recallSeed || options?.recallSeed || ''
-    const recollectionIntent = options?.recallGovernor?.recollectionIntent ?? null
-    const retrospectiveRecall = recollectionIntent?.searchConversations === true || isRetrospectiveRecallQuery(recallSeed)
+    const heuristicRecollectionIntent = options?.recallGovernor?.recollectionIntent ?? null
     const retrievedFacts = recallSeed
       ? await retrieveMemoryFacts(recallSeed, 4)
       : []
@@ -486,6 +673,26 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           })
         ).filter(fragment => !isPersonaResidueMemoryText(fragment.text))
       : []
+    const plannedRecollectionIntent = recallSeed && planRecollectionIntent
+      ? await planRecollectionIntent({
+          recallSeed,
+          heuristicIntent: heuristicRecollectionIntent,
+          recallGovernor: options?.recallGovernor ?? null,
+          hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
+          activeThoughts: snapshot.activeThoughts,
+          hostPersonModel,
+          relationshipDynamics,
+        }).catch(() => null)
+      : null
+    const recollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? null
+    const activeRecollectionIntent = recollectionIntent?.mode && recollectionIntent.mode !== 'none'
+      ? recollectionIntent
+      : null
+    const retrospectiveRecall = plannedRecollectionIntent
+      ? Boolean(activeRecollectionIntent?.searchConversations === true)
+      : activeRecollectionIntent
+        ? activeRecollectionIntent.searchConversations === true
+        : Boolean(heuristicRecollectionIntent?.searchConversations === true || isRetrospectiveRecallQuery(recallSeed))
     const recalledEpisodes = allowRecalledFragments && recallSeed
       ? await recallEpisodicEventsWithGovernor({
           recallSeed,
@@ -498,31 +705,31 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       ? (
           await recallConversationHistory({
             query: recallSeed,
-            limit: recollectionIntent?.temporalFocus === 'cross-session' ? 8 : 6,
-            recollectionIntent,
+            limit: activeRecollectionIntent?.temporalFocus === 'cross-session' ? 8 : 6,
+            recollectionIntent: activeRecollectionIntent,
           })
         ).map(item => ({
           ...item,
           provenance: 'reconstructed' as const,
         }))
       : []
-    const consolidatedMemories = recollectionIntent
+    const consolidatedMemories = activeRecollectionIntent
       ? await recallMemoryConsolidations({
           query: recallSeed,
-          limit: recollectionIntent.temporalFocus === 'cross-session' ? 6 : 4,
-          recollectionIntent,
+          limit: activeRecollectionIntent.temporalFocus === 'cross-session' ? 6 : 4,
+          recollectionIntent: activeRecollectionIntent,
         })
       : []
     const recollectedWindows = buildMemoryRecollectionWindows({
-      intent: recollectionIntent,
+      intent: activeRecollectionIntent,
       episodes: recalledEpisodes,
       conversationHistory: recalledConversationHistory,
     })
     const proceduralMemories = buildProceduralMemoryAbstractions({
-      intent: recollectionIntent,
+      intent: activeRecollectionIntent,
       episodes: recalledEpisodes,
     })
-    const recollectionPlan = recollectionIntent && planMemoryRecollection && (
+    const recollectionPlan = activeRecollectionIntent && planMemoryRecollection && (
       consolidatedMemories.length > 0
       || recollectedWindows.length > 0
       || proceduralMemories.length > 0
@@ -531,7 +738,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     )
       ? await planMemoryRecollection({
           recallSeed,
-          recollectionIntent,
+          recollectionIntent: activeRecollectionIntent,
           consolidatedMemories,
           recollectedWindows,
           proceduralMemories,
@@ -563,22 +770,277 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       : recalledConversationHistory
 
     const recollectionNarratives = buildMemoryRecollectionNarratives({
-      intent: recollectionIntent,
+      intent: activeRecollectionIntent,
       recollectedWindows: plannedWindows,
     })
-    const plannedNarratives = recollectionPlan?.opening
+    const recollectionSpeechPlan = activeRecollectionIntent && planRecollectionSpeech && (
+      plannedConsolidatedMemories.length > 0
+      || plannedWindows.length > 0
+      || plannedProceduralMemories.length > 0
+      || plannedEpisodes.length > 0
+      || plannedConversationHistory.length > 0
+      || Boolean(recollectionPlan)
+    )
+      ? await planRecollectionSpeech({
+          recallSeed,
+          recollectionIntent: activeRecollectionIntent,
+          recollectionPlan,
+          consolidatedMemories: plannedConsolidatedMemories,
+          recollectedWindows: plannedWindows,
+          proceduralMemories: plannedProceduralMemories,
+          recalledEpisodes: plannedEpisodes,
+          recalledConversationHistory: plannedConversationHistory,
+        }).catch(() => null)
+      : null
+    const memoryDeliberation = activeRecollectionIntent && planMemoryDeliberation && (
+      consolidatedMemories.length > 0
+      || recollectedWindows.length > 0
+      || proceduralMemories.length > 0
+      || recalledEpisodes.length > 0
+      || recalledConversationHistory.length > 0
+      || Boolean(recollectionPlan)
+    )
+      ? await planMemoryDeliberation({
+          recallSeed,
+          recollectionIntent: activeRecollectionIntent,
+          recollectionPlan,
+          recollectionSpeechPlan,
+          consolidatedMemories,
+          recollectedWindows,
+          proceduralMemories,
+          recalledEpisodes,
+          recalledConversationHistory,
+        }).catch(() => null)
+      : null
+    const finalSelectedConsolidationIds = new Set(memoryDeliberation?.selectedConsolidationIds ?? [...selectedConsolidationIds])
+    const finalSelectedWindowIds = new Set(memoryDeliberation?.selectedWindowIds ?? [...selectedWindowIds])
+    const finalSelectedProcedureIds = new Set(memoryDeliberation?.selectedProcedureIds ?? [...selectedProceduralIds])
+    const finalSelectedEpisodeIds = new Set(memoryDeliberation?.selectedEpisodeIds ?? [...selectedEpisodeIds])
+    const finalSelectedConversationTurnIds = new Set(memoryDeliberation?.selectedConversationTurnIds ?? [...selectedConversationTurnIds])
+    const shouldCarryDeliberatedRecall = memoryDeliberation
+      ? memoryDeliberation.shouldRecall
+      : Boolean(recollectionPlan)
+    const deliberatedConsolidatedMemories = shouldCarryDeliberatedRecall
+      ? memoryDeliberation
+        ? consolidatedMemories.filter(item => finalSelectedConsolidationIds.has(item.id))
+        : (
+            finalSelectedConsolidationIds.size > 0
+              ? consolidatedMemories.filter(item => finalSelectedConsolidationIds.has(item.id))
+              : plannedConsolidatedMemories
+          )
+      : []
+    const deliberatedWindows = shouldCarryDeliberatedRecall
+      ? memoryDeliberation
+        ? recollectedWindows.filter(item => finalSelectedWindowIds.has(item.id))
+        : (
+            finalSelectedWindowIds.size > 0
+              ? recollectedWindows.filter(item => finalSelectedWindowIds.has(item.id))
+              : plannedWindows
+          )
+      : []
+    const deliberatedProceduralMemories = shouldCarryDeliberatedRecall
+      ? memoryDeliberation
+        ? proceduralMemories.filter(item => finalSelectedProcedureIds.has(item.id))
+        : (
+            finalSelectedProcedureIds.size > 0
+              ? proceduralMemories.filter(item => finalSelectedProcedureIds.has(item.id))
+              : plannedProceduralMemories
+          )
+      : []
+    const deliberatedEpisodes = shouldCarryDeliberatedRecall
+      ? memoryDeliberation
+        ? recalledEpisodes.filter(item => finalSelectedEpisodeIds.has(item.id))
+        : (
+            finalSelectedEpisodeIds.size > 0
+              ? recalledEpisodes.filter(item => finalSelectedEpisodeIds.has(item.id))
+              : plannedEpisodes
+          )
+      : []
+    const deliberatedConversationHistory = shouldCarryDeliberatedRecall
+      ? memoryDeliberation
+        ? recalledConversationHistory.filter(item => item.turnId && finalSelectedConversationTurnIds.has(item.turnId))
+        : (
+            finalSelectedConversationTurnIds.size > 0
+              ? recalledConversationHistory.filter(item => item.turnId && finalSelectedConversationTurnIds.has(item.turnId))
+              : plannedConversationHistory
+          )
+      : []
+    const effectiveRecollectionSpeechPlan = applyMemoryDeliberationToSpeechPlan({
+      deliberation: memoryDeliberation,
+      speechPlan: recollectionSpeechPlan,
+    })
+    const activeRecollectionIntentMode = activeRecollectionIntent?.mode
+    const plannedNarrativeMode: NonNullable<OrganicMemoryPromptContext['recollectionNarratives']>[number]['mode'] = activeRecollectionIntentMode && activeRecollectionIntentMode !== 'none'
+      ? activeRecollectionIntentMode
+      : 'conversation-history'
+    const plannedNarratives = (memoryDeliberation?.shouldRecall !== false && (memoryDeliberation?.inwardLine || recollectionPlan?.opening))
       ? [{
-          mode: recollectionIntent?.mode === 'none' ? 'conversation-history' : recollectionIntent?.mode ?? 'conversation-history',
-          certainty: recollectionPlan.certainty,
-          opening: recollectionPlan.opening,
+          mode: plannedNarrativeMode,
+          certainty: effectiveRecollectionSpeechPlan?.certainty ?? recollectionPlan?.certainty ?? 'approximate',
+          opening: memoryDeliberation?.inwardLine || recollectionPlan?.opening || '',
           supportCues: [
-            ...(plannedWindows[0]?.cues ?? []),
-            ...(plannedConsolidatedMemories[0]?.cues ?? []),
-            ...(plannedProceduralMemories[0]?.cues ?? []),
+            ...(deliberatedWindows[0]?.cues ?? []),
+            ...(deliberatedConsolidatedMemories[0]?.cues ?? []),
+            ...(deliberatedProceduralMemories[0]?.cues ?? []),
+            ...((memoryDeliberation?.selectedRelationshipLines ?? []).slice(0, 2)),
           ].slice(0, 4),
-          confidence: recollectionPlan.confidence,
+          confidence: memoryDeliberation?.confidence ?? recollectionPlan?.confidence ?? 0.68,
         }, ...recollectionNarratives]
       : recollectionNarratives
+    const synthesizedBundles = (() => {
+      const bundles: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedBundles'] = []
+      const primaryPeriod = deliberatedWindows[0] ?? deliberatedConsolidatedMemories[0] ?? null
+      const primaryEpisode = deliberatedEpisodes[0] ?? null
+      const primaryProcedure = deliberatedProceduralMemories[0] ?? null
+      const primaryConversationTurn = deliberatedConversationHistory[0] ?? null
+      const primaryRelationshipLine = (memoryDeliberation?.selectedRelationshipLines ?? []).at(0)
+        ?? primaryEpisode?.relationshipMeaning
+        ?? primaryEpisode?.lesson
+        ?? null
+      const summaryParts = [
+        primaryPeriod?.summary ?? null,
+        primaryEpisode?.whatHappened ?? null,
+        primaryProcedure?.approach ?? null,
+        primaryRelationshipLine ?? null,
+      ].filter(Boolean).slice(0, 3)
+
+      if (summaryParts.length > 0) {
+        bundles.push({
+          id: 'bundle-primary',
+          summary: summaryParts.join(' | '),
+          rationale: memoryDeliberation?.whyNow ?? recollectionPlan?.rationale ?? 'The recollection bundle links the period, event, and remembered way of handling this turn.',
+          confidence: memoryDeliberation?.confidence ?? recollectionPlan?.confidence ?? 0.68,
+          periodId: primaryPeriod?.id ?? null,
+          episodeId: primaryEpisode?.id ?? null,
+          procedureId: primaryProcedure?.id ?? null,
+          conversationTurnId: primaryConversationTurn?.turnId ?? null,
+          relationshipLine: primaryRelationshipLine ?? null,
+        })
+      }
+
+      return bundles
+    })()
+    const synthesizedChains = (() => {
+      const chains: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['selectedChains'] = []
+      const primaryPeriod = deliberatedWindows[0] ?? deliberatedConsolidatedMemories[0] ?? null
+      const primaryEpisode = deliberatedEpisodes[0] ?? null
+      const primaryProcedure = deliberatedProceduralMemories[0] ?? null
+      const primaryRelationshipLine = (memoryDeliberation?.selectedRelationshipLines ?? []).at(0)
+        ?? primaryEpisode?.relationshipMeaning
+        ?? null
+      const primaryLesson = primaryEpisode?.lesson
+        ?? deliberatedConsolidatedMemories[0]?.lesson
+        ?? null
+
+      if (primaryProcedure || primaryRelationshipLine) {
+        chains.push({
+          id: 'chain-task-procedure',
+          kind: 'task-procedure-relationship-stance' as const,
+          summary: [primaryProcedure?.approach, primaryRelationshipLine, primaryLesson].filter(Boolean).slice(0, 3).join(' | '),
+          rationale: memoryDeliberation?.whyNow ?? 'The remembered task procedure is carrying a relationship meaning into the current stance.',
+          confidence: memoryDeliberation?.confidence ?? recollectionPlan?.confidence ?? 0.68,
+          taskCue: primaryEpisode?.threadAnchor ?? primaryProcedure?.label ?? null,
+          periodSummary: primaryPeriod?.summary ?? null,
+          eventSummary: primaryEpisode?.whatHappened ?? null,
+          procedureSummary: primaryProcedure?.approach ?? null,
+          relationshipMeaning: primaryRelationshipLine ?? null,
+          lesson: primaryLesson ?? null,
+          currentStance: primaryRelationshipLine
+            ? `Carry this task with ${primaryRelationshipLine.toLowerCase()}`
+            : primaryProcedure?.approach ?? null,
+          answerPosture: primaryRelationshipLine
+            ? `Let the answer follow ${primaryRelationshipLine.toLowerCase()}`
+            : primaryProcedure?.approach ?? null,
+        })
+      }
+
+      if (primaryPeriod || primaryEpisode || primaryLesson) {
+        chains.push({
+          id: 'chain-period-event',
+          kind: 'period-event-lesson-posture' as const,
+          summary: [primaryPeriod?.summary, primaryEpisode?.whatHappened, primaryLesson].filter(Boolean).slice(0, 3).join(' | '),
+          rationale: memoryDeliberation?.whyNow ?? 'The remembered period and event are being translated into the current answer posture.',
+          confidence: memoryDeliberation?.confidence ?? recollectionPlan?.confidence ?? 0.68,
+          taskCue: primaryEpisode?.threadAnchor ?? null,
+          periodSummary: primaryPeriod?.summary ?? null,
+          eventSummary: primaryEpisode?.whatHappened ?? null,
+          procedureSummary: primaryProcedure?.approach ?? null,
+          relationshipMeaning: primaryRelationshipLine ?? null,
+          lesson: primaryLesson ?? null,
+          currentStance: primaryLesson
+            ? `Stand in the current turn as if ${primaryLesson.toLowerCase()}`
+            : primaryRelationshipLine ?? null,
+          answerPosture: primaryLesson
+            ? `Let the answer posture follow ${primaryLesson.toLowerCase()}`
+            : primaryRelationshipLine
+              ? `Let the answer posture follow ${primaryRelationshipLine.toLowerCase()}`
+              : null,
+        })
+      }
+
+      return chains.slice(0, 4)
+    })()
+    const resolvedMemoryDeliberation = memoryDeliberation
+      ? {
+          ...memoryDeliberation,
+          selectedPeriods: [
+            ...deliberatedWindows.map(item => ({
+              id: item.id,
+              kind: 'window' as const,
+              summary: item.summary,
+            })),
+            ...deliberatedConsolidatedMemories.map(item => ({
+              id: item.id,
+              kind: 'consolidation' as const,
+              summary: item.summary,
+            })),
+          ].slice(0, 6),
+          selectedEpisodes: deliberatedEpisodes.map(item => ({
+            id: item.id,
+            summary: item.whatHappened,
+            provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+          })).slice(0, 6),
+          selectedProcedures: deliberatedProceduralMemories.map(item => ({
+            id: item.id,
+            label: item.label,
+            approach: item.approach,
+          })).slice(0, 6),
+          selectedBundles: rankMemoryDeliberationBundles({
+            recollectionIntent: activeRecollectionIntent,
+            bundles: memoryDeliberation.selectedBundles.length > 0
+              ? memoryDeliberation.selectedBundles.map((bundle) => {
+                const periodSummary = bundle.periodId
+                  ? deliberatedWindows.find(item => item.id === bundle.periodId)?.summary
+                    ?? deliberatedConsolidatedMemories.find(item => item.id === bundle.periodId)?.summary
+                    ?? null
+                  : null
+                const episodeSummary = bundle.episodeId
+                  ? deliberatedEpisodes.find(item => item.id === bundle.episodeId)?.whatHappened
+                  : null
+                const procedureSummary = bundle.procedureId
+                  ? deliberatedProceduralMemories.find(item => item.id === bundle.procedureId)?.approach
+                  : null
+                const conversationSummary = bundle.conversationTurnId
+                  ? deliberatedConversationHistory.find(item => item.turnId === bundle.conversationTurnId)?.assistantText
+                  : null
+                return {
+                  ...bundle,
+                  summary: bundle.summary || [periodSummary, episodeSummary, procedureSummary, conversationSummary, bundle.relationshipLine].filter(Boolean).slice(0, 3).join(' | '),
+                }
+              }).slice(0, 4)
+              : synthesizedBundles,
+          }),
+          selectedChains: rankMemoryDeliberationChains({
+            recollectionIntent: activeRecollectionIntent,
+            chains: (memoryDeliberation.selectedChains ?? []).length > 0
+              ? (memoryDeliberation.selectedChains ?? []).map(chain => ({
+                ...chain,
+                summary: chain.summary || [chain.periodSummary, chain.eventSummary, chain.procedureSummary, chain.relationshipMeaning, chain.lesson].filter(Boolean).slice(0, 3).join(' | '),
+              })).slice(0, 4)
+              : synthesizedChains,
+          }),
+        }
+      : null
     const activeThoughts = options?.recallGovernor?.allowActiveThoughts === false
       ? []
       : selectPromptActiveThoughts({
@@ -593,13 +1055,15 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       activeThoughts,
       retrievedFacts,
       recalledFragments,
-      recalledEpisodes: plannedEpisodes,
-      recalledConversationHistory: plannedConversationHistory,
-      consolidatedMemories: plannedConsolidatedMemories,
-      recollectedWindows: plannedWindows,
+      recalledEpisodes: deliberatedEpisodes,
+      recalledConversationHistory: deliberatedConversationHistory,
+      consolidatedMemories: deliberatedConsolidatedMemories,
+      recollectedWindows: deliberatedWindows,
       recollectionNarratives: plannedNarratives,
       recollectionPlan,
-      proceduralMemories: plannedProceduralMemories,
+      recollectionSpeechPlan: effectiveRecollectionSpeechPlan,
+      memoryDeliberation: resolvedMemoryDeliberation,
+      proceduralMemories: deliberatedProceduralMemories,
       recollectionIntent,
       hostPersonModel,
       relationshipDynamics,

@@ -52,7 +52,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
-import { deriveMemoryInterferencePenalty } from './humanlike-memory'
+import { deriveMemoryContradictionSignal, deriveMemoryInterferencePenalty } from './humanlike-memory'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { extractOrganicRecallTerms, isRetrospectiveRecallQuery, normalizeOrganicRecallText } from './runtime-organic-recall'
@@ -60,6 +60,9 @@ import { extractOrganicRecallTerms, isRetrospectiveRecallQuery, normalizeOrganic
 const dayMs = 24 * 60 * 60 * 1000
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
 const memoryLastPrunedAtKey = 'memory_last_pruned_at'
+const memoryColdTierThreshold = 0.72
+const memoryColdTierAccessWindowDays = 14
+const memoryHotTierFreshDays = 2
 
 interface SqliteStatementResult {
   changes: number
@@ -90,6 +93,11 @@ interface DbMemoryFactRow {
   updated_at: number
   last_access_at: number | null
   access_count: number
+}
+
+interface DbMemoryArchiveRow extends DbMemoryFactRow {
+  original_id: string | null
+  archived_at: number
 }
 
 interface DbMemoryReflectionRow {
@@ -168,6 +176,7 @@ interface DbEpisodicEventRow {
 interface AlicizationMemoryConsolidationRecord {
   id: string
   kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
+  facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
   periodKey: string
   periodStartedAt: number
   periodEndedAt: number
@@ -183,6 +192,7 @@ interface AlicizationMemoryConsolidationRecord {
 interface DbMemoryConsolidationRow {
   id: string
   kind: AlicizationMemoryConsolidationRecord['kind']
+  facet: AlicizationMemoryConsolidationRecord['facet']
   period_key: string
   period_started_at: number
   period_ended_at: number
@@ -584,10 +594,17 @@ function scoreFact(queryTokens: Set<string>, fact: AlicizationMemoryFact, curren
 
   const lexicalScore = overlap / factTokens.size
   const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
-  const decay = Math.exp(-ageDays / 14)
+  const vagueQuery = queryTokens.size <= 3
+  const coldTier = isMemoryColdTierFact(fact, currentTs)
+  const longTailEligible = coldTier || (ageDays >= 45 && fact.confidence >= 0.72)
+  const longTailFloor = longTailEligible && (lexicalScore >= 0.22 || vagueQuery) ? 0.35 : 0
+  const decay = Math.max(Math.exp(-ageDays / 14), longTailFloor)
   const accessBoost = Math.min(0.2, fact.accessCount / 50)
+  const coldReachabilityBoost = longTailEligible && vagueQuery
+    ? Math.min(0.08, fact.confidence * 0.08)
+    : 0
 
-  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay
+  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay + coldReachabilityBoost
 }
 
 function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {
@@ -596,6 +613,63 @@ function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {
   const accessFrequencyNorm = Math.min(1, fact.accessCount / 12)
   const confidenceNorm = clamp01(fact.confidence)
   return timeDecay * (1 - accessFrequencyNorm) * (1 - confidenceNorm)
+}
+
+function isMemoryColdTierFact(fact: AlicizationMemoryFact, currentTs: number) {
+  const daysSinceAccess = fact.lastAccessAt == null
+    ? Number.POSITIVE_INFINITY
+    : (currentTs - fact.lastAccessAt) / dayMs
+  return computePruneScore(fact, currentTs) >= memoryColdTierThreshold
+    && daysSinceAccess >= memoryColdTierAccessWindowDays
+}
+
+function isMemoryHotTierFact(fact: AlicizationMemoryFact, currentTs: number) {
+  const daysSinceUpdate = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
+  const daysSinceAccess = fact.lastAccessAt == null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, (currentTs - fact.lastAccessAt) / dayMs)
+  return daysSinceUpdate <= memoryHotTierFreshDays
+    || daysSinceAccess <= memoryHotTierFreshDays
+    || fact.accessCount >= 4
+}
+
+function deriveMemoryTierCounts(facts: AlicizationMemoryFact[], currentTs: number) {
+  let hot = 0
+  let warm = 0
+  let cold = 0
+  for (const fact of facts) {
+    if (isMemoryColdTierFact(fact, currentTs)) {
+      cold += 1
+      continue
+    }
+    if (isMemoryHotTierFact(fact, currentTs)) {
+      hot += 1
+      continue
+    }
+    warm += 1
+  }
+  return { hot, warm, cold }
+}
+
+function deriveMemoryIntegrity(facts: AlicizationMemoryFact[]) {
+  const issues: string[] = []
+  const dedupeKeys = new Set<string>()
+  const currentTs = now()
+  for (const fact of facts) {
+    if (!fact.subject.trim() || !fact.predicate.trim() || !fact.object.trim())
+      issues.push(`malformed-fact:${fact.id}`)
+    if (fact.dedupeKey) {
+      if (dedupeKeys.has(fact.dedupeKey))
+        issues.push(`duplicate-dedupe:${fact.dedupeKey}`)
+      dedupeKeys.add(fact.dedupeKey)
+    }
+    if (isMemoryColdTierFact(fact, currentTs) && tokenize(`${fact.subject} ${fact.predicate} ${fact.object}`).size === 0)
+      issues.push(`cold-unsearchable:${fact.id}`)
+  }
+  return {
+    status: issues.length > 0 ? 'degraded' as const : 'ok' as const,
+    issues,
+  }
 }
 
 function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
@@ -740,6 +814,9 @@ function mapMemoryConsolidationRow(row: DbMemoryConsolidationRow): AlicizationMe
   return {
     id: row.id,
     kind: row.kind,
+    facet: row.facet === 'phase' || row.facet === 'relationship-era' || row.facet === 'task-era' || row.facet === 'self-era'
+      ? row.facet
+      : null,
     periodKey: row.period_key,
     periodStartedAt: row.period_started_at,
     periodEndedAt: row.period_ended_at,
@@ -1298,6 +1375,7 @@ export async function setupAlicizationDb(
       CREATE TABLE IF NOT EXISTS memory_consolidations (
         id TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
+        facet TEXT,
         period_key TEXT NOT NULL,
         period_started_at INTEGER NOT NULL,
         period_ended_at INTEGER NOT NULL,
@@ -1310,6 +1388,7 @@ export async function setupAlicizationDb(
         updated_at INTEGER NOT NULL
       )
     `)
+    await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN facet TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_kind_period ON memory_consolidations(kind, period_ended_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_updated_at ON memory_consolidations(updated_at DESC)')
 
@@ -1601,19 +1680,99 @@ export async function setupAlicizationDb(
     return parsed
   }
 
+  async function restoreArchivedFactsIntoActiveMemory() {
+    const archivedRows = await all<DbMemoryArchiveRow>(database, 'SELECT * FROM memory_archive')
+    if (archivedRows.length === 0)
+      return 0
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const row of archivedRows) {
+          const subject = row.subject?.trim()
+          const predicate = row.predicate?.trim()
+          const object = row.object?.trim()
+          if (!subject || !predicate || !object)
+            continue
+
+          const dedupeKey = row.dedupe_key?.trim() || buildDedupeKey(subject, predicate, object)
+          await run(
+            database,
+            `
+            INSERT INTO memory_facts (
+              id,
+              subject,
+              predicate,
+              object,
+              confidence,
+              source,
+              dedupe_key,
+              created_at,
+              updated_at,
+              last_access_at,
+              access_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(dedupe_key)
+            DO UPDATE SET
+              confidence = MAX(memory_facts.confidence, excluded.confidence),
+              source = excluded.source,
+              created_at = MIN(memory_facts.created_at, excluded.created_at),
+              updated_at = MAX(memory_facts.updated_at, excluded.updated_at),
+              last_access_at = CASE
+                WHEN excluded.last_access_at IS NULL THEN memory_facts.last_access_at
+                WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
+                ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
+              END,
+              access_count = MAX(memory_facts.access_count, excluded.access_count)
+            `,
+            [
+              row.original_id?.trim() || row.id || randomUUID(),
+              subject,
+              predicate,
+              object,
+              clamp01(row.confidence),
+              row.source,
+              dedupeKey,
+              row.created_at,
+              row.updated_at,
+              row.last_access_at,
+              Math.max(0, Math.floor(row.access_count)),
+            ],
+          )
+        }
+
+        await run(database, 'DELETE FROM memory_archive')
+      })
+    })
+
+    await appendAuditLog({
+      level: 'notice',
+      category: 'memory',
+      action: 'archive-restored',
+      message: 'Archived memory rows were restored into active facts to preserve recall continuity.',
+      payload: {
+        restored: archivedRows.length,
+      },
+    })
+
+    return archivedRows.length
+  }
+
   async function getMemoryStats() {
-    const [totalRow, archivedRow, lastPrunedAt] = await Promise.all([
-      get<CountRow>(database, 'SELECT COUNT(1) AS total FROM memory_facts'),
-      get<CountRow>(database, 'SELECT COUNT(1) AS total FROM memory_archive'),
+    const [rows, lastPrunedAt] = await Promise.all([
+      all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts'),
       getLastPrunedAt(),
     ])
 
-    const active = totalRow?.total ?? 0
-    const archived = archivedRow?.total ?? 0
+    const facts = rows.map(mapFactRow)
+    const active = facts.length
+    const tierCounts = deriveMemoryTierCounts(facts, now())
     return {
-      total: active + archived,
+      total: active,
       active,
-      archived,
+      archived: tierCounts.cold,
+      tierCounts,
+      pendingSyncCount: 0,
+      integrity: deriveMemoryIntegrity(facts),
       lastPrunedAt,
     } satisfies AlicizationMemoryStats
   }
@@ -1904,6 +2063,7 @@ export async function setupAlicizationDb(
         INSERT INTO memory_consolidations (
           id,
           kind,
+          facet,
           period_key,
           period_started_at,
           period_ended_at,
@@ -1914,11 +2074,14 @@ export async function setupAlicizationDb(
           dominant_provenance,
           derived_event_ids_json,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           record.id,
           record.kind,
+          record.facet === 'phase' || record.facet === 'relationship-era' || record.facet === 'task-era' || record.facet === 'self-era'
+            ? record.facet
+            : null,
           record.periodKey,
           record.periodStartedAt,
           record.periodEndedAt,
@@ -1956,6 +2119,9 @@ export async function setupAlicizationDb(
     const prepared = records.map((record) => ({
       id: record.id.trim(),
       kind: record.kind,
+      facet: record.facet === 'phase' || record.facet === 'relationship-era' || record.facet === 'task-era' || record.facet === 'self-era'
+        ? record.facet
+        : null,
       periodKey: normalizeOrganicMemoryText(record.periodKey, 96),
       periodStartedAt: Math.max(0, Math.floor(record.periodStartedAt)),
       periodEndedAt: Math.max(0, Math.floor(record.periodEndedAt)),
@@ -1980,6 +2146,7 @@ export async function setupAlicizationDb(
             INSERT INTO memory_consolidations (
               id,
               kind,
+              facet,
               period_key,
               period_started_at,
               period_ended_at,
@@ -1990,10 +2157,11 @@ export async function setupAlicizationDb(
               dominant_provenance,
               derived_event_ids_json,
               updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id)
             DO UPDATE SET
               kind = excluded.kind,
+              facet = excluded.facet,
               period_key = excluded.period_key,
               period_started_at = excluded.period_started_at,
               period_ended_at = excluded.period_ended_at,
@@ -2008,6 +2176,7 @@ export async function setupAlicizationDb(
             [
               record.id,
               record.kind,
+              record.facet,
               record.periodKey,
               record.periodStartedAt,
               record.periodEndedAt,
@@ -2027,6 +2196,7 @@ export async function setupAlicizationDb(
     return prepared.map((record) => mapMemoryConsolidationRow({
       id: record.id,
       kind: record.kind,
+      facet: record.facet,
       period_key: record.periodKey,
       period_started_at: record.periodStartedAt,
       period_ended_at: record.periodEndedAt,
@@ -3845,6 +4015,16 @@ export async function setupAlicizationDb(
     return overlap / haystack.size
   }
 
+  function buildReconsolidationSearchText(event: AlicizationEpisodicEventRecord) {
+    return [
+      event.threadAnchor,
+      event.latestReconsolidation?.reason,
+      event.latestReconsolidation?.relationshipMeaning,
+      event.latestReconsolidation?.lesson,
+      ...(event.latestReconsolidation?.emotionTags ?? []),
+    ].filter(Boolean).join(' ')
+  }
+
   async function searchEpisodicEvents(input: {
     recallSeed: string
     limit?: number
@@ -3882,6 +4062,12 @@ export async function setupAlicizationDb(
     const allowDream = input.allowDream === true
     const salienceBias = clamp01(Number(input.salienceBias ?? 0.5))
     const recollectionIntent = input.recollectionIntent ?? null
+    const correctionShapingRationale = (
+      (input.affectAnchors?.length ?? 0) > 0
+      || (input.relationshipAnchors?.length ?? 0) > 0
+    )
+      ? normalizeOrganicMemoryText(recollectionIntent?.rationale ?? '', 200)
+      : ''
 
     const ranked = rows
       .map(mapEpisodicEventRow)
@@ -3893,6 +4079,7 @@ export async function setupAlicizationDb(
         return true
       })
       .map((event) => {
+        const latestProvenance = event.latestReconsolidation?.provenance ?? event.provenance
         const memoryText = [
           event.threadAnchor,
           event.whereSummary,
@@ -3906,16 +4093,31 @@ export async function setupAlicizationDb(
           ...event.emotionTags,
           ...event.tags,
         ].filter(Boolean).join(' ')
+        const reconsolidationText = buildReconsolidationSearchText(event)
         const lexicalScore = scoreTokenOverlap(recallTokens, memoryText)
+        const reconsolidationLexicalScore = scoreTokenOverlap(recallTokens, reconsolidationText)
         const threadScore = scoreTokenOverlap(threadTokens, `${event.threadAnchor ?? ''} ${event.whatHappened} ${event.tags.join(' ')}`)
+        const reconsolidationThreadScore = scoreTokenOverlap(threadTokens, reconsolidationText)
         const affectScore = scoreTokenOverlap(affectTokens, `${event.felt ?? ''} ${event.emotionTags.join(' ')} ${event.whatChanged ?? ''}`)
+        const reconsolidationAffectScore = scoreTokenOverlap(affectTokens, reconsolidationText)
         const relationshipScore = scoreTokenOverlap(relationshipTokens, `${event.withWhom.join(' ')} ${event.relationshipMeaning ?? ''} ${event.whatChanged ?? ''}`)
+        const reconsolidationRelationshipScore = scoreTokenOverlap(relationshipTokens, reconsolidationText)
         const sceneScore = scoreTokenOverlap(sceneTokens, `${event.whereSummary ?? ''} ${event.threadAnchor ?? ''}`)
         const intentScore = scoreTokenOverlap(
           tokenize((recollectionIntent?.queryHints ?? []).join(' ')),
-          `${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''} ${event.relationshipMeaning ?? ''} ${event.tags.join(' ')}`,
+          `${event.whereSummary ?? ''} ${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''} ${event.relationshipMeaning ?? ''} ${event.sourceSummary ?? ''} ${event.tags.join(' ')}`,
+        )
+        const reconsolidationIntentScore = scoreTokenOverlap(
+          tokenize((recollectionIntent?.queryHints ?? []).join(' ')),
+          reconsolidationText,
         )
         const recencyScore = Math.exp(-Math.max(0, nowTs - event.occurredAt) / (28 * dayMs))
+        const recallRecencyScore = event.lastRecalledAt
+          ? Math.exp(-Math.max(0, nowTs - event.lastRecalledAt) / (7 * dayMs))
+          : 0
+        const reconsolidationRecencyScore = event.latestReconsolidation?.at
+          ? Math.exp(-Math.max(0, nowTs - event.latestReconsolidation.at) / (14 * dayMs))
+          : 0
         const ageDays = Math.max(0, (nowTs - event.occurredAt) / dayMs)
         const distantBoost = recollectionIntent?.temporalFocus === 'cross-session' && ageDays >= 2 ? 0.12 : 0
         const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageDays >= 1 ? 0.1 : 0
@@ -3927,37 +4129,83 @@ export async function setupAlicizationDb(
           )
           ? 0.14
           : 0
+        const relationshipTriggerBoost = (
+          recollectionIntent?.mode === 'relationship-history'
+          || recollectionIntent?.mode === 'autobiographical-history'
+        ) && relationshipScore > 0.18
+          ? 0.08
+          : 0
+        const moodCongruentBoost = affectScore > 0.18 && (
+          recollectionIntent?.mode === 'relationship-history'
+          || recollectionIntent?.mode === 'autobiographical-history'
+        )
+          ? 0.06
+          : 0
+        const sceneAttachmentBoost = sceneScore > 0.14
+          ? Math.min(0.12, event.sceneAttachment * 0.12 + sceneScore * 0.08)
+          : 0
         const familiarityScore = clamp01(event.sceneAttachment * 0.55 + Math.min(0.45, event.recallCount / 10))
+        const reconsolidationConfidenceScore = clamp01(event.latestReconsolidation?.confidence ?? 0)
+        const reconsolidationCountScore = event.reconsolidationCount > 0
+          ? clamp01(Math.min(1, event.reconsolidationCount / 4))
+          : 0
+        const reconsolidationRebindingBoost = event.reconsolidationCount > 0
+          && (input.carryAsMemory || recollectionIntent?.temporalFocus === 'experience-matched')
+          && (threadScore >= 0.12 || reconsolidationThreadScore >= 0.12)
+          ? Math.min(0.3, 0.14 + reconsolidationRecencyScore * 0.08 + reconsolidationCountScore * 0.08)
+          : 0
         const emotionalAmplification = affectScore > 0.24
           ? Math.min(0.14, event.salience * 0.18 + affectScore * 0.12)
           : 0
         const sessionBoost = input.sessionId && event.sessionId === input.sessionId ? 0.06 : 0
         const turnBoost = input.turnId && event.turnId === input.turnId ? 0.04 : 0
         const carryBoost = input.carryAsMemory && (event.provenance === 'remembered' || event.provenance === 'observed') ? 0.04 : 0
-        const provenancePenalty = event.provenance === 'dreamt'
+        const reconsolidationCarryBoost = input.carryAsMemory && event.reconsolidationCount > 0 ? 0.04 : 0
+        const provenancePenalty = latestProvenance === 'dreamt'
           ? 0.06
-          : event.provenance === 'reconstructed'
+          : latestProvenance === 'reconstructed'
             ? 0.03
             : 0
+        const unstableReconstructionPenalty = latestProvenance === 'reconstructed'
+          && lexicalScore < 0.08
+          && threadScore < 0.12
+          && reconsolidationLexicalScore < 0.12
+          ? 0.04
+          : 0
 
         const score
           = lexicalScore * 0.18
+            + reconsolidationLexicalScore * 0.08
             + threadScore * 0.26
+            + reconsolidationThreadScore * 0.08
             + affectScore * 0.18
+            + reconsolidationAffectScore * 0.06
             + relationshipScore * 0.17
+            + reconsolidationRelationshipScore * 0.07
             + sceneScore * 0.07
             + intentScore * 0.14
+            + reconsolidationIntentScore * 0.08
             + event.salience * (0.12 + salienceBias * 0.08)
             + recencyScore * 0.08
+            + recallRecencyScore * 0.08
+            + reconsolidationRecencyScore * 0.08
             + familiarityScore * 0.06
+            + reconsolidationConfidenceScore * 0.05
+            + reconsolidationCountScore * 0.05
+            + reconsolidationRebindingBoost
             + emotionalAmplification
             + sessionBoost
             + turnBoost
             + carryBoost
+            + reconsolidationCarryBoost
             + distantBoost
             + experienceMatchedBoost
             + proceduralBoost
+            + relationshipTriggerBoost
+            + moodCongruentBoost
+            + sceneAttachmentBoost
             - provenancePenalty
+            - unstableReconstructionPenalty
 
         return {
           event,
@@ -3983,10 +4231,16 @@ export async function setupAlicizationDb(
           current: item.event,
           strongerMatches: ranked.slice(0, index).map(candidate => candidate.event),
         }),
+        contradictionSignal: deriveMemoryContradictionSignal({
+          current: item.event,
+          strongerMatches: ranked
+            .filter(candidate => candidate.event.id !== item.event.id)
+            .map(candidate => candidate.event),
+        }),
       }))
       .map((item) => ({
         ...item,
-        adjustedScore: item.score - item.interferencePenalty,
+        adjustedScore: item.score - item.interferencePenalty - item.contradictionSignal.penalty,
       }))
       .filter(item => item.adjustedScore >= 0.15)
       .slice(0, safeLimit)
@@ -3998,23 +4252,50 @@ export async function setupAlicizationDb(
     const returned = selected.map((item) => {
       const mergedEmotionTags = uniqueStringArray([
         ...item.event.emotionTags,
+        ...(item.contradictionSignal.unresolved ? ['contradiction-pressure'] : []),
         ...(input.affectAnchors ?? []),
       ], 8)
       const nextConfidence = clamp01(
         item.falseMemoryRisk
           ? item.event.confidence * 0.82 + item.adjustedScore * 0.12
-          : item.event.confidence * 0.88 + item.adjustedScore * 0.18,
+          : item.contradictionSignal.unresolved
+            ? item.event.confidence * 0.76 + item.adjustedScore * 0.1
+            : item.event.confidence * 0.88 + item.adjustedScore * 0.18,
       )
       const reconsolidation: AlicizationEpisodicReconsolidationSnapshot = {
         at: recalledAt,
-        provenance: item.falseMemoryRisk ? 'reconstructed' : item.event.provenance,
+        provenance: item.falseMemoryRisk || item.contradictionSignal.unresolved ? 'reconstructed' : item.event.provenance,
         confidence: nextConfidence,
         reason: item.falseMemoryRisk
           ? 'Affect-heavy recall needed reconstruction because the thread anchor was weak.'
-          : 'Recall re-bound this memory to the current thread, affect, and relationship context.',
+          : item.contradictionSignal.unresolved
+            ? item.contradictionSignal.reason
+            : 'Recall re-bound this memory to the current thread, affect, and relationship context.',
         emotionTags: mergedEmotionTags,
-        relationshipMeaning: item.event.relationshipMeaning || normalizeOrganicMemoryText((input.relationshipAnchors ?? []).join(' / '), 180) || null,
-        lesson: item.event.lesson || (input.carryAsMemory ? 'This memory still matters to the current bond and should shape tone with care.' : null),
+        relationshipMeaning: item.contradictionSignal.unresolved
+          ? normalizeOrganicMemoryText(
+              [
+                item.event.relationshipMeaning,
+                'Another remembered variant of this same thread is still pulling in a different direction.',
+              ].filter(Boolean).join(' '),
+              180,
+            ) || null
+          : item.event.relationshipMeaning || normalizeOrganicMemoryText((input.relationshipAnchors ?? []).join(' / '), 180) || null,
+        lesson: item.contradictionSignal.unresolved
+          ? normalizeOrganicMemoryText(
+              [
+                item.event.lesson,
+                'Conflicting remembered variants remain unresolved, so answer this memory with uncertainty rather than certainty.',
+              ].filter(Boolean).join(' '),
+              200,
+            ) || null
+          : normalizeOrganicMemoryText(
+              [
+                item.event.lesson,
+                correctionShapingRationale,
+              ].filter(Boolean).join(' '),
+              200,
+            ) || (input.carryAsMemory ? 'This memory still matters to the current bond and should shape tone with care.' : null),
       }
       return {
         ...item.event,
@@ -4177,85 +4458,16 @@ export async function setupAlicizationDb(
   }
 
   async function runMemoryPrune() {
-    const thresholdArchive = 0.72
-    const thresholdDelete = 0.92
-    const maxArchiveRetentionDays = 30
     const currentTs = now()
 
+    // NOTICE: API name retained for bridge compatibility. This no longer deletes or archives
+    // memories; it only refreshes salience tiers so long-horizon recall stays lossless.
+    await restoreArchivedFactsIntoActiveMemory()
     const facts = (await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')).map(mapFactRow)
-
-    const keepFacts: AlicizationMemoryFact[] = []
-    const archiveFacts: AlicizationMemoryFact[] = []
-    const deleteIds: string[] = []
-
-    for (const fact of facts) {
-      const score = computePruneScore(fact, currentTs)
-      const daysSinceAccess = fact.lastAccessAt == null
-        ? Number.POSITIVE_INFINITY
-        : (currentTs - fact.lastAccessAt) / dayMs
-
-      if (score >= thresholdDelete && daysSinceAccess >= 30) {
-        deleteIds.push(fact.id)
-        continue
-      }
-
-      if (score >= thresholdArchive && daysSinceAccess >= 14) {
-        archiveFacts.push(fact)
-        continue
-      }
-
-      keepFacts.push(fact)
-    }
+    const coldTierCount = facts.filter(fact => isMemoryColdTierFact(fact, currentTs)).length
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
-        for (const fact of archiveFacts) {
-          await run(
-            database,
-            `
-            INSERT INTO memory_archive (
-              id,
-              original_id,
-              subject,
-              predicate,
-              object,
-              confidence,
-              source,
-              dedupe_key,
-              created_at,
-              updated_at,
-              last_access_at,
-              access_count,
-              archived_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
-              randomUUID(),
-              fact.id,
-              fact.subject,
-              fact.predicate,
-              fact.object,
-              fact.confidence,
-              fact.source,
-              fact.dedupeKey,
-              fact.createdAt,
-              fact.updatedAt,
-              fact.lastAccessAt,
-              fact.accessCount,
-              currentTs,
-            ],
-          )
-          deleteIds.push(fact.id)
-        }
-
-        if (deleteIds.length > 0) {
-          const placeholders = deleteIds.map(() => '?').join(',')
-          await run(database, `DELETE FROM memory_facts WHERE id IN (${placeholders})`, deleteIds)
-        }
-
-        const archiveRetentionLimit = currentTs - maxArchiveRetentionDays * dayMs
-        await run(database, 'DELETE FROM memory_archive WHERE archived_at < ?', [archiveRetentionLimit])
-
         await upsertMeta(memoryLastPrunedAtKey, String(currentTs))
       })
     })
@@ -4263,12 +4475,11 @@ export async function setupAlicizationDb(
     await appendAuditLog({
       level: 'notice',
       category: 'memory',
-      action: 'prune',
-      message: 'Memory pruning completed.',
+      action: 'salience-refresh',
+      message: 'Memory salience refresh completed without deleting stored facts.',
       payload: {
-        kept: keepFacts.length,
-        archived: archiveFacts.length,
-        deleted: deleteIds.length,
+        totalFacts: facts.length,
+        coldTier: coldTierCount,
       },
     })
 
@@ -4643,12 +4854,12 @@ export async function setupAlicizationDb(
           if (!subject || !predicate || !object)
             continue
 
+          const dedupeKey = item.dedupeKey?.trim() || buildDedupeKey(subject, predicate, object)
           await run(
             database,
             `
-            INSERT INTO memory_archive (
+            INSERT INTO memory_facts (
               id,
-              original_id,
               subject,
               predicate,
               object,
@@ -4658,27 +4869,38 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count,
-              archived_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              access_count
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(dedupe_key)
+            DO UPDATE SET
+              confidence = MAX(memory_facts.confidence, excluded.confidence),
+              source = excluded.source,
+              created_at = MIN(memory_facts.created_at, excluded.created_at),
+              updated_at = MAX(memory_facts.updated_at, excluded.updated_at),
+              last_access_at = CASE
+                WHEN excluded.last_access_at IS NULL THEN memory_facts.last_access_at
+                WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
+                ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
+              END,
+              access_count = MAX(memory_facts.access_count, excluded.access_count)
             `,
             [
               item.id || randomUUID(),
-              item.id || null,
               subject,
               predicate,
               object,
               clamp01(item.confidence),
               item.source,
-              item.dedupeKey,
+              dedupeKey,
               item.createdAt,
               item.updatedAt,
               item.lastAccessAt,
               Math.max(0, Math.floor(item.accessCount)),
-              item.archivedAt,
             ],
           )
         }
+
+        await run(database, 'DELETE FROM memory_archive')
 
         if (typeof snapshot.lastPrunedAt === 'number' && Number.isFinite(snapshot.lastPrunedAt)) {
           await upsertMeta(memoryLastPrunedAtKey, String(snapshot.lastPrunedAt))
@@ -4723,6 +4945,7 @@ export async function setupAlicizationDb(
   }
 
   await initializeSchema()
+  await restoreArchivedFactsIntoActiveMemory()
 
   return {
     dbPath,

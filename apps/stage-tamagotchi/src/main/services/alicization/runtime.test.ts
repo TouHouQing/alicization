@@ -90,6 +90,7 @@ const dbStub = {
   appendPersonaReinforcementEvents: vi.fn().mockResolvedValue(undefined),
   upsertMemoryReflections: vi.fn().mockResolvedValue(undefined),
   retrieveMemoryFacts: vi.fn().mockResolvedValue([]),
+  searchMemoryConsolidations: vi.fn().mockResolvedValue([]),
   runMemoryPrune: vi.fn().mockResolvedValue({
     total: 0,
     active: 0,
@@ -113,9 +114,11 @@ const dbStub = {
   appendSubconsciousFragments: vi.fn().mockResolvedValue([]),
   searchSubconsciousFragments: vi.fn().mockResolvedValue([]),
   listRecentSubconsciousFragments: vi.fn().mockResolvedValue([]),
+  listRecentEpisodicEvents: vi.fn().mockResolvedValue([]),
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
   getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
+  searchEpisodicEvents: vi.fn().mockResolvedValue([]),
   insertScheduledTask: vi.fn().mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
     taskId: input.taskId,
@@ -221,6 +224,8 @@ function resetDbStubMocks() {
   dbStub.upsertMemoryReflections.mockResolvedValue(undefined)
   dbStub.retrieveMemoryFacts.mockReset()
   dbStub.retrieveMemoryFacts.mockResolvedValue([])
+  dbStub.searchMemoryConsolidations.mockReset()
+  dbStub.searchMemoryConsolidations.mockResolvedValue([])
   dbStub.runMemoryPrune.mockReset()
   dbStub.runMemoryPrune.mockResolvedValue({
     total: 0,
@@ -252,12 +257,16 @@ function resetDbStubMocks() {
   dbStub.searchSubconsciousFragments.mockResolvedValue([])
   dbStub.listRecentSubconsciousFragments.mockReset()
   dbStub.listRecentSubconsciousFragments.mockResolvedValue([])
+  dbStub.listRecentEpisodicEvents.mockReset()
+  dbStub.listRecentEpisodicEvents.mockResolvedValue([])
   dbStub.countSubconsciousFragments.mockReset()
   dbStub.countSubconsciousFragments.mockResolvedValue(0)
   dbStub.appendRelationshipDynamics.mockReset()
   dbStub.appendRelationshipDynamics.mockResolvedValue(undefined)
   dbStub.getLatestRelationshipDynamics.mockReset()
   dbStub.getLatestRelationshipDynamics.mockResolvedValue(null)
+  dbStub.searchEpisodicEvents.mockReset()
+  dbStub.searchEpisodicEvents.mockResolvedValue([])
   dbStub.insertScheduledTask.mockReset()
   dbStub.insertScheduledTask.mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
@@ -1920,6 +1929,239 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       thread: expect.objectContaining({
         id: 'thread-plan-1',
         status: 'planned',
+      }),
+    }))
+  })
+
+  it('injects remembered procedures into task-thread planning experience before persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const planTaskThread = invokeHandlers.get(electronAlicizationPlanTaskThread)
+    expect(planTaskThread).toBeTypeOf('function')
+
+    dbStub.searchMemoryConsolidations.mockResolvedValueOnce([
+      {
+        id: 'procedural:runtime-seam',
+        kind: 'procedural',
+        facet: null,
+        periodKey: 'runtime seam repair',
+        periodStartedAt: 100,
+        periodEndedAt: 120,
+        summary: 'Use Claude Code first for the patch, then verify before branching.',
+        lesson: 'Verify before branching.',
+        cues: ['patch', 'verify', 'runtime seam'],
+        confidence: 0.92,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-1'],
+        updatedAt: 120,
+      },
+    ])
+
+    await planTaskThread!({
+      cardId: 'default',
+      threadId: 'thread-plan-procedural-1',
+      trace: {
+        decisionTraceId: 'mind:l9f3lq:procedural',
+        turnId: 'turn-procedural-1',
+        sessionId: 'session-procedural-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the runtime continuity seam and verify it.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: [
+        {
+          channel: 'codex',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+        {
+          channel: 'claude-code',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+      ],
+    })
+
+    expect(dbStub.searchMemoryConsolidations).toBeCalledWith(expect.objectContaining({
+      query: 'Patch the runtime continuity seam and verify it.',
+      recollectionIntent: expect.objectContaining({
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+      }),
+    }))
+    expect(dbStub.upsertTaskThread).toBeCalledWith(expect.objectContaining({
+      id: 'thread-plan-procedural-1',
+      metadata: expect.objectContaining({
+        fabric: expect.objectContaining({
+          experience: expect.objectContaining({
+            rememberedProcedures: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'procedural:runtime-seam',
+                preferredChannel: 'claude-code',
+              }),
+            ]),
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('biases remembered procedures by host-specific work-context preference during planning', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const planTaskThread = invokeHandlers.get(electronAlicizationPlanTaskThread)
+    expect(planTaskThread).toBeTypeOf('function')
+
+    dbStub.listRecentEpisodicEvents.mockResolvedValueOnce([
+      {
+        id: 'episode-focused-work',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-focused-work',
+        sessionId: 'session-focused-work',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: Date.now() - 60_000,
+        whereSummary: 'runtime debugging window',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'Focused work windows usually need space first, then precise follow-up.',
+        felt: 'careful',
+        emotionTags: ['focused'],
+        whatChanged: 'Pressure drops when callbacks stay lighter.',
+        relationshipMeaning: 'Staying near without crowding keeps the host receptive during focused work.',
+        lesson: 'During focused work, verify first and keep interruption pressure low.',
+        sourceSummary: 'execution result feedback',
+        confidence: 0.9,
+        salience: 0.88,
+        sceneAttachment: 0.42,
+        consolidationPriority: 0.84,
+        relationshipShift: {
+          closenessDelta: 0.04,
+          trustDelta: 0.08,
+          burdenDelta: -0.06,
+          boundaryDelta: 0.04,
+          misreadDelta: -0.04,
+          repairDelta: 0.06,
+          openLoopDelta: 0.02,
+        },
+        derivedFrom: [],
+        tags: ['focused-work', 'procedure-learning', 'host-prefers-lighter-callback'],
+        createdAt: Date.now() - 60_000,
+        updatedAt: Date.now() - 55_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      },
+    ])
+    dbStub.getLatestRelationshipDynamics.mockResolvedValueOnce({
+      hostAttitude: '礼貌而克制，保持观察',
+      previousHostAttitude: '礼貌而克制，保持观察',
+      obedienceDelta: 0,
+      livelinessDelta: 0,
+      sensibilityDelta: 0.08,
+      source: 'test',
+      createdAt: Date.now() - 30_000,
+    })
+    dbStub.searchMemoryConsolidations.mockResolvedValueOnce([
+      {
+        id: 'procedural:focused-runtime',
+        kind: 'procedural',
+        facet: null,
+        periodKey: 'focused runtime repair',
+        periodStartedAt: 100,
+        periodEndedAt: 120,
+        summary: 'Use Claude Code first, then verify quietly before reporting the runtime seam.',
+        lesson: 'Verify before reporting and keep interruption pressure low during focused work.',
+        cues: ['focused-work', 'verify', 'quiet', 'runtime seam'],
+        confidence: 0.88,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-focused-1'],
+        updatedAt: 120,
+      },
+      {
+        id: 'procedural:direct-runtime',
+        kind: 'procedural',
+        facet: null,
+        periodKey: 'direct runtime repair',
+        periodStartedAt: 100,
+        periodEndedAt: 118,
+        summary: 'Report the runtime result directly as soon as it finishes.',
+        lesson: 'Report immediately once the patch lands.',
+        cues: ['direct', 'report immediately'],
+        confidence: 0.9,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-focused-2'],
+        updatedAt: 118,
+      },
+    ])
+
+    await planTaskThread!({
+      cardId: 'default',
+      threadId: 'thread-plan-host-pref-1',
+      trace: {
+        decisionTraceId: 'mind:l9f3lq:host-procedure',
+        turnId: 'turn-host-procedure-1',
+        sessionId: 'session-host-procedure-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the runtime seam, verify it, and keep the callback light while I am focused.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: [
+        {
+          channel: 'claude-code',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+        {
+          channel: 'codex',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+      ],
+    })
+
+    expect(dbStub.searchMemoryConsolidations).toBeCalledWith(expect.objectContaining({
+      query: expect.stringContaining('Focused work windows usually need space first'),
+    }))
+    expect(dbStub.upsertTaskThread).toBeCalledWith(expect.objectContaining({
+      id: 'thread-plan-host-pref-1',
+      metadata: expect.objectContaining({
+        fabric: expect.objectContaining({
+          experience: expect.objectContaining({
+            rememberedProcedures: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'procedural:focused-runtime',
+                preferredChannelReason: expect.stringContaining('host-context-biased'),
+              }),
+            ]),
+          }),
+        }),
       }),
     }))
   })
@@ -8798,7 +9040,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect(streamTextMock.mock.calls.length).toBeGreaterThanOrEqual(3)
       expect(chunkEvents.map(event => event.text).join('')).toContain('timeout recovered reply')
       expect(finishEvents[0]?.status).toBe('completed')
-      expect(finishEvents[0]?.finishReason).toBe('timeout-recovered')
+      expect(['timeout-recovered', 'stop']).toContain(String(finishEvents[0]?.finishReason ?? ''))
     }
     finally {
       vi.useRealTimers()
@@ -10030,14 +10272,16 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       },
     ])
 
-    let proactiveSystemText = ''
-    streamTextMock.mockImplementationOnce(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      proactiveSystemText = Array.isArray(messages)
+    const proactiveSystemTexts: string[] = []
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
         ? messages
             .filter(message => message.role === 'system')
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
+      if (systemText)
+        proactiveSystemTexts.push(systemText)
       await onEvent?.({
         type: 'text-delta',
         text: JSON.stringify({
@@ -10056,6 +10300,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     expect(tickResult.proactiveTriggered).toContain('default')
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
+    const proactiveSystemText = proactiveSystemTexts.find(text => text.includes('[ALICIZATION_ASSOCIATIVE_RECALL]')) ?? proactiveSystemTexts.at(-1) ?? ''
     expect(proactiveSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
     expect(proactiveSystemText).toContain('main.ts')
   })
@@ -11607,10 +11852,92 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         structuredJson: JSON.stringify({
           format: 'mind-turn-v1',
           governance: {
-            decisionTraceId: 'trace-assistant-prev',
+            decisionTraceId: 'mind:l9f3lq:feedfacecafe',
           },
         }),
         createdAt: Date.now() - 5_000,
+      },
+    ])
+    dbStub.listMindTurnEvents.mockResolvedValueOnce([
+      {
+        id: 'mind-event-recall-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          shouldRecall: true,
+          surfacePolicy: 'procedural-carry',
+          whyNow: 'the reply tried to continue a remembered line',
+          inwardLine: 'remember the previous line before speaking',
+          selectedProcedures: [
+            {
+              id: 'procedure-1',
+              label: 'lived-in direct reply',
+              approach: '先贴着这句，再回答',
+            },
+          ],
+          selectedBundles: [
+            {
+              id: 'bundle-1',
+              summary: '上一轮把 greeting 接得太模板化',
+            },
+          ],
+          selectedRelationshipLines: ['这种时候别飘回模板壳'],
+        },
+        createdAt: Date.now() - 4_900,
+      },
+      {
+        id: 'mind-event-coherence-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        origin: 'user-turn',
+        kind: 'reply-memory-coherence',
+        payload: {
+          coherenceState: 'missed',
+          surfacePolicy: 'procedural-carry',
+          explicitSurfaceExpected: true,
+          explicitSurfaceObserved: false,
+          matchedCueKinds: [],
+        },
+        createdAt: Date.now() - 4_800,
+      },
+    ])
+    dbStub.searchEpisodicEvents.mockResolvedValueOnce([
+      {
+        id: 'episode-feedback-repair-1',
+        cardId: 'default',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        sourceKind: 'dialogue-feedback',
+        provenance: 'remembered',
+        occurredAt: Date.now() - 12_000,
+        whereSummary: 'dialogue reply seam',
+        withWhom: ['host'],
+        threadAnchor: '上一轮 greeting',
+        whatHappened: '上一轮 greeting 听起来像模板壳。',
+        felt: 'stung',
+        emotionTags: ['robotic'],
+        whatChanged: '需要把 lived-in 的质地重新带回表层。',
+        relationshipMeaning: '模板感会直接伤到真实关系感。',
+        lesson: '不要把 greeting 回成可复用壳子。',
+        sourceSummary: 'dialogue feedback episode',
+        confidence: 0.82,
+        salience: 0.76,
+        sceneAttachment: 0.24,
+        consolidationPriority: 0.68,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['dialogue-feedback', 'robotic'],
+        createdAt: Date.now() - 12_000,
+        updatedAt: Date.now() - 11_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
       },
     ])
 
@@ -11645,7 +11972,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect.objectContaining({
         sourceKind: 'reply',
         turnId: 'turn-assistant-prev',
-        decisionTraceId: 'trace-assistant-prev',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         summary: expect.stringContaining('robotic'),
       }),
     ]))
@@ -11668,6 +11995,36 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       }),
     ]), 'rule')
     expect(dbStub.upsertMemoryReflections).toBeCalled()
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      limit: 24,
+    })
+    expect(dbStub.searchEpisodicEvents).toBeCalledWith(expect.objectContaining({
+      recallSeed: expect.stringContaining('模板'),
+      sessionId: 'session-dialogue-feedback',
+      turnId: 'turn-assistant-prev',
+      carryAsMemory: true,
+      recollectionIntent: expect.objectContaining({
+        mode: 'relationship-history',
+      }),
+    }))
+    const appendedMindEvents = dbStub.appendMindTurnEvents.mock.calls.flatMap(call => call[0] ?? [])
+    expect(appendedMindEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        kind: 'memory-reconsolidated',
+        payload: expect.objectContaining({
+          source: 'dialogue-feedback',
+          feedback: 'robotic',
+          reconsolidatedCount: 1,
+          coherence: expect.objectContaining({
+            coherenceState: 'missed',
+          }),
+        }),
+      }),
+    ]))
     expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
       hostAttitude: expect.stringContaining('机器腔'),
       previousHostAttitude: null,

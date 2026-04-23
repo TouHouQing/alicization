@@ -2,7 +2,10 @@ import type { AlicizationConversationTurnInput } from '../../../shared/eventa'
 
 import { describe, expect, it } from 'vitest'
 
-import { coerceConversationTurnToMindGovernedPayload } from './runtime-governance'
+import {
+  buildMindTurnTraceEvents,
+  coerceConversationTurnToMindGovernedPayload,
+} from './runtime-governance'
 
 describe('runtime-governance', () => {
   it('preserves organic direct repair replies instead of forcing deterministic fallback takeover', () => {
@@ -230,7 +233,7 @@ describe('runtime-governance', () => {
     expect(String(structured.reply ?? '')).not.toContain('真实边界')
     expect(String(structured.reply ?? '')).not.toContain('重新落地')
     expect(structured.performance).toEqual(expect.objectContaining({
-      baseEmotion: 'angry',
+      baseEmotion: 'thinking',
       delivery: 'firm',
     }))
     expect(governed.audit).toEqual(expect.objectContaining({
@@ -348,6 +351,124 @@ describe('runtime-governance', () => {
     expect(governed.reasons).toContain('dialogue-first-visible-reply-contaminated')
     expect(governed.audit).toEqual(expect.objectContaining({
       visible_reply_authority: 'mind-surface-renderer',
+    }))
+  })
+
+  it('records recall attribution and reply-memory coherence on the same decision trace', () => {
+    const createdAt = Date.now()
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-memory-trace-1',
+      sessionId: 'session-memory-trace',
+      userText: '继续按之前那样把这件事做完',
+      assistantText: '这次我还是按前几天那样先 patch 再 verify，再把结果补给你。',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=runtime continuity repair; move=pay-off; tone=direct',
+        emotion: 'thinking',
+        reply: '这次我还是按前几天那样先 patch 再 verify，再把结果补给你。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+      },
+      governance: {
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerAct: 'guide',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: 'runtime continuity repair task',
+        focusAnchor: 'runtime continuity repair task',
+        answerIntent: 'Continue the remembered procedure and pay off the live ask.',
+        openingMove: 'Continue from the remembered way of doing this.',
+        carriedThread: 'runtime continuity repair task',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt,
+    }
+
+    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
+    const events = buildMindTurnTraceEvents({
+      payload: governedTurn.payload,
+      governedTurn,
+      createdAt,
+      memoryTrace: {
+        shouldRecall: true,
+        surfacePolicy: 'procedural-carry',
+        confidence: 0.84,
+        whyNow: 'the host asked to continue in the remembered way rather than starting from zero',
+        inwardLine: 'remember the previous repair rhythm before speaking',
+        visibleLine: '按前几天那样接回去',
+        recollectionIntentMode: 'execution-procedure',
+        recollectionIntentTemporalFocus: 'experience-matched',
+        speechShouldSurface: true,
+        speechSurfaceMode: 'procedural-carry',
+        speechPlacement: 'inside-payoff',
+        selectedPeriods: [{
+          id: 'period-1',
+          kind: 'consolidation',
+          summary: '前几天那次 runtime continuity repair',
+        }],
+        selectedEpisodes: [{
+          id: 'episode-1',
+          summary: '上次先 patch 再 verify',
+          provenance: 'remembered',
+        }],
+        selectedProcedures: [{
+          id: 'procedure-1',
+          label: 'patch -> verify',
+          approach: '先 patch 再 verify 再汇报',
+        }],
+        selectedBundles: [{
+          id: 'bundle-1',
+          summary: 'runtime continuity repair 的程序性回想',
+          rationale: 'same task thread, same remembered procedure',
+          confidence: 0.88,
+          relationshipLine: '这种时候先给结果，不要飘回空话',
+        }],
+        selectedChains: [{
+          id: 'chain-1',
+          kind: 'task-procedure-relationship-stance',
+          summary: 'runtime continuity repair -> patch/verify -> steady guide',
+          rationale: 'remembered task procedure is shaping the current stance',
+          confidence: 0.86,
+          currentStance: 'steady guide',
+          answerPosture: '直接接着做',
+        }],
+        selectedRelationshipLines: ['这种时候先给结果，不要飘回空话'],
+      },
+    })
+
+    expect(events.map(event => event.kind)).toEqual(expect.arrayContaining([
+      'governance-normalized',
+      'recall-attribution',
+      'persistence-written',
+      'reply-memory-coherence',
+    ]))
+    expect(events.find(event => event.kind === 'recall-attribution')?.payload).toEqual(expect.objectContaining({
+      shouldRecall: true,
+      surfacePolicy: 'procedural-carry',
+      recollectionIntentMode: 'execution-procedure',
+      selectedProcedures: expect.arrayContaining([
+        expect.objectContaining({
+          label: 'patch -> verify',
+        }),
+      ]),
+    }))
+    expect(events.find(event => event.kind === 'reply-memory-coherence')?.payload).toEqual(expect.objectContaining({
+      coherenceState: 'integrated',
+      explicitSurfaceExpected: true,
+      matchedCueKinds: expect.arrayContaining(['procedure']),
+      replyExcerpt: expect.stringContaining('patch 再 verify'),
     }))
   })
 })

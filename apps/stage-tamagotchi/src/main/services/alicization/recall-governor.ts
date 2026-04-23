@@ -38,6 +38,29 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+function buildSceneAttachmentCues(sceneContext: {
+  cueSummary?: string | null
+  appName?: string | null
+  processName?: string | null
+  targetTitle?: string | null
+  scenario?: string | null
+  workloadKind?: string | null
+  contentKind?: string | null
+} | null | undefined) {
+  if (!sceneContext)
+    return []
+
+  return uniqueList([
+    sceneContext.cueSummary,
+    sceneContext.targetTitle,
+    sceneContext.appName,
+    sceneContext.processName,
+    sceneContext.scenario ? `scene:${sceneContext.scenario}` : null,
+    sceneContext.workloadKind ? `workload:${sceneContext.workloadKind}` : null,
+    sceneContext.contentKind ? `content:${sceneContext.contentKind}` : null,
+  ], 6)
+}
+
 function pickRecallAnchor(...values: unknown[]) {
   for (const value of values) {
     const normalized = sanitizeDialogueAnchorText(value, 180)
@@ -181,6 +204,15 @@ export function buildRecallGovernor(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  sceneContext?: {
+    cueSummary?: string | null
+    appName?: string | null
+    processName?: string | null
+    targetTitle?: string | null
+    scenario?: string | null
+    workloadKind?: string | null
+    contentKind?: string | null
+  } | null
 }): AlicizationRecallGovernorSnapshot | null {
   const dialogueWorldThread = input.dialogueWorldThread ?? null
   const conversationState = input.conversationState ?? null
@@ -221,6 +253,9 @@ export function buildRecallGovernor(input: {
     && mode !== 'scene'
     && (mode !== 'thread' || !suppressAssociativeRecall)
   const allowRecalledFragments = !suppressAssociativeRecall && (mode === 'emotional-resonance' || mode === 'self-continuity')
+  const dialogueFirstTurn = input.dialogueEncounter?.dialogueFirst === true
+    || input.dialogueEncounter?.screenReferenceMode === 'avoid'
+  const sceneAttachmentCues = dialogueFirstTurn ? [] : buildSceneAttachmentCues(input.sceneContext ?? null)
   const recalledFragmentCap = allowRecalledFragments
     ? mode === 'emotional-resonance' ? 3 : 2
     : 0
@@ -278,9 +313,15 @@ export function buildRecallGovernor(input: {
     longHorizonMemory: input.longHorizonMemory ?? null,
     goalStack: input.goalStack ?? null,
     motiveEngine: input.motiveEngine ?? null,
+    sceneContext: input.sceneContext ?? null,
   })
+  const sceneAnchor = uniqueList([
+    ...sceneAttachmentCues,
+    primaryTurnAnchor,
+  ], 6).join(' | ') || primaryTurnAnchor
   const recallSeed = uniqueList([
     ...threadAnchors,
+    ...sceneAttachmentCues,
     ...autobiographicalContinuityLines,
     ...(recollectionIntent?.queryHints ?? []),
     input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
@@ -310,7 +351,7 @@ export function buildRecallGovernor(input: {
     affectAnchors,
     relationshipAnchors,
     salienceBias,
-    sceneAnchor: primaryTurnAnchor,
+    sceneAnchor,
     recollectionIntent,
     suppressAssociativeRecall,
     allowActiveThoughts,
@@ -328,6 +369,7 @@ export function buildRecallGovernor(input: {
       ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
+      sceneAttachmentCues.length > 0 ? `scene-anchor:${sceneAttachmentCues[0]}` : null,
       dialogueWorldThread.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
     ], 8),

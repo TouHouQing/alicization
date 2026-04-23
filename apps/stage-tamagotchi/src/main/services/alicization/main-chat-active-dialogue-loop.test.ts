@@ -4,10 +4,12 @@ import { resolveAlicizationPersonaKernel } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
+  AlicizationActiveDialogueMindAuthorityEscalationError,
   buildAlicizationActiveDialogueFallbackReply,
   buildAlicizationActiveDialogueFastPathMessages,
   deriveAlicizationActiveDialogueFastPathDecision,
   normalizeAlicizationActiveDialogueFastPathReply,
+  normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
 } from './main-chat-active-dialogue-loop'
 
 function createPrepared(overrides?: Partial<any>): any {
@@ -807,7 +809,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.reply).not.toContain('我现在就在这轮里')
   })
 
-  it('selects the deterministic payoff lane for short execution follow-up turns with continuity', () => {
+  it('routes short execution follow-up turns through compact llm authoring instead of deterministic payoff', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
       conversationMessages: [
         { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
@@ -849,8 +851,9 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('follow-up')
-    expect(decision?.strategy).toBe('deterministic-payoff')
-    expect(decision?.timeoutMs).toBe(0)
+    expect(decision?.strategy).toBe('compact-one-shot')
+    expect(decision?.timeoutMs).toBe(6_500)
+    expect(decision?.reasonCodes).toContain('execution-carry-llm-authored')
   })
 
   it('escalates recollection-heavy procedural follow-ups back to llm compact-one-shot authoring', () => {
@@ -968,8 +971,9 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('follow-up')
-    expect(decision?.strategy).toBe('deterministic-payoff')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.reasonCodes).toContain('execution-carry')
+    expect(decision?.reasonCodes).toContain('execution-carry-llm-authored')
   })
 
   it('treats prepared execution-ledger context as execution carry for short result follow-ups', () => {
@@ -1007,8 +1011,9 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(decision?.lane).toBe('follow-up')
-    expect(decision?.strategy).toBe('deterministic-payoff')
+    expect(decision?.strategy).toBe('compact-one-shot')
     expect(decision?.reasonCodes).toContain('prepared-execution-ledger')
+    expect(decision?.preparedExecutionCarryText).toContain('[ALICIZATION_EXECUTION_LEDGER]')
   })
 
   it('builds a repair-clarify local reply that realigns a missed time question', () => {
@@ -1338,6 +1343,32 @@ describe('main chat active dialogue loop', () => {
     })
 
     expect(JSON.parse(normalized)).toEqual(JSON.parse(fallback))
+  })
+
+  it('escalates wrong-time compact replies instead of silently replacing them on the normal reply path', () => {
+    const conversationMessages = [
+      { role: 'user', content: '后面按东京时间回答，现在几点了？' },
+    ] as Message[]
+    const prepared = createPrepared({
+      messages: [
+        { role: 'system' as const, content: '{"sample":{"time":{"timezone":"Asia/Shanghai"}}}' },
+        { role: 'user' as const, content: '后面按东京时间回答，现在几点了？' },
+      ] as Message[],
+    })
+    const decision = deriveAlicizationActiveDialogueFastPathDecision({
+      conversationMessages,
+      prepared,
+      runtimeDigest: null,
+    })
+
+    expect(() => normalizeAlicizationActiveDialogueFastPathReplyOrEscalate({
+      decision: decision!,
+      rawText: JSON.stringify({
+        reply: '现在是 99:99，星期二。',
+        thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
+        emotion: 'thinking',
+      }),
+    })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
   })
 
   it('turns expression requests into embodied mind-turns instead of meta dialogue shells', () => {

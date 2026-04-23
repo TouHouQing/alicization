@@ -23,6 +23,16 @@ export interface AlicizationMemoryRecollectionIntentSnapshot {
   confidence: number
 }
 
+interface AlicizationSceneAttachmentContext {
+  cueSummary?: string | null
+  appName?: string | null
+  processName?: string | null
+  targetTitle?: string | null
+  scenario?: string | null
+  workloadKind?: string | null
+  contentKind?: string | null
+}
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -50,10 +60,27 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
+function buildSceneQueryHints(sceneContext: AlicizationSceneAttachmentContext | null | undefined, maxItems = 5) {
+  if (!sceneContext)
+    return []
+
+  return uniqueList([
+    sceneContext.cueSummary,
+    sceneContext.targetTitle,
+    sceneContext.appName,
+    sceneContext.processName,
+    sceneContext.scenario ? `scene:${sceneContext.scenario}` : null,
+    sceneContext.workloadKind ? `workload:${sceneContext.workloadKind}` : null,
+    sceneContext.contentKind ? `content:${sceneContext.contentKind}` : null,
+  ], maxItems)
+}
+
 const proceduralCuePattern = /像之前那样|按之前那样|照之前的做法|以前怎么做|之前怎么做|继续做那个|同样的方法|same way|like before|how did you do it|how we did it|do it again|same approach|reuse the way/iu
 const executionishPattern = /执行|命令|脚本|修|补丁|改|debug|fix|patch|command|cli|codex|claude code|runtime|workflow|步骤|怎么做/u
 const relationshipHistoryCuePattern = /你之前怎么想|你以前怎么看|我们之前是什么状态|上次你怎么回应我|你以前也这样吗|how did you feel before|how were we before/i
 const autobiographicalCuePattern = /你以前|你之前|你还记得|你做过|你经历过|before this|you used to|you remember/i
+const relationshipTriggerPattern = /你为什么这次会这样回应我|你怎么突然.*(?:客气|冷淡|温柔|直接)|你是不是在躲|你为什么离我这么远|你为什么突然这样|你现在怎么像变了个人|why are you answering me like this|why are you suddenly so distant|why are you suddenly so gentle|why do you sound different/iu
+const emotionalCarryPattern = /我有点乱|我又乱了|我有点难受|我现在很烦|我有点累|今晚又这样|late[- ]?night|drained|messy|overwhelmed|why does this feel the same again/iu
 
 function pickProceduralWeight(input: {
   userText: string
@@ -107,6 +134,8 @@ function pickRelationshipHistoryWeight(input: {
   let score = 0
   if (relationshipHistoryCuePattern.test(input.userText))
     score += 0.28
+  if (relationshipTriggerPattern.test(input.userText))
+    score += 0.24
   if (input.answerCompiler?.answerSubject === 'relationship')
     score += 0.28
   if (input.replyDeliberation?.selectedMotive === 'attune' || input.replyDeliberation?.selectedMotive === 'care')
@@ -129,8 +158,28 @@ function pickAutobiographicalWeight(input: {
     score += 0.32
   if (input.privateThought?.emotionalTension === 'late-night-drain' || input.privateThought?.emotionalTension === 'tense-debug')
     score += 0.08
+  if (emotionalCarryPattern.test(input.userText))
+    score += 0.12
   if (input.longHorizonMemory?.rememberedPlanSummary || input.longHorizonMemory?.dominantCueSummary)
     score += 0.06
+  return clamp01(score)
+}
+
+function pickMoodCongruentBoost(input: {
+  userText: string
+  privateThought?: AlicizationPrivateThoughtSnapshot | null
+  replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
+  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
+}) {
+  let score = 0
+  if (input.privateThought?.emotionalTension === 'late-night-drain' || input.privateThought?.emotionalTension === 'tense-debug')
+    score += 0.12
+  if (input.replyDeliberation?.selectedMotive === 'attune' || input.replyDeliberation?.selectedMotive === 'care')
+    score += 0.08
+  if (emotionalCarryPattern.test(input.userText))
+    score += 0.12
+  if (input.longHorizonMemory?.dominantCueSummary)
+    score += 0.04
   return clamp01(score)
 }
 
@@ -145,8 +194,10 @@ export function buildMemoryRecollectionIntent(input: {
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   goalStack?: AlicizationGoalStackSnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
+  sceneContext?: AlicizationSceneAttachmentContext | null
 }): AlicizationMemoryRecollectionIntentSnapshot | null {
   const userText = sanitizeText(input.userText, 320)
+  const sceneQueryHints = buildSceneQueryHints(input.sceneContext ?? null)
   const conversationHistoryWeight = pickConversationHistoryWeight({
     userText,
     dialogueEncounter: input.dialogueEncounter ?? null,
@@ -164,6 +215,12 @@ export function buildMemoryRecollectionIntent(input: {
     privateThought: input.privateThought ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
   })
+  const moodCongruentBoost = pickMoodCongruentBoost({
+    userText,
+    privateThought: input.privateThought ?? null,
+    replyDeliberation: input.replyDeliberation ?? null,
+    longHorizonMemory: input.longHorizonMemory ?? null,
+  })
   const proceduralWeight = pickProceduralWeight({
     userText,
     dialogueWorldThread: input.dialogueWorldThread ?? null,
@@ -171,10 +228,17 @@ export function buildMemoryRecollectionIntent(input: {
     answerCompiler: input.answerCompiler ?? null,
   })
 
-  if (Math.max(conversationHistoryWeight, relationshipWeight, autobiographicalWeight, proceduralWeight) < 0.2)
+  const boostedRelationshipWeight = clamp01(relationshipWeight + (
+    relationshipWeight > 0 || relationshipTriggerPattern.test(userText)
+      ? moodCongruentBoost * 0.32
+      : 0
+  ))
+  const boostedAutobiographicalWeight = clamp01(autobiographicalWeight + moodCongruentBoost * 0.42)
+
+  if (Math.max(conversationHistoryWeight, boostedRelationshipWeight, boostedAutobiographicalWeight, proceduralWeight) < 0.2)
     return null
 
-  if (proceduralWeight >= Math.max(conversationHistoryWeight, relationshipWeight, autobiographicalWeight)) {
+  if (proceduralWeight >= Math.max(conversationHistoryWeight, boostedRelationshipWeight, boostedAutobiographicalWeight)) {
     return {
       mode: proceduralWeight >= 0.54 ? 'execution-procedure' : 'experience-pattern',
       temporalFocus: 'experience-matched',
@@ -184,6 +248,7 @@ export function buildMemoryRecollectionIntent(input: {
       queryHints: uniqueList([
         input.conversationState?.activeProject,
         input.dialogueWorldThread?.activeThread,
+        ...sceneQueryHints,
         input.goalStack?.alicizationGoals[0]?.label,
         input.motiveEngine?.backgroundAgendas[0]?.summary,
         ...(input.dialogueWorldThread?.recallKeys ?? []),
@@ -193,7 +258,7 @@ export function buildMemoryRecollectionIntent(input: {
     }
   }
 
-  if (relationshipWeight >= Math.max(conversationHistoryWeight, autobiographicalWeight)) {
+  if (boostedRelationshipWeight >= Math.max(conversationHistoryWeight, boostedAutobiographicalWeight)) {
     return {
       mode: 'relationship-history',
       temporalFocus: 'cross-session',
@@ -204,14 +269,18 @@ export function buildMemoryRecollectionIntent(input: {
         input.dialogueWorldThread?.activeThread,
         input.conversationState?.jointThread,
         input.conversationState?.hostMove,
+        ...sceneQueryHints,
+        input.privateThought?.emotionalTension ? `mood:${input.privateThought.emotionalTension}` : null,
         ...(input.conversationState?.memoryQueryHints ?? []),
       ], 8),
-      rationale: 'The turn is asking about the bond or how Alicization has responded before, so relationship history should surface.',
-      confidence: relationshipWeight,
+      rationale: relationshipTriggerPattern.test(userText)
+        ? 'The host is reacting to Alicization’s current relational tone, so bond-history recall should surface even without an explicit "before" question.'
+        : 'The turn is asking about the bond or how Alicization has responded before, so relationship history should surface.',
+      confidence: boostedRelationshipWeight,
     }
   }
 
-  if (autobiographicalWeight >= conversationHistoryWeight) {
+  if (boostedAutobiographicalWeight >= conversationHistoryWeight) {
     return {
       mode: 'autobiographical-history',
       temporalFocus: 'cross-session',
@@ -222,10 +291,14 @@ export function buildMemoryRecollectionIntent(input: {
         input.dialogueWorldThread?.activeThread,
         input.longHorizonMemory?.dominantCueSummary,
         input.longHorizonMemory?.rememberedPlanSummary,
+        ...sceneQueryHints,
+        input.privateThought?.emotionalTension ? `mood:${input.privateThought.emotionalTension}` : null,
         ...(input.dialogueWorldThread?.recallKeys ?? []),
       ], 8),
-      rationale: 'The turn is asking about Alicization herself or her lived continuity, so autobiographical memory should answer it.',
-      confidence: autobiographicalWeight,
+      rationale: emotionalCarryPattern.test(userText)
+        ? 'The host’s current emotional carry matches older autobiographical pressure, so lived continuity should answer it.'
+        : 'The turn is asking about Alicization herself or her lived continuity, so autobiographical memory should answer it.',
+      confidence: boostedAutobiographicalWeight,
     }
   }
 
@@ -238,6 +311,7 @@ export function buildMemoryRecollectionIntent(input: {
     queryHints: uniqueList([
       input.conversationState?.jointThread,
       input.conversationState?.hostMove,
+      ...sceneQueryHints,
       ...(input.dialogueWorldThread?.recallKeys ?? []),
       ...(input.conversationState?.memoryQueryHints ?? []),
     ], 8),

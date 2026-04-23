@@ -1280,4 +1280,484 @@ describe('main chat session runtime', () => {
     expect(result.governance?.mustDo).toContain('Use the first sentence to pay off the freshest executor result for the current follow-up.')
     expect(result.governance?.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
   })
+
+  it('threads recollection speech planning into runtime governance so memory can stay inward', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: context => context.recollectionSpeechPlan
+        ? ['[ALICIZATION_RECOLLECTION_SPEECH_PLAN]']
+        : [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionSpeechPlan: {
+          shouldSurface: false,
+          surfaceMode: 'internal-only' as const,
+          placement: 'internal-only' as const,
+          certainty: 'approximate' as const,
+          internalLead: 'What returns first is the runtime seam we kept carrying.',
+          visibleLead: null,
+          styleNote: 'Let the memory bend the answer without narrating the memory itself.',
+          rationale: 'The host needs continuity-shaped help, not a retrospective.',
+          confidence: 0.79,
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-recollection-speech',
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        } as Message],
+      }),
+    })
+
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_RECOLLECTION_SPEECH_PLAN]'),
+    )).toBe(true)
+    expect(result.sessionMirror?.recollectionSummary).toContain('foreground=What returns first is the runtime seam we kept carrying.')
+    expect(result.sessionMirror?.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(result.governance?.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
+    expect(result.governance?.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
+    expect(result.governance?.mustDo).toContain('Before wording the visible reply, let the active recollection settle stance, pacing, and detail choice from the inside.')
+    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Keep this remembered line inward while answering')
+    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('Let remembered continuity shape stance and chosen detail before any explicit memory mention.')
+    expect(result.governance?.mindTurnFrame?.obligation.whyNow).toContain('An active recollection is shaping the answer from the inside')
+    expect(result.governance?.mindTurnFrame?.narrative).toContain('memory:inward-recollection')
+  })
+
+  it('threads memory deliberation into runtime governance as the final memory authority', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: context => context.memoryDeliberation
+        ? ['[ALICIZATION_MEMORY_DELIBERATION]']
+        : [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'answer-anchoring' as const,
+          placement: 'inside-payoff' as const,
+          certainty: 'approximate' as const,
+          internalLead: 'What comes back first is the runtime seam we kept carrying.',
+          visibleLead: 'It feels like the same runtime seam again.',
+          styleNote: 'Let the remembered seam anchor the answer without turning into a retrospective dump.',
+          rationale: 'The host needs continuity-shaped help.',
+          confidence: 0.84,
+        },
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedConsolidationIds: ['consolidation-runtime'],
+          selectedWindowIds: [],
+          selectedProcedureIds: ['procedure-runtime'],
+          selectedEpisodeIds: [],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+          selectedPeriods: [{
+            id: 'consolidation-runtime',
+            kind: 'consolidation' as const,
+            summary: 'That period kept bending toward the runtime seam until it held together.',
+          }],
+          selectedEpisodes: [],
+          selectedProcedures: [{
+            id: 'procedure-runtime',
+            label: 'runtime seam carry',
+            approach: 'Return to the same seam before branching.',
+          }],
+          selectedBundles: [{
+            id: 'bundle-runtime',
+            summary: 'That period kept bending toward the runtime seam until it held together. | Return to the same seam before branching.',
+            rationale: 'The answer should stay on the same runtime seam bundle.',
+            confidence: 0.88,
+            periodId: 'consolidation-runtime',
+            episodeId: null,
+            procedureId: 'procedure-runtime',
+            conversationTurnId: null,
+            relationshipLine: 'Carry the same runtime seam before branching.',
+          }],
+          selectedChains: [{
+            id: 'chain-runtime',
+            kind: 'task-procedure-relationship-stance' as const,
+            summary: 'Return to the same seam before branching. | Carry the same runtime seam before branching.',
+            rationale: 'The remembered procedure should set the current stance before the answer opens.',
+            confidence: 0.88,
+            taskCue: 'runtime continuity',
+            periodSummary: 'That period kept bending toward the runtime seam until it held together.',
+            eventSummary: null,
+            procedureSummary: 'Return to the same seam before branching.',
+            relationshipMeaning: 'Carry the same runtime seam before branching.',
+            lesson: 'Carry the same runtime seam before proposing a new branch.',
+            currentStance: 'Stay on the same seam before branching.',
+            answerPosture: 'Answer from the same seam before branching.',
+          }],
+          surfacePolicy: 'answer-anchoring' as const,
+          confidence: 0.88,
+          whyNow: 'The answer should be anchored by the remembered runtime seam instead of treating this like a fresh disconnected task.',
+          inwardLine: 'What comes back first is the runtime seam we kept carrying.',
+          visibleLine: 'It feels like the same runtime seam again.',
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-memory-deliberation',
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        } as Message],
+      }),
+    })
+
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
+    )).toBe(true)
+    expect(result.governance?.mustDo).toContain('Memory deliberation: The answer should be anchored by the remembered runtime seam instead of treating this like a fresh disconnected task.')
+    expect(result.governance?.mindTurnFrame?.self.thought).toContain('runtime seam')
+    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('answer-anchoring')
+    expect(result.governance?.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.consciousTension).toContain('Stay on the same seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.sourceTrace).toContain('memory-deliberation')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.truthMode).toBe('continuity-carry')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('Return to the same seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.speakingFrom).toBe('held-memory')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow).toContain('remembered runtime seam')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('answer-anchoring')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('Answer from the same seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
+  })
+
+  it('lets host person model shape reply deliberation and answer planning for focused work turns', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        hostPersonModel: {
+          summary: 'Focused work windows need more room before closeness.',
+          routines: ['Focused work windows usually need space first, then precise follow-up.'],
+          sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+          repairTriggers: ['If closeness feels heavy, back off first and reopen with lighter presence.'],
+          trustLadder: {
+            stage: 'cautious-open' as const,
+            score: 0.48,
+            rationale: 'Trust is warming, but the host still needs clear room while focused.',
+          },
+          preferredClosenessByContext: [{
+            context: 'focused-work',
+            preference: 'Lighter touch, more room, less interruption pressure.',
+            confidence: 0.86,
+          }],
+          recurrentBurdens: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+          narrative: [],
+          updatedAt: 10,
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-host-person-model',
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        } as Message],
+      }),
+    })
+
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel?.preferredClosenessByContext[0]?.context).toBe('focused-work')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustAvoid.some(item => item.includes('Pressure and over-close timing'))).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.relationshipPosture).toBe('restrained')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Repair the seam before leaning closer')
+    expect(result.governance?.mustNotDo.some(item => item.includes('Pressure and over-close timing'))).toBe(true)
+    expect(result.governance?.answerIntent).toContain('Trust context:')
+  })
+
+  it('lets relationship doctrine shape reply and answer planning even without host person model', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const reflectivePrelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续把这个 runtime 问题理顺。',
+      } as Message],
+    })
+    ;(reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface?.memory as any).autobiographicalSelf = {
+      personaDrift: {
+        attachmentStyle: 'attuned',
+        expressionStyle: 'warm',
+        conflictStyle: 'repair-first',
+        agencyStyle: 'balanced',
+        attachmentNeed: 0.72,
+        autonomyNeed: 0.58,
+        truthAnchor: 0.84,
+        careBias: 0.72,
+        playBias: 0.24,
+        irritabilityThreshold: 0.62,
+        stubbornness: 0.5,
+      },
+      preferenceEvolution: {
+        companionship: 0.74,
+        truthfulGrounding: 0.82,
+        gentleRepair: 0.72,
+        quietObservation: 0.42,
+        proactiveCare: 0.72,
+        playfulIntimacy: 0.28,
+        autonomyRespect: 0.64,
+        unfinishedThreadReturn: 0.6,
+      },
+      activeGoals: [],
+      behaviorSignatures: [],
+      identityNarrative: 'I would rather repair truth than sound smooth.',
+      relationshipDoctrine: 'Repair before closeness turns into pressure.',
+      latestInflection: 'Let the durable self reach the visible reply surface.',
+      stability: 0.82,
+      updatedAt: 60_000,
+    }
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-relationship-doctrine',
+        messages: [{
+          role: 'user',
+          content: '继续把这个 runtime 问题理顺。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: reflectivePrelude,
+    })
+
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('repair'))).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Repair the seam before leaning closer')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item => item.includes('repair lands before closeness'))).toBe(true)
+  })
 })

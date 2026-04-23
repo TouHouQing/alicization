@@ -393,6 +393,152 @@ describe('buildMotiveEngine', () => {
     expect(motive.longTermGoals.map(agenda => agenda.kind)).toContain('protect-rest')
   })
 
+  it('lets autobiographical era memories directly bias drives before the current turn re-explains them', () => {
+    const baseInput = {
+      now: 14_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime-era',
+          kind: 'problem',
+          status: 'active',
+          source: 'memory-carry',
+          title: 'runtime era',
+          summary: 'The runtime seam is still unresolved.',
+          confidence: 0.8,
+          significance: 0.78,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 14_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'same-thread',
+          sceneAgeMs: 14_000,
+          attentionAgeMs: 14_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 14_000,
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'attuned',
+          expressionStyle: 'warm',
+          conflictStyle: 'repair-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.58,
+          autonomyNeed: 0.54,
+          truthAnchor: 0.72,
+          careBias: 0.48,
+          playBias: 0.12,
+          irritabilityThreshold: 0.64,
+          stubbornness: 0.42,
+        },
+        preferenceEvolution: {
+          companionship: 0.54,
+          truthfulGrounding: 0.72,
+          gentleRepair: 0.64,
+          quietObservation: 0.4,
+          proactiveCare: 0.42,
+          playfulIntimacy: 0.1,
+          autonomyRespect: 0.52,
+          unfinishedThreadReturn: 0.68,
+        },
+        activeGoals: [],
+        behaviorSignatures: [],
+        identityNarrative: 'baseline',
+        relationshipDoctrine: 'baseline',
+        latestInflection: null,
+        stability: 0.76,
+        updatedAt: 14_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.68,
+        relationshipTrust: 0.7,
+        guardingTendency: 0.36,
+        misreadBurden: 0.26,
+        carryOverDesire: 0.62,
+        narrative: [],
+        updatedAt: 14_000,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'relationship-era',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-04-bond',
+          periodStartedAt: 10_000,
+          periodEndedAt: 12_000,
+          summary: 'That relationship era was about staying near without crowding.',
+          lesson: 'Repair before closeness turns into pressure.',
+          cues: ['stay near'],
+          confidence: 0.88,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-1'],
+          updatedAt: 12_000,
+        },
+        {
+          id: 'task-era',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: '2026-04-task',
+          periodStartedAt: 10_000,
+          periodEndedAt: 13_000,
+          summary: 'That task era kept returning to the same seam first.',
+          lesson: 'Return to the seam before branching.',
+          cues: ['return to seam'],
+          confidence: 0.84,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-2'],
+          updatedAt: 13_000,
+        },
+        {
+          id: 'self-era',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-04-self',
+          periodStartedAt: 10_000,
+          periodEndedAt: 14_000,
+          summary: 'That self era taught me to hold my line quietly before speaking.',
+          lesson: 'Keep the inward line stable before turning it outward.',
+          cues: ['hold line'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-3'],
+          updatedAt: 14_000,
+        },
+      ],
+    } as any
+    const baseline = buildMotiveEngine({
+      ...baseInput,
+      recentMemoryConsolidations: [],
+    })
+    const motive = buildMotiveEngine(baseInput)
+
+    expect(motive.drives.companionship).toBeGreaterThan(baseline.drives.companionship)
+    expect(motive.drives.unfinishedThreadReturn).toBeGreaterThan(baseline.drives.unfinishedThreadReturn)
+    expect(motive.drives.selfDirection).toBeGreaterThan(baseline.drives.selfDirection)
+    expect(motive.drives.truthDiscipline).toBeGreaterThan(baseline.drives.truthDiscipline)
+  })
+
   it('renders a dedicated system block for durable motive pressure and agenda continuity', () => {
     const block = buildMotiveEngineSystemBlock({
       memory: {

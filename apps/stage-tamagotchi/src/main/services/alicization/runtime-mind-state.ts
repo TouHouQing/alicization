@@ -1406,6 +1406,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       longHorizonMemory,
       selfContinuity,
       autobiographicalSelf: provisionalAutobiographicalSelf,
+      recentMemoryConsolidations,
       reflectionLedger,
       previous: previousMotiveEngine,
     })
@@ -1416,6 +1417,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       relationshipModel,
       selfContinuity,
       autobiographicalSelf: provisionalAutobiographicalSelf,
+      recentMemoryConsolidations,
       reflectionLedger,
       motiveEngine,
       previous: previousHabitPolicy,
@@ -2053,6 +2055,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       previous: settledDialogueWorldThread,
       runtimeSurface: dialogueWorldThreadRuntimeSurface,
     })
+    const sceneSnapshot = input.visualHeartbeat.scene
     const recallGovernor = buildRecallGovernor({
       now: input.now,
       userText: input.userText,
@@ -2068,6 +2071,38 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       desireMemory,
       motiveEngine,
       mindEcology,
+      sceneContext: {
+        cueSummary: sanitizeBriefText(
+          sceneSnapshot?.summary
+            ?? governedWorldModel.activeThread?.summary
+            ?? '',
+          180,
+        ) || null,
+        appName: sanitizeBriefText(
+          governedWorldModel.focusTarget?.appName
+            ?? governedWorldModel.activeThread?.target?.appName
+            ?? sceneSnapshot?.target?.appName
+            ?? '',
+          64,
+        ) || null,
+        processName: sanitizeBriefText(
+          governedWorldModel.focusTarget?.processName
+            ?? governedWorldModel.activeThread?.target?.processName
+            ?? sceneSnapshot?.target?.processName
+            ?? '',
+          64,
+        ) || null,
+        targetTitle: sanitizeBriefText(
+          governedWorldModel.focusTarget?.title
+            ?? governedWorldModel.activeThread?.target?.title
+            ?? sceneSnapshot?.target?.title
+            ?? '',
+          160,
+        ) || null,
+        scenario: sceneSnapshot?.scenario ?? null,
+        workloadKind: sceneSnapshot?.workloadKind ?? null,
+        contentKind: sceneSnapshot?.contentKind ?? null,
+      },
     })
     const answerPlannerRuntimeSurface = buildAlicizationProvisionalDigitalLifeRuntimeSurface({
       now: input.now,

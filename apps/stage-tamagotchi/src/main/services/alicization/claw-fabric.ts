@@ -65,6 +65,18 @@ export interface AlicizationClawFabricExperience {
   advisorChannel?: AlicizationExecutionChannel | null
   advisorConfidence?: number | null
   advisorReason?: string | null
+  rememberedProcedures?: Array<{
+    id: string
+    sourceKind: 'procedural' | 'autobiographical'
+    facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
+    label: string
+    approach: string
+    pitfalls: string[]
+    confidence: number
+    cues: string[]
+    preferredChannel?: AlicizationExecutionChannel | null
+    preferredChannelReason?: string | null
+  }> | null
 }
 
 interface AlicizationChannelTraits {
@@ -231,6 +243,21 @@ function hasChannelInExperienceList(
   if (!Array.isArray(channels))
     return false
   return channels.includes(channel)
+}
+
+function rememberedProcedureMatch(input: {
+  experience?: AlicizationClawFabricExperience | null
+  channel: AlicizationExecutionChannel
+}) {
+  const procedures = Array.isArray(input.experience?.rememberedProcedures)
+    ? input.experience!.rememberedProcedures!
+    : []
+  const directMatch = procedures
+    .filter(item => item?.preferredChannel === input.channel)
+    .sort((left, right) => clamp01(right.confidence) - clamp01(left.confidence))[0] ?? null
+  if (directMatch)
+    return directMatch
+  return null
 }
 
 function resolveCapabilityMap(capabilities: AlicizationChannelCapability[]) {
@@ -419,6 +446,15 @@ function buildCandidateAssessment(input: {
   else if (advisorChannel && advisorConfidence >= 0.66) {
     score -= 8 + Math.round(advisorConfidence * 10)
     reasons.push('advisor-other-channel-pressure')
+  }
+
+  const rememberedProcedure = rememberedProcedureMatch({
+    experience: input.experience,
+    channel,
+  })
+  if (rememberedProcedure) {
+    score += 14 + Math.round(clamp01(rememberedProcedure.confidence) * 18)
+    reasons.push('remembered-procedure-channel')
   }
 
   return {
@@ -632,6 +668,17 @@ export function buildClawFabricPlan(input: {
         : '',
       eligibleCandidates[0].reasons.includes('advisor-channel')
         ? 'Routing adopted the external channel assessor recommendation with confidence weighting.'
+        : '',
+      eligibleCandidates[0].reasons.includes('remembered-procedure-channel')
+        ? (() => {
+            const procedure = rememberedProcedureMatch({
+              experience: input.experience,
+              channel: proposedChannel,
+            })
+            if (!procedure)
+              return ''
+            return `Routing reused remembered procedure: ${normalizeText(procedure.approach, 180) || normalizeText(procedure.label, 140)}.`
+          })()
         : '',
       affirmationReasonCodes.includes('proactive-side-effects-require-explicit-consent')
         ? 'The route was held for affirmation because proactive side effects should not quietly seize a stronger body.'

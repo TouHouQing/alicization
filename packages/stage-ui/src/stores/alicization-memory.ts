@@ -15,12 +15,18 @@ import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge
 const memoryFactsKey = 'local:alicization/memory/facts:v1'
 const memoryArchiveKey = 'local:alicization/memory/archive:v1'
 const memoryMetaKey = 'local:alicization/memory/meta:v1'
+const memoryPendingRuntimeWritesKey = 'local:alicization/memory/pending-runtime-writes:v1'
 
 const dayMs = 24 * 60 * 60 * 1000
+const memoryColdTierThreshold = 0.72
+const memoryColdTierAccessWindowDays = 14
+const memoryHotTierFreshDays = 2
+const runtimeWriteRetryCooldownMs = 15_000
 
 let migrationAttempted = false
 let runtimeWriteBlocked = false
 let runtimeWriteBlockLogged = false
+let runtimeWriteRetryAt = 0
 
 export type AlicizationMemorySource = BridgeAlicizationMemorySource
 export type AlicizationMemoryFact = BridgeAlicizationMemoryFact
@@ -33,6 +39,16 @@ interface AlicizationMemoryUpsertOptions {
 
 interface AlicizationMemoryMeta {
   lastPrunedAt: number | null
+}
+
+interface AlicizationPendingRuntimeMemoryWrite {
+  id: string
+  facts: AlicizationMemoryFactInput[]
+  source: AlicizationMemorySource
+  trace: AlicizationMemoryUpsertTrace | null
+  enqueuedAt: number
+  attempts: number
+  nextRetryAt: number
 }
 
 export interface AlicizationMemoryExtractInput {
@@ -82,10 +98,85 @@ function scoreFact(queryTokens: Set<string>, fact: AlicizationMemoryFact, curren
 
   const lexicalScore = overlap / factTokens.size
   const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
-  const decay = Math.exp(-ageDays / 14)
+  const vagueQuery = queryTokens.size <= 3
+  const coldTier = isMemoryColdTierFact(fact, currentTs)
+  const longTailEligible = coldTier || (ageDays >= 45 && fact.confidence >= 0.72)
+  const longTailFloor = longTailEligible && (lexicalScore >= 0.22 || vagueQuery) ? 0.35 : 0
+  const decay = Math.max(Math.exp(-ageDays / 14), longTailFloor)
   const accessBoost = Math.min(0.2, fact.accessCount / 50)
+  const coldReachabilityBoost = longTailEligible && vagueQuery
+    ? Math.min(0.08, fact.confidence * 0.08)
+    : 0
 
-  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay
+  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay + coldReachabilityBoost
+}
+
+function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {
+  const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
+  const timeDecay = Math.min(1, ageDays / 30)
+  const accessFrequencyNorm = Math.min(1, fact.accessCount / 12)
+  const confidenceNorm = clamp01(fact.confidence)
+  return timeDecay * (1 - accessFrequencyNorm) * (1 - confidenceNorm)
+}
+
+function isMemoryColdTierFact(fact: AlicizationMemoryFact, currentTs: number) {
+  const daysSinceAccess = fact.lastAccessAt == null
+    ? Number.POSITIVE_INFINITY
+    : (currentTs - fact.lastAccessAt) / dayMs
+  return computePruneScore(fact, currentTs) >= memoryColdTierThreshold
+    && daysSinceAccess >= memoryColdTierAccessWindowDays
+}
+
+function isMemoryHotTierFact(fact: AlicizationMemoryFact, currentTs: number) {
+  const daysSinceUpdate = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
+  const daysSinceAccess = fact.lastAccessAt == null
+    ? Number.POSITIVE_INFINITY
+    : Math.max(0, (currentTs - fact.lastAccessAt) / dayMs)
+  return daysSinceUpdate <= memoryHotTierFreshDays
+    || daysSinceAccess <= memoryHotTierFreshDays
+    || fact.accessCount >= 4
+}
+
+function deriveMemoryTierCounts(facts: AlicizationMemoryFact[], currentTs: number) {
+  let hot = 0
+  let warm = 0
+  let cold = 0
+  for (const fact of facts) {
+    if (isMemoryColdTierFact(fact, currentTs)) {
+      cold += 1
+      continue
+    }
+    if (isMemoryHotTierFact(fact, currentTs)) {
+      hot += 1
+      continue
+    }
+    warm += 1
+  }
+  return { hot, warm, cold }
+}
+
+function deriveMemoryIntegrity(facts: AlicizationMemoryFact[], pendingSyncCount: number) {
+  const issues: string[] = []
+  const dedupeKeys = new Set<string>()
+  for (const fact of facts) {
+    if (!fact.subject.trim() || !fact.predicate.trim() || !fact.object.trim())
+      issues.push(`malformed-fact:${fact.id}`)
+    const dedupeKey = fact.dedupeKey?.trim()
+    if (dedupeKey) {
+      if (dedupeKeys.has(dedupeKey))
+        issues.push(`duplicate-dedupe:${dedupeKey}`)
+      dedupeKeys.add(dedupeKey)
+    }
+    if (isMemoryColdTierFact(fact, now()) && tokenize(`${fact.subject} ${fact.predicate} ${fact.object}`).size === 0)
+      issues.push(`cold-unsearchable:${fact.id}`)
+  }
+  if (pendingSyncCount > 0)
+    issues.push(`pending-runtime-sync:${pendingSyncCount}`)
+
+  return {
+    status: issues.length > 0 ? 'degraded' as const : 'ok' as const,
+    issues,
+  }
 }
 
 async function getFacts() {
@@ -112,6 +203,91 @@ async function saveMeta(meta: AlicizationMemoryMeta) {
   await storage.setItemRaw(memoryMetaKey, meta)
 }
 
+async function getPendingRuntimeWrites() {
+  return await storage.getItemRaw<AlicizationPendingRuntimeMemoryWrite[]>(memoryPendingRuntimeWritesKey) ?? []
+}
+
+async function savePendingRuntimeWrites(entries: AlicizationPendingRuntimeMemoryWrite[]) {
+  await storage.setItemRaw(memoryPendingRuntimeWritesKey, entries)
+}
+
+function mergeArchivedFactsIntoFacts(
+  facts: AlicizationMemoryFact[],
+  archive: AlicizationMemoryArchiveRecord[],
+) {
+  if (archive.length === 0)
+    return { facts, mergedArchiveCount: 0 }
+
+  const next = [...facts]
+  let mergedArchiveCount = 0
+
+  for (const item of archive) {
+    const subject = item.subject.trim()
+    const predicate = item.predicate.trim()
+    const object = item.object.trim()
+    if (!subject || !predicate || !object)
+      continue
+
+    const dedupeKey = item.dedupeKey?.trim() || buildDedupeKey(subject, predicate, object)
+    const existingIndex = next.findIndex(fact => fact.dedupeKey === dedupeKey)
+    const nextLastAccessAt = [item.lastAccessAt, existingIndex >= 0 ? next[existingIndex].lastAccessAt : null]
+      .filter(value => typeof value === 'number')
+      .sort((left, right) => Number(right) - Number(left))[0] ?? null
+
+    if (existingIndex >= 0) {
+      const existing = next[existingIndex]
+      next[existingIndex] = {
+        ...existing,
+        confidence: clamp01(Math.max(existing.confidence, item.confidence)),
+        source: item.source,
+        createdAt: Math.min(existing.createdAt, item.createdAt),
+        updatedAt: Math.max(existing.updatedAt, item.updatedAt),
+        lastAccessAt: nextLastAccessAt,
+        accessCount: Math.max(existing.accessCount, item.accessCount),
+        provenance: existing.provenance ?? item.provenance ?? mapMemorySourceToProvenance(item.source),
+      }
+    }
+    else {
+      next.push({
+        id: item.id,
+        subject,
+        predicate,
+        object,
+        confidence: clamp01(item.confidence),
+        source: item.source,
+        dedupeKey,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        lastAccessAt: nextLastAccessAt,
+        accessCount: Math.max(0, item.accessCount),
+        provenance: item.provenance ?? mapMemorySourceToProvenance(item.source),
+      })
+    }
+
+    mergedArchiveCount += 1
+  }
+
+  return {
+    facts: next,
+    mergedArchiveCount,
+  }
+}
+
+async function normalizeLocalArchiveIntoFacts() {
+  const [facts, archive] = await Promise.all([
+    getFacts(),
+    getArchive(),
+  ])
+  const merged = mergeArchivedFactsIntoFacts(facts, archive)
+  if (merged.mergedArchiveCount > 0) {
+    await Promise.all([
+      saveFacts(merged.facts),
+      saveArchive([]),
+    ])
+  }
+  return merged.facts
+}
+
 async function appendAuditLog(payload: {
   level: 'info' | 'notice' | 'warning' | 'critical'
   category: string
@@ -132,7 +308,7 @@ async function appendAuditLog(payload: {
 }
 
 function shouldUseRuntimeMemoryBackend() {
-  return hasAlicizationBridge() && !runtimeWriteBlocked
+  return hasAlicizationBridge() && (!runtimeWriteBlocked || now() >= runtimeWriteRetryAt)
 }
 
 function toFactInput(facts: Array<Pick<AlicizationMemoryFact, 'subject' | 'predicate' | 'object' | 'confidence'>>): AlicizationMemoryFactInput[] {
@@ -148,6 +324,7 @@ function toFactInput(facts: Array<Pick<AlicizationMemoryFact, 'subject' | 'predi
 
 async function markRuntimeWriteBlocked(reason: string, details?: Record<string, unknown>) {
   runtimeWriteBlocked = true
+  runtimeWriteRetryAt = now() + runtimeWriteRetryCooldownMs
   if (runtimeWriteBlockLogged)
     return
 
@@ -161,6 +338,91 @@ async function markRuntimeWriteBlocked(reason: string, details?: Record<string, 
   })
 }
 
+function clearRuntimeWriteBlocked() {
+  runtimeWriteBlocked = false
+  runtimeWriteRetryAt = 0
+  runtimeWriteBlockLogged = false
+}
+
+async function enqueuePendingRuntimeWrite(input: {
+  facts: AlicizationMemoryFactInput[]
+  source: AlicizationMemorySource
+  trace?: AlicizationMemoryUpsertTrace | null
+}) {
+  if (!hasAlicizationBridge())
+    return
+
+  const normalizedFacts = toFactInput(input.facts)
+  if (normalizedFacts.length === 0)
+    return
+
+  const entries = await getPendingRuntimeWrites()
+  entries.push({
+    id: `${now()}-${Math.random().toString(36).slice(2, 10)}`,
+    facts: normalizedFacts,
+    source: input.source,
+    trace: input.trace ?? null,
+    enqueuedAt: now(),
+    attempts: 0,
+    nextRetryAt: 0,
+  })
+  await savePendingRuntimeWrites(entries)
+}
+
+async function flushPendingRuntimeWrites() {
+  if (!hasAlicizationBridge() || !shouldUseRuntimeMemoryBackend())
+    return {
+      flushed: 0,
+      pending: (await getPendingRuntimeWrites()).length,
+    }
+
+  const bridge = getAlicizationBridge()
+  const entries = await getPendingRuntimeWrites()
+  if (entries.length === 0) {
+    clearRuntimeWriteBlocked()
+    return { flushed: 0, pending: 0 }
+  }
+
+  const currentTs = now()
+  const keep: AlicizationPendingRuntimeMemoryWrite[] = []
+  let flushed = 0
+  for (const entry of entries) {
+    if (entry.nextRetryAt > currentTs) {
+      keep.push(entry)
+      continue
+    }
+
+    try {
+      await bridge.upsertMemoryFacts({
+        facts: entry.facts,
+        source: entry.source,
+        trace: entry.trace,
+      })
+      flushed += 1
+    }
+    catch (error) {
+      await markRuntimeWriteBlocked('Runtime memory flush failed; keeping writes queued locally.', {
+        reason: errorMessageFrom(error) ?? 'unknown-error',
+        queueEntryId: entry.id,
+      })
+      keep.push({
+        ...entry,
+        attempts: entry.attempts + 1,
+        nextRetryAt: currentTs + runtimeWriteRetryCooldownMs * Math.max(1, entry.attempts + 1),
+      })
+      await savePendingRuntimeWrites(keep.concat(entries.slice(entries.indexOf(entry) + 1)))
+      return { flushed, pending: keep.length + (entries.length - entries.indexOf(entry) - 1) }
+    }
+  }
+
+  await savePendingRuntimeWrites(keep)
+  clearRuntimeWriteBlocked()
+  return {
+    flushed,
+    pending: keep.length,
+  }
+}
+
 export async function ensureRuntimeMemoryMigration() {
   if (!hasAlicizationBridge() || migrationAttempted)
     return
@@ -172,16 +434,24 @@ export async function ensureRuntimeMemoryMigration() {
     getArchive(),
     getMeta(),
   ])
+  const merged = mergeArchivedFactsIntoFacts(facts, archive)
+  if (merged.mergedArchiveCount > 0) {
+    await Promise.all([
+      saveFacts(merged.facts),
+      saveArchive([]),
+    ])
+  }
 
   try {
     await getAlicizationBridge().importLegacyMemory({
-      facts,
-      archive,
+      facts: merged.facts,
+      archive: [],
       lastPrunedAt: meta.lastPrunedAt ?? null,
     })
+    clearRuntimeWriteBlocked()
   }
   catch (error) {
-    await markRuntimeWriteBlocked('Legacy memory migration failed, switched to read-only fallback.', {
+    await markRuntimeWriteBlocked('Legacy memory migration failed; local queue mode enabled.', {
       reason: errorMessageFrom(error) ?? 'unknown-error',
     })
   }
@@ -236,26 +506,40 @@ export async function upsertFacts(
     return
 
   await ensureRuntimeMemoryMigration()
+  const normalized = toFactInput(facts)
+  if (normalized.length === 0)
+    return
+  let queuedToRuntimeFallback = false
 
   if (shouldUseRuntimeMemoryBackend()) {
-    const normalized = toFactInput(facts)
-    if (normalized.length === 0)
-      return
+    await flushPendingRuntimeWrites()
 
     await getAlicizationBridge().upsertMemoryFacts({
       facts: normalized,
       source,
       trace: options?.trace ?? null,
     }).catch(async (error) => {
-      await markRuntimeWriteBlocked('SQLite memory write failed, switched to read-only fallback.', {
+      await markRuntimeWriteBlocked('SQLite memory write failed; local queue mode enabled.', {
         reason: errorMessageFrom(error) ?? 'unknown-error',
       })
+      await enqueuePendingRuntimeWrite({
+        facts: normalized,
+        source,
+        trace: options?.trace ?? null,
+      })
+      queuedToRuntimeFallback = true
     })
-    return
+    if (!runtimeWriteBlocked)
+      return
   }
 
-  if (runtimeWriteBlocked)
-    return
+  if (hasAlicizationBridge() && !queuedToRuntimeFallback) {
+    await enqueuePendingRuntimeWrite({
+      facts: normalized,
+      source,
+      trace: options?.trace ?? null,
+    })
+  }
 
   const current = await getFacts()
   const next = [...current]
@@ -299,12 +583,13 @@ export async function retrieveFacts(query: string, limit = 6) {
   await ensureRuntimeMemoryMigration()
 
   if (shouldUseRuntimeMemoryBackend()) {
+    await flushPendingRuntimeWrites()
     const result = await getAlicizationBridge().retrieveMemoryFacts({ query, limit }).catch(() => null)
     if (result)
       return result
   }
 
-  const facts = await getFacts()
+  const facts = await normalizeLocalArchiveIntoFacts()
   if (!query.trim() || facts.length === 0)
     return []
 
@@ -337,81 +622,65 @@ export async function retrieveFacts(query: string, limit = 6) {
   }))
 }
 
-function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {
-  const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
-  const timeDecay = Math.min(1, ageDays / 30)
-  const accessFrequencyNorm = Math.min(1, fact.accessCount / 12)
-  const confidenceNorm = clamp01(fact.confidence)
-  return timeDecay * (1 - accessFrequencyNorm) * (1 - confidenceNorm)
-}
-
 export async function runMemoryPrune() {
   await ensureRuntimeMemoryMigration()
 
   if (shouldUseRuntimeMemoryBackend()) {
+    const queueState = await flushPendingRuntimeWrites()
     const stats = await getAlicizationBridge().runMemoryPrune().catch(() => null)
     if (stats)
-      return stats
+      return {
+        ...stats,
+        pendingSyncCount: queueState.pending,
+      }
   }
 
   const currentTs = now()
-  const thresholdArchive = 0.72
-  const thresholdDelete = 0.92
-  const maxArchiveRetentionDays = 30
+  const facts = await normalizeLocalArchiveIntoFacts()
+  const tierCounts = deriveMemoryTierCounts(facts, currentTs)
+  const pending = (await getPendingRuntimeWrites()).length
 
-  const facts = await getFacts()
-  const archive = await getArchive()
-
-  const keepFacts: AlicizationMemoryFact[] = []
-  const archivedFacts: AlicizationMemoryArchiveRecord[] = [...archive]
-
-  for (const fact of facts) {
-    const score = computePruneScore(fact, currentTs)
-    const daysSinceAccess = fact.lastAccessAt == null ? Number.POSITIVE_INFINITY : (currentTs - fact.lastAccessAt) / dayMs
-
-    if (score >= thresholdDelete && daysSinceAccess >= 30) {
-      continue
-    }
-
-    if (score >= thresholdArchive && daysSinceAccess >= 14) {
-      archivedFacts.push({
-        ...fact,
-        archivedAt: currentTs,
-      })
-      continue
-    }
-
-    keepFacts.push(fact)
-  }
-
-  const filteredArchive = archivedFacts.filter(record => ((currentTs - record.archivedAt) / dayMs) <= maxArchiveRetentionDays)
-
-  await saveFacts(keepFacts)
-  await saveArchive(filteredArchive)
   await saveMeta({ lastPrunedAt: currentTs })
 
-  return await getMemoryStats()
+  return {
+    total: facts.length,
+    active: facts.length,
+    archived: tierCounts.cold,
+    tierCounts,
+    pendingSyncCount: pending,
+    integrity: deriveMemoryIntegrity(facts, pending),
+    lastPrunedAt: currentTs,
+  }
 }
 
 export async function getMemoryStats(): Promise<AlicizationMemoryStats> {
   await ensureRuntimeMemoryMigration()
 
   if (shouldUseRuntimeMemoryBackend()) {
+    const queueState = await flushPendingRuntimeWrites()
     const stats = await getAlicizationBridge().getMemoryStats().catch(() => null)
     if (stats)
-      return stats
+      return {
+        ...stats,
+        pendingSyncCount: queueState.pending,
+      }
   }
 
-  const [facts, archive, meta] = await Promise.all([
-    getFacts(),
-    getArchive(),
+  const [facts, meta] = await Promise.all([
+    normalizeLocalArchiveIntoFacts(),
     getMeta(),
   ])
+  const currentTs = now()
+  const tierCounts = deriveMemoryTierCounts(facts, currentTs)
+  const pending = (await getPendingRuntimeWrites()).length
 
   return {
-    total: facts.length + archive.length,
+    total: facts.length,
     active: facts.length,
-    archived: archive.length,
+    archived: tierCounts.cold,
+    tierCounts,
+    pendingSyncCount: pending,
+    integrity: deriveMemoryIntegrity(facts, pending),
     lastPrunedAt: meta.lastPrunedAt ?? null,
   }
 }

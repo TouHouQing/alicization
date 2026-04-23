@@ -184,6 +184,7 @@ export interface OrganicMemoryPromptContext {
   consolidatedMemories?: Array<{
     id: string
     kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
+    facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
     periodKey: string
     periodStartedAt: number
     periodEndedAt: number
@@ -212,6 +213,72 @@ export interface OrganicMemoryPromptContext {
     certainty: 'firm' | 'approximate' | 'fragmentary'
     rationale: string
     confidence: number
+  } | null
+  recollectionSpeechPlan?: {
+    shouldSurface: boolean
+    surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
+    placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    internalLead: string
+    visibleLead: string | null
+    styleNote: string
+    rationale: string
+    confidence: number
+  } | null
+  memoryDeliberation?: {
+    shouldRecall: boolean
+    selectedConsolidationIds: string[]
+    selectedWindowIds: string[]
+    selectedProcedureIds: string[]
+    selectedEpisodeIds: string[]
+    selectedConversationTurnIds: string[]
+    selectedRelationshipLines: string[]
+    selectedPeriods: Array<{
+      id: string
+      kind: 'window' | 'consolidation'
+      summary: string
+    }>
+    selectedEpisodes: Array<{
+      id: string
+      summary: string
+      provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    }>
+    selectedProcedures: Array<{
+      id: string
+      label: string
+      approach: string
+    }>
+    selectedBundles: Array<{
+      id: string
+      summary: string
+      rationale: string
+      confidence: number
+      periodId?: string | null
+      episodeId?: string | null
+      procedureId?: string | null
+      conversationTurnId?: string | null
+      relationshipLine?: string | null
+    }>
+    selectedChains: Array<{
+      id: string
+      kind: 'task-procedure-relationship-stance' | 'period-event-lesson-posture'
+      summary: string
+      rationale: string
+      confidence: number
+      taskCue?: string | null
+      periodSummary?: string | null
+      eventSummary?: string | null
+      procedureSummary?: string | null
+      relationshipMeaning?: string | null
+      lesson?: string | null
+      currentStance?: string | null
+      answerPosture?: string | null
+    }>
+    surfacePolicy: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
+    confidence: number
+    whyNow: string
+    inwardLine: string
+    visibleLine?: string | null
   } | null
   proceduralMemories?: Array<{
     id: string

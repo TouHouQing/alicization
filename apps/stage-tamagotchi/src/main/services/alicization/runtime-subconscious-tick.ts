@@ -1,5 +1,6 @@
 import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './autonomy-actuation'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
+import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
 
 export function createAlicizationSubconsciousTickRuntime(options: any) {
   const {
@@ -630,6 +631,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         proactive = true
         const turnId = `subconscious:${activeCardId}:${now}`
         let structured: any = null
+        let deliveryDecision = decision
         if (autonomyExecutionProposalSurface) {
           const performanceManifest = await getPerformanceManifest()
           const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
@@ -679,11 +681,25 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           const organicPromptContext = await resolveOrganicMemoryPromptContext({
             recallSeed: proactiveRecallSeed,
           })
+          const sociallyAdjustedDecision = {
+            ...decision,
+            style: adjustProactiveStyleFromHostPersonModel({
+              currentStyle: decision.style,
+              hostPersonModel: organicPromptContext.hostPersonModel ?? null,
+              contexts: inferHostSocialContextsFromText([
+                decision.scenario,
+                layeredContext.workload.kind,
+                layeredContext.content.kind,
+                proactiveRecallSeed,
+              ].filter(Boolean).join(' ')),
+            }),
+          }
+          deliveryDecision = sociallyAdjustedDecision
           const llmStructured = await generateProactiveStructuredWithGateway(
             personality,
             nextState,
             layeredContext,
-            decision,
+            sociallyAdjustedDecision,
             organicPromptContext,
             perceptionState,
             visualPresenceState,
@@ -696,13 +712,14 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             personality,
             nextState,
             layeredContext,
-            decision,
+            sociallyAdjustedDecision,
             perceptionState,
             visualPresenceState,
             {
               customDirectives: personaContext.customDirectives,
               coreIncarnation: organicPromptContext.coreIncarnation,
               hostAttitude: organicPromptContext.hostAttitude,
+              hostPersonModel: organicPromptContext.hostPersonModel ?? null,
             },
           )
           const performanceManifest = await getPerformanceManifest()
@@ -725,7 +742,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               payload: {
                 decision: {
                   scenario: decision.scenario,
-                  style: decision.style,
+                  style: deliveryDecision.style,
                   urgency: decision.urgency,
                   confidence: decision.confidence,
                 },
@@ -745,7 +762,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               payload: {
                 decision: {
                   scenario: decision.scenario,
-                  style: decision.style,
+                  style: deliveryDecision.style,
                   urgency: decision.urgency,
                   confidence: decision.confidence,
                 },
@@ -801,13 +818,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 shouldInterrupt: decision.shouldInterrupt,
                 confidence: decision.confidence,
                 urgency: decision.urgency,
-                style: decision.style,
+                style: deliveryDecision.style,
                 cooldownMs: decision.cooldownMs,
                 scenario: decision.scenario,
                 policyVersion: decision.policyVersion,
               },
               reasonCodes: decision.reasonCodes,
-              style: decision.style,
+              style: deliveryDecision.style,
               format: structured.format,
               proactive: structured.proactive ?? null,
               emotion: structured.emotion,

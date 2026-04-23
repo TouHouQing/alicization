@@ -443,4 +443,99 @@ describe('response-surface-contract', () => {
     expect(result.contract.mustDo).toContain('If the turn is asking how something was previously handled, surface the remembered way of doing it before proposing a new branch.')
     expect(result.contract.mustNotDo).toContain('Do not speak as if remembered procedure means the current task already finished in this turn.')
   })
+
+  it('keeps recollection internal when the speech plan says the memory should stay inward', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: 'runtime seam',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer from carried continuity without narrating a retrospective.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      recollectionSpeechPlan: {
+        shouldSurface: false,
+        surfaceMode: 'internal-only',
+        placement: 'internal-only',
+        certainty: 'approximate',
+        internalLead: 'What returns first is the runtime seam we kept carrying.',
+        visibleLead: null,
+        styleNote: 'Let the memory bend the answer without announcing the memory itself.',
+        rationale: 'The host needs the answer shaped by continuity, not a retrospective.',
+        confidence: 0.78,
+      },
+    })
+
+    expect(result.contract.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
+    expect(result.contract.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
+  })
+
+  it('adds model-authored recollection surface guidance when the speech plan wants brief visible memory', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: '',
+        carriedThread: 'remembered procedure',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Use remembered procedure as continuity for the answer.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      recollectionSpeechPlan: {
+        shouldSurface: true,
+        surfaceMode: 'procedural-carry',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        internalLead: 'The remembered way through this is to return to the same seam first.',
+        visibleLead: 'I mostly remember handling this by returning to the same seam before branching.',
+        styleNote: 'Let the remembered procedure sit inside the answer instead of becoming a separate memory monologue.',
+        rationale: 'The host is explicitly asking how this used to be handled.',
+        confidence: 0.83,
+      },
+    })
+
+    expect(result.contract.mustDo).toContain('Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
+    expect(result.contract.mustDo).toContain('Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
+    expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
+  })
 })

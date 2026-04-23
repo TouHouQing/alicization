@@ -217,6 +217,7 @@ function buildPrivateThoughtTextFromSpine(
 ) {
   const fallback = digest.memory?.summary
     || digest.memory?.recentEpisodeSummary
+    || digest.memory?.recollectionSummary
     || digest.continuitySignal?.summary
     || digest.architecture?.summary
     || digest.runtime.sceneSummary
@@ -233,6 +234,8 @@ function buildPrivateThoughtTextFromSpine(
   return sanitizeBriefText([
     digest.memory?.summary,
     digest.memory?.recentEpisodeSummary,
+    digest.memory?.recollectionSummary,
+    digest.memory?.recollectionSurfaceSummary,
     digest.memory?.thoughtThreadSummary,
     carrySummary,
     carrySeed,
@@ -259,6 +262,7 @@ function buildPrivateThoughtReasonTagsFromSpine(
     digest.runtime.answerIntent ? `answer:${sanitizeBriefText(digest.runtime.answerIntent, 40)}` : '',
     digest.proactive?.selectedAction ? `action:${sanitizeBriefText(digest.proactive.selectedAction, 40)}` : '',
     digest.memory?.recallMode ? `recall:${sanitizeBriefText(digest.memory.recallMode, 40)}` : '',
+    digest.memory?.recollectionSummary ? `recollection:${sanitizeBriefText(digest.memory.recollectionSummary, 40)}` : '',
     digest.memory?.leadingGoalSummary ? `goal:${sanitizeBriefText(digest.memory.leadingGoalSummary, 40)}` : '',
   ].filter(Boolean)
 

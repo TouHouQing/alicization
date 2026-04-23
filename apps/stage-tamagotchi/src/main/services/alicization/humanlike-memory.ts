@@ -21,6 +21,8 @@ const routinePattern = /habit|routine|always|usually|often|习惯|经常|总是|
 const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
 const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪伴|靠近/iu
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
+const positiveMemoryPolarityPattern = /trust up|closer|lighter|gentle|useful|accepted|received|repair|soft|safe|靠近|变轻|被接住|有用|接受|修复|更稳/u
+const negativeMemoryPolarityPattern = /trust down|intrusive|doubted|denied|pressure|heavy|failed|robotic|not this|boundary|down|拒绝|怀疑|压迫|打扰|失败|机械|不是这个|边界/u
 
 type AlicizationHostPersonClosenessPreference = AlicizationHostPersonModelSnapshot['preferredClosenessByContext'][number]
 
@@ -374,6 +376,76 @@ export function deriveMemoryInterferencePenalty(input: {
       penalty += 0.08
   }
   return clamp01(penalty)
+}
+
+function eventShiftDirection(event: AlicizationEpisodicEventRecord) {
+  const shift = event.relationshipShift
+  if (!shift)
+    return 0
+  return shift.trustDelta + shift.closenessDelta - Math.max(0, shift.burdenDelta) - Math.max(0, -shift.boundaryDelta)
+}
+
+function eventMemoryPolarity(event: AlicizationEpisodicEventRecord) {
+  const text = `${event.whatHappened} ${event.whatChanged ?? ''} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`.toLowerCase()
+  const positive = positiveMemoryPolarityPattern.test(text) ? 1 : 0
+  const negative = negativeMemoryPolarityPattern.test(text) ? 1 : 0
+  if (positive > negative)
+    return 1
+  if (negative > positive)
+    return -1
+  return 0
+}
+
+export function deriveMemoryContradictionSignal(input: {
+  current: AlicizationEpisodicEventRecord
+  strongerMatches: AlicizationEpisodicEventRecord[]
+}) {
+  const currentAnchor = `${input.current.threadAnchor ?? ''} ${input.current.whereSummary ?? ''}`.trim().toLowerCase()
+  const currentShift = eventShiftDirection(input.current)
+  const currentPolarity = eventMemoryPolarity(input.current)
+  const conflictingIds: string[] = []
+  let penalty = 0
+
+  for (const candidate of input.strongerMatches) {
+    const candidateAnchor = `${candidate.threadAnchor ?? ''} ${candidate.whereSummary ?? ''}`.trim().toLowerCase()
+    const anchorOverlap = Boolean(
+      currentAnchor
+      && candidateAnchor
+      && (
+        currentAnchor === candidateAnchor
+        || currentAnchor.includes(candidateAnchor)
+        || candidateAnchor.includes(currentAnchor)
+      ),
+    )
+    const sharedThread = Boolean(
+      input.current.threadAnchor
+      && candidate.threadAnchor
+      && input.current.threadAnchor === candidate.threadAnchor,
+    )
+    const candidateShift = eventShiftDirection(candidate)
+    const oppositeShift = Math.abs(currentShift) >= 0.04
+      && Math.abs(candidateShift) >= 0.04
+      && currentShift * candidateShift < 0
+    const candidatePolarity = eventMemoryPolarity(candidate)
+    const oppositePolarity = currentPolarity !== 0 && candidatePolarity !== 0 && currentPolarity !== candidatePolarity
+
+    if (!(anchorOverlap || sharedThread))
+      continue
+    if (!(oppositeShift || oppositePolarity))
+      continue
+
+    conflictingIds.push(candidate.id)
+    penalty += oppositeShift ? 0.06 : 0.04
+  }
+
+  return {
+    conflictingIds,
+    penalty: clamp01(penalty),
+    unresolved: conflictingIds.length > 0,
+    reason: conflictingIds.length > 0
+      ? 'Conflicting remembered variants exist for the same thread, so keep this recall approximate rather than certain.'
+      : '',
+  }
 }
 
 export function computeMemoryRecencyWeight(timestamp: number, now: number, halfLifeDays = 21) {

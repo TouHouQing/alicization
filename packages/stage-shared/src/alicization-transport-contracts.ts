@@ -881,10 +881,13 @@ export interface AlicizationMindTurnGovernance {
 
 export type AlicizationMindTurnEventKind
   = | 'governance-normalized'
+    | 'recall-attribution'
     | 'takeover-audit'
     | 'persistence-written'
     | 'dialogue-emitted'
+    | 'reply-memory-coherence'
     | 'memory-facts-upserted'
+    | 'memory-reconsolidated'
 
 export interface AlicizationMindTurnEventInput {
   decisionTraceId: string
@@ -1190,6 +1193,9 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
   reflectionPressure: number | null
   recallMode: string | null
   recallSeed: string | null
+  recollectionSummary?: string | null
+  recollectionSurfaceSummary?: string | null
+  recollectionConfidence?: number | null
   thoughtThreadSummary: string | null
   longHorizonSummary?: string | null
   rememberedPreferenceSummary?: string | null
@@ -1951,6 +1957,9 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           reflectionPressure: normalizeAlicizationDigitalLifeDigestUnit(memoryCandidate.reflectionPressure),
           recallMode: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recallMode, 48) || null,
           recallSeed: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recallSeed, 160) || null,
+          recollectionSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recollectionSummary, 220) || null,
+          recollectionSurfaceSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.recollectionSurfaceSummary, 220) || null,
+          recollectionConfidence: normalizeAlicizationDigitalLifeDigestUnit(memoryCandidate.recollectionConfidence),
           thoughtThreadSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.thoughtThreadSummary, 160) || null,
           longHorizonSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.longHorizonSummary, 180) || null,
           rememberedPreferenceSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedPreferenceSummary, 180) || null,

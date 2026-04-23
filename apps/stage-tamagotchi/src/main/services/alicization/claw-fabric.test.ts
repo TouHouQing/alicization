@@ -154,6 +154,37 @@ describe('buildClawFabricPlan', () => {
     ]))
   })
 
+  it('lets remembered procedure continuity bias routing before a fresh plan is authored', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the runtime continuity seam and verify it.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
+      experience: {
+        rememberedProcedures: [{
+          id: 'procedural:runtime-seam',
+          sourceKind: 'procedural',
+          facet: null,
+          label: 'runtime seam repair',
+          approach: 'Use Claude Code first for the patch, then verify the seam before branching.',
+          pitfalls: ['Do not branch before verify.'],
+          confidence: 0.92,
+          cues: ['patch', 'verify', 'runtime seam'],
+          preferredChannel: 'claude-code',
+          preferredChannelReason: 'remembered-procedure-mentioned-channel:claude-code',
+        }],
+      },
+    })
+
+    expect(plan.state).toBe('routed')
+    expect(plan.selectedChannel).toBe('claude-code')
+    expect(plan.reasonTags).toContain('remembered-procedure-channel')
+    expect(plan.narrative.join(' ')).toContain('Routing reused remembered procedure')
+  })
+
   it('respects external advisor channel hints when confidence is high', () => {
     const plan = buildClawFabricPlan({
       task: {

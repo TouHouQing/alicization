@@ -84,7 +84,8 @@ const episodicEvents = new Map<string, {
 }>()
 const memoryConsolidations = new Map<string, {
   id: string
-  kind: 'daily' | 'weekly' | 'procedural'
+  kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
+  facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
   period_key: string
   period_started_at: number
   period_ended_at: number
@@ -133,12 +134,72 @@ const scheduledTasks = new Map<string, {
   fired_turn_id: string | null
   last_error: string | null
 }>()
+const memoryFacts = new Map<string, {
+  id: string
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  source: string
+  dedupe_key: string
+  created_at: number
+  updated_at: number
+  last_access_at: number | null
+  access_count: number
+}>()
+const memoryArchive = new Map<string, {
+  id: string
+  original_id: string | null
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  source: string
+  dedupe_key: string
+  created_at: number
+  updated_at: number
+  last_access_at: number | null
+  access_count: number
+  archived_at: number
+}>()
+const testDayMs = 24 * 60 * 60 * 1000
 const sandboxDirs: string[] = []
 
 async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-db-test-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+function upsertMemoryFactRow(row: {
+  id: string
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  source: string
+  dedupe_key: string
+  created_at: number
+  updated_at: number
+  last_access_at: number | null
+  access_count: number
+}) {
+  const existing = [...memoryFacts.values()].find(item => item.dedupe_key === row.dedupe_key)
+  if (!existing) {
+    memoryFacts.set(row.id, row)
+    return
+  }
+
+  existing.confidence = Math.max(existing.confidence, row.confidence)
+  existing.source = row.source
+  existing.created_at = Math.min(existing.created_at, row.created_at)
+  existing.updated_at = Math.max(existing.updated_at, row.updated_at)
+  existing.last_access_at = existing.last_access_at == null
+    ? row.last_access_at
+    : row.last_access_at == null
+      ? existing.last_access_at
+      : Math.max(existing.last_access_at, row.last_access_at)
+  existing.access_count = Math.max(existing.access_count, row.access_count)
 }
 
 class FakeSqliteDatabase {
@@ -157,6 +218,54 @@ class FakeSqliteDatabase {
       if (typeof key === 'string' && typeof value === 'string') {
         metaState.set(key, value)
       }
+    }
+
+    if (sql.includes('INSERT INTO memory_facts')) {
+      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount]
+        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number]
+      upsertMemoryFactRow({
+        id,
+        subject,
+        predicate,
+        object,
+        confidence,
+        source,
+        dedupe_key: dedupeKey,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        last_access_at: lastAccessAt ?? null,
+        access_count: accessCount,
+      })
+    }
+    else if (sql.includes('UPDATE memory_facts')) {
+      const [accessCount, lastAccessAt, id] = actualParams as [number, number | null, string]
+      const fact = memoryFacts.get(id)
+      if (!fact) {
+        changes = 0
+      }
+      else {
+        fact.access_count = accessCount
+        fact.last_access_at = lastAccessAt ?? null
+      }
+    }
+    else if (sql.includes('INSERT INTO memory_archive')) {
+      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, archivedAt]
+        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, number]
+      memoryArchive.set(id, {
+        id,
+        original_id: originalId ?? null,
+        subject,
+        predicate,
+        object,
+        confidence,
+        source,
+        dedupe_key: dedupeKey,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        last_access_at: lastAccessAt ?? null,
+        access_count: accessCount,
+        archived_at: archivedAt,
+      })
     }
 
     if (sql.includes('INSERT INTO mind_turn_events')) {
@@ -330,11 +439,12 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_consolidations')) {
-      const [id, kind, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, updatedAt]
-        = actualParams as [string, 'daily' | 'weekly' | 'procedural', string, number, number, string, string | null, string | null, number, string, string | null, number]
+      const [id, kind, facet, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, updatedAt]
+        = actualParams as [string, 'daily' | 'weekly' | 'procedural' | 'autobiographical', 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null, string, number, number, string, string | null, string | null, number, string, string | null, number]
       memoryConsolidations.set(id, {
         id,
         kind,
+        facet: facet ?? null,
         period_key: periodKey,
         period_started_at: periodStartedAt,
         period_ended_at: periodEndedAt,
@@ -457,6 +567,27 @@ class FakeSqliteDatabase {
     else if (sql.includes('DELETE FROM scheduled_tasks')) {
       scheduledTasks.clear()
     }
+    else if (sql.includes('DELETE FROM memory_archive')) {
+      if (sql.includes('archived_at < ?')) {
+        const [retentionLimit] = actualParams as [number]
+        for (const [id, item] of memoryArchive.entries()) {
+          if (item.archived_at < retentionLimit)
+            memoryArchive.delete(id)
+        }
+      }
+      else {
+        memoryArchive.clear()
+      }
+    }
+    else if (sql.includes('DELETE FROM memory_facts')) {
+      if (sql.includes('WHERE id IN (')) {
+        for (const id of actualParams as string[])
+          memoryFacts.delete(id)
+      }
+      else {
+        memoryFacts.clear()
+      }
+    }
     else if (sql.includes('DELETE FROM task_threads')) {
       taskThreads.clear()
     }
@@ -519,12 +650,12 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('COUNT(1) AS total FROM memory_facts')) {
-      actualCallback?.(null, { total: 0 })
+      actualCallback?.(null, { total: memoryFacts.size })
       return this
     }
 
     if (sql.includes('COUNT(1) AS total FROM memory_archive')) {
-      actualCallback?.(null, { total: 0 })
+      actualCallback?.(null, { total: memoryArchive.size })
       return this
     }
 
@@ -554,6 +685,14 @@ class FakeSqliteDatabase {
   all(_sql: string, _params: unknown[] | ((error: Error | null, rows?: unknown[]) => void), callback?: (error: Error | null, rows?: unknown[]) => void) {
     const actualParams = Array.isArray(_params) ? _params : []
     const actualCallback = (typeof _params === 'function' ? _params : callback) as ((error: Error | null, rows?: unknown[]) => void) | undefined
+    if (_sql.includes('FROM memory_archive')) {
+      actualCallback?.(null, [...memoryArchive.values()])
+      return this
+    }
+    if (_sql.includes('FROM memory_facts')) {
+      actualCallback?.(null, [...memoryFacts.values()])
+      return this
+    }
     if (_sql.includes('FROM scheduled_tasks') && _sql.includes('status = \'pending\'') && _sql.includes('trigger_at <= ?')) {
       const [nowMs, limit] = actualParams as [number, number]
       const rows = [...scheduledTasks.values()]
@@ -819,6 +958,8 @@ describe('alicization sqlite dao', () => {
     executionEvents.length = 0
     episodicEvents.clear()
     memoryConsolidations.clear()
+    memoryFacts.clear()
+    memoryArchive.clear()
     executorSessions.clear()
     capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
@@ -918,6 +1059,188 @@ describe('alicization sqlite dao', () => {
     expect(rows[0]?.latestReconsolidation?.emotionTags).toContain('repair')
   })
 
+  it('keeps contradictory remembered variants without deleting them and lowers certainty on recall', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        cardId: 'card-1',
+        turnId: 'turn-contradiction-1',
+        sessionId: 'session-1',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: 1_000,
+        whereSummary: 'runtime callback',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'The runtime seam callback landed cleanly and the host treated it as useful.',
+        felt: 'steady',
+        emotionTags: ['validated'],
+        whatChanged: 'trust up 0.08',
+        relationshipMeaning: 'Direct result reporting felt useful here.',
+        lesson: 'Direct callback reporting can stay clear when the result is useful.',
+        confidence: 0.9,
+        salience: 0.88,
+        sceneAttachment: 0.42,
+        consolidationPriority: 0.82,
+        relationshipShift: {
+          closenessDelta: 0.03,
+          trustDelta: 0.08,
+          burdenDelta: -0.02,
+          boundaryDelta: 0.02,
+          misreadDelta: -0.02,
+          repairDelta: 0.02,
+          openLoopDelta: 0.02,
+        },
+        tags: ['execution-result', 'direct-callback'],
+      },
+      {
+        cardId: 'card-1',
+        turnId: 'turn-contradiction-2',
+        sessionId: 'session-2',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: 2_000,
+        whereSummary: 'runtime callback',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'The runtime seam callback felt intrusive and the host doubted the direct report.',
+        felt: 'tense',
+        emotionTags: ['boundary'],
+        whatChanged: 'trust down 0.08, burden up 0.06',
+        relationshipMeaning: 'Direct result reporting felt too heavy in this opening.',
+        lesson: 'Use lighter callback openings and more verification when this same seam feels intrusive.',
+        confidence: 0.88,
+        salience: 0.9,
+        sceneAttachment: 0.4,
+        consolidationPriority: 0.84,
+        relationshipShift: {
+          closenessDelta: -0.02,
+          trustDelta: -0.08,
+          burdenDelta: 0.06,
+          boundaryDelta: -0.06,
+          misreadDelta: 0.04,
+          repairDelta: 0.02,
+          openLoopDelta: 0,
+        },
+        tags: ['execution-result', 'intrusive-callback'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: 'runtime seam callback',
+      threadAnchors: ['runtime seam'],
+      relationshipAnchors: ['host'],
+      carryAsMemory: true,
+    })
+
+    expect(await db.listRecentEpisodicEvents(8)).toHaveLength(2)
+    expect(rows.length).toBeGreaterThan(0)
+    const conflicted = rows.find(row => row.latestReconsolidation?.provenance === 'reconstructed') ?? rows[0]
+    expect(conflicted?.whatHappened).toContain('runtime seam callback')
+    expect(conflicted?.latestReconsolidation?.provenance).toBe('reconstructed')
+    expect(conflicted?.latestReconsolidation?.reason).toContain('Conflicting remembered variants')
+    expect(conflicted?.latestReconsolidation?.emotionTags).toContain('contradiction-pressure')
+    expect(conflicted?.lesson).toContain('answer this memory with uncertainty')
+  })
+
+  it('prioritizes a feedback-reconsolidated memory on the next similar recall', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-shell',
+        cardId: 'card-1',
+        turnId: 'turn-shell',
+        sessionId: 'session-1',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: 3_000,
+        whereSummary: 'runtime continuity thread',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'I stayed smooth and generic on the runtime continuity line, and the reply drifted toward a shell.',
+        felt: 'steady but distant',
+        emotionTags: ['shell', 'generic'],
+        whatChanged: 'The thread stayed coherent, but the surface became too polished.',
+        relationshipMeaning: 'A smooth shell can still miss the living line.',
+        lesson: 'Do not over-polish this runtime continuity thread into a generic shell.',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.38,
+        consolidationPriority: 0.72,
+        tags: ['runtime-continuity', 'generic-shell'],
+      },
+      {
+        id: 'episode-corrected',
+        cardId: 'card-1',
+        turnId: 'turn-corrected',
+        sessionId: 'session-2',
+        sourceKind: 'dialogue-feedback',
+        provenance: 'remembered',
+        occurredAt: 1_000,
+        whereSummary: 'runtime continuity repair',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'The host corrected me for sounding robotic on the same runtime continuity line, so I had to answer more directly.',
+        felt: 'stung but clearer',
+        emotionTags: ['robotic', 'repair'],
+        whatChanged: 'The thread needed lived-in directness instead of a smooth shell.',
+        relationshipMeaning: 'This line lands better when I stay direct and lived-in instead of polished.',
+        lesson: 'When the host corrects the tone on this thread, answer more directly and stop sounding like a shell.',
+        confidence: 0.78,
+        salience: 0.72,
+        sceneAttachment: 0.34,
+        consolidationPriority: 0.74,
+        tags: ['runtime-continuity', 'tone-correction'],
+      },
+    ])
+
+    await db.searchEpisodicEvents({
+      recallSeed: 'robotic shell on the runtime continuity line',
+      limit: 1,
+      sessionId: 'session-2',
+      turnId: 'turn-corrected',
+      threadAnchors: ['runtime continuity'],
+      affectAnchors: ['feedback:robotic', 'repair-pressure'],
+      relationshipAnchors: ['host correction', 'reply-memory-coherence:missed'],
+      carryAsMemory: true,
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['runtime continuity', 'robotic', 'directness'],
+        rationale: 'The host corrected which remembered reply style fits this same thread.',
+        confidence: 0.82,
+      },
+    })
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: 'continue the runtime continuity line the lived-in direct way',
+      threadAnchors: ['runtime continuity'],
+      carryAsMemory: true,
+      relationshipAnchors: ['host correction'],
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: true,
+        queryHints: ['runtime continuity', 'continue', 'direct', 'lived-in', 'host correction'],
+        rationale: 'Recall the remembered way this same thread should now be answered.',
+        confidence: 0.8,
+      },
+      limit: 2,
+    })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.id).toBe('episode-corrected')
+    expect(rows[0]?.latestReconsolidation?.at).toBeGreaterThan(0)
+    expect(rows[0]?.reconsolidationCount).toBeGreaterThan(0)
+    expect(rows[0]?.lesson).toContain('answer more directly')
+    await db.close()
+  })
+
   it('rebuilds and retrieves consolidated memory summaries from episodic events', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.appendEpisodicEvents([
@@ -962,6 +1285,186 @@ describe('alicization sqlite dao', () => {
     expect(rows.length).toBeGreaterThan(0)
     expect(rows.some(row => row.kind === 'daily')).toBe(true)
     expect(rows[0]?.summary).toContain('runtime continuity')
+  })
+
+  it('persists autobiographical consolidation facets and prefers matching relationship eras during recall', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertMemoryConsolidations([
+      {
+        id: 'autobio:relationship-era:runtime',
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        periodKey: '2026-04-runtime-bond',
+        periodStartedAt: new Date('2026-04-17T09:00:00Z').getTime(),
+        periodEndedAt: new Date('2026-04-18T10:00:00Z').getTime(),
+        summary: 'That relationship era was about keeping close while not crowding the host during runtime repair.',
+        lesson: 'Repair before closeness turns into pressure.',
+        cues: ['runtime repair', 'close without crowding'],
+        confidence: 0.86,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-1'],
+        updatedAt: Date.now(),
+      },
+      {
+        id: 'autobio:task-era:runtime',
+        kind: 'autobiographical',
+        facet: 'task-era',
+        periodKey: '2026-04-runtime-task',
+        periodStartedAt: new Date('2026-04-17T09:00:00Z').getTime(),
+        periodEndedAt: new Date('2026-04-18T10:00:00Z').getTime(),
+        summary: 'That task era kept returning to runtime continuity until the seam held.',
+        lesson: 'Return to the seam before branching.',
+        cues: ['runtime continuity', 'return to seam'],
+        confidence: 0.82,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['event-2'],
+        updatedAt: Date.now(),
+      },
+    ])
+
+    const rows = await db.searchMemoryConsolidations({
+      query: 'how was our relationship around runtime repair',
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['runtime repair', 'close without crowding'],
+        rationale: 'Need the bond-era memory first.',
+        confidence: 0.88,
+      },
+    })
+
+    expect(rows[0]?.facet).toBe('relationship-era')
+    expect(rows[0]?.lesson).toContain('Repair before closeness')
+    expect(rows.some(row => row.facet === 'task-era')).toBe(true)
+  })
+
+  it('restores legacy archive rows into active memory facts so old recall stays searchable', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const snapshot: AlicizationMemoryLegacySnapshot = {
+      facts: [],
+      archive: [{
+        id: 'archive-memory-1',
+        subject: 'alice',
+        predicate: 'procedure',
+        object: 'Previously fixed the runtime seam by replaying the cli patch flow.',
+        confidence: 0.74,
+        source: 'async-llm',
+        dedupeKey: 'alice|procedure|cli-patch-flow',
+        createdAt: nowTs - 12 * testDayMs,
+        updatedAt: nowTs - 12 * testDayMs,
+        lastAccessAt: nowTs - 7 * testDayMs,
+        accessCount: 2,
+        archivedAt: nowTs - 2 * testDayMs,
+        provenance: 'remembered',
+      }],
+      lastPrunedAt: null,
+    }
+
+    await db.importLegacyMemory(snapshot)
+
+    const recalled = await db.retrieveMemoryFacts('cli patch flow', 5)
+    const stats = await db.getMemoryStats()
+
+    expect(recalled).toHaveLength(1)
+    expect(recalled[0]?.object).toContain('cli patch flow')
+    expect(stats.total).toBe(1)
+    expect(stats.active).toBe(1)
+    expect(stats.archived).toBe(0)
+    expect(memoryArchive.size).toBe(0)
+
+    await db.close()
+  })
+
+  it('treats runMemoryPrune as non-destructive salience refresh instead of deleting old facts', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const snapshot: AlicizationMemoryLegacySnapshot = {
+      facts: [
+        {
+          id: 'memory-cold-1',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'An older shell repair happened around the runtime seam.',
+          confidence: 0.22,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|older-runtime-seam',
+          createdAt: nowTs - 45 * testDayMs,
+          updatedAt: nowTs - 45 * testDayMs,
+          lastAccessAt: nowTs - 45 * testDayMs,
+          accessCount: 0,
+          provenance: 'remembered',
+        },
+        {
+          id: 'memory-hot-1',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'The recent runtime seam patch is still familiar.',
+          confidence: 0.86,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|recent-runtime-seam',
+          createdAt: nowTs - testDayMs,
+          updatedAt: nowTs - testDayMs,
+          lastAccessAt: nowTs - 12 * 60 * 60 * 1000,
+          accessCount: 4,
+          provenance: 'remembered',
+        },
+      ],
+      archive: [],
+      lastPrunedAt: null,
+    }
+
+    await db.importLegacyMemory(snapshot)
+
+    const refreshed = await db.runMemoryPrune()
+
+    expect(refreshed.total).toBe(2)
+    expect(refreshed.active).toBe(2)
+    expect(refreshed.archived).toBe(1)
+    expect(refreshed.tierCounts).toEqual({
+      hot: 1,
+      warm: 0,
+      cold: 1,
+    })
+    expect(refreshed.integrity?.status).toBe('ok')
+    expect(memoryFacts.has('memory-cold-1')).toBe(true)
+    expect(memoryFacts.size).toBe(2)
+
+    await db.close()
+  })
+
+  it('keeps cold memories reachable under vague cues instead of letting age decay erase them', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.importLegacyMemory({
+      facts: [
+        {
+          id: 'memory-cold-seam',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'old runtime seam repair rhythm',
+          confidence: 0.82,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|old-runtime-seam-repair-rhythm',
+          createdAt: nowTs - 60 * testDayMs,
+          updatedAt: nowTs - 60 * testDayMs,
+          lastAccessAt: nowTs - 60 * testDayMs,
+          accessCount: 0,
+          provenance: 'remembered',
+        },
+      ],
+      archive: [],
+      lastPrunedAt: null,
+    })
+
+    const recalled = await db.retrieveMemoryFacts('same seam', 5)
+
+    expect(recalled.some(item => item.id === 'memory-cold-seam')).toBe(true)
+
+    await db.close()
   })
 
   it('runs legacy migration only once with marker', async () => {

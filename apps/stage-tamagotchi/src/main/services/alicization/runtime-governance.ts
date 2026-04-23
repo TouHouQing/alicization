@@ -1872,11 +1872,214 @@ export function coerceConversationTurnToMindGovernedPayload(
   }
 }
 
+export interface AlicizationMindTraceMemorySnapshot {
+  shouldRecall: boolean
+  surfacePolicy: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
+  confidence: number
+  whyNow: string
+  inwardLine: string
+  visibleLine?: string | null
+  recollectionIntentMode?: string | null
+  recollectionIntentTemporalFocus?: string | null
+  speechShouldSurface?: boolean | null
+  speechSurfaceMode?: string | null
+  speechPlacement?: string | null
+  selectedPeriods: Array<{
+    id: string
+    kind: 'window' | 'consolidation'
+    summary: string
+  }>
+  selectedEpisodes: Array<{
+    id: string
+    summary: string
+    provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+  }>
+  selectedProcedures: Array<{
+    id: string
+    label: string
+    approach: string
+  }>
+  selectedBundles: Array<{
+    id: string
+    summary: string
+    rationale: string
+    confidence: number
+    relationshipLine?: string | null
+  }>
+  selectedChains: Array<{
+    id: string
+    kind: 'task-procedure-relationship-stance' | 'period-event-lesson-posture'
+    summary: string
+    rationale: string
+    confidence: number
+    currentStance?: string | null
+    answerPosture?: string | null
+  }>
+  selectedRelationshipLines: string[]
+}
+
+function sanitizeMindTraceTelemetryText(raw: unknown, maxChars = 180) {
+  return sanitizeText(raw).slice(0, maxChars)
+}
+
+function extractMindTraceTokens(raw: string) {
+  const normalized = sanitizeMindTraceTelemetryText(raw, 220).toLowerCase()
+  if (!normalized)
+    return [] as string[]
+
+  const tokens = normalized.match(/[\p{Script=Han}]{1,6}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  return [...new Set(tokens.filter(token => token.length >= 2))].slice(0, 24)
+}
+
+function measureMindTraceCueOverlap(reply: string, cue: string) {
+  const normalizedReply = sanitizeMindTraceTelemetryText(reply, 320).toLowerCase()
+  const normalizedCue = sanitizeMindTraceTelemetryText(cue, 180).toLowerCase()
+  if (!normalizedReply || !normalizedCue)
+    return 0
+  if (normalizedReply.includes(normalizedCue))
+    return 1
+
+  const cueTokens = extractMindTraceTokens(normalizedCue)
+  if (cueTokens.length === 0)
+    return 0
+  const matchedTokenCount = cueTokens.filter(token => normalizedReply.includes(token)).length
+  return matchedTokenCount / cueTokens.length
+}
+
+function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemorySnapshot) {
+  return {
+    shouldRecall: snapshot.shouldRecall,
+    surfacePolicy: snapshot.surfacePolicy,
+    confidence: Number(clamp01(snapshot.confidence).toFixed(2)),
+    whyNow: sanitizeMindTraceTelemetryText(snapshot.whyNow, 240) || null,
+    inwardLine: sanitizeMindTraceTelemetryText(snapshot.inwardLine, 220) || null,
+    visibleLine: sanitizeMindTraceTelemetryText(snapshot.visibleLine, 220) || null,
+    recollectionIntentMode: sanitizeMindTraceTelemetryText(snapshot.recollectionIntentMode, 64) || null,
+    recollectionIntentTemporalFocus: sanitizeMindTraceTelemetryText(snapshot.recollectionIntentTemporalFocus, 64) || null,
+    speechShouldSurface: snapshot.speechShouldSurface ?? null,
+    speechSurfaceMode: sanitizeMindTraceTelemetryText(snapshot.speechSurfaceMode, 64) || null,
+    speechPlacement: sanitizeMindTraceTelemetryText(snapshot.speechPlacement, 64) || null,
+    selectedPeriods: snapshot.selectedPeriods.map(item => ({
+      id: item.id,
+      kind: item.kind,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+    })),
+    selectedEpisodes: snapshot.selectedEpisodes.map(item => ({
+      id: item.id,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+      provenance: item.provenance,
+    })),
+    selectedProcedures: snapshot.selectedProcedures.map(item => ({
+      id: item.id,
+      label: sanitizeMindTraceTelemetryText(item.label, 140),
+      approach: sanitizeMindTraceTelemetryText(item.approach, 180),
+    })),
+    selectedBundles: snapshot.selectedBundles.map(item => ({
+      id: item.id,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+      rationale: sanitizeMindTraceTelemetryText(item.rationale, 200),
+      confidence: Number(clamp01(item.confidence).toFixed(2)),
+      relationshipLine: sanitizeMindTraceTelemetryText(item.relationshipLine, 160) || null,
+    })),
+    selectedChains: snapshot.selectedChains.map(item => ({
+      id: item.id,
+      kind: item.kind,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+      rationale: sanitizeMindTraceTelemetryText(item.rationale, 200),
+      confidence: Number(clamp01(item.confidence).toFixed(2)),
+      currentStance: sanitizeMindTraceTelemetryText(item.currentStance, 180) || null,
+      answerPosture: sanitizeMindTraceTelemetryText(item.answerPosture, 180) || null,
+    })),
+    selectedRelationshipLines: snapshot.selectedRelationshipLines
+      .map(line => sanitizeMindTraceTelemetryText(line, 180))
+      .filter(Boolean),
+  }
+}
+
+function summarizeReplyMemoryCoherencePayload(input: {
+  reply: string
+  snapshot: AlicizationMindTraceMemorySnapshot
+}) {
+  const cues = [
+    ...input.snapshot.selectedPeriods.map(item => ({ kind: 'period', text: item.summary })),
+    ...input.snapshot.selectedEpisodes.map(item => ({ kind: 'episode', text: item.summary })),
+    ...input.snapshot.selectedProcedures.flatMap(item => ([
+      { kind: 'procedure', text: item.label },
+      { kind: 'procedure', text: item.approach },
+    ])),
+    ...input.snapshot.selectedBundles.flatMap(item => ([
+      { kind: 'bundle', text: item.summary },
+      { kind: 'bundle', text: item.relationshipLine ?? '' },
+    ])),
+    ...input.snapshot.selectedChains.flatMap(item => ([
+      { kind: 'chain', text: item.summary },
+      { kind: 'chain', text: item.currentStance ?? '' },
+      { kind: 'chain', text: item.answerPosture ?? '' },
+    ])),
+    ...input.snapshot.selectedRelationshipLines.map(line => ({ kind: 'relationship', text: line })),
+  ]
+    .map(item => ({
+      kind: item.kind,
+      text: sanitizeMindTraceTelemetryText(item.text, 180),
+    }))
+    .filter(item => item.text.length > 0)
+
+  const cueMatches = cues
+    .map(item => ({
+      kind: item.kind,
+      cue: item.text,
+      overlap: measureMindTraceCueOverlap(input.reply, item.text),
+    }))
+    .filter(item => item.overlap >= 0.45)
+    .sort((left, right) => right.overlap - left.overlap)
+
+  const visibleLeadOverlap = input.snapshot.visibleLine
+    ? measureMindTraceCueOverlap(input.reply, input.snapshot.visibleLine)
+    : 0
+  const strongestCueOverlap = cueMatches[0]?.overlap ?? 0
+  const explicitSurfaceExpected = input.snapshot.shouldRecall
+    && input.snapshot.surfacePolicy !== 'internal-only'
+    && input.snapshot.speechShouldSurface !== false
+    && input.snapshot.speechPlacement !== 'internal-only'
+  const coherenceState = !input.snapshot.shouldRecall
+    ? 'not-applicable'
+    : strongestCueOverlap >= 0.45 || visibleLeadOverlap >= 0.45
+      ? 'integrated'
+      : explicitSurfaceExpected
+        ? 'missed'
+        : 'inward-only'
+
+  return {
+    shouldRecall: input.snapshot.shouldRecall,
+    surfacePolicy: input.snapshot.surfacePolicy,
+    confidence: Number(clamp01(input.snapshot.confidence).toFixed(2)),
+    recollectionIntentMode: sanitizeMindTraceTelemetryText(input.snapshot.recollectionIntentMode, 64) || null,
+    recollectionIntentTemporalFocus: sanitizeMindTraceTelemetryText(input.snapshot.recollectionIntentTemporalFocus, 64) || null,
+    speechShouldSurface: input.snapshot.speechShouldSurface ?? null,
+    speechSurfaceMode: sanitizeMindTraceTelemetryText(input.snapshot.speechSurfaceMode, 64) || null,
+    speechPlacement: sanitizeMindTraceTelemetryText(input.snapshot.speechPlacement, 64) || null,
+    coherenceState,
+    explicitSurfaceExpected,
+    explicitSurfaceObserved: strongestCueOverlap >= 0.45 || visibleLeadOverlap >= 0.45,
+    strongestCueOverlap: Number(strongestCueOverlap.toFixed(2)),
+    visibleLeadOverlap: Number(visibleLeadOverlap.toFixed(2)),
+    matchedCueKinds: [...new Set(cueMatches.map(item => item.kind))],
+    matchedCues: cueMatches.slice(0, 6).map(item => ({
+      kind: item.kind,
+      cue: item.cue,
+      overlap: Number(item.overlap.toFixed(2)),
+    })),
+    replyExcerpt: excerptGovernedReply(input.reply),
+    visibleLead: sanitizeMindTraceTelemetryText(input.snapshot.visibleLine, 180) || null,
+  }
+}
+
 export function buildMindTurnTraceEvents(input: {
   payload: AlicizationConversationTurnInput
   governedTurn: ReturnType<typeof coerceConversationTurnToMindGovernedPayload>
   createdAt: number
   dialoguePayload?: Omit<AlicizationDialogueRespondedPayload, 'cardId'> | null
+  memoryTrace?: AlicizationMindTraceMemorySnapshot | null
 }): AlicizationMindTurnEventInput[] {
   const governance = input.governedTurn.governance
   const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(governance?.decisionTraceId)
@@ -1915,6 +2118,18 @@ export function buildMindTurnTraceEvents(input: {
     createdAt: input.createdAt,
   }]
 
+  if (input.memoryTrace) {
+    events.push({
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      kind: 'recall-attribution',
+      payload: summarizeRecallAttributionPayload(input.memoryTrace),
+      createdAt: input.createdAt,
+    })
+  }
+
   if (input.governedTurn.tookOver && input.governedTurn.audit) {
     events.push({
       decisionTraceId,
@@ -1944,6 +2159,22 @@ export function buildMindTurnTraceEvents(input: {
     },
     createdAt: input.createdAt,
   })
+
+  const persistedReply = readStringValue(structured.reply).trim() || readStringValue(input.payload.assistantText).trim()
+  if (input.memoryTrace && persistedReply) {
+    events.push({
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      kind: 'reply-memory-coherence',
+      payload: summarizeReplyMemoryCoherencePayload({
+        reply: persistedReply,
+        snapshot: input.memoryTrace,
+      }),
+      createdAt: input.createdAt,
+    })
+  }
 
   if (input.dialoguePayload) {
     const dialogueDigitalLifeSpine = summarizeMindTurnEventDigitalLifeSpine(

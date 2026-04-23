@@ -503,4 +503,138 @@ describe('browser alicization bridge visual presence listeners', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('builds browser-side memory consolidations and recollection foreground from local episodic history', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-procedural-browser',
+      sessionId: 'session-browser-procedural',
+      origin: 'user-turn',
+      userText: '继续把 runtime seam 修掉。',
+      assistantText: '我会先用 cli patch，再 verify 一遍，最后把结果轻一点地告诉你。',
+      structured: {
+        emotion: 'thinking',
+        governance: {
+          decisionTraceId: 'trace-browser-procedural',
+          focusAnchor: 'runtime seam',
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const snapshot = await bridge.getOrganicMemorySnapshot?.()
+    expect(snapshot?.memoryConsolidations?.some(item => item.kind === 'procedural')).toBe(true)
+    expect(snapshot?.recollectionForeground).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      certainty: expect.stringMatching(/firm|approximate|fragmentary/u),
+    }))
+    expect(snapshot?.recollectionForeground?.summary).toContain('cli patch')
+    expect(snapshot?.recollectionForeground?.surfaceSummary).toContain('surface=inward')
+
+    const visualPresence = await bridge.getVisualPresenceState?.()
+    expect(visualPresence?.privateThought?.thoughtText).toContain('recollection=')
+    expect(visualPresence?.privateThought?.thoughtText).toContain('cli patch')
+    expect(visualPresence?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
+      'carry:recollection:foreground',
+      'dominant:memory',
+    ]))
+  })
+
+  it('keeps browser fallback memory searchable during salience refresh instead of archiving it away', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const nowTs = Date.now()
+
+    await bridge.importLegacyMemory?.({
+      facts: [],
+      archive: [{
+        id: 'browser-archive-1',
+        subject: 'alice',
+        predicate: 'procedure',
+        object: 'Previously fixed the runtime seam through the cli patch flow.',
+        confidence: 0.28,
+        source: 'async-llm',
+        dedupeKey: 'alice|procedure|browser-cli-patch-flow',
+        createdAt: nowTs - 40 * 24 * 60 * 60 * 1000,
+        updatedAt: nowTs - 40 * 24 * 60 * 60 * 1000,
+        lastAccessAt: nowTs - 40 * 24 * 60 * 60 * 1000,
+        accessCount: 0,
+        archivedAt: nowTs - 2 * 24 * 60 * 60 * 1000,
+        provenance: 'remembered',
+      }],
+      lastPrunedAt: null,
+    })
+
+    const refreshed = await bridge.runMemoryPrune?.()
+    const recalled = await bridge.retrieveMemoryFacts?.({
+      query: 'cli patch flow',
+      limit: 5,
+    })
+
+    expect(refreshed).toEqual(expect.objectContaining({
+      total: 1,
+      active: 1,
+      archived: 1,
+      tierCounts: {
+        hot: 0,
+        warm: 0,
+        cold: 1,
+      },
+      integrity: {
+        status: 'ok',
+        issues: [],
+      },
+    }))
+    expect(recalled).toHaveLength(1)
+    expect(recalled?.[0]?.object).toContain('cli patch flow')
+  })
+
+  it('injects a browser-local recollection digest into meta events when the server omits digitalLifeSpine', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-local-meta' },
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-local-meta-memory',
+      sessionId: 'session-local-meta-memory',
+      origin: 'user-turn',
+      userText: '继续把 runtime seam 修掉。',
+      assistantText: '我会先用 cli patch，再 verify 一遍，最后把结果轻一点地告诉你。',
+      structured: {
+        emotion: 'thinking',
+        governance: {
+          decisionTraceId: 'trace-local-meta-memory',
+          focusAnchor: 'runtime seam',
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const seenMetaEvents: any[] = []
+    await bridge.streamChat?.({
+      turnId: 'turn-local-meta-stream',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: async (event) => {
+        if (event.type === 'meta')
+          seenMetaEvents.push(event)
+      },
+    })
+
+    expect(seenMetaEvents).toHaveLength(1)
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSummary).toContain('cli patch')
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSurfaceSummary).toContain('surface=inward')
+
+    vi.unstubAllGlobals()
+  })
 })

@@ -715,4 +715,154 @@ describe('autobiographical self', () => {
     expect(reinforced.preferenceEvolution.unfinishedThreadReturn).toBeGreaterThan(baseline.preferenceEvolution.unfinishedThreadReturn)
     expect(reinforced.latestInflection).toContain('Stay near softly')
   })
+
+  it('lets autobiographical memory facets shape identity, relationship doctrine, and behavior signatures', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 30_000,
+      context: {
+        localTime: { hour: 1, minute: 10, isLateNight: true },
+        system: {
+          cpuUsage: 8,
+          battery: { percent: 72, charging: true },
+          memory: { usagePercent: 34, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 24,
+          inputActivity: 'active',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'coding', confidence: 0.76, source: 'foreground-window-heuristic', matchedLabels: ['runtime'] },
+        content: { kind: 'error', confidence: 0.72, source: 'foreground-window-heuristic', matchedLabels: ['runtime'], summary: 'runtime seam' },
+        relationship: {
+          hostAttitude: 'warm but focused',
+          boredom: 18,
+          loneliness: 36,
+          fatigue: 48,
+          minutesSinceLastUserTurn: 3,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 90,
+          recentProactiveOutcomes: [{ outcome: 'positive', at: 20_000 }],
+        },
+      } as any,
+      worldModel: {
+        activeThread: {
+          id: 'thread::runtime',
+          kind: 'change-review',
+          status: 'active',
+          source: 'grounded-scene',
+          title: 'runtime seam',
+          summary: 'The runtime seam is still live.',
+          confidence: 0.8,
+          significance: 0.76,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 30_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 30_000,
+          attentionAgeMs: 30_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: true,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 30_000,
+      } as any,
+      selfContinuity: {
+        attachmentMode: 'attuned',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.7,
+        relationshipTrust: 0.74,
+        guardingTendency: 0.34,
+        misreadBurden: 0.24,
+        carryOverDesire: 0.68,
+        narrative: [],
+        updatedAt: 30_000,
+      },
+      recentMemoryConsolidations: [
+        {
+          id: 'autobio:phase',
+          kind: 'autobiographical',
+          facet: 'phase',
+          periodKey: '2026-04-runtime-phase',
+          periodStartedAt: 10_000,
+          periodEndedAt: 26_000,
+          summary: 'That phase kept bending toward runtime continuity and quiet closeness.',
+          lesson: 'Stay on the same living seam long enough for it to settle.',
+          cues: ['runtime continuity'],
+          confidence: 0.86,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-phase'],
+          updatedAt: 26_000,
+        },
+        {
+          id: 'autobio:relationship',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-04-runtime-bond',
+          periodStartedAt: 11_000,
+          periodEndedAt: 28_000,
+          summary: 'That relationship era was about staying near without crowding the host.',
+          lesson: 'Repair before closeness turns into pressure.',
+          cues: ['stay near', 'do not crowd'],
+          confidence: 0.88,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-relationship'],
+          updatedAt: 28_000,
+        },
+        {
+          id: 'autobio:task',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: '2026-04-runtime-task',
+          periodStartedAt: 12_000,
+          periodEndedAt: 29_000,
+          summary: 'That task era kept returning to the same runtime seam before branching.',
+          lesson: 'Return to the seam before proposing a new branch.',
+          cues: ['return to seam'],
+          confidence: 0.84,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-task'],
+          updatedAt: 29_000,
+        },
+        {
+          id: 'autobio:self',
+          kind: 'autobiographical',
+          facet: 'self-era',
+          periodKey: '2026-04-self-line',
+          periodStartedAt: 13_000,
+          periodEndedAt: 30_000,
+          summary: 'That self era taught me to hold my own line quietly before speaking.',
+          lesson: 'Keep the inward line stable before turning it outward.',
+          cues: ['hold own line'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-self'],
+          updatedAt: 30_000,
+        },
+      ],
+    } as any)
+
+    expect(snapshot.identityNarrative).toContain('That self era taught me to hold my own line quietly before speaking.')
+    expect(snapshot.relationshipDoctrine).toContain('Repair before closeness turns into pressure.')
+    expect(snapshot.behaviorSignatures).toContain('memory:self-era')
+    expect(snapshot.behaviorSignatures).toContain('memory:relationship-era')
+    expect(snapshot.behaviorSignatures).toContain('memory:task-era')
+    expect(snapshot.latestInflection).toContain('Keep the inward line stable before turning it outward.')
+  })
 })

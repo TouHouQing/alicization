@@ -12,6 +12,7 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type { AlicizationResponseCharter } from './response-charter'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
@@ -29,6 +30,59 @@ export interface AlicizationResponseSurfaceContract {
   suppressAssociativeRecall: boolean
   mustDo: string[]
   mustNotDo: string[]
+}
+
+export function buildRecollectionSpeechVisibleSurfaceRules(
+  plan: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined,
+) {
+  const speechPlan = plan ?? null
+  if (!speechPlan) {
+    return {
+      mustDo: [] as string[],
+      mustNotDo: [] as string[],
+    }
+  }
+
+  const mustDo: string[] = []
+  const mustNotDo: string[] = []
+
+  if (!speechPlan.shouldSurface || speechPlan.surfaceMode === 'internal-only' || speechPlan.placement === 'internal-only') {
+    pushUnique(mustDo, 'Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
+    pushUnique(mustDo, 'If memory stays internal, let it bend stance, choice of detail, or tone rather than announcing the memory itself.')
+    pushUnique(mustNotDo, 'Do not dump recalled memory into the visible reply just because it became mentally active.')
+    return { mustDo, mustNotDo }
+  }
+
+  if (speechPlan.placement === 'before-payoff')
+    pushUnique(mustDo, 'If recollection is surfaced, let one brief remembered gesture open the reply before the main payoff.')
+  else if (speechPlan.placement === 'after-payoff')
+    pushUnique(mustDo, 'Pay off the live ask first, then add at most one brief recollection only if it sharpens continuity.')
+  else
+    pushUnique(mustDo, 'Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
+
+  pushUnique(mustDo, `Let the recollection contour follow this guidance: ${speechPlan.styleNote}`)
+  if (speechPlan.visibleLead)
+    pushUnique(mustDo, `If memory becomes visible, keep close to this recollection contour without quoting it verbatim: ${speechPlan.visibleLead}`)
+
+  if (speechPlan.certainty === 'approximate' || speechPlan.certainty === 'fragmentary') {
+    pushUnique(mustDo, 'Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')
+    pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
+  }
+
+  if (speechPlan.surfaceMode === 'procedural-carry') {
+    pushUnique(mustDo, 'Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
+    pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
+  }
+
+  if (speechPlan.surfaceMode === 'relationship-continuity')
+    pushUnique(mustDo, 'If bond history is surfaced, keep it relational and current-turn-relevant instead of narrating a long retrospective.')
+
+  pushUnique(mustNotDo, 'Do not turn recollection into a standalone archive dump or date-recital.')
+
+  return {
+    mustDo,
+    mustNotDo,
+  }
 }
 
 function pushUnique(target: string[], value: string) {
@@ -57,6 +111,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+  recollectionSpeechPlan?: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
 }) {
   const runtimeSurface = input.runtimeSurface ?? null
   const digitalLifeArchitecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
@@ -69,6 +124,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
   const recollectionIntent = runtimeSurface?.memory.recallGovernor?.recollectionIntent ?? null
+  const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: dialogueEncounterSurface?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
@@ -224,6 +280,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
       pushUnique(mustNotDo, 'Do not speak as if remembered procedure means the current task already finished in this turn.')
     }
   }
+  const recollectionSpeechRules = buildRecollectionSpeechVisibleSurfaceRules(recollectionSpeechPlan)
+  for (const item of recollectionSpeechRules.mustDo)
+    pushUnique(mustDo, item)
+  for (const item of recollectionSpeechRules.mustNotDo)
+    pushUnique(mustNotDo, item)
   if (answerCompiler) {
     for (const item of answerCompiler.mustDo)
       pushUnique(mustDo, item)

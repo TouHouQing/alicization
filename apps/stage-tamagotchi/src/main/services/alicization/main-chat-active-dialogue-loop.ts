@@ -92,6 +92,7 @@ export interface AlicizationActiveDialogueFastPathDecision {
   previousUserText: string
   previousAssistantText: string
   continuityAnchor: string
+  preparedExecutionCarryText?: string
   runtimeDigest: AlicizationRuntimeDigest | null
   sessionMirror: AlicizationDialogueSessionMirror | null
   governance: AlicizationMindTurnGovernance | null
@@ -495,14 +496,15 @@ function deriveAlicizationActiveDialogueEncounter(
     })
     return {
       kind: 'follow-up',
-      strategy: executionCarry ? 'deterministic-payoff' : 'compact-one-shot',
-      timeoutMs: executionCarry ? 0 : 6_500,
+      strategy: 'compact-one-shot',
+      timeoutMs: 6_500,
       reasonCodes: [
         'short-follow-up',
         'explicit-carry',
         input.hasContinuity ? 'session-carry' : '',
         input.preparedExecutionCarryText ? 'prepared-execution-ledger' : '',
         executionCarry ? 'execution-carry' : '',
+        executionCarry ? 'execution-carry-llm-authored' : '',
       ].filter(Boolean),
     }
   }
@@ -566,6 +568,12 @@ function buildCompactDialogueContextBlock(decision: AlicizationActiveDialogueFas
     decision.sessionMirror?.memorySummary
       ? `session_memory=${humanizeMirrorSummary(decision.sessionMirror.memorySummary)}`
       : '',
+    decision.sessionMirror?.recollectionSummary
+      ? `session_recollection=${sanitizeText(decision.sessionMirror.recollectionSummary, 220)}`
+      : '',
+    decision.preparedExecutionCarryText
+      ? `prepared_execution_carry=${sanitizeText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`
+      : '',
     decision.previousUserText
       ? `previous_user=${sanitizeText(decision.previousUserText, 180)}`
       : '',
@@ -593,6 +601,12 @@ function buildCompactDialogueRecollectionBlock(decision: AlicizationActiveDialog
       : '',
     decision.sessionMirror?.memorySummary
       ? `remembered_memory=${humanizeMirrorSummary(decision.sessionMirror.memorySummary)}`
+      : '',
+    decision.sessionMirror?.recollectionSummary
+      ? `remembered_recollection=${sanitizeText(decision.sessionMirror.recollectionSummary, 220)}`
+      : '',
+    decision.sessionMirror?.recollectionSurfaceSummary
+      ? `remembered_recollection_surface=${sanitizeText(decision.sessionMirror.recollectionSurfaceSummary, 220)}`
       : '',
     'Reply from the remembered way Alicization handled this line before, but still sound naturally present in this turn.',
   ].filter(Boolean).join('\n')
@@ -672,6 +686,12 @@ function buildCompactDialogueEvidenceBlock(decision: AlicizationActiveDialogueFa
     case 'follow-up':
       if (decision.continuityAnchor)
         lines.push(`follow_up_anchor=${sanitizeText(decision.continuityAnchor, 160)}`)
+      if (decision.preparedExecutionCarryText)
+        lines.push(`execution_carry_summary=${sanitizeText(humanizeMirrorSummary(decision.preparedExecutionCarryText) || decision.preparedExecutionCarryText, 220)}`)
+      if (decision.reasonCodes.includes('execution-carry')) {
+        lines.push('This follow-up is carrying a previously executed result, listing, or task payoff. Use that carried result as evidence before extending the answer.')
+        lines.push('Do not answer as if the task just ran now. Continue from the already-held result or the missing remainder.')
+      }
       break
     case 'dialogue': {
       const focus = sanitizeText(decision.latestUserText, 160)
@@ -1372,6 +1392,17 @@ function buildFastPathKernelCue(decision: AlicizationActiveDialogueFastPathDecis
         ? '修正误接：承认刚才没贴住，然后回到这一句。'
         : 'Repair the miss: acknowledge the drift, then come straight back to this turn.'
     case 'follow-up':
+      if (decision.reasonCodes.includes('execution-carry')) {
+        const executionCarry = sanitizeText(
+          humanizeMirrorSummary(decision.preparedExecutionCarryText)
+          || humanizeMirrorSummary(decision.sessionMirror?.executionSummary)
+          || decision.continuityAnchor,
+          140,
+        )
+        return localeIsZh
+          ? `执行延续：先把已经拿到的结果补清${executionCarry ? `，重点是 ${executionCarry}` : ''}。`
+          : `Execution continuity: pay off the already-settled result first${executionCarry ? `, with focus on ${executionCarry}` : ''}.`
+      }
       return localeIsZh
         ? '线程延续：沿同一条线把欠着的那部分补上。'
         : 'Thread continuation: stay on the same line and fill in what is still missing.'
@@ -1921,6 +1952,7 @@ function buildExecutionRecoveryReply(input: {
     previousUserText: input.previousUserText,
     previousAssistantText: '',
     continuityAnchor: sanitizeText(input.latestUserText || input.previousUserText, 96),
+    preparedExecutionCarryText: '',
     runtimeDigest: input.runtimeDigest ?? null,
     sessionMirror: input.sessionMirror ?? null,
     governance: null,
@@ -2037,8 +2069,12 @@ function normalizeCompactReplyPayload(
   },
 ) {
   const localFallbackMode = options?.localFallbackMode ?? 'allow'
+  // NOTICE: Explicit `local-only` decisions are infra-only fallback lanes.
+  // Any other strategy must escalate instead of silently synthesizing a local
+  // visible reply, otherwise deterministic fallback would leak back into the
+  // normal reply authority surface.
   const shouldEscalateLocalAuthoring = localFallbackMode === 'escalate'
-    && shouldAlicizationActiveDialogueStayLLMAuthored(decision)
+    && decision.strategy !== 'local-only'
   const normalizedRaw = sanitizeText(raw, 2_000)
   if (!normalizedRaw) {
     if (shouldEscalateLocalAuthoring) {
@@ -2163,6 +2199,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
   const adjustedEncounter = memoryHeavyRecollection && (
     encounter.strategy === 'local-only'
     || encounter.strategy === 'deterministic-payoff'
+    || encounter.kind === 'follow-up'
   )
     ? {
         ...encounter,
@@ -2184,6 +2221,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     previousUserText,
     previousAssistantText,
     continuityAnchor,
+    preparedExecutionCarryText,
     runtimeDigest,
     sessionMirror,
     governance,
@@ -2284,6 +2322,7 @@ export function buildAlicizationActiveDialogueFallbackReply(
     previousUserText,
     previousAssistantText: readPreviousAssistantText(normalizedConversationMessages),
     continuityAnchor: '',
+    preparedExecutionCarryText: '',
     runtimeDigest: input.runtimeDigest ?? null,
     sessionMirror: input.sessionMirror ?? null,
     governance: input.governance ?? null,

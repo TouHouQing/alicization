@@ -113,6 +113,35 @@ function normalizeChannelExperienceMetadata(
       ? Math.max(0, Math.min(1, Number(experience.advisorConfidence)))
       : null,
     advisorReason: normalizeText(experience.advisorReason, 200) || null,
+    rememberedProcedures: Array.isArray(experience.rememberedProcedures)
+      ? experience.rememberedProcedures
+          .map((item) => {
+            if (!item || typeof item !== 'object')
+              return null
+            return {
+              id: normalizeText(item.id, 120) || null,
+              sourceKind: item.sourceKind === 'autobiographical' ? 'autobiographical' : 'procedural',
+              facet: item.facet === 'phase' || item.facet === 'relationship-era' || item.facet === 'task-era' || item.facet === 'self-era'
+                ? item.facet
+                : null,
+              label: normalizeText(item.label, 160) || null,
+              approach: normalizeText(item.approach, 220) || null,
+              pitfalls: Array.isArray(item.pitfalls)
+                ? [...new Set(item.pitfalls.map(value => normalizeText(value, 120)).filter(Boolean))]
+                : [],
+              confidence: Number.isFinite(item.confidence)
+                ? Math.max(0, Math.min(1, Number(item.confidence)))
+                : 0,
+              cues: Array.isArray(item.cues)
+                ? [...new Set(item.cues.map(value => normalizeText(value, 120)).filter(Boolean))]
+                : [],
+              preferredChannel: normalizeText(item.preferredChannel, 80) || null,
+              preferredChannelReason: normalizeText(item.preferredChannelReason, 200) || null,
+            }
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item && item.id && item.label))
+          .slice(0, 4)
+      : [],
     channelOutcomes: Object.fromEntries(channelOutcomes),
   }
 }
