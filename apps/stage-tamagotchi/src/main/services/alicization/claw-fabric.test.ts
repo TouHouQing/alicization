@@ -171,6 +171,7 @@ describe('buildClawFabricPlan', () => {
           label: 'runtime seam repair',
           approach: 'Use Claude Code first for the patch, then verify the seam before branching.',
           pitfalls: ['Do not branch before verify.'],
+          traceSummary: 'runtime seam repair | steps: Use Claude Code first for the patch. -> verify the seam before branching.',
           confidence: 0.92,
           cues: ['patch', 'verify', 'runtime seam'],
           preferredChannel: 'claude-code',
@@ -183,6 +184,7 @@ describe('buildClawFabricPlan', () => {
     expect(plan.selectedChannel).toBe('claude-code')
     expect(plan.reasonTags).toContain('remembered-procedure-channel')
     expect(plan.narrative.join(' ')).toContain('Routing reused remembered procedure')
+    expect(plan.narrative.join(' ')).toContain('steps:')
   })
 
   it('respects external advisor channel hints when confidence is high', () => {

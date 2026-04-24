@@ -247,6 +247,128 @@ describe('buildRecallGovernor', () => {
     ]))
   })
 
+  it('carries scene familiarity, mood carry, and embodied cadence as explicit recall state', () => {
+    const governor = buildRecallGovernor({
+      now: 40_000,
+      dialogueWorldThread: {
+        activeThread: 'Keep holding the late-night coding seam.',
+        currentQuestion: '为什么这时候又会想起那条线',
+        openLoops: ['late-night coding seam'],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'warming',
+        memoryMode: 'emotional-resonance',
+        recallKeys: ['late-night coding seam'],
+        lastUserMove: '为什么这时候又会想起那条线',
+        lastAssistantMove: '因为那条线的余温还在。',
+        lastOutcome: 'aligned',
+        pendingValidation: null,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      conversationState: {
+        jointThread: 'late-night coding seam',
+        hostMove: '为什么这时候又会想起那条线',
+        activeProject: 'runtime seam',
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'answer-then-carry',
+        memoryMode: 'emotional-resonance',
+        memoryQueryHints: ['late-night coding seam', 'afterglow'],
+        shouldHoldThread: true,
+        confidence: 0.78,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'care',
+        speakingFrom: 'held-memory',
+        memoryMode: 'emotional-resonance',
+        openingBeat: 'Hold the lingering line softly.',
+        whyThisReplyNow: 'The line is still emotionally warm.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      privateThought: {
+        stance: 'accompany',
+        confidence: 0.78,
+        rationaleTags: ['afterglow'],
+        thoughtText: 'The late-night seam is still warm enough to tug on me.',
+        shouldSpeak: true,
+        suggestedStyle: 'gentle-care',
+        embodiedPresence: 'glance',
+        expiresAt: 70_000,
+        afterglowFromScenario: 'coding',
+        emotionalTension: 'late-night-drain',
+      },
+      mindEcology: {
+        moodLabel: 'afterglow',
+        replyHabit: 'hover-first',
+        relationshipHabit: 'stay-near',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'soften-before-speaking',
+        temperament: {
+          attachment: 0.66,
+          curiosity: 0.42,
+          steadiness: 0.58,
+          directness: 0.3,
+          playfulness: 0.18,
+          irritability: 0.1,
+          tenderness: 0.72,
+        },
+        climate: {
+          valence: 0.48,
+          arousal: 0.36,
+          socialNeed: 0.62,
+          solitudeNeed: 0.28,
+          irritation: 0.1,
+          restlessness: 0.16,
+          reflectivePull: 0.74,
+        },
+        selfNarrative: 'Stay near the line without forcing it open.',
+        relationNarrative: 'Let the shared afterglow breathe.',
+        currentPreoccupation: 'late-night seam',
+        learnedAdjustments: [],
+        recurringPatterns: [],
+        updatedAt: 40_000,
+      } as any,
+      sceneContext: {
+        cueSummary: 'Cursor late-night diff lane',
+        appName: 'Cursor',
+        processName: 'Cursor',
+        targetTitle: 'runtime.ts diff',
+        scenario: 'coding',
+        workloadKind: 'coding',
+        contentKind: 'diff',
+      },
+    })
+
+    expect(governor?.sceneFamiliarityHint).toBeGreaterThan(0.4)
+    expect(governor?.affectiveCarry).toEqual(expect.objectContaining({
+      moodLabel: 'afterglow',
+      emotionalTension: 'late-night-drain',
+    }))
+    expect(governor?.embodiedCarry).toEqual(expect.objectContaining({
+      presence: 'glance',
+      afterglowFromScenario: 'coding',
+      suggestedStyle: 'gentle-care',
+    }))
+    const systemBlock = buildRecallGovernorSystemBlock(governor)
+    expect(systemBlock).toContain('Scene familiarity hint:')
+    expect(systemBlock).toContain('Affective carry:')
+    expect(systemBlock).toContain('Embodied carry:')
+  })
+
   it('keeps dialogue-first attune turns thread-bound unless self-carry is explicitly eligible', () => {
     const governor = buildRecallGovernor({
       now: 30_000,

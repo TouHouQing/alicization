@@ -1243,6 +1243,82 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('lets cross-session afterglow maintenance episodes influence later recall ordering', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-raw',
+        cardId: 'card-1',
+        turnId: 'turn-raw',
+        sessionId: 'session-old-1',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+        whereSummary: 'terminal',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'The runtime seam fix landed and the thread completed cleanly.',
+        felt: 'steady',
+        emotionTags: ['execution'],
+        whatChanged: 'the seam held.',
+        relationshipMeaning: 'The fix itself landed.',
+        lesson: 'Return to the seam first.',
+        sourceSummary: 'execution result',
+        confidence: 0.9,
+        salience: 0.88,
+        sceneAttachment: 0.32,
+        consolidationPriority: 0.68,
+        tags: ['execution-result', 'runtime-seam'],
+      },
+      {
+        id: 'episode-afterglow',
+        cardId: 'card-1',
+        turnId: 'turn-afterglow',
+        sessionId: 'session-old-2',
+        sourceKind: 'maintenance',
+        provenance: 'remembered',
+        occurredAt: Date.UTC(2026, 3, 21, 8, 0, 0),
+        whereSummary: 'session mirror afterthought',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'The runtime seam kept tugging after the reply and stayed alive into the next session.',
+        felt: 'the line was still warm',
+        emotionTags: ['afterthought'],
+        whatChanged: 'The line stayed active across the session boundary.',
+        relationshipMeaning: 'This seam should come back even when the host only gestures toward it.',
+        lesson: 'Carry the inward runtime seam into the next session.',
+        sourceSummary: 'session mirror afterthought',
+        confidence: 0.72,
+        salience: 0.62,
+        sceneAttachment: 0.16,
+        consolidationPriority: 0.82,
+        tags: ['session-mirror', 'afterthought', 'continuity'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: '继续按之前那条 runtime seam 线来',
+      sessionId: 'session-new',
+      threadAnchors: ['runtime seam'],
+      carryAsMemory: true,
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam', 'carry into next session'],
+        rationale: 'A cross-session afterglow on the same seam should stay easier to recall.',
+        confidence: 0.82,
+      },
+      limit: 2,
+    })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]?.id).toBe('episode-afterglow')
+    await db.close()
+  })
+
   it('rebuilds and retrieves consolidated memory summaries from episodic events', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.appendEpisodicEvents([

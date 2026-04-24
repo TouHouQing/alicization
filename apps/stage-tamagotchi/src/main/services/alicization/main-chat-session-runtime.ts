@@ -74,6 +74,7 @@ import {
   shouldUseDialogueFirstLivingPromptMode,
 } from './main-chat-runtime-surface'
 import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
+import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 
 export interface AlicizationMainChatPerceptionAugmentation {
@@ -133,6 +134,14 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
+  persistAutobiographicalEpisodesFromPreparedMirror?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    turnId?: string | null
+    sessionId: string
+    previousMirror?: AlicizationDialogueSessionMirror | null
+    mirror: AlicizationDialogueSessionMirror
+  }) => Promise<void> | void
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   executeMainGatewayTaskThread: BuildMainGatewayToolsOptions['executeTaskThread']
   resumeMainGatewayTaskThread?: BuildMainGatewayToolsOptions['resumeTaskThread']
@@ -228,7 +237,7 @@ function applyMemoryDeliberationToGovernance(input: {
   const selectedChainPosture = (deliberation?.selectedChains ?? []).map(item => item.answerPosture).filter(Boolean).slice(0, 2).join(' | ') || null
   const selectedBundleSummary = (deliberation?.selectedBundles ?? []).map(item => item.summary).slice(0, 2).join(' | ') || null
   const selectedEraSummary = deliberation?.selectedEras.map(item => item.summary).slice(0, 2).join(' | ') || null
-  const styleNote = sanitizeGuidanceText(speech?.styleNote, 200)
+  const speechControls = deriveRecollectionSurfaceControls(speech)
   const rationale = sanitizeGuidanceText(
     deliberation?.whyNow
       || speech?.rationale
@@ -242,6 +251,7 @@ function applyMemoryDeliberationToGovernance(input: {
     ? deriveMemoryDeliberationControlState({
         deliberation,
         speech,
+        recollectionIntent: input.context.recollectionIntent ?? null,
         shouldStayInward,
       })
     : null
@@ -340,8 +350,8 @@ function applyMemoryDeliberationToGovernance(input: {
     selectedRelationshipSummary
       ? `The remembered relationship line is ${selectedRelationshipSummary}.`
       : null,
-    styleNote
-      ? `Let it influence tone and detail quietly: ${styleNote}.`
+    speechControls
+      ? `Let recollection stay ${speechControls.visibility} with ${speechControls.continuityRole} discipline and ${speechControls.certainty} certainty.`
       : null,
   ])
   const inwardWhyNow = mergeGuidanceLine([
@@ -376,7 +386,6 @@ function applyMemoryDeliberationToGovernance(input: {
       inwardCarryRule,
       memoryControl?.answerDiscipline,
       memoryControl?.visibleDiscipline,
-      styleNote ? `Internal recollection contour: ${styleNote}` : null,
       ...(governance.mustDo ?? []),
     ]),
     mustNotDo: mergeUniqueRules([
@@ -442,8 +451,10 @@ function deriveMemoryDeliberationMemoryMode(input: {
 function deriveMemoryDeliberationControlState(input: {
   deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
   speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
+  recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
   shouldStayInward: boolean
 }) {
+  const agenda = input.recollectionIntent?.recollectionAgenda ?? null
   const selectedCount
     = input.deliberation.selectedPeriods.length
       + input.deliberation.selectedEpisodes.length
@@ -466,9 +477,11 @@ function deriveMemoryDeliberationControlState(input: {
   const explicitConflictSeverity = input.deliberation.conflictSeverity ?? 'none'
   const relationshipVector = input.deliberation.surfacePolicy === 'relationship-continuity'
     || input.deliberation.selectedRelationshipLines.length > 0
+    || (agenda?.relationshipNeed ?? 0) >= 0.56
     ? 'relational'
     : input.deliberation.surfacePolicy === 'procedural-carry'
       || input.deliberation.selectedProcedures.length > 0
+      || (agenda?.goalSimilarity ?? 0) >= 0.56
       ? 'procedural'
       : input.deliberation.selectedChains.length > 0 || input.deliberation.selectedBundles.length > 0
         ? 'threaded'
@@ -476,6 +489,7 @@ function deriveMemoryDeliberationControlState(input: {
   const procedureCarryStrength = Number(clamp01(
     (input.deliberation.selectedProcedures.length > 0 ? 0.42 : 0)
     + (input.deliberation.surfacePolicy === 'procedural-carry' ? 0.38 : 0)
+    + ((agenda?.goalSimilarity ?? 0) * 0.18)
     + input.deliberation.confidence * 0.2,
   ).toFixed(2))
   const conflictBurden = explicitConflictSeverity !== 'none'
@@ -491,12 +505,14 @@ function deriveMemoryDeliberationControlState(input: {
       ? 'explicit-surface'
       : 'soft-surface'
   const retrospectiveDepth = input.deliberation.selectedPeriods.length > 0
+    || ((agenda?.candidateEraFacets ?? []).some(item => item.facet !== 'window' && item.weight >= 0.34))
     ? 'period'
     : input.deliberation.selectedChains.length > 0 || input.deliberation.selectedBundles.length > 0
       ? 'thread'
       : 'fragment'
   const stableCore = input.deliberation.stableCore ?? []
   const unsafeDetails = input.deliberation.unsafeDetails ?? []
+  const ambiguityPosture = input.deliberation.ambiguityPosture ?? 'settled'
   const episodeProvenances = [...new Set(input.deliberation.selectedEpisodes.map(item => item.provenance))]
   const dominantProvenance = episodeProvenances.includes('reconstructed')
     ? 'reconstructed'
@@ -524,11 +540,23 @@ function deriveMemoryDeliberationControlState(input: {
     ? 'minimal'
     : conflictBurden === 'medium' || dominantProvenance === 'reconstructed' || episodeProvenances.length > 1
       ? 'guarded'
+      : ambiguityPosture === 'ambiguous'
+        ? 'minimal'
+      : ambiguityPosture === 'approximate'
+        ? 'guarded'
+      : agenda?.uncertaintyTolerance === 'low'
+        ? 'guarded'
       : 'open'
   const certaintyFloor = conflictBurden === 'high'
     ? 'fragmentary'
+    : ambiguityPosture === 'ambiguous'
+      ? 'fragmentary'
+    : ambiguityPosture === 'approximate' && certaintyPosture === 'firm'
+      ? 'approximate'
     : conflictBurden === 'medium' && certaintyPosture === 'firm'
       ? 'approximate'
+      : agenda?.uncertaintyTolerance === 'low' && certaintyPosture === 'firm'
+        ? 'approximate'
       : (dominantProvenance === 'dreamt' || dominantProvenance === 'inferred') && certaintyPosture !== 'fragmentary'
           ? 'fragmentary'
           : dominantProvenance === 'reconstructed' && certaintyPosture === 'firm'
@@ -549,6 +577,14 @@ function deriveMemoryDeliberationControlState(input: {
     `Retrospective depth is ${retrospectiveDepth}.`,
     `Provenance posture is ${provenancePosture}.`,
     `Detail assertion budget is ${detailAssertionBudget}.`,
+    ambiguityPosture !== 'settled' ? `Ambiguity posture is ${ambiguityPosture}.` : '',
+    agenda?.whyRecallNow ? `Recall agenda: ${agenda.whyRecallNow}` : '',
+    (agenda?.candidateTimeScopes?.length ?? 0) > 0
+      ? `Candidate time scopes: ${agenda?.candidateTimeScopes.slice(0, 2).map(item => `${item.scope}:${item.weight.toFixed(2)}`).join(' | ')}.`
+      : '',
+    (agenda?.candidateProcedureLines?.length ?? 0) > 0
+      ? `Candidate procedure lines: ${agenda?.candidateProcedureLines.slice(0, 2).join(' | ')}.`
+      : '',
     conflictBurden !== 'none' ? `Conflict burden is ${conflictBurden}, so do not over-assert detail.` : '',
     dominantProvenance === 'dreamt'
       ? 'If this memory surfaces, treat it as dream residue or symbolic carry rather than lived fact.'
@@ -900,6 +936,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   const memoryControl = deriveMemoryDeliberationControlState({
     deliberation,
     speech,
+    recollectionIntent: input.context.recollectionIntent ?? null,
     shouldStayInward,
   })
   const memoryControlSummary = [
@@ -1180,6 +1217,12 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
 
   return {
     ...surface,
+    memory: {
+      ...surface.memory,
+      recollectionPlan: input.context.recollectionPlan ?? surface.memory.recollectionPlan ?? null,
+      recollectionSpeechPlan: input.context.recollectionSpeechPlan ?? surface.memory.recollectionSpeechPlan ?? null,
+      memoryDeliberation: deliberation,
+    },
     cognition: {
       ...surface.cognition,
       mindTurnFrame: nextMindTurnFrame,
@@ -1237,6 +1280,38 @@ function buildSessionMirrorRecollectionAfterthoughtSeed(mirror: AlicizationDialo
     mirror.recollectionSummary,
     mirror.recollectionSurfaceSummary,
   ].filter(Boolean).join(' ')
+}
+
+function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessionContinuityInput[]) {
+  const afterglowSignals = signals
+    .filter((signal) => {
+      const source = typeof signal.metadata?.source === 'string' ? signal.metadata.source : ''
+      return signal.label.startsWith('afterglow:')
+        || source === 'autobiographical-afterglow'
+    })
+    .slice(-2)
+
+  if (afterglowSignals.length === 0)
+    return ''
+
+  return afterglowSignals.map((signal) => {
+    const metadata = signal.metadata ?? {}
+    const threadAnchor = sanitizeGuidanceText(
+      typeof metadata.threadAnchor === 'string' ? metadata.threadAnchor : '',
+      120,
+    )
+    const afterglowTag = sanitizeGuidanceText(
+      typeof metadata.afterglowTag === 'string' ? metadata.afterglowTag : '',
+      64,
+    )
+    return [
+      'continuity_afterglow:',
+      `label=${sanitizeGuidanceText(signal.label, 120)}`,
+      `summary=${sanitizeGuidanceText(signal.summary ?? '', 180)}`,
+      threadAnchor ? `thread=${threadAnchor}` : '',
+      afterglowTag ? `kind=${afterglowTag}` : '',
+    ].filter(Boolean).join(' ')
+  }).join('\n')
 }
 
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
@@ -1302,7 +1377,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       && payload.waitForTools !== true
       && !routingRequired
     const skipExecutionPhaseTracking = dialogueFirstLeanRuntime && !routingRequired
-    const [contextualString, executionCallbackContext, executionLedgerContext] = await Promise.all([
+    const [contextualString, executionCallbackContext, executionLedgerContext, sessionContinuitySignals] = await Promise.all([
       agentTurn.trackPhase('contextual-memory', async () => await prelude.contextualStringPromise, {
         turnId: payload.turnId,
       }),
@@ -1353,6 +1428,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             executionLedgerContext.recallText,
             prelude.perceptionAugmentation.memoryRecallSeed,
             memoryCarryPolicy.recallSeed,
+            buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
             buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
           ].filter(Boolean).join('\n'),
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
@@ -1694,6 +1770,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         sessionId: agentTurn.conversationSessionId,
       })
       : previousSessionMirror
+    if (agentTurn.conversationSessionId && sessionMirror) {
+      await options.persistAutobiographicalEpisodesFromPreparedMirror?.({
+        cardId: payload.cardId,
+        decisionTraceId: runtimeSurface.trace.decisionTraceId ?? null,
+        turnId: payload.turnId,
+        sessionId: agentTurn.conversationSessionId,
+        previousMirror: previousSessionMirror,
+        mirror: sessionMirror,
+      })
+    }
 
     return {
       chatConfig: prelude.chatConfig,

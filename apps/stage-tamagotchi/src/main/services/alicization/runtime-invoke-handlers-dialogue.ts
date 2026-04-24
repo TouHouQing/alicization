@@ -63,6 +63,12 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
     at?: number
   }) => AlicizationProactiveLoopMutationResult
   persistProactiveLoopState: (cardId: string, state: AlicizationProactiveLoopState) => Promise<void>
+  persistProactiveFeedbackOutcomeClosure: (input: {
+    now: number
+    cardId: string
+    turnId: string
+    outcomes: AlicizationRecentProactiveOutcome[]
+  }) => Promise<void>
   syncSessionMirrorFromCurrentCardState: (input: {
     cardId: string
     decisionTraceId?: string | null
@@ -109,6 +115,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     ensureProactiveLoopState,
     reportExplicitProactiveFeedback,
     persistProactiveLoopState,
+    persistProactiveFeedbackOutcomeClosure,
     syncSessionMirrorFromCurrentCardState,
     appendAuditLog,
     queueSubconsciousWake,
@@ -198,6 +205,12 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       proactiveOutcomes: settled.appliedOutcomes,
       source: 'proactive-feedback-explicit',
       turnId,
+    })
+    await persistProactiveFeedbackOutcomeClosure({
+      now: Date.now(),
+      cardId: activeCardId,
+      turnId,
+      outcomes: settled.appliedOutcomes,
     })
     await appendAuditLog({
       level: 'notice',

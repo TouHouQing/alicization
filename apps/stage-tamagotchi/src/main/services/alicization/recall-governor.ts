@@ -61,6 +61,108 @@ function buildSceneAttachmentCues(sceneContext: {
   ], 6)
 }
 
+interface AlicizationSceneAttachmentContext {
+  cueSummary?: string | null
+  appName?: string | null
+  processName?: string | null
+  targetTitle?: string | null
+  scenario?: string | null
+  workloadKind?: string | null
+  contentKind?: string | null
+}
+
+function estimateSceneFamiliarity(input: {
+  sceneContext: AlicizationSceneAttachmentContext | null | undefined
+  dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
+}) {
+  const sceneContext = input.sceneContext ?? null
+  if (!sceneContext)
+    return 0
+  let score = 0
+  if (sceneContext.cueSummary)
+    score += 0.18
+  if (sceneContext.targetTitle)
+    score += 0.14
+  if (sceneContext.appName || sceneContext.processName)
+    score += 0.1
+  if (sceneContext.scenario)
+    score += 0.1
+  if (sceneContext.workloadKind)
+    score += 0.08
+  if (sceneContext.contentKind)
+    score += 0.06
+  if (input.dialogueWorldThread?.activeThread && sceneContext.cueSummary) {
+    const threadText = input.dialogueWorldThread.activeThread.toLowerCase()
+    const cueText = sceneContext.cueSummary.toLowerCase()
+    if (threadText.includes(cueText) || cueText.includes(threadText))
+      score += 0.12
+  }
+  if (input.conversationState?.activeProject && sceneContext.targetTitle) {
+    const projectText = input.conversationState.activeProject.toLowerCase()
+    const titleText = sceneContext.targetTitle.toLowerCase()
+    if (projectText.includes(titleText) || titleText.includes(projectText))
+      score += 0.12
+  }
+  return clamp01(score)
+}
+
+function buildAffectiveCarry(input: {
+  mindEcology?: AlicizationMindEcologySnapshot | null
+  privateThought?: AlicizationPrivateThoughtSnapshot | null
+}) {
+  const moodLabel = sanitizeText(input.mindEcology?.moodLabel, 64) || null
+  const emotionalTension = input.privateThought?.emotionalTension ?? null
+  const socialNeed = Number.isFinite(input.mindEcology?.climate.socialNeed)
+    ? clamp01(Number(input.mindEcology?.climate.socialNeed))
+    : null
+  const reflectivePull = Number.isFinite(input.mindEcology?.climate.reflectivePull)
+    ? clamp01(Number(input.mindEcology?.climate.reflectivePull))
+    : null
+  const summary = uniqueList([
+    moodLabel ? `mood:${moodLabel}` : null,
+    emotionalTension ? `tension:${emotionalTension}` : null,
+    socialNeed != null ? `social-need:${socialNeed.toFixed(2)}` : null,
+    reflectivePull != null ? `reflective-pull:${reflectivePull.toFixed(2)}` : null,
+    sanitizeText(input.privateThought?.thoughtText, 140),
+  ], 5).join(' | ')
+  if (!moodLabel && !emotionalTension && socialNeed == null && reflectivePull == null && !summary)
+    return null
+  return {
+    moodLabel,
+    emotionalTension,
+    socialNeed,
+    reflectivePull,
+    summary: summary || null,
+  }
+}
+
+function buildEmbodiedCarry(input: {
+  privateThought?: AlicizationPrivateThoughtSnapshot | null
+}) {
+  const presence = input.privateThought?.embodiedPresence ?? null
+  const suggestedStyle = input.privateThought?.suggestedStyle ?? null
+  const afterglowFromScenario = input.privateThought?.afterglowFromScenario ?? null
+  const shouldSpeak = typeof input.privateThought?.shouldSpeak === 'boolean'
+    ? input.privateThought.shouldSpeak
+    : null
+  const summary = uniqueList([
+    presence ? `presence:${presence}` : null,
+    suggestedStyle ? `style:${suggestedStyle}` : null,
+    afterglowFromScenario ? `afterglow:${afterglowFromScenario}` : null,
+    shouldSpeak != null ? `speak:${shouldSpeak ? 'yes' : 'no'}` : null,
+  ], 4).join(' | ')
+  if (!presence && !suggestedStyle && !afterglowFromScenario && shouldSpeak == null)
+    return null
+  return {
+    presence,
+    suggestedStyle,
+    afterglowFromScenario,
+    shouldSpeak,
+    summary: summary || null,
+  }
+}
+
 function pickRecallAnchor(...values: unknown[]) {
   for (const value of values) {
     const normalized = sanitizeDialogueAnchorText(value, 180)
@@ -291,6 +393,18 @@ export function buildRecallGovernor(input: {
     input.privateThought?.stance === 'care' ? 'care' : null,
     input.replyDeliberation?.selectedMotive === 'attune' ? 'attune' : null,
   ], 6)
+  const sceneFamiliarityHint = estimateSceneFamiliarity({
+    sceneContext: input.sceneContext ?? null,
+    dialogueWorldThread,
+    conversationState,
+  })
+  const affectiveCarry = buildAffectiveCarry({
+    mindEcology: input.mindEcology ?? null,
+    privateThought: input.privateThought ?? null,
+  })
+  const embodiedCarry = buildEmbodiedCarry({
+    privateThought: input.privateThought ?? null,
+  })
   const salienceBias = clamp01(
     mode === 'emotional-resonance'
       ? 0.82
@@ -352,6 +466,9 @@ export function buildRecallGovernor(input: {
     relationshipAnchors,
     salienceBias,
     sceneAnchor,
+    sceneFamiliarityHint,
+    affectiveCarry,
+    embodiedCarry,
     recollectionIntent,
     suppressAssociativeRecall,
     allowActiveThoughts,
@@ -372,7 +489,10 @@ export function buildRecallGovernor(input: {
       sceneAttachmentCues.length > 0 ? `scene-anchor:${sceneAttachmentCues[0]}` : null,
       dialogueWorldThread.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
-    ], 8),
+      affectiveCarry?.summary ? `affective-carry:${affectiveCarry.summary}` : null,
+      embodiedCarry?.summary ? `embodied-carry:${embodiedCarry.summary}` : null,
+      sceneFamiliarityHint > 0 ? `scene-familiarity:${sceneFamiliarityHint.toFixed(2)}` : null,
+    ], 12),
     updatedAt: input.now,
   } satisfies AlicizationRecallGovernorSnapshot
 }
@@ -391,6 +511,9 @@ export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorS
     `Relationship anchors: ${state.relationshipAnchors && state.relationshipAnchors.length > 0 ? state.relationshipAnchors.join(', ') : 'none'}.`,
     `Salience bias: ${(state.salienceBias ?? 0.5).toFixed(2)}.`,
     `Scene anchor: ${state.sceneAnchor || 'none'}.`,
+    `Scene familiarity hint: ${typeof state.sceneFamiliarityHint === 'number' ? state.sceneFamiliarityHint.toFixed(2) : 'none'}.`,
+    `Affective carry: ${state.affectiveCarry?.summary || 'none'}.`,
+    `Embodied carry: ${state.embodiedCarry?.summary || 'none'}.`,
     `Recollection intent: ${state.recollectionIntent ? `${state.recollectionIntent.mode} / ${state.recollectionIntent.temporalFocus} / ${state.recollectionIntent.rationale}` : 'none'}.`,
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Allow active thoughts: ${state.allowActiveThoughts ? 'yes' : 'no'}.`,

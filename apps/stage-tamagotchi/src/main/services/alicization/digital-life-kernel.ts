@@ -1,5 +1,6 @@
 import type { AlicizationHostPersonModelSnapshot, AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
+import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { updateVisualPresenceState } from './visual-episodic-memory'
@@ -80,6 +81,9 @@ export interface AlicizationDigitalLifeRuntimeSurface {
   memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'longHorizonMemory' | 'selfContinuity' | 'autobiographicalSelf' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'> & {
     motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+    recollectionPlan?: OrganicMemoryPromptContext['recollectionPlan']
+    recollectionSpeechPlan?: OrganicMemoryPromptContext['recollectionSpeechPlan']
+    memoryDeliberation?: OrganicMemoryPromptContext['memoryDeliberation']
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {

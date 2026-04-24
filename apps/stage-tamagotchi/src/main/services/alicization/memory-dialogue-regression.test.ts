@@ -97,6 +97,32 @@ describe('humanlike memory dialogue regression set', () => {
       expect(intent?.searchProceduralExperience).toBe(true)
     })
 
+    it('handles "上次你是怎么弄的" as procedural recollection without needing explicit date retrieval', () => {
+      const intent = buildMemoryRecollectionIntent({
+        userText: '上次你是怎么弄的',
+        conversationState: {
+          jointThread: 'runtime seam',
+          hostMove: '上次你是怎么弄的',
+          activeProject: 'runtime seam',
+          memoryMode: 'task-thread',
+          memoryQueryHints: ['runtime seam', 'repair rhythm'],
+          shouldHoldThread: true,
+        } as any,
+        dialogueWorldThread: {
+          activeThread: 'runtime seam repair',
+          memoryMode: 'task-thread',
+          recallKeys: ['runtime seam', 'repair rhythm', 'verify'],
+        } as any,
+        answerCompiler: {
+          answerSubject: 'task-knot',
+        } as any,
+      })
+
+      expect(intent?.mode).toBe('execution-procedure')
+      expect(intent?.temporalFocus).toBe('experience-matched')
+      expect(intent?.recollectionAgenda?.candidateTimeScopes[0]?.scope).toBe('experience-matched')
+    })
+
     it('handles relationship rupture questions as relationship-history recollection', () => {
       const intent = buildMemoryRecollectionIntent({
         userText: '我们之前关系为什么会变差',

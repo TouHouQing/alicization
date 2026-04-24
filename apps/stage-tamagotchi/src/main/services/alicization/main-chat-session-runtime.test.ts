@@ -1062,6 +1062,7 @@ describe('main chat session runtime', () => {
 
   it('carries inward recollection afterthought into the next turn recall seed', async () => {
     let now = 100
+    const persistAutobiographicalEpisodesFromPreparedMirror = vi.fn(async () => {})
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -1156,6 +1157,7 @@ describe('main chat session runtime', () => {
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
+      persistAutobiographicalEpisodesFromPreparedMirror,
       latestUserMessageContainsVisualInput: () => false,
       openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
       resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
@@ -1184,6 +1186,14 @@ describe('main chat session runtime', () => {
     })
 
     expect(firstResult.sessionMirror?.recollectionSurfaceSummary).toContain('afterthought=ripe')
+    expect(persistAutobiographicalEpisodesFromPreparedMirror).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      turnId: 'turn-afterthought-1',
+      sessionId: firstResult.conversationSessionId,
+      mirror: expect.objectContaining({
+        recollectionSurfaceSummary: expect.stringContaining('afterthought=ripe'),
+      }),
+    }))
 
     now = 140
 
@@ -1205,6 +1215,85 @@ describe('main chat session runtime', () => {
     }
     expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_recollection_afterthought:')
     expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('foreground=What returns first is the runtime seam we kept carrying.')
+  })
+
+  it('feeds cross-session autobiographical afterglow continuity into the next turn recall seed', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const resolveOrganicMemoryPromptContext = vi.fn(async () => ({
+      hostAttitude: '礼貌而克制，保持观察',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+    }))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext,
+      resolveSessionContinuitySignals: vi.fn(async () => [{
+        kind: 'runtime' as const,
+        state: 'observed' as const,
+        label: 'afterglow:afterthought',
+        summary: 'thread=runtime seam | carry=Carry the inward line into the next session. | source=maintenance',
+        createdAt: 10,
+        metadata: {
+          source: 'autobiographical-afterglow',
+          threadAnchor: 'runtime seam',
+          afterglowTag: 'afterglow',
+        },
+      }]),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-afterglow-1',
+        messages: [{ role: 'user', content: '继续做这件事。' }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '继续做这件事。' } as Message],
+      }),
+    })
+
+    const lastOrganicCall = resolveOrganicMemoryPromptContext.mock.calls.at(-1) as unknown[] | undefined
+    const organicInput = (lastOrganicCall?.[0] ?? {}) as {
+      recallSeed?: string
+    }
+    expect(String(organicInput?.recallSeed ?? '')).toContain('continuity_afterglow:')
+    expect(String(organicInput?.recallSeed ?? '')).toContain('thread=runtime seam')
   })
 
   it('skips execution-heavy preparation phases for dialogue-first living turns', async () => {
@@ -1526,7 +1615,7 @@ describe('main chat session runtime', () => {
     expect(result.governance?.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
     expect(result.governance?.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
     expect(result.governance?.mustDo).toContain('Before wording the visible reply, let the active recollection settle stance, pacing, and detail choice from the inside.')
-    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Let it influence tone and detail quietly')
+    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Let recollection stay internal-only')
     expect(result.governance?.mindTurnFrame?.self.thought).not.toContain('What returns first is the runtime seam we kept carrying.')
     expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('Let remembered continuity shape stance and chosen detail before any explicit memory mention.')
     expect(result.governance?.mindTurnFrame?.obligation.whyNow).toContain('An active recollection is shaping the answer from the inside')

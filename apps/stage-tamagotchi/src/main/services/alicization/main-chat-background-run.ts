@@ -138,6 +138,13 @@ interface AlicizationInlineExecutionSurfaceInput {
   outcome: string
 }
 
+class AlicizationMindAuthoredReplyRequiredError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AlicizationMindAuthoredReplyRequiredError'
+  }
+}
+
 const executorToolNames = new Set([
   'executor_run_cli',
   'executor_run_codex',
@@ -620,11 +627,23 @@ export async function runAlicizationMainChatBackground(
       return JSON.stringify(structured)
     }
     catch (error) {
+      let reachability: AlicizationMainGatewayReachabilitySnapshot | null = null
+      try {
+        reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
+      }
+      catch {}
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-failed', {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
         reason: error instanceof Error ? error.message : String(error),
+        gatewayReachable: reachability?.reachable ?? null,
+        gatewayReason: reachability?.reason ?? null,
       })
+      if (reachability?.reachable !== false) {
+        throw new AlicizationMindAuthoredReplyRequiredError(
+          `mind-authored-execution-payoff-required:${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
       return JSON.stringify(deterministicStructured)
     }
   }
@@ -783,6 +802,8 @@ export async function runAlicizationMainChatBackground(
           turnId: input.payload.turnId,
           reason: error instanceof Error ? error.message : String(error),
         })
+        if (error instanceof AlicizationMindAuthoredReplyRequiredError)
+          throw error
       }
     }
     const activeDialogueDecision = deriveAlicizationActiveDialogueFastPathDecision({
@@ -1268,13 +1289,20 @@ export async function runAlicizationMainChatBackground(
           runtimeDigest: resolveRuntimeDigestFromPrepared(),
           sessionMirror: preparedExecution.sessionMirror ?? null,
         })
-        if (localFallbackReply && input.isRunActive()) {
+        let fallbackReachability: AlicizationMainGatewayReachabilitySnapshot | null = null
+        try {
+          fallbackReachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
+        }
+        catch {}
+        if (localFallbackReply && input.isRunActive() && fallbackReachability?.reachable === false) {
           await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback', {
             cardId: normalizedCardId,
             turnId: normalizedTurnId,
             recoveredChars: localFallbackReply.length,
             actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
             reason: lastRecoveryError instanceof Error ? lastRecoveryError.message : String(lastRecoveryError ?? 'none'),
+            gatewayReachable: fallbackReachability.reachable,
+            gatewayReason: fallbackReachability.reason ?? null,
           })
           await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
             level: 'warning',
@@ -1285,12 +1313,25 @@ export async function runAlicizationMainChatBackground(
               cardId: normalizedCardId,
               turnId: normalizedTurnId,
               actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+              gatewayReachable: fallbackReachability.reachable,
+              gatewayReason: fallbackReachability.reason ?? null,
             },
           }))
           return {
             recoveredText: localFallbackReply,
             recoveryMode: 'local-fallback',
           }
+        }
+
+        if (localFallbackReply && input.isRunActive()) {
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback-blocked', {
+            cardId: normalizedCardId,
+            turnId: normalizedTurnId,
+            actionKind: preparedExecution.runtimeSurface.action?.kind ?? null,
+            reason: lastRecoveryError instanceof Error ? lastRecoveryError.message : String(lastRecoveryError ?? 'none'),
+            gatewayReachable: fallbackReachability?.reachable ?? null,
+            gatewayReason: fallbackReachability?.reason ?? null,
+          })
         }
 
         throw (lastRecoveryError ?? new Error('main-gateway-timeout-recovery'))

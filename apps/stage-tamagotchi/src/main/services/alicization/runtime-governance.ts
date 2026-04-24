@@ -1879,6 +1879,7 @@ export interface AlicizationMindTraceMemorySnapshot {
   whyNow: string
   inwardLine: string
   visibleLine?: string | null
+  ambiguityPosture?: 'settled' | 'approximate' | 'ambiguous'
   recollectionIntentMode?: string | null
   recollectionIntentTemporalFocus?: string | null
   speechShouldSurface?: boolean | null
@@ -1931,6 +1932,23 @@ export interface AlicizationMindTraceMemorySnapshot {
     answerPosture?: string | null
   }>
   selectedRelationshipLines: string[]
+  searchTrace?: {
+    firstHop: {
+      focus: 'era' | 'procedure' | 'relationship-line' | 'conversation-turn' | 'episode'
+      summary: string
+      targetIds: string[]
+    }
+    secondHop: {
+      action: 'hold' | 'expand-era' | 'expand-procedure' | 'expand-relationship-line' | 'expand-conversation' | 'narrow-to-stable-core'
+      evidenceGap: 'none' | 'need-period-anchor' | 'need-episode-detail' | 'need-procedure-detail' | 'need-relationship-meaning' | 'need-conversation-evidence' | 'need-disambiguation'
+      summary: string
+      targetIds: string[]
+    }
+    thirdHop: {
+      ambiguityPosture: 'settled' | 'approximate' | 'ambiguous'
+      summary: string
+    }
+  } | null
 }
 
 function sanitizeMindTraceTelemetryText(raw: unknown, maxChars = 180) {

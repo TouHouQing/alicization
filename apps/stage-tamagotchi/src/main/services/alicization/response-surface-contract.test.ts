@@ -489,6 +489,7 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
     expect(result.contract.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
+    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording verbatim in the visible reply.')
   })
 
   it('adds model-authored recollection surface guidance when the speech plan wants brief visible memory', () => {
@@ -536,7 +537,10 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.mustDo).toContain('Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
     expect(result.contract.mustDo).toContain('Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
+    expect(result.contract.mustDo).toContain('Keep any surfaced recollection subordinate to the live payoff rather than following drafted memory wording.')
     expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
+    expect(result.systemBlock).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
+    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
   })
 })

@@ -11,6 +11,7 @@ import type {
 import type { AlicizationPerceptionSceneResidue } from './attention-anchor'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 
@@ -60,6 +61,7 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
       cardId: string
       sessionId: string
     }) => string
+    getSessionMirror: (cardId: string, sessionId: string) => AlicizationDialogueSessionMirror | null
     ingestAgentSessionSnapshot: (input: {
       agentSession: ReturnType<AlicizationAgentTurnRuntime['getSessionSnapshot']>
       cardId: string
@@ -67,8 +69,18 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
       sessionId: string
       sessionPhases?: string[]
       source: string
-    }) => void
+    }) => AlicizationDialogueSessionMirror
   }
+  persistAutobiographicalEpisodesFromSessionMirror?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    source: string
+    turnId?: string | null
+    sessionId: string
+    previousMirror?: AlicizationDialogueSessionMirror | null
+    mirror: AlicizationDialogueSessionMirror
+    taskThread?: AlicizationTaskThreadRecord | null
+  }) => Promise<void> | void
 }
 
 export function createAlicizationAgentSessionMirrorRuntime(options: CreateAlicizationAgentSessionMirrorRuntimeOptions) {
@@ -87,6 +99,7 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     buildProactiveFeedbackSessionMirrorAction,
     buildReminderSessionMirrorAction,
     dialogueSessionManager,
+    persistAutobiographicalEpisodesFromSessionMirror,
   } = options
 
   function buildAgentRuntimeAuditSnapshot(agentTurn?: AlicizationAgentTurnRuntime | null) {
@@ -158,6 +171,7 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     decisionTraceId?: string | null
     sessionId?: string | null
     sessionPhases?: string[]
+    skipAutobiographicalPersist?: boolean
     source: string
   }) {
     const agentTurn = input.agentTurn
@@ -171,7 +185,8 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     if (!sessionId)
       return
 
-    dialogueSessionManager.ingestAgentSessionSnapshot({
+    const previousMirror = dialogueSessionManager.getSessionMirror(normalizeCardId(input.cardId), sessionId)
+    const mirror = dialogueSessionManager.ingestAgentSessionSnapshot({
       agentSession: agentTurn.getSessionSnapshot(),
       cardId: normalizeCardId(input.cardId),
       decisionTraceId: input.decisionTraceId ?? null,
@@ -179,6 +194,16 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
       sessionPhases: input.sessionPhases ?? agentTurn.snapshot().phaseOrder,
       source: input.source,
     })
+    if (!input.skipAutobiographicalPersist) {
+      void persistAutobiographicalEpisodesFromSessionMirror?.({
+        cardId: normalizeCardId(input.cardId),
+        decisionTraceId: input.decisionTraceId ?? null,
+        source: input.source,
+        sessionId,
+        previousMirror,
+        mirror,
+      })
+    }
   }
 
   async function syncSessionMirrorFromCurrentCardState(input: {
@@ -246,14 +271,29 @@ export function createAlicizationAgentSessionMirrorRuntime(options: CreateAliciz
     if (runtimeActions.length > 0)
       agentTurn.ingestRuntimeActions(runtimeActions)
 
+    const previousMirror = dialogueSessionManager.getSessionMirror(cardId, existingSessionId)
     syncAgentTurnSessionMirror({
       agentTurn,
       cardId,
       continuitySignals: sessionContinuityContext.sessionContinuitySignals,
       decisionTraceId: input.decisionTraceId ?? null,
       sessionId: existingSessionId,
+      skipAutobiographicalPersist: true,
       source: input.source,
     })
+    const mirror = dialogueSessionManager.getSessionMirror(cardId, existingSessionId)
+    if (mirror) {
+      await persistAutobiographicalEpisodesFromSessionMirror?.({
+        cardId,
+        decisionTraceId: input.decisionTraceId ?? null,
+        source: input.source,
+        turnId: input.turnId ?? null,
+        sessionId: existingSessionId,
+        previousMirror,
+        mirror,
+        taskThread: input.taskThread ?? null,
+      })
+    }
   }
 
   return {

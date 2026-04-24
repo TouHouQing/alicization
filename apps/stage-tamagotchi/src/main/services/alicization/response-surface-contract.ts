@@ -16,6 +16,7 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
+import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 export interface AlicizationResponseSurfaceContract {
@@ -45,37 +46,43 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
 
   const mustDo: string[] = []
   const mustNotDo: string[] = []
+  const controls = deriveRecollectionSurfaceControls(speechPlan)
+  if (!controls)
+    return { mustDo, mustNotDo }
 
-  if (!speechPlan.shouldSurface || speechPlan.surfaceMode === 'internal-only' || speechPlan.placement === 'internal-only') {
+  if (!controls.shouldSurface || controls.visibility === 'internal-only') {
     pushUnique(mustDo, 'Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
     pushUnique(mustDo, 'If memory stays internal, let it bend stance, choice of detail, or tone rather than announcing the memory itself.')
     pushUnique(mustNotDo, 'Do not dump recalled memory into the visible reply just because it became mentally active.')
+    pushUnique(mustNotDo, 'Do not reuse drafted recollection wording verbatim in the visible reply.')
     return { mustDo, mustNotDo }
   }
 
-  if (speechPlan.placement === 'before-payoff')
+  if (controls.visibility === 'brief-before-payoff')
     pushUnique(mustDo, 'If recollection is surfaced, let one brief remembered gesture open the reply before the main payoff.')
-  else if (speechPlan.placement === 'after-payoff')
+  else if (controls.visibility === 'brief-after-payoff')
     pushUnique(mustDo, 'Pay off the live ask first, then add at most one brief recollection only if it sharpens continuity.')
   else
     pushUnique(mustDo, 'Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
 
-  pushUnique(mustDo, `Let the recollection contour follow this guidance: ${speechPlan.styleNote}`)
-  if (speechPlan.visibleLead)
-    pushUnique(mustDo, 'If memory becomes visible, let it appear as one brief recollection contour rather than following any fixed remembered sentence.')
+  pushUnique(mustDo, 'Keep any surfaced recollection subordinate to the live payoff rather than following drafted memory wording.')
+  pushUnique(mustNotDo, 'Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
 
-  if (speechPlan.certainty === 'approximate' || speechPlan.certainty === 'fragmentary') {
+  if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary') {
     pushUnique(mustDo, 'Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')
     pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
   }
 
-  if (speechPlan.surfaceMode === 'procedural-carry') {
+  if (controls.continuityRole === 'procedure-carry') {
     pushUnique(mustDo, 'Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
     pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
   }
 
-  if (speechPlan.surfaceMode === 'relationship-continuity')
+  if (controls.continuityRole === 'relationship-carry')
     pushUnique(mustDo, 'If bond history is surfaced, keep it relational and current-turn-relevant instead of narrating a long retrospective.')
+
+  if (controls.continuityRole === 'period-carry')
+    pushUnique(mustDo, 'If memory opens from a remembered period, keep it as one short period cue before the actual payoff.')
 
   pushUnique(mustNotDo, 'Do not turn recollection into a standalone archive dump or date-recital.')
 

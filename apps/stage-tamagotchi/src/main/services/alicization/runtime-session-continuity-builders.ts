@@ -1,4 +1,5 @@
 import type {
+  AlicizationEpisodicEventRecord,
   AlicizationTaskThreadRecord,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
@@ -22,6 +23,7 @@ interface CreateAlicizationSessionContinuityBuildersRuntimeOptions {
   proactiveReplyWindowMs: number
   proactiveImplicitIgnoredAfterMs: number
   proactiveDismissCooldownMs: number
+  autobiographicalAfterglowMs?: number
   buildVisualPresenceCapturePersistFingerprint: (state: AlicizationVisualPresenceStateSnapshot) => string
 }
 
@@ -35,6 +37,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     proactiveReplyWindowMs,
     proactiveImplicitIgnoredAfterMs,
     proactiveDismissCooldownMs,
+    autobiographicalAfterglowMs = 72 * 60 * 60 * 1000,
     buildVisualPresenceCapturePersistFingerprint,
   } = options
 
@@ -555,6 +558,79 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     }
   }
 
+  function buildAutobiographicalAfterglowContinuitySignals(input: {
+    activeSessionId?: string | null
+    events: AlicizationEpisodicEventRecord[]
+    now?: number
+  }) {
+    const now = Number.isFinite(input.now) ? Number(input.now) : Date.now()
+    const activeSessionId = sanitizeBriefText(input.activeSessionId ?? '', 160) || null
+    const candidates = input.events
+      .filter((event) => {
+        const ageMs = Math.max(0, now - event.occurredAt)
+        if (ageMs > autobiographicalAfterglowMs)
+          return false
+        const tags = event.tags.join(' ').toLowerCase()
+        const sourceSummary = sanitizeBriefText(event.sourceSummary ?? '', 180).toLowerCase()
+        const afterglowTagged = /afterthought|continuity|session-mirror|dream/.test(tags)
+          || /session mirror|dream/.test(sourceSummary)
+          || event.sourceKind === 'maintenance'
+        if (!afterglowTagged)
+          return false
+        if (activeSessionId && event.sessionId && event.sessionId === activeSessionId)
+          return false
+        return true
+      })
+      .sort((left, right) => right.occurredAt - left.occurredAt)
+      .slice(0, 3)
+
+    return candidates.map((event) => {
+      const ageMinutes = Math.max(0, (now - event.occurredAt) / 60_000)
+      const threadAnchor = sanitizeBriefText(event.threadAnchor ?? '', 120)
+      const summaryLine = sanitizeBriefText(
+        event.relationshipMeaning
+        || event.lesson
+        || event.whatChanged
+        || event.whatHappened,
+        160,
+      )
+      const sourceTag = event.sourceKind === 'maintenance'
+        ? 'afterglow'
+        : event.sourceKind === 'dream' || event.sourceKind === 'dream-reforge'
+          ? 'dream-continuity'
+          : 'autobiographical-carry'
+      return {
+        kind: 'runtime' as const,
+        state: ageMinutes <= 360 ? 'fresh' as const : 'observed' as const,
+        label: `afterglow:${sourceTag}`,
+        summary: [
+          threadAnchor ? `thread=${threadAnchor}` : '',
+          summaryLine ? `carry=${summaryLine}` : '',
+          `source=${event.sourceKind}`,
+          `provenance=${event.latestReconsolidation?.provenance ?? event.provenance}`,
+          `${ageMinutes.toFixed(1)}m old`,
+        ].filter(Boolean).join(' | '),
+        signature: [
+          'autobiographical-afterglow',
+          event.id,
+          event.occurredAt,
+        ].join(':'),
+        createdAt: Math.max(0, Math.floor(event.occurredAt)),
+        metadata: {
+          source: 'autobiographical-afterglow',
+          episodeId: event.id,
+          sourceKind: event.sourceKind,
+          provenance: event.latestReconsolidation?.provenance ?? event.provenance,
+          confidence: Number(event.latestReconsolidation?.confidence ?? event.confidence),
+          threadAnchor: threadAnchor || null,
+          sessionId: event.sessionId ?? null,
+          fromPreviousSession: Boolean(activeSessionId && event.sessionId && event.sessionId !== activeSessionId),
+          afterglowTag: sourceTag,
+        },
+      } satisfies AlicizationAgentSessionContinuityInput
+    })
+  }
+
   return {
     buildExecutionDeliveryAction,
     buildTaskThreadSessionMirrorAction,
@@ -566,5 +642,6 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
     buildProactiveContinuitySignals,
     buildDialogueContinuitySignal,
     buildVisualPresenceContinuitySignal,
+    buildAutobiographicalAfterglowContinuitySignals,
   }
 }

@@ -112,4 +112,94 @@ describe('dialogue growth profile', () => {
     expect(profile.restAttunement).toBeGreaterThan(0.58)
     expect(profile.companionshipStyle).toBe('close-hold')
   })
+
+  it('keeps dialogue growth continuity anchored to the learned host model instead of only present mood drift', () => {
+    const baseInput = {
+      autobiographicalSelf: {
+        personaDrift: {
+          truthAnchor: 0.72,
+          careBias: 0.62,
+          irritabilityThreshold: 0.66,
+          autonomyNeed: 0.46,
+        },
+        preferenceEvolution: {
+          companionship: 0.58,
+          truthfulGrounding: 0.72,
+          proactiveCare: 0.54,
+          autonomyRespect: 0.5,
+          unfinishedThreadReturn: 0.56,
+        },
+        stability: 0.64,
+      } as any,
+      longHorizonMemory: {
+        preferenceBias: {
+          companionship: 0.52,
+          truthfulGrounding: 0.68,
+          autonomyRespect: 0.48,
+          unfinishedThreadReturn: 0.5,
+        },
+        identityBias: {
+          directness: 0.42,
+          tenderness: 0.58,
+          guardedness: 0.22,
+        },
+      } as any,
+      selfContinuity: {
+        relationshipTrust: 0.58,
+        guardingTendency: 0.32,
+        carryOverDesire: 0.48,
+      } as any,
+      selfState: {
+        feltCloseness: 0.52,
+        protectiveness: 0.48,
+        patience: 0.56,
+      } as any,
+      mindEcology: {
+        temperament: {
+          attachment: 0.56,
+          steadiness: 0.58,
+          directness: 0.42,
+          tenderness: 0.6,
+          irritability: 0.16,
+          playfulness: 0.18,
+        },
+        climate: {
+          socialNeed: 0.52,
+          solitudeNeed: 0.22,
+          restlessness: 0.2,
+          reflectivePull: 0.32,
+        },
+      } as any,
+    }
+
+    const baseline = buildAlicizationDialogueGrowthProfile(baseInput)
+    const withHostModel = buildAlicizationDialogueGrowthProfile({
+      ...baseInput,
+      hostPersonModel: {
+        summary: 'Focused work windows need room first, but repair should still feel lived-in and gentle.',
+        routines: ['Focused work windows usually need space first, then precise follow-up.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: ['If the reply feels robotic, repair before continuing.'],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'The host trusts bounded, repair-aware continuity more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Late-night fatigue can turn small nudges into real burden.'],
+        narrative: [],
+        updatedAt: 1,
+      } as any,
+    })
+
+    expect(withHostModel.autonomyRespect).toBeGreaterThan(baseline.autonomyRespect)
+    expect(withHostModel.restAttunement).toBeGreaterThan(baseline.restAttunement)
+    expect(withHostModel.repairGentleness).toBeGreaterThan(baseline.repairGentleness)
+    expect(withHostModel.currentPreoccupation).toContain('Late-night fatigue')
+    expect(withHostModel.leadingAgenda).toContain('Focused work windows')
+  })
 })

@@ -2166,6 +2166,125 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
+  it('builds autobiographical procedure traces from recent execution history during planning', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const planTaskThread = invokeHandlers.get(electronAlicizationPlanTaskThread)
+    expect(planTaskThread).toBeTypeOf('function')
+
+    dbStub.listTaskThreads.mockResolvedValueOnce([
+      {
+        id: 'thread-history-runtime',
+        decisionTraceId: 'mind:l9f3lq:thread-history',
+        turnId: 'turn-history-runtime',
+        sessionId: 'session-history-runtime',
+        origin: 'user-turn',
+        goal: 'Patch the runtime continuity seam and verify it.',
+        kind: 'codebase-edit',
+        status: 'completed',
+        selectedChannel: 'claude-code',
+        proposedChannel: 'claude-code',
+        summary: 'patched the runtime seam and verified the callback before reporting back',
+        metadata: null,
+        createdAt: 100,
+        updatedAt: 180,
+        lastEventAt: 180,
+        completedAt: 180,
+      },
+    ])
+    dbStub.listExecutionEvents.mockResolvedValueOnce([
+      {
+        id: 'event-plan-runtime',
+        threadId: 'thread-history-runtime',
+        decisionTraceId: 'mind:l9f3lq:thread-history',
+        turnId: 'turn-history-runtime',
+        sessionId: 'session-history-runtime',
+        origin: 'user-turn',
+        channel: 'claude-code',
+        kind: 'dispatch',
+        threadStatus: 'running',
+        payload: {
+          summary: 'Used Claude Code to patch the runtime seam first.',
+        },
+        createdAt: 140,
+      },
+      {
+        id: 'event-result-runtime',
+        threadId: 'thread-history-runtime',
+        decisionTraceId: 'mind:l9f3lq:thread-history',
+        turnId: 'turn-history-runtime',
+        sessionId: 'session-history-runtime',
+        origin: 'user-turn',
+        channel: 'claude-code',
+        kind: 'result',
+        threadStatus: 'completed',
+        payload: {
+          summary: 'Verified the callback after patching and only then reported the result.',
+        },
+        createdAt: 180,
+      },
+    ])
+    dbStub.searchMemoryConsolidations.mockResolvedValueOnce([])
+
+    await planTaskThread!({
+      cardId: 'default',
+      threadId: 'thread-plan-trace-1',
+      trace: {
+        decisionTraceId: 'mind:l9f3lq:trace-procedure',
+        turnId: 'turn-trace-procedure-1',
+        sessionId: 'session-trace-procedure-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Patch the runtime continuity seam and verify it.',
+        origin: 'user',
+        effect: 'mutate',
+        prefersPersistentSession: true,
+      },
+      capabilities: [
+        {
+          channel: 'claude-code',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+        {
+          channel: 'codex',
+          available: true,
+          enabled: true,
+          ready: true,
+          sessionAffinity: true,
+        },
+      ],
+    })
+
+    expect(dbStub.upsertTaskThread).toBeCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        fabric: expect.objectContaining({
+          experience: expect.objectContaining({
+            rememberedProcedures: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'execution-trace:thread-history-runtime',
+                sourceKind: 'autobiographical',
+                preferredChannel: 'claude-code',
+                result: expect.stringContaining('Verified the callback'),
+                steps: expect.arrayContaining([
+                  expect.stringContaining('Used Claude Code'),
+                ]),
+                traceSummary: expect.stringContaining('steps:'),
+              }),
+            ]),
+          }),
+        }),
+      }),
+    }))
+  })
+
   it('falls back to persisted capability manifests when plan payload omits capabilities', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -9047,6 +9166,65 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }
   })
 
+  it('does not emit local fallback visible reply when provider stays reachable but timeout recovery never yields mind-authored text', async () => {
+    vi.useFakeTimers()
+    try {
+      const sandboxPath = await createSandboxPath()
+      streamTextMock.mockImplementation(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
+        await onEvent?.({
+          type: 'response-metadata',
+          meta: { provider: 'mock' },
+        })
+      })
+
+      await setupAlicizationRuntime({
+        userDataPathOverride: sandboxPath,
+      })
+
+      const startChat = invokeHandlers.get(electronAlicizationChatStart)
+      expect(startChat).toBeTypeOf('function')
+
+      const turnId = 'turn-timeout-no-local-fallback-when-gateway-reachable'
+      const startResult = await startChat!({
+        cardId: 'default',
+        turnId,
+        providerId: 'openai',
+        model: 'gpt-4o-mini',
+        providerConfig: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+        messages: [{ role: 'user', content: '前几天那条线继续说下去。' }],
+      })
+      expect(startResult.accepted).toBe(true)
+
+      await vi.advanceTimersByTimeAsync(80_000)
+
+      await vi.waitFor(() => {
+        const finishEvents = contextEmitMock.mock.calls
+          .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+        expect(finishEvents).toHaveLength(1)
+      })
+
+      const finishEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+        .map(([, payload]) => payload)
+      const chunkEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
+        .map(([, payload]) => payload)
+
+      expect(finishEvents[0]?.status).toBe('aborted')
+      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-first-event-timeout')
+      expect(chunkEvents).toHaveLength(0)
+      expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({
+        action: 'stream-timeout-local-fallback',
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('suppresses proactive interruption when host context is busy and logs suppression', async () => {
     sensoryCpuUsage = 85
     metaStore.set('subconscious_state_v1', JSON.stringify({
@@ -9456,7 +9634,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemTexts[1]).toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
     expect(dreamSystemTexts[1]).toContain('conversation_session_id=session-dream-loop')
     expect(dreamSystemTexts[1]).toContain('session_phases=')
-    expect(dreamSystemTexts[1]).toContain('tool:runtime:main-gateway:dream')
+    expect(dreamSystemTexts[1]).toContain('main_gateway:dream')
     expect(dreamSystemTexts[1]).toContain('source=dream')
   })
 
@@ -11275,6 +11453,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(firstTick.proactiveTriggered).toContain('default')
     expect(proactiveEvent?.turnId).toBeTruthy()
 
+    dbStub.appendEpisodicEvents.mockClear()
     await reportFeedback!({
       cardId: 'default',
       turnId: proactiveEvent!.turnId,
@@ -11287,6 +11466,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(secondTick.proactiveTriggered).toHaveLength(0)
     expect(proactiveLoopState.scenarioBias?.coding).toBe(0.15)
     expect(proactiveLoopState.globalCooldownUntil).toBeGreaterThan(Date.now())
+    expect(dbStub.appendEpisodicEvents).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        sourceKind: 'proactive',
+        turnId: proactiveEvent?.turnId,
+        tags: expect.arrayContaining(['proactive', 'coding', 'settlement:dismiss']),
+      }),
+    ]))
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'alicization.subconscious.suppressed',
       payload: expect.objectContaining({

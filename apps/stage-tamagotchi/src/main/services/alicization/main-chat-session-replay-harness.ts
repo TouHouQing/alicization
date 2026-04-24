@@ -234,9 +234,20 @@ export interface AlicizationReplayMemoryQuality {
   userText: string
   eraFirst: AlicizationReplayQualityStatus
   bundleCoherence: AlicizationReplayQualityStatus
+  procedureCarryQuality: AlicizationReplayQualityStatus
+  wrongThreadSuppression: AlicizationReplayQualityStatus
   replyMemoryCoherence: AlicizationReplayQualityStatus
   reconsolidationEffect: AlicizationReplayQualityStatus
   uncertaintyDiscipline: AlicizationReplayQualityStatus
+  templateLeakage: AlicizationReplayQualityStatus
+}
+
+export interface AlicizationReplayBenchmarkStandards {
+  eraSelectionQuality: 'pass' | 'fail'
+  procedureCarryQuality: 'pass' | 'fail'
+  wrongThreadSuppression: 'pass' | 'fail'
+  replyMemoryCoherence: 'pass' | 'fail'
+  templateLeakage: 'pass' | 'fail'
 }
 
 function normalizeText(raw: unknown, maxChars = 240) {
@@ -261,6 +272,23 @@ function hasTextOverlap(left: string, right: string) {
   return overlap >= Math.max(1, Math.floor(rightTokens.length / 2))
 }
 
+function hasTemplatePhraseLeak(left: string, right: string) {
+  const normalizedLeft = normalizeText(left, 320).toLowerCase()
+  const normalizedRight = normalizeText(right, 220).toLowerCase()
+  if (!normalizedLeft || !normalizedRight || normalizedRight.length < 18)
+    return false
+  if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
+    return true
+
+  const leftTokens = normalizedLeft.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
+  const rightTokens = normalizedRight.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
+  if (leftTokens.length === 0 || rightTokens.length < 3)
+    return false
+
+  const overlap = rightTokens.filter(token => normalizedLeft.includes(token)).length
+  return overlap >= Math.max(3, Math.floor(rightTokens.length * 0.75))
+}
+
 export function evaluateReplayMemoryQuality(input: {
   prepared: AlicizationPreparedMainChatExecutionResult
   turnId: string
@@ -277,10 +305,34 @@ export function evaluateReplayMemoryQuality(input: {
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
   const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
+  const governanceMustDo = input.prepared.governance?.mustDo ?? []
+  const speakingFrom = runtimeSurface?.dialogue.replyDeliberation?.speakingFrom ?? ''
+  const systemTexts = input.prepared.messages
+    .filter(message => message.role === 'system' && typeof message.content === 'string')
+    .map(message => String(message.content))
+  const draftedMemoryLines = [
+    input.prepared.organicMemoryContext?.recollectionPlan?.opening ?? '',
+    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.internalLead ?? '',
+    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.visibleLead ?? '',
+    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.styleNote ?? '',
+    input.prepared.organicMemoryContext?.memoryDeliberation?.inwardLine ?? '',
+    input.prepared.organicMemoryContext?.memoryDeliberation?.visibleLine ?? '',
+  ].map(item => normalizeText(item, 220)).filter(Boolean)
   const selectedEpisodes = deliberation?.selectedEpisodes ?? []
+  const selectedProcedures = deliberation?.selectedProcedures ?? []
+  const hasProcedureCarry = selectedProcedures.length > 0
+    || (deliberation?.selectedBundles ?? []).some(item => Boolean(item.procedureId))
+    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'task-procedure-relationship-stance')
   const hasConflict = (deliberation?.conflictSeverity ?? 'none') !== 'none'
   const hasUncertainProvenance = selectedEpisodes.some(item =>
     item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'reconstructed')
+  const templateLeakDetected = draftedMemoryLines.some(line => (
+    mustDo.some(item => hasTemplatePhraseLeak(item, line))
+    || governanceMustDo.some(item => hasTemplatePhraseLeak(item, line))
+    || systemTexts.some(text => hasTemplatePhraseLeak(text, line))
+  ))
+  const hasWrongThreadRisk = (deliberation?.conflictVariants ?? []).some(item => String(item.id ?? '').startsWith('cluster:'))
+    || deliberation?.ambiguityPosture === 'ambiguous'
 
   return {
     turnId: input.turnId,
@@ -305,6 +357,21 @@ export function evaluateReplayMemoryQuality(input: {
         )
           ? 'pass'
           : 'fail',
+    procedureCarryQuality: !hasProcedureCarry
+      ? 'not-applicable'
+      : speakingFrom === 'task-thread'
+          || hasTextOverlap(governingFocus, selectedProcedures[0]?.approach ?? '')
+          || hasTextOverlap(openingClaim, selectedProcedures[0]?.approach ?? '')
+          || mustDo.some(item => item.includes('remembered procedure') || item.includes('prior way of handling'))
+        ? 'pass'
+        : 'fail',
+    wrongThreadSuppression: !hasWrongThreadRisk
+      ? 'not-applicable'
+      : deliberation?.ambiguityPosture === 'ambiguous'
+          || (deliberation?.conflictVariants ?? []).some(item => String(item.id ?? '').startsWith('cluster:'))
+          || mustDo.some(item => item.includes('approximate') || item.includes('stable core'))
+        ? 'pass'
+        : 'fail',
     replyMemoryCoherence: !deliberation
       ? 'not-applicable'
       : runtimeSurface?.dialogue.dialogueActKernel?.sourceTrace?.includes('memory-deliberation')
@@ -322,7 +389,99 @@ export function evaluateReplayMemoryQuality(input: {
           || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
         ? 'pass'
         : 'fail',
+    templateLeakage: draftedMemoryLines.length === 0
+      ? 'not-applicable'
+      : templateLeakDetected
+        ? 'fail'
+        : 'pass',
   }
+}
+
+function passesReplayStandard(input: {
+  quality: AlicizationReplayMemoryQuality[]
+  key: keyof AlicizationReplayMemoryQuality
+  minimumPassingRatio: number
+}) {
+  const applicable = input.quality.filter(item => item[input.key] !== 'not-applicable')
+  if (applicable.length === 0)
+    return false
+  const passed = applicable.filter(item => item[input.key] === 'pass').length
+  return passed / applicable.length >= input.minimumPassingRatio
+}
+
+export function evaluateReplayBenchmarkStandards(input: {
+  quality: AlicizationReplayMemoryQuality[]
+}): AlicizationReplayBenchmarkStandards {
+  return {
+    eraSelectionQuality: passesReplayStandard({
+      quality: input.quality,
+      key: 'eraFirst',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    procedureCarryQuality: passesReplayStandard({
+      quality: input.quality,
+      key: 'procedureCarryQuality',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    wrongThreadSuppression: passesReplayStandard({
+      quality: input.quality,
+      key: 'wrongThreadSuppression',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    replyMemoryCoherence: passesReplayStandard({
+      quality: input.quality,
+      key: 'replyMemoryCoherence',
+      minimumPassingRatio: 0.8,
+    })
+      ? 'pass'
+      : 'fail',
+    templateLeakage: passesReplayStandard({
+      quality: input.quality,
+      key: 'templateLeakage',
+      minimumPassingRatio: 1,
+    })
+      ? 'pass'
+      : 'fail',
+  }
+}
+
+export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  return [
+    {
+      turnId: 'benchmark-7d-conversation-history',
+      userText: '前几天我们聊过什么',
+    },
+    {
+      turnId: 'benchmark-30d-procedure-history',
+      userText: '以前你是怎么帮我做这个的',
+    },
+    {
+      turnId: 'benchmark-90d-relationship-era',
+      userText: '那段时间你为什么总这么回我',
+    },
+    {
+      turnId: 'benchmark-nonexplicit-similar-task',
+      userText: '继续像之前那样把这条线接回来',
+    },
+    {
+      turnId: 'benchmark-nonexplicit-tone-shift',
+      userText: '你为什么这次和之前不一样',
+    },
+    {
+      turnId: 'benchmark-nonexplicit-delayed-recollection',
+      userText: '这件事你刚才没提，但现在为什么又想起来了',
+    },
+    {
+      turnId: 'benchmark-nonexplicit-correction',
+      userText: '不是那次，是另一次，你是不是记错了',
+    },
+  ]
 }
 
 export async function benchmarkMainChatSessionReplay(input: {
@@ -337,6 +496,9 @@ export async function benchmarkMainChatSessionReplay(input: {
   return {
     turns,
     quality,
+    standards: evaluateReplayBenchmarkStandards({
+      quality,
+    }),
   }
 }
 

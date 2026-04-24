@@ -82,6 +82,13 @@ interface CreateAlicizationDreamRuntimeOptions {
   snapshotFromContent: (content: string) => AlicizationSoulSnapshot
   persistSubconsciousState: (cardId: string, state: SubconsciousCardState) => Promise<void>
   persistProactiveLoopState: (cardIdRaw: unknown, state: AlicizationProactiveLoopState) => Promise<void>
+  syncSessionMirrorFromCurrentCardState?: (input: {
+    cardId: string
+    decisionTraceId?: string | null
+    source: string
+    turnId?: string | null
+    sessionId?: string | null
+  }) => Promise<void>
   recoverProactiveRhythmAfterDream: (state: AlicizationProactiveLoopState, at?: number) => AlicizationProactiveLoopState
   clampNeed: (value: number) => number
   dreamMaxTurns: number
@@ -116,6 +123,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     snapshotFromContent,
     persistSubconsciousState,
     persistProactiveLoopState,
+    syncSessionMirrorFromCurrentCardState,
     recoverProactiveRhythmAfterDream,
     clampNeed,
     dreamMaxTurns,
@@ -613,6 +621,12 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     await persistSubconsciousState(getActiveCardId(), nextState)
     const proactiveLoopState = await ensureProactiveLoopState(cardId)
     await persistProactiveLoopState(cardId, recoverProactiveRhythmAfterDream(proactiveLoopState, now))
+    await syncSessionMirrorFromCurrentCardState?.({
+      cardId,
+      decisionTraceId: null,
+      source: 'dream',
+      turnId: dreamTurnId,
+    }).catch(() => {})
     return {
       processed: true,
     }

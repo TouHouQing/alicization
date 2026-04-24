@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildDefaultHumanlikeMemoryBenchmarkPack,
   benchmarkMainChatSessionReplay,
+  evaluateReplayMemoryQuality,
+  evaluateReplayBenchmarkStandards,
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
@@ -682,16 +685,160 @@ describe('main chat session replay harness', () => {
         eraFirst: 'pass',
         bundleCoherence: 'pass',
         replyMemoryCoherence: 'pass',
+        wrongThreadSuppression: 'not-applicable',
+        templateLeakage: 'pass',
       }),
       expect.objectContaining({
         turnId: 'turn-reconsolidated',
         reconsolidationEffect: 'pass',
         uncertaintyDiscipline: 'pass',
+        wrongThreadSuppression: 'not-applicable',
+        templateLeakage: 'pass',
       }),
       expect.objectContaining({
         turnId: 'turn-dream-residue',
         uncertaintyDiscipline: 'pass',
+        wrongThreadSuppression: 'not-applicable',
+        templateLeakage: 'pass',
       }),
     ]))
+    expect(result.standards).toEqual(expect.objectContaining({
+      eraSelectionQuality: 'pass',
+      replyMemoryCoherence: 'pass',
+      templateLeakage: 'pass',
+    }))
+  })
+
+  it('defines benchmark standards and default long-horizon benchmark pack', () => {
+    expect(buildDefaultHumanlikeMemoryBenchmarkPack().map(item => item.turnId)).toEqual(expect.arrayContaining([
+      'benchmark-7d-conversation-history',
+      'benchmark-30d-procedure-history',
+      'benchmark-90d-relationship-era',
+      'benchmark-nonexplicit-similar-task',
+      'benchmark-nonexplicit-tone-shift',
+      'benchmark-nonexplicit-delayed-recollection',
+      'benchmark-nonexplicit-correction',
+    ]))
+
+    const standards = evaluateReplayBenchmarkStandards({
+      quality: [
+        {
+          turnId: 'turn-1',
+          userText: 'a',
+          eraFirst: 'pass',
+          bundleCoherence: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          reconsolidationEffect: 'not-applicable',
+          uncertaintyDiscipline: 'not-applicable',
+          templateLeakage: 'pass',
+        },
+        {
+          turnId: 'turn-2',
+          userText: 'b',
+          eraFirst: 'pass',
+          bundleCoherence: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          reconsolidationEffect: 'pass',
+          uncertaintyDiscipline: 'pass',
+          templateLeakage: 'pass',
+        },
+      ],
+    })
+
+    expect(standards).toEqual({
+      eraSelectionQuality: 'pass',
+      procedureCarryQuality: 'pass',
+      wrongThreadSuppression: 'pass',
+      replyMemoryCoherence: 'pass',
+      templateLeakage: 'pass',
+    })
+  })
+
+  it('fails the acceptance gate when recollection wording leaks back in as a drafted template shell', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-template-shell',
+      userText: '继续吧',
+      prepared: {
+        governance: {
+          mustDo: ['What comes back first is the late-night seam.'],
+        },
+        messages: [{
+          role: 'system',
+          content: '[ALICIZATION_MEMORY_DELIBERATION]\nDo not say: What comes back first is the late-night seam.',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          recollectionPlan: {
+            opening: 'What comes back first is the late-night seam.',
+          },
+          recollectionSpeechPlan: {
+            shouldSurface: true,
+            surfaceMode: 'gist-first',
+            placement: 'before-payoff',
+            certainty: 'approximate',
+            internalLead: 'What comes back first is the late-night seam.',
+            visibleLead: 'What comes back first is the late-night seam.',
+            styleNote: 'Let the memory open exactly this way.',
+            rationale: 'Template leak regression.',
+            confidence: 0.72,
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: ['era-1'],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: [],
+            selectedEpisodeIds: [],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: [],
+            selectedEras: [{ id: 'era-1', facet: 'phase', summary: 'The remembered late-night seam.' }],
+            selectedPeriods: [],
+            selectedEpisodes: [],
+            selectedProcedures: [],
+            selectedBundles: [],
+            selectedChains: [],
+            surfacePolicy: 'gist-first',
+            confidence: 0.72,
+            whyNow: 'The seam returned.',
+            inwardLine: 'What comes back first is the late-night seam.',
+            visibleLine: 'What comes back first is the late-night seam.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [{ summary: 'The remembered late-night seam.' }],
+                openingClaim: 'The remembered late-night seam.',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: 'The remembered late-night seam.',
+                mustDo: ['What comes back first is the late-night seam.'],
+              },
+              replyDeliberation: {
+                speakingFrom: 'held-memory',
+                whyThisReplyNow: 'The remembered seam is relevant again.',
+                mustAvoid: [],
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: false,
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(quality.replyMemoryCoherence).toBe('pass')
+    expect(quality.templateLeakage).toBe('fail')
   })
 })

@@ -378,6 +378,25 @@ export function searchMemoryConsolidationRecords(input: {
     queryHints: string[]
     rationale: string
     confidence: number
+    recollectionAgenda?: {
+      whyRecallNow: string
+      goalSimilarity: number
+      relationshipNeed: number
+      affectivePull: number
+      sceneFamiliarity: number
+      candidateTimeScopes: Array<{
+        scope: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+        weight: number
+        rationale?: string | null
+      }>
+      candidateEraFacets: Array<{
+        facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
+        weight: number
+        rationale?: string | null
+      }>
+      candidateProcedureLines: string[]
+      uncertaintyTolerance: 'low' | 'medium' | 'high'
+    } | null
   } | null
 }): AlicizationMemoryConsolidationRecord[] {
   const query = sanitizeText(input.query, 320).toLowerCase()
@@ -386,6 +405,7 @@ export function searchMemoryConsolidationRecords(input: {
   const limit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 4)))
   const intent = input.recollectionIntent ?? null
   const hints = uniqueList(intent?.queryHints ?? [], 8).map(item => item.toLowerCase())
+  const agenda = intent?.recollectionAgenda ?? null
 
   return [...input.records]
     .map((record) => {
@@ -403,7 +423,30 @@ export function searchMemoryConsolidationRecords(input: {
       const taskEraBoost = (intent?.mode === 'execution-procedure' || intent?.mode === 'experience-pattern') && record.facet === 'task-era' ? 0.14 : 0
       const selfEraBoost = intent?.mode === 'autobiographical-history' && record.facet === 'self-era' ? 0.14 : 0
       const distantBoost = (intent?.temporalFocus === 'cross-session' || intent?.temporalFocus === 'distant') && record.kind !== 'daily' ? 0.18 : 0
-      const score = lexicalScore * 0.52 + record.confidence * 0.32 + proceduralBoost + autobiographicalBoost + relationshipEraBoost + taskEraBoost + selfEraBoost + distantBoost
+      const agendaProcedureBoost = agenda && agenda.candidateProcedureLines.length > 0
+        ? agenda.candidateProcedureLines.some(line => haystack.includes(line.toLowerCase()))
+            ? 0.08 + clamp01(agenda.goalSimilarity) * 0.12
+            : 0
+        : 0
+      const agendaFacetBoost = agenda && record.facet
+        ? (agenda.candidateEraFacets.find(item => item.facet === record.facet)?.weight ?? 0) * 0.18
+        : 0
+      const agendaTimeBoost = agenda && agenda.candidateTimeScopes.some(item => item.scope === 'cross-session' || item.scope === 'distant')
+        ? record.kind !== 'daily'
+            ? Math.max(...agenda.candidateTimeScopes.map(item => clamp01(item.weight))) * 0.12
+            : 0
+        : 0
+      const score = lexicalScore * 0.46
+        + record.confidence * 0.3
+        + proceduralBoost
+        + autobiographicalBoost
+        + relationshipEraBoost
+        + taskEraBoost
+        + selfEraBoost
+        + distantBoost
+        + agendaProcedureBoost
+        + agendaFacetBoost
+        + agendaTimeBoost
       return {
         record,
         score,

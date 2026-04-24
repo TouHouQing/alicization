@@ -42,6 +42,7 @@ import type {
 } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
+import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type {
   AlicizationRuntimeSetupOptions,
 } from './runtime-governance'
@@ -112,6 +113,10 @@ import {
   updatePerceptionStateWithObservation,
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
+import {
+  buildAutobiographicalEpisodesFromPreparedMirror,
+  buildAutobiographicalEpisodesFromSessionMirrorSync,
+} from './autobiographical-episode-sync'
 import { setupAlicizationDb } from './db'
 import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
@@ -494,6 +499,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       whyNow: deliberation.whyNow,
       inwardLine: deliberation.inwardLine,
       visibleLine: deliberation.visibleLine ?? null,
+      ambiguityPosture: deliberation.ambiguityPosture ?? 'settled',
       recollectionIntentMode: context?.recollectionIntent?.mode ?? null,
       recollectionIntentTemporalFocus: context?.recollectionIntent?.temporalFocus ?? null,
       speechShouldSurface: context?.recollectionSpeechPlan?.shouldSurface ?? null,
@@ -546,6 +552,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         answerPosture: item.answerPosture ?? null,
       })),
       selectedRelationshipLines: [...deliberation.selectedRelationshipLines],
+      searchTrace: deliberation.searchTrace
+        ? {
+            firstHop: {
+              focus: deliberation.searchTrace.firstHop.focus,
+              summary: deliberation.searchTrace.firstHop.summary,
+              targetIds: [...deliberation.searchTrace.firstHop.targetIds],
+            },
+            secondHop: {
+              action: deliberation.searchTrace.secondHop.action,
+              evidenceGap: deliberation.searchTrace.secondHop.evidenceGap,
+              summary: deliberation.searchTrace.secondHop.summary,
+              targetIds: [...deliberation.searchTrace.secondHop.targetIds],
+            },
+            thirdHop: {
+              ambiguityPosture: deliberation.searchTrace.thirdHop.ambiguityPosture,
+              summary: deliberation.searchTrace.thirdHop.summary,
+            },
+          }
+        : null,
     }
   }
 
@@ -652,6 +677,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildProactiveFeedbackSessionMirrorAction,
     buildPendingProactiveContinuitySignal,
     buildProactiveContinuitySignals,
+    buildAutobiographicalAfterglowContinuitySignals,
     buildDialogueContinuitySignal,
     buildVisualPresenceContinuitySignal,
   } = sessionContinuityBuildersRuntime
@@ -723,6 +749,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildProactiveFeedbackSessionMirrorAction,
     buildReminderSessionMirrorAction,
     dialogueSessionManager,
+    persistAutobiographicalEpisodesFromSessionMirror: persistSessionMirrorAutobiographicalEpisodes,
   })
   const {
     buildAgentRuntimeAuditSnapshot,
@@ -886,6 +913,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildOrganicMemorySystemBlocks,
     buildPerformanceManifestSystemBlocks,
     dialogueSessionManager,
+    persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
     executionCapabilityChannels: alicizationExecutionCapabilityChannels,
     executeMainGatewayTaskThread,
     resumeMainGatewayTaskThread,
@@ -1377,13 +1405,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const cardId = normalizeCardId(cardIdRaw)
     const readState = async () => {
       const now = Date.now()
-      const [visualPresenceState, proactiveState] = await Promise.all([
+      const activeSessionId = normalizeSessionId(
+        activeSessionIdByCard.get(cardId)
+          ?? await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+      )
+      const [visualPresenceState, proactiveState, recentEpisodicEvents] = await Promise.all([
         ensureVisualPresenceState(cardId).catch(() => null),
         ensureProactiveLoopState(cardId).catch(() => null),
+        alicizationDb.listRecentEpisodicEvents(24).catch(() => []),
       ])
       const dialogueSignal = visualPresenceState ? buildDialogueContinuitySignal(visualPresenceState) : null
       const visualPresenceSignal = visualPresenceState ? buildVisualPresenceContinuitySignal(visualPresenceState) : null
+      const autobiographicalAfterglowSignals = buildAutobiographicalAfterglowContinuitySignals({
+        activeSessionId: activeSessionId || null,
+        events: recentEpisodicEvents,
+        now,
+      })
       const sessionContinuitySignals = [
+        ...autobiographicalAfterglowSignals,
         ...(proactiveState ? buildProactiveContinuitySignals(proactiveState, now) : []),
         ...(dialogueSignal ? [dialogueSignal] : []),
         ...(visualPresenceSignal ? [visualPresenceSignal] : []),
@@ -1885,6 +1924,78 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         },
       }, cardId)
     }
+  }
+
+  async function persistAutobiographicalEpisodes(cardIdRaw: unknown, input: {
+    label: string
+    events: import('../../../shared/eventa').AlicizationEpisodicEventInput[]
+  }) {
+    const cardId = normalizeCardId(cardIdRaw)
+    if (input.events.length === 0)
+      return
+
+    const task = async () => {
+      await alicizationDb.appendEpisodicEvents(input.events)
+    }
+
+    try {
+      if (cardId === activeCardId) {
+        await task()
+      }
+      else {
+        await withCardScope(cardId, async () => {
+          await task()
+        }, {
+          label: `${input.label}:${cardId}`,
+        })
+      }
+    }
+    catch (error) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'alicization.memory',
+        action: 'autobiographical-episode-sync-failed',
+        message: 'Failed to backfill autobiographical episodes from continuity or execution sync.',
+        payload: {
+          cardId,
+          label: input.label,
+          count: input.events.length,
+          reason: errorMessageFrom(error) ?? 'unknown-error',
+        },
+      }, cardId)
+    }
+  }
+
+  async function persistPreparedMirrorAutobiographicalEpisodes(input: {
+    cardId: string
+    decisionTraceId?: string | null
+    turnId?: string | null
+    sessionId: string
+    previousMirror?: AlicizationDialogueSessionMirror | null
+    mirror: AlicizationDialogueSessionMirror
+  }) {
+    const events = buildAutobiographicalEpisodesFromPreparedMirror(input)
+    await persistAutobiographicalEpisodes(input.cardId, {
+      label: 'prepared-session-mirror.autobio',
+      events,
+    })
+  }
+
+  async function persistSessionMirrorAutobiographicalEpisodes(input: {
+    cardId: string
+    decisionTraceId?: string | null
+    source: string
+    turnId?: string | null
+    sessionId: string
+    previousMirror?: AlicizationDialogueSessionMirror | null
+    mirror: AlicizationDialogueSessionMirror
+    taskThread?: AlicizationTaskThreadRecord | null
+  }) {
+    const events = buildAutobiographicalEpisodesFromSessionMirrorSync(input)
+    await persistAutobiographicalEpisodes(input.cardId, {
+      label: 'session-mirror.autobio',
+      events,
+    })
   }
 
   function collectRecallTelemetryTexts(payload: Record<string, unknown> | null | undefined) {
@@ -4470,6 +4581,84 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         .slice(0, 8)
     }
 
+    const readLines = (key: string) => {
+      const value = parsed[key]
+      if (!Array.isArray(value))
+        return [] as string[]
+      return value
+        .map(item => sanitizeBriefText(String(item ?? ''), 220))
+        .filter(Boolean)
+        .slice(0, 4)
+    }
+
+    const readSearchTrace = () => {
+      const value = parsed.searchTrace
+      if (!value || typeof value !== 'object')
+        return null
+      const candidate = value as Record<string, unknown>
+      const firstHopCandidate = candidate.firstHop && typeof candidate.firstHop === 'object'
+        ? candidate.firstHop as Record<string, unknown>
+        : null
+      const secondHopCandidate = candidate.secondHop && typeof candidate.secondHop === 'object'
+        ? candidate.secondHop as Record<string, unknown>
+        : null
+      const thirdHopCandidate = candidate.thirdHop && typeof candidate.thirdHop === 'object'
+        ? candidate.thirdHop as Record<string, unknown>
+        : null
+      const firstHopFocus = firstHopCandidate?.focus === 'era'
+        || firstHopCandidate?.focus === 'procedure'
+        || firstHopCandidate?.focus === 'relationship-line'
+        || firstHopCandidate?.focus === 'conversation-turn'
+        || firstHopCandidate?.focus === 'episode'
+        ? firstHopCandidate.focus
+        : null
+      const secondHopAction = secondHopCandidate?.action === 'hold'
+        || secondHopCandidate?.action === 'expand-era'
+        || secondHopCandidate?.action === 'expand-procedure'
+        || secondHopCandidate?.action === 'expand-relationship-line'
+        || secondHopCandidate?.action === 'expand-conversation'
+        || secondHopCandidate?.action === 'narrow-to-stable-core'
+        ? secondHopCandidate.action
+        : null
+      const evidenceGap = secondHopCandidate?.evidenceGap === 'none'
+        || secondHopCandidate?.evidenceGap === 'need-period-anchor'
+        || secondHopCandidate?.evidenceGap === 'need-episode-detail'
+        || secondHopCandidate?.evidenceGap === 'need-procedure-detail'
+        || secondHopCandidate?.evidenceGap === 'need-relationship-meaning'
+        || secondHopCandidate?.evidenceGap === 'need-conversation-evidence'
+        || secondHopCandidate?.evidenceGap === 'need-disambiguation'
+        ? secondHopCandidate.evidenceGap
+        : null
+      const ambiguityPosture = thirdHopCandidate?.ambiguityPosture === 'settled'
+        || thirdHopCandidate?.ambiguityPosture === 'approximate'
+        || thirdHopCandidate?.ambiguityPosture === 'ambiguous'
+        ? thirdHopCandidate.ambiguityPosture
+        : null
+      if (!firstHopFocus || !secondHopAction || !evidenceGap || !ambiguityPosture)
+        return null
+      return {
+        firstHop: {
+          focus: firstHopFocus,
+          summary: sanitizeBriefText(String(firstHopCandidate?.summary ?? ''), 220) || 'The recollection search chose the first remembered anchor for this turn.',
+          targetIds: Array.isArray(firstHopCandidate?.targetIds)
+            ? firstHopCandidate.targetIds.map(item => sanitizeBriefText(String(item ?? ''), 120)).filter(Boolean).slice(0, 6)
+            : [],
+        },
+        secondHop: {
+          action: secondHopAction,
+          evidenceGap,
+          summary: sanitizeBriefText(String(secondHopCandidate?.summary ?? ''), 220) || 'The recollection search decided whether to expand or narrow the active memory lane.',
+          targetIds: Array.isArray(secondHopCandidate?.targetIds)
+            ? secondHopCandidate.targetIds.map(item => sanitizeBriefText(String(item ?? ''), 120)).filter(Boolean).slice(0, 6)
+            : [],
+        },
+        thirdHop: {
+          ambiguityPosture,
+          summary: sanitizeBriefText(String(thirdHopCandidate?.summary ?? ''), 220) || 'The recollection search set the ambiguity posture for the visible answer.',
+        },
+      } satisfies NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionPlan']>['searchTrace']>
+    }
+
     const certainty = parsed.certainty === 'firm' || parsed.certainty === 'approximate' || parsed.certainty === 'fragmentary'
       ? parsed.certainty
       : 'approximate'
@@ -4485,6 +4674,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       selectedProceduralIds: readIds('selectedProceduralIds'),
       selectedEpisodeIds: readIds('selectedEpisodeIds'),
       selectedConversationTurnIds: readIds('selectedConversationTurnIds'),
+      selectedRelationshipLines: readLines('selectedRelationshipLines'),
+      searchTrace: readSearchTrace(),
       opening,
       certainty,
       rationale: rationale || 'The recollection planner selected the most humanly plausible memory foreground.',
@@ -4496,6 +4687,88 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const parsed = parseJsonObjectFromText(raw)
     if (!parsed)
       return null
+
+    const parseRecollectionAgenda = () => {
+      const rawAgenda = parsed.recollectionAgenda
+      if (!rawAgenda || typeof rawAgenda !== 'object')
+        return null
+      const candidate = rawAgenda as Record<string, unknown>
+      const candidateTimeScopes: NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateTimeScopes'] = Array.isArray(candidate.candidateTimeScopes)
+        ? candidate.candidateTimeScopes
+            .map((item) => {
+              if (!item || typeof item !== 'object')
+                return null
+              const scopeCandidate = item as Record<string, unknown>
+              const scope = scopeCandidate.scope === 'recent'
+                || scopeCandidate.scope === 'recent-or-mid'
+                || scopeCandidate.scope === 'cross-session'
+                || scopeCandidate.scope === 'experience-matched'
+                || scopeCandidate.scope === 'distant'
+                ? scopeCandidate.scope
+                : null
+              if (!scope)
+                return null
+              return {
+                scope: scope as NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateTimeScopes'][number]['scope'],
+                weight: clamp01(Number(scopeCandidate.weight ?? 0.5)),
+                rationale: sanitizeBriefText(String(scopeCandidate.rationale ?? ''), 180) || null,
+              }
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+            .slice(0, 4)
+        : []
+      const candidateEraFacets: NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateEraFacets'] = Array.isArray(candidate.candidateEraFacets)
+        ? candidate.candidateEraFacets
+            .map((item) => {
+              if (!item || typeof item !== 'object')
+                return null
+              const facetCandidate = item as Record<string, unknown>
+              const facet = facetCandidate.facet === 'phase'
+                || facetCandidate.facet === 'relationship-era'
+                || facetCandidate.facet === 'task-era'
+                || facetCandidate.facet === 'self-era'
+                || facetCandidate.facet === 'window'
+                ? facetCandidate.facet
+                : null
+              if (!facet)
+                return null
+              return {
+                facet: facet as NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateEraFacets'][number]['facet'],
+                weight: clamp01(Number(facetCandidate.weight ?? 0.5)),
+                rationale: sanitizeBriefText(String(facetCandidate.rationale ?? ''), 180) || null,
+              }
+            })
+            .filter((item): item is NonNullable<typeof item> => Boolean(item))
+            .slice(0, 4)
+        : []
+      const candidateProcedureLines = Array.isArray(candidate.candidateProcedureLines)
+        ? candidate.candidateProcedureLines
+            .map(item => sanitizeBriefText(String(item ?? ''), 180))
+            .filter(Boolean)
+            .slice(0, 6)
+        : []
+      const whyRecallNow = sanitizeBriefText(String(candidate.whyRecallNow ?? ''), 220)
+      const uncertaintyTolerance = candidate.uncertaintyTolerance === 'low'
+        || candidate.uncertaintyTolerance === 'medium'
+        || candidate.uncertaintyTolerance === 'high'
+        ? candidate.uncertaintyTolerance
+        : 'medium'
+
+      if (!whyRecallNow)
+        return null
+
+      return {
+        whyRecallNow,
+        goalSimilarity: clamp01(Number(candidate.goalSimilarity ?? 0)),
+        relationshipNeed: clamp01(Number(candidate.relationshipNeed ?? 0)),
+        affectivePull: clamp01(Number(candidate.affectivePull ?? 0)),
+        sceneFamiliarity: clamp01(Number(candidate.sceneFamiliarity ?? 0)),
+        candidateTimeScopes,
+        candidateEraFacets,
+        candidateProcedureLines,
+        uncertaintyTolerance,
+      } satisfies NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>
+    }
 
     const mode = parsed.mode === 'none'
       || parsed.mode === 'conversation-history'
@@ -4520,6 +4793,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const queryHints = Array.isArray(parsed.queryHints)
       ? parsed.queryHints.map(item => sanitizeBriefText(String(item ?? ''), 120)).filter(Boolean).slice(0, 8)
       : []
+    const recollectionAgenda = parseRecollectionAgenda()
 
     if (mode === 'none') {
       return {
@@ -4531,6 +4805,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         queryHints,
         rationale: rationale || 'The recollection intent planner decided the turn should stay present-facing instead of opening long-range memory.',
         confidence,
+        recollectionAgenda,
       } satisfies NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
     }
 
@@ -4543,6 +4818,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       queryHints,
       rationale: rationale || 'The recollection intent planner selected the memory lane that best matches the current turn.',
       confidence,
+      recollectionAgenda,
     } satisfies NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
   }
 
@@ -4963,9 +5239,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         'You are Alicization private recollection planning, not user-facing dialogue.',
         'Choose which memory foreground Alicization would most naturally think of first before speaking.',
         'This is not retrieval by rigid timestamp. Prefer humanlike recollection: first a period, a bond turn, or a remembered way of doing something, then details.',
-        'Output valid JSON only with keys: selectedConsolidationIds, selectedWindowIds, selectedProceduralIds, selectedEpisodeIds, selectedConversationTurnIds, opening, certainty, rationale, confidence.',
+        'Output valid JSON only with keys: selectedConsolidationIds, selectedWindowIds, selectedProceduralIds, selectedEpisodeIds, selectedConversationTurnIds, selectedRelationshipLines, searchTrace, opening, certainty, rationale, confidence.',
         'certainty must be one of: firm, approximate, fragmentary.',
         'opening must be a gist-first recollection sentence Alicization could privately think before answering.',
+        'selectedRelationshipLines should be up to 3 remembered relationship meanings or lessons that the recollection should carry forward.',
+        'searchTrace is required and must contain firstHop, secondHop, thirdHop.',
+        'firstHop must contain: focus, summary, targetIds. focus must be one of: era, procedure, relationship-line, conversation-turn, episode.',
+        'secondHop must contain: action, evidenceGap, summary, targetIds. action must be one of: hold, expand-era, expand-procedure, expand-relationship-line, expand-conversation, narrow-to-stable-core.',
+        'evidenceGap must be one of: none, need-period-anchor, need-episode-detail, need-procedure-detail, need-relationship-meaning, need-conversation-evidence, need-disambiguation.',
+        'thirdHop must contain: ambiguityPosture, summary. ambiguityPosture must be one of: settled, approximate, ambiguous.',
+        'Think in three hops: first choose the anchor that comes back first, then decide whether you need to expand or narrow for evidence, then decide how ambiguous the memory still feels.',
         'Use empty arrays when a memory lane should not be foregrounded.',
         'Do not select many items. Usually 1-2 foreground selections are enough.',
         'If the turn is about how something was previously done, prefer procedural memory or execution episodes.',
@@ -5052,9 +5335,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         'Decide if Alicization should stay present-facing or open a memory lane before retrieval.',
         'If memory should not engage, output mode=none and set all search flags to false.',
         'If memory should engage, choose the single best lane for this turn.',
-        'Output valid JSON only with keys: mode, temporalFocus, searchEpisodes, searchConversations, searchProceduralExperience, queryHints, rationale, confidence.',
+        'Output valid JSON only with keys: mode, temporalFocus, searchEpisodes, searchConversations, searchProceduralExperience, queryHints, rationale, confidence, recollectionAgenda.',
         'mode must be one of: none, conversation-history, autobiographical-history, relationship-history, execution-procedure, experience-pattern.',
         'temporalFocus must be one of: recent, recent-or-mid, cross-session, experience-matched, distant.',
+        'recollectionAgenda is required and must be an object with keys: whyRecallNow, goalSimilarity, relationshipNeed, affectivePull, sceneFamiliarity, candidateTimeScopes, candidateEraFacets, candidateProcedureLines, uncertaintyTolerance.',
+        'candidateTimeScopes must be up to 4 objects with keys: scope, weight, rationale.',
+        'candidateEraFacets must be up to 4 objects with keys: facet, weight, rationale.',
+        'candidateProcedureLines should be short remembered task or bond lines that are worth probing before exact detail.',
+        'uncertaintyTolerance must be one of: low, medium, high.',
+        'Treat time-language as candidate search space, not as a rigid rule that directly decides which exact days to recall.',
         'Do not default to long-range recall just because some memory cue exists. Prefer staying present if the memory would not materially help.',
       ].join('\n'),
       user: `Recollection intent candidate JSON: ${JSON.stringify({
@@ -5218,6 +5507,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         'You are Alicization private memory deliberation, not user-facing dialogue.',
         'recollectionIntent, recollectionPlan, and recollectionSpeechPlan are candidate providers only. You are the final authority over whether active recollection should actually stay live for this turn, which memory bundle should shape the answer, and how visible that recollection should be.',
         'Think like a human memory process: first decide whether recollection truly helps; if yes, select a small coherent bundle such as a remembered period, one event, one way of doing something, or one relationship line.',
+        'Use recollectionIntent.recollectionAgenda as the search authority for why recall is opening now, which time scopes are merely candidates, which era facets are worth probing first, and which procedure lines feel similar enough to reopen.',
         'Do not force recollection just because candidates exist. If the turn should stay present-facing, set shouldRecall=false and keep all selected id arrays empty.',
         'Output valid JSON only with keys: shouldRecall, selectedEraIds, selectedConsolidationIds, selectedWindowIds, selectedProcedureIds, selectedEpisodeIds, selectedConversationTurnIds, selectedRelationshipLines, selectedBundles, selectedChains, conflictSeverity, conflictVariants, stableCore, unsafeDetails, surfacePolicy, confidence, whyNow, inwardLine, visibleLine.',
         'surfacePolicy must be one of: internal-only, gist-first, answer-anchoring, procedural-carry, relationship-continuity.',
@@ -6378,6 +6668,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     snapshotFromContent,
     persistSubconsciousState,
     persistProactiveLoopState,
+    syncSessionMirrorFromCurrentCardState,
     recoverProactiveRhythmAfterDream,
     clampNeed,
     dreamMaxTurns,
@@ -6710,6 +7001,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     ensureProactiveLoopState,
     reportExplicitProactiveFeedback,
     persistProactiveLoopState,
+    persistProactiveFeedbackOutcomeClosure: async input => {
+      await persistOutcomeClosure(input.cardId, buildProactiveFeedbackOutcomeClosure(input))
+    },
     syncSessionMirrorFromCurrentCardState,
     appendAuditLog,
     queueSubconsciousWake,

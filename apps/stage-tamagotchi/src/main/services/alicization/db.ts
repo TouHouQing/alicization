@@ -55,7 +55,7 @@ import sqlite3 from 'sqlite3'
 import { deriveMemoryContradictionSignal, deriveMemoryInterferencePenalty } from './humanlike-memory'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
-import { extractOrganicRecallTerms, isRetrospectiveRecallQuery, normalizeOrganicRecallText } from './runtime-organic-recall'
+import { extractOrganicRecallTerms, normalizeOrganicRecallText } from './runtime-organic-recall'
 
 const dayMs = 24 * 60 * 60 * 1000
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -323,6 +323,25 @@ interface AlicizationMemoryRecollectionIntentLike {
   queryHints: string[]
   rationale: string
   confidence: number
+  recollectionAgenda?: {
+    whyRecallNow: string
+    goalSimilarity: number
+    relationshipNeed: number
+    affectivePull: number
+    sceneFamiliarity: number
+    candidateTimeScopes: Array<{
+      scope: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+      weight: number
+      rationale?: string | null
+    }>
+    candidateEraFacets: Array<{
+      facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
+      weight: number
+      rationale?: string | null
+    }>
+    candidateProcedureLines: string[]
+    uncertaintyTolerance: 'low' | 'medium' | 'high'
+  } | null
 }
 
 interface AlicizationMemoryConsolidationSearchInput {
@@ -562,6 +581,56 @@ function tokenize(text: string) {
       .map(token => token.trim())
       .filter(token => token.length >= 2),
   )
+}
+
+function scoreAgendaTimeScope(input: {
+  ageDays: number
+  recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+}) {
+  const scopes = input.recollectionIntent?.recollectionAgenda?.candidateTimeScopes ?? []
+  if (scopes.length === 0)
+    return 0
+
+  const matchScope = (scope: typeof scopes[number]['scope']) => {
+    switch (scope) {
+      case 'recent':
+        return input.ageDays <= 1 ? 1 : input.ageDays <= 3 ? 0.56 : 0.08
+      case 'recent-or-mid':
+        return input.ageDays <= 14 ? 1 : input.ageDays <= 30 ? 0.62 : 0.14
+      case 'cross-session':
+        return input.ageDays >= 2 ? Math.min(1, 0.42 + input.ageDays / 21) : 0.1
+      case 'experience-matched':
+        return input.ageDays >= 1 ? Math.min(1, 0.36 + input.ageDays / 14) : 0.22
+      case 'distant':
+        return input.ageDays >= 14 ? Math.min(1, 0.34 + input.ageDays / 45) : 0.04
+      default:
+        return 0
+    }
+  }
+
+  return Math.max(
+    ...scopes.map(scope => matchScope(scope.scope) * clamp01(scope.weight)),
+    0,
+  )
+}
+
+function scoreAgendaProcedureLines(input: {
+  haystack: string
+  recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+}) {
+  const lines = input.recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []
+  if (lines.length === 0)
+    return 0
+  const needle = tokenize(lines.join(' '))
+  const haystack = tokenize(input.haystack)
+  if (needle.size === 0 || haystack.size === 0)
+    return 0
+  let overlap = 0
+  for (const token of haystack) {
+    if (needle.has(token))
+      overlap += 1
+  }
+  return overlap / haystack.size
 }
 
 function uniqueStringArray(values: Array<string | null | undefined>, maxItems = 12) {
@@ -1967,7 +2036,6 @@ export async function setupAlicizationDb(
       || recollectionIntent?.mode === 'conversation-history'
       || recollectionIntent?.mode === 'relationship-history'
       || recollectionIntent?.mode === 'autobiographical-history'
-      || isRetrospectiveRecallQuery(query)
     const nowTs = now()
 
     const ranked = rows
@@ -1995,11 +2063,32 @@ export async function setupAlicizationDb(
             intentScore += normalizedHint.length >= 10 ? 1.8 : 0.8
         }
         const ageHours = Math.max(0, (nowTs - row.created_at) / (60 * 60 * 1000))
+        const ageDays = ageHours / 24
         const recencyScore = Math.exp(-ageHours / (24 * 7))
         const oldMemoryBoost = retrospective && ageHours >= 18 ? 0.28 : 0
         const antiRecentPenalty = retrospective && ageHours < 6 ? 0.2 : 0
         const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageHours >= 12 ? 0.16 : 0
-        const score = lexicalScore * 0.44 + intentScore * 0.28 + recencyScore * 0.14 + oldMemoryBoost + experienceMatchedBoost - antiRecentPenalty
+        const agendaTimeBoost = scoreAgendaTimeScope({
+          ageDays,
+          recollectionIntent,
+        }) * 0.18
+        const agendaProcedureBoost = scoreAgendaProcedureLines({
+          haystack: combined,
+          recollectionIntent,
+        }) * (0.08 + clamp01(recollectionIntent?.recollectionAgenda?.goalSimilarity ?? 0) * 0.12)
+        const relationshipBoost = clamp01(recollectionIntent?.recollectionAgenda?.relationshipNeed ?? 0) >= 0.32
+          && /relationship|bond|tone|repair|回应|关系|语气|修复/u.test(combined)
+          ? clamp01(recollectionIntent?.recollectionAgenda?.relationshipNeed ?? 0) * 0.08
+          : 0
+        const score = lexicalScore * 0.38
+          + intentScore * 0.22
+          + recencyScore * 0.12
+          + oldMemoryBoost
+          + experienceMatchedBoost
+          + agendaTimeBoost
+          + agendaProcedureBoost
+          + relationshipBoost
+          - antiRecentPenalty
         return {
           turnId: row.turn_id,
           sessionId: row.session_id,
@@ -4124,8 +4213,41 @@ export async function setupAlicizationDb(
           ? Math.exp(-Math.max(0, nowTs - event.latestReconsolidation.at) / (14 * dayMs))
           : 0
         const ageDays = Math.max(0, (nowTs - event.occurredAt) / dayMs)
+        const continuityTagged = event.sourceKind === 'maintenance'
+          || event.tags.some(tag => /afterthought|continuity|session-mirror|dream/u.test(tag))
+          || /session mirror|dream continuity|afterthought/u.test(`${event.sourceSummary ?? ''} ${event.whatChanged ?? ''}`)
         const distantBoost = recollectionIntent?.temporalFocus === 'cross-session' && ageDays >= 2 ? 0.12 : 0
         const experienceMatchedBoost = recollectionIntent?.temporalFocus === 'experience-matched' && ageDays >= 1 ? 0.1 : 0
+        const agendaTimeBoost = scoreAgendaTimeScope({
+          ageDays,
+          recollectionIntent,
+        }) * 0.14
+        const agendaProcedureBoost = scoreAgendaProcedureLines({
+          haystack: `${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''} ${event.relationshipMeaning ?? ''} ${event.tags.join(' ')}`,
+          recollectionIntent,
+        }) * (0.08 + clamp01(recollectionIntent?.recollectionAgenda?.goalSimilarity ?? 0) * 0.14)
+        const agendaRelationshipBoost = clamp01(recollectionIntent?.recollectionAgenda?.relationshipNeed ?? 0) >= 0.32
+          && relationshipScore > 0.12
+          ? clamp01(recollectionIntent?.recollectionAgenda?.relationshipNeed ?? 0) * 0.08
+          : 0
+        const agendaAffectBoost = clamp01(recollectionIntent?.recollectionAgenda?.affectivePull ?? 0) >= 0.28
+          && affectScore > 0.1
+          ? clamp01(recollectionIntent?.recollectionAgenda?.affectivePull ?? 0) * 0.06
+          : 0
+        const afterglowCarryBoost = continuityTagged
+          && ageDays <= 7
+          && (threadScore > 0.08 || intentScore > 0.08 || agendaProcedureBoost > 0.04 || relationshipScore > 0.08)
+          ? event.sourceKind === 'maintenance'
+              ? 0.18
+              : 0.12
+          : 0
+        const crossSessionAfterglowBoost = continuityTagged
+          && Boolean(input.sessionId && event.sessionId && input.sessionId !== event.sessionId)
+          && input.carryAsMemory
+          ? event.sourceKind === 'maintenance'
+              ? 0.1
+              : 0.06
+          : 0
         const proceduralBoost = recollectionIntent?.searchProceduralExperience
           && (
             event.sourceKind === 'execution-proposal'
@@ -4205,6 +4327,12 @@ export async function setupAlicizationDb(
             + reconsolidationCarryBoost
             + distantBoost
             + experienceMatchedBoost
+            + agendaTimeBoost
+            + agendaProcedureBoost
+            + agendaRelationshipBoost
+            + agendaAffectBoost
+            + afterglowCarryBoost
+            + crossSessionAfterglowBoost
             + proceduralBoost
             + relationshipTriggerBoost
             + moodCongruentBoost

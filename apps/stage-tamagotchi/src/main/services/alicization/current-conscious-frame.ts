@@ -314,6 +314,7 @@ export function buildCurrentConsciousFrame(input: {
   const desireMemory = runtimeSurface?.memory.desireMemory ?? input.desireMemory ?? null
   const growthProfile = buildAlicizationDialogueGrowthProfile({
     autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+    hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
     longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
     motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
     habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,

@@ -4,6 +4,7 @@ import type {
   AlicizationChannelCapabilityManifestRecord,
   AlicizationClawTaskIntent,
   AlicizationDispatchTaskThreadPayload,
+  AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 import type { AlicizationRelationshipDynamicsState } from './db'
@@ -23,6 +24,7 @@ import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
 import { probeOpenClawCapability, readOpenClawCapabilitySnapshot } from './executor-adapters/openclaw'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
+import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
 type CapabilityManifestSnapshotSource = 'runtime-default-probe' | 'runtime-plan-payload'
@@ -31,6 +33,7 @@ type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecut
   | 'getTaskThread'
   | 'getLatestRelationshipDynamics'
   | 'listChannelCapabilityManifests'
+  | 'listExecutionEvents'
   | 'listRecentEpisodicEvents'
   | 'listExecutorSessions'
   | 'listTaskThreads'
@@ -149,6 +152,221 @@ function normalizeHintText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function sanitizePlanningText(raw: unknown, maxChars = 220) {
+  return normalizeHintText(raw, maxChars)
+}
+
+function uniqueProcedureTexts(values: Array<string | null | undefined>, maxItems = 6) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = normalizeHintText(value, 180)
+    if (!normalized)
+      continue
+    if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function uniqueProcedureCues(values: Array<string | null | undefined>, maxItems = 8) {
+  return [...new Set(values.map(value => normalizeHintText(value, 120)).filter(Boolean))].slice(0, maxItems)
+}
+
+function tokenizeGoalText(raw: unknown) {
+  return normalizeHintText(raw, 360)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, ' ')
+    .split(/\s+/u)
+    .map(token => token.trim())
+    .filter(token => token.length >= 2)
+}
+
+function computeTokenOverlapScore(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0)
+    return 0
+  const rightSet = new Set(right)
+  let overlap = 0
+  for (const token of left) {
+    if (rightSet.has(token))
+      overlap += 1
+  }
+  const union = new Set([...left, ...right]).size
+  return union > 0 ? overlap / union : 0
+}
+
+function extractExecutionEventStep(event: AlicizationExecutionEventRecord) {
+  const payload = event.payload && typeof event.payload === 'object'
+    ? event.payload as Record<string, unknown>
+    : null
+  const detail = sanitizeExecutionLedgerText(
+    payload?.summary
+    ?? payload?.reply
+    ?? payload?.assistant
+    ?? payload?.stdout
+    ?? payload?.stderr
+    ?? payload?.errorMessage
+    ?? payload?.reason
+    ?? payload?.goal,
+    180,
+  )
+  if (detail)
+    return detail
+  const channel = sanitizePlanningText(event.channel, 64)
+  const kind = sanitizePlanningText(event.kind, 64)
+  if (!channel && !kind)
+    return ''
+  return [kind || 'step', channel ? `via ${channel}` : ''].filter(Boolean).join(' ')
+}
+
+function buildRememberedProcedureTraceSummary(input: {
+  label: string
+  situation: string
+  steps: string[]
+  result: string
+  lesson: string
+  failurePoints: string[]
+  repairMoves: string[]
+}) {
+  return normalizeHintText([
+    input.label,
+    input.situation,
+    input.steps[0] ? `steps: ${input.steps.slice(0, 2).join(' -> ')}` : '',
+    input.result ? `result: ${input.result}` : '',
+    input.failurePoints[0] ? `failure: ${input.failurePoints.slice(0, 2).join(' | ')}` : '',
+    input.repairMoves[0] ? `repair: ${input.repairMoves.slice(0, 2).join(' | ')}` : '',
+    input.lesson ? `lesson: ${input.lesson}` : '',
+  ].filter(Boolean).join(' | '), 280)
+}
+
+async function buildRememberedProcedureTracesFromExecution(input: {
+  db: AlicizationExecutorRuntimeDbPort
+  goalText: string
+  contexts: string[]
+  hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null
+  relationshipDynamics: AlicizationRelationshipDynamicsState | null
+}) {
+  const goalTokens = tokenizeGoalText(input.goalText)
+  if (goalTokens.length === 0)
+    return []
+
+  const recentThreads = await input.db.listTaskThreads({
+    limit: 24,
+  }).catch(() => [] as AlicizationTaskThreadRecord[])
+  const candidateThreads = recentThreads
+    .filter(thread => ['completed', 'failed', 'cancelled', 'blocked', 'running', 'paused'].includes(thread.status))
+    .map(thread => ({
+      thread,
+      similarity: computeTokenOverlapScore(goalTokens, tokenizeGoalText(thread.goal)),
+    }))
+    .filter(item => item.similarity >= 0.14)
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, 8)
+
+  const traces = await Promise.all(candidateThreads.map(async ({ thread, similarity }) => {
+    const events = await input.db.listExecutionEvents({
+      threadId: thread.id,
+      limit: 12,
+    }).catch(() => [] as AlicizationExecutionEventRecord[])
+    const orderedEvents = [...events].sort((left, right) => left.createdAt - right.createdAt)
+    const channel = thread.selectedChannel ?? thread.proposedChannel ?? null
+    const eventSteps = orderedEvents
+      .map(extractExecutionEventStep)
+      .filter(Boolean)
+      .slice(0, 5)
+    const result = sanitizeExecutionLedgerText(readExecutionOutcome(orderedEvents), 220)
+      || normalizeHintText(thread.summary, 220)
+    const latestEvent = readLatestExecutionEvent(orderedEvents)
+    const failurePoints = [
+      ...orderedEvents
+        .filter(event => event.kind === 'cancel' || event.threadStatus === 'failed' || event.threadStatus === 'blocked' || event.threadStatus === 'cancelled')
+        .map(event => extractExecutionEventStep(event)),
+      /failed|blocked|cancelled/iu.test(thread.status)
+        ? normalizeHintText(thread.summary, 180)
+        : '',
+    ].filter(Boolean).slice(0, 3)
+    const repairMoves = orderedEvents
+      .filter(event => event.kind === 'resume' || event.kind === 'takeover' || /verify|repair|fix|retry|resume|repair/iu.test(extractExecutionEventStep(event)))
+      .map(event => extractExecutionEventStep(event))
+      .filter(Boolean)
+      .slice(0, 3)
+    const lesson = uniqueProcedureTexts([
+      normalizeHintText(thread.summary, 220),
+      result,
+      latestEvent ? extractExecutionEventStep(latestEvent) : '',
+      ...repairMoves,
+      ...failurePoints,
+    ], 4)[0] ?? ''
+    const procedureText = [
+      thread.goal,
+      thread.summary ?? '',
+      result,
+      ...eventSteps,
+      ...failurePoints,
+      ...repairMoves,
+      lesson,
+    ].join(' ')
+    const preferenceBoost = computeRememberedProcedureHostPreferenceBoost({
+      procedureText,
+      contexts: input.contexts,
+      relationshipDynamics: input.relationshipDynamics,
+      hostPersonModel: input.hostPersonModel,
+    })
+    const preferred = inferPreferredProcedureChannel(procedureText)
+    const label = sanitizePlanningText(thread.goal, 160) || sanitizePlanningText(thread.summary, 160) || 'remembered execution trace'
+    const situation = [
+      channel ? `channel=${channel}` : '',
+      sanitizePlanningText(thread.kind, 64),
+      sanitizePlanningText(thread.status, 64),
+    ].filter(Boolean).join(' | ')
+
+    return {
+      id: `execution-trace:${thread.id}`,
+      sourceKind: 'autobiographical' as const,
+      facet: 'task-era' as const,
+      label,
+      approach: eventSteps[0] || lesson || result || label,
+      pitfalls: uniqueProcedureTexts(failurePoints, 3),
+      situation: normalizeHintText(situation, 220) || null,
+      steps: uniqueProcedureTexts(eventSteps, 5),
+      failurePoints: uniqueProcedureTexts(failurePoints, 3),
+      repairMoves: uniqueProcedureTexts(repairMoves, 3),
+      result: result || null,
+      traceSummary: buildRememberedProcedureTraceSummary({
+        label,
+        situation,
+        steps: uniqueProcedureTexts(eventSteps, 5),
+        result,
+        lesson,
+        failurePoints: uniqueProcedureTexts(failurePoints, 3),
+        repairMoves: uniqueProcedureTexts(repairMoves, 3),
+      }) || null,
+      lastExperiencedAt: readTaskThreadActivityAt(thread),
+      confidence: Math.max(0, Math.min(1, 0.52 + similarity * 0.26 + preferenceBoost)),
+      cues: uniqueProcedureCues([
+        thread.goal,
+        thread.summary,
+        channel,
+        ...eventSteps.slice(0, 3),
+        ...input.contexts,
+      ]).slice(0, 6),
+      preferredChannel: preferred?.channel ?? channel,
+      preferredChannelReason: preferred?.reason
+        ? `${preferred.reason}${preferenceBoost > 0 ? ':host-context-biased' : ''}`
+        : channel
+          ? 'remembered-thread-channel'
+          : null,
+    }
+  }))
+
+  return traces
+    .filter(item => item.label && item.approach)
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 4)
+}
+
 function buildHostProcedureHints(input: {
   contexts: string[]
   relationshipDynamics: AlicizationRelationshipDynamicsState | null
@@ -239,6 +457,13 @@ function buildRememberedProcedures(
         label: sanitizeTextLike(record.record.periodKey) || sanitizeTextLike(record.record.summary),
         approach: sanitizeTextLike(record.record.lesson) || sanitizeTextLike(record.record.summary),
         pitfalls: [],
+        situation: null,
+        steps: [],
+        failurePoints: [],
+        repairMoves: [],
+        result: null,
+        traceSummary: sanitizeTextLike(record.record.summary) || sanitizeTextLike(record.record.lesson),
+        lastExperiencedAt: record.record.periodEndedAt,
         confidence: Math.max(0, Math.min(1, record.record.confidence + record.preferenceBoost)),
         cues: [...new Set([
           ...(record.record.cues ?? []).map(cue => sanitizeTextLike(cue)),
@@ -482,18 +707,32 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         confidence: 0.84,
       },
     }).catch(() => [])
+    const rememberedExecutionTraces = await buildRememberedProcedureTracesFromExecution({
+      db,
+      goalText: input.task.goal,
+      contexts: planningContexts,
+      hostPersonModel,
+      relationshipDynamics,
+    })
+    const rememberedProcedures = [
+      ...rememberedExecutionTraces,
+      ...buildRememberedProcedures(
+        options.sanitizeText,
+        input.task.goal,
+        hostPersonModel,
+        relationshipDynamics,
+        proceduralMemories,
+      ),
+    ]
+      .filter((item, index, items) => items.findIndex(entry => entry.id === item.id) === index)
+      .sort((left, right) => right.confidence - left.confidence)
+      .slice(0, 4)
 
     return await taskExecutionGovernor.plan(db, {
       ...input,
       experience: {
         ...input.experience,
-        rememberedProcedures: buildRememberedProcedures(
-          options.sanitizeText,
-          input.task.goal,
-          hostPersonModel,
-          relationshipDynamics,
-          proceduralMemories,
-        ),
+        rememberedProcedures,
       },
     })
   }

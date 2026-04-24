@@ -68,6 +68,22 @@ describe('runtime-organic-memory-prompt', () => {
           queryHints: ['runtime fix', 'before'],
           rationale: 'Heuristic cue says to search long-range history.',
           confidence: 0.62,
+          recollectionAgenda: {
+            whyRecallNow: 'The wording suggests an older dialogue thread, but the planner may still decide memory should stay closed.',
+            goalSimilarity: 0.22,
+            relationshipNeed: 0.18,
+            affectivePull: 0.1,
+            sceneFamiliarity: 0.26,
+            candidateTimeScopes: [
+              { scope: 'cross-session' as const, weight: 0.72, rationale: 'The wording sounds retrospective.' },
+              { scope: 'recent-or-mid' as const, weight: 0.38, rationale: 'Recent carry is still a fallback.' },
+            ],
+            candidateEraFacets: [
+              { facet: 'window' as const, weight: 0.44, rationale: 'A period window would be the safest first probe.' },
+            ],
+            candidateProcedureLines: ['runtime fix'],
+            uncertaintyTolerance: 'low' as const,
+          },
         },
       } as any,
     })
@@ -80,11 +96,307 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'none',
       rationale: 'The turn should stay with the live payoff instead of opening long-range recall.',
+      recollectionAgenda: expect.objectContaining({
+        whyRecallNow: 'The wording suggests an older dialogue thread, but the planner may still decide memory should stay closed.',
+      }),
     }))
     expect(recallConversationHistory).not.toHaveBeenCalled()
     expect(recallMemoryConsolidations).not.toHaveBeenCalled()
     expect(context.recalledConversationHistory).toEqual([])
     expect(context.consolidatedMemories).toEqual([])
+  })
+
+  it('uses recollection agenda to keep retrospective wording in candidate space and foreground task-era memory', async () => {
+    const recallConversationHistory = vi.fn(async () => [{
+      turnId: 'turn-older',
+      sessionId: 'session-older',
+      userText: '前几天我们聊过关系语气',
+      assistantText: '那时候我们在谈关系距离。',
+      createdAt: Date.UTC(2026, 3, 7, 8, 0, 0),
+    }])
+    let plannedInput: any = null
+    const planMemoryRecollection = vi.fn(async (input) => {
+      plannedInput = input
+      return {
+        selectedConsolidationIds: ['task-era-runtime'],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-runtime'],
+        selectedEpisodeIds: ['episode-runtime'],
+        selectedConversationTurnIds: [],
+        opening: 'What comes back first is the runtime seam and the way we kept returning to it.',
+        certainty: 'approximate' as const,
+        rationale: 'The recollection agenda says this should reopen the remembered task way, not earlier chat phrasing.',
+        confidence: 0.87,
+      }
+    })
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-runtime',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-runtime',
+        sessionId: 'session-runtime',
+        occurredAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        whereSummary: 'terminal',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We kept repairing the same runtime seam until the flow held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'A repeatable repair rhythm emerged.',
+        sourceKind: 'execution-result',
+        sourceSummary: 'runtime seam repair',
+        provenance: 'observed',
+        confidence: 0.83,
+        salience: 0.8,
+        sceneAttachment: 0.72,
+        consolidationPriority: 0.76,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['runtime seam', 'repair rhythm'],
+        relationshipMeaning: 'Stay on the same seam before branching.',
+        lesson: 'Return to the seam first.',
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory,
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'relationship-era-warmth',
+          kind: 'autobiographical' as const,
+          facet: 'relationship-era' as const,
+          periodKey: '2026-04-relationship',
+          periodStartedAt: Date.UTC(2026, 3, 7, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 7, 9, 0, 0),
+          summary: 'That period was about relationship tone and distance.',
+          lesson: 'Leave more room when the bond feels pressured.',
+          cues: ['relationship', 'distance'],
+          confidence: 0.91,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 3, 7, 9, 0, 0),
+        },
+        {
+          id: 'task-era-runtime',
+          kind: 'autobiographical' as const,
+          facet: 'task-era' as const,
+          periodKey: '2026-04-runtime',
+          periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          summary: 'That period kept turning back to the runtime seam until it stabilized.',
+          lesson: 'Return to the seam before opening a new branch.',
+          cues: ['runtime seam', 'repair rhythm'],
+          confidence: 0.74,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: ['episode-runtime'],
+          updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'execution-procedure' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam', 'repair rhythm'],
+        rationale: 'The host is really asking for the remembered way of handling this work, not literal chat history.',
+        confidence: 0.9,
+        recollectionAgenda: {
+          whyRecallNow: 'The present request resembles an earlier repair task, so similar procedure memory should open before time-based history.',
+          goalSimilarity: 0.92,
+          relationshipNeed: 0.18,
+          affectivePull: 0.12,
+          sceneFamiliarity: 0.66,
+          candidateTimeScopes: [
+            { scope: 'experience-matched' as const, weight: 0.96, rationale: 'Search by similar task first.' },
+            { scope: 'cross-session' as const, weight: 0.34, rationale: 'Older chat is only a fallback candidate.' },
+          ],
+          candidateEraFacets: [
+            { facet: 'task-era' as const, weight: 0.94, rationale: 'A task period should organize the recall.' },
+            { facet: 'window' as const, weight: 0.42, rationale: 'A period window can anchor the search.' },
+          ],
+          candidateProcedureLines: ['runtime seam', 'repair rhythm'],
+          uncertaintyTolerance: 'medium' as const,
+        },
+      })),
+      planMemoryRecollection,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '前几天那个 runtime seam 这次继续按之前那样修',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(recallConversationHistory).not.toHaveBeenCalled()
+    expect(planMemoryRecollection).toHaveBeenCalled()
+    expect(plannedInput?.consolidatedMemories[0]?.id).toBe('task-era-runtime')
+    expect([
+      plannedInput?.proceduralMemories[0]?.label,
+      plannedInput?.proceduralMemories[0]?.approach,
+      ...(plannedInput?.proceduralMemories[0]?.cues ?? []),
+    ].join(' ')).toContain('runtime seam')
+    expect(context.recollectionPlan).toEqual(expect.objectContaining({
+      selectedConsolidationIds: ['task-era-runtime'],
+    }))
+    expect(context.recollectionIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+      recollectionAgenda: expect.objectContaining({
+        candidateTimeScopes: expect.arrayContaining([
+          expect.objectContaining({ scope: 'experience-matched' }),
+        ]),
+        candidateEraFacets: expect.arrayContaining([
+          expect.objectContaining({ facet: 'task-era' }),
+        ]),
+      }),
+    }))
+
+    const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
+    expect(systemText).toContain('[ALICIZATION_RECOLLECTION_AGENDA]')
+    expect(systemText).toContain('candidate_time_scopes=experience-matched:0.96')
+    expect(systemText).toContain('candidate_era_facets=task-era:0.94')
+  })
+
+  it('runs multi-step recollection search by expanding from an era anchor into supporting episode and procedure evidence', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-runtime',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-runtime',
+        sessionId: 'session-runtime',
+        occurredAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        whereSummary: 'terminal',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We kept repairing the same runtime seam until the flow stabilized.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'A repeatable repair rhythm emerged.',
+        sourceKind: 'execution-result',
+        sourceSummary: 'runtime seam repair',
+        provenance: 'observed',
+        confidence: 0.81,
+        salience: 0.8,
+        sceneAttachment: 0.68,
+        consolidationPriority: 0.74,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['runtime seam', 'repair rhythm'],
+        relationshipMeaning: 'Stay on the same seam before branching.',
+        lesson: 'Return to the seam first.',
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [{
+        id: 'task-era-runtime',
+        kind: 'autobiographical' as const,
+        facet: 'task-era' as const,
+        periodKey: '2026-04-runtime',
+        periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+        summary: 'That period kept turning back to the runtime seam until it stabilized.',
+        lesson: 'Return to the seam before opening a new branch.',
+        cues: ['runtime seam', 'repair rhythm'],
+        confidence: 0.79,
+        dominantProvenance: 'remembered' as const,
+        derivedEventIds: ['episode-runtime'],
+        updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+      }],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'execution-procedure' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam', 'repair rhythm'],
+        rationale: 'The task resembles an earlier repair way, so procedure memory should open first.',
+        confidence: 0.86,
+        recollectionAgenda: {
+          whyRecallNow: 'The current repair resembles a previous task period, so the remembered task era should open first.',
+          goalSimilarity: 0.88,
+          relationshipNeed: 0.14,
+          affectivePull: 0.1,
+          sceneFamiliarity: 0.58,
+          candidateTimeScopes: [
+            { scope: 'experience-matched' as const, weight: 0.92, rationale: 'Search the similar task period first.' },
+          ],
+          candidateEraFacets: [
+            { facet: 'task-era' as const, weight: 0.96, rationale: 'A task era is the strongest first anchor.' },
+          ],
+          candidateProcedureLines: ['runtime seam', 'repair rhythm'],
+          uncertaintyTolerance: 'medium' as const,
+        },
+      })),
+      planMemoryRecollection: vi.fn(async () => ({
+        selectedConsolidationIds: ['task-era-runtime'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        opening: 'What comes back first is that runtime seam period.',
+        certainty: 'firm' as const,
+        rationale: 'The remembered task era is the most humanly plausible first anchor.',
+        confidence: 0.84,
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '这次继续按之前那种 runtime seam 修法来处理',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.recollectionPlan).toEqual(expect.objectContaining({
+      selectedConsolidationIds: ['task-era-runtime'],
+      selectedEpisodeIds: expect.arrayContaining(['episode-runtime']),
+      selectedProceduralIds: expect.arrayContaining(['runtime seam']),
+      searchTrace: expect.objectContaining({
+        firstHop: expect.objectContaining({ focus: 'procedure' }),
+        secondHop: expect.objectContaining({
+          action: 'expand-procedure',
+          evidenceGap: 'need-episode-detail',
+        }),
+        thirdHop: expect.objectContaining({ ambiguityPosture: 'approximate' }),
+      }),
+    }))
   })
 
   it('threads recollection speech planning into organic memory context and prompt blocks', async () => {
@@ -221,7 +533,11 @@ describe('runtime-organic-memory-prompt', () => {
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_RECOLLECTION_SPEECH_PLAN]')
     expect(systemText).toContain('should_surface=no')
-    expect(systemText).toContain('style_note=Let the recollection quietly bend the answer instead of announcing a retrospective.')
+    expect(systemText).toContain('visibility=internal-only')
+    expect(systemText).toContain('template_boundary=guard-against-drafted-wording')
+    expect(systemText).not.toContain('internal_lead=')
+    expect(systemText).not.toContain('visible_contour=')
+    expect(systemText).not.toContain('style_note=')
   })
 
   it('lets memory deliberation become the final foreground authority over selected memory bundles', async () => {
@@ -406,7 +722,7 @@ describe('runtime-organic-memory-prompt', () => {
       shouldRecall: true,
       surfacePolicy: 'answer-anchoring',
       whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
-      selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+      selectedRelationshipLines: expect.arrayContaining(['Carry the same runtime seam before branching.']),
       selectedBundles: expect.arrayContaining([
         expect.objectContaining({
           id: 'bundle-runtime',
@@ -702,6 +1018,337 @@ describe('runtime-organic-memory-prompt', () => {
     expect(relationshipContext.memoryDeliberation?.selectedBundles[0]?.id).toBe('bundle-relationship')
     expect(relationshipContext.memoryDeliberation?.surfacePolicy).toBe('relationship-continuity')
     expect(relationshipContext.memoryDeliberation?.selectedRelationshipLines[0]).toContain('lighter touch')
+  })
+
+  it('suppresses the wrong thread cluster when two similar runtime lines compete for recall', async () => {
+    let plannedInput: any = null
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [
+        {
+          id: 'episode-callback',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-callback',
+          sessionId: 'session-callback',
+          occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          whereSummary: 'executor callback mirror',
+          withWhom: ['host'],
+          threadAnchor: 'runtime continuity callback line',
+          whatHappened: 'We kept the callback delivery receipt on the same runtime continuity line until it landed.',
+          felt: 'focused',
+          emotionTags: ['execution'],
+          whatChanged: 'The callback line stayed coherent.',
+          relationshipMeaning: 'Keep the callback line alive before branching.',
+          lesson: 'Carry the callback receipt before opening a new branch.',
+          sourceKind: 'execution-result',
+          sourceSummary: 'callback mirror continuity',
+          provenance: 'observed',
+          confidence: 0.82,
+          salience: 0.8,
+          sceneAttachment: 0.48,
+          consolidationPriority: 0.76,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['runtime continuity', 'callback mirror'],
+          createdAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          updatedAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+        {
+          id: 'episode-screen',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-screen',
+          sessionId: 'session-screen',
+          occurredAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          whereSummary: 'screen semantic mirror',
+          withWhom: ['host'],
+          threadAnchor: 'runtime continuity screen line',
+          whatHappened: 'We kept refreshing the screen semantic fallback mirror on a nearby runtime continuity line.',
+          felt: 'focused',
+          emotionTags: ['inspection'],
+          whatChanged: 'The screen mirror stayed available.',
+          relationshipMeaning: 'Re-ground the screen mirror before branching.',
+          lesson: 'Refresh semantic fallback before opening a new branch.',
+          sourceKind: 'reply',
+          sourceSummary: 'screen semantic fallback mirror',
+          provenance: 'observed',
+          confidence: 0.83,
+          salience: 0.8,
+          sceneAttachment: 0.46,
+          consolidationPriority: 0.74,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['runtime continuity', 'screen mirror'],
+          createdAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          updatedAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ] as any,
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'consolidation-callback',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'runtime continuity callback line',
+          periodStartedAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 20, 8, 30, 0),
+          summary: 'That runtime continuity period kept returning through callback delivery and receipt carrying.',
+          lesson: 'Carry callback receipt before branching.',
+          cues: ['runtime continuity', 'callback mirror', 'delivery receipt'],
+          confidence: 0.78,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-callback'],
+          updatedAt: Date.UTC(2026, 3, 20, 8, 30, 0),
+        },
+        {
+          id: 'consolidation-screen',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'runtime continuity screen line',
+          periodStartedAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          periodEndedAt: Date.UTC(2026, 3, 20, 8, 40, 0),
+          summary: 'That runtime continuity period kept returning through screen semantic fallback mirror refreshes.',
+          lesson: 'Refresh screen semantic fallback before branching.',
+          cues: ['runtime continuity', 'screen mirror', 'semantic fallback'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-screen'],
+          updatedAt: Date.UTC(2026, 3, 20, 8, 40, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'execution-procedure' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime continuity', 'callback receipt'],
+        rationale: 'The host is continuing the callback-shaped task line, not the nearby screen mirror line.',
+        confidence: 0.84,
+      })),
+      planMemoryRecollection: vi.fn(async (input: any) => {
+        plannedInput = input
+        return {
+          selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+          selectedWindowIds: [],
+          selectedProceduralIds: input.proceduralMemories[0] ? [input.proceduralMemories[0].id] : [],
+          selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
+          selectedConversationTurnIds: [],
+          opening: 'What comes back first is the callback continuity line.',
+          certainty: 'approximate' as const,
+          rationale: 'The callback-shaped thread should lead before the neighboring screen thread.',
+          confidence: 0.8,
+        }
+      }),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续之前那条 runtime continuity line，把 callback receipt 接回来',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(plannedInput?.consolidatedMemories[0]?.id).toBe('consolidation-callback')
+    expect(plannedInput?.recalledEpisodes[0]?.id).toBe('episode-callback')
+    expect(context.recollectionPlan?.selectedConsolidationIds[0]).toBe('consolidation-callback')
+  })
+
+  it('prefers ambiguity-first posture when two remembered thread clusters stay similarly plausible', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [
+        {
+          id: 'episode-codex',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-codex',
+          sessionId: 'session-codex',
+          occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          whereSummary: 'codex runtime seam',
+          withWhom: ['host'],
+          threadAnchor: 'runtime continuity codex seam',
+          whatHappened: 'One remembered runtime line leaned on Codex to patch the seam before verify.',
+          felt: 'focused',
+          emotionTags: ['execution'],
+          whatChanged: 'That codex seam stayed available.',
+          relationshipMeaning: 'Follow the codex seam if that was the right line.',
+          lesson: 'Patch through codex before verify when that seam is the one the host meant.',
+          sourceKind: 'execution-result',
+          sourceSummary: 'codex seam',
+          provenance: 'observed',
+          confidence: 0.8,
+          salience: 0.78,
+          sceneAttachment: 0.42,
+          consolidationPriority: 0.74,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['runtime continuity', 'codex seam'],
+          createdAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          updatedAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+        {
+          id: 'episode-claude',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-claude',
+          sessionId: 'session-claude',
+          occurredAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          whereSummary: 'claude runtime seam',
+          withWhom: ['host'],
+          threadAnchor: 'runtime continuity claude seam',
+          whatHappened: 'Another remembered runtime line leaned on Claude Code to patch the seam before verify.',
+          felt: 'focused',
+          emotionTags: ['execution'],
+          whatChanged: 'That claude seam stayed available.',
+          relationshipMeaning: 'Follow the claude seam if that was the right line.',
+          lesson: 'Patch through claude code before verify when that seam is the one the host meant.',
+          sourceKind: 'execution-result',
+          sourceSummary: 'claude seam',
+          provenance: 'observed',
+          confidence: 0.8,
+          salience: 0.78,
+          sceneAttachment: 0.42,
+          consolidationPriority: 0.74,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['runtime continuity', 'claude seam'],
+          createdAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          updatedAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ] as any,
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'consolidation-codex',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'runtime continuity codex seam',
+          periodStartedAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 20, 8, 30, 0),
+          summary: 'That runtime continuity line kept leaning on a codex seam.',
+          lesson: 'Use the codex seam if that was the thread the host meant.',
+          cues: ['runtime continuity', 'codex seam'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-codex'],
+          updatedAt: Date.UTC(2026, 3, 20, 8, 30, 0),
+        },
+        {
+          id: 'consolidation-claude',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'runtime continuity claude seam',
+          periodStartedAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+          periodEndedAt: Date.UTC(2026, 3, 20, 8, 40, 0),
+          summary: 'That runtime continuity line kept leaning on a claude seam.',
+          lesson: 'Use the claude seam if that was the thread the host meant.',
+          cues: ['runtime continuity', 'claude seam'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-claude'],
+          updatedAt: Date.UTC(2026, 3, 20, 8, 40, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'execution-procedure' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime continuity seam'],
+        rationale: 'The host is referring to a runtime seam, but not enough is pinned down yet.',
+        confidence: 0.76,
+      })),
+      planMemoryRecollection: vi.fn(async (input: any) => ({
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
+        selectedConversationTurnIds: [],
+        opening: 'What comes back first is a runtime seam, but not one I can cleanly disambiguate yet.',
+        certainty: 'approximate' as const,
+        rationale: 'The seam is real, but the exact thread cluster is still competing.',
+        confidence: 0.72,
+      })),
+      planMemoryDeliberation: vi.fn(async (input: any) => ({
+        shouldRecall: true,
+        selectedEraIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'answer-anchoring' as const,
+        confidence: 0.72,
+        whyNow: 'The seam still matters, but the exact old thread is not cleanly separated.',
+        inwardLine: 'What comes back first is the seam itself, not a cleanly isolated old thread.',
+        visibleLine: 'It feels like the same seam, but not one I should over-pin to a single old thread.',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续之前那条 runtime continuity seam 线',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.recollectionPlan?.searchTrace?.thirdHop.ambiguityPosture).toBe('ambiguous')
+    expect(context.memoryDeliberation?.ambiguityPosture).toBe('ambiguous')
+    expect(context.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.stringContaining('cluster:'),
+      }),
+    ]))
   })
 
   it('lets selected eras constrain foreground consolidations and episodes before lower-level recall surfaces', async () => {
@@ -1292,6 +1939,171 @@ describe('runtime-organic-memory-prompt', () => {
     }))
     expect(context.memoryDeliberation?.selectedEras[0]?.id).toBe('consolidation-runtime')
     expect(context.memoryDeliberation?.shouldRecall).toBe(true)
+  })
+
+  it('uses scene familiarity, mood carry, and embodied cadence to bias which remembered seam comes foreground', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [
+        {
+          id: 'episode-late-night',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-late-night',
+          sessionId: 'session-late-night',
+          occurredAt: Date.UTC(2026, 3, 18, 1, 0, 0),
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          whereSummary: 'Cursor late-night diff lane',
+          withWhom: ['host'],
+          threadAnchor: 'late-night runtime seam',
+          whatHappened: 'We kept the late-night runtime seam alive in the Cursor diff lane until the patch finally held.',
+          felt: 'drained but quietly steady',
+          emotionTags: ['late-night-drain', 'afterglow'],
+          whatChanged: 'The line stayed warm enough to come back later.',
+          relationshipMeaning: 'Stay near the seam without forcing it open.',
+          lesson: 'Late-night seams want softer carry before direct push.',
+          sourceSummary: 'late-night coding seam',
+          confidence: 0.82,
+          salience: 0.8,
+          sceneAttachment: 0.86,
+          consolidationPriority: 0.8,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['coding', 'runtime seam', 'afterglow'],
+          createdAt: Date.UTC(2026, 3, 18, 1, 0, 0),
+          updatedAt: Date.UTC(2026, 3, 18, 1, 0, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+        {
+          id: 'episode-daytime',
+          cardId: 'default',
+          decisionTraceId: null,
+          turnId: 'turn-daytime',
+          sessionId: 'session-daytime',
+          occurredAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          sourceKind: 'execution-result',
+          provenance: 'remembered',
+          whereSummary: 'general runtime lane',
+          withWhom: ['host'],
+          threadAnchor: 'daytime runtime seam',
+          whatHappened: 'We handled a daytime runtime seam in a more direct, ordinary flow.',
+          felt: 'steady',
+          emotionTags: ['focused'],
+          whatChanged: 'The ordinary line landed cleanly.',
+          relationshipMeaning: 'Directness was fine in that opening.',
+          lesson: 'Patch directly when the opening is ordinary and not emotionally warm.',
+          sourceSummary: 'daytime coding seam',
+          confidence: 0.82,
+          salience: 0.8,
+          sceneAttachment: 0.22,
+          consolidationPriority: 0.74,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: ['coding', 'runtime seam'],
+          createdAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        },
+      ] as any,
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'consolidation-late-night',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'late-night runtime seam',
+          periodStartedAt: Date.UTC(2026, 3, 18, 1, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 18, 2, 0, 0),
+          summary: 'That late-night runtime seam stayed warm in the Cursor diff lane.',
+          lesson: 'Late-night seams want softer carry before direct push.',
+          cues: ['late-night', 'afterglow', 'Cursor late-night diff lane'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-late-night'],
+          updatedAt: Date.UTC(2026, 3, 18, 2, 0, 0),
+        },
+        {
+          id: 'consolidation-daytime',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'daytime runtime seam',
+          periodStartedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 18, 11, 0, 0),
+          summary: 'That daytime runtime seam was more direct and ordinary.',
+          lesson: 'Patch directly when the opening is ordinary.',
+          cues: ['daytime', 'direct'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-daytime'],
+          updatedAt: Date.UTC(2026, 3, 18, 11, 0, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'experience-pattern' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam'],
+        rationale: 'The seam is reactivating through familiar scene and mood carry.',
+        confidence: 0.8,
+      })),
+      planMemoryRecollection: vi.fn(async (input: any) => ({
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
+        selectedConversationTurnIds: [],
+        opening: 'What comes back first is the late-night seam.',
+        certainty: 'approximate' as const,
+        rationale: 'Scene familiarity and mood carry are pulling the late-night seam forward first.',
+        confidence: 0.76,
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '这个 runtime seam 又有那种感觉',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+        sceneFamiliarityHint: 0.92,
+        affectiveCarry: {
+          moodLabel: 'afterglow',
+          emotionalTension: 'late-night-drain',
+          socialNeed: 0.62,
+          reflectivePull: 0.74,
+          summary: 'mood:afterglow | tension:late-night-drain | reflective-pull:0.74',
+        },
+        embodiedCarry: {
+          presence: 'glance',
+          suggestedStyle: 'gentle-care',
+          afterglowFromScenario: 'coding',
+          shouldSpeak: true,
+          summary: 'presence:glance | style:gentle-care | afterglow:coding',
+        },
+      } as any,
+    })
+
+    expect((context.consolidatedMemories ?? [])[0]?.id).toBe('consolidation-late-night')
+    expect((context.recalledEpisodes ?? [])[0]?.id).toBe('episode-late-night')
   })
 
   it('synthesizes conflict severity, stable core, and unsafe details from reconstructed remembered episodes', async () => {

@@ -1525,6 +1525,60 @@ export interface AlicizationConcernContinuityLedgerSnapshot {
   updatedAt: number
 }
 
+export type AlicizationMemoryRecollectionMode
+  = | 'none'
+    | 'conversation-history'
+    | 'autobiographical-history'
+    | 'relationship-history'
+    | 'execution-procedure'
+    | 'experience-pattern'
+
+export type AlicizationMemoryRecollectionTemporalFocus
+  = | 'recent'
+    | 'recent-or-mid'
+    | 'cross-session'
+    | 'experience-matched'
+    | 'distant'
+
+export type AlicizationMemoryRecollectionEraFacet
+  = | 'phase'
+    | 'relationship-era'
+    | 'task-era'
+    | 'self-era'
+    | 'window'
+
+export interface AlicizationMemoryRecollectionAgendaSnapshot {
+  whyRecallNow: string
+  goalSimilarity: number
+  relationshipNeed: number
+  affectivePull: number
+  sceneFamiliarity: number
+  candidateTimeScopes: Array<{
+    scope: AlicizationMemoryRecollectionTemporalFocus
+    weight: number
+    rationale?: string | null
+  }>
+  candidateEraFacets: Array<{
+    facet: AlicizationMemoryRecollectionEraFacet
+    weight: number
+    rationale?: string | null
+  }>
+  candidateProcedureLines: string[]
+  uncertaintyTolerance: 'low' | 'medium' | 'high'
+}
+
+export interface AlicizationMemoryRecollectionIntentSnapshot {
+  mode: AlicizationMemoryRecollectionMode
+  temporalFocus: AlicizationMemoryRecollectionTemporalFocus
+  searchEpisodes: boolean
+  searchConversations: boolean
+  searchProceduralExperience: boolean
+  queryHints: string[]
+  rationale: string
+  confidence: number
+  recollectionAgenda?: AlicizationMemoryRecollectionAgendaSnapshot | null
+}
+
 export type AlicizationRepairLedgerKind
   = | 'reground-scene'
     | 'stale-scene-anchor'
@@ -1940,16 +1994,22 @@ export interface AlicizationRecallGovernorSnapshot {
   relationshipAnchors?: string[]
   salienceBias?: number
   sceneAnchor?: string | null
-  recollectionIntent?: {
-    mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
-    temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
-    searchEpisodes: boolean
-    searchConversations: boolean
-    searchProceduralExperience: boolean
-    queryHints: string[]
-    rationale: string
-    confidence: number
+  sceneFamiliarityHint?: number | null
+  affectiveCarry?: {
+    moodLabel?: string | null
+    emotionalTension?: AlicizationEmotionalTension | null
+    socialNeed?: number | null
+    reflectivePull?: number | null
+    summary?: string | null
   } | null
+  embodiedCarry?: {
+    presence?: AlicizationEmbodiedPresenceState | null
+    suggestedStyle?: AlicizationProactiveStyle | null
+    afterglowFromScenario?: 'coding' | 'media' | null
+    shouldSpeak?: boolean | null
+    summary?: string | null
+  } | null
+  recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   suppressAssociativeRecall: boolean
   allowActiveThoughts: boolean
   allowRecalledFragments: boolean

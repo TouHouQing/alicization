@@ -129,6 +129,21 @@ function normalizeChannelExperienceMetadata(
               pitfalls: Array.isArray(item.pitfalls)
                 ? [...new Set(item.pitfalls.map(value => normalizeText(value, 120)).filter(Boolean))]
                 : [],
+              situation: normalizeText(item.situation, 220) || null,
+              steps: Array.isArray(item.steps)
+                ? [...new Set(item.steps.map(value => normalizeText(value, 140)).filter(Boolean))]
+                : [],
+              failurePoints: Array.isArray(item.failurePoints)
+                ? [...new Set(item.failurePoints.map(value => normalizeText(value, 140)).filter(Boolean))]
+                : [],
+              repairMoves: Array.isArray(item.repairMoves)
+                ? [...new Set(item.repairMoves.map(value => normalizeText(value, 140)).filter(Boolean))]
+                : [],
+              result: normalizeText(item.result, 220) || null,
+              traceSummary: normalizeText(item.traceSummary, 260) || null,
+              lastExperiencedAt: Number.isFinite(item.lastExperiencedAt)
+                ? Math.max(0, Number(item.lastExperiencedAt))
+                : null,
               confidence: Number.isFinite(item.confidence)
                 ? Math.max(0, Math.min(1, Number(item.confidence)))
                 : 0,

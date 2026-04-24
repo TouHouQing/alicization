@@ -103,6 +103,105 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
+function uniqueTextList(values: Array<string | null | undefined>, maxItems = 4) {
+  const result: string[] = []
+  for (const value of values) {
+    const text = sanitizeText(value, 180)
+    if (!text || result.some(item => item.toLowerCase() === text.toLowerCase()))
+      continue
+    result.push(text)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function deriveRecollectionFollowUpCarry(spine: AlicizationDigitalLifeSpineSnapshot) {
+  const memory = spine.runtimeSurface.memory
+  const deliberation = memory.memoryDeliberation ?? null
+  const recollectionPlan = memory.recollectionPlan ?? null
+  const speechPlan = memory.recollectionSpeechPlan ?? null
+  if (!deliberation && !recollectionPlan) {
+    return {
+      memoryWeight: 0,
+      dialogueWeight: 0,
+      companionshipWeight: 0,
+      summary: null as string | null,
+    }
+  }
+
+  const relationshipLines = uniqueTextList([
+    ...(deliberation?.selectedRelationshipLines ?? []),
+    ...(recollectionPlan?.selectedRelationshipLines ?? []),
+  ], 3)
+  const bundleSummary = sanitizeText(deliberation?.selectedBundles?.[0]?.summary, 180) || null
+  const chainSummary = sanitizeText(deliberation?.selectedChains?.[0]?.summary, 180) || null
+  const searchSummary = sanitizeText(
+    deliberation?.searchTrace?.thirdHop.summary
+    ?? recollectionPlan?.searchTrace?.thirdHop.summary,
+    180,
+  ) || null
+  const ambiguity = deliberation?.ambiguityPosture
+    ?? recollectionPlan?.searchTrace?.thirdHop.ambiguityPosture
+    ?? 'settled'
+  const conflictSeverity = deliberation?.conflictSeverity ?? 'none'
+  const internalOnly = speechPlan?.shouldSurface === false
+    || speechPlan?.placement === 'internal-only'
+  const speechReady = speechPlan
+    ? speechPlan.shouldSurface === true && speechPlan.placement !== 'internal-only'
+    : relationshipLines.length > 0 && ambiguity !== 'ambiguous' && conflictSeverity !== 'high'
+  const relationshipReady = relationshipLines.length > 0
+    || /repair|care|warm|space|trust|companionship|follow-up|陪|修复|温和|空间|信任|跟进/u.test([
+      bundleSummary,
+      chainSummary,
+      searchSummary,
+    ].filter(Boolean).join(' '))
+  const settledCarry = ambiguity === 'settled'
+    ? 1
+    : ambiguity === 'approximate'
+      ? 0.72
+      : 0.42
+  const conflictPenalty = conflictSeverity === 'high'
+    ? 0.26
+    : conflictSeverity === 'medium'
+      ? 0.14
+      : conflictSeverity === 'low'
+        ? 0.06
+        : 0
+
+  return {
+    memoryWeight: clamp01(
+      (deliberation?.shouldRecall ? 0.24 : 0.12)
+      + relationshipLines.length * 0.08
+      + ((deliberation?.selectedBundles.length ?? 0) > 0 ? 0.1 : 0)
+      + ((deliberation?.selectedChains.length ?? 0) > 0 ? 0.14 : 0)
+      + settledCarry * 0.14
+      - conflictPenalty,
+    ),
+    dialogueWeight: speechReady
+      ? clamp01(
+          (relationshipReady ? 0.26 : 0.12)
+          + relationshipLines.length * 0.06
+          + ((deliberation?.selectedChains.length ?? 0) > 0 ? 0.08 : 0)
+          + settledCarry * 0.2
+          - conflictPenalty,
+        )
+      : 0,
+    companionshipWeight: clamp01(
+      (relationshipReady ? 0.2 : 0.08)
+      + settledCarry * 0.08
+      - conflictPenalty
+      - (internalOnly ? 0.06 : 0),
+    ),
+    summary: firstNonEmptyText(
+      relationshipLines[0],
+      bundleSummary,
+      chainSummary,
+      searchSummary,
+    ) || null,
+  }
+}
+
 function toChannelState(readiness: number): AlicizationRuntimeChannelState {
   if (readiness >= 0.72)
     return 'hot'
@@ -230,16 +329,19 @@ function buildActiveDialogueChannel(spine: AlicizationDigitalLifeSpineSnapshot):
   const privateThought = surface.cognition.privateThought
   const concern = pickDominantConcern(spine)
   const relationshipModel = surface.world.relationshipModel
+  const recollectionFollowUp = deriveRecollectionFollowUpCarry(spine)
   const readiness = clamp01(Math.max(
     privateThought?.shouldSpeak ? privateThought.confidence : 0,
     initiative?.shouldSpeak ? Math.max(initiative.confidence, initiative.speakDrive ?? 0) : 0,
     concern ? Math.max(concern.tension, concern.careWeight) * 0.86 : 0,
     relationshipModel?.climate === 'attuned' ? 0.62 : relationshipModel?.climate === 'guarded' ? 0.28 : 0.42,
+    recollectionFollowUp.dialogueWeight,
   ))
   const focus = firstNonEmptyText(
     privateThought?.thoughtText,
     initiative?.why,
     concern?.summary,
+    recollectionFollowUp.summary,
   ) || null
 
   return {
@@ -251,6 +353,7 @@ function buildActiveDialogueChannel(spine: AlicizationDigitalLifeSpineSnapshot):
       initiative?.selectedAction ? `action=${initiative.selectedAction}` : '',
       initiative?.preferredStyle ? `style=${initiative.preferredStyle}` : '',
       privateThought?.stance ? `stance=${privateThought.stance}` : '',
+      recollectionFollowUp.summary ? `followup=${sanitizeText(recollectionFollowUp.summary, 72)}` : '',
       concern?.summary ? `concern=${sanitizeText(concern.summary, 72)}` : '',
       focus ? `focus=${sanitizeText(focus, 72)}` : '',
     ].filter(Boolean).join(' | '),
@@ -377,18 +480,21 @@ function buildActiveMemoryChannel(spine: AlicizationDigitalLifeSpineSnapshot): A
   const reflectionCount = surface.memory.reflectionLedger?.entries.length ?? 0
   const recallGovernor = surface.memory.recallGovernor
   const workingMemoryEpisodes = asArray(surface.memory.workingMemoryEpisodes)
+  const recollectionFollowUp = deriveRecollectionFollowUpCarry(spine)
   const readiness = clamp01(Math.max(
     leadingGoal ? Math.max(leadingGoal.urgency, leadingGoal.confidence) * 0.88 : 0,
     concern ? Math.max(concern.tension, concern.confidence) * 0.8 : 0,
     reflectionCount > 0 ? Math.min(0.74, 0.38 + reflectionCount * 0.06) : 0,
     workingMemoryEpisodes.length > 0 ? Math.min(0.68, 0.34 + workingMemoryEpisodes.length * 0.07) : 0,
     recallGovernor && recallGovernor.mode !== 'none' ? 0.64 : 0.2,
+    recollectionFollowUp.memoryWeight,
   ))
   const focus = firstNonEmptyText(
     leadingGoal?.label,
     concern?.summary,
     recallGovernor?.recallSeed,
     workingMemoryEpisodes[0]?.summary,
+    recollectionFollowUp.summary,
   ) || null
 
   return {
@@ -400,6 +506,7 @@ function buildActiveMemoryChannel(spine: AlicizationDigitalLifeSpineSnapshot): A
       leadingGoal ? `goal=${sanitizeText(leadingGoal.label, 72)}` : '',
       concern ? `concern=${sanitizeText(concern.summary, 72)}` : '',
       recallGovernor ? `recall=${recallGovernor.mode}` : '',
+      recollectionFollowUp.summary ? `followup=${sanitizeText(recollectionFollowUp.summary, 72)}` : '',
       reflectionCount > 0 ? `reflections=${reflectionCount}` : '',
       workingMemoryEpisodes.length > 0 ? `episodes=${workingMemoryEpisodes.length}` : '',
     ].filter(Boolean).join(' | '),
@@ -412,6 +519,7 @@ function buildAnthropomorphicMindChannel(spine: AlicizationDigitalLifeSpineSnaps
   const selfState = surface.agency.selfState
   const selfContinuity = surface.memory.selfContinuity
   const privateThought = surface.cognition.privateThought
+  const recollectionFollowUp = deriveRecollectionFollowUpCarry(spine)
   const readiness = clamp01(Math.max(
     relationshipModel
       ? (
@@ -435,12 +543,14 @@ function buildAnthropomorphicMindChannel(spine: AlicizationDigitalLifeSpineSnaps
         )
       : 0,
     privateThought?.shouldSpeak ? privateThought.confidence * 0.72 : 0,
+    recollectionFollowUp.companionshipWeight,
   ))
   const focus = firstNonEmptyText(
     privateThought?.thoughtText,
     selfState?.moodLabel,
     relationshipModel?.climate,
     selfContinuity?.attachmentMode,
+    recollectionFollowUp.summary,
   ) || null
 
   return {
@@ -452,6 +562,7 @@ function buildAnthropomorphicMindChannel(spine: AlicizationDigitalLifeSpineSnaps
       relationshipModel ? `relationship=${relationshipModel.climate}/${relationshipModel.approachVector}` : '',
       selfState ? `self=${selfState.stance}/${selfState.moodLabel}` : '',
       selfContinuity ? `attachment=${selfContinuity.attachmentMode}/${selfContinuity.initiativeTemperament}` : '',
+      recollectionFollowUp.summary ? `followup=${sanitizeText(recollectionFollowUp.summary, 72)}` : '',
       privateThought?.embodiedPresence ? `presence=${privateThought.embodiedPresence}` : '',
       focus ? `focus=${sanitizeText(focus, 72)}` : '',
     ].filter(Boolean).join(' | '),

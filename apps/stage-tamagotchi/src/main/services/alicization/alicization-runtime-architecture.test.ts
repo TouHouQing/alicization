@@ -10,6 +10,65 @@ import { commitAlicizationDigitalLifeMindState } from './digital-life-kernel'
 import { deriveAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
+function createMinimalRuntimeSpine(input: {
+  memory?: Record<string, unknown>
+  relationshipModel?: Record<string, unknown> | null
+  privateThought?: Record<string, unknown> | null
+  initiative?: Record<string, unknown> | null
+} = {}) {
+  return {
+    version: 'digital-life-spine-v1',
+    runtimeSurface: {
+      dialogue: {
+        discourseState: null,
+        conversationState: null,
+        answerCompiler: null,
+      },
+      perception: {
+        currentScene: null,
+      },
+      world: {
+        worldModel: null,
+        relationshipModel: input.relationshipModel ?? null,
+      },
+      agency: {
+        initiative: input.initiative ?? null,
+        autonomy: null,
+        selfState: null,
+        habitPolicy: null,
+        actionEcology: null,
+        deliberationState: null,
+      },
+      cognition: {
+        privateThought: input.privateThought ?? null,
+        subjectiveInference: null,
+        mindKernel: null,
+      },
+      memory: {
+        motiveEngine: null,
+        recallGovernor: null,
+        reflectionLedger: null,
+        workingMemoryEpisodes: [],
+        selfContinuity: null,
+        longHorizonMemory: null,
+        autobiographicalSelf: null,
+        recollectionPlan: null,
+        recollectionSpeechPlan: null,
+        memoryDeliberation: null,
+        ...input.memory,
+      },
+    },
+    architecture: null,
+    continuitySignal: null,
+    proactiveSelection: {
+      activeThread: null,
+      leadingGoal: null,
+      dominantConcern: null,
+    },
+    proactivePolicy: null,
+  } as any
+}
+
 describe('alicization runtime architecture', () => {
   it('lets autonomy govern act readiness without falsely turning it into proactive speech', () => {
     const state = commitAlicizationDigitalLifeMindState({
@@ -151,6 +210,85 @@ describe('alicization runtime architecture', () => {
       shouldSpeak: false,
       actReadiness: 0.86,
     }))
+  })
+
+  it('keeps recollection-driven follow-up as continuity carry without forcing speech when recollection stays internal', () => {
+    const snapshot = deriveAlicizationRuntimeSnapshot({
+      spine: createMinimalRuntimeSpine({
+        memory: {
+          recollectionPlan: {
+            selectedRelationshipLines: ['Late-night seams want softer carry before direct push.'],
+            searchTrace: {
+              thirdHop: {
+                ambiguityPosture: 'approximate',
+                summary: 'The remembered seam is relevant again, but it should stay gentle.',
+              },
+            },
+          },
+          recollectionSpeechPlan: {
+            shouldSurface: false,
+            surfaceMode: 'internal-only',
+            placement: 'internal-only',
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            ambiguityPosture: 'approximate',
+            conflictSeverity: 'low',
+            selectedRelationshipLines: ['Late-night seams want softer carry before direct push.'],
+            selectedBundles: [{
+              summary: 'The late-night runtime seam still wants a softer carry than a hard restart.',
+            }],
+            selectedChains: [{
+              summary: 'Return softly to the seam instead of barging in.',
+            }],
+          },
+        },
+      }),
+    })
+
+    expect(snapshot?.channels['active-memory'].summary).toContain('followup=')
+    expect(snapshot?.channels['active-memory'].readiness).toBeGreaterThanOrEqual(0.5)
+    expect(snapshot?.continuityPressure).toBeGreaterThanOrEqual(0.28)
+    expect(snapshot?.shouldProactivelySpeak).toBe(false)
+  })
+
+  it('lets recollection-driven follow-up warm the dialogue channel when the recollection surface is ready', () => {
+    const snapshot = deriveAlicizationRuntimeSnapshot({
+      spine: createMinimalRuntimeSpine({
+        memory: {
+          recollectionPlan: {
+            selectedRelationshipLines: ['When the same seam returns, reopen it gently and stay near the host.'],
+            searchTrace: {
+              thirdHop: {
+                ambiguityPosture: 'settled',
+                summary: 'The remembered seam has become clearly relevant again.',
+              },
+            },
+          },
+          recollectionSpeechPlan: {
+            shouldSurface: true,
+            surfaceMode: 'relationship-continuity',
+            placement: 'after-payoff',
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            ambiguityPosture: 'settled',
+            conflictSeverity: 'none',
+            selectedRelationshipLines: ['When the same seam returns, reopen it gently and stay near the host.'],
+            selectedBundles: [{
+              summary: 'This remembered seam is now relevant enough to lightly re-open after the current payoff.',
+            }],
+            selectedChains: [{
+              summary: 'Return gently to the seam once the main answer has landed.',
+            }],
+          },
+        },
+      }),
+    })
+
+    expect(snapshot?.channels['active-dialogue'].summary).toContain('followup=')
+    expect(snapshot?.channels['active-dialogue'].readiness).toBeGreaterThanOrEqual(0.58)
+    expect(snapshot?.shouldProactivelySpeak).toBe(true)
   })
 
   it('projects Alicization into an eight-channel active-life runtime snapshot', () => {

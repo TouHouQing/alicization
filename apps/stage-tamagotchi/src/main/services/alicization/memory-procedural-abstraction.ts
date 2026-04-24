@@ -8,6 +8,13 @@ export interface AlicizationProceduralMemoryAbstraction {
   label: string
   approach: string
   pitfalls: string[]
+  situation?: string | null
+  steps?: string[]
+  failurePoints?: string[]
+  repairMoves?: string[]
+  result?: string | null
+  traceSummary?: string | null
+  lastExperiencedAt?: number | null
   confidence: number
   cues: string[]
 }

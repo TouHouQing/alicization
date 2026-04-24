@@ -72,6 +72,13 @@ export interface AlicizationClawFabricExperience {
     label: string
     approach: string
     pitfalls: string[]
+    situation?: string | null
+    steps?: string[] | null
+    failurePoints?: string[] | null
+    repairMoves?: string[] | null
+    result?: string | null
+    traceSummary?: string | null
+    lastExperiencedAt?: number | null
     confidence: number
     cues: string[]
     preferredChannel?: AlicizationExecutionChannel | null
@@ -677,7 +684,7 @@ export function buildClawFabricPlan(input: {
             })
             if (!procedure)
               return ''
-            return `Routing reused remembered procedure: ${normalizeText(procedure.approach, 180) || normalizeText(procedure.label, 140)}.`
+            return `Routing reused remembered procedure: ${normalizeText(procedure.traceSummary, 220) || normalizeText(procedure.approach, 180) || normalizeText(procedure.label, 140)}.`
           })()
         : '',
       affirmationReasonCodes.includes('proactive-side-effects-require-explicit-consent')
