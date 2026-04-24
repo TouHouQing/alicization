@@ -62,7 +62,7 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
 
   pushUnique(mustDo, `Let the recollection contour follow this guidance: ${speechPlan.styleNote}`)
   if (speechPlan.visibleLead)
-    pushUnique(mustDo, `If memory becomes visible, keep close to this recollection contour without quoting it verbatim: ${speechPlan.visibleLead}`)
+    pushUnique(mustDo, 'If memory becomes visible, let it appear as one brief recollection contour rather than following any fixed remembered sentence.')
 
   if (speechPlan.certainty === 'approximate' || speechPlan.certainty === 'fragmentary') {
     pushUnique(mustDo, 'Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')

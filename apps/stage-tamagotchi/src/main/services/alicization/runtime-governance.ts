@@ -1884,6 +1884,11 @@ export interface AlicizationMindTraceMemorySnapshot {
   speechShouldSurface?: boolean | null
   speechSurfaceMode?: string | null
   speechPlacement?: string | null
+  selectedEras: Array<{
+    id: string
+    facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
+    summary: string
+  }>
   selectedPeriods: Array<{
     id: string
     kind: 'window' | 'consolidation'
@@ -1893,7 +1898,17 @@ export interface AlicizationMindTraceMemorySnapshot {
     id: string
     summary: string
     provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    reconsolidatedFromTraceId?: string | null
   }>
+  conflictSeverity?: 'none' | 'low' | 'medium' | 'high'
+  conflictVariants?: Array<{
+    id: string
+    summary: string
+    provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    reason?: string | null
+  }>
+  stableCore?: string[]
+  unsafeDetails?: string[]
   selectedProcedures: Array<{
     id: string
     label: string
@@ -1959,6 +1974,11 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
     speechShouldSurface: snapshot.speechShouldSurface ?? null,
     speechSurfaceMode: sanitizeMindTraceTelemetryText(snapshot.speechSurfaceMode, 64) || null,
     speechPlacement: sanitizeMindTraceTelemetryText(snapshot.speechPlacement, 64) || null,
+    selectedEras: snapshot.selectedEras.map(item => ({
+      id: item.id,
+      facet: item.facet,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+    })),
     selectedPeriods: snapshot.selectedPeriods.map(item => ({
       id: item.id,
       kind: item.kind,
@@ -1968,7 +1988,17 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
       id: item.id,
       summary: sanitizeMindTraceTelemetryText(item.summary, 180),
       provenance: item.provenance,
+      reconsolidatedFromTraceId: sanitizeMindTraceTelemetryText(item.reconsolidatedFromTraceId, 120) || null,
     })),
+    conflictSeverity: snapshot.conflictSeverity ?? 'none',
+    conflictVariants: (snapshot.conflictVariants ?? []).map(item => ({
+      id: item.id,
+      summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+      provenance: item.provenance,
+      reason: sanitizeMindTraceTelemetryText(item.reason, 180) || null,
+    })),
+    stableCore: (snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+    unsafeDetails: (snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
     selectedProcedures: snapshot.selectedProcedures.map(item => ({
       id: item.id,
       label: sanitizeMindTraceTelemetryText(item.label, 140),

@@ -6,6 +6,7 @@ import type {
   AlicizationSensoryCacheSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatPrelude } from './main-chat-session-runtime'
+import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { createAlicizationAgentRuntime } from './agent-runtime'
@@ -224,6 +225,119 @@ export interface AlicizationReplayTurn {
   organicMemoryContext?: OrganicMemoryPromptContext
   prelude?: AlicizationPreparedMainChatPrelude
   messages?: Message[]
+}
+
+export type AlicizationReplayQualityStatus = 'pass' | 'fail' | 'not-applicable'
+
+export interface AlicizationReplayMemoryQuality {
+  turnId: string
+  userText: string
+  eraFirst: AlicizationReplayQualityStatus
+  bundleCoherence: AlicizationReplayQualityStatus
+  replyMemoryCoherence: AlicizationReplayQualityStatus
+  reconsolidationEffect: AlicizationReplayQualityStatus
+  uncertaintyDiscipline: AlicizationReplayQualityStatus
+}
+
+function normalizeText(raw: unknown, maxChars = 240) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function hasTextOverlap(left: string, right: string) {
+  const normalizedLeft = normalizeText(left).toLowerCase()
+  const normalizedRight = normalizeText(right).toLowerCase()
+  if (!normalizedLeft || !normalizedRight)
+    return false
+  if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
+    return true
+
+  const leftTokens = normalizedLeft.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  const rightTokens = normalizedRight.match(/[\p{Script=Han}]{1,8}|[a-z0-9][a-z0-9-]{1,32}/gu) ?? []
+  if (leftTokens.length === 0 || rightTokens.length === 0)
+    return false
+  const overlap = rightTokens.filter(token => normalizedLeft.includes(token)).length
+  return overlap >= Math.max(1, Math.floor(rightTokens.length / 2))
+}
+
+export function evaluateReplayMemoryQuality(input: {
+  prepared: AlicizationPreparedMainChatExecutionResult
+  turnId: string
+  userText: string
+}): AlicizationReplayMemoryQuality {
+  const deliberation = input.prepared.organicMemoryContext?.memoryDeliberation ?? null
+  const runtimeSurface = input.prepared.runtimeSurface.digitalLifeRuntimeSurface ?? null
+  const eraSummary = deliberation?.selectedEras[0]?.summary ?? ''
+  const periodSummary = deliberation?.selectedPeriods[0]?.summary ?? ''
+  const bundle = deliberation?.selectedBundles[0] ?? null
+  const chain = deliberation?.selectedChains[0] ?? null
+  const selectedEvidence = runtimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary ?? ''
+  const governingFocus = runtimeSurface?.dialogue.answerPlanner?.governingFocus ?? ''
+  const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
+  const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
+  const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
+  const selectedEpisodes = deliberation?.selectedEpisodes ?? []
+  const hasConflict = (deliberation?.conflictSeverity ?? 'none') !== 'none'
+  const hasUncertainProvenance = selectedEpisodes.some(item =>
+    item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'reconstructed')
+
+  return {
+    turnId: input.turnId,
+    userText: input.userText,
+    eraFirst: !deliberation || deliberation.selectedEras.length === 0
+      ? 'not-applicable'
+      : hasTextOverlap(governingFocus, eraSummary)
+          || hasTextOverlap(openingClaim, eraSummary)
+          || hasTextOverlap(selectedEvidence, eraSummary)
+          || hasTextOverlap(selectedEvidence, periodSummary)
+        ? 'pass'
+        : 'fail',
+    bundleCoherence: !bundle && !chain
+      ? 'not-applicable'
+      : (
+          (bundle && [bundle.periodId, bundle.episodeId, bundle.procedureId, bundle.conversationTurnId, bundle.relationshipLine]
+            .filter(Boolean).length >= 2)
+          || (chain && (
+            (chain.periodSummary && chain.eventSummary)
+            || (chain.procedureSummary && chain.relationshipMeaning)
+          ))
+        )
+          ? 'pass'
+          : 'fail',
+    replyMemoryCoherence: !deliberation
+      ? 'not-applicable'
+      : runtimeSurface?.dialogue.dialogueActKernel?.sourceTrace?.includes('memory-deliberation')
+          && runtimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow?.length
+          ? 'pass'
+          : 'fail',
+    reconsolidationEffect: selectedEpisodes.some(item => item.reconsolidatedFromTraceId)
+      || (deliberation?.conflictVariants?.length ?? 0) > 0
+      ? 'pass'
+      : 'not-applicable',
+    uncertaintyDiscipline: !hasConflict && !hasUncertainProvenance
+      ? 'not-applicable'
+      : runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+          || mustDo.some(item => item.includes('dream residue') || item.includes('inference') || item.includes('approximate') || item.includes('stable core'))
+          || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
+        ? 'pass'
+        : 'fail',
+  }
+}
+
+export async function benchmarkMainChatSessionReplay(input: {
+  turns: AlicizationReplayTurn[]
+}) {
+  const turns = await replayMainChatSession(input)
+  const quality = turns.map((prepared, index) => evaluateReplayMemoryQuality({
+    prepared,
+    turnId: input.turns[index]?.turnId ?? `turn-${index + 1}`,
+    userText: input.turns[index]?.userText ?? '',
+  }))
+  return {
+    turns,
+    quality,
+  }
 }
 
 export async function replayMainChatSession(input: {

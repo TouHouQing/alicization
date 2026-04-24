@@ -395,12 +395,14 @@ describe('main chat background run', () => {
         organicMemoryContext: {
           memoryDeliberation: {
             shouldRecall: true,
+            selectedEraIds: [],
             selectedConsolidationIds: [],
             selectedWindowIds: [],
             selectedProcedureIds: ['procedure-1'],
             selectedEpisodeIds: [],
             selectedConversationTurnIds: [],
             selectedRelationshipLines: ['这种时候先接结果'],
+            selectedEras: [],
             selectedPeriods: [],
             selectedEpisodes: [],
             selectedProcedures: [{

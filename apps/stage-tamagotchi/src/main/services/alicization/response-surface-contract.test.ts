@@ -536,6 +536,7 @@ describe('response-surface-contract', () => {
 
     expect(result.contract.mustDo).toContain('Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
     expect(result.contract.mustDo).toContain('Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
+    expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
   })
 })

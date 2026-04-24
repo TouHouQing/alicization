@@ -227,12 +227,18 @@ export interface OrganicMemoryPromptContext {
   } | null
   memoryDeliberation?: {
     shouldRecall: boolean
+    selectedEraIds: string[]
     selectedConsolidationIds: string[]
     selectedWindowIds: string[]
     selectedProcedureIds: string[]
     selectedEpisodeIds: string[]
     selectedConversationTurnIds: string[]
     selectedRelationshipLines: string[]
+    selectedEras: Array<{
+      id: string
+      facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
+      summary: string
+    }>
     selectedPeriods: Array<{
       id: string
       kind: 'window' | 'consolidation'
@@ -242,7 +248,17 @@ export interface OrganicMemoryPromptContext {
       id: string
       summary: string
       provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+      reconsolidatedFromTraceId?: string | null
     }>
+    conflictSeverity?: 'none' | 'low' | 'medium' | 'high'
+    conflictVariants?: Array<{
+      id: string
+      summary: string
+      provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+      reason?: string | null
+    }>
+    stableCore?: string[]
+    unsafeDetails?: string[]
     selectedProcedures: Array<{
       id: string
       label: string

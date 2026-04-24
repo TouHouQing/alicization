@@ -65,6 +65,7 @@ export interface AlicizationDerivedMemoryReference {
 
 export interface AlicizationEpisodicReconsolidationSnapshot {
   at: number
+  decisionTraceId?: string | null
   provenance: AlicizationMemoryProvenance
   confidence: number
   reason: string

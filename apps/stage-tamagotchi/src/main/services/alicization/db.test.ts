@@ -1213,6 +1213,7 @@ describe('alicization sqlite dao', () => {
         rationale: 'The host corrected which remembered reply style fits this same thread.',
         confidence: 0.82,
       },
+      reconsolidationDecisionTraceId: 'mind:l9f3lq:feedbacktrace',
     })
 
     const rows = await db.searchEpisodicEvents({
@@ -1236,6 +1237,7 @@ describe('alicization sqlite dao', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]?.id).toBe('episode-corrected')
     expect(rows[0]?.latestReconsolidation?.at).toBeGreaterThan(0)
+    expect(rows[0]?.latestReconsolidation?.decisionTraceId).toBe('mind:l9f3lq:feedbacktrace')
     expect(rows[0]?.reconsolidationCount).toBeGreaterThan(0)
     expect(rows[0]?.lesson).toContain('answer more directly')
     await db.close()

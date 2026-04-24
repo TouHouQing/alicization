@@ -1060,6 +1060,153 @@ describe('main chat session runtime', () => {
     expect(String(carryBlock?.content ?? '')).toContain('carry_mirror_memory=true')
   })
 
+  it('carries inward recollection afterthought into the next turn recall seed', async () => {
+    let now = 100
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    let firstTurn = true
+    const resolveOrganicMemoryPromptContext = vi.fn(async () => {
+      if (firstTurn) {
+        firstTurn = false
+        return {
+          hostAttitude: '礼貌而克制，保持观察',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          recollectionSpeechPlan: {
+            shouldSurface: false,
+            surfaceMode: 'internal-only' as const,
+            placement: 'internal-only' as const,
+            certainty: 'approximate' as const,
+            internalLead: 'What returns first is the runtime seam we kept carrying.',
+            visibleLead: null,
+            styleNote: 'Let the memory bend the answer without narrating the memory itself.',
+            rationale: 'The recollection should stay inward this turn.',
+            confidence: 0.81,
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: ['consolidation-runtime'],
+            selectedConsolidationIds: ['consolidation-runtime'],
+            selectedWindowIds: [],
+            selectedProcedureIds: ['procedure-runtime'],
+            selectedEpisodeIds: [],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+            selectedEras: [{
+              id: 'consolidation-runtime',
+              facet: 'task-era' as const,
+              summary: 'That period kept bending toward the runtime seam until it held together.',
+            }],
+            selectedPeriods: [{
+              id: 'consolidation-runtime',
+              kind: 'consolidation' as const,
+              summary: 'That period kept bending toward the runtime seam until it held together.',
+            }],
+            selectedEpisodes: [],
+            conflictSeverity: 'none' as const,
+            conflictVariants: [],
+            stableCore: [],
+            unsafeDetails: [],
+            selectedProcedures: [{
+              id: 'procedure-runtime',
+              label: 'runtime seam carry',
+              approach: 'Return to the same seam before branching.',
+            }],
+            selectedBundles: [],
+            selectedChains: [],
+            surfacePolicy: 'internal-only' as const,
+            confidence: 0.81,
+            whyNow: 'The recollection should stay inward but remain available right after this turn.',
+            inwardLine: 'What returns first is the runtime seam we kept carrying.',
+            visibleLine: null,
+          },
+        }
+      }
+      return {
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      }
+    })
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getNow: () => now,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext,
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const firstResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-afterthought-1',
+        messages: [{ role: 'user', content: '继续沿着当前 runtime continuity 讲。' }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '继续沿着当前 runtime continuity 讲。' } as Message],
+      }),
+    })
+
+    expect(firstResult.sessionMirror?.recollectionSurfaceSummary).toContain('afterthought=ripe')
+
+    now = 140
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-afterthought-2',
+        messages: [{ role: 'user', content: '保持同一条连续性继续回答。' }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '保持同一条连续性继续回答。' } as Message],
+      }),
+    })
+
+    const lastOrganicCall = resolveOrganicMemoryPromptContext.mock.calls.at(-1) as unknown[] | undefined
+    const secondOrganicInput = (lastOrganicCall?.[0] ?? {}) as {
+      recallSeed?: string
+    }
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('mirror_recollection_afterthought:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('foreground=What returns first is the runtime seam we kept carrying.')
+  })
+
   it('skips execution-heavy preparation phases for dialogue-first living turns', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -1379,7 +1526,8 @@ describe('main chat session runtime', () => {
     expect(result.governance?.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
     expect(result.governance?.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
     expect(result.governance?.mustDo).toContain('Before wording the visible reply, let the active recollection settle stance, pacing, and detail choice from the inside.')
-    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Keep this remembered line inward while answering')
+    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Let it influence tone and detail quietly')
+    expect(result.governance?.mindTurnFrame?.self.thought).not.toContain('What returns first is the runtime seam we kept carrying.')
     expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('Let remembered continuity shape stance and chosen detail before any explicit memory mention.')
     expect(result.governance?.mindTurnFrame?.obligation.whyNow).toContain('An active recollection is shaping the answer from the inside')
     expect(result.governance?.mindTurnFrame?.narrative).toContain('memory:inward-recollection')
@@ -1448,12 +1596,14 @@ describe('main chat session runtime', () => {
         },
         memoryDeliberation: {
           shouldRecall: true,
+          selectedEraIds: ['consolidation-runtime'],
           selectedConsolidationIds: ['consolidation-runtime'],
           selectedWindowIds: [],
           selectedProcedureIds: ['procedure-runtime'],
           selectedEpisodeIds: [],
           selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+          selectedEras: [],
           selectedPeriods: [{
             id: 'consolidation-runtime',
             kind: 'consolidation' as const,
@@ -1529,7 +1679,7 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
-    expect(result.governance?.mustDo).toContain('Memory deliberation: The answer should be anchored by the remembered runtime seam instead of treating this like a fresh disconnected task.')
+    expect(result.governance?.mustDo.join(' | ')).toContain('Memory pressure is')
     expect(result.governance?.mindTurnFrame?.self.thought).toContain('runtime seam')
     expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('answer-anchoring')
     expect(result.governance?.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
@@ -1537,11 +1687,13 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.sourceTrace).toContain('memory-deliberation')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.truthMode).toBe('continuity-carry')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('Return to the same seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('That period kept bending toward the runtime seam until it held together.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).not.toContain('It feels like the same runtime seam again.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.mustSay.join(' | ')).not.toContain('It feels like the same runtime seam again.')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.speakingFrom).toBe('held-memory')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow).toContain('remembered runtime seam')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('answer-anchoring')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('Answer from the same seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('Memory pressure is')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
   })
 
@@ -1759,5 +1911,273 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('repair'))).toBe(true)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Repair the seam before leaning closer')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item => item.includes('repair lands before closeness'))).toBe(true)
+  })
+
+  it('tightens answer planning around stable core and unsafe details when remembered variants conflict', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: context => context.memoryDeliberation ? ['[ALICIZATION_MEMORY_DELIBERATION]'] : [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'answer-anchoring' as const,
+          placement: 'inside-payoff' as const,
+          certainty: 'approximate' as const,
+          internalLead: 'What comes back first is the stable runtime seam, not the exact wording.',
+          visibleLead: 'It feels like the same seam, but not with exact wording.',
+          styleNote: 'Keep the stable core, drop unsafe detail.',
+          rationale: 'The host wants remembered continuity, but the detail is conflict-prone.',
+          confidence: 0.7,
+        },
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedEraIds: ['consolidation-runtime'],
+          selectedConsolidationIds: ['consolidation-runtime'],
+          selectedWindowIds: [],
+          selectedProcedureIds: [],
+          selectedEpisodeIds: ['episode-conflicted'],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: ['Stay on the same seam, but do not over-claim the old wording.'],
+          selectedEras: [{
+            id: 'consolidation-runtime',
+            facet: 'task-era' as const,
+            summary: 'That period kept bending toward the runtime seam until it held together.',
+          }],
+          selectedPeriods: [{
+            id: 'consolidation-runtime',
+            kind: 'consolidation' as const,
+            summary: 'That period kept bending toward the runtime seam until it held together.',
+          }],
+          selectedEpisodes: [{
+            id: 'episode-conflicted',
+            summary: 'I may have mixed two runtime seam conversations together.',
+            provenance: 'reconstructed' as const,
+            reconsolidatedFromTraceId: 'mind:l9f3lq:conflicttrace',
+          }],
+          conflictSeverity: 'high' as const,
+          conflictVariants: [{
+            id: 'episode-conflicted',
+            summary: 'I may have mixed two runtime seam conversations together.',
+            provenance: 'reconstructed' as const,
+            reason: 'Conflicting remembered variants remain unresolved.',
+          }],
+          stableCore: ['That period kept bending toward the runtime seam until it held together.'],
+          unsafeDetails: ['Do not assert which exact wording or day belonged to that old seam.'],
+          selectedProcedures: [],
+          selectedBundles: [{
+            id: 'bundle-conflicted',
+            summary: 'That period kept bending toward the runtime seam until it held together.',
+            rationale: 'Keep the stable core and drop unsafe detail.',
+            confidence: 0.72,
+            periodId: 'consolidation-runtime',
+            episodeId: 'episode-conflicted',
+            procedureId: null,
+            conversationTurnId: null,
+            relationshipLine: 'Stay on the same seam, but do not over-claim the old wording.',
+          }],
+          selectedChains: [],
+          surfacePolicy: 'answer-anchoring' as const,
+          confidence: 0.72,
+          whyNow: 'The stable core still helps, but the recalled detail is conflict-prone.',
+          inwardLine: 'What comes back first is the stable runtime seam, not the exact wording.',
+          visibleLine: 'It feels like the same seam, but I should not say the exact old wording.',
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-memory-conflict',
+        messages: [{
+          role: 'user',
+          content: '你以前是怎么帮我做这个的',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '你以前是怎么帮我做这个的',
+        } as Message],
+      }),
+    })
+
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustNotDo).toContain('Do not over-assert this remembered detail: Do not assert which exact wording or day belonged to that old seam.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary).toContain('That period kept bending toward the runtime seam until it held together.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('fragmentary')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustAvoid).toContain('Do not state this remembered detail as settled fact: Do not assert which exact wording or day belonged to that old seam.')
+  })
+
+  it('changes explicit recall style when remembered material is dream residue or inference rather than settled memory', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: { usagePercent: 10, windowMs: 1000 },
+        memory: { freeMB: 1024, totalMB: 8192, usagePercent: 87.5 },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: context => context.memoryDeliberation ? ['[ALICIZATION_MEMORY_DELIBERATION]'] : [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'answer-anchoring' as const,
+          placement: 'inside-payoff' as const,
+          certainty: 'approximate' as const,
+          internalLead: 'What comes back first is a fragile remembered seam.',
+          visibleLead: 'It feels like the same seam, but not like something I should state as fact.',
+          styleNote: 'Let the answer keep a little distance from the memory detail.',
+          rationale: 'The host is asking about a memory that is more residue than fact.',
+          confidence: 0.62,
+        },
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedEraIds: ['consolidation-runtime'],
+          selectedConsolidationIds: ['consolidation-runtime'],
+          selectedWindowIds: [],
+          selectedProcedureIds: [],
+          selectedEpisodeIds: ['episode-dreamt'],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: ['The line still matters, but the exact remembered detail is unstable.'],
+          selectedEras: [{
+            id: 'consolidation-runtime',
+            facet: 'task-era' as const,
+            summary: 'That period still pulls on the runtime seam.',
+          }],
+          selectedPeriods: [{
+            id: 'consolidation-runtime',
+            kind: 'consolidation' as const,
+            summary: 'That period still pulls on the runtime seam.',
+          }],
+          selectedEpisodes: [{
+            id: 'episode-dreamt',
+            summary: 'I only have a dreamlike residue of that old seam.',
+            provenance: 'dreamt' as const,
+            reconsolidatedFromTraceId: null,
+          }],
+          conflictSeverity: 'low' as const,
+          conflictVariants: [],
+          stableCore: ['That period still pulls on the runtime seam.'],
+          unsafeDetails: ['Do not state the dream residue as a lived remembered fact.'],
+          selectedProcedures: [],
+          selectedBundles: [{
+            id: 'bundle-dreamt',
+            summary: 'That period still pulls on the runtime seam.',
+            rationale: 'The stable core matters more than the exact remembered detail.',
+            confidence: 0.62,
+            periodId: 'consolidation-runtime',
+            episodeId: 'episode-dreamt',
+            procedureId: null,
+            conversationTurnId: null,
+            relationshipLine: 'The line still matters, but the exact remembered detail is unstable.',
+          }],
+          selectedChains: [],
+          surfacePolicy: 'answer-anchoring' as const,
+          confidence: 0.62,
+          whyNow: 'Only the seam remains stable; the recalled detail itself is dream residue.',
+          inwardLine: 'What returns first is the seam, not the dream detail.',
+          visibleLine: 'It feels like the same seam, but not like something I should state as fact.',
+        },
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-memory-provenance',
+        messages: [{
+          role: 'user',
+          content: '你为什么会想起这个',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '你为什么会想起这个',
+        } as Message],
+      }),
+    })
+
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo).toContain('If the recollection becomes explicit, frame it as dream residue rather than lived fact.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustNotDo).toContain('Do not over-assert this remembered detail: Do not state the dream residue as a lived remembered fact.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustAvoid).toContain('Do not present dream residue as lived remembered fact.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('fragmentary')
   })
 })

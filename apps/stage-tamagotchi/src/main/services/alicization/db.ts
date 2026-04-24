@@ -759,6 +759,9 @@ function mapEpisodicReconsolidation(raw: string | null): AlicizationEpisodicReco
     return null
   return {
     at: Math.max(0, Math.floor(at)),
+    decisionTraceId: typeof parsed.decisionTraceId === 'string' && parsed.decisionTraceId.trim()
+      ? parsed.decisionTraceId.trim()
+      : null,
     provenance: provenance === 'observed' || provenance === 'remembered' || provenance === 'dreamt' || provenance === 'inferred' || provenance === 'reconstructed'
       ? provenance
       : 'reconstructed',
@@ -1189,6 +1192,7 @@ export interface AlicizationDbService {
     carryAsMemory?: boolean
     allowDream?: boolean
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+    reconsolidationDecisionTraceId?: string | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
   appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listPersonaReinforcementEvents: (input: {
@@ -4038,6 +4042,7 @@ export async function setupAlicizationDb(
     carryAsMemory?: boolean
     allowDream?: boolean
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
+    reconsolidationDecisionTraceId?: string | null
   }) {
     const recallSeed = input.recallSeed.trim()
     if (!recallSeed)
@@ -4264,6 +4269,9 @@ export async function setupAlicizationDb(
       )
       const reconsolidation: AlicizationEpisodicReconsolidationSnapshot = {
         at: recalledAt,
+        decisionTraceId: typeof input.reconsolidationDecisionTraceId === 'string' && input.reconsolidationDecisionTraceId.trim()
+          ? input.reconsolidationDecisionTraceId.trim()
+          : item.event.latestReconsolidation?.decisionTraceId ?? null,
         provenance: item.falseMemoryRisk || item.contradictionSignal.unresolved ? 'reconstructed' : item.event.provenance,
         confidence: nextConfidence,
         reason: item.falseMemoryRisk

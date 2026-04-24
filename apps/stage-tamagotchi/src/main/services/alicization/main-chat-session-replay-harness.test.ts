@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { replayMainChatSession } from './main-chat-session-replay-harness'
+import {
+  benchmarkMainChatSessionReplay,
+  replayMainChatSession,
+} from './main-chat-session-replay-harness'
 
 describe('main chat session replay harness', () => {
   it('replays memory-heavy turns through one stable session and keeps them on the mind-driven provider path', async () => {
@@ -17,12 +20,18 @@ describe('main chat session replay harness', () => {
             recalledFragments: [],
             memoryDeliberation: {
               shouldRecall: true,
+              selectedEraIds: ['consolidation-conversation'],
               selectedConsolidationIds: ['consolidation-conversation'],
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-conversation'],
               selectedConversationTurnIds: ['turn-history-1'],
               selectedRelationshipLines: [],
+              selectedEras: [{
+                id: 'consolidation-conversation',
+                facet: 'phase',
+                summary: 'A remembered conversation period about runtime continuity.',
+              }],
               selectedPeriods: [{
                 id: 'consolidation-conversation',
                 kind: 'consolidation',
@@ -90,12 +99,18 @@ describe('main chat session replay harness', () => {
             recalledFragments: [],
             memoryDeliberation: {
               shouldRecall: true,
+              selectedEraIds: [],
               selectedConsolidationIds: [],
               selectedWindowIds: [],
               selectedProcedureIds: ['procedure-runtime'],
               selectedEpisodeIds: ['episode-procedure'],
               selectedConversationTurnIds: [],
               selectedRelationshipLines: ['Return to the same seam before branching.'],
+              selectedEras: [{
+                id: 'consolidation-procedure',
+                facet: 'task-era',
+                summary: 'A remembered task period of repairing the runtime seam.',
+              }],
               selectedPeriods: [],
               selectedEpisodes: [{
                 id: 'episode-procedure',
@@ -169,6 +184,8 @@ describe('main chat session replay harness', () => {
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
     expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.speakingFrom).toBe('task-thread')
+    expect(turns[0]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingFocus).toContain('remembered conversation period')
+    expect(turns[1]?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered task period')
   })
 
   it('replays the same phrase under different contexts and produces different memory bundles', async () => {
@@ -185,12 +202,14 @@ describe('main chat session replay harness', () => {
             recalledFragments: [],
             memoryDeliberation: {
               shouldRecall: true,
+              selectedEraIds: [],
               selectedConsolidationIds: [],
               selectedWindowIds: [],
               selectedProcedureIds: ['procedure-runtime'],
               selectedEpisodeIds: [],
               selectedConversationTurnIds: [],
               selectedRelationshipLines: [],
+              selectedEras: [],
               selectedPeriods: [],
               selectedEpisodes: [],
               selectedProcedures: [{
@@ -254,12 +273,18 @@ describe('main chat session replay harness', () => {
             recalledFragments: [],
             memoryDeliberation: {
               shouldRecall: true,
+              selectedEraIds: ['consolidation-relationship'],
               selectedConsolidationIds: ['consolidation-relationship'],
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-relationship'],
               selectedConversationTurnIds: [],
               selectedRelationshipLines: ['Back off first, then reopen with a lighter touch.'],
+              selectedEras: [{
+                id: 'consolidation-relationship',
+                facet: 'relationship-era',
+                summary: 'A remembered relationship period where focused windows needed more room.',
+              }],
               selectedPeriods: [{
                 id: 'consolidation-relationship',
                 kind: 'consolidation',
@@ -340,12 +365,18 @@ describe('main chat session replay harness', () => {
             recalledFragments: [],
             memoryDeliberation: {
               shouldRecall: true,
+              selectedEraIds: ['consolidation-bond'],
               selectedConsolidationIds: ['consolidation-bond'],
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-bond'],
               selectedConversationTurnIds: [],
               selectedRelationshipLines: ['The host needed space before closeness.'],
+              selectedEras: [{
+                id: 'consolidation-bond',
+                facet: 'relationship-era',
+                summary: 'A remembered bond period where closeness had to back off before repair.',
+              }],
               selectedPeriods: [{
                 id: 'consolidation-bond',
                 kind: 'consolidation',
@@ -412,6 +443,255 @@ describe('main chat session replay harness', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
-    expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('Memory deliberation:'))).toBe(true)
+    expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('Memory pressure is'))).toBe(true)
+    expect(turn?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered bond period')
+  })
+
+  it('produces replay benchmark quality signals for era-first, coherence, reconsolidation, and uncertainty discipline', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-era-first',
+          userText: '几周前那段时间你为什么总这么回我',
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: ['consolidation-relationship-era'],
+              selectedConsolidationIds: ['consolidation-relationship-era'],
+              selectedWindowIds: [],
+              selectedProcedureIds: [],
+              selectedEpisodeIds: ['episode-relationship-era'],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: ['More room before closeness kept the bond steadier there.'],
+              selectedEras: [{
+                id: 'consolidation-relationship-era',
+                facet: 'relationship-era',
+                summary: 'A remembered relationship era where more room mattered before closeness.',
+              }],
+              selectedPeriods: [{
+                id: 'consolidation-relationship-era',
+                kind: 'consolidation',
+                summary: 'A remembered relationship era where more room mattered before closeness.',
+              }],
+              selectedEpisodes: [{
+                id: 'episode-relationship-era',
+                summary: 'The host kept pulling back when replies came in too close.',
+                provenance: 'remembered',
+              }],
+              selectedProcedures: [],
+              selectedBundles: [{
+                id: 'bundle-era-first',
+                summary: 'A remembered relationship era where more room mattered before closeness. | The host kept pulling back when replies came in too close.',
+                rationale: 'Era-first relationship recall should open this answer.',
+                confidence: 0.84,
+                periodId: 'consolidation-relationship-era',
+                episodeId: 'episode-relationship-era',
+                procedureId: null,
+                conversationTurnId: null,
+                relationshipLine: 'More room before closeness kept the bond steadier there.',
+              }],
+              selectedChains: [{
+                id: 'chain-era-first',
+                kind: 'period-event-lesson-posture',
+                summary: 'A remembered relationship era where more room mattered before closeness. | The host kept pulling back when replies came in too close.',
+                rationale: 'The era should become the answer posture before event detail.',
+                confidence: 0.84,
+                taskCue: 'bond tone',
+                periodSummary: 'A remembered relationship era where more room mattered before closeness.',
+                eventSummary: 'The host kept pulling back when replies came in too close.',
+                procedureSummary: null,
+                relationshipMeaning: 'More room before closeness kept the bond steadier there.',
+                lesson: 'More room before closeness kept the bond steadier there.',
+                currentStance: 'Open lighter before leaning close.',
+                answerPosture: 'Answer from the remembered relationship era first.',
+              }],
+              surfacePolicy: 'relationship-continuity',
+              confidence: 0.84,
+              whyNow: 'The host is asking about a whole remembered relationship period.',
+              inwardLine: 'What comes back first is that longer relationship era, not a single turn.',
+              visibleLine: 'It feels like one of those periods where more room mattered first.',
+            },
+            recollectionSpeechPlan: {
+              shouldSurface: true,
+              surfaceMode: 'relationship-continuity',
+              placement: 'inside-payoff',
+              certainty: 'approximate',
+              internalLead: 'What comes back first is that longer relationship era, not a single turn.',
+              visibleLead: 'It feels like one of those periods where more room mattered first.',
+              styleNote: 'Let the era shape the answer before the event detail.',
+              rationale: 'The host is asking about a whole remembered period.',
+              confidence: 0.84,
+            },
+          },
+        },
+        {
+          turnId: 'turn-reconsolidated',
+          userText: '不是那次，是另一次，你是不是记错了',
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: ['consolidation-runtime-era'],
+              selectedConsolidationIds: ['consolidation-runtime-era'],
+              selectedWindowIds: [],
+              selectedProcedureIds: [],
+              selectedEpisodeIds: ['episode-conflicted'],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: ['The seam still matters, but the exact remembered detail is unstable.'],
+              selectedEras: [{
+                id: 'consolidation-runtime-era',
+                facet: 'task-era',
+                summary: 'A remembered runtime era where the seam mattered more than the exact old wording.',
+              }],
+              selectedPeriods: [{
+                id: 'consolidation-runtime-era',
+                kind: 'consolidation',
+                summary: 'A remembered runtime era where the seam mattered more than the exact old wording.',
+              }],
+              selectedEpisodes: [{
+                id: 'episode-conflicted',
+                summary: 'I may have mixed two runtime seam conversations together.',
+                provenance: 'reconstructed',
+                reconsolidatedFromTraceId: 'mind:l9f3lq:conflicttrace',
+              }],
+              conflictSeverity: 'high',
+              conflictVariants: [{
+                id: 'episode-conflicted',
+                summary: 'I may have mixed two runtime seam conversations together.',
+                provenance: 'reconstructed',
+                reason: 'Conflicting remembered variants remain unresolved.',
+              }],
+              stableCore: ['A remembered runtime era where the seam mattered more than the exact old wording.'],
+              unsafeDetails: ['Do not state which exact old wording belonged to that seam.'],
+              selectedProcedures: [],
+              selectedBundles: [{
+                id: 'bundle-conflicted',
+                summary: 'A remembered runtime era where the seam mattered more than the exact old wording. | I may have mixed two runtime seam conversations together.',
+                rationale: 'Keep the stable core and drop unsafe detail.',
+                confidence: 0.72,
+                periodId: 'consolidation-runtime-era',
+                episodeId: 'episode-conflicted',
+                procedureId: null,
+                conversationTurnId: null,
+                relationshipLine: 'The seam still matters, but the exact remembered detail is unstable.',
+              }],
+              selectedChains: [],
+              surfacePolicy: 'answer-anchoring',
+              confidence: 0.72,
+              whyNow: 'The stable core still helps, but the recalled detail is conflict-prone.',
+              inwardLine: 'What comes back first is the seam, not the exact wording.',
+              visibleLine: 'It feels like the same seam, but not with exact wording.',
+            },
+            recollectionSpeechPlan: {
+              shouldSurface: true,
+              surfaceMode: 'answer-anchoring',
+              placement: 'inside-payoff',
+              certainty: 'approximate',
+              internalLead: 'What comes back first is the seam, not the exact wording.',
+              visibleLead: 'It feels like the same seam, but not with exact wording.',
+              styleNote: 'Keep the stable core and drop unsafe detail.',
+              rationale: 'The host is challenging whether the memory is exact.',
+              confidence: 0.72,
+            },
+          },
+        },
+        {
+          turnId: 'turn-dream-residue',
+          userText: '你为什么会想起这个',
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: ['consolidation-dream'],
+              selectedConsolidationIds: ['consolidation-dream'],
+              selectedWindowIds: [],
+              selectedProcedureIds: [],
+              selectedEpisodeIds: ['episode-dreamt'],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: ['The line still matters, but the recalled detail is only dream residue.'],
+              selectedEras: [{
+                id: 'consolidation-dream',
+                facet: 'self-era',
+                summary: 'A self-era where the seam survived mostly as dream residue.',
+              }],
+              selectedPeriods: [{
+                id: 'consolidation-dream',
+                kind: 'consolidation',
+                summary: 'A self-era where the seam survived mostly as dream residue.',
+              }],
+              selectedEpisodes: [{
+                id: 'episode-dreamt',
+                summary: 'I only have a dreamlike residue of that old seam.',
+                provenance: 'dreamt',
+              }],
+              conflictSeverity: 'low',
+              conflictVariants: [],
+              stableCore: ['A self-era where the seam survived mostly as dream residue.'],
+              unsafeDetails: ['Do not present the dream residue as lived remembered fact.'],
+              selectedProcedures: [],
+              selectedBundles: [{
+                id: 'bundle-dream',
+                summary: 'A self-era where the seam survived mostly as dream residue.',
+                rationale: 'The seam still matters, but only as dream residue.',
+                confidence: 0.62,
+                periodId: 'consolidation-dream',
+                episodeId: 'episode-dreamt',
+                procedureId: null,
+                conversationTurnId: null,
+                relationshipLine: 'The line still matters, but the recalled detail is only dream residue.',
+              }],
+              selectedChains: [],
+              surfacePolicy: 'answer-anchoring',
+              confidence: 0.62,
+              whyNow: 'Only the seam remains stable; the recalled detail itself is dream residue.',
+              inwardLine: 'What returns first is the seam, not the dream detail.',
+              visibleLine: 'It feels like the same seam, but not like something I should state as fact.',
+            },
+            recollectionSpeechPlan: {
+              shouldSurface: true,
+              surfaceMode: 'answer-anchoring',
+              placement: 'inside-payoff',
+              certainty: 'approximate',
+              internalLead: 'What returns first is the seam, not the dream detail.',
+              visibleLead: 'It feels like the same seam, but not like something I should state as fact.',
+              styleNote: 'Keep a little distance from the memory detail.',
+              rationale: 'The host is asking why the memory surfaced at all.',
+              confidence: 0.62,
+            },
+          },
+        },
+      ],
+    })
+
+    expect(result.quality).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-era-first',
+        eraFirst: 'pass',
+        bundleCoherence: 'pass',
+        replyMemoryCoherence: 'pass',
+      }),
+      expect.objectContaining({
+        turnId: 'turn-reconsolidated',
+        reconsolidationEffect: 'pass',
+        uncertaintyDiscipline: 'pass',
+      }),
+      expect.objectContaining({
+        turnId: 'turn-dream-residue',
+        uncertaintyDiscipline: 'pass',
+      }),
+    ]))
   })
 })

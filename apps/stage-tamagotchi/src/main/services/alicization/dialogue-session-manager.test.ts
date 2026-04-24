@@ -434,6 +434,7 @@ describe('dialogue session manager', () => {
     expect(mirror.recollectionSummary).toContain('mode=execution-procedure')
     expect(mirror.recollectionSummary).toContain('foreground=What comes back first is the way the runtime seam was handled before.')
     expect(mirror.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(mirror.recollectionSurfaceSummary).toContain('afterthought=ripe')
     expect(mirror.recollectionConfidence).toBe(0.81)
     expect(mirror.agencySummary).toContain('action=speak')
 
@@ -451,7 +452,7 @@ describe('dialogue session manager', () => {
     expect(block).toContain('perception=watch=symbiotic-vision | scene=Viewing a runtime refactor diff | attention=runtime.ts | source=attention-anchor')
     expect(block).toContain('memory=recent=carry the refactor thread forward')
     expect(block).toContain('recollection=mode=execution-procedure | certainty=approximate')
-    expect(block).toContain('recollection_surface=surface=inward | surface_mode=internal-only')
+    expect(block).toContain('recollection_surface=surface=inward | afterthought=ripe | surface_mode=internal-only')
     expect(block).toContain('recollection_confidence=0.81')
     expect(block).toContain('agency=action=speak | speak=true | style=light-nudge | thread=Refactor dialogue continuity runtime')
     expect(block).toContain('dialogue=turn=answer | persona=full | subject=relationship | answer=reassure while staying grounded')

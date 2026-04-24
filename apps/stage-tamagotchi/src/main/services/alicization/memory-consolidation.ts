@@ -108,6 +108,103 @@ function buildLesson(events: AlicizationEpisodicEventRecord[]) {
   return lessons[0] ?? null
 }
 
+function inferAutobiographicalFacet(event: AlicizationEpisodicEventRecord): NonNullable<AlicizationMemoryConsolidationRecord['facet']> {
+  const text = [
+    event.threadAnchor,
+    event.whereSummary,
+    event.whatHappened,
+    event.felt,
+    event.whatChanged,
+    event.relationshipMeaning,
+    event.lesson,
+    event.sourceSummary,
+    ...event.emotionTags,
+    ...event.tags,
+  ].filter(Boolean).join(' ').toLowerCase()
+
+  if (
+    event.sourceKind === 'execution-proposal'
+    || event.sourceKind === 'execution-result'
+    || /runtime|cli|codex|claude|patch|verify|test|workflow|procedure|task|执行|修复|continuity/u.test(text)
+  ) {
+    return 'task-era'
+  }
+
+  if (
+    event.sourceKind === 'dream'
+    || event.sourceKind === 'dream-reforge'
+    || event.sourceKind === 'reflection'
+    || event.sourceKind === 'maintenance'
+    || /identity|self|incarnation|doctrine|persona|temperament|我更想|我开始|我学会|我不再/u.test(text)
+  ) {
+    return 'self-era'
+  }
+
+  if (
+    event.sourceKind === 'dialogue-feedback'
+    || /relationship|bond|closeness|distance|repair|boundary|intrusive|lighter touch|space before closeness|host needed space|room before closeness/u.test(text)
+  ) {
+    return 'relationship-era'
+  }
+
+  return 'phase'
+}
+
+function deriveDominantMood(events: AlicizationEpisodicEventRecord[]) {
+  const ranked = uniqueList(events.flatMap(event => [
+    ...event.emotionTags,
+    event.felt,
+  ]), 6)
+  return ranked[0] ?? null
+}
+
+function deriveRecurrentBurden(events: AlicizationEpisodicEventRecord[]) {
+  const burdenCandidates = uniqueList(events.flatMap(event => [
+    event.lesson,
+    event.relationshipMeaning,
+    event.whatChanged,
+  ]), 6)
+  return burdenCandidates.find(item => /space|room|pressure|intrusive|burden|repair|boundary|focused windows|closeness|重压|空间|边界|修复|压力/u.test(item))
+    ?? burdenCandidates[0]
+    ?? null
+}
+
+function buildAutobiographicalSummary(input: {
+  facet: NonNullable<AlicizationMemoryConsolidationRecord['facet']>
+  periodKey: string
+  events: AlicizationEpisodicEventRecord[]
+}) {
+  const sorted = sortEvents(input.events)
+  const lead = sorted[0] ?? null
+  const dominantMood = deriveDominantMood(input.events)
+  const recurrentBurden = deriveRecurrentBurden(input.events)
+  const facetLabel = input.facet === 'relationship-era'
+    ? 'relationship era'
+    : input.facet === 'task-era'
+      ? 'task era'
+      : input.facet === 'self-era'
+        ? 'self era'
+        : 'phase'
+  return sanitizeText([
+    `During ${input.periodKey}, the dominant ${facetLabel} centered on ${lead?.relationshipMeaning || lead?.lesson || lead?.threadAnchor || lead?.whatHappened || 'an ongoing continuity seam'}.`,
+    dominantMood ? `The dominant mood was ${dominantMood}.` : '',
+    recurrentBurden ? `The recurrent burden was ${recurrentBurden}.` : '',
+  ].filter(Boolean).join(' '), 320)
+}
+
+function buildAutobiographicalCues(events: AlicizationEpisodicEventRecord[]) {
+  const dominantMood = deriveDominantMood(events)
+  const recurrentBurden = deriveRecurrentBurden(events)
+  return uniqueList(events.flatMap(event => [
+    event.threadAnchor,
+    event.whereSummary,
+    event.relationshipMeaning,
+    event.lesson,
+    dominantMood,
+    recurrentBurden,
+  ]), 6)
+}
+
 function buildConfidence(events: AlicizationEpisodicEventRecord[]) {
   if (events.length === 0)
     return 0
@@ -182,6 +279,40 @@ export function buildMemoryConsolidationRecords(input: {
       derivedEventIds: sorted.map(event => event.id),
       updatedAt: input.now,
     })
+
+    if (bucketEvents.length >= 2) {
+      const autobiographicalBuckets = new Map<NonNullable<AlicizationMemoryConsolidationRecord['facet']>, AlicizationEpisodicEventRecord[]>()
+      for (const event of bucketEvents) {
+        const facet = inferAutobiographicalFacet(event)
+        autobiographicalBuckets.set(facet, [...(autobiographicalBuckets.get(facet) ?? []), event])
+      }
+      autobiographicalBuckets.set('phase', bucketEvents)
+
+      for (const [facet, facetEvents] of autobiographicalBuckets) {
+        if (facet !== 'phase' && facetEvents.length < 2)
+          continue
+        const rankedEvents = sortEvents(facetEvents)
+        consolidated.push({
+          id: `autobio:${facet}:${periodKey}`,
+          kind: 'autobiographical',
+          facet,
+          periodKey,
+          periodStartedAt: Math.min(...facetEvents.map(event => event.occurredAt)),
+          periodEndedAt: Math.max(...facetEvents.map(event => event.occurredAt)),
+          summary: buildAutobiographicalSummary({
+            facet,
+            periodKey,
+            events: facetEvents,
+          }),
+          lesson: buildLesson(facetEvents),
+          cues: buildAutobiographicalCues(facetEvents),
+          confidence: buildConfidence(facetEvents),
+          dominantProvenance: pickDominantProvenance(rankedEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
+          derivedEventIds: rankedEvents.map(event => event.id),
+          updatedAt: input.now,
+        })
+      }
+    }
   }
 
   const procedural = buildProceduralMemoryAbstractions({

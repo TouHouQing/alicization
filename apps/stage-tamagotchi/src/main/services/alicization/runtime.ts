@@ -499,6 +499,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       speechShouldSurface: context?.recollectionSpeechPlan?.shouldSurface ?? null,
       speechSurfaceMode: context?.recollectionSpeechPlan?.surfaceMode ?? null,
       speechPlacement: context?.recollectionSpeechPlan?.placement ?? null,
+      selectedEras: deliberation.selectedEras.map(item => ({
+        id: item.id,
+        facet: item.facet,
+        summary: item.summary,
+      })),
       selectedPeriods: deliberation.selectedPeriods.map(item => ({
         id: item.id,
         kind: item.kind,
@@ -508,7 +513,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         id: item.id,
         summary: item.summary,
         provenance: item.provenance,
+        reconsolidatedFromTraceId: item.reconsolidatedFromTraceId ?? null,
       })),
+      conflictSeverity: deliberation.conflictSeverity ?? 'none',
+      conflictVariants: (deliberation.conflictVariants ?? []).map(item => ({
+        id: item.id,
+        summary: item.summary,
+        provenance: item.provenance,
+        reason: item.reason ?? null,
+      })),
+      stableCore: [...(deliberation.stableCore ?? [])],
+      unsafeDetails: [...(deliberation.unsafeDetails ?? [])],
       selectedProcedures: deliberation.selectedProcedures.map(item => ({
         id: item.id,
         label: item.label,
@@ -1996,6 +2011,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
         confidence: 0.78,
       },
+      reconsolidationDecisionTraceId: decisionTraceId,
     }).catch(async (error) => {
       await appendAuditLog({
         level: 'warning',
@@ -4603,6 +4619,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         .slice(0, 6)
     }
 
+    const readConflictVariants = () => {
+      const value = parsed.conflictVariants
+      if (!Array.isArray(value))
+        return [] as NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants']
+      return value
+        .map((item, index) => {
+          if (!item || typeof item !== 'object')
+            return null
+          const candidate = item as Record<string, unknown>
+          const summary = sanitizeBriefText(String(candidate.summary ?? ''), 220)
+          if (!summary)
+            return null
+          const provenance: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants']>[number]['provenance'] = candidate.provenance === 'observed'
+            || candidate.provenance === 'remembered'
+            || candidate.provenance === 'dreamt'
+            || candidate.provenance === 'inferred'
+            || candidate.provenance === 'reconstructed'
+            ? candidate.provenance
+            : 'reconstructed'
+          return {
+            id: sanitizeBriefText(String(candidate.id ?? ''), 120) || `conflict-${index + 1}`,
+            summary,
+            provenance,
+            reason: sanitizeBriefText(String(candidate.reason ?? ''), 220) || null,
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .slice(0, 4)
+    }
+
     const readBundles = () => {
       const value = parsed.selectedBundles
       if (!Array.isArray(value))
@@ -4681,20 +4727,32 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const whyNow = sanitizeBriefText(parsed.whyNow as string, 220)
     const inwardLine = sanitizeBriefText(parsed.inwardLine as string, 220)
     const visibleLine = sanitizeBriefText(parsed.visibleLine as string, 220) || null
+    const conflictSeverity = parsed.conflictSeverity === 'none'
+      || parsed.conflictSeverity === 'low'
+      || parsed.conflictSeverity === 'medium'
+      || parsed.conflictSeverity === 'high'
+      ? parsed.conflictSeverity
+      : 'none'
     if (!whyNow || !inwardLine) {
       return null
     }
 
     return {
       shouldRecall,
+      selectedEraIds: readIds('selectedEraIds'),
       selectedConsolidationIds: readIds('selectedConsolidationIds'),
       selectedWindowIds: readIds('selectedWindowIds'),
       selectedProcedureIds: readIds('selectedProcedureIds'),
       selectedEpisodeIds: readIds('selectedEpisodeIds'),
       selectedConversationTurnIds: readIds('selectedConversationTurnIds'),
       selectedRelationshipLines: readLines('selectedRelationshipLines'),
+      selectedEras: [],
       selectedPeriods: [],
       selectedEpisodes: [],
+      conflictSeverity,
+      conflictVariants: readConflictVariants(),
+      stableCore: readLines('stableCore'),
+      unsafeDetails: readLines('unsafeDetails'),
       selectedProcedures: [],
       selectedBundles: readBundles(),
       selectedChains: readChains(),
@@ -5161,9 +5219,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         'recollectionIntent, recollectionPlan, and recollectionSpeechPlan are candidate providers only. You are the final authority over whether active recollection should actually stay live for this turn, which memory bundle should shape the answer, and how visible that recollection should be.',
         'Think like a human memory process: first decide whether recollection truly helps; if yes, select a small coherent bundle such as a remembered period, one event, one way of doing something, or one relationship line.',
         'Do not force recollection just because candidates exist. If the turn should stay present-facing, set shouldRecall=false and keep all selected id arrays empty.',
-        'Output valid JSON only with keys: shouldRecall, selectedConsolidationIds, selectedWindowIds, selectedProcedureIds, selectedEpisodeIds, selectedConversationTurnIds, selectedRelationshipLines, selectedBundles, selectedChains, surfacePolicy, confidence, whyNow, inwardLine, visibleLine.',
+        'Output valid JSON only with keys: shouldRecall, selectedEraIds, selectedConsolidationIds, selectedWindowIds, selectedProcedureIds, selectedEpisodeIds, selectedConversationTurnIds, selectedRelationshipLines, selectedBundles, selectedChains, conflictSeverity, conflictVariants, stableCore, unsafeDetails, surfacePolicy, confidence, whyNow, inwardLine, visibleLine.',
         'surfacePolicy must be one of: internal-only, gist-first, answer-anchoring, procedural-carry, relationship-continuity.',
+        'selectedEraIds should pick up to 3 dominant remembered eras or periods before selecting lower-level events and procedures.',
         'selectedRelationshipLines should be short remembered relationship meanings or lessons that should shape the answer.',
+        'conflictSeverity must be one of: none, low, medium, high.',
+        'conflictVariants should list remembered variants that materially disagree with each other or feel unsafe to state as settled fact.',
+        'stableCore should contain only the parts that still feel safe across the remembered variants.',
+        'unsafeDetails should contain details that should not be stated with certainty in the visible reply.',
         'selectedBundles must be an array of up to 4 linked recollection bundles. Each item should include: id, summary, rationale, confidence, and any relevant ids among periodId, episodeId, procedureId, conversationTurnId, plus optional relationshipLine.',
         'A strong bundle usually links a remembered period to one event or one remembered procedure, then states the relationship meaning or lesson carried forward.',
         'selectedChains must be an array of up to 4 explicit experience chains. Each chain should be one of: task-procedure-relationship-stance or period-event-lesson-posture.',
@@ -5180,6 +5243,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         consolidatedMemories: input.consolidatedMemories.slice(0, 6).map(item => ({
           id: item.id,
           kind: item.kind,
+          facet: item.facet ?? null,
           periodKey: item.periodKey,
           summary: sanitizeBriefText(item.summary, 180),
           lesson: sanitizeBriefText(item.lesson ?? '', 160) || undefined,

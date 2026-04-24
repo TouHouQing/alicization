@@ -6,6 +6,8 @@ import type {
 } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
+import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { formatMemoryProvenanceLabel } from './humanlike-memory'
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
@@ -117,6 +119,206 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     isPersonaResidueMemoryText,
   } = options
 
+  function countRecallTermOverlap(base: string, candidate: string) {
+    const baseTerms = new Set(
+      normalizeOrganicRecallText(base)
+        .split(/\s+/u)
+        .filter(term => term.length >= 2),
+    )
+    if (baseTerms.size === 0)
+      return 0
+    const candidateTerms = new Set(
+      normalizeOrganicRecallText(candidate)
+        .split(/\s+/u)
+        .filter(term => term.length >= 2),
+    )
+    if (candidateTerms.size === 0)
+      return 0
+
+    let overlap = 0
+    for (const term of candidateTerms) {
+      if (baseTerms.has(term))
+        overlap += 1
+    }
+    return overlap / candidateTerms.size
+  }
+
+  function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
+    const result: string[] = []
+    for (const value of values) {
+      const normalized = String(value ?? '').trim().replace(/\s+/g, ' ')
+      if (!normalized)
+        continue
+      if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
+        continue
+      result.push(normalized)
+      if (result.length >= maxItems)
+        break
+    }
+    return result
+  }
+
+  function sanitizePromptText(raw: unknown, maxChars = 220) {
+    if (typeof raw !== 'string')
+      return ''
+    return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+  }
+
+  function clamp01(value: number) {
+    if (!Number.isFinite(value))
+      return 0
+    return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+  }
+
+  function deriveHostSocialRecallBias(input: {
+    recallSeed: string
+    recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+    hostPersonModel: OrganicMemoryPromptContext['hostPersonModel'] | null
+    coreIncarnation: string
+  }) {
+    const defaultDoctrineGuidance = buildRelationshipDoctrineGuidance({
+      doctrineText: input.coreIncarnation,
+      contexts: [],
+    })
+    const hostPersonModel = input.hostPersonModel ?? null
+    if (!hostPersonModel) {
+      return {
+        contexts: [] as string[],
+        cautious: false,
+        restrained: false,
+        doctrineGuidance: defaultDoctrineGuidance,
+        biasTexts: [] as string[],
+      }
+    }
+
+    const intentMode = input.recollectionIntent?.mode ?? 'none'
+    const contexts = inferHostSocialContextsFromText([
+      input.recallSeed,
+      ...(input.recollectionIntent?.queryHints ?? []),
+    ].join(' '), [
+      intentMode === 'relationship-history' ? 'open-window' : 'general',
+      intentMode === 'execution-procedure' || intentMode === 'experience-pattern' ? 'focused-work' : 'general',
+    ])
+    const guidance = buildHostSocialGuidance({
+      hostPersonModel,
+      contexts,
+    })
+    const doctrineGuidance = buildRelationshipDoctrineGuidance({
+      doctrineText: input.coreIncarnation,
+      contexts,
+    })
+    const biasTexts = uniqueList([
+      guidance.preferenceText,
+      guidance.sensitivityText,
+      guidance.repairTriggerText,
+      guidance.burdenText,
+      guidance.trustRationale,
+      doctrineGuidance.doctrineSummary,
+      ...hostPersonModel.routines,
+      ...hostPersonModel.sensitivities,
+      ...hostPersonModel.repairTriggers,
+      ...hostPersonModel.recurrentBurdens,
+    ], 10)
+
+    return {
+      contexts,
+      cautious: guidance.cautious,
+      restrained: guidance.restrained,
+      doctrineGuidance,
+      biasTexts,
+    }
+  }
+
+  function rankByHostSocialAffinity<T>(input: {
+    items: T[]
+    toText: (item: T) => string
+    recallSeed: string
+    recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+    hostPersonModel: OrganicMemoryPromptContext['hostPersonModel'] | null
+    coreIncarnation: string
+  }) {
+    if (input.items.length <= 1 || (!input.hostPersonModel && !input.coreIncarnation))
+      return input.items
+
+    const socialBias = deriveHostSocialRecallBias({
+      recallSeed: input.recallSeed,
+      recollectionIntent: input.recollectionIntent,
+      hostPersonModel: input.hostPersonModel,
+      coreIncarnation: input.coreIncarnation,
+    })
+    if (socialBias.biasTexts.length === 0)
+      return input.items
+
+    const intentMode = input.recollectionIntent?.mode ?? 'none'
+    return [...input.items]
+      .map((item, index) => {
+        const text = input.toText(item)
+        const overlap = Math.max(
+          ...socialBias.biasTexts.map(biasText => countRecallTermOverlap(biasText, text)),
+          0,
+        )
+        const normalized = normalizeOrganicRecallText(text)
+        const hasRepairBias = /repair|space|room|lighter|boundary|back off|leave room|压力|空间|边界|轻一点|修复/u.test(normalized)
+        const hasClosenessBias = /warm|close|closeness|companionship|tender|care|温和|靠近|亲密/u.test(normalized)
+        let score = overlap * 0.26
+        if ((intentMode === 'relationship-history' || intentMode === 'autobiographical-history') && (socialBias.cautious || socialBias.restrained)) {
+          if (hasRepairBias)
+            score += 0.18
+          if (hasClosenessBias)
+            score -= 0.12
+        }
+        if ((intentMode === 'relationship-history' || intentMode === 'autobiographical-history') && socialBias.doctrineGuidance.repairBeforeCloseness) {
+          if (hasRepairBias)
+            score += 0.18
+          if (hasClosenessBias)
+            score -= 0.14
+        }
+        if ((intentMode === 'execution-procedure' || intentMode === 'experience-pattern') && socialBias.doctrineGuidance.truthBeforeWarmth) {
+          if (/repair|verify|truth|ground|accur|runtime|procedure|patch|fix|真实|核实|修复|准确/iu.test(normalized))
+            score += 0.12
+          if (hasClosenessBias)
+            score -= 0.08
+        }
+        if (socialBias.doctrineGuidance.leaveRoom && hasRepairBias)
+          score += 0.08
+        if ((intentMode === 'execution-procedure' || intentMode === 'experience-pattern') && socialBias.contexts.includes('focused-work')) {
+          if (/runtime|procedure|patch|verify|task|execution|focused|repair rhythm|bounded/iu.test(normalized))
+            score += 0.12
+        }
+        return {
+          item,
+          index,
+          score,
+        }
+      })
+      .sort((left, right) => {
+        if (left.score !== right.score)
+          return right.score - left.score
+        return left.index - right.index
+      })
+      .map(entry => entry.item)
+  }
+
+  function rankByEraAffinity<T>(input: {
+    items: T[]
+    eraTexts: string[]
+    toText: (item: T) => string
+  }) {
+    if (input.items.length <= 1 || input.eraTexts.length === 0)
+      return input.items
+
+    return [...input.items]
+      .map(item => ({
+        item,
+        score: Math.max(
+          ...input.eraTexts.map(text => countRecallTermOverlap(text, input.toText(item))),
+          0,
+        ),
+      }))
+      .sort((left, right) => right.score - left.score)
+      .map(entry => entry.item)
+  }
+
   function applyMemoryDeliberationToSpeechPlan(input: {
     deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null
     speechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
@@ -212,6 +414,161 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       .sort((left, right) => right.score - left.score)
       .map(item => item.chain)
       .slice(0, 4)
+  }
+
+  function selectMemoryDeliberationEras(input: {
+    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
+    selectedEraIds: string[]
+    selectedConsolidationIds: string[]
+    selectedWindowIds: string[]
+    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+  }) {
+    const eraCandidates = [
+      ...input.consolidatedMemories.map(item => ({
+        id: item.id,
+        facet: item.facet ?? 'phase',
+        summary: item.summary,
+        confidence: item.confidence,
+      })),
+      ...input.recollectedWindows.map(item => ({
+        id: item.id,
+        facet: 'window' as const,
+        summary: item.summary,
+        confidence: item.confidence,
+      })),
+    ]
+    const selectedEraIds = new Set(
+      input.selectedEraIds.length > 0
+        ? input.selectedEraIds
+        : [
+            ...input.selectedConsolidationIds,
+            ...input.selectedWindowIds,
+          ],
+    )
+    const inferredFacet = input.recollectionIntent?.mode === 'relationship-history'
+      ? 'relationship-era'
+      : input.recollectionIntent?.mode === 'execution-procedure' || input.recollectionIntent?.mode === 'experience-pattern'
+        ? 'task-era'
+        : input.recollectionIntent?.mode === 'autobiographical-history'
+          ? 'self-era'
+          : null
+    const prioritized = selectedEraIds.size > 0
+      ? eraCandidates.filter(item => selectedEraIds.has(item.id))
+      : inferredFacet
+        ? eraCandidates.filter(item => item.facet === inferredFacet || item.facet === 'window')
+        : eraCandidates
+    return [...prioritized]
+      .sort((left, right) => right.confidence - left.confidence)
+      .map(item => ({
+        id: item.id,
+        facet: item.facet,
+        summary: item.summary,
+      }))
+      .slice(0, 3)
+  }
+
+  function deriveMemoryDeliberationConflictState(input: {
+    deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null
+    episodes: AlicizationEpisodicEventRecord[]
+    periods: Array<{ summary: string }>
+    procedures: Array<{ approach: string, label: string }>
+    relationshipLines: string[]
+  }): Pick<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>, 'conflictSeverity' | 'conflictVariants' | 'stableCore' | 'unsafeDetails'> {
+    const explicitVariants: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants']> = input.deliberation?.conflictVariants ?? []
+    const inferredVariants: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants']> = input.episodes
+      .filter(item => (item.latestReconsolidation?.provenance ?? item.provenance) === 'reconstructed')
+      .map(item => ({
+        id: item.id,
+        summary: item.whatHappened,
+        provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+        reason: item.latestReconsolidation?.reason ?? null,
+      }))
+    const conflictVariants: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictVariants']> = explicitVariants.length > 0 ? explicitVariants : inferredVariants
+
+    const explicitSeverity = input.deliberation?.conflictSeverity
+    const inferredSeverity: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictSeverity']> = conflictVariants.length >= 2
+      ? 'high'
+      : conflictVariants.length === 1
+        ? 'medium'
+        : input.episodes.some(item => (item.latestReconsolidation?.provenance ?? item.provenance) === 'dreamt' || (item.latestReconsolidation?.provenance ?? item.provenance) === 'inferred')
+          ? 'low'
+          : 'none'
+    const conflictSeverity: NonNullable<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['conflictSeverity']> = explicitSeverity && explicitSeverity !== 'none'
+      ? explicitSeverity
+      : inferredSeverity
+
+    const stableCore = (input.deliberation?.stableCore?.length ?? 0) > 0
+      ? input.deliberation?.stableCore ?? []
+      : uniqueList([
+          ...input.periods.map(item => item.summary),
+          ...input.procedures.flatMap(item => [item.label, item.approach]),
+          ...input.relationshipLines,
+        ], 6)
+
+    const unsafeDetails = (input.deliberation?.unsafeDetails?.length ?? 0) > 0
+      ? input.deliberation?.unsafeDetails ?? []
+      : uniqueList(conflictVariants.flatMap(item => [item.summary, item.reason]), 6)
+
+    return {
+      conflictSeverity,
+      conflictVariants: conflictVariants.slice(0, 4),
+      stableCore,
+      unsafeDetails,
+    }
+  }
+
+  function deriveSceneTriggeredRecollectionIntent(input: {
+    recallSeed: string
+    recalledEpisodes: AlicizationEpisodicEventRecord[]
+  }): OrganicMemoryPromptContext['recollectionIntent'] | null {
+    const lead = input.recalledEpisodes[0] ?? null
+    if (!lead)
+      return null
+
+    const familiarity = Math.max(lead.sceneAttachment ?? 0, Math.min(1, (lead.recallCount ?? 0) / 4))
+    const provenance = lead.latestReconsolidation?.provenance ?? lead.provenance
+    if (familiarity < 0.44 && provenance !== 'remembered' && provenance !== 'observed')
+      return null
+
+    const leadText = [
+      lead.threadAnchor,
+      lead.whereSummary,
+      lead.whatHappened,
+      lead.relationshipMeaning,
+      lead.lesson,
+      ...(lead.tags ?? []),
+      ...(lead.emotionTags ?? []),
+    ].filter(Boolean).join(' ').toLowerCase()
+    const relationshipTriggered = /relationship|bond|closeness|space|boundary|repair|tone|回应|关系|靠近|空间|边界|修复/u.test(leadText)
+    const procedureTriggered = /runtime|procedure|patch|verify|task|execution|workflow|步骤|执行|修复/u.test(leadText)
+
+    return {
+      mode: relationshipTriggered
+        ? 'relationship-history'
+        : procedureTriggered
+          ? 'experience-pattern'
+          : 'autobiographical-history',
+      temporalFocus: 'experience-matched',
+      searchEpisodes: true,
+      searchConversations: false,
+      searchProceduralExperience: procedureTriggered,
+      queryHints: uniqueList([
+        lead.threadAnchor,
+        lead.relationshipMeaning,
+        lead.lesson,
+        ...(lead.tags ?? []),
+      ], 6),
+      rationale: sanitizePromptText(
+        relationshipTriggered
+          ? 'The current scene naturally tugs on a familiar relationship pattern even without an explicit retrospective question.'
+          : procedureTriggered
+            ? 'The current scene naturally tugs on a familiar way of handling this same kind of task.'
+            : 'The current scene naturally tugs on a familiar remembered pattern.',
+        220,
+      ),
+      confidence: clamp01(0.42 + familiarity * 0.32 + (provenance === 'remembered' || provenance === 'observed' ? 0.12 : 0)),
+    }
   }
 
   function buildProactiveRecallSeed(input: {
@@ -397,6 +754,21 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         `inward_line=${context.memoryDeliberation.inwardLine}`,
         context.memoryDeliberation.visibleLine
           ? `visible_line=${context.memoryDeliberation.visibleLine}`
+          : '',
+        context.memoryDeliberation.conflictSeverity && context.memoryDeliberation.conflictSeverity !== 'none'
+          ? `conflict_severity=${context.memoryDeliberation.conflictSeverity}`
+          : '',
+        (context.memoryDeliberation.conflictVariants?.length ?? 0) > 0
+          ? `conflict_variants=${(context.memoryDeliberation.conflictVariants ?? []).map(item => `${item.provenance}:${item.summary}`).join(' | ')}`
+          : '',
+        (context.memoryDeliberation.stableCore?.length ?? 0) > 0
+          ? `stable_core=${(context.memoryDeliberation.stableCore ?? []).join(' | ')}`
+          : '',
+        (context.memoryDeliberation.unsafeDetails?.length ?? 0) > 0
+          ? `unsafe_details=${(context.memoryDeliberation.unsafeDetails ?? []).join(' | ')}`
+          : '',
+        context.memoryDeliberation.selectedEras.length > 0
+          ? `selected_eras=${context.memoryDeliberation.selectedEras.map(item => `${item.facet}:${item.summary}`).join(' | ')}`
           : '',
         context.memoryDeliberation.selectedPeriods.length > 0
           ? `selected_periods=${context.memoryDeliberation.selectedPeriods.map(item => `${item.kind}:${item.summary}`).join(' | ')}`
@@ -684,14 +1056,14 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           relationshipDynamics,
         }).catch(() => null)
       : null
-    const recollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? null
-    const activeRecollectionIntent = recollectionIntent?.mode && recollectionIntent.mode !== 'none'
-      ? recollectionIntent
+    const preliminaryRecollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? null
+    const preliminaryActiveRecollectionIntent = preliminaryRecollectionIntent?.mode && preliminaryRecollectionIntent.mode !== 'none'
+      ? preliminaryRecollectionIntent
       : null
     const retrospectiveRecall = plannedRecollectionIntent
-      ? Boolean(activeRecollectionIntent?.searchConversations === true)
-      : activeRecollectionIntent
-        ? activeRecollectionIntent.searchConversations === true
+      ? Boolean(preliminaryActiveRecollectionIntent?.searchConversations === true)
+      : preliminaryActiveRecollectionIntent
+        ? preliminaryActiveRecollectionIntent.searchConversations === true
         : Boolean(heuristicRecollectionIntent?.searchConversations === true || isRetrospectiveRecallQuery(recallSeed))
     const recalledEpisodes = allowRecalledFragments && recallSeed
       ? await recallEpisodicEventsWithGovernor({
@@ -701,6 +1073,16 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recallGovernor: options?.recallGovernor ?? null,
         })
       : []
+    const sceneTriggeredRecollectionIntent = !preliminaryActiveRecollectionIntent && recallSeed
+      ? deriveSceneTriggeredRecollectionIntent({
+          recallSeed,
+          recalledEpisodes,
+        })
+      : null
+    const recollectionIntent = plannedRecollectionIntent ?? heuristicRecollectionIntent ?? sceneTriggeredRecollectionIntent ?? null
+    const activeRecollectionIntent = recollectionIntent?.mode && recollectionIntent.mode !== 'none'
+      ? recollectionIntent
+      : null
     const recalledConversationHistory = retrospectiveRecall
       ? (
           await recallConversationHistory({
@@ -720,29 +1102,68 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recollectionIntent: activeRecollectionIntent,
         })
       : []
+    const sociallyRankedConsolidatedMemories = rankByHostSocialAffinity({
+      items: consolidatedMemories,
+      toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
+      recallSeed,
+      recollectionIntent: activeRecollectionIntent,
+      hostPersonModel,
+      coreIncarnation: snapshot.coreIncarnation,
+    })
     const recollectedWindows = buildMemoryRecollectionWindows({
       intent: activeRecollectionIntent,
       episodes: recalledEpisodes,
       conversationHistory: recalledConversationHistory,
     })
+    const sociallyRankedWindows = rankByHostSocialAffinity({
+      items: recollectedWindows,
+      toText: item => [item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
+      recallSeed,
+      recollectionIntent: activeRecollectionIntent,
+      hostPersonModel,
+      coreIncarnation: snapshot.coreIncarnation,
+    })
     const proceduralMemories = buildProceduralMemoryAbstractions({
       intent: activeRecollectionIntent,
       episodes: recalledEpisodes,
     })
+    const sociallyRankedProceduralMemories = rankByHostSocialAffinity({
+      items: proceduralMemories,
+      toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
+      recallSeed,
+      recollectionIntent: activeRecollectionIntent,
+      hostPersonModel,
+      coreIncarnation: snapshot.coreIncarnation,
+    })
+    const sociallyRankedEpisodes = rankByHostSocialAffinity({
+      items: recalledEpisodes,
+      toText: item => [
+        item.threadAnchor,
+        item.whereSummary,
+        item.whatHappened,
+        item.relationshipMeaning,
+        item.lesson,
+        ...(item.tags ?? []),
+      ].filter(Boolean).join(' '),
+      recallSeed,
+      recollectionIntent: activeRecollectionIntent,
+      hostPersonModel,
+      coreIncarnation: snapshot.coreIncarnation,
+    })
     const recollectionPlan = activeRecollectionIntent && planMemoryRecollection && (
-      consolidatedMemories.length > 0
-      || recollectedWindows.length > 0
-      || proceduralMemories.length > 0
-      || recalledEpisodes.length > 0
+      sociallyRankedConsolidatedMemories.length > 0
+      || sociallyRankedWindows.length > 0
+      || sociallyRankedProceduralMemories.length > 0
+      || sociallyRankedEpisodes.length > 0
       || recalledConversationHistory.length > 0
     )
       ? await planMemoryRecollection({
           recallSeed,
           recollectionIntent: activeRecollectionIntent,
-          consolidatedMemories,
-          recollectedWindows,
-          proceduralMemories,
-          recalledEpisodes,
+          consolidatedMemories: sociallyRankedConsolidatedMemories,
+          recollectedWindows: sociallyRankedWindows,
+          proceduralMemories: sociallyRankedProceduralMemories,
+          recalledEpisodes: sociallyRankedEpisodes,
           recalledConversationHistory,
         }).catch(() => null)
       : null
@@ -793,10 +1214,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         }).catch(() => null)
       : null
     const memoryDeliberation = activeRecollectionIntent && planMemoryDeliberation && (
-      consolidatedMemories.length > 0
-      || recollectedWindows.length > 0
-      || proceduralMemories.length > 0
-      || recalledEpisodes.length > 0
+      sociallyRankedConsolidatedMemories.length > 0
+      || sociallyRankedWindows.length > 0
+      || sociallyRankedProceduralMemories.length > 0
+      || sociallyRankedEpisodes.length > 0
       || recalledConversationHistory.length > 0
       || Boolean(recollectionPlan)
     )
@@ -805,22 +1226,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recollectionIntent: activeRecollectionIntent,
           recollectionPlan,
           recollectionSpeechPlan,
-          consolidatedMemories,
-          recollectedWindows,
-          proceduralMemories,
-          recalledEpisodes,
+          consolidatedMemories: sociallyRankedConsolidatedMemories,
+          recollectedWindows: sociallyRankedWindows,
+          proceduralMemories: sociallyRankedProceduralMemories,
+          recalledEpisodes: sociallyRankedEpisodes,
           recalledConversationHistory,
         }).catch(() => null)
       : null
+    const preferredSelectedEras = memoryDeliberation
+      ? selectMemoryDeliberationEras({
+          recollectionIntent: activeRecollectionIntent,
+          selectedEraIds: memoryDeliberation.selectedEraIds,
+          selectedConsolidationIds: memoryDeliberation.selectedConsolidationIds,
+          selectedWindowIds: memoryDeliberation.selectedWindowIds,
+          consolidatedMemories,
+          recollectedWindows,
+        })
+      : []
     const finalSelectedConsolidationIds = new Set(memoryDeliberation?.selectedConsolidationIds ?? [...selectedConsolidationIds])
     const finalSelectedWindowIds = new Set(memoryDeliberation?.selectedWindowIds ?? [...selectedWindowIds])
     const finalSelectedProcedureIds = new Set(memoryDeliberation?.selectedProcedureIds ?? [...selectedProceduralIds])
     const finalSelectedEpisodeIds = new Set(memoryDeliberation?.selectedEpisodeIds ?? [...selectedEpisodeIds])
     const finalSelectedConversationTurnIds = new Set(memoryDeliberation?.selectedConversationTurnIds ?? [...selectedConversationTurnIds])
+    const finalSelectedEraIds = new Set(preferredSelectedEras.map(item => item.id))
     const shouldCarryDeliberatedRecall = memoryDeliberation
       ? memoryDeliberation.shouldRecall
       : Boolean(recollectionPlan)
-    const deliberatedConsolidatedMemories = shouldCarryDeliberatedRecall
+    const deliberatedConsolidatedMemoriesRaw = shouldCarryDeliberatedRecall
       ? memoryDeliberation
         ? consolidatedMemories.filter(item => finalSelectedConsolidationIds.has(item.id))
         : (
@@ -829,7 +1261,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedConsolidatedMemories
           )
       : []
-    const deliberatedWindows = shouldCarryDeliberatedRecall
+    const deliberatedWindowsRaw = shouldCarryDeliberatedRecall
       ? memoryDeliberation
         ? recollectedWindows.filter(item => finalSelectedWindowIds.has(item.id))
         : (
@@ -838,7 +1270,33 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedWindows
           )
       : []
-    const deliberatedProceduralMemories = shouldCarryDeliberatedRecall
+    const selectedEraConsolidations = finalSelectedEraIds.size > 0
+      ? consolidatedMemories.filter(item => finalSelectedEraIds.has(item.id))
+      : []
+    const selectedEraWindows = finalSelectedEraIds.size > 0
+      ? recollectedWindows.filter(item => finalSelectedEraIds.has(item.id))
+      : []
+    const eraTexts = [
+      ...selectedEraConsolidations.flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
+      ...selectedEraWindows.flatMap(item => [item.summary, ...item.cues]),
+    ].filter(Boolean)
+    const eraDerivedEpisodeIds = new Set(selectedEraConsolidations.flatMap(item => item.derivedEventIds))
+
+    const deliberatedConsolidatedMemories = finalSelectedEraIds.size > 0
+      ? (
+          deliberatedConsolidatedMemoriesRaw.length > 0
+            ? deliberatedConsolidatedMemoriesRaw
+            : selectedEraConsolidations
+        )
+      : deliberatedConsolidatedMemoriesRaw
+    const deliberatedWindows = finalSelectedEraIds.size > 0
+      ? (
+          deliberatedWindowsRaw.length > 0
+            ? deliberatedWindowsRaw
+            : selectedEraWindows
+        )
+      : deliberatedWindowsRaw
+    const deliberatedProceduralMemoriesRaw = shouldCarryDeliberatedRecall
       ? memoryDeliberation
         ? proceduralMemories.filter(item => finalSelectedProcedureIds.has(item.id))
         : (
@@ -847,7 +1305,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedProceduralMemories
           )
       : []
-    const deliberatedEpisodes = shouldCarryDeliberatedRecall
+    const deliberatedEpisodesRaw = shouldCarryDeliberatedRecall
       ? memoryDeliberation
         ? recalledEpisodes.filter(item => finalSelectedEpisodeIds.has(item.id))
         : (
@@ -856,7 +1314,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedEpisodes
           )
       : []
-    const deliberatedConversationHistory = shouldCarryDeliberatedRecall
+    const deliberatedConversationHistoryRaw = shouldCarryDeliberatedRecall
       ? memoryDeliberation
         ? recalledConversationHistory.filter(item => item.turnId && finalSelectedConversationTurnIds.has(item.turnId))
         : (
@@ -865,6 +1323,36 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedConversationHistory
           )
       : []
+    const deliberatedEpisodes = finalSelectedEraIds.size > 0
+      ? rankByEraAffinity({
+          items: deliberatedEpisodesRaw.length > 0
+            ? deliberatedEpisodesRaw
+            : recalledEpisodes.filter(item => eraDerivedEpisodeIds.has(item.id)),
+          eraTexts,
+          toText: item => [
+            item.threadAnchor,
+            item.whatHappened,
+            item.relationshipMeaning,
+            item.lesson,
+            item.sourceSummary,
+            ...(item.tags ?? []),
+          ].filter(Boolean).join(' '),
+        })
+      : deliberatedEpisodesRaw
+    const deliberatedProceduralMemories = finalSelectedEraIds.size > 0
+      ? rankByEraAffinity({
+          items: deliberatedProceduralMemoriesRaw,
+          eraTexts,
+          toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
+        })
+      : deliberatedProceduralMemoriesRaw
+    const deliberatedConversationHistory = finalSelectedEraIds.size > 0
+      ? rankByEraAffinity({
+          items: deliberatedConversationHistoryRaw,
+          eraTexts,
+          toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
+        })
+      : deliberatedConversationHistoryRaw
     const effectiveRecollectionSpeechPlan = applyMemoryDeliberationToSpeechPlan({
       deliberation: memoryDeliberation,
       speechPlan: recollectionSpeechPlan,
@@ -980,9 +1468,32 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
 
       return chains.slice(0, 4)
     })()
+    const synthesizedConflictState = deriveMemoryDeliberationConflictState({
+      deliberation: memoryDeliberation,
+      episodes: deliberatedEpisodes,
+      periods: [
+        ...deliberatedWindows.map(item => ({ summary: item.summary })),
+        ...deliberatedConsolidatedMemories.map(item => ({ summary: item.summary })),
+      ],
+      procedures: deliberatedProceduralMemories.map(item => ({
+        approach: item.approach,
+        label: item.label,
+      })),
+      relationshipLines: memoryDeliberation?.selectedRelationshipLines ?? [],
+    })
     const resolvedMemoryDeliberation = memoryDeliberation
       ? {
           ...memoryDeliberation,
+          selectedEras: preferredSelectedEras.length > 0
+            ? preferredSelectedEras
+            : selectMemoryDeliberationEras({
+                recollectionIntent: activeRecollectionIntent,
+                selectedEraIds: memoryDeliberation.selectedEraIds,
+                selectedConsolidationIds: memoryDeliberation.selectedConsolidationIds,
+                selectedWindowIds: memoryDeliberation.selectedWindowIds,
+                consolidatedMemories: deliberatedConsolidatedMemories,
+                recollectedWindows: deliberatedWindows,
+              }),
           selectedPeriods: [
             ...deliberatedWindows.map(item => ({
               id: item.id,
@@ -999,7 +1510,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
             id: item.id,
             summary: item.whatHappened,
             provenance: item.latestReconsolidation?.provenance ?? item.provenance,
+            reconsolidatedFromTraceId: item.latestReconsolidation?.decisionTraceId ?? null,
           })).slice(0, 6),
+          conflictSeverity: synthesizedConflictState.conflictSeverity,
+          conflictVariants: synthesizedConflictState.conflictVariants,
+          stableCore: synthesizedConflictState.stableCore,
+          unsafeDetails: synthesizedConflictState.unsafeDetails,
           selectedProcedures: deliberatedProceduralMemories.map(item => ({
             id: item.id,
             label: item.label,

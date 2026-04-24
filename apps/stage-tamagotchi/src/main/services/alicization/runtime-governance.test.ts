@@ -413,6 +413,11 @@ describe('runtime-governance', () => {
         speechShouldSurface: true,
         speechSurfaceMode: 'procedural-carry',
         speechPlacement: 'inside-payoff',
+        selectedEras: [{
+          id: 'period-1',
+          facet: 'task-era',
+          summary: '前几天那次 runtime continuity repair',
+        }],
         selectedPeriods: [{
           id: 'period-1',
           kind: 'consolidation',
@@ -422,6 +427,7 @@ describe('runtime-governance', () => {
           id: 'episode-1',
           summary: '上次先 patch 再 verify',
           provenance: 'remembered',
+          reconsolidatedFromTraceId: 'mind:l9f3lq:feedbacktrace',
         }],
         selectedProcedures: [{
           id: 'procedure-1',
@@ -461,6 +467,11 @@ describe('runtime-governance', () => {
       selectedProcedures: expect.arrayContaining([
         expect.objectContaining({
           label: 'patch -> verify',
+        }),
+      ]),
+      selectedEpisodes: expect.arrayContaining([
+        expect.objectContaining({
+          reconsolidatedFromTraceId: 'mind:l9f3lq:feedbacktrace',
         }),
       ]),
     }))

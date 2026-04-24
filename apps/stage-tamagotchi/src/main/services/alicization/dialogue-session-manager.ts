@@ -365,6 +365,9 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
     surfaceSummary: deliberation || speech
       ? [
           deliberation?.shouldRecall === false || !speech?.shouldSurface ? 'surface=inward' : 'surface=visible',
+          (deliberation?.shouldRecall !== false && (deliberation?.surfacePolicy === 'internal-only' || speech?.placement === 'internal-only') && (confidence ?? 0) >= 0.68)
+            ? 'afterthought=ripe'
+            : '',
           deliberation?.surfacePolicy ? `surface_mode=${sanitizeText(deliberation.surfacePolicy, 48)}` : speech?.surfaceMode ? `surface_mode=${sanitizeText(speech.surfaceMode, 48)}` : '',
           speech?.placement ? `placement=${sanitizeText(speech.placement, 48)}` : '',
           deliberation?.visibleLine ? `visible=${sanitizeText(deliberation.visibleLine, 140)}` : speech?.visibleLead ? `visible=${sanitizeText(speech.visibleLead, 140)}` : '',

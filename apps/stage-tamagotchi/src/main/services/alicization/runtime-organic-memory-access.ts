@@ -52,6 +52,7 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     carryAsMemory?: boolean
     allowDream?: boolean
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    reconsolidationDecisionTraceId?: string | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
   searchConversationTurnsForRecall: (input: {
     query: string
