@@ -25,6 +25,8 @@ export type AlicizationMemoryProvenance
     | 'inferred'
     | 'reconstructed'
 
+export type AlicizationMemoryTier = 'hot' | 'warm' | 'cold'
+
 export type AlicizationEpisodicEventSourceKind
   = | 'reply'
     | 'dialogue-feedback'
@@ -136,6 +138,7 @@ export interface AlicizationEpisodicEventRecord {
   recallCount: number
   reconsolidationCount: number
   latestReconsolidation: AlicizationEpisodicReconsolidationSnapshot | null
+  memoryTier?: AlicizationMemoryTier | null
 }
 
 export interface AlicizationHostPersonClosenessPreference {
@@ -160,6 +163,250 @@ export interface AlicizationHostPersonModelSnapshot {
   recurrentBurdens: string[]
   narrative: string[]
   updatedAt: number
+}
+
+export type AlicizationMemoryRecollectionMode
+  = | 'none'
+    | 'conversation-history'
+    | 'autobiographical-history'
+    | 'relationship-history'
+    | 'execution-procedure'
+    | 'experience-pattern'
+
+export type AlicizationMemoryRecollectionTemporalFocus
+  = | 'recent'
+    | 'recent-or-mid'
+    | 'cross-session'
+    | 'experience-matched'
+    | 'distant'
+
+export type AlicizationMemoryRecollectionEraFacet
+  = | 'phase'
+    | 'relationship-era'
+    | 'task-era'
+    | 'self-era'
+    | 'window'
+
+export interface AlicizationMemoryRecollectionAgendaSnapshot {
+  whyRecallNow: string
+  goalSimilarity: number
+  relationshipNeed: number
+  affectivePull: number
+  sceneFamiliarity: number
+  candidateTimeScopes: Array<{
+    scope: AlicizationMemoryRecollectionTemporalFocus
+    weight: number
+    rationale?: string | null
+  }>
+  candidateEraFacets: Array<{
+    facet: AlicizationMemoryRecollectionEraFacet
+    weight: number
+    rationale?: string | null
+  }>
+  candidateProcedureLines: string[]
+  uncertaintyTolerance: 'low' | 'medium' | 'high'
+}
+
+export interface AlicizationMemoryRecollectionIntentSnapshot {
+  mode: AlicizationMemoryRecollectionMode
+  temporalFocus: AlicizationMemoryRecollectionTemporalFocus
+  searchEpisodes: boolean
+  searchConversations: boolean
+  searchProceduralExperience: boolean
+  queryHints: string[]
+  rationale: string
+  confidence: number
+  recollectionAgenda?: AlicizationMemoryRecollectionAgendaSnapshot | null
+}
+
+export type AlicizationRecollectionSearchFocus
+  = 'era'
+    | 'procedure'
+    | 'relationship-line'
+    | 'conversation-turn'
+    | 'episode'
+
+export type AlicizationRecollectionSearchAction
+  = 'hold'
+    | 'expand-era'
+    | 'expand-procedure'
+    | 'expand-relationship-line'
+    | 'expand-conversation'
+    | 'narrow-to-stable-core'
+
+export type AlicizationRecollectionEvidenceGap
+  = 'none'
+    | 'need-period-anchor'
+    | 'need-episode-detail'
+    | 'need-procedure-detail'
+    | 'need-relationship-meaning'
+    | 'need-conversation-evidence'
+    | 'need-disambiguation'
+
+export type AlicizationRecollectionAmbiguityPosture = 'settled' | 'approximate' | 'ambiguous'
+
+export interface AlicizationRecollectionSearchTrace {
+  firstHop: {
+    focus: AlicizationRecollectionSearchFocus
+    summary: string
+    targetIds: string[]
+  }
+  secondHop: {
+    action: AlicizationRecollectionSearchAction
+    evidenceGap: AlicizationRecollectionEvidenceGap
+    summary: string
+    targetIds: string[]
+  }
+  thirdHop: {
+    ambiguityPosture: AlicizationRecollectionAmbiguityPosture
+    summary: string
+  }
+}
+
+export type AlicizationRecollectionCertainty = 'firm' | 'approximate' | 'fragmentary'
+
+export type AlicizationRecollectionSurfaceMode
+  = 'internal-only'
+    | 'gist-first'
+    | 'answer-anchoring'
+    | 'procedural-carry'
+    | 'relationship-continuity'
+
+export interface AlicizationRecollectionNarrativeSnapshot {
+  mode: Exclude<AlicizationMemoryRecollectionMode, 'none'>
+  certainty: AlicizationRecollectionCertainty
+  opening: string
+  supportCues: string[]
+  confidence: number
+}
+
+export interface AlicizationRecollectionPlan {
+  selectedConsolidationIds: string[]
+  selectedWindowIds: string[]
+  selectedProceduralIds: string[]
+  selectedEpisodeIds: string[]
+  selectedConversationTurnIds: string[]
+  selectedRelationshipLines?: string[]
+  searchTrace?: AlicizationRecollectionSearchTrace | null
+  opening: string
+  certainty: AlicizationRecollectionCertainty
+  rationale: string
+  confidence: number
+}
+
+export interface AlicizationRecollectionSpeechPlan {
+  shouldSurface: boolean
+  surfaceMode: AlicizationRecollectionSurfaceMode
+  placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
+  certainty: AlicizationRecollectionCertainty
+  internalLead: string
+  visibleLead: string | null
+  styleNote: string
+  rationale: string
+  confidence: number
+}
+
+export type AlicizationMemoryDeliberationConflictSeverity = 'none' | 'low' | 'medium' | 'high'
+
+export interface AlicizationMemoryDeliberationSelectedEra {
+  id: string
+  facet: AlicizationMemoryRecollectionEraFacet
+  summary: string
+}
+
+export interface AlicizationMemoryDeliberationSelectedPeriod {
+  id: string
+  kind: 'window' | 'consolidation'
+  summary: string
+}
+
+export interface AlicizationMemoryDeliberationSelectedEpisode {
+  id: string
+  summary: string
+  provenance: AlicizationMemoryProvenance
+  reconsolidatedFromTraceId?: string | null
+}
+
+export interface AlicizationMemoryDeliberationConflictVariant {
+  id: string
+  summary: string
+  provenance: AlicizationMemoryProvenance
+  reason?: string | null
+}
+
+export interface AlicizationMemoryDeliberationSelectedProcedure {
+  id: string
+  label: string
+  approach: string
+}
+
+export interface AlicizationMemoryDeliberationSelectedBundle {
+  id: string
+  summary: string
+  rationale: string
+  confidence: number
+  periodId?: string | null
+  episodeId?: string | null
+  procedureId?: string | null
+  conversationTurnId?: string | null
+  relationshipLine?: string | null
+}
+
+export interface AlicizationMemoryDeliberationSelectedChain {
+  id: string
+  kind: 'task-procedure-relationship-stance' | 'period-event-lesson-posture'
+  summary: string
+  rationale: string
+  confidence: number
+  taskCue?: string | null
+  periodSummary?: string | null
+  eventSummary?: string | null
+  procedureSummary?: string | null
+  relationshipMeaning?: string | null
+  lesson?: string | null
+  currentStance?: string | null
+  answerPosture?: string | null
+}
+
+export type AlicizationMemoryFollowUpIntrusionRisk = 'low' | 'medium' | 'high'
+export type AlicizationMemoryFollowUpPayoffDependency = 'memory-only' | 'requires-current-payoff' | 'can-surface-softly'
+export type AlicizationMemoryFollowUpPreferredTiming = 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window'
+
+export interface AlicizationMemoryFollowUpAffordance {
+  summary: string
+  whyNow: string
+  intrusionRisk: AlicizationMemoryFollowUpIntrusionRisk
+  payoffDependency: AlicizationMemoryFollowUpPayoffDependency
+  preferredTiming: AlicizationMemoryFollowUpPreferredTiming
+}
+
+export interface AlicizationMemoryDeliberation {
+  shouldRecall: boolean
+  selectedEraIds: string[]
+  selectedConsolidationIds: string[]
+  selectedWindowIds: string[]
+  selectedProcedureIds: string[]
+  selectedEpisodeIds: string[]
+  selectedConversationTurnIds: string[]
+  selectedRelationshipLines: string[]
+  ambiguityPosture?: AlicizationRecollectionAmbiguityPosture
+  searchTrace?: AlicizationRecollectionSearchTrace | null
+  selectedEras: AlicizationMemoryDeliberationSelectedEra[]
+  selectedPeriods: AlicizationMemoryDeliberationSelectedPeriod[]
+  selectedEpisodes: AlicizationMemoryDeliberationSelectedEpisode[]
+  conflictSeverity?: AlicizationMemoryDeliberationConflictSeverity
+  conflictVariants?: AlicizationMemoryDeliberationConflictVariant[]
+  stableCore?: string[]
+  unsafeDetails?: string[]
+  selectedProcedures: AlicizationMemoryDeliberationSelectedProcedure[]
+  selectedBundles: AlicizationMemoryDeliberationSelectedBundle[]
+  selectedChains: AlicizationMemoryDeliberationSelectedChain[]
+  surfacePolicy: AlicizationRecollectionSurfaceMode
+  confidence: number
+  whyNow: string
+  inwardLine: string
+  visibleLine?: string | null
+  followUpAffordance?: AlicizationMemoryFollowUpAffordance | null
 }
 
 export interface AlicizationMemoryUpsertTrace {
@@ -916,6 +1163,113 @@ export interface AlicizationListMindTurnEventsInput {
   turnId?: string
   activeThreadId?: string
   limit?: number
+}
+
+export interface AlicizationListMemoryDecisionTracesInput {
+  decisionTraceId?: string
+  turnId?: string
+  activeThreadId?: string
+  limit?: number
+}
+
+export type AlicizationReplayBenchmarkPackId = 'default-humanlike-memory-v1'
+export type AlicizationReplayBenchmarkQualityStatus = 'pass' | 'fail' | 'not-applicable'
+
+export interface AlicizationReplayMemoryQualityRecord {
+  turnId: string
+  userText: string
+  eraFirst: AlicizationReplayBenchmarkQualityStatus
+  bundleCoherence: AlicizationReplayBenchmarkQualityStatus
+  procedureCarryQuality: AlicizationReplayBenchmarkQualityStatus
+  wrongThreadSuppression: AlicizationReplayBenchmarkQualityStatus
+  replyMemoryCoherence: AlicizationReplayBenchmarkQualityStatus
+  reconsolidationEffect: AlicizationReplayBenchmarkQualityStatus
+  uncertaintyDiscipline: AlicizationReplayBenchmarkQualityStatus
+  implicitRecallQuality: AlicizationReplayBenchmarkQualityStatus
+  temporalScopeFlexibility: AlicizationReplayBenchmarkQualityStatus
+  surfaceRestraint: AlicizationReplayBenchmarkQualityStatus
+  relationshipRepairAdaptation: AlicizationReplayBenchmarkQualityStatus
+  templateLeakage: AlicizationReplayBenchmarkQualityStatus
+}
+
+export interface AlicizationReplayBenchmarkStandardsRecord {
+  eraSelectionQuality: 'pass' | 'fail'
+  procedureCarryQuality: 'pass' | 'fail'
+  wrongThreadSuppression: 'pass' | 'fail'
+  replyMemoryCoherence: 'pass' | 'fail'
+  implicitRecallQuality: 'pass' | 'fail'
+  temporalScopeFlexibility: 'pass' | 'fail'
+  surfaceRestraint: 'pass' | 'fail'
+  relationshipRepairAdaptation: 'pass' | 'fail'
+  templateLeakage: 'pass' | 'fail'
+}
+
+export interface AlicizationReplayBenchmarkGateDimensionReport {
+  key: keyof AlicizationReplayBenchmarkStandardsRecord
+  status: 'pass' | 'fail'
+  applicableCount: number
+  passedCount: number
+  minimumPassingRatio: number
+  passedRatio: number
+  failingTurnIds: string[]
+}
+
+export interface AlicizationReplayBenchmarkGateReport {
+  passed: boolean
+  failingKeys: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
+  dimensions: AlicizationReplayBenchmarkGateDimensionReport[]
+  standards: AlicizationReplayBenchmarkStandardsRecord
+}
+
+export interface AlicizationReplayBenchmarkTelemetryPatch {
+  retrievalHealth: {
+    semanticLatencyMs: number | null
+    graphLatencyMs: number | null
+    reconstructionFrequency: number
+    reconstructedCount: number
+    templateLeakageFailCount: number
+  }
+}
+
+export interface AlicizationRunReplayBenchmarkInput {
+  packId?: AlicizationReplayBenchmarkPackId
+  persistTelemetry?: boolean
+}
+
+export interface AlicizationRunReplayBenchmarkResult {
+  packId: AlicizationReplayBenchmarkPackId
+  ranAt: number
+  turnCount: number
+  quality: AlicizationReplayMemoryQualityRecord[]
+  standards: AlicizationReplayBenchmarkStandardsRecord
+  gate: AlicizationReplayBenchmarkGateReport
+  telemetryPatch: AlicizationReplayBenchmarkTelemetryPatch
+  telemetryPersisted: boolean
+}
+
+export interface AlicizationMemoryDecisionTraceRecord {
+  decisionTraceId: string
+  turnId: string | null
+  sessionId: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  activeThreadId: string | null
+  createdAt: number
+  lastUpdatedAt: number
+  eventKinds: AlicizationMindTurnEventKind[]
+  governance?: {
+    turnMode?: string | null
+    truthState?: string | null
+    repairState?: string | null
+    answerSubject?: string | null
+    screenReferenceMode?: string | null
+    digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
+  } | null
+  recallAttribution?: Record<string, unknown> | null
+  replyMemoryCoherence?: Record<string, unknown> | null
+  persistenceWritten?: Record<string, unknown> | null
+  dialogueEmitted?: Record<string, unknown> | null
+  takeoverAudit?: Record<string, unknown> | null
+  memoryFactsUpserted?: Record<string, unknown> | null
 }
 
 export type AlicizationDigitalLifeOperatingMode
@@ -2050,6 +2404,10 @@ export type AlicizationProactiveReasonCode
     | 'runtime-control-ready'
     | 'runtime-continuity-pressure'
     | 'runtime-companionship-pressure'
+    | 'continuity-internal-only'
+    | 'continuity-after-payoff'
+    | 'continuity-next-open-window'
+    | 'continuity-execution-callback'
 
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean

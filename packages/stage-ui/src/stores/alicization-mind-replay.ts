@@ -1,5 +1,9 @@
 import type {
+  AlicizationListMemoryDecisionTracesPayload,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
+  AlicizationRunReplayBenchmarkPayload,
+  AlicizationRunReplayBenchmarkResult,
   AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
 } from './alicization-bridge'
@@ -23,6 +27,16 @@ function sortMindTurnEvents(events: AlicizationMindTurnEventRecord[]) {
     if (left.createdAt !== right.createdAt)
       return left.createdAt - right.createdAt
     return left.id.localeCompare(right.id)
+  })
+}
+
+function sortMemoryDecisionTraces(records: AlicizationMemoryDecisionTraceRecord[]) {
+  return [...records].sort((left, right) => {
+    if (left.lastUpdatedAt !== right.lastUpdatedAt)
+      return right.lastUpdatedAt - left.lastUpdatedAt
+    if (left.createdAt !== right.createdAt)
+      return right.createdAt - left.createdAt
+    return left.decisionTraceId.localeCompare(right.decisionTraceId)
   })
 }
 
@@ -148,44 +162,110 @@ export function deriveMindReplaySummary(events: AlicizationMindTurnEventRecord[]
 
 export const useAlicizationMindReplayStore = defineStore('alicization-mind-replay', () => {
   const events = ref<AlicizationMindTurnEventRecord[]>([])
+  const traceRecords = ref<AlicizationMemoryDecisionTraceRecord[]>([])
   const loading = ref(false)
+  const benchmarkLoading = ref(false)
   const lastError = ref<string | null>(null)
   const lastQuery = ref<AlicizationListMindTurnEventsPayload | null>(null)
+  const benchmarkReport = ref<AlicizationRunReplayBenchmarkResult | null>(null)
 
   const sortedEvents = computed(() => sortMindTurnEvents(events.value))
+  const sortedTraceRecords = computed(() => sortMemoryDecisionTraces(traceRecords.value))
   const replayCoverage = computed(() => deriveMindReplayCoverage(sortedEvents.value))
   const replaySummary = computed(() => deriveMindReplaySummary(sortedEvents.value))
+  const benchmarkSupported = computed(() => hasAlicizationBridge() && Boolean(getAlicizationBridge().runReplayBenchmark))
 
-  async function queryMindTurnEvents(payload: AlicizationListMindTurnEventsPayload) {
+  async function queryReplayLab(payload: AlicizationListMindTurnEventsPayload | AlicizationListMemoryDecisionTracesPayload) {
     const query = normalizeReplayQuery(payload)
     lastQuery.value = query
     if (!query.decisionTraceId && !query.turnId) {
       events.value = []
+      traceRecords.value = []
       lastError.value = null
-      return []
+      return {
+        events: [],
+        traceRecords: [],
+      }
     }
 
-    if (!hasAlicizationBridge() || !getAlicizationBridge().listMindTurnEvents) {
+    if (!hasAlicizationBridge()) {
       events.value = []
+      traceRecords.value = []
       lastError.value = null
-      return []
+      return {
+        events: [],
+        traceRecords: [],
+      }
     }
 
     loading.value = true
     try {
-      const rows = await getAlicizationBridge().listMindTurnEvents!(query)
-      const normalizedRows = sortMindTurnEvents(Array.isArray(rows) ? rows : [])
+      const bridge = getAlicizationBridge()
+      const [eventRows, memoryTraceRows] = await Promise.all([
+        bridge.listMindTurnEvents
+          ? bridge.listMindTurnEvents(query)
+          : Promise.resolve([] as AlicizationMindTurnEventRecord[]),
+        bridge.listMemoryDecisionTraces
+          ? bridge.listMemoryDecisionTraces(query)
+          : Promise.resolve([] as AlicizationMemoryDecisionTraceRecord[]),
+      ])
+      const normalizedRows = sortMindTurnEvents(Array.isArray(eventRows) ? eventRows : [])
+      const normalizedTraceRecords = sortMemoryDecisionTraces(Array.isArray(memoryTraceRows) ? memoryTraceRows : [])
       events.value = normalizedRows
+      traceRecords.value = normalizedTraceRecords
       lastError.value = null
-      return normalizedRows
+      return {
+        events: normalizedRows,
+        traceRecords: normalizedTraceRecords,
+      }
     }
     catch (error) {
       lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       events.value = []
-      return []
+      traceRecords.value = []
+      return {
+        events: [],
+        traceRecords: [],
+      }
     }
     finally {
       loading.value = false
+    }
+  }
+
+  async function queryMindTurnEvents(payload: AlicizationListMindTurnEventsPayload) {
+    const result = await queryReplayLab(payload)
+    return result.events
+  }
+
+  async function queryMemoryDecisionTraces(payload: AlicizationListMemoryDecisionTracesPayload) {
+    const result = await queryReplayLab(payload)
+    return result.traceRecords
+  }
+
+  async function runReplayBenchmark(payload?: AlicizationRunReplayBenchmarkPayload) {
+    if (!benchmarkSupported.value) {
+      benchmarkReport.value = null
+      return null
+    }
+
+    benchmarkLoading.value = true
+    try {
+      const result = await getAlicizationBridge().runReplayBenchmark!({
+        packId: payload?.packId ?? 'default-humanlike-memory-v1',
+        persistTelemetry: payload?.persistTelemetry,
+      })
+      benchmarkReport.value = result
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      benchmarkReport.value = null
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      benchmarkLoading.value = false
     }
   }
 
@@ -205,20 +285,33 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
 
   function clearReplay() {
     events.value = []
+    traceRecords.value = []
     lastError.value = null
     lastQuery.value = null
   }
 
+  function clearBenchmarkReport() {
+    benchmarkReport.value = null
+  }
+
   return {
     events: sortedEvents,
+    traceRecords: sortedTraceRecords,
     loading,
+    benchmarkLoading,
     lastError,
     lastQuery,
+    benchmarkSupported,
+    benchmarkReport,
     replayCoverage,
     replaySummary,
+    queryReplayLab,
     queryMindTurnEvents,
+    queryMemoryDecisionTraces,
+    runReplayBenchmark,
     queryByDecisionTraceId,
     queryByTurnId,
     clearReplay,
+    clearBenchmarkReport,
   }
 })

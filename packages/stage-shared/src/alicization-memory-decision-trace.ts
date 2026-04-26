@@ -1,0 +1,89 @@
+import type {
+  AlicizationMemoryDecisionTraceRecord,
+  AlicizationMindTurnEventKind,
+  AlicizationMindTurnEventRecord,
+} from './alicization-transport-contracts'
+
+function asObject(raw: unknown) {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+}
+
+function sanitizeText(raw: unknown, maxChars = 220) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function extractActiveThreadId(payload: Record<string, unknown> | null | undefined) {
+  const digitalLifeSpine = asObject(payload?.digitalLifeSpine)
+  const runtime = asObject(digitalLifeSpine?.runtime)
+  return sanitizeText(runtime?.activeThreadId, 160) || null
+}
+
+function uniqueKinds(kinds: AlicizationMindTurnEventKind[]) {
+  return [...new Set(kinds)]
+}
+
+export function buildAlicizationMemoryDecisionTraceRecords(
+  events: AlicizationMindTurnEventRecord[],
+): AlicizationMemoryDecisionTraceRecord[] {
+  const grouped = new Map<string, AlicizationMindTurnEventRecord[]>()
+  for (const event of [...events].sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))) {
+    const key = sanitizeText(event.decisionTraceId, 200)
+    if (!key)
+      continue
+    grouped.set(key, [...(grouped.get(key) ?? []), event])
+  }
+
+  return [...grouped.entries()]
+    .map(([decisionTraceId, rows]) => {
+      const first = rows[0]!
+      const last = rows.at(-1)!
+      const byKind = (kind: AlicizationMindTurnEventKind) => rows.find(row => row.kind === kind) ?? null
+      const governance = byKind('governance-normalized')
+      const recallAttribution = byKind('recall-attribution')
+      const replyMemoryCoherence = byKind('reply-memory-coherence')
+      const persistenceWritten = byKind('persistence-written')
+      const dialogueEmitted = byKind('dialogue-emitted')
+      const takeoverAudit = byKind('takeover-audit')
+      const memoryFactsUpserted = byKind('memory-facts-upserted')
+      const activeThreadId = extractActiveThreadId(governance?.payload)
+        || extractActiveThreadId(persistenceWritten?.payload)
+        || extractActiveThreadId(dialogueEmitted?.payload)
+        || null
+
+      return {
+        decisionTraceId,
+        turnId: first.turnId ?? null,
+        sessionId: first.sessionId ?? null,
+        origin: first.origin,
+        activeThreadId,
+        createdAt: first.createdAt,
+        lastUpdatedAt: last.createdAt,
+        eventKinds: uniqueKinds(rows.map(row => row.kind)),
+        governance: governance?.payload
+          ? {
+              turnMode: sanitizeText(governance.payload.turnMode, 64) || null,
+              truthState: sanitizeText(governance.payload.truthState, 64) || null,
+              repairState: sanitizeText(governance.payload.repairState, 64) || null,
+              answerSubject: sanitizeText(governance.payload.answerSubject, 64) || null,
+              screenReferenceMode: sanitizeText(governance.payload.screenReferenceMode, 64) || null,
+              digitalLifeSpine: asObject(governance.payload.digitalLifeSpine) as AlicizationMemoryDecisionTraceRecord['governance'] extends infer T
+                ? T extends { digitalLifeSpine?: infer U }
+                  ? U
+                  : never
+                : never,
+            }
+          : null,
+        recallAttribution: recallAttribution?.payload ?? null,
+        replyMemoryCoherence: replyMemoryCoherence?.payload ?? null,
+        persistenceWritten: persistenceWritten?.payload ?? null,
+        dialogueEmitted: dialogueEmitted?.payload ?? null,
+        takeoverAudit: takeoverAudit?.payload ?? null,
+        memoryFactsUpserted: memoryFactsUpserted?.payload ?? null,
+      } satisfies AlicizationMemoryDecisionTraceRecord
+    })
+    .sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt || left.decisionTraceId.localeCompare(right.decisionTraceId))
+}

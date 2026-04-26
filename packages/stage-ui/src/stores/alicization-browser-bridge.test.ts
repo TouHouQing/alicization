@@ -530,6 +530,15 @@ describe('browser alicization bridge visual presence listeners', () => {
       mode: 'execution-procedure',
       certainty: expect.stringMatching(/firm|approximate|fragmentary/u),
     }))
+    expect(snapshot?.recollectionIntent).toEqual(expect.objectContaining({
+      mode: 'execution-procedure',
+    }))
+    expect(snapshot?.recollectionPlan).toEqual(expect.objectContaining({
+      opening: expect.stringContaining('cli patch'),
+    }))
+    expect(snapshot?.recollectionSpeechPlan).toEqual(expect.objectContaining({
+      surfaceMode: 'procedural-carry',
+    }))
     expect(snapshot?.recollectionForeground?.summary).toContain('cli patch')
     expect(snapshot?.recollectionForeground?.surfaceSummary).toContain('surface=inward')
 
@@ -634,6 +643,133 @@ describe('browser alicization bridge visual presence listeners', () => {
     expect(seenMetaEvents).toHaveLength(1)
     expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSummary).toContain('cli patch')
     expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      continuityPressure: expect.any(Number),
+      summary: expect.stringContaining('recollection='),
+    }))
+
+    vi.unstubAllGlobals()
+  })
+
+  it('lists grouped browser-local memory decision traces instead of only raw event rows', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-trace',
+      sessionId: 'session-browser-trace',
+      origin: 'user-turn',
+      userText: '继续把 runtime seam 修掉。',
+      assistantText: '我会先沿同一条 runtime seam 继续，不把它拆成另一套现实。',
+      structured: {
+        format: 'mind-turn-v1',
+        emotion: 'thinking',
+        reply: '我会先沿同一条 runtime seam 继续，不把它拆成另一套现实。',
+        governance: {
+          decisionTraceId: 'trace-browser-memory',
+          turnMode: 'guide-current-knot',
+          truthState: 'remembered',
+          focusAnchor: 'runtime seam',
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const traces = await bridge.listMemoryDecisionTraces?.({
+      decisionTraceId: 'trace-browser-memory',
+      limit: 5,
+    } as any)
+
+    expect(traces).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        decisionTraceId: 'trace-browser-memory',
+        turnId: 'turn-browser-trace',
+        eventKinds: expect.arrayContaining(['governance-normalized', 'persistence-written']),
+        governance: expect.objectContaining({
+          turnMode: 'guide-current-knot',
+          truthState: 'remembered',
+        }),
+        persistenceWritten: expect.objectContaining({
+          format: 'mind-turn-v1',
+        }),
+      }),
+    ]))
+  })
+
+  it('lets active-session continuity and proactive feedback shape browser-local runtime digest instead of creating a second reality', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-browser-local-runtime' },
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.setActiveSession?.({
+      sessionId: 'session-browser-local-runtime',
+    })
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-local-runtime-user',
+      sessionId: 'session-browser-local-runtime',
+      origin: 'user-turn',
+      userText: '继续把 runtime seam 修掉。',
+      assistantText: '我会沿同一条 runtime seam 继续，不把它拆成另一套现实。',
+      structured: {
+        emotion: 'thinking',
+        governance: {
+          decisionTraceId: 'trace-browser-local-runtime-user',
+          focusAnchor: 'runtime seam',
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-local-runtime-proactive',
+      sessionId: 'session-browser-local-runtime',
+      origin: 'subconscious-proactive',
+      userText: '',
+      assistantText: '我先轻轻提醒一句，刚才那条 runtime seam 还没完全收束。',
+      structured: {
+        format: 'subconscious-proactive-v1',
+        proactive: {
+          scenario: 'coding',
+          feedbackWindowMs: 120_000,
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+    await bridge.reportProactiveFeedback?.({
+      turnId: 'turn-browser-local-runtime-proactive',
+      feedback: 'dismiss',
+    } as any)
+
+    const seenMetaEvents: any[] = []
+    await bridge.streamChat?.({
+      turnId: 'turn-browser-local-runtime-stream',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: async (event) => {
+        if (event.type === 'meta')
+          seenMetaEvents.push(event)
+      },
+    })
+
+    expect(seenMetaEvents).toHaveLength(1)
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.summary).toContain('session=')
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.summary).toContain('feedback=dismiss')
+    expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-memory',
+      shouldProactivelySpeak: false,
+      summary: expect.stringContaining('feedback=dismiss'),
+    }))
 
     vi.unstubAllGlobals()
   })

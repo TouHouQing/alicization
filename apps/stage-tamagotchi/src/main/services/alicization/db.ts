@@ -55,15 +55,23 @@ import sqlite3 from 'sqlite3'
 import { deriveMemoryContradictionSignal, deriveMemoryInterferencePenalty } from './humanlike-memory'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import {
+  deriveConsolidationMemoryTier,
+  deriveEpisodicMemoryTier,
+  deriveFactMemoryTier,
+  deriveTierCounts,
+  scoreMemoryTierReachability,
+} from './memory-tiering'
+import {
+  scoreSemanticGraphWalk,
+  scoreSemanticRecall,
+} from './memory-semantic-retrieval'
 import { extractOrganicRecallTerms, normalizeOrganicRecallText } from './runtime-organic-recall'
 
 const dayMs = 24 * 60 * 60 * 1000
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
 const memoryLastPrunedAtKey = 'memory_last_pruned_at'
-const memoryColdTierThreshold = 0.72
-const memoryColdTierAccessWindowDays = 14
-const memoryHotTierFreshDays = 2
-
+const memoryRetrievalTelemetryKey = 'memory_retrieval_telemetry_v1'
 interface SqliteStatementResult {
   changes: number
   lastID: number
@@ -79,6 +87,15 @@ interface CountRow {
 
 interface JournalModeRow {
   journal_mode: string
+}
+
+interface AlicizationMemoryRetrievalTelemetrySnapshot {
+  semanticLatencyMs: number | null
+  semanticSampleCount: number
+  graphLatencyMs: number | null
+  graphSampleCount: number
+  templateLeakageFailCount: number
+  lastUpdatedAt: number | null
 }
 
 interface DbMemoryFactRow {
@@ -99,6 +116,99 @@ interface DbMemoryArchiveRow extends DbMemoryFactRow {
   original_id: string | null
   archived_at: number
 }
+
+type AlicizationMemoryIngestOperationKind
+  = 'upsert-memory-facts'
+    | 'append-episodic-events'
+    | 'upsert-memory-consolidations'
+
+type AlicizationMemoryIngestStatus = 'pending' | 'applied' | 'failed'
+
+interface DbMemoryIngestJournalRow {
+  id: string
+  operation_kind: AlicizationMemoryIngestOperationKind
+  payload_json: string
+  status: AlicizationMemoryIngestStatus
+  attempt_count: number
+  last_error: string | null
+  created_at: number
+  updated_at: number
+  last_attempt_at: number | null
+  applied_at: number | null
+  next_attempt_at: number | null
+}
+
+interface PreparedMemoryFactWrite {
+  id: string
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  source: AlicizationMemorySource
+  dedupeKey: string
+  createdAt: number
+  updatedAt: number
+}
+
+interface PreparedMemoryConsolidationWrite {
+  id: string
+  kind: AlicizationMemoryConsolidationRecord['kind']
+  facet: AlicizationMemoryConsolidationRecord['facet']
+  periodKey: string
+  periodStartedAt: number
+  periodEndedAt: number
+  summary: string
+  lesson: string | null
+  cuesJson: string
+  confidence: number
+  dominantProvenance: AlicizationMemoryConsolidationRecord['dominantProvenance']
+  derivedEventIdsJson: string
+  updatedAt: number
+}
+
+interface PreparedEpisodicEventWrite {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  sourceKind: AlicizationEpisodicEventInput['sourceKind']
+  provenance: AlicizationMemoryProvenance
+  occurredAt: number
+  whereSummary: string | null
+  withWhomJson: string
+  threadAnchor: string | null
+  whatHappened: string
+  felt: string | null
+  emotionTagsJson: string
+  whatChanged: string | null
+  relationshipMeaning: string | null
+  lesson: string | null
+  sourceSummary: string | null
+  confidence: number
+  salience: number
+  sceneAttachment: number
+  consolidationPriority: number
+  relationshipShiftJson: string | null
+  derivedFromJson: string
+  tagsJson: string
+  createdAt: number
+  updatedAt: number
+}
+
+type AlicizationMemoryIngestPayload
+  = {
+      kind: 'upsert-memory-facts'
+      facts: PreparedMemoryFactWrite[]
+    }
+    | {
+      kind: 'append-episodic-events'
+      events: PreparedEpisodicEventWrite[]
+    }
+    | {
+      kind: 'upsert-memory-consolidations'
+      records: PreparedMemoryConsolidationWrite[]
+    }
 
 interface DbMemoryReflectionRow {
   id: string
@@ -187,6 +297,7 @@ interface AlicizationMemoryConsolidationRecord {
   dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
   derivedEventIds: string[]
   updatedAt: number
+  memoryTier?: 'hot' | 'warm' | 'cold' | null
 }
 
 interface DbMemoryConsolidationRow {
@@ -526,6 +637,19 @@ function parseJsonObject(raw: string | null) {
   }
 }
 
+function parseMemoryIngestPayload(raw: string): AlicizationMemoryIngestPayload | null {
+  const parsed = parseJsonObject(raw)
+  if (!parsed || typeof parsed.kind !== 'string')
+    return null
+  if (parsed.kind === 'upsert-memory-facts' && Array.isArray(parsed.facts))
+    return parsed as unknown as AlicizationMemoryIngestPayload
+  if (parsed.kind === 'append-episodic-events' && Array.isArray(parsed.events))
+    return parsed as unknown as AlicizationMemoryIngestPayload
+  if (parsed.kind === 'upsert-memory-consolidations' && Array.isArray(parsed.records))
+    return parsed as unknown as AlicizationMemoryIngestPayload
+  return null
+}
+
 function parseJsonStringArray(raw: string | null) {
   if (!raw)
     return []
@@ -664,7 +788,8 @@ function scoreFact(queryTokens: Set<string>, fact: AlicizationMemoryFact, curren
   const lexicalScore = overlap / factTokens.size
   const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
   const vagueQuery = queryTokens.size <= 3
-  const coldTier = isMemoryColdTierFact(fact, currentTs)
+  const memoryTier = fact.memoryTier ?? deriveFactMemoryTier(fact, currentTs)
+  const coldTier = memoryTier === 'cold'
   const longTailEligible = coldTier || (ageDays >= 45 && fact.confidence >= 0.72)
   const longTailFloor = longTailEligible && (lexicalScore >= 0.22 || vagueQuery) ? 0.35 : 0
   const decay = Math.max(Math.exp(-ageDays / 14), longTailFloor)
@@ -672,52 +797,14 @@ function scoreFact(queryTokens: Set<string>, fact: AlicizationMemoryFact, curren
   const coldReachabilityBoost = longTailEligible && vagueQuery
     ? Math.min(0.08, fact.confidence * 0.08)
     : 0
+  const tierReachabilityBoost = scoreMemoryTierReachability({
+    tier: memoryTier,
+    vagueQuery,
+    temporalFocus: null,
+    longHorizonPreferred: longTailEligible,
+  })
 
-  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay + coldReachabilityBoost
-}
-
-function computePruneScore(fact: AlicizationMemoryFact, currentTs: number) {
-  const ageDays = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
-  const timeDecay = Math.min(1, ageDays / 30)
-  const accessFrequencyNorm = Math.min(1, fact.accessCount / 12)
-  const confidenceNorm = clamp01(fact.confidence)
-  return timeDecay * (1 - accessFrequencyNorm) * (1 - confidenceNorm)
-}
-
-function isMemoryColdTierFact(fact: AlicizationMemoryFact, currentTs: number) {
-  const daysSinceAccess = fact.lastAccessAt == null
-    ? Number.POSITIVE_INFINITY
-    : (currentTs - fact.lastAccessAt) / dayMs
-  return computePruneScore(fact, currentTs) >= memoryColdTierThreshold
-    && daysSinceAccess >= memoryColdTierAccessWindowDays
-}
-
-function isMemoryHotTierFact(fact: AlicizationMemoryFact, currentTs: number) {
-  const daysSinceUpdate = Math.max(0, (currentTs - fact.updatedAt) / dayMs)
-  const daysSinceAccess = fact.lastAccessAt == null
-    ? Number.POSITIVE_INFINITY
-    : Math.max(0, (currentTs - fact.lastAccessAt) / dayMs)
-  return daysSinceUpdate <= memoryHotTierFreshDays
-    || daysSinceAccess <= memoryHotTierFreshDays
-    || fact.accessCount >= 4
-}
-
-function deriveMemoryTierCounts(facts: AlicizationMemoryFact[], currentTs: number) {
-  let hot = 0
-  let warm = 0
-  let cold = 0
-  for (const fact of facts) {
-    if (isMemoryColdTierFact(fact, currentTs)) {
-      cold += 1
-      continue
-    }
-    if (isMemoryHotTierFact(fact, currentTs)) {
-      hot += 1
-      continue
-    }
-    warm += 1
-  }
-  return { hot, warm, cold }
+  return (lexicalScore * 0.5 + fact.confidence * 0.4 + accessBoost * 0.1) * decay + coldReachabilityBoost + tierReachabilityBoost
 }
 
 function deriveMemoryIntegrity(facts: AlicizationMemoryFact[]) {
@@ -732,7 +819,7 @@ function deriveMemoryIntegrity(facts: AlicizationMemoryFact[]) {
         issues.push(`duplicate-dedupe:${fact.dedupeKey}`)
       dedupeKeys.add(fact.dedupeKey)
     }
-    if (isMemoryColdTierFact(fact, currentTs) && tokenize(`${fact.subject} ${fact.predicate} ${fact.object}`).size === 0)
+    if (deriveFactMemoryTier(fact, currentTs) === 'cold' && tokenize(`${fact.subject} ${fact.predicate} ${fact.object}`).size === 0)
       issues.push(`cold-unsearchable:${fact.id}`)
   }
   return {
@@ -742,7 +829,7 @@ function deriveMemoryIntegrity(facts: AlicizationMemoryFact[]) {
 }
 
 function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
-  return {
+  const mapped: AlicizationMemoryFact = {
     id: row.id,
     subject: row.subject,
     predicate: row.predicate,
@@ -756,6 +843,8 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     accessCount: Math.max(0, Math.floor(row.access_count)),
     provenance: mapMemorySourceToProvenance(row.source),
   }
+  mapped.memoryTier = deriveFactMemoryTier(mapped, now())
+  return mapped
 }
 
 function mapMemoryReflectionRow(row: DbMemoryReflectionRow): AlicizationMemoryReflectionRecord {
@@ -847,7 +936,7 @@ function mapEpisodicReconsolidation(raw: string | null): AlicizationEpisodicReco
 }
 
 function mapEpisodicEventRow(row: DbEpisodicEventRow): AlicizationEpisodicEventRecord {
-  return {
+  const mapped: AlicizationEpisodicEventRecord = {
     id: row.id,
     cardId: row.card_id,
     decisionTraceId: row.decision_trace_id,
@@ -880,10 +969,12 @@ function mapEpisodicEventRow(row: DbEpisodicEventRow): AlicizationEpisodicEventR
     reconsolidationCount: Math.max(0, Math.floor(row.reconsolidation_count)),
     latestReconsolidation: mapEpisodicReconsolidation(row.latest_reconsolidation_json),
   }
+  mapped.memoryTier = deriveEpisodicMemoryTier(mapped, now())
+  return mapped
 }
 
 function mapMemoryConsolidationRow(row: DbMemoryConsolidationRow): AlicizationMemoryConsolidationRecord {
-  return {
+  const mapped: AlicizationMemoryConsolidationRecord = {
     id: row.id,
     kind: row.kind,
     facet: row.facet === 'phase' || row.facet === 'relationship-era' || row.facet === 'task-era' || row.facet === 'self-era'
@@ -900,6 +991,8 @@ function mapMemoryConsolidationRow(row: DbMemoryConsolidationRow): AlicizationMe
     derivedEventIds: parseJsonStringArray(row.derived_event_ids_json),
     updatedAt: row.updated_at,
   }
+  mapped.memoryTier = deriveConsolidationMemoryTier(mapped, now())
+  return mapped
 }
 
 function mapPersonaReinforcementEventRow(row: DbPersonaReinforcementEventRow): AlicizationPersonaReinforcementEventRecord {
@@ -1044,6 +1137,14 @@ function mapChannelCapabilityManifestRow(row: DbChannelCapabilityManifestRow): A
 
 function now() {
   return Date.now()
+}
+
+const memoryIngestRetryBaseMs = 5_000
+const memoryIngestRetryMaxMs = 15 * 60_000
+
+function buildMemoryIngestBackoffMs(attemptCount: number) {
+  const safeAttempts = Math.max(0, Math.floor(attemptCount))
+  return Math.min(memoryIngestRetryMaxMs, memoryIngestRetryBaseMs * 2 ** safeAttempts)
 }
 
 function clampRelationshipDelta(value: number, maxAbs = 0.08) {
@@ -1331,6 +1432,201 @@ export async function setupAlicizationDb(
     return await next
   }
 
+  async function appendMemoryIngestEntries(entries: Array<{
+    operationKind: AlicizationMemoryIngestOperationKind
+    payload: AlicizationMemoryIngestPayload
+    createdAt?: number
+  }>) {
+    if (entries.length === 0)
+      return
+    for (const entry of entries) {
+      const createdAt = Number.isFinite(entry.createdAt) ? Math.max(0, Math.floor(Number(entry.createdAt))) : now()
+      await run(
+        database,
+        `
+        INSERT INTO memory_ingest_journal (
+          id,
+          operation_kind,
+          payload_json,
+          status,
+          attempt_count,
+          last_error,
+          created_at,
+          updated_at,
+          last_attempt_at,
+          applied_at,
+          next_attempt_at
+        ) VALUES (?, ?, ?, 'pending', 0, NULL, ?, ?, NULL, NULL, ?)
+        `,
+        [
+          randomUUID(),
+          entry.operationKind,
+          JSON.stringify(entry.payload),
+          createdAt,
+          createdAt,
+          createdAt,
+        ],
+      )
+    }
+  }
+
+  async function countPendingMemoryIngestEntries() {
+    const row = await get<CountRow>(
+      database,
+      `
+      SELECT COUNT(1) AS total
+      FROM memory_ingest_journal
+      WHERE status IN ('pending', 'failed')
+      `,
+    )
+    return Math.max(0, Math.floor(row?.total ?? 0))
+  }
+
+  async function deriveMemoryIngestHealth() {
+    const rows = await all<DbMemoryIngestJournalRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_ingest_journal
+      WHERE status IN ('pending', 'failed')
+      ORDER BY created_at ASC
+      LIMIT 256
+      `,
+    )
+    if (rows.length === 0) {
+      return {
+        status: 'healthy' as const,
+        pendingCount: 0,
+        failedCount: 0,
+        oldestPendingAgeMs: null,
+        nextRetryAt: null,
+        lastError: null,
+      }
+    }
+
+    const currentTs = now()
+    const pendingCount = rows.filter(row => row.status === 'pending').length
+    const failedCount = rows.filter(row => row.status === 'failed').length
+    const oldestPendingAgeMs = Math.max(0, currentTs - Math.min(...rows.map(row => row.created_at)))
+    const nextRetryAt = rows
+      .map(row => row.next_attempt_at ?? row.created_at)
+      .sort((left, right) => left - right)[0] ?? null
+    const lastError = rows.find(row => typeof row.last_error === 'string' && row.last_error.trim())?.last_error ?? null
+
+    return {
+      status: failedCount > 0
+        ? 'degraded' as const
+        : pendingCount > 0
+          ? 'backlog' as const
+          : 'healthy' as const,
+      pendingCount,
+      failedCount,
+      oldestPendingAgeMs,
+      nextRetryAt,
+      lastError,
+    }
+  }
+
+  async function listPendingMemoryIngestEntries(limit = 64, dueAt = now()) {
+    return await all<DbMemoryIngestJournalRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_ingest_journal
+      WHERE status IN ('pending', 'failed')
+        AND COALESCE(next_attempt_at, created_at) <= ?
+      ORDER BY created_at ASC
+      LIMIT ?
+      `,
+      [dueAt, Math.max(1, Math.min(512, Math.floor(limit)))],
+    )
+  }
+
+  async function markMemoryIngestApplied(id: string, appliedAt: number) {
+    await run(
+      database,
+      `
+      UPDATE memory_ingest_journal
+      SET status = 'applied',
+          attempt_count = attempt_count + 1,
+          last_error = NULL,
+          updated_at = ?,
+          last_attempt_at = ?,
+          applied_at = ?,
+          next_attempt_at = NULL
+      WHERE id = ?
+      `,
+      [appliedAt, appliedAt, appliedAt, id],
+    )
+  }
+
+  async function markMemoryIngestFailed(id: string, message: string, failedAt: number, nextAttemptAt: number) {
+    await run(
+      database,
+      `
+      UPDATE memory_ingest_journal
+      SET status = 'failed',
+          attempt_count = attempt_count + 1,
+          last_error = ?,
+          updated_at = ?,
+          last_attempt_at = ?,
+          next_attempt_at = ?
+      WHERE id = ?
+      `,
+      [message, failedAt, failedAt, nextAttemptAt, id],
+    )
+  }
+
+  async function applyMemoryIngestPayload(payload: AlicizationMemoryIngestPayload) {
+    if (payload.kind === 'upsert-memory-facts') {
+      await applyPreparedMemoryFacts(payload.facts)
+      return
+    }
+    if (payload.kind === 'append-episodic-events') {
+      await applyPreparedEpisodicEvents(payload.events)
+      return
+    }
+    if (payload.kind === 'upsert-memory-consolidations') {
+      await applyPreparedMemoryConsolidations(payload.records)
+      return
+    }
+  }
+
+  async function drainMemoryIngestJournal(limit = 64, dueAt = now()) {
+    let applied = 0
+    let failed = 0
+    const rows = await listPendingMemoryIngestEntries(limit, dueAt)
+    for (const row of rows) {
+      const payload = parseMemoryIngestPayload(row.payload_json)
+      const attemptAt = now()
+      if (!payload) {
+        const nextAttemptAt = attemptAt + buildMemoryIngestBackoffMs(row.attempt_count)
+        await markMemoryIngestFailed(row.id, 'invalid memory ingest payload', attemptAt, nextAttemptAt)
+        failed += 1
+        continue
+      }
+      try {
+        await runInTransaction(database, async () => {
+          await applyMemoryIngestPayload(payload)
+          await markMemoryIngestApplied(row.id, attemptAt)
+        })
+        applied += 1
+      }
+      catch (error) {
+        const nextAttemptAt = attemptAt + buildMemoryIngestBackoffMs(row.attempt_count)
+        await runInTransaction(database, async () => {
+          await markMemoryIngestFailed(row.id, error instanceof Error ? error.message : String(error), attemptAt, nextAttemptAt)
+        }).catch(() => {})
+        failed += 1
+      }
+    }
+    return {
+      applied,
+      failed,
+      pending: await countPendingMemoryIngestEntries(),
+    }
+  }
+
   async function initializeSchema() {
     await run(database, 'PRAGMA journal_mode = WAL;')
     await run(database, 'PRAGMA busy_timeout = 2000;')
@@ -1355,6 +1651,23 @@ export async function setupAlicizationDb(
 
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_updated_at ON memory_facts(updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_last_access_at ON memory_facts(last_access_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_ingest_journal (
+        id TEXT PRIMARY KEY,
+        operation_kind TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_attempt_at INTEGER,
+        applied_at INTEGER,
+        next_attempt_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_ingest_journal_status_created_at ON memory_ingest_journal(status, created_at ASC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -1753,6 +2066,96 @@ export async function setupAlicizationDb(
     return parsed
   }
 
+  function defaultMemoryRetrievalTelemetry(): AlicizationMemoryRetrievalTelemetrySnapshot {
+    return {
+      semanticLatencyMs: null,
+      semanticSampleCount: 0,
+      graphLatencyMs: null,
+      graphSampleCount: 0,
+      templateLeakageFailCount: 0,
+      lastUpdatedAt: null,
+    }
+  }
+
+  function normalizeMemoryRetrievalTelemetry(raw: unknown): AlicizationMemoryRetrievalTelemetrySnapshot {
+    const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
+      ? raw as Record<string, unknown>
+      : {}
+    const semanticLatencyMs = Number(candidate.semanticLatencyMs)
+    const semanticSampleCount = Number(candidate.semanticSampleCount)
+    const graphLatencyMs = Number(candidate.graphLatencyMs)
+    const graphSampleCount = Number(candidate.graphSampleCount)
+    const templateLeakageFailCount = Number(candidate.templateLeakageFailCount)
+    const lastUpdatedAt = Number(candidate.lastUpdatedAt)
+    return {
+      semanticLatencyMs: Number.isFinite(semanticLatencyMs) ? Math.max(0, semanticLatencyMs) : null,
+      semanticSampleCount: Number.isFinite(semanticSampleCount) ? Math.max(0, Math.floor(semanticSampleCount)) : 0,
+      graphLatencyMs: Number.isFinite(graphLatencyMs) ? Math.max(0, graphLatencyMs) : null,
+      graphSampleCount: Number.isFinite(graphSampleCount) ? Math.max(0, Math.floor(graphSampleCount)) : 0,
+      templateLeakageFailCount: Number.isFinite(templateLeakageFailCount) ? Math.max(0, Math.floor(templateLeakageFailCount)) : 0,
+      lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? Math.max(0, Math.floor(lastUpdatedAt)) : null,
+    }
+  }
+
+  function blendMemoryTelemetryLatency(previous: number | null, previousSamples: number, sample: number) {
+    const normalizedSample = Math.max(0, Number(sample) || 0)
+    if (!Number.isFinite(previous) || previous == null || previousSamples <= 0)
+      return normalizedSample
+    const carryWeight = Math.min(9, Math.max(1, previousSamples))
+    return (previous * carryWeight + normalizedSample) / (carryWeight + 1)
+  }
+
+  async function getMemoryRetrievalTelemetry() {
+    const raw = await getMetaValue(memoryRetrievalTelemetryKey)
+    if (!raw)
+      return defaultMemoryRetrievalTelemetry()
+
+    try {
+      return normalizeMemoryRetrievalTelemetry(JSON.parse(raw))
+    }
+    catch {
+      return defaultMemoryRetrievalTelemetry()
+    }
+  }
+
+  async function writeMemoryRetrievalTelemetry(next: AlicizationMemoryRetrievalTelemetrySnapshot) {
+    await upsertMeta(memoryRetrievalTelemetryKey, JSON.stringify(next))
+  }
+
+  async function recordMemorySemanticRetrievalLatency(latencyMs: number) {
+    const currentTs = now()
+    await enqueueWrite(async () => {
+      const telemetry = await getMemoryRetrievalTelemetry()
+      await writeMemoryRetrievalTelemetry({
+        ...telemetry,
+        semanticLatencyMs: blendMemoryTelemetryLatency(
+          telemetry.semanticLatencyMs,
+          telemetry.semanticSampleCount,
+          latencyMs,
+        ),
+        semanticSampleCount: telemetry.semanticSampleCount + 1,
+        lastUpdatedAt: currentTs,
+      })
+    })
+  }
+
+  async function recordMemoryGraphRetrievalLatency(latencyMs: number) {
+    const currentTs = now()
+    await enqueueWrite(async () => {
+      const telemetry = await getMemoryRetrievalTelemetry()
+      await writeMemoryRetrievalTelemetry({
+        ...telemetry,
+        graphLatencyMs: blendMemoryTelemetryLatency(
+          telemetry.graphLatencyMs,
+          telemetry.graphSampleCount,
+          latencyMs,
+        ),
+        graphSampleCount: telemetry.graphSampleCount + 1,
+        lastUpdatedAt: currentTs,
+      })
+    })
+  }
+
   async function restoreArchivedFactsIntoActiveMemory() {
     const archivedRows = await all<DbMemoryArchiveRow>(database, 'SELECT * FROM memory_archive')
     if (archivedRows.length === 0)
@@ -1831,20 +2234,70 @@ export async function setupAlicizationDb(
   }
 
   async function getMemoryStats() {
-    const [rows, lastPrunedAt] = await Promise.all([
+    const [rows, episodicRows, consolidationRows, pendingSyncCount, ingestHealth, lastPrunedAt, retrievalTelemetry] = await Promise.all([
       all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts'),
+      all<DbEpisodicEventRow>(database, 'SELECT * FROM episodic_events'),
+      all<DbMemoryConsolidationRow>(database, 'SELECT * FROM memory_consolidations'),
+      countPendingMemoryIngestEntries(),
+      deriveMemoryIngestHealth(),
       getLastPrunedAt(),
+      getMemoryRetrievalTelemetry(),
     ])
 
     const facts = rows.map(mapFactRow)
-    const active = facts.length
-    const tierCounts = deriveMemoryTierCounts(facts, now())
+    const episodicEvents = episodicRows.map(mapEpisodicEventRow)
+    const consolidations = consolidationRows.map(mapMemoryConsolidationRow)
+    const currentTs = now()
+    const factTierCounts = deriveTierCounts(facts, fact => fact.memoryTier ?? deriveFactMemoryTier(fact, currentTs))
+    const episodicTierCounts = deriveTierCounts(episodicEvents, event => event.memoryTier ?? deriveEpisodicMemoryTier(event, currentTs))
+    const consolidationTierCounts = deriveTierCounts(consolidations, record => record.memoryTier ?? deriveConsolidationMemoryTier(record, currentTs))
+    const tierCounts = {
+      hot: factTierCounts.hot + episodicTierCounts.hot + consolidationTierCounts.hot,
+      warm: factTierCounts.warm + episodicTierCounts.warm + consolidationTierCounts.warm,
+      cold: factTierCounts.cold + episodicTierCounts.cold + consolidationTierCounts.cold,
+    }
+    const reconstructedCount = episodicEvents.filter((event) => {
+      const latestProvenance = event.latestReconsolidation?.provenance ?? event.provenance
+      return latestProvenance === 'reconstructed'
+    }).length
+    const reconsolidatedCount = episodicEvents.filter(event =>
+      event.reconsolidationCount > 0 || Boolean(event.latestReconsolidation),
+    ).length
+    const reconstructionFrequency = episodicEvents.length === 0
+      ? 0
+      : reconsolidatedCount / episodicEvents.length
+    const active = facts.length + episodicEvents.length + consolidations.length
     return {
       total: active,
       active,
       archived: tierCounts.cold,
       tierCounts,
-      pendingSyncCount: 0,
+      surfaceCounts: {
+        facts: facts.length,
+        episodic: episodicEvents.length,
+        consolidations: consolidations.length,
+      },
+      surfaceTierCounts: {
+        facts: factTierCounts,
+        episodic: episodicTierCounts,
+        consolidations: consolidationTierCounts,
+      },
+      pendingSyncCount,
+      ingestHealth,
+      writeHealth: {
+        backlogCount: ingestHealth.pendingCount + ingestHealth.failedCount,
+        retryOldestAgeMs: ingestHealth.oldestPendingAgeMs,
+        nextRetryAt: ingestHealth.nextRetryAt,
+        blocked: ingestHealth.status === 'degraded',
+        lastError: ingestHealth.lastError,
+      },
+      retrievalHealth: {
+        semanticLatencyMs: retrievalTelemetry.semanticLatencyMs,
+        graphLatencyMs: retrievalTelemetry.graphLatencyMs,
+        reconstructionFrequency: Number(reconstructionFrequency.toFixed(2)),
+        reconstructedCount,
+        templateLeakageFailCount: retrievalTelemetry.templateLeakageFailCount,
+      },
       integrity: deriveMemoryIntegrity(facts),
       lastPrunedAt,
     } satisfies AlicizationMemoryStats
@@ -2190,6 +2643,201 @@ export async function setupAlicizationDb(
     }
   }
 
+  async function applyPreparedMemoryFacts(prepared: PreparedMemoryFactWrite[]) {
+    for (const fact of prepared) {
+      await run(
+        database,
+        `
+        INSERT INTO memory_facts (
+          id,
+          subject,
+          predicate,
+          object,
+          confidence,
+          source,
+          dedupe_key,
+          created_at,
+          updated_at,
+          last_access_at,
+          access_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(dedupe_key)
+        DO UPDATE SET
+          confidence = MAX(memory_facts.confidence, excluded.confidence),
+          source = excluded.source,
+          updated_at = excluded.updated_at
+        `,
+        [
+          fact.id,
+          fact.subject,
+          fact.predicate,
+          fact.object,
+          fact.confidence,
+          fact.source,
+          fact.dedupeKey,
+          fact.createdAt,
+          fact.updatedAt,
+          null,
+          0,
+        ],
+      )
+    }
+  }
+
+  async function applyPreparedMemoryConsolidations(prepared: PreparedMemoryConsolidationWrite[]) {
+    for (const record of prepared) {
+      await run(
+        database,
+        `
+        INSERT INTO memory_consolidations (
+          id,
+          kind,
+          facet,
+          period_key,
+          period_started_at,
+          period_ended_at,
+          summary,
+          lesson,
+          cues_json,
+          confidence,
+          dominant_provenance,
+          derived_event_ids_json,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET
+          kind = excluded.kind,
+          facet = excluded.facet,
+          period_key = excluded.period_key,
+          period_started_at = excluded.period_started_at,
+          period_ended_at = excluded.period_ended_at,
+          summary = excluded.summary,
+          lesson = excluded.lesson,
+          cues_json = excluded.cues_json,
+          confidence = excluded.confidence,
+          dominant_provenance = excluded.dominant_provenance,
+          derived_event_ids_json = excluded.derived_event_ids_json,
+          updated_at = excluded.updated_at
+        `,
+        [
+          record.id,
+          record.kind,
+          record.facet,
+          record.periodKey,
+          record.periodStartedAt,
+          record.periodEndedAt,
+          record.summary,
+          record.lesson,
+          record.cuesJson,
+          record.confidence,
+          record.dominantProvenance,
+          record.derivedEventIdsJson,
+          record.updatedAt,
+        ],
+      )
+    }
+  }
+
+  async function applyPreparedEpisodicEvents(prepared: PreparedEpisodicEventWrite[]) {
+    for (const event of prepared) {
+      await run(
+        database,
+        `
+        INSERT INTO episodic_events (
+          id,
+          card_id,
+          decision_trace_id,
+          turn_id,
+          session_id,
+          source_kind,
+          provenance,
+          occurred_at,
+          where_summary,
+          with_whom_json,
+          thread_anchor,
+          what_happened,
+          felt,
+          emotion_tags_json,
+          what_changed,
+          relationship_meaning,
+          lesson,
+          source_summary,
+          confidence,
+          salience,
+          scene_attachment,
+          consolidation_priority,
+          relationship_shift_json,
+          derived_from_json,
+          tags_json,
+          created_at,
+          updated_at,
+          last_recalled_at,
+          recall_count,
+          reconsolidation_count,
+          latest_reconsolidation_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, NULL)
+        ON CONFLICT(id)
+        DO UPDATE SET
+          decision_trace_id = excluded.decision_trace_id,
+          turn_id = excluded.turn_id,
+          session_id = excluded.session_id,
+          source_kind = excluded.source_kind,
+          provenance = excluded.provenance,
+          occurred_at = excluded.occurred_at,
+          where_summary = excluded.where_summary,
+          with_whom_json = excluded.with_whom_json,
+          thread_anchor = excluded.thread_anchor,
+          what_happened = excluded.what_happened,
+          felt = excluded.felt,
+          emotion_tags_json = excluded.emotion_tags_json,
+          what_changed = excluded.what_changed,
+          relationship_meaning = excluded.relationship_meaning,
+          lesson = excluded.lesson,
+          source_summary = excluded.source_summary,
+          confidence = excluded.confidence,
+          salience = excluded.salience,
+          scene_attachment = excluded.scene_attachment,
+          consolidation_priority = excluded.consolidation_priority,
+          relationship_shift_json = excluded.relationship_shift_json,
+          derived_from_json = excluded.derived_from_json,
+          tags_json = excluded.tags_json,
+          updated_at = excluded.updated_at
+        `,
+        [
+          event.id,
+          event.cardId,
+          event.decisionTraceId,
+          event.turnId,
+          event.sessionId,
+          event.sourceKind,
+          event.provenance,
+          event.occurredAt,
+          event.whereSummary,
+          event.withWhomJson,
+          event.threadAnchor,
+          event.whatHappened,
+          event.felt,
+          event.emotionTagsJson,
+          event.whatChanged,
+          event.relationshipMeaning,
+          event.lesson,
+          event.sourceSummary,
+          event.confidence,
+          event.salience,
+          event.sceneAttachment,
+          event.consolidationPriority,
+          event.relationshipShiftJson,
+          event.derivedFromJson,
+          event.tagsJson,
+          event.createdAt,
+          event.updatedAt,
+        ],
+      )
+    }
+    for (const cardId of [...new Set(prepared.map(event => event.cardId))])
+      await rebuildMemoryConsolidationsFromEvents(cardId)
+  }
+
   async function listMemoryConsolidations(limit = 16) {
     const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)))
     const rows = await all<DbMemoryConsolidationRow>(
@@ -2231,59 +2879,14 @@ export async function setupAlicizationDb(
       return []
 
     await enqueueWrite(async () => {
-      await runInTransaction(database, async () => {
-        for (const record of prepared) {
-          await run(
-            database,
-            `
-            INSERT INTO memory_consolidations (
-              id,
-              kind,
-              facet,
-              period_key,
-              period_started_at,
-              period_ended_at,
-              summary,
-              lesson,
-              cues_json,
-              confidence,
-              dominant_provenance,
-              derived_event_ids_json,
-              updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id)
-            DO UPDATE SET
-              kind = excluded.kind,
-              facet = excluded.facet,
-              period_key = excluded.period_key,
-              period_started_at = excluded.period_started_at,
-              period_ended_at = excluded.period_ended_at,
-              summary = excluded.summary,
-              lesson = excluded.lesson,
-              cues_json = excluded.cues_json,
-              confidence = excluded.confidence,
-              dominant_provenance = excluded.dominant_provenance,
-              derived_event_ids_json = excluded.derived_event_ids_json,
-              updated_at = excluded.updated_at
-            `,
-            [
-              record.id,
-              record.kind,
-              record.facet,
-              record.periodKey,
-              record.periodStartedAt,
-              record.periodEndedAt,
-              record.summary,
-              record.lesson,
-              record.cuesJson,
-              record.confidence,
-              record.dominantProvenance,
-              record.derivedEventIdsJson,
-              record.updatedAt,
-            ],
-          )
-        }
-      })
+      await appendMemoryIngestEntries([{
+        operationKind: 'upsert-memory-consolidations',
+        payload: {
+          kind: 'upsert-memory-consolidations',
+          records: prepared,
+        },
+      }])
+      await drainMemoryIngestJournal()
     })
 
     return prepared.map((record) => mapMemoryConsolidationRow({
@@ -3491,46 +4094,14 @@ export async function setupAlicizationDb(
       return
 
     await enqueueWrite(async () => {
-      await runInTransaction(database, async () => {
-        for (const fact of normalizedFacts) {
-          await run(
-            database,
-            `
-            INSERT INTO memory_facts (
-              id,
-              subject,
-              predicate,
-              object,
-              confidence,
-              source,
-              dedupe_key,
-              created_at,
-              updated_at,
-              last_access_at,
-              access_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(dedupe_key)
-            DO UPDATE SET
-              confidence = MAX(memory_facts.confidence, excluded.confidence),
-              source = excluded.source,
-              updated_at = excluded.updated_at
-            `,
-            [
-              fact.id,
-              fact.subject,
-              fact.predicate,
-              fact.object,
-              fact.confidence,
-              fact.source,
-              fact.dedupeKey,
-              fact.createdAt,
-              fact.updatedAt,
-              null,
-              0,
-            ],
-          )
-        }
-      })
+      await appendMemoryIngestEntries([{
+        operationKind: 'upsert-memory-facts',
+        payload: {
+          kind: 'upsert-memory-facts',
+          facts: normalizedFacts,
+        },
+      }])
+      await drainMemoryIngestJournal()
     })
   }
 
@@ -3539,9 +4110,12 @@ export async function setupAlicizationDb(
     if (!normalizedQuery)
       return []
 
+    const retrievalStartedAt = now()
     const rows = await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')
-    if (rows.length === 0)
+    if (rows.length === 0) {
+      await recordMemorySemanticRetrievalLatency(now() - retrievalStartedAt)
       return []
+    }
 
     const facts = rows.map(mapFactRow)
     const queryTokens = tokenize(normalizedQuery)
@@ -3555,8 +4129,10 @@ export async function setupAlicizationDb(
       .sort((left, right) => right.score - left.score)
       .slice(0, Math.max(0, limit))
 
-    if (ranked.length === 0)
+    if (ranked.length === 0) {
+      await recordMemorySemanticRetrievalLatency(now() - retrievalStartedAt)
       return []
+    }
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
@@ -3574,6 +4150,7 @@ export async function setupAlicizationDb(
         }
       })
     })
+    await recordMemorySemanticRetrievalLatency(now() - retrievalStartedAt)
 
     return ranked.map(item => item.fact)
   }
@@ -3943,105 +4520,14 @@ export async function setupAlicizationDb(
       return []
 
     await enqueueWrite(async () => {
-      await runInTransaction(database, async () => {
-        for (const event of prepared) {
-          await run(
-            database,
-            `
-            INSERT INTO episodic_events (
-              id,
-              card_id,
-              decision_trace_id,
-              turn_id,
-              session_id,
-              source_kind,
-              provenance,
-              occurred_at,
-              where_summary,
-              with_whom_json,
-              thread_anchor,
-              what_happened,
-              felt,
-              emotion_tags_json,
-              what_changed,
-              relationship_meaning,
-              lesson,
-              source_summary,
-              confidence,
-              salience,
-              scene_attachment,
-              consolidation_priority,
-              relationship_shift_json,
-              derived_from_json,
-              tags_json,
-              created_at,
-              updated_at,
-              last_recalled_at,
-              recall_count,
-              reconsolidation_count,
-              latest_reconsolidation_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, 0, NULL)
-            ON CONFLICT(id)
-            DO UPDATE SET
-              decision_trace_id = excluded.decision_trace_id,
-              turn_id = excluded.turn_id,
-              session_id = excluded.session_id,
-              source_kind = excluded.source_kind,
-              provenance = excluded.provenance,
-              occurred_at = excluded.occurred_at,
-              where_summary = excluded.where_summary,
-              with_whom_json = excluded.with_whom_json,
-              thread_anchor = excluded.thread_anchor,
-              what_happened = excluded.what_happened,
-              felt = excluded.felt,
-              emotion_tags_json = excluded.emotion_tags_json,
-              what_changed = excluded.what_changed,
-              relationship_meaning = excluded.relationship_meaning,
-              lesson = excluded.lesson,
-              source_summary = excluded.source_summary,
-              confidence = excluded.confidence,
-              salience = excluded.salience,
-              scene_attachment = excluded.scene_attachment,
-              consolidation_priority = excluded.consolidation_priority,
-              relationship_shift_json = excluded.relationship_shift_json,
-              derived_from_json = excluded.derived_from_json,
-              tags_json = excluded.tags_json,
-              updated_at = excluded.updated_at
-            `,
-            [
-              event.id,
-              event.cardId,
-              event.decisionTraceId,
-              event.turnId,
-              event.sessionId,
-              event.sourceKind,
-              event.provenance,
-              event.occurredAt,
-              event.whereSummary,
-              event.withWhomJson,
-              event.threadAnchor,
-              event.whatHappened,
-              event.felt,
-              event.emotionTagsJson,
-              event.whatChanged,
-              event.relationshipMeaning,
-              event.lesson,
-              event.sourceSummary,
-              event.confidence,
-              event.salience,
-              event.sceneAttachment,
-              event.consolidationPriority,
-              event.relationshipShiftJson,
-              event.derivedFromJson,
-              event.tagsJson,
-              event.createdAt,
-              event.updatedAt,
-            ],
-          )
-        }
-        for (const cardId of [...new Set(prepared.map(event => event.cardId))])
-          await rebuildMemoryConsolidationsFromEvents(cardId)
-      })
+      await appendMemoryIngestEntries([{
+        operationKind: 'append-episodic-events',
+        payload: {
+          kind: 'append-episodic-events',
+          events: prepared,
+        },
+      }])
+      await drainMemoryIngestJournal()
     })
 
     return prepared.map(event => mapEpisodicEventRow({
@@ -4137,6 +4623,7 @@ export async function setupAlicizationDb(
     if (!recallSeed)
       return []
 
+    const retrievalStartedAt = now()
     const safeLimit = Math.max(1, Math.min(12, Math.floor(input.limit ?? 4)))
     const rows = await all<DbEpisodicEventRow>(
       database,
@@ -4162,6 +4649,39 @@ export async function setupAlicizationDb(
     )
       ? normalizeOrganicMemoryText(recollectionIntent?.rationale ?? '', 200)
       : ''
+    const semanticGraph = scoreSemanticGraphWalk({
+      nodes: rows.map(mapEpisodicEventRow).map(event => ({
+        id: event.id,
+        primaryText: event.whatHappened,
+        semanticTexts: [
+          event.threadAnchor ?? '',
+          event.whereSummary ?? '',
+          event.relationshipMeaning ?? '',
+          event.lesson ?? '',
+          event.sourceSummary ?? '',
+          ...event.tags,
+          ...event.emotionTags,
+        ],
+        groupKeys: [
+          event.sessionId ?? '',
+          event.threadAnchor ?? '',
+          event.memoryTier ?? '',
+          event.sourceKind,
+        ],
+        neighborKeys: [
+          ...event.tags,
+          ...event.emotionTags,
+          ...event.derivedFrom.map(item => `${item.kind}:${item.id ?? ''}`),
+        ],
+      })),
+      queryTexts: [
+        recallSeed,
+        ...(recollectionIntent?.queryHints ?? []),
+        ...(recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []),
+        correctionShapingRationale,
+      ],
+      getId: node => node.id,
+    })
 
     const ranked = rows
       .map(mapEpisodicEventRow)
@@ -4271,6 +4791,33 @@ export async function setupAlicizationDb(
         const sceneAttachmentBoost = sceneScore > 0.14
           ? Math.min(0.12, event.sceneAttachment * 0.12 + sceneScore * 0.08)
           : 0
+        const tierBoost = scoreMemoryTierReachability({
+          tier: event.memoryTier ?? deriveEpisodicMemoryTier(event, nowTs),
+          vagueQuery: recallTokens.size <= 3,
+          temporalFocus: recollectionIntent?.temporalFocus ?? null,
+          longHorizonPreferred: recollectionIntent?.temporalFocus === 'cross-session'
+            || recollectionIntent?.temporalFocus === 'distant'
+            || recollectionIntent?.temporalFocus === 'experience-matched',
+        })
+        const semanticScore = scoreSemanticRecall({
+          queryTexts: [
+            recallSeed,
+            ...(recollectionIntent?.queryHints ?? []),
+            ...(recollectionIntent?.recollectionAgenda?.candidateProcedureLines ?? []),
+            correctionShapingRationale,
+          ],
+          candidateTexts: [
+            event.threadAnchor ?? '',
+            event.whereSummary ?? '',
+            event.whatHappened,
+            event.relationshipMeaning ?? '',
+            event.lesson ?? '',
+            event.sourceSummary ?? '',
+            ...event.tags,
+            ...event.emotionTags,
+          ],
+        })
+        const semanticGraphBoost = semanticGraph.graphBoostById.get(event.id) ?? 0
         const familiarityScore = clamp01(event.sceneAttachment * 0.55 + Math.min(0.45, event.recallCount / 10))
         const reconsolidationConfidenceScore = clamp01(event.latestReconsolidation?.confidence ?? 0)
         const reconsolidationCountScore = event.reconsolidationCount > 0
@@ -4302,6 +4849,8 @@ export async function setupAlicizationDb(
 
         const score
           = lexicalScore * 0.18
+            + semanticScore * 0.16
+            + semanticGraphBoost * 0.14
             + reconsolidationLexicalScore * 0.08
             + threadScore * 0.26
             + reconsolidationThreadScore * 0.08
@@ -4337,6 +4886,7 @@ export async function setupAlicizationDb(
             + relationshipTriggerBoost
             + moodCongruentBoost
             + sceneAttachmentBoost
+            + tierBoost
             - provenancePenalty
             - unstableReconstructionPenalty
 
@@ -4378,8 +4928,10 @@ export async function setupAlicizationDb(
       .filter(item => item.adjustedScore >= 0.15)
       .slice(0, safeLimit)
 
-    if (selected.length === 0)
+    if (selected.length === 0) {
+      await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
       return []
+    }
 
     const recalledAt = nowTs
     const returned = selected.map((item) => {
@@ -4481,6 +5033,7 @@ export async function setupAlicizationDb(
         }
       })
     })
+    await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
 
     return returned
   }
@@ -4600,7 +5153,7 @@ export async function setupAlicizationDb(
     // memories; it only refreshes salience tiers so long-horizon recall stays lossless.
     await restoreArchivedFactsIntoActiveMemory()
     const facts = (await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')).map(mapFactRow)
-    const coldTierCount = facts.filter(fact => isMemoryColdTierFact(fact, currentTs)).length
+    const coldTierCount = facts.filter(fact => (fact.memoryTier ?? deriveFactMemoryTier(fact, currentTs)) === 'cold').length
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
@@ -5066,9 +5619,33 @@ export async function setupAlicizationDb(
   }
 
   async function overrideMemoryStats(next: AlicizationMemoryStats) {
-    if (typeof next.lastPrunedAt === 'number' && Number.isFinite(next.lastPrunedAt)) {
+    if (
+      (
+        typeof next.lastPrunedAt === 'number'
+        && Number.isFinite(next.lastPrunedAt)
+      )
+      || next.retrievalHealth
+    ) {
       await enqueueWrite(async () => {
-        await upsertMeta(memoryLastPrunedAtKey, String(next.lastPrunedAt))
+        if (typeof next.lastPrunedAt === 'number' && Number.isFinite(next.lastPrunedAt))
+          await upsertMeta(memoryLastPrunedAtKey, String(next.lastPrunedAt))
+        if (next.retrievalHealth) {
+          const currentTelemetry = await getMemoryRetrievalTelemetry()
+          await writeMemoryRetrievalTelemetry({
+            semanticLatencyMs: Number.isFinite(next.retrievalHealth.semanticLatencyMs)
+              ? Math.max(0, Number(next.retrievalHealth.semanticLatencyMs))
+              : currentTelemetry.semanticLatencyMs,
+            semanticSampleCount: currentTelemetry.semanticSampleCount,
+            graphLatencyMs: Number.isFinite(next.retrievalHealth.graphLatencyMs)
+              ? Math.max(0, Number(next.retrievalHealth.graphLatencyMs))
+              : currentTelemetry.graphLatencyMs,
+            graphSampleCount: currentTelemetry.graphSampleCount,
+            templateLeakageFailCount: Number.isFinite(next.retrievalHealth.templateLeakageFailCount)
+              ? Math.max(0, Math.floor(Number(next.retrievalHealth.templateLeakageFailCount)))
+              : currentTelemetry.templateLeakageFailCount,
+            lastUpdatedAt: now(),
+          })
+        }
       })
     }
 
@@ -5082,6 +5659,9 @@ export async function setupAlicizationDb(
 
   await initializeSchema()
   await restoreArchivedFactsIntoActiveMemory()
+  await enqueueWrite(async () => {
+    await drainMemoryIngestJournal()
+  })
 
   return {
     dbPath,

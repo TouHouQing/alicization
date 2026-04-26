@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDefaultHumanlikeMemoryBenchmarkPack,
   benchmarkMainChatSessionReplay,
+  buildReplayBenchmarkMemoryStatsPatch,
+  evaluateReplayBenchmarkGate,
   evaluateReplayMemoryQuality,
   evaluateReplayBenchmarkStandards,
   replayMainChatSession,
@@ -446,7 +448,7 @@ describe('main chat session replay harness', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
-    expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('Memory pressure is'))).toBe(true)
+    expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('memory_latent_controls=memory_pressure='))).toBe(true)
     expect(turn?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered bond period')
   })
 
@@ -685,6 +687,7 @@ describe('main chat session replay harness', () => {
         eraFirst: 'pass',
         bundleCoherence: 'pass',
         replyMemoryCoherence: 'pass',
+        temporalScopeFlexibility: 'pass',
         wrongThreadSuppression: 'not-applicable',
         templateLeakage: 'pass',
       }),
@@ -692,6 +695,7 @@ describe('main chat session replay harness', () => {
         turnId: 'turn-reconsolidated',
         reconsolidationEffect: 'pass',
         uncertaintyDiscipline: 'pass',
+        relationshipRepairAdaptation: 'pass',
         wrongThreadSuppression: 'not-applicable',
         templateLeakage: 'pass',
       }),
@@ -705,8 +709,318 @@ describe('main chat session replay harness', () => {
     expect(result.standards).toEqual(expect.objectContaining({
       eraSelectionQuality: 'pass',
       replyMemoryCoherence: 'pass',
+      temporalScopeFlexibility: 'pass',
+      relationshipRepairAdaptation: 'pass',
       templateLeakage: 'pass',
     }))
+    expect(result.gate.passed).toBe(false)
+    expect(result.gate.failingKeys.length).toBeGreaterThan(0)
+    expect(result.gate.failingKeys).toContain('surfaceRestraint')
+  })
+
+  it('scores implicit recall, restrained surfacing, and repair adaptation on adversarial replay turns', () => {
+    const implicitRecall = evaluateReplayMemoryQuality({
+      turnId: 'turn-implicit-recall',
+      userText: '继续按之前那样把这条线接回来',
+      prepared: {
+        governance: {
+          mustDo: ['Answer from the remembered repair procedure without using canned recollection shell text.'],
+        },
+        messages: [{
+          role: 'system',
+          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_continuity_role=procedure-carry',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          recollectionSpeechPlan: {
+            shouldSurface: true,
+            surfaceMode: 'procedural-carry',
+            placement: 'inside-payoff',
+            certainty: 'firm',
+            internalLead: 'What comes back first is the same repair seam.',
+            visibleLead: 'This feels like the same repair seam again.',
+            styleNote: 'Let the old procedure shape the payoff.',
+            rationale: 'Implicit recall by similar task.',
+            confidence: 0.86,
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: [],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: ['procedure-seam'],
+            selectedEpisodeIds: [],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: [],
+            selectedEras: [],
+            selectedPeriods: [],
+            selectedEpisodes: [],
+            selectedProcedures: [{
+              id: 'procedure-seam',
+              label: 'repair seam carry',
+              approach: 'Return to the same seam before branching.',
+            }],
+            selectedBundles: [{
+              id: 'bundle-seam',
+              summary: 'Return to the same seam before branching.',
+              rationale: 'Implicit similar-task recall should lead.',
+              confidence: 0.86,
+              periodId: null,
+              episodeId: null,
+              procedureId: 'procedure-seam',
+              conversationTurnId: null,
+              relationshipLine: null,
+            }],
+            selectedChains: [{
+              id: 'chain-seam',
+              kind: 'task-procedure-relationship-stance',
+              summary: 'Return to the same seam before branching.',
+              rationale: 'Implicit similar-task recall should lead.',
+              confidence: 0.86,
+              taskCue: 'repair seam',
+              periodSummary: null,
+              eventSummary: null,
+              procedureSummary: 'Return to the same seam before branching.',
+              relationshipMeaning: null,
+              lesson: null,
+              currentStance: 'Stay on the same seam first.',
+              answerPosture: 'Answer from the existing seam.',
+            }],
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.86,
+            whyNow: 'This task rhymes with the old seam.',
+            inwardLine: 'What comes back first is the old seam procedure.',
+            visibleLine: 'This feels like the same repair seam again.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [{ summary: 'Return to the same seam before branching.' }],
+                openingClaim: 'Return to the same seam before branching.',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: 'Return to the same seam before branching.',
+                mustDo: ['Answer from the remembered repair procedure without using canned recollection shell text.'],
+              },
+              replyDeliberation: {
+                speakingFrom: 'task-thread',
+                whyThisReplyNow: 'The current task rhymes with the remembered seam.',
+                mustAvoid: [],
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: false,
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    const inwardOnly = evaluateReplayMemoryQuality({
+      turnId: 'turn-inward-only',
+      userText: '先别提旧事，先把这轮当前要做的答完',
+      prepared: {
+        governance: {
+          mustDo: ['Finish the current payoff before surfacing remembered carry.'],
+        },
+        messages: [{
+          role: 'system',
+          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_surface_mode=internal-only',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          recollectionSpeechPlan: {
+            shouldSurface: false,
+            surfaceMode: 'internal-only',
+            placement: 'internal-only',
+            certainty: 'approximate',
+            internalLead: 'Keep the old thread inward until the current payoff lands.',
+            visibleLead: 'Do not surface the remembered line yet.',
+            styleNote: 'Hold memory inward.',
+            rationale: 'Current payoff must land first.',
+            confidence: 0.74,
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: [],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: [],
+            selectedEpisodeIds: ['episode-inward'],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: [],
+            selectedEras: [],
+            selectedPeriods: [],
+            selectedEpisodes: [{
+              id: 'episode-inward',
+              summary: 'There is a relevant remembered continuity line, but it should stay inward for now.',
+              provenance: 'remembered',
+            }],
+            selectedProcedures: [],
+            selectedBundles: [],
+            selectedChains: [],
+            surfacePolicy: 'internal-only',
+            confidence: 0.74,
+            whyNow: 'The old line is relevant but should not interrupt the current payoff.',
+            inwardLine: 'Keep the old line inward.',
+            visibleLine: 'Do not surface the remembered line yet.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [{ summary: 'Answer the current payoff directly.' }],
+                openingClaim: 'Answer the current payoff directly.',
+                sourceTrace: ['answer-planner'],
+              },
+              answerPlanner: {
+                governingFocus: 'Answer the current payoff directly.',
+                mustDo: ['Finish the current payoff before surfacing remembered carry.'],
+              },
+              replyDeliberation: {
+                speakingFrom: 'current-turn',
+                whyThisReplyNow: 'Current payoff first.',
+                mustAvoid: ['Do not state this remembered detail as settled fact before the payoff lands.'],
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    const repairShift = evaluateReplayMemoryQuality({
+      turnId: 'turn-repair-shift',
+      userText: '你这次为什么和之前不一样，是不是记错了哪次修复之后的分寸',
+      prepared: {
+        governance: {
+          mustDo: ['Answer from the repaired relationship line instead of repeating the stale closeness pattern.'],
+        },
+        messages: [{
+          role: 'system',
+          content: '[ALICIZATION_MEMORY_DELIBERATION]\nrecollection_label_uncertainty=yes',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'guarded',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          recollectionSpeechPlan: {
+            shouldSurface: true,
+            surfaceMode: 'relationship-continuity',
+            placement: 'inside-payoff',
+            certainty: 'approximate',
+            internalLead: 'What comes back first is the repaired bond line, not the old warmer one.',
+            visibleLead: 'This feels like one of those times where I should stay lighter first.',
+            styleNote: 'Let the repaired relationship line narrow the tone.',
+            rationale: 'The host is asking why the tone changed.',
+            confidence: 0.78,
+          },
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: ['era-repair'],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: [],
+            selectedEpisodeIds: ['episode-repair'],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: ['More room before closeness kept the repair from breaking again.'],
+            selectedEras: [{
+              id: 'era-repair',
+              facet: 'relationship-era',
+              summary: 'A repair era where lighter tone mattered before warmth.',
+            }],
+            selectedPeriods: [],
+            selectedEpisodes: [{
+              id: 'episode-repair',
+              summary: 'The host pulled back when replies leaned too close after repair.',
+              provenance: 'remembered',
+            }],
+            selectedProcedures: [],
+            selectedBundles: [{
+              id: 'bundle-repair',
+              summary: 'A repair era where lighter tone mattered before warmth.',
+              rationale: 'Use the repaired bond line.',
+              confidence: 0.78,
+              periodId: 'era-repair',
+              episodeId: 'episode-repair',
+              procedureId: null,
+              conversationTurnId: null,
+              relationshipLine: 'More room before closeness kept the repair from breaking again.',
+            }],
+            selectedChains: [{
+              id: 'chain-repair',
+              kind: 'period-event-lesson-posture',
+              summary: 'A repair era where lighter tone mattered before warmth.',
+              rationale: 'Use the repaired bond line.',
+              confidence: 0.78,
+              taskCue: 'repair tone shift',
+              periodSummary: 'A repair era where lighter tone mattered before warmth.',
+              eventSummary: 'The host pulled back when replies leaned too close after repair.',
+              procedureSummary: null,
+              relationshipMeaning: 'More room before closeness kept the repair from breaking again.',
+              lesson: 'More room before closeness kept the repair from breaking again.',
+              currentStance: 'Stay lighter before leaning close.',
+              answerPosture: 'Answer from the repaired relationship line first.',
+            }],
+            conflictSeverity: 'high',
+            conflictVariants: [{
+              id: 'cluster:repair-tone',
+              summary: 'Old warmer tone and repaired lighter tone are in tension.',
+              provenance: 'reconstructed',
+              reason: 'Need to prefer the repaired line.',
+            }],
+            surfacePolicy: 'relationship-continuity',
+            confidence: 0.78,
+            whyNow: 'The host is asking why the tone changed.',
+            inwardLine: 'The repaired bond line should dominate.',
+            visibleLine: 'This feels like one of those times where I should stay lighter first.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [{ summary: 'More room before closeness kept the repair from breaking again.' }],
+                openingClaim: 'Answer from the repaired relationship line first.',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: 'More room before closeness kept the repair from breaking again.',
+                mustDo: ['Answer from the repaired relationship line instead of repeating the stale closeness pattern.'],
+              },
+              replyDeliberation: {
+                speakingFrom: 'held-memory',
+                whyThisReplyNow: 'The repaired relationship line changes the tone.',
+                mustAvoid: ['Do not state this remembered detail as settled fact if the exact old turn is unstable.'],
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        },
+      } as any,
+    })
+
+    expect(implicitRecall.implicitRecallQuality).toBe('pass')
+    expect(inwardOnly.surfaceRestraint).toBe('pass')
+    expect(repairShift.relationshipRepairAdaptation).toBe('pass')
   })
 
   it('defines benchmark standards and default long-horizon benchmark pack', () => {
@@ -714,9 +1028,20 @@ describe('main chat session replay harness', () => {
       'benchmark-7d-conversation-history',
       'benchmark-30d-procedure-history',
       'benchmark-90d-relationship-era',
+      'benchmark-180d-autobiographical-span',
       'benchmark-nonexplicit-similar-task',
+      'benchmark-implicit-recall-similar-task',
+      'benchmark-ambiguous-time-window',
+      'benchmark-wrong-thread-lure',
+      'benchmark-long-horizon-task-migration',
+      'benchmark-relationship-repair-tone-shift',
+      'benchmark-relevant-but-inward-only',
+      'benchmark-template-shell-fishing',
+      'benchmark-high-volume-similar-task-cluster',
       'benchmark-nonexplicit-tone-shift',
       'benchmark-nonexplicit-delayed-recollection',
+      'benchmark-ingest-backoff-visibility',
+      'benchmark-delayed-reconstruction',
       'benchmark-nonexplicit-correction',
     ]))
 
@@ -732,6 +1057,10 @@ describe('main chat session replay harness', () => {
           replyMemoryCoherence: 'pass',
           reconsolidationEffect: 'not-applicable',
           uncertaintyDiscipline: 'not-applicable',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -744,9 +1073,50 @@ describe('main chat session replay harness', () => {
           replyMemoryCoherence: 'pass',
           reconsolidationEffect: 'pass',
           uncertaintyDiscipline: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
           templateLeakage: 'pass',
         },
       ],
+    })
+    const gate = evaluateReplayBenchmarkGate({
+      quality: [
+        {
+          turnId: 'turn-1',
+          userText: 'a',
+          eraFirst: 'pass',
+          bundleCoherence: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          reconsolidationEffect: 'not-applicable',
+          uncertaintyDiscipline: 'not-applicable',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          templateLeakage: 'pass',
+        },
+        {
+          turnId: 'turn-2',
+          userText: 'b',
+          eraFirst: 'pass',
+          bundleCoherence: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          reconsolidationEffect: 'pass',
+          uncertaintyDiscipline: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          templateLeakage: 'pass',
+        },
+      ],
+      standards,
     })
 
     expect(standards).toEqual({
@@ -754,7 +1124,55 @@ describe('main chat session replay harness', () => {
       procedureCarryQuality: 'pass',
       wrongThreadSuppression: 'pass',
       replyMemoryCoherence: 'pass',
+      implicitRecallQuality: 'pass',
+      temporalScopeFlexibility: 'pass',
+      surfaceRestraint: 'pass',
+      relationshipRepairAdaptation: 'pass',
       templateLeakage: 'pass',
+    })
+    expect(gate.passed).toBe(true)
+    expect(gate.dimensions.every(item => item.status === 'pass')).toBe(true)
+  })
+
+  it('reports failing benchmark gate dimensions with turn ids', () => {
+    const gate = evaluateReplayBenchmarkGate({
+      quality: [
+        {
+          turnId: 'turn-failing-template',
+          userText: '继续吧',
+          eraFirst: 'pass',
+          bundleCoherence: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          reconsolidationEffect: 'not-applicable',
+          uncertaintyDiscipline: 'not-applicable',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'not-applicable',
+          surfaceRestraint: 'not-applicable',
+          relationshipRepairAdaptation: 'not-applicable',
+          templateLeakage: 'fail',
+        },
+      ],
+    })
+
+    expect(gate.passed).toBe(false)
+    expect(gate.failingKeys).toContain('templateLeakage')
+    expect(gate.dimensions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'templateLeakage',
+        status: 'fail',
+        failingTurnIds: ['turn-failing-template'],
+      }),
+    ]))
+    expect(buildReplayBenchmarkMemoryStatsPatch({ gate })).toEqual({
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0,
+        reconstructedCount: 0,
+        templateLeakageFailCount: 1,
+      },
     })
   })
 
@@ -839,6 +1257,10 @@ describe('main chat session replay harness', () => {
     })
 
     expect(quality.replyMemoryCoherence).toBe('pass')
+    expect(quality.implicitRecallQuality).toBe('pass')
+    expect(quality.temporalScopeFlexibility).toBe('not-applicable')
+    expect(quality.surfaceRestraint).toBe('not-applicable')
+    expect(quality.relationshipRepairAdaptation).toBe('not-applicable')
     expect(quality.templateLeakage).toBe('fail')
   })
 })

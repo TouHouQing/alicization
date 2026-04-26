@@ -11,6 +11,8 @@ import type {
   AlicizationInitializeGenesisResult,
   AlicizationKillSwitchSnapshot,
   AlicizationKillSwitchState,
+  AlicizationListMemoryDecisionTracesPayload,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
   AlicizationLlmConfigPayload,
   AlicizationMemoryArchiveRecord,
@@ -38,6 +40,7 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  buildAlicizationMemoryDecisionTraceRecords,
   buildAlicizationFinanceSurface,
   buildAlicizationNewsSurface,
   buildAlicizationSportsSurface,
@@ -134,6 +137,16 @@ interface BrowserConversationTurnRecord extends Required<Pick<AlicizationConvers
   structured?: Record<string, unknown>
 }
 
+interface BrowserSessionContinuitySummary {
+  sessionId: string | null
+  latestOrigin: BrowserConversationTurnRecord['origin'] | null
+  continuityAnchor: string | null
+  threadSummary: string | null
+  recollectionSummary: string | null
+  proactiveSummary: string | null
+  executionSummary: string | null
+}
+
 interface BrowserMindTurnEventRecord extends AlicizationMindTurnEventRecord {}
 
 type BrowserProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
@@ -163,6 +176,14 @@ interface BrowserProactiveLoopState {
   pendingOutcomes: BrowserPendingProactiveOutcome[]
   recentOutcomes: BrowserRecentProactiveOutcome[]
   updatedAt: number
+}
+
+interface BrowserProactiveFeedbackSummary {
+  latestOutcome: BrowserRecentProactiveOutcome | null
+  pendingCount: number
+  shouldSuppressSpeak: boolean
+  confidenceBias: number
+  summary: string | null
 }
 
 const defaultFrontmatter: AlicizationSoulFrontmatter = {
@@ -1460,6 +1481,11 @@ async function writeConversationTurns(cardId: string, turns: BrowserConversation
   await storage.setItemRaw(buildConversationTurnsKey(cardId), turns.slice(-maxConversationTurns))
 }
 
+async function readActiveSessionId(cardId: string) {
+  await ensureCardRegistered(cardId)
+  return sanitizeText(await storage.getItemRaw<string>(buildActiveSessionKey(cardId)) ?? '')
+}
+
 async function readMindTurnEvents(cardId: string) {
   await ensureCardRegistered(cardId)
   return await storage.getItemRaw<BrowserMindTurnEventRecord[]>(buildMindTurnEventsKey(cardId)) ?? []
@@ -1527,6 +1553,88 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 6) {
       break
   }
   return result
+}
+
+function looksExecutionContinuityText(raw: unknown) {
+  return /(?:execution|callback|result|listing|remaining|cli|task|thread|执行|回调|结果|清单|剩下|任务)/iu.test(String(raw ?? ''))
+}
+
+function buildBrowserSessionContinuitySummary(input: {
+  turns: BrowserConversationTurnRecord[]
+  activeSessionId: string
+  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+}) {
+  const scopedTurns = input.activeSessionId
+    ? input.turns.filter(turn => turn.sessionId === input.activeSessionId)
+    : input.turns
+  const recent = scopedTurns.slice(-6)
+  const latest = recent.at(-1) ?? null
+  const latestProactive = [...recent].reverse().find(turn => turn.origin === 'subconscious-proactive') ?? null
+  const latestExecution = [...recent].reverse().find(turn =>
+    looksExecutionContinuityText(`${turn.userText} ${turn.assistantText}`),
+  ) ?? null
+  const continuityAnchor = sanitizeBriefText(
+    latest?.userText
+    || latest?.assistantText
+    || input.recollectionForeground?.summary
+    || '',
+    180,
+  ) || null
+  const threadSummary = sanitizeBriefText([
+    latest?.userText,
+    latest?.assistantText,
+    input.recollectionForeground?.summary,
+  ].filter(Boolean).join(' | '), 220) || null
+  const proactiveSummary = latestProactive
+    ? sanitizeBriefText([
+        latestProactive.userText,
+        latestProactive.assistantText,
+      ].filter(Boolean).join(' | '), 180) || null
+    : null
+  const executionSummary = latestExecution
+    ? sanitizeBriefText([
+        latestExecution.userText,
+        latestExecution.assistantText,
+      ].filter(Boolean).join(' | '), 180) || null
+    : null
+
+  return {
+    sessionId: input.activeSessionId || null,
+    latestOrigin: latest?.origin ?? null,
+    continuityAnchor,
+    threadSummary,
+    recollectionSummary: sanitizeBriefText(input.recollectionForeground?.summary ?? '', 180) || null,
+    proactiveSummary,
+    executionSummary,
+  } satisfies BrowserSessionContinuitySummary
+}
+
+function deriveBrowserProactiveFeedbackSummary(state: BrowserProactiveLoopState) {
+  const latestOutcome = state.recentOutcomes.at(-1) ?? null
+  const pendingCount = state.pendingOutcomes.length
+  const shouldSuppressSpeak = pendingCount > 0
+    || latestOutcome?.outcome === 'dismiss'
+    || latestOutcome?.outcome === 'ignored'
+  const confidenceBias = latestOutcome?.outcome === 'positive' || latestOutcome?.outcome === 'reply-within-120s'
+    ? 0.1
+    : latestOutcome?.outcome === 'dismiss'
+      ? -0.16
+      : latestOutcome?.outcome === 'ignored'
+        ? -0.08
+        : 0
+  const summary = latestOutcome
+    ? sanitizeBriefText(`feedback=${latestOutcome.outcome} | scenario=${latestOutcome.scenario}`, 120) || null
+    : pendingCount > 0
+      ? sanitizeBriefText(`pending-feedback=${pendingCount}`, 120) || null
+      : null
+
+  return {
+    latestOutcome,
+    pendingCount,
+    shouldSuppressSpeak,
+    confidenceBias,
+    summary,
+  } satisfies BrowserProactiveFeedbackSummary
 }
 
 function mapBrowserMemorySourceToProvenance(source: AlicizationMemoryFact['source']): AlicizationMemoryProvenance {
@@ -1977,12 +2085,16 @@ function inferBrowserDigestScenario(snapshot: AlicizationSensoryCacheSnapshot, r
 function buildBrowserFallbackDigitalLifeSpineDigest(input: {
   organicMemorySnapshot: AlicizationOrganicMemorySnapshot
   snapshot: AlicizationSensoryCacheSnapshot
+  sessionContinuity: BrowserSessionContinuitySummary
+  proactiveFeedback: BrowserProactiveFeedbackSummary
 }): AlicizationDigitalLifeSpineDigest {
   const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
   const scenario = inferBrowserDigestScenario(input.snapshot, recollection)
   const watchMode = recollection ? 'symbiotic-vision' as const : 'mnemonic-passive' as const
+  const sessionThreadSummary = input.sessionContinuity.threadSummary
   const sceneSummary = sanitizeBriefText(
     recollection?.summary
+    || sessionThreadSummary
     || input.snapshot.sample.foregroundWindow?.title
     || input.snapshot.sample.foregroundWindow?.appName
     || 'browser fallback continuity',
@@ -1990,16 +2102,18 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
   )
   const threadTitle = sanitizeBriefText(
     recollection?.summary
+    || sessionThreadSummary
     || input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary
     || input.organicMemorySnapshot.recentEpisodicEvents?.[0]?.threadAnchor
     || input.snapshot.sample.foregroundWindow?.title
     || 'browser fallback continuity',
     180,
   )
-  const preferredStyle = recollection?.surfaceSummary?.includes('surface=inward')
+  const preferredStyle = recollection?.surfaceSummary?.includes('surface=inward') || input.proactiveFeedback.shouldSuppressSpeak
     ? 'silent-observe'
     : 'light-nudge'
   const shouldSpeak = !recollection?.surfaceSummary?.includes('surface=inward')
+    && !input.proactiveFeedback.shouldSuppressSpeak
 
   return {
     version: 'digital-life-spine-digest-v1',
@@ -2029,9 +2143,11 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
       label: 'digital-life-line',
       summary: sanitizeBriefText(
         [
+          recollection?.summary ? `recollection=${recollection.summary}` : '',
+          input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
+          input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
           `watch=${watchMode}`,
           `scene=${scenario}`,
-          recollection?.summary ? `recollection=${recollection.summary}` : '',
         ].filter(Boolean).join(' | '),
         220,
       ),
@@ -2048,9 +2164,9 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     proactive: {
       selectedAction: shouldSpeak ? 'speak' : 'wait',
       preferredStyle,
-      confidence: recollection?.confidence ?? 0.48,
+      confidence: clamp01((recollection?.confidence ?? 0.48) + input.proactiveFeedback.confidenceBias),
       shouldSpeak,
-      activeThreadId: null,
+      activeThreadId: input.sessionContinuity.sessionId,
       activeThreadTitle: threadTitle,
       dominantConcernKind: null,
       dominantConcernSummary: null,
@@ -2066,10 +2182,12 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     memory: {
       summary: sanitizeBriefText(
         [
+          input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
+          recollection?.summary ? `recollection=${recollection.summary}` : '',
+          input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
           input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary
             ? `durable=${input.organicMemorySnapshot.memoryConsolidations[0].summary}`
             : '',
-          recollection?.summary ? `recollection=${recollection.summary}` : '',
           threadTitle ? `thread=${threadTitle}` : '',
         ].filter(Boolean).join(' | '),
         220,
@@ -2101,6 +2219,129 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
       longHorizonCueCount: input.organicMemorySnapshot.memoryConsolidations?.length ?? 0,
     },
   }
+}
+
+function buildBrowserFallbackRuntimeDigest(input: {
+  organicMemorySnapshot: AlicizationOrganicMemorySnapshot
+  snapshot: AlicizationSensoryCacheSnapshot
+  sessionContinuity: BrowserSessionContinuitySummary
+  proactiveFeedback: BrowserProactiveFeedbackSummary
+}) {
+  const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
+  const internalOnly = recollection?.surfaceSummary?.includes('surface=inward') ?? false
+  const continuityAnchor = input.sessionContinuity.continuityAnchor
+  const memoryReadiness = clamp01(
+    (recollection ? (internalOnly ? 0.36 : 0.5) + recollection.confidence * 0.22 : 0.12)
+    + (continuityAnchor ? 0.08 : 0)
+    + (input.sessionContinuity.recollectionSummary ? 0.06 : 0)
+    + (input.sessionContinuity.executionSummary ? 0.04 : 0),
+  )
+  const dialogueReadiness = clamp01(
+    (recollection && !internalOnly ? 0.22 + recollection.confidence * 0.28 : 0.12)
+    + (continuityAnchor ? 0.08 : 0)
+    + (input.sessionContinuity.latestOrigin === 'user-turn' ? 0.06 : 0)
+    + input.proactiveFeedback.confidenceBias,
+  )
+  const anthropomorphicReadiness = clamp01(
+    (recollection?.mode === 'relationship-history' ? 0.28 : 0.14)
+    + (input.proactiveFeedback.latestOutcome?.outcome === 'positive' ? 0.08 : 0)
+    + (recollection && !internalOnly ? 0.1 : 0),
+  )
+  const perceptionReadiness = clamp01(
+    0.24
+    + (sanitizeText(input.snapshot.sample.foregroundWindow?.title ?? '') ? 0.08 : 0)
+    + (sanitizeText(input.snapshot.sample.foregroundWindow?.appName ?? '') ? 0.04 : 0),
+  )
+  const channels = [
+    {
+      id: 'active-memory',
+      state: memoryReadiness >= 0.72 ? 'hot' as const : memoryReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
+      readiness: memoryReadiness,
+      focus: sanitizeBriefText(input.sessionContinuity.recollectionSummary || input.sessionContinuity.threadSummary || '', 120) || null,
+      summary: sanitizeBriefText([
+        recollection?.summary ? `followup=${recollection.summary}` : '',
+        input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
+      ].filter(Boolean).join(' | '), 220),
+    },
+    {
+      id: 'active-dialogue',
+      state: dialogueReadiness >= 0.72 ? 'hot' as const : dialogueReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
+      readiness: dialogueReadiness,
+      focus: sanitizeBriefText(input.sessionContinuity.threadSummary || input.sessionContinuity.continuityAnchor || '', 120) || null,
+      summary: sanitizeBriefText([
+        input.sessionContinuity.threadSummary ? `followup=${input.sessionContinuity.threadSummary}` : '',
+        recollection?.summary && !internalOnly ? `recollection=${recollection.summary}` : '',
+      ].filter(Boolean).join(' | '), 220),
+    },
+    {
+      id: 'anthropomorphic-mind',
+      state: anthropomorphicReadiness >= 0.72 ? 'hot' as const : anthropomorphicReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
+      readiness: anthropomorphicReadiness,
+      focus: sanitizeBriefText(input.proactiveFeedback.summary || input.sessionContinuity.proactiveSummary || '', 120) || null,
+      summary: sanitizeBriefText([
+        input.proactiveFeedback.summary,
+        input.sessionContinuity.proactiveSummary,
+      ].filter(Boolean).join(' | '), 220),
+    },
+    {
+      id: 'active-perception',
+      state: perceptionReadiness >= 0.72 ? 'hot' as const : perceptionReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
+      readiness: perceptionReadiness,
+      focus: sanitizeBriefText(input.snapshot.sample.foregroundWindow?.title ?? input.snapshot.sample.foregroundWindow?.appName ?? '', 120) || null,
+      summary: sanitizeBriefText([
+        `scene=${sanitizeText(input.snapshot.sample.foregroundWindow?.title ?? input.snapshot.sample.foregroundWindow?.appName ?? '')}`,
+      ].join(' '), 220),
+    },
+  ]
+  const dominantChannel = internalOnly
+    ? 'active-memory'
+    : dialogueReadiness >= memoryReadiness
+      ? 'active-dialogue'
+      : 'active-memory'
+  const shouldProactivelySpeak = !internalOnly
+    && !input.proactiveFeedback.shouldSuppressSpeak
+    && dialogueReadiness >= 0.48
+  const continuityPressure = clamp01(
+    memoryReadiness * 0.54
+    + dialogueReadiness * 0.26
+    + anthropomorphicReadiness * 0.2,
+  )
+  const companionshipPressure = clamp01(
+    anthropomorphicReadiness * 0.58
+    + dialogueReadiness * 0.22
+    + (recollection && !internalOnly ? recollection.confidence * 0.18 : 0),
+  )
+  const summary = sanitizeBriefText([
+    `dominant=${dominantChannel}`,
+    recollection?.summary ? `recollection=${recollection.summary}` : '',
+    input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
+    continuityAnchor ? `session=${continuityAnchor}` : '',
+  ].filter(Boolean).join(' | '), 240)
+
+  return normalizeAlicizationRuntimeDigest({
+    version: 'alicization-runtime-digest-v1',
+    dominantChannel,
+    activeLoop: {
+      version: 'alicization-active-loop-v1',
+      phase: internalOnly ? 'integrate' : 'dialogue',
+      dominantChannel,
+      handoffTarget: internalOnly ? 'active-memory' : 'active-dialogue',
+      dialogueReady: dialogueReadiness >= 0.48,
+      controlReady: false,
+      memoryCarry: Boolean(recollection),
+      companionshipReady: anthropomorphicReadiness >= 0.38,
+      observationHeavy: !recollection,
+      initiativeBudget: clamp01(recollection?.confidence ?? 0.42),
+      coherence: clamp01((memoryReadiness + dialogueReadiness) / 2),
+      summary,
+    },
+    shouldProactivelySpeak,
+    shouldProactivelyAct: false,
+    continuityPressure,
+    companionshipPressure,
+    channels,
+    summary,
+  })
 }
 
 function applyBrowserProactiveOutcome(
@@ -2242,13 +2483,24 @@ async function syncBrowserFallbackVisualPresenceFromLocalMemory(
   runtime: BrowserRuntimeKind,
   previous?: AlicizationVisualPresenceStateSnapshot | null,
 ) {
-  const [snapshot, organicMemorySnapshot] = await Promise.all([
+  const [snapshot, organicMemorySnapshot, proactiveLoopState, turns, activeSessionId] = await Promise.all([
     buildSensorySnapshot(runtime),
     buildBrowserOrganicMemorySnapshot(cardId),
+    readProactiveLoopState(cardId),
+    readConversationTurns(cardId),
+    readActiveSessionId(cardId),
   ])
+  const sessionContinuity = buildBrowserSessionContinuitySummary({
+    turns,
+    activeSessionId,
+    recollectionForeground: organicMemorySnapshot.recollectionForeground ?? null,
+  })
+  const proactiveFeedback = deriveBrowserProactiveFeedbackSummary(proactiveLoopState)
   const digest = buildBrowserFallbackDigitalLifeSpineDigest({
     snapshot,
     organicMemorySnapshot,
+    sessionContinuity,
+    proactiveFeedback,
   })
   await persistVisualPresenceState(cardId, buildAlicizationVisualPresenceStateFromSpineDigest({
     digest,
@@ -2262,19 +2514,39 @@ async function enrichBrowserMetaEventWithLocalMemory(input: {
   event: Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
   runtime: BrowserRuntimeKind
 }) {
-  if (input.event.digitalLifeSpine)
+  if (input.event.digitalLifeSpine && input.event.runtimeDigest)
     return input.event
 
-  const organicMemorySnapshot = await buildBrowserOrganicMemorySnapshot(input.cardId)
-  const snapshot = await buildSensorySnapshot(input.runtime)
+  const [organicMemorySnapshot, snapshot, proactiveLoopState, turns, activeSessionId] = await Promise.all([
+    buildBrowserOrganicMemorySnapshot(input.cardId),
+    buildSensorySnapshot(input.runtime),
+    readProactiveLoopState(input.cardId),
+    readConversationTurns(input.cardId),
+    readActiveSessionId(input.cardId),
+  ])
+  const sessionContinuity = buildBrowserSessionContinuitySummary({
+    turns,
+    activeSessionId,
+    recollectionForeground: organicMemorySnapshot.recollectionForeground ?? null,
+  })
+  const proactiveFeedback = deriveBrowserProactiveFeedbackSummary(proactiveLoopState)
   const localDigest = buildBrowserFallbackDigitalLifeSpineDigest({
     organicMemorySnapshot,
     snapshot,
+    sessionContinuity,
+    proactiveFeedback,
+  })
+  const localRuntimeDigest = buildBrowserFallbackRuntimeDigest({
+    organicMemorySnapshot,
+    snapshot,
+    sessionContinuity,
+    proactiveFeedback,
   })
 
   return {
     ...input.event,
-    digitalLifeSpine: localDigest,
+    digitalLifeSpine: input.event.digitalLifeSpine ?? localDigest,
+    runtimeDigest: input.event.runtimeDigest ?? localRuntimeDigest,
   } satisfies Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
 }
 
@@ -3034,6 +3306,28 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         archived: tierCounts.cold,
         tierCounts,
         pendingSyncCount: 0,
+        ingestHealth: {
+          status: 'healthy',
+          pendingCount: 0,
+          failedCount: 0,
+          oldestPendingAgeMs: null,
+          nextRetryAt: null,
+          lastError: null,
+        },
+        writeHealth: {
+          backlogCount: 0,
+          retryOldestAgeMs: null,
+          nextRetryAt: null,
+          blocked: false,
+          lastError: null,
+        },
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
         integrity: deriveMemoryIntegrity(facts),
         lastPrunedAt: meta.lastPrunedAt ?? null,
       }
@@ -3053,6 +3347,28 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         archived: tierCounts.cold,
         tierCounts,
         pendingSyncCount: 0,
+        ingestHealth: {
+          status: 'healthy',
+          pendingCount: 0,
+          failedCount: 0,
+          oldestPendingAgeMs: null,
+          nextRetryAt: null,
+          lastError: null,
+        },
+        writeHealth: {
+          backlogCount: 0,
+          retryOldestAgeMs: null,
+          nextRetryAt: null,
+          blocked: false,
+          lastError: null,
+        },
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
         integrity: deriveMemoryIntegrity(facts),
         lastPrunedAt: currentTs,
       }
@@ -3186,38 +3502,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     },
     getOrganicMemorySnapshot: async () => {
       const cardId = resolveActiveCardId()
-      const [soul, organicMemory, episodicMemory] = await Promise.all([
-        readSoulRecord(cardId).then(record => toSoulSnapshot(cardId, record)),
-        readOrganicMemory(cardId),
-        readEpisodicMemory(cardId),
-      ])
-      const recentEpisodicEvents = [...episodicMemory.events]
-        .sort((left, right) => right.occurredAt - left.occurredAt || right.updatedAt - left.updatedAt)
-        .slice(0, 8)
-      const hostPersonModel = buildBrowserHostPersonModel(recentEpisodicEvents)
-      const memoryConsolidations = buildBrowserMemoryConsolidations(recentEpisodicEvents)
-      const recollectionForeground = buildBrowserRecollectionForeground({
-        consolidations: memoryConsolidations,
-        hostPersonModel,
-      })
-      return {
-        hostAttitude: soul.frontmatter.host_attitude,
-        coreIncarnation: soul.frontmatter.core_incarnation,
-        activeThoughts: [...organicMemory.activeThoughts].sort((left, right) => right.updatedAt - left.updatedAt),
-        subconsciousCount: organicMemory.subconsciousFragments.length,
-        recentSubconsciousFragments: [...organicMemory.subconsciousFragments]
-          .sort((left, right) => right.createdAt - left.createdAt)
-          .slice(0, 12)
-          .map(fragment => ({
-            ...fragment,
-            provenance: fragment.provenance ?? mapBrowserFragmentSourceToProvenance(fragment.sourceKind),
-          })),
-        recentEpisodicEvents,
-        hostPersonModel,
-        memoryConsolidations,
-        recollectionForeground,
-        lastDreamedAt: organicMemory.lastDreamedAt,
-      }
+      return await buildBrowserOrganicMemorySnapshot(cardId)
     },
     searchOrganicSubconsciousFragments: async (payload) => {
       const cardId = resolveActiveCardId()
@@ -3345,6 +3630,35 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         })
         .sort((left, right) => left.createdAt - right.createdAt || left.id.localeCompare(right.id))
         .slice(-limit)
+    },
+    listMemoryDecisionTraces: async (_payload: AlicizationListMemoryDecisionTracesPayload): Promise<AlicizationMemoryDecisionTraceRecord[]> => {
+      const cardId = resolveActiveCardId()
+      const decisionTraceId = _payload.decisionTraceId?.trim() || ''
+      const turnId = _payload.turnId?.trim() || ''
+      const activeThreadId = _payload.activeThreadId?.trim() || ''
+      const limit = Number.isFinite(Number(_payload.limit))
+        ? Math.max(1, Math.min(200, Math.floor(Number(_payload.limit))))
+        : 20
+      const events = await readMindTurnEvents(cardId)
+      const filtered = events.filter((event) => {
+        if (decisionTraceId && event.decisionTraceId !== decisionTraceId)
+          return false
+        if (turnId && event.turnId !== turnId)
+          return false
+        if (!activeThreadId)
+          return true
+        const payload = event.payload && typeof event.payload === 'object'
+          ? event.payload as Record<string, unknown>
+          : null
+        const digitalLifeSpine = payload?.digitalLifeSpine && typeof payload.digitalLifeSpine === 'object'
+          ? payload.digitalLifeSpine as Record<string, unknown>
+          : null
+        const runtime = digitalLifeSpine?.runtime && typeof digitalLifeSpine.runtime === 'object'
+          ? digitalLifeSpine.runtime as Record<string, unknown>
+          : null
+        return sanitizeText(runtime?.activeThreadId) === activeThreadId
+      })
+      return buildAlicizationMemoryDecisionTraceRecords(filtered).slice(0, limit)
     },
     reportProactiveFeedback: async (payload) => {
       const cardId = resolveActiveCardId()

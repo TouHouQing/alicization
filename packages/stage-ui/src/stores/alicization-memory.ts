@@ -344,6 +344,38 @@ function clearRuntimeWriteBlocked() {
   runtimeWriteBlockLogged = false
 }
 
+async function buildLocalWriteHealth() {
+  const entries = await getPendingRuntimeWrites()
+  const currentTs = now()
+  const oldestEntryTs = entries.length > 0
+    ? Math.min(...entries.map(entry => entry.enqueuedAt))
+    : null
+  const nextRetryAt = entries.length > 0
+    ? entries
+        .map(entry => entry.nextRetryAt)
+        .filter(value => Number.isFinite(value) && value > 0)
+        .sort((left, right) => left - right)[0] ?? null
+    : null
+
+  return {
+    backlogCount: entries.length,
+    retryOldestAgeMs: oldestEntryTs == null ? null : Math.max(0, currentTs - oldestEntryTs),
+    nextRetryAt: nextRetryAt ?? (runtimeWriteBlocked && runtimeWriteRetryAt > 0 ? runtimeWriteRetryAt : null),
+    blocked: runtimeWriteBlocked,
+    lastError: null,
+  }
+}
+
+function buildDefaultRetrievalHealth() {
+  return {
+    semanticLatencyMs: null,
+    graphLatencyMs: null,
+    reconstructionFrequency: 0,
+    reconstructedCount: 0,
+    templateLeakageFailCount: 0,
+  }
+}
+
 async function enqueuePendingRuntimeWrite(input: {
   facts: AlicizationMemoryFactInput[]
   source: AlicizationMemorySource
@@ -628,17 +660,28 @@ export async function runMemoryPrune() {
   if (shouldUseRuntimeMemoryBackend()) {
     const queueState = await flushPendingRuntimeWrites()
     const stats = await getAlicizationBridge().runMemoryPrune().catch(() => null)
-    if (stats)
+    if (stats) {
+      const writeHealth = await buildLocalWriteHealth()
       return {
         ...stats,
         pendingSyncCount: queueState.pending,
+        writeHealth: {
+          backlogCount: queueState.pending,
+          retryOldestAgeMs: writeHealth.retryOldestAgeMs,
+          nextRetryAt: writeHealth.nextRetryAt,
+          blocked: writeHealth.blocked || stats.writeHealth?.blocked === true,
+          lastError: stats.writeHealth?.lastError ?? writeHealth.lastError,
+        },
+        retrievalHealth: stats.retrievalHealth ?? buildDefaultRetrievalHealth(),
       }
+    }
   }
 
   const currentTs = now()
   const facts = await normalizeLocalArchiveIntoFacts()
   const tierCounts = deriveMemoryTierCounts(facts, currentTs)
   const pending = (await getPendingRuntimeWrites()).length
+  const writeHealth = await buildLocalWriteHealth()
 
   await saveMeta({ lastPrunedAt: currentTs })
 
@@ -648,6 +691,8 @@ export async function runMemoryPrune() {
     archived: tierCounts.cold,
     tierCounts,
     pendingSyncCount: pending,
+    writeHealth,
+    retrievalHealth: buildDefaultRetrievalHealth(),
     integrity: deriveMemoryIntegrity(facts, pending),
     lastPrunedAt: currentTs,
   }
@@ -659,11 +704,21 @@ export async function getMemoryStats(): Promise<AlicizationMemoryStats> {
   if (shouldUseRuntimeMemoryBackend()) {
     const queueState = await flushPendingRuntimeWrites()
     const stats = await getAlicizationBridge().getMemoryStats().catch(() => null)
-    if (stats)
+    if (stats) {
+      const writeHealth = await buildLocalWriteHealth()
       return {
         ...stats,
         pendingSyncCount: queueState.pending,
+        writeHealth: {
+          backlogCount: queueState.pending,
+          retryOldestAgeMs: writeHealth.retryOldestAgeMs,
+          nextRetryAt: writeHealth.nextRetryAt,
+          blocked: writeHealth.blocked || stats.writeHealth?.blocked === true,
+          lastError: stats.writeHealth?.lastError ?? writeHealth.lastError,
+        },
+        retrievalHealth: stats.retrievalHealth ?? buildDefaultRetrievalHealth(),
       }
+    }
   }
 
   const [facts, meta] = await Promise.all([
@@ -673,6 +728,7 @@ export async function getMemoryStats(): Promise<AlicizationMemoryStats> {
   const currentTs = now()
   const tierCounts = deriveMemoryTierCounts(facts, currentTs)
   const pending = (await getPendingRuntimeWrites()).length
+  const writeHealth = await buildLocalWriteHealth()
 
   return {
     total: facts.length,
@@ -680,6 +736,8 @@ export async function getMemoryStats(): Promise<AlicizationMemoryStats> {
     archived: tierCounts.cold,
     tierCounts,
     pendingSyncCount: pending,
+    writeHealth,
+    retrievalHealth: buildDefaultRetrievalHealth(),
     integrity: deriveMemoryIntegrity(facts, pending),
     lastPrunedAt: meta.lastPrunedAt ?? null,
   }

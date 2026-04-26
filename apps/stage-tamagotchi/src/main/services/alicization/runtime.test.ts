@@ -37,7 +37,9 @@ import {
   electronAlicizationListChannelCapabilityManifests,
   electronAlicizationListExecutionEvents,
   electronAlicizationListExecutorSessions,
+  electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationPlanTaskThread,
@@ -1649,6 +1651,160 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         kind: 'governance-normalized',
       }),
     ]))
+  })
+
+  it('lists structured memory decision traces through invoke handler', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const listMemoryDecisionTraces = invokeHandlers.get(electronAlicizationListMemoryDecisionTraces)
+    expect(listMemoryDecisionTraces).toBeTypeOf('function')
+
+    dbStub.listMindTurnEvents.mockResolvedValue([
+      {
+        id: 'evt-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'governance-normalized',
+        payload: {
+          turnMode: 'guide-current-knot',
+          truthState: 'remembered',
+          digitalLifeSpine: {
+            runtime: {
+              activeThreadId: 'thread-runtime',
+            },
+          },
+        },
+        createdAt: 100,
+      },
+      {
+        id: 'evt-2',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'recall-attribution',
+        payload: {
+          shouldRecall: true,
+          whyNow: 'The remembered runtime seam still matters here.',
+          searchTrace: {
+            firstHop: {
+              focus: 'procedure',
+              summary: 'Start from the remembered runtime procedure.',
+              targetIds: ['procedure-runtime'],
+            },
+            secondHop: {
+              action: 'expand-procedure',
+              evidenceGap: 'need-relationship-meaning',
+              summary: 'Expand toward the relationship meaning that made the procedure safe.',
+              targetIds: ['bundle-runtime'],
+            },
+            thirdHop: {
+              ambiguityPosture: 'settled',
+              summary: 'The remembered seam is stable enough to carry.',
+            },
+          },
+          followUpAffordance: {
+            summary: 'Carry the runtime seam after the current payoff.',
+            whyNow: 'The seam is relevant, but should wait until the live answer lands.',
+            intrusionRisk: 'medium',
+            payoffDependency: 'requires-current-payoff',
+            preferredTiming: 'after-payoff',
+          },
+        },
+        createdAt: 110,
+      },
+      {
+        id: 'evt-3',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'reply-memory-coherence',
+        payload: {
+          coherenceState: 'inward-only',
+        },
+        createdAt: 120,
+      },
+    ])
+
+    const result = await listMemoryDecisionTraces!({
+      cardId: 'default',
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      activeThreadId: 'thread-runtime',
+      limit: 10,
+    })
+
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      turnId: undefined,
+      activeThreadId: 'thread-runtime',
+      limit: 80,
+    })
+    expect(result).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        activeThreadId: 'thread-runtime',
+        eventKinds: expect.arrayContaining(['governance-normalized', 'recall-attribution', 'reply-memory-coherence']),
+        recallAttribution: expect.objectContaining({
+          whyNow: 'The remembered runtime seam still matters here.',
+          followUpAffordance: expect.objectContaining({
+            preferredTiming: 'after-payoff',
+          }),
+        }),
+        replyMemoryCoherence: expect.objectContaining({
+          coherenceState: 'inward-only',
+        }),
+      }),
+    ]))
+  })
+
+  it('runs the default replay benchmark through invoke handler and persists telemetry patch', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const runReplayBenchmark = invokeHandlers.get(electronAlicizationRunReplayBenchmark)
+    expect(runReplayBenchmark).toBeTypeOf('function')
+
+    const result = await runReplayBenchmark!({
+      cardId: 'default',
+      packId: 'default-humanlike-memory-v1',
+      persistTelemetry: true,
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      packId: 'default-humanlike-memory-v1',
+      turnCount: expect.any(Number),
+      quality: expect.any(Array),
+      standards: expect.objectContaining({
+        templateLeakage: expect.any(String),
+      }),
+      gate: expect.objectContaining({
+        passed: expect.any(Boolean),
+        dimensions: expect.any(Array),
+      }),
+      telemetryPatch: expect.objectContaining({
+        retrievalHealth: expect.objectContaining({
+          templateLeakageFailCount: expect.any(Number),
+        }),
+      }),
+      telemetryPersisted: true,
+    }))
+    expect(dbStub.overrideMemoryStats).toBeCalledWith(expect.objectContaining({
+      retrievalHealth: expect.objectContaining({
+        templateLeakageFailCount: expect.any(Number),
+      }),
+    }))
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.memory-benchmark',
+      action: 'replay-benchmark-ran',
+    }))
   })
 
   it('upserts task threads through invoke handler', async () => {

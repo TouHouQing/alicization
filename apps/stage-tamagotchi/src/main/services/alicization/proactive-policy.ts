@@ -32,6 +32,8 @@ import type {
 import type {
   AlicizationDigitalLifeArchitectureSnapshot,
 } from './digital-life-architecture'
+import type { AlicizationContinuityDeliberation } from './continuity-deliberation'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
@@ -69,6 +71,12 @@ function clampMs(value: number, min: number, max: number) {
   if (!Number.isFinite(value))
     return min
   return Math.max(min, Math.min(max, Math.floor(value)))
+}
+
+function sanitizeText(raw: unknown, maxChars = 160) {
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 function buildBaseCooldownMs(scenario: AlicizationProactiveScenario) {
@@ -301,6 +309,8 @@ export function evaluateProactivePolicy(input: {
   worldModel?: AlicizationWorldModelSnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
   runtimeDigest?: AlicizationRuntimeSnapshot | null
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  continuityDeliberation?: AlicizationContinuityDeliberation | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
   const contextScenario = inferScenarioFromContext({
@@ -424,6 +434,10 @@ export function evaluateProactivePolicy(input: {
       )
     }
   }
+  if (input.personalityContinuityState)
+    consideredSignals.push('personalityContinuity.regime', 'personalityContinuity.rhythm')
+  if (input.continuityDeliberation)
+    consideredSignals.push('continuityDeliberation.kind', 'continuityDeliberation.timing', 'continuityDeliberation.intrusion')
   const cadence = deriveProactiveCadenceSignal({
     state: proactiveState,
     context,
@@ -434,6 +448,7 @@ export function evaluateProactivePolicy(input: {
     threadRuntime: input.threadRuntime ?? null,
     thoughtThreads: input.thoughtThreads ?? null,
     actionEcology: input.actionEcology ?? null,
+    personalityContinuityState: input.personalityContinuityState ?? null,
   })
   consideredSignals.push('proactiveCadence.openingMomentum', 'proactiveCadence.initiativeTrust', 'proactiveCadence.cadencePressure')
   const ignoredSignals = [
@@ -468,11 +483,14 @@ export function evaluateProactivePolicy(input: {
   const governorIntention = dominantGovernorIntention(input.selfGovernor)
   const livingWorldOpenLoop = input.livingWorldState?.openLoops[0] ?? null
   const autonomy = input.autonomy ?? null
-  const autonomyActioning = autonomy?.selectedMode === 'act'
+  const autonomyExecutionIntentKind = sanitizeText(autonomy?.executionIntent?.kind, 48)
+  const autonomyActioning = (
+    autonomy?.selectedMode === 'act'
     || (
       autonomy?.selectedMode === 'prepare-act'
       && autonomy?.shouldAct === true
     )
+  ) && autonomyExecutionIntentKind === 'follow-through'
   const autonomySpeechLocked = Boolean(autonomyActioning && autonomy?.shouldSpeak !== true)
   const runtimeSignals = deriveAlicizationRuntimeProactiveSignals({
     architecture: input.architecture,
@@ -496,6 +514,22 @@ export function evaluateProactivePolicy(input: {
     runtimeControlReady,
     runtimeMemoryCarry,
   } = runtimeSignals
+  const continuityDeliberation = input.continuityDeliberation?.kind && input.continuityDeliberation.kind !== 'none'
+    ? input.continuityDeliberation
+    : null
+  const continuityHoldForLater = Boolean(
+    continuityDeliberation
+    && (
+      continuityDeliberation.preferredTiming === 'internal-only'
+      || continuityDeliberation.preferredTiming === 'next-open-window'
+      || continuityDeliberation.intrusionRisk === 'high'
+      || continuityDeliberation.kind === 'execution-callback'
+      || (
+        continuityDeliberation.preferredTiming === 'after-payoff'
+        && continuityDeliberation.payoffDependency === 'requires-current-payoff'
+      )
+    ),
+  )
   const activeLoopPhase = activeLoop?.phase ?? null
   const activeLoopHandoffTarget = activeLoop?.handoffTarget ?? null
   const activeLoopInitiativeBudget = clamp01(activeLoop?.initiativeBudget ?? 0)
@@ -830,6 +864,8 @@ export function evaluateProactivePolicy(input: {
     baseScore += 0.03
   baseScore += Math.max(0, continuityPressure - 0.5) * 0.08
   baseScore += Math.max(0, companionshipPressure - 0.5) * 0.08
+  if (continuityDeliberation && !continuityHoldForLater)
+    baseScore += continuityDeliberation.pressure * 0.12
   if (activeLoop) {
     baseScore += Math.max(0, activeLoopInitiativeBudget - 0.5) * 0.16
     baseScore += Math.max(0, activeLoopCoherence - 0.5) * 0.12
@@ -899,6 +935,8 @@ export function evaluateProactivePolicy(input: {
     threshold += 0.08
   threshold -= Math.max(0, continuityPressure - 0.62) * 0.04
   threshold -= Math.max(0, companionshipPressure - 0.68) * 0.05
+  if (continuityHoldForLater)
+    threshold += 0.12
   if (activeLoop) {
     threshold += Math.max(0, 0.5 - activeLoopCoherence) * 0.14
     threshold -= Math.max(0, activeLoopCoherence - 0.6) * 0.08
@@ -926,6 +964,7 @@ export function evaluateProactivePolicy(input: {
     = !input.killSwitchSuspended
       && !suppressBusy
       && !cooldownActive
+      && !continuityHoldForLater
       && runtimeAwareStyle !== 'silent-observe'
       && activeLoopAllowsSpeaking
       && governorAllowsSpeaking
@@ -966,6 +1005,10 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'runtime-control-ready', Boolean(input.runtimeDigest && runtimeControlReady))
   pushReason(reasonCodes, 'runtime-continuity-pressure', Boolean(input.runtimeDigest && continuityPressure >= 0.62))
   pushReason(reasonCodes, 'runtime-companionship-pressure', Boolean(input.runtimeDigest && companionshipPressure >= 0.68))
+  pushReason(reasonCodes, 'continuity-internal-only', continuityDeliberation?.preferredTiming === 'internal-only')
+  pushReason(reasonCodes, 'continuity-next-open-window', continuityDeliberation?.preferredTiming === 'next-open-window')
+  pushReason(reasonCodes, 'continuity-after-payoff', continuityDeliberation?.preferredTiming === 'after-payoff')
+  pushReason(reasonCodes, 'continuity-execution-callback', continuityDeliberation?.kind === 'execution-callback')
   pushReason(reasonCodes, 'durability-pulse', Boolean(input.durabilityPulse && input.durabilityPulse.kind !== 'none'))
   pushReason(reasonCodes, 'durability-process-gone', input.durabilityPulse?.kind === 'process-gone')
   pushReason(reasonCodes, 'durability-anr-likely', input.durabilityPulse?.kind === 'anr-likely')
@@ -1096,6 +1139,8 @@ export function evaluateProactivePolicy(input: {
       return `她当前整条数字生命链仍以 ${input.architecture.dominantSystem} / ${input.architecture.operatingMode} 为主，继续观察比贸然开口更诚实。`
     if (input.runtimeDigest && runtimeObservationHeavy)
       return '她当前的主动感知通道仍在主导运行时循环，继续观察比贸然开口更诚实。'
+    if (continuityHoldForLater && continuityDeliberation?.summary)
+      return `这条连续性现在更适合先留在心里，因为 ${continuityDeliberation.summary}。`
     if (governorWithholdActive) {
       if (thoughtThread?.status === 'waiting')
         return '她确实挂着这条内在线程，但它还在等待更自然的 opening。'
@@ -1157,6 +1202,15 @@ export function evaluateProactivePolicy(input: {
       return '先让 perception 主导的观察链再多跑一轮，等 dialogue 或 control 升温后再决定。'
     if (input.runtimeDigest && runtimeObservationHeavy)
       return '先让 active-perception 主导的观察链再多跑一轮，等 active-dialogue 或 active-control 升温后再决定。'
+    if (continuityHoldForLater) {
+      if (continuityDeliberation?.preferredTiming === 'after-payoff')
+        return '先让当前 payoff 先落地，再决定要不要轻轻把这条连续性提出来。'
+      if (continuityDeliberation?.preferredTiming === 'next-open-window')
+        return '先等下一个更自然的 opening，再决定要不要把这条连续性带出来。'
+      if (continuityDeliberation?.kind === 'execution-callback')
+        return '先让执行结果或当前主回答自己落地，不要让 callback 抢在前面开口。'
+      return '先让这条连续性继续留在内在层，等时机更松再重新判断。'
+    }
     if (governorWithholdActive) {
       if (thoughtThread?.reopenWhen[0])
         return `先等「${thoughtThread.reopenWhen[0]}」这样的开口条件出现，再决定要不要靠近。`

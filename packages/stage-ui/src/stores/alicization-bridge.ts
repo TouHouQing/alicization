@@ -33,9 +33,18 @@ import type {
   AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
+  AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
+  AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
+  AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
+  AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
+  AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
+  AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
+  AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
+  AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
@@ -173,10 +182,54 @@ export interface AlicizationMemoryStats {
     warm: number
     cold: number
   }
+  surfaceCounts?: {
+    facts: number
+    episodic: number
+    consolidations: number
+  }
+  surfaceTierCounts?: {
+    facts: {
+      hot: number
+      warm: number
+      cold: number
+    }
+    episodic: {
+      hot: number
+      warm: number
+      cold: number
+    }
+    consolidations: {
+      hot: number
+      warm: number
+      cold: number
+    }
+  }
   pendingSyncCount?: number
+  ingestHealth?: {
+    status: 'healthy' | 'backlog' | 'degraded'
+    pendingCount: number
+    failedCount: number
+    oldestPendingAgeMs: number | null
+    nextRetryAt: number | null
+    lastError: string | null
+  }
   integrity?: {
     status: 'ok' | 'degraded'
     issues: string[]
+  }
+  writeHealth?: {
+    backlogCount: number
+    retryOldestAgeMs: number | null
+    nextRetryAt: number | null
+    blocked: boolean
+    lastError: string | null
+  }
+  retrievalHealth?: {
+    semanticLatencyMs: number | null
+    graphLatencyMs: number | null
+    reconstructionFrequency: number
+    reconstructedCount: number
+    templateLeakageFailCount: number
   }
   lastPrunedAt: number | null
 }
@@ -339,8 +392,17 @@ export interface AlicizationConversationTurnInput {
 export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
 
 export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
+export type AlicizationMemoryDecisionTraceRecord = SharedAlicizationMemoryDecisionTraceRecord
+export type AlicizationReplayBenchmarkPackId = SharedAlicizationReplayBenchmarkPackId
+export type AlicizationReplayMemoryQualityRecord = SharedAlicizationReplayMemoryQualityRecord
+export type AlicizationReplayBenchmarkStandardsRecord = SharedAlicizationReplayBenchmarkStandardsRecord
+export type AlicizationReplayBenchmarkGateReport = SharedAlicizationReplayBenchmarkGateReport
+export type AlicizationReplayBenchmarkTelemetryPatch = SharedAlicizationReplayBenchmarkTelemetryPatch
 
 export interface AlicizationListMindTurnEventsPayload extends SharedAlicizationListMindTurnEventsInput {}
+export interface AlicizationListMemoryDecisionTracesPayload extends SharedAlicizationListMemoryDecisionTracesInput {}
+export interface AlicizationRunReplayBenchmarkPayload extends SharedAlicizationRunReplayBenchmarkInput {}
+export interface AlicizationRunReplayBenchmarkResult extends SharedAlicizationRunReplayBenchmarkResult {}
 
 export type AlicizationExecutionChannel = SharedAlicizationExecutionChannel
 
@@ -1911,6 +1973,8 @@ interface AlicizationBridge {
   setPerformanceManifest?: (payload: CharacterPerformanceCapabilitiesManifest | null) => Promise<void>
   appendConversationTurn: (payload: AlicizationConversationTurnInput) => Promise<void>
   listMindTurnEvents?: (payload: AlicizationListMindTurnEventsPayload) => Promise<AlicizationMindTurnEventRecord[]>
+  listMemoryDecisionTraces?: (payload: AlicizationListMemoryDecisionTracesPayload) => Promise<AlicizationMemoryDecisionTraceRecord[]>
+  runReplayBenchmark?: (payload: AlicizationRunReplayBenchmarkPayload) => Promise<AlicizationRunReplayBenchmarkResult>
   upsertTaskThread?: (payload: AlicizationUpsertTaskThreadPayload) => Promise<AlicizationTaskThreadRecord>
   listTaskThreads?: (payload: AlicizationListTaskThreadsPayload) => Promise<AlicizationTaskThreadRecord[]>
   upsertChannelCapabilityManifest?: (payload: AlicizationUpsertChannelCapabilityManifestPayload) => Promise<AlicizationChannelCapabilityManifestRecord>

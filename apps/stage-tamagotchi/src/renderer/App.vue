@@ -75,7 +75,9 @@ import {
   electronAlicizationListConversationTurns,
   electronAlicizationListExecutionEvents,
   electronAlicizationListExecutorSessions,
+  electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationListTaskThreads,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
@@ -171,6 +173,8 @@ const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicization
 const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
 const alicizationListMindTurnEvents = useElectronEventaInvoke(electronAlicizationListMindTurnEvents)
+const alicizationListMemoryDecisionTraces = useElectronEventaInvoke(electronAlicizationListMemoryDecisionTraces)
+const alicizationRunReplayBenchmark = useElectronEventaInvoke(electronAlicizationRunReplayBenchmark)
 const alicizationUpsertTaskThread = useElectronEventaInvoke(electronAlicizationUpsertTaskThread)
 const alicizationListTaskThreads = useElectronEventaInvoke(electronAlicizationListTaskThreads)
 const alicizationUpsertChannelCapabilityManifest = useElectronEventaInvoke(electronAlicizationUpsertChannelCapabilityManifest)
@@ -956,6 +960,8 @@ setAlicizationBridge({
   setPerformanceManifest: async manifest => await alicizationSetPerformanceManifest({ ...resolveAlicizationScope(), manifest }),
   appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
   listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
+  listMemoryDecisionTraces: async payload => await alicizationListMemoryDecisionTraces({ ...resolveAlicizationScope(), ...payload }),
+  runReplayBenchmark: async payload => await alicizationRunReplayBenchmark({ ...resolveAlicizationScope(), ...payload }),
   upsertTaskThread: async payload => await alicizationUpsertTaskThread({ ...resolveAlicizationScope(), ...payload }),
   listTaskThreads: async payload => await alicizationListTaskThreads({ ...resolveAlicizationScope(), ...payload }),
   upsertChannelCapabilityManifest: async payload => await alicizationUpsertChannelCapabilityManifest({ ...resolveAlicizationScope(), ...payload }),

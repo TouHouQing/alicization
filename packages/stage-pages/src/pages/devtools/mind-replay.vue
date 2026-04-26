@@ -7,11 +7,18 @@ import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import MindReplayBenchmarkReport from './components/mind-replay-benchmark-report.vue'
+import MindReplayMemoryTraceCard from './components/mind-replay-memory-trace-card.vue'
+
 const store = useAlicizationMindReplayStore()
 const { t, te } = useI18n()
 const {
   events,
+  traceRecords,
   loading,
+  benchmarkLoading,
+  benchmarkSupported,
+  benchmarkReport,
   lastError,
   replayCoverage,
   replaySummary,
@@ -31,6 +38,13 @@ const normalizedLimit = computed(() => {
 })
 
 const hasEvents = computed(() => events.value.length > 0)
+const hasTraceRecords = computed(() => traceRecords.value.length > 0)
+const traceCountText = computed(() => {
+  const key = `${i18nPageKey}.trace_lab.count`
+  if (te(key))
+    return String(t(key, { count: traceRecords.value.length }))
+  return `${traceRecords.value.length} traces`
+})
 const summaryNotAvailableText = computed(() => tMind('summary.not_available', 'n/a'))
 const optionalLabelDialogueEmitted = computed(() => tMind('optional.dialogue_emitted', 'dialogue-emitted'))
 const optionalLabelTakeoverAudit = computed(() => tMind('optional.takeover_audit', 'takeover-audit'))
@@ -197,6 +211,14 @@ function clearAll() {
   decisionTraceId.value = ''
   turnId.value = ''
   store.clearReplay()
+  store.clearBenchmarkReport()
+}
+
+async function runBenchmark() {
+  await store.runReplayBenchmark({
+    packId: 'default-humanlike-memory-v1',
+    persistTelemetry: true,
+  })
 }
 </script>
 
@@ -283,6 +305,32 @@ function clearAll() {
         'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
       ]"
     >
+      <div :class="['mb-3', 'flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+        <div :class="['text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
+          {{ tMind('benchmark.section_title', 'Replay Benchmark') }}
+        </div>
+        <Button
+          :label="tMind('benchmark.run', 'Run Default Benchmark')"
+          icon="i-solar:play-circle-bold-duotone"
+          size="sm"
+          :disabled="benchmarkLoading || !benchmarkSupported"
+          @click="runBenchmark"
+        />
+      </div>
+      <MindReplayBenchmarkReport
+        :report="benchmarkReport"
+        :loading="benchmarkLoading"
+        :supported="benchmarkSupported"
+      />
+    </section>
+
+    <section
+      :class="[
+        'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+        'bg-white/70', 'p-4',
+        'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+      ]"
+    >
       <div :class="['mb-3', 'flex', 'flex-wrap', 'items-center', 'gap-2']">
         <span
           :class="[
@@ -355,6 +403,67 @@ function clearAll() {
             {{ row.value }}
           </div>
         </div>
+      </div>
+    </section>
+
+    <section
+      :class="[
+        'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+        'bg-white/70', 'p-4',
+        'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+      ]"
+    >
+      <div :class="['mb-3', 'flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+        <div>
+          <div :class="['text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tMind('trace_lab.title', 'Structured Memory Trace Lab') }}
+          </div>
+          <div :class="['mt-1', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tMind('trace_lab.description', 'Inspect intent, search trace, retrieval bundles, deliberation, surface controls, runtime carry, and final prompt-side authority.') }}
+          </div>
+        </div>
+        <span
+          :class="[
+            'rounded-full', 'border', 'border-solid',
+            'border-cyan-300', 'px-2.5', 'py-1',
+            'text-xs', 'font-medium', 'text-cyan-700',
+            'dark:border-cyan-800/80', 'dark:text-cyan-200',
+          ]"
+        >
+          {{ traceCountText }}
+        </span>
+      </div>
+
+      <div
+        v-if="loading"
+        :class="[
+          'rounded-xl', 'border', 'border-dashed', 'border-neutral-300/80',
+          'px-4', 'py-6', 'text-sm', 'text-neutral-500',
+          'dark:border-neutral-700/70', 'dark:text-neutral-400',
+        ]"
+      >
+        {{ tMind('trace_lab.loading', 'Loading structured memory traces...') }}
+      </div>
+      <div
+        v-else-if="!hasTraceRecords"
+        :class="[
+          'rounded-xl', 'border', 'border-dashed', 'border-neutral-300/80',
+          'px-4', 'py-6', 'text-sm', 'text-neutral-500',
+          'dark:border-neutral-700/70', 'dark:text-neutral-400',
+        ]"
+      >
+        {{ tMind('trace_lab.empty', 'No structured memory decision traces for the current query.') }}
+      </div>
+      <div
+        v-else
+        :class="['flex', 'flex-col', 'gap-3']"
+      >
+        <MindReplayMemoryTraceCard
+          v-for="(trace, index) in traceRecords"
+          :key="trace.decisionTraceId"
+          :trace="trace"
+          :index="index"
+        />
       </div>
     </section>
 

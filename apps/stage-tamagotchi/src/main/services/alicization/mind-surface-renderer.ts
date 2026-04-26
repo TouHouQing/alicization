@@ -2126,7 +2126,7 @@ function renderExecutionDetailMove(move: AlicizationMindSurfaceExecutionDetailMo
         return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'completed', detail, summary, channelLabel), [
           detail ? `这件事已经确认落稳了：${detail}。` : '这件事已经确认落稳了。',
           detail ? `这件事已经落到结果上了：${detail}。` : '这件事已经落到结果上了。',
-          detail ? `这件事这会儿已经收束成结果了：${detail}。` : '这件事这会儿已经收束成结果了。',
+          detail ? `这件事这会儿已经收束落稳了：${detail}。` : '这件事这会儿已经收束落稳了。',
         ]))
       case 'running':
         return createMindSurfaceReplyPart('fact', pickVariant(buildVariantSeed(seed, 'execution-detail', 'running', channelLabel), [

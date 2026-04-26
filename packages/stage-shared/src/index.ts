@@ -1,5 +1,6 @@
 export * from './alicization-defaults'
 export * from './alicization-dialogue-embodiment'
+export * from './alicization-memory-decision-trace'
 export * from './alicization-dialogue-memory-carry'
 export * from './alicization-dialogue-speech-timeline'
 export * from './alicization-digital-life'

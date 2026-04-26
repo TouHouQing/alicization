@@ -162,6 +162,19 @@ const memoryArchive = new Map<string, {
   access_count: number
   archived_at: number
 }>()
+const memoryIngestJournal = new Map<string, {
+  id: string
+  operation_kind: 'upsert-memory-facts' | 'append-episodic-events' | 'upsert-memory-consolidations'
+  payload_json: string
+  status: 'pending' | 'applied' | 'failed'
+  attempt_count: number
+  last_error: string | null
+  created_at: number
+  updated_at: number
+  last_attempt_at: number | null
+  applied_at: number | null
+  next_attempt_at: number | null
+}>()
 const testDayMs = 24 * 60 * 60 * 1000
 const sandboxDirs: string[] = []
 
@@ -266,6 +279,55 @@ class FakeSqliteDatabase {
         access_count: accessCount,
         archived_at: archivedAt,
       })
+    }
+
+    if (sql.includes('INSERT INTO memory_ingest_journal')) {
+      const [id, operationKind, payloadJson, createdAt, updatedAt, nextAttemptAt]
+        = actualParams as [string, 'upsert-memory-facts' | 'append-episodic-events' | 'upsert-memory-consolidations', string, number, number, number]
+      memoryIngestJournal.set(id, {
+        id,
+        operation_kind: operationKind,
+        payload_json: payloadJson,
+        status: 'pending',
+        attempt_count: 0,
+        last_error: null,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        last_attempt_at: null,
+        applied_at: null,
+        next_attempt_at: nextAttemptAt,
+      })
+    }
+    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes("status = 'applied'")) {
+      const [updatedAt, lastAttemptAt, appliedAt, id] = actualParams as [number, number, number, string]
+      const row = memoryIngestJournal.get(id)
+      if (!row) {
+        changes = 0
+      }
+      else {
+        row.status = 'applied'
+        row.attempt_count += 1
+        row.last_error = null
+        row.updated_at = updatedAt
+        row.last_attempt_at = lastAttemptAt
+        row.applied_at = appliedAt
+        row.next_attempt_at = null
+      }
+    }
+    else if (sql.includes('UPDATE memory_ingest_journal') && sql.includes("status = 'failed'")) {
+      const [lastError, updatedAt, lastAttemptAt, nextAttemptAt, id] = actualParams as [string, number, number, number, string]
+      const row = memoryIngestJournal.get(id)
+      if (!row) {
+        changes = 0
+      }
+      else {
+        row.status = 'failed'
+        row.attempt_count += 1
+        row.last_error = lastError
+        row.updated_at = updatedAt
+        row.last_attempt_at = lastAttemptAt
+        row.next_attempt_at = nextAttemptAt
+      }
     }
 
     if (sql.includes('INSERT INTO mind_turn_events')) {
@@ -659,6 +721,13 @@ class FakeSqliteDatabase {
       return this
     }
 
+    if (sql.includes('COUNT(1) AS total') && sql.includes('FROM memory_ingest_journal')) {
+      actualCallback?.(null, {
+        total: [...memoryIngestJournal.values()].filter(item => item.status === 'pending' || item.status === 'failed').length,
+      })
+      return this
+    }
+
     if (sql.includes('FROM task_threads') && sql.includes('WHERE id = ?')) {
       const id = String(actualParams[0] ?? '')
       actualCallback?.(null, id ? taskThreads.get(id) : undefined)
@@ -687,6 +756,21 @@ class FakeSqliteDatabase {
     const actualCallback = (typeof _params === 'function' ? _params : callback) as ((error: Error | null, rows?: unknown[]) => void) | undefined
     if (_sql.includes('FROM memory_archive')) {
       actualCallback?.(null, [...memoryArchive.values()])
+      return this
+    }
+    if (_sql.includes('FROM memory_ingest_journal')) {
+      const rows = [...memoryIngestJournal.values()]
+        .filter(item => item.status === 'pending' || item.status === 'failed')
+        .filter(item => {
+          if (_sql.includes('COALESCE(next_attempt_at, created_at) <= ?')) {
+            const dueAt = Number(actualParams[0] ?? 0)
+            return (item.next_attempt_at ?? item.created_at) <= dueAt
+          }
+          return true
+        })
+        .sort((a, b) => a.created_at - b.created_at)
+        .slice(0, Number(actualParams.at(-1) ?? 256))
+      actualCallback?.(null, rows)
       return this
     }
     if (_sql.includes('FROM memory_facts')) {
@@ -960,6 +1044,7 @@ describe('alicization sqlite dao', () => {
     memoryConsolidations.clear()
     memoryFacts.clear()
     memoryArchive.clear()
+    memoryIngestJournal.clear()
     executorSessions.clear()
     capabilityManifests.clear()
     while (sandboxDirs.length > 0) {
@@ -1319,6 +1404,230 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('uses semantic and graph-walk retrieval to recall adjacent seam experience even when the wording changes', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-seam-direct',
+        cardId: 'card-1',
+        turnId: 'turn-seam-direct',
+        sessionId: 'session-runtime',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+        whereSummary: 'terminal diff lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We kept returning to the same runtime seam until it held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'The fix line stayed coherent.',
+        relationshipMeaning: 'Return to the same seam before branching.',
+        lesson: 'Return to the same seam before branching.',
+        sourceSummary: 'runtime seam repair',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.7,
+        consolidationPriority: 0.8,
+        tags: ['runtime seam', 'repair rhythm'],
+      },
+      {
+        id: 'episode-seam-adjacent',
+        cardId: 'card-1',
+        turnId: 'turn-seam-adjacent',
+        sessionId: 'session-runtime',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: Date.UTC(2026, 3, 20, 9, 0, 0),
+        whereSummary: 'handoff lane',
+        withWhom: ['host'],
+        threadAnchor: 'handoff carry',
+        whatHappened: 'That later handoff only worked because we returned before branching.',
+        felt: 'steady',
+        emotionTags: ['focused'],
+        whatChanged: 'The line stayed coherent across the handoff.',
+        relationshipMeaning: 'Carry the same line before opening a new branch.',
+        lesson: 'Return before branching when reconnecting the task line.',
+        sourceSummary: 'runtime seam handoff',
+        confidence: 0.76,
+        salience: 0.74,
+        sceneAttachment: 0.48,
+        consolidationPriority: 0.72,
+        derivedFrom: [{ kind: 'episodic-event', id: 'episode-seam-direct' }],
+        tags: ['return before branching', 'handoff'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: '继续把那条断掉的线接回去',
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['return before branching', 'runtime seam'],
+        rationale: 'The host is asking to reconnect the same task line.',
+        confidence: 0.82,
+      },
+      limit: 2,
+    })
+
+    expect(rows.map(row => row.id)).toContain('episode-seam-direct')
+    expect(rows.map(row => row.id)).toContain('episode-seam-adjacent')
+    await db.close()
+  })
+
+  it('keeps a 180d-old cold seam reachable when semantic and experience-matched cues still line up', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-180d-seam',
+        cardId: 'card-1',
+        turnId: 'turn-180d-seam',
+        sessionId: 'session-180d',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: nowTs - 180 * testDayMs,
+        whereSummary: 'old runtime lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We returned to the same runtime seam until the broken line finally held together.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'The old line stabilized once we rejoined it before branching.',
+        relationshipMeaning: 'Return to the same seam before branching.',
+        lesson: 'Reconnect the same seam before opening a new branch.',
+        sourceSummary: 'old runtime seam repair',
+        confidence: 0.58,
+        salience: 0.34,
+        sceneAttachment: 0.18,
+        consolidationPriority: 0.28,
+        tags: ['runtime seam', 'return before branching'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: '把那条很久以前断掉的线重新接回去',
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'distant',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['return before branching', 'runtime seam'],
+        rationale: 'A very old but semantically matching seam should still be reachable.',
+        confidence: 0.82,
+      },
+      limit: 2,
+    })
+
+    expect(rows.map(row => row.id)).toContain('episode-180d-seam')
+    expect(rows[0]?.memoryTier).toBe('cold')
+    await db.close()
+  })
+
+  it('keeps the dominant seam retrievable inside a high-volume similar task cluster', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const clutter = Array.from({ length: 30 }, (_, index) => ({
+      id: `episode-clutter-${index}`,
+      cardId: 'card-1',
+      turnId: `turn-clutter-${index}`,
+      sessionId: `session-clutter-${index}`,
+      sourceKind: 'execution-result' as const,
+      provenance: 'remembered' as const,
+      occurredAt: nowTs - (index + 1) * 60_000,
+      whereSummary: 'general maintenance lane',
+      withWhom: ['host'],
+      threadAnchor: `cleanup lane ${index}`,
+      whatHappened: `A nearby cleanup task landed cleanly in lane ${index}.`,
+      felt: 'steady',
+      emotionTags: ['steady'],
+      whatChanged: 'The cleanup line closed.',
+      relationshipMeaning: 'Keep the cleanup line bounded.',
+      lesson: 'Finish cleanup before switching context.',
+      sourceSummary: 'cleanup result',
+      confidence: 0.72,
+      salience: 0.54,
+      sceneAttachment: 0.2,
+      consolidationPriority: 0.42,
+      tags: ['cleanup', 'maintenance'],
+    }))
+    await db.appendEpisodicEvents([
+      ...clutter,
+      {
+        id: 'episode-cluster-dominant',
+        cardId: 'card-1',
+        turnId: 'turn-cluster-dominant',
+        sessionId: 'session-runtime-cluster',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: nowTs - 15 * 60_000,
+        whereSummary: 'runtime continuity lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity seam',
+        whatHappened: 'We kept returning to the runtime continuity seam until the line held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'The continuity line stayed coherent.',
+        relationshipMeaning: 'Carry the same seam before branching.',
+        lesson: 'Return before branching when the continuity line reopens.',
+        sourceSummary: 'runtime continuity repair',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.66,
+        consolidationPriority: 0.8,
+        tags: ['runtime continuity', 'return before branching'],
+      },
+      {
+        id: 'episode-cluster-adjacent',
+        cardId: 'card-1',
+        turnId: 'turn-cluster-adjacent',
+        sessionId: 'session-runtime-cluster',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: nowTs - 14 * 60_000,
+        whereSummary: 'handoff lane',
+        withWhom: ['host'],
+        threadAnchor: 'handoff continuity',
+        whatHappened: 'The later handoff only worked because we returned before branching.',
+        felt: 'steady',
+        emotionTags: ['focused'],
+        whatChanged: 'The handoff inherited the same seam logic.',
+        relationshipMeaning: 'Rejoin the same line before opening a new branch.',
+        lesson: 'Return before branching when reconnecting the task line.',
+        sourceSummary: 'continuity handoff',
+        confidence: 0.76,
+        salience: 0.72,
+        sceneAttachment: 0.4,
+        consolidationPriority: 0.7,
+        derivedFrom: [{ kind: 'episodic-event', id: 'episode-cluster-dominant' }],
+        tags: ['return before branching', 'handoff'],
+      },
+    ])
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: '继续按以前那种把线接回去的方式处理',
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime continuity', 'return before branching'],
+        rationale: 'The dominant continuity seam should win even in a noisy cluster.',
+        confidence: 0.84,
+      },
+      limit: 3,
+    })
+
+    expect(rows[0]?.id).toBe('episode-cluster-dominant')
+    expect(rows.map(row => row.id)).toContain('episode-cluster-adjacent')
+    await db.close()
+  })
+
   it('rebuilds and retrieves consolidated memory summaries from episodic events', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     await db.appendEpisodicEvents([
@@ -1541,6 +1850,343 @@ describe('alicization sqlite dao', () => {
     const recalled = await db.retrieveMemoryFacts('same seam', 5)
 
     expect(recalled.some(item => item.id === 'memory-cold-seam')).toBe(true)
+
+    await db.close()
+  })
+
+  it('reports tiered surface counts across facts, episodic memories, and consolidations', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.importLegacyMemory({
+      facts: [
+        {
+          id: 'memory-hot-runtime',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'The recent runtime seam patch is still familiar.',
+          confidence: 0.86,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|recent-runtime-seam',
+          createdAt: nowTs - testDayMs,
+          updatedAt: nowTs - testDayMs,
+          lastAccessAt: nowTs - 6 * 60 * 60 * 1000,
+          accessCount: 4,
+          provenance: 'remembered',
+        },
+      ],
+      archive: [],
+      lastPrunedAt: null,
+    })
+
+    await db.appendEpisodicEvents([{
+      cardId: 'default',
+      sourceKind: 'execution-result',
+      provenance: 'remembered',
+      occurredAt: nowTs - 2 * 60 * 60 * 1000,
+      threadAnchor: 'runtime seam',
+      whatHappened: 'We kept returning to the same runtime seam until it held.',
+      confidence: 0.84,
+      salience: 0.82,
+      sceneAttachment: 0.7,
+      consolidationPriority: 0.8,
+      lesson: 'Return to the seam before branching.',
+      relationshipMeaning: 'Stay on the same seam before branching.',
+      tags: ['runtime seam', 'repair rhythm'],
+    }])
+
+    const stats = await db.getMemoryStats()
+
+    expect(stats.surfaceCounts).toEqual(expect.objectContaining({
+      facts: 1,
+      episodic: 1,
+    }))
+    expect((stats.surfaceCounts?.consolidations ?? 0)).toBeGreaterThan(0)
+    expect(stats.surfaceTierCounts?.facts.hot).toBe(1)
+    expect((stats.surfaceTierCounts?.episodic.hot ?? 0) + (stats.surfaceTierCounts?.episodic.warm ?? 0)).toBeGreaterThan(0)
+    expect((stats.surfaceTierCounts?.consolidations.hot ?? 0) + (stats.surfaceTierCounts?.consolidations.warm ?? 0)).toBeGreaterThan(0)
+    expect((stats.tierCounts?.hot ?? 0) + (stats.tierCounts?.warm ?? 0) + (stats.tierCounts?.cold ?? 0)).toBe(stats.total)
+
+    await db.close()
+  })
+
+  it('drains pending memory ingest journal entries on startup so durable writes replay into active memory', async () => {
+    const nowTs = Date.now()
+    memoryIngestJournal.set('journal-fact-1', {
+      id: 'journal-fact-1',
+      operation_kind: 'upsert-memory-facts',
+      payload_json: JSON.stringify({
+        kind: 'upsert-memory-facts',
+        facts: [{
+          id: 'fact-from-journal',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'A durable ingest journal can replay this memory fact on startup.',
+          confidence: 0.78,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|durable-journal-replay',
+          createdAt: nowTs - 1_000,
+          updatedAt: nowTs - 1_000,
+        }],
+      }),
+      status: 'pending',
+      attempt_count: 0,
+      last_error: null,
+      created_at: nowTs - 500,
+      updated_at: nowTs - 500,
+      last_attempt_at: null,
+      applied_at: null,
+      next_attempt_at: nowTs - 500,
+    })
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const recalled = await db.retrieveMemoryFacts('durable journal replay', 4)
+    const stats = await db.getMemoryStats()
+
+    expect(recalled[0]?.object).toContain('durable ingest journal')
+    expect(memoryIngestJournal.get('journal-fact-1')?.status).toBe('applied')
+    expect(stats.pendingSyncCount).toBe(0)
+
+    await db.close()
+  })
+
+  it('keeps failed ingest journal entries visible in pendingSyncCount instead of silently losing them', async () => {
+    const nowTs = Date.now()
+    memoryIngestJournal.set('journal-invalid-1', {
+      id: 'journal-invalid-1',
+      operation_kind: 'upsert-memory-facts',
+      payload_json: '{"kind":"upsert-memory-facts","facts":"invalid"}',
+      status: 'pending',
+      attempt_count: 0,
+      last_error: null,
+      created_at: nowTs - 500,
+      updated_at: nowTs - 500,
+      last_attempt_at: null,
+      applied_at: null,
+      next_attempt_at: nowTs - 500,
+    })
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const stats = await db.getMemoryStats()
+
+    expect(memoryIngestJournal.get('journal-invalid-1')?.status).toBe('failed')
+    expect(memoryIngestJournal.get('journal-invalid-1')?.attempt_count).toBe(1)
+    expect(memoryIngestJournal.get('journal-invalid-1')?.last_error).toContain('invalid memory ingest payload')
+    expect(stats.pendingSyncCount).toBe(1)
+    expect(stats.ingestHealth).toEqual(expect.objectContaining({
+      status: 'degraded',
+      pendingCount: 0,
+      failedCount: 1,
+      nextRetryAt: expect.any(Number),
+      lastError: expect.stringContaining('invalid memory ingest payload'),
+    }))
+
+    await db.close()
+  })
+
+  it('keeps older retrieval healthy while ingest is partially degraded and delayed reconstruction remains reachable', async () => {
+    const nowTs = Date.now()
+    memoryIngestJournal.set('journal-invalid-visible', {
+      id: 'journal-invalid-visible',
+      operation_kind: 'upsert-memory-facts',
+      payload_json: '{"kind":"upsert-memory-facts","facts":"invalid"}',
+      status: 'failed',
+      attempt_count: 1,
+      last_error: 'temporary write outage',
+      created_at: nowTs - 10_000,
+      updated_at: nowTs - 5_000,
+      last_attempt_at: nowTs - 5_000,
+      applied_at: null,
+      next_attempt_at: nowTs + 60_000,
+    })
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-reconstructed-old',
+        cardId: 'card-1',
+        turnId: 'turn-reconstructed-old',
+        sessionId: 'session-old',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: nowTs - 90 * testDayMs,
+        whereSummary: 'old continuity lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'We kept returning to the runtime continuity seam until it held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'The old line stabilized once we stopped branching early.',
+        relationshipMeaning: 'Return before branching.',
+        lesson: 'Return before branching on this same line.',
+        sourceSummary: 'old continuity repair',
+        confidence: 0.8,
+        salience: 0.76,
+        sceneAttachment: 0.44,
+        consolidationPriority: 0.72,
+        tags: ['runtime continuity', 'return before branching'],
+      },
+      {
+        id: 'episode-reconstructed-conflict',
+        cardId: 'card-1',
+        turnId: 'turn-reconstructed-conflict',
+        sessionId: 'session-old-2',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: nowTs - 89 * testDayMs,
+        whereSummary: 'old continuity lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'The runtime continuity callback may have been mixed with another old seam.',
+        felt: 'uncertain',
+        emotionTags: ['repair'],
+        whatChanged: 'Only the stable core of the line still feels safe.',
+        relationshipMeaning: 'Keep the stable core and drop unsafe detail.',
+        lesson: 'Answer this memory with uncertainty.',
+        sourceSummary: 'old continuity conflict',
+        confidence: 0.68,
+        salience: 0.72,
+        sceneAttachment: 0.38,
+        consolidationPriority: 0.7,
+        tags: ['runtime continuity', 'old seam'],
+      },
+    ])
+
+    await db.searchEpisodicEvents({
+      recallSeed: 'runtime continuity callback',
+      threadAnchors: ['runtime continuity'],
+      carryAsMemory: true,
+      reconsolidationDecisionTraceId: 'mind:reconstruct:delayed',
+      limit: 1,
+    })
+
+    const rows = await db.searchEpisodicEvents({
+      recallSeed: '继续按以前那种 continuity 线的方式接回去',
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'distant',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime continuity', 'return before branching'],
+        rationale: 'Delayed reconstructed continuity should still be reachable while ingest is degraded.',
+        confidence: 0.8,
+      },
+      limit: 2,
+    })
+    const stats = await db.getMemoryStats()
+
+    expect(rows.some(row => row.latestReconsolidation?.decisionTraceId === 'mind:reconstruct:delayed')).toBe(true)
+    expect(stats.ingestHealth).toEqual(expect.objectContaining({
+      status: 'degraded',
+      failedCount: 1,
+    }))
+    expect(stats.writeHealth).toEqual(expect.objectContaining({
+      backlogCount: 1,
+      blocked: true,
+      lastError: 'temporary write outage',
+    }))
+    expect(stats.retrievalHealth).toEqual(expect.objectContaining({
+      graphLatencyMs: expect.any(Number),
+      reconstructedCount: expect.any(Number),
+    }))
+    expect((stats.retrievalHealth?.reconstructionFrequency ?? 0)).toBeGreaterThan(0)
+
+    await db.close()
+  })
+
+  it('does not immediately replay failed ingest entries before their backoff window expires', async () => {
+    const nowTs = Date.now()
+    memoryIngestJournal.set('journal-failed-future', {
+      id: 'journal-failed-future',
+      operation_kind: 'upsert-memory-facts',
+      payload_json: JSON.stringify({
+        kind: 'upsert-memory-facts',
+        facts: [{
+          id: 'fact-failed-future',
+          subject: 'alice',
+          predicate: 'remembers',
+          object: 'A failed ingest should wait for backoff before retrying.',
+          confidence: 0.6,
+          source: 'async-llm',
+          dedupeKey: 'alice|remembers|failed-backoff-fact',
+          createdAt: nowTs - 10_000,
+          updatedAt: nowTs - 10_000,
+        }],
+      }),
+      status: 'failed',
+      attempt_count: 2,
+      last_error: 'temporary write outage',
+      created_at: nowTs - 20_000,
+      updated_at: nowTs - 15_000,
+      last_attempt_at: nowTs - 5_000,
+      applied_at: null,
+      next_attempt_at: nowTs + 60_000,
+    })
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const recalled = await db.retrieveMemoryFacts('failed backoff fact', 4)
+    const stats = await db.getMemoryStats()
+
+    expect(recalled).toEqual([])
+    expect(memoryIngestJournal.get('journal-failed-future')?.status).toBe('failed')
+    expect(memoryIngestJournal.get('journal-failed-future')?.attempt_count).toBe(2)
+    expect(stats.pendingSyncCount).toBe(1)
+    expect(stats.ingestHealth).toEqual(expect.objectContaining({
+      status: 'degraded',
+      failedCount: 1,
+      nextRetryAt: nowTs + 60_000,
+    }))
+
+    await db.close()
+  })
+
+  it('tracks semantic retrieval latency and persists template leakage telemetry through memory stats override', async () => {
+    const nowTs = Date.now()
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.importLegacyMemory({
+      facts: [
+        {
+          id: 'memory-telemetry-fact-1',
+          subject: 'alice',
+          predicate: 'likes',
+          object: 'oolong tea',
+          confidence: 0.88,
+          source: 'async-llm',
+          dedupeKey: 'alice|likes|oolong tea',
+          createdAt: nowTs - testDayMs,
+          updatedAt: nowTs - testDayMs,
+          lastAccessAt: nowTs - 2 * 60 * 60 * 1000,
+          accessCount: 2,
+          provenance: 'remembered',
+        },
+      ],
+      archive: [],
+      lastPrunedAt: null,
+    })
+
+    await db.retrieveMemoryFacts('oolong tea', 5)
+    const beforeOverride = await db.getMemoryStats()
+    expect(beforeOverride.retrievalHealth).toEqual(expect.objectContaining({
+      semanticLatencyMs: expect.any(Number),
+      templateLeakageFailCount: 0,
+    }))
+
+    await db.overrideMemoryStats({
+      ...beforeOverride,
+      retrievalHealth: {
+        semanticLatencyMs: beforeOverride.retrievalHealth?.semanticLatencyMs ?? null,
+        graphLatencyMs: beforeOverride.retrievalHealth?.graphLatencyMs ?? null,
+        reconstructionFrequency: beforeOverride.retrievalHealth?.reconstructionFrequency ?? 0,
+        reconstructedCount: beforeOverride.retrievalHealth?.reconstructedCount ?? 0,
+        templateLeakageFailCount: 3,
+      },
+    })
+    const afterOverride = await db.getMemoryStats()
+
+    expect(afterOverride.retrievalHealth).toEqual(expect.objectContaining({
+      semanticLatencyMs: expect.any(Number),
+      templateLeakageFailCount: 3,
+    }))
 
     await db.close()
   })

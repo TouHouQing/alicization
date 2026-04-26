@@ -3,6 +3,10 @@ import type {
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
   AlicizationDialogueRespondedPayload,
+  AlicizationRunReplayBenchmarkPayload,
+  AlicizationRunReplayBenchmarkResult,
+  AlicizationListMemoryDecisionTracesPayload,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
   AlicizationMindTurnEventRecord,
   AlicizationProactiveFeedbackKind,
@@ -18,16 +22,25 @@ import type {
   PendingDialogueDeliveryState,
 } from './runtime-soul'
 
+import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
+
 import {
   electronAlicizationAckDialogue,
   electronAlicizationAppendConversationTurn,
   electronAlicizationClearAllConversations,
   electronAlicizationListConversationTurns,
+  electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationRunReplayBenchmark,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationSetActiveSession,
 } from '../../../shared/eventa'
+import {
+  benchmarkMainChatSessionReplay,
+  buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildReplayBenchmarkMemoryStatsPatch,
+} from './main-chat-session-replay-harness'
 
 interface ReplayConversationTurnRow {
   turnId: string | null
@@ -83,12 +96,14 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       sinceCreatedAt?: number
       limit?: number
     }) => Promise<ReplayConversationTurnRow[]>
+    getMemoryStats: () => Promise<any>
     listMindTurnEvents: (options: {
       decisionTraceId?: string
       turnId?: string
       activeThreadId?: string
       limit?: number
     }) => Promise<AlicizationMindTurnEventRecord[]>
+    overrideMemoryStats: (next: any) => Promise<any>
   }
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   toReplayDialogueRespondedPayload: (row: ReplayConversationTurnRow, performanceManifest?: CharacterPerformanceCapabilitiesManifest | null) => AlicizationDialogueRespondedPayload | null
@@ -292,5 +307,61 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       limit: payload.limit,
     })
     return rows as AlicizationMindTurnEventRecord[]
+  }))
+  registerInvokeHandler(electronAlicizationListMemoryDecisionTraces, async (payload: AlicizationListMemoryDecisionTracesPayload) => await withCardScope(payload.cardId, async () => {
+    const rows = await getAlicizationDb().listMindTurnEvents({
+      decisionTraceId: payload.decisionTraceId,
+      turnId: payload.turnId,
+      activeThreadId: payload.activeThreadId,
+      limit: payload.limit ? Math.max(payload.limit * 8, payload.limit) : 400,
+    })
+    return buildAlicizationMemoryDecisionTraceRecords(rows).slice(0, Math.max(1, payload.limit ?? 20)) as AlicizationMemoryDecisionTraceRecord[]
+  }))
+
+  registerInvokeHandler(electronAlicizationRunReplayBenchmark, async (payload: AlicizationRunReplayBenchmarkPayload) => await withCardScope(payload.cardId, async () => {
+    const packId = payload.packId === 'default-humanlike-memory-v1'
+      ? payload.packId
+      : 'default-humanlike-memory-v1'
+    const persistTelemetry = payload.persistTelemetry !== false
+    const benchmarkTurns = buildDefaultHumanlikeMemoryBenchmarkPack()
+    const result = await benchmarkMainChatSessionReplay({
+      turns: benchmarkTurns,
+    })
+    const telemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
+      gate: result.gate,
+    })
+    if (persistTelemetry) {
+      const currentStats = await getAlicizationDb().getMemoryStats()
+      await getAlicizationDb().overrideMemoryStats({
+        ...currentStats,
+        retrievalHealth: {
+          ...currentStats?.retrievalHealth,
+          ...telemetryPatch.retrievalHealth,
+        },
+      })
+      await appendAuditLog({
+        level: result.gate.passed ? 'notice' : 'warning',
+        category: 'alicization.memory-benchmark',
+        action: 'replay-benchmark-ran',
+        message: result.gate.passed
+          ? 'Replay benchmark gate passed for the default humanlike memory pack.'
+          : 'Replay benchmark gate found failing dimensions in the default humanlike memory pack.',
+        payload: {
+          packId,
+          failingKeys: result.gate.failingKeys,
+          telemetryPatch,
+        },
+      })
+    }
+    return {
+      packId,
+      ranAt: Date.now(),
+      turnCount: benchmarkTurns.length,
+      quality: result.quality,
+      standards: result.standards,
+      gate: result.gate,
+      telemetryPatch,
+      telemetryPersisted: persistTelemetry,
+    } satisfies AlicizationRunReplayBenchmarkResult
   }))
 }

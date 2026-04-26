@@ -131,9 +131,49 @@ describe('alicization mind replay store', () => {
         createdAt: 100,
       },
     ])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
+      {
+        decisionTraceId: 'mind:abc123:feedfacebeef',
+        turnId: 'turn-2',
+        sessionId: 'session-2',
+        origin: 'user-turn',
+        activeThreadId: 'thread-2',
+        createdAt: 100,
+        lastUpdatedAt: 220,
+        eventKinds: ['governance-normalized', 'persistence-written'],
+        governance: {
+          turnMode: 'answer',
+          truthState: 'live-grounded',
+          repairState: 'none',
+          answerSubject: 'task-knot',
+          screenReferenceMode: 'avoid',
+          digitalLifeSpine: null,
+        },
+        recallAttribution: {
+          shouldRecall: true,
+          searchTrace: {
+            firstHop: {
+              focus: 'procedure',
+              summary: 'start from the remembered task procedure',
+              targetIds: ['procedure-1'],
+            },
+          },
+        },
+        replyMemoryCoherence: {
+          coherenceState: 'integrated',
+        },
+        persistenceWritten: {
+          format: 'mind-turn-v1',
+        },
+        dialogueEmitted: null,
+        takeoverAudit: null,
+        memoryFactsUpserted: null,
+      },
+    ])
 
     setAlicizationBridge(createAlicizationBridgeStub({
       listMindTurnEvents,
+      listMemoryDecisionTraces,
     }))
 
     const store = useAlicizationMindReplayStore()
@@ -144,8 +184,19 @@ describe('alicization mind replay store', () => {
       turnId: undefined,
       limit: 200,
     })
+    expect(listMemoryDecisionTraces).toBeCalledWith({
+      decisionTraceId: 'mind:abc123:feedfacebeef',
+      turnId: undefined,
+      limit: 200,
+    })
     expect(rows.map(item => item.id)).toEqual(['evt-1', 'evt-2'])
     expect(store.events.map(item => item.id)).toEqual(['evt-1', 'evt-2'])
+    expect(store.traceRecords).toEqual([
+      expect.objectContaining({
+        decisionTraceId: 'mind:abc123:feedfacebeef',
+        activeThreadId: 'thread-2',
+      }),
+    ])
     expect(store.replaySummary.decisionTraceId).toBe('mind:abc123:feedfacebeef')
   })
 
@@ -160,5 +211,120 @@ describe('alicization mind replay store', () => {
     expect(rows).toEqual([])
     expect(store.events).toEqual([])
     expect(store.lastError).toBeNull()
+  })
+
+  it('still hydrates structured trace records when raw mind events are unavailable', async () => {
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
+      {
+        decisionTraceId: 'mind:only-trace:feedfacebeef',
+        turnId: 'turn-3',
+        sessionId: 'session-3',
+        origin: 'user-turn',
+        activeThreadId: 'thread-3',
+        createdAt: 300,
+        lastUpdatedAt: 360,
+        eventKinds: ['governance-normalized', 'recall-attribution', 'reply-memory-coherence'],
+        governance: {
+          turnMode: 'answer',
+          truthState: 'remembered',
+          repairState: 'none',
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+          digitalLifeSpine: null,
+        },
+        recallAttribution: {
+          shouldRecall: true,
+          surfacePolicy: 'relationship-carry',
+        },
+        replyMemoryCoherence: {
+          coherenceState: 'integrated',
+        },
+        persistenceWritten: null,
+        dialogueEmitted: null,
+        takeoverAudit: null,
+        memoryFactsUpserted: null,
+      },
+    ])
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      listMindTurnEvents: undefined,
+      listMemoryDecisionTraces,
+    }))
+
+    const store = useAlicizationMindReplayStore()
+    const rows = await store.queryMemoryDecisionTraces({
+      decisionTraceId: 'mind:only-trace:feedfacebeef',
+      limit: 64,
+    })
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        decisionTraceId: 'mind:only-trace:feedfacebeef',
+        activeThreadId: 'thread-3',
+      }),
+    ])
+    expect(store.events).toEqual([])
+    expect(store.traceRecords).toEqual(rows)
+    expect(store.lastError).toBeNull()
+  })
+
+  it('runs the default replay benchmark when the bridge exposes it', async () => {
+    const runReplayBenchmark = vi.fn().mockResolvedValue({
+      packId: 'default-humanlike-memory-v1',
+      ranAt: 123,
+      turnCount: 11,
+      quality: [],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'pass',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        templateLeakage: 'pass',
+      },
+      gate: {
+        passed: true,
+        failingKeys: [],
+        dimensions: [],
+        standards: {
+          eraSelectionQuality: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          templateLeakage: 'pass',
+        },
+      },
+      telemetryPatch: {
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
+      },
+      telemetryPersisted: true,
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      runReplayBenchmark,
+    }))
+
+    const store = useAlicizationMindReplayStore()
+    const result = await store.runReplayBenchmark()
+
+    expect(runReplayBenchmark).toBeCalledWith({
+      packId: 'default-humanlike-memory-v1',
+      persistTelemetry: undefined,
+    })
+    expect(store.benchmarkSupported).toBe(true)
+    expect(store.benchmarkReport).toEqual(result)
   })
 })

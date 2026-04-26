@@ -42,6 +42,7 @@ import type {
   AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
+  AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
@@ -52,6 +53,33 @@ import type {
   AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
   AlicizationMemoryReflectionStatus as SharedAlicizationMemoryReflectionStatus,
   AlicizationMemoryReflectionTargetScope as SharedAlicizationMemoryReflectionTargetScope,
+  AlicizationMemoryDeliberation as SharedAlicizationMemoryDeliberation,
+  AlicizationMemoryDeliberationConflictSeverity as SharedAlicizationMemoryDeliberationConflictSeverity,
+  AlicizationMemoryDeliberationConflictVariant as SharedAlicizationMemoryDeliberationConflictVariant,
+  AlicizationMemoryDeliberationSelectedBundle as SharedAlicizationMemoryDeliberationSelectedBundle,
+  AlicizationMemoryDeliberationSelectedChain as SharedAlicizationMemoryDeliberationSelectedChain,
+  AlicizationMemoryDeliberationSelectedEpisode as SharedAlicizationMemoryDeliberationSelectedEpisode,
+  AlicizationMemoryDeliberationSelectedEra as SharedAlicizationMemoryDeliberationSelectedEra,
+  AlicizationMemoryDeliberationSelectedPeriod as SharedAlicizationMemoryDeliberationSelectedPeriod,
+  AlicizationMemoryDeliberationSelectedProcedure as SharedAlicizationMemoryDeliberationSelectedProcedure,
+  AlicizationMemoryFollowUpAffordance as SharedAlicizationMemoryFollowUpAffordance,
+  AlicizationMemoryFollowUpIntrusionRisk as SharedAlicizationMemoryFollowUpIntrusionRisk,
+  AlicizationMemoryFollowUpPayoffDependency as SharedAlicizationMemoryFollowUpPayoffDependency,
+  AlicizationMemoryFollowUpPreferredTiming as SharedAlicizationMemoryFollowUpPreferredTiming,
+  AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
+  AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
+  AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
+  AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
+  AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
+  AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
+  AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
+  AlicizationMemoryRecollectionAgendaSnapshot as SharedAlicizationMemoryRecollectionAgendaSnapshot,
+  AlicizationMemoryRecollectionEraFacet as SharedAlicizationMemoryRecollectionEraFacet,
+  AlicizationMemoryRecollectionIntentSnapshot as SharedAlicizationMemoryRecollectionIntentSnapshot,
+  AlicizationMemoryRecollectionMode as SharedAlicizationMemoryRecollectionMode,
+  AlicizationMemoryRecollectionTemporalFocus as SharedAlicizationMemoryRecollectionTemporalFocus,
+  AlicizationMemoryTier as SharedAlicizationMemoryTier,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
@@ -77,6 +105,16 @@ import type {
   AlicizationRelationshipOutcomeRecord as SharedAlicizationRelationshipOutcomeRecord,
   AlicizationRelationshipOutcomeSourceKind as SharedAlicizationRelationshipOutcomeSourceKind,
   AlicizationResidentPerformanceSnapshot as SharedAlicizationResidentPerformanceSnapshot,
+  AlicizationRecollectionAmbiguityPosture as SharedAlicizationRecollectionAmbiguityPosture,
+  AlicizationRecollectionCertainty as SharedAlicizationRecollectionCertainty,
+  AlicizationRecollectionEvidenceGap as SharedAlicizationRecollectionEvidenceGap,
+  AlicizationRecollectionNarrativeSnapshot as SharedAlicizationRecollectionNarrativeSnapshot,
+  AlicizationRecollectionPlan as SharedAlicizationRecollectionPlan,
+  AlicizationRecollectionSearchAction as SharedAlicizationRecollectionSearchAction,
+  AlicizationRecollectionSearchFocus as SharedAlicizationRecollectionSearchFocus,
+  AlicizationRecollectionSearchTrace as SharedAlicizationRecollectionSearchTrace,
+  AlicizationRecollectionSpeechPlan as SharedAlicizationRecollectionSpeechPlan,
+  AlicizationRecollectionSurfaceMode as SharedAlicizationRecollectionSurfaceMode,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
   AlicizationSensoryCaptureHealth as SharedAlicizationSensoryCaptureHealth,
@@ -477,15 +515,60 @@ export interface AlicizationMemoryStats {
     warm: number
     cold: number
   }
+  surfaceCounts?: {
+    facts: number
+    episodic: number
+    consolidations: number
+  }
+  surfaceTierCounts?: {
+    facts: {
+      hot: number
+      warm: number
+      cold: number
+    }
+    episodic: {
+      hot: number
+      warm: number
+      cold: number
+    }
+    consolidations: {
+      hot: number
+      warm: number
+      cold: number
+    }
+  }
   pendingSyncCount?: number
+  ingestHealth?: {
+    status: 'healthy' | 'backlog' | 'degraded'
+    pendingCount: number
+    failedCount: number
+    oldestPendingAgeMs: number | null
+    nextRetryAt: number | null
+    lastError: string | null
+  }
   integrity?: {
     status: 'ok' | 'degraded'
     issues: string[]
+  }
+  writeHealth?: {
+    backlogCount: number
+    retryOldestAgeMs: number | null
+    nextRetryAt: number | null
+    blocked: boolean
+    lastError: string | null
+  }
+  retrievalHealth?: {
+    semanticLatencyMs: number | null
+    graphLatencyMs: number | null
+    reconstructionFrequency: number
+    reconstructedCount: number
+    templateLeakageFailCount: number
   }
   lastPrunedAt: number | null
 }
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
+export type AlicizationMemoryTier = SharedAlicizationMemoryTier
 export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
 export type AlicizationDerivedMemoryReference = SharedAlicizationDerivedMemoryReference
 export type AlicizationEpisodicEventSourceKind = SharedAlicizationEpisodicEventSourceKind
@@ -507,6 +590,7 @@ export interface AlicizationMemoryFact {
   lastAccessAt: number | null
   accessCount: number
   provenance?: AlicizationMemoryProvenance | null
+  memoryTier?: AlicizationMemoryTier | null
 }
 
 export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
@@ -632,6 +716,15 @@ export type AlicizationMindTurnEventInput = SharedAlicizationMindTurnEventInput
 export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
 
 export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope, SharedAlicizationListMindTurnEventsInput {}
+export interface AlicizationListMemoryDecisionTracesPayload extends AlicizationCardScope, SharedAlicizationListMemoryDecisionTracesInput {}
+export type AlicizationMemoryDecisionTraceRecord = SharedAlicizationMemoryDecisionTraceRecord
+export type AlicizationReplayBenchmarkPackId = SharedAlicizationReplayBenchmarkPackId
+export type AlicizationReplayMemoryQualityRecord = SharedAlicizationReplayMemoryQualityRecord
+export type AlicizationReplayBenchmarkStandardsRecord = SharedAlicizationReplayBenchmarkStandardsRecord
+export type AlicizationReplayBenchmarkGateReport = SharedAlicizationReplayBenchmarkGateReport
+export type AlicizationReplayBenchmarkTelemetryPatch = SharedAlicizationReplayBenchmarkTelemetryPatch
+export interface AlicizationRunReplayBenchmarkPayload extends AlicizationCardScope, SharedAlicizationRunReplayBenchmarkInput {}
+export interface AlicizationRunReplayBenchmarkResult extends SharedAlicizationRunReplayBenchmarkResult {}
 
 export type AlicizationExecutionChannel = SharedAlicizationExecutionChannel
 
@@ -800,6 +893,10 @@ export type AlicizationProactiveReasonCode
     | 'runtime-control-ready'
     | 'runtime-continuity-pressure'
     | 'runtime-companionship-pressure'
+    | 'continuity-internal-only'
+    | 'continuity-after-payoff'
+    | 'continuity-next-open-window'
+    | 'continuity-execution-callback'
 
 export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
@@ -1525,59 +1622,34 @@ export interface AlicizationConcernContinuityLedgerSnapshot {
   updatedAt: number
 }
 
-export type AlicizationMemoryRecollectionMode
-  = | 'none'
-    | 'conversation-history'
-    | 'autobiographical-history'
-    | 'relationship-history'
-    | 'execution-procedure'
-    | 'experience-pattern'
-
-export type AlicizationMemoryRecollectionTemporalFocus
-  = | 'recent'
-    | 'recent-or-mid'
-    | 'cross-session'
-    | 'experience-matched'
-    | 'distant'
-
-export type AlicizationMemoryRecollectionEraFacet
-  = | 'phase'
-    | 'relationship-era'
-    | 'task-era'
-    | 'self-era'
-    | 'window'
-
-export interface AlicizationMemoryRecollectionAgendaSnapshot {
-  whyRecallNow: string
-  goalSimilarity: number
-  relationshipNeed: number
-  affectivePull: number
-  sceneFamiliarity: number
-  candidateTimeScopes: Array<{
-    scope: AlicizationMemoryRecollectionTemporalFocus
-    weight: number
-    rationale?: string | null
-  }>
-  candidateEraFacets: Array<{
-    facet: AlicizationMemoryRecollectionEraFacet
-    weight: number
-    rationale?: string | null
-  }>
-  candidateProcedureLines: string[]
-  uncertaintyTolerance: 'low' | 'medium' | 'high'
-}
-
-export interface AlicizationMemoryRecollectionIntentSnapshot {
-  mode: AlicizationMemoryRecollectionMode
-  temporalFocus: AlicizationMemoryRecollectionTemporalFocus
-  searchEpisodes: boolean
-  searchConversations: boolean
-  searchProceduralExperience: boolean
-  queryHints: string[]
-  rationale: string
-  confidence: number
-  recollectionAgenda?: AlicizationMemoryRecollectionAgendaSnapshot | null
-}
+export type AlicizationMemoryRecollectionMode = SharedAlicizationMemoryRecollectionMode
+export type AlicizationMemoryRecollectionTemporalFocus = SharedAlicizationMemoryRecollectionTemporalFocus
+export type AlicizationMemoryRecollectionEraFacet = SharedAlicizationMemoryRecollectionEraFacet
+export type AlicizationMemoryRecollectionAgendaSnapshot = SharedAlicizationMemoryRecollectionAgendaSnapshot
+export type AlicizationMemoryRecollectionIntentSnapshot = SharedAlicizationMemoryRecollectionIntentSnapshot
+export type AlicizationRecollectionSearchFocus = SharedAlicizationRecollectionSearchFocus
+export type AlicizationRecollectionSearchAction = SharedAlicizationRecollectionSearchAction
+export type AlicizationRecollectionEvidenceGap = SharedAlicizationRecollectionEvidenceGap
+export type AlicizationRecollectionAmbiguityPosture = SharedAlicizationRecollectionAmbiguityPosture
+export type AlicizationRecollectionSearchTrace = SharedAlicizationRecollectionSearchTrace
+export type AlicizationRecollectionCertainty = SharedAlicizationRecollectionCertainty
+export type AlicizationRecollectionSurfaceMode = SharedAlicizationRecollectionSurfaceMode
+export type AlicizationRecollectionNarrativeSnapshot = SharedAlicizationRecollectionNarrativeSnapshot
+export type AlicizationRecollectionPlan = SharedAlicizationRecollectionPlan
+export type AlicizationRecollectionSpeechPlan = SharedAlicizationRecollectionSpeechPlan
+export type AlicizationMemoryDeliberationConflictSeverity = SharedAlicizationMemoryDeliberationConflictSeverity
+export type AlicizationMemoryDeliberationSelectedEra = SharedAlicizationMemoryDeliberationSelectedEra
+export type AlicizationMemoryDeliberationSelectedPeriod = SharedAlicizationMemoryDeliberationSelectedPeriod
+export type AlicizationMemoryDeliberationSelectedEpisode = SharedAlicizationMemoryDeliberationSelectedEpisode
+export type AlicizationMemoryDeliberationConflictVariant = SharedAlicizationMemoryDeliberationConflictVariant
+export type AlicizationMemoryDeliberationSelectedProcedure = SharedAlicizationMemoryDeliberationSelectedProcedure
+export type AlicizationMemoryDeliberationSelectedBundle = SharedAlicizationMemoryDeliberationSelectedBundle
+export type AlicizationMemoryDeliberationSelectedChain = SharedAlicizationMemoryDeliberationSelectedChain
+export type AlicizationMemoryFollowUpIntrusionRisk = SharedAlicizationMemoryFollowUpIntrusionRisk
+export type AlicizationMemoryFollowUpPayoffDependency = SharedAlicizationMemoryFollowUpPayoffDependency
+export type AlicizationMemoryFollowUpPreferredTiming = SharedAlicizationMemoryFollowUpPreferredTiming
+export type AlicizationMemoryFollowUpAffordance = SharedAlicizationMemoryFollowUpAffordance
+export type AlicizationMemoryDeliberation = SharedAlicizationMemoryDeliberation
 
 export type AlicizationRepairLedgerKind
   = | 'reground-scene'
@@ -2884,6 +2956,8 @@ export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
+export const electronAlicizationListMemoryDecisionTraces = defineInvokeEventa<AlicizationMemoryDecisionTraceRecord[], AlicizationListMemoryDecisionTracesPayload>('eventa:invoke:electron:alicization:conversation:list-memory-decision-traces')
+export const electronAlicizationRunReplayBenchmark = defineInvokeEventa<AlicizationRunReplayBenchmarkResult, AlicizationRunReplayBenchmarkPayload>('eventa:invoke:electron:alicization:conversation:run-replay-benchmark')
 export const electronAlicizationUpsertTaskThread = defineInvokeEventa<AlicizationTaskThreadRecord, AlicizationUpsertTaskThreadPayload>('eventa:invoke:electron:alicization:executor:upsert-task-thread')
 export const electronAlicizationListTaskThreads = defineInvokeEventa<AlicizationTaskThreadRecord[], AlicizationListTaskThreadsPayload>('eventa:invoke:electron:alicization:executor:list-task-threads')
 export const electronAlicizationUpsertChannelCapabilityManifest = defineInvokeEventa<AlicizationChannelCapabilityManifestRecord, AlicizationUpsertChannelCapabilityManifestPayload>('eventa:invoke:electron:alicization:executor:upsert-capability-manifest')

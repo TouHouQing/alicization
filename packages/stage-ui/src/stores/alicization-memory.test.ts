@@ -85,6 +85,13 @@ describe('alicization-memory', () => {
     expect(localResults).toHaveLength(1)
     expect(degradedStats.active).toBe(1)
     expect(degradedStats.pendingSyncCount).toBe(1)
+    expect(degradedStats.writeHealth).toEqual(expect.objectContaining({
+      backlogCount: 1,
+      blocked: true,
+    }))
+    expect(degradedStats.retrievalHealth).toEqual(expect.objectContaining({
+      templateLeakageFailCount: 0,
+    }))
     expect(degradedStats.integrity).toEqual({
       status: 'degraded',
       issues: ['pending-runtime-sync:1'],
@@ -155,6 +162,14 @@ describe('alicization-memory', () => {
       warm: 1,
       cold: 1,
     })
+    expect(stats.writeHealth).toEqual(expect.objectContaining({
+      backlogCount: 0,
+      blocked: false,
+    }))
+    expect(stats.retrievalHealth).toEqual(expect.objectContaining({
+      reconstructionFrequency: 0,
+      templateLeakageFailCount: 0,
+    }))
     expect(stats.integrity?.status).toBe('ok')
   })
 })
