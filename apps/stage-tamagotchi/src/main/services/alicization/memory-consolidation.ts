@@ -1,6 +1,14 @@
 import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
 
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
+import {
+  scoreSemanticGraphWalk,
+  scoreSemanticRecall,
+} from './memory-semantic-retrieval'
+import {
+  deriveConsolidationMemoryTier,
+  scoreMemoryTierReachability,
+} from './memory-tiering'
 
 export interface AlicizationMemoryConsolidationRecord {
   id: string
@@ -16,6 +24,7 @@ export interface AlicizationMemoryConsolidationRecord {
   dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
   derivedEventIds: string[]
   updatedAt: number
+  memoryTier?: 'hot' | 'warm' | 'cold' | null
 }
 
 function clamp01(value: number) {
@@ -234,7 +243,7 @@ export function buildMemoryConsolidationRecords(input: {
   const consolidated: AlicizationMemoryConsolidationRecord[] = []
   for (const [periodKey, bucketEvents] of dailyBuckets) {
     const sorted = sortEvents(bucketEvents)
-    consolidated.push({
+    const record: AlicizationMemoryConsolidationRecord = {
       id: `daily:${periodKey}`,
       kind: 'daily',
       facet: null,
@@ -254,12 +263,14 @@ export function buildMemoryConsolidationRecords(input: {
       dominantProvenance: pickDominantProvenance(sorted.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: sorted.map(event => event.id),
       updatedAt: input.now,
-    })
+    }
+    record.memoryTier = deriveConsolidationMemoryTier(record, input.now)
+    consolidated.push(record)
   }
 
   for (const [periodKey, bucketEvents] of weeklyBuckets) {
     const sorted = sortEvents(bucketEvents)
-    consolidated.push({
+    const weeklyRecord: AlicizationMemoryConsolidationRecord = {
       id: `weekly:${periodKey}`,
       kind: 'weekly',
       facet: null,
@@ -278,7 +289,9 @@ export function buildMemoryConsolidationRecords(input: {
       dominantProvenance: pickDominantProvenance(sorted.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: sorted.map(event => event.id),
       updatedAt: input.now,
-    })
+    }
+    weeklyRecord.memoryTier = deriveConsolidationMemoryTier(weeklyRecord, input.now)
+    consolidated.push(weeklyRecord)
 
     if (bucketEvents.length >= 2) {
       const autobiographicalBuckets = new Map<NonNullable<AlicizationMemoryConsolidationRecord['facet']>, AlicizationEpisodicEventRecord[]>()
@@ -292,7 +305,7 @@ export function buildMemoryConsolidationRecords(input: {
         if (facet !== 'phase' && facetEvents.length < 2)
           continue
         const rankedEvents = sortEvents(facetEvents)
-        consolidated.push({
+        const autobiographicalRecord: AlicizationMemoryConsolidationRecord = {
           id: `autobio:${facet}:${periodKey}`,
           kind: 'autobiographical',
           facet,
@@ -310,7 +323,9 @@ export function buildMemoryConsolidationRecords(input: {
           dominantProvenance: pickDominantProvenance(rankedEvents.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
           derivedEventIds: rankedEvents.map(event => event.id),
           updatedAt: input.now,
-        })
+        }
+        autobiographicalRecord.memoryTier = deriveConsolidationMemoryTier(autobiographicalRecord, input.now)
+        consolidated.push(autobiographicalRecord)
       }
     }
   }
@@ -336,7 +351,7 @@ export function buildMemoryConsolidationRecords(input: {
     })
     if (supporting.length === 0)
       continue
-    consolidated.push({
+    const proceduralRecord: AlicizationMemoryConsolidationRecord = {
       id: `procedural:${item.id}`,
       kind: 'procedural',
       facet: null,
@@ -350,7 +365,9 @@ export function buildMemoryConsolidationRecords(input: {
       dominantProvenance: pickDominantProvenance(supporting.map(event => event.latestReconsolidation?.provenance ?? event.provenance)),
       derivedEventIds: supporting.map(event => event.id),
       updatedAt: input.now,
-    })
+    }
+    proceduralRecord.memoryTier = deriveConsolidationMemoryTier(proceduralRecord, input.now)
+    consolidated.push(proceduralRecord)
   }
 
   return consolidated
@@ -406,6 +423,17 @@ export function searchMemoryConsolidationRecords(input: {
   const intent = input.recollectionIntent ?? null
   const hints = uniqueList(intent?.queryHints ?? [], 8).map(item => item.toLowerCase())
   const agenda = intent?.recollectionAgenda ?? null
+  const semanticGraph = scoreSemanticGraphWalk({
+    nodes: input.records.map(record => ({
+      id: record.id,
+      primaryText: record.summary,
+      semanticTexts: [record.lesson ?? '', ...record.cues],
+      groupKeys: [record.kind, record.facet ?? '', record.memoryTier ?? ''],
+      neighborKeys: [...record.cues, ...record.derivedEventIds],
+    })),
+    queryTexts: [query, ...hints, ...(agenda?.candidateProcedureLines ?? [])],
+    getId: node => node.id,
+  })
 
   return [...input.records]
     .map((record) => {
@@ -436,14 +464,28 @@ export function searchMemoryConsolidationRecords(input: {
             ? Math.max(...agenda.candidateTimeScopes.map(item => clamp01(item.weight))) * 0.12
             : 0
         : 0
+      const semanticScore = scoreSemanticRecall({
+        queryTexts: [query, ...hints, ...(agenda?.candidateProcedureLines ?? [])],
+        candidateTexts: [record.summary, record.lesson ?? '', ...record.cues],
+      })
+      const graphBoost = semanticGraph.graphBoostById.get(record.id) ?? 0
+      const tierBoost = scoreMemoryTierReachability({
+        tier: record.memoryTier ?? deriveConsolidationMemoryTier(record, Date.now()),
+        vagueQuery: query.split(/\s+/u).length <= 3,
+        temporalFocus: intent?.temporalFocus ?? null,
+        longHorizonPreferred: intent?.temporalFocus === 'cross-session' || intent?.temporalFocus === 'distant',
+      })
       const score = lexicalScore * 0.46
         + record.confidence * 0.3
+        + semanticScore * 0.22
+        + graphBoost * 0.16
         + proceduralBoost
         + autobiographicalBoost
         + relationshipEraBoost
         + taskEraBoost
         + selfEraBoost
         + distantBoost
+        + tierBoost
         + agendaProcedureBoost
         + agendaFacetBoost
         + agendaTimeBoost

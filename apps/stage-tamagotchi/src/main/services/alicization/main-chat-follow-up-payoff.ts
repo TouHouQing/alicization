@@ -148,6 +148,7 @@ function buildRemainingListingReply(input: {
       remainingOnly: true,
       requestedCount,
     }],
+    visibleReplyAuthority: 'local-deterministic-fallback',
   })
 }
 
@@ -187,6 +188,7 @@ function buildGenericExecutionOutcomeReply(input: {
       })(),
       mode: 'follow-up',
     }],
+    visibleReplyAuthority: 'local-deterministic-fallback',
   })
 }
 
@@ -198,6 +200,9 @@ export function createAlicizationExecutionFollowUpPayoffResolver(
     decision: AlicizationActiveDialogueFastPathDecision
     prepared: AlicizationPreparedMainChatExecutionResult
   }) {
+    if (input.decision.strategy !== 'local-only')
+      return null
+
     const sessionId = sanitizeExecutionLedgerText(
       input.prepared.conversationSessionId ?? input.decision.sessionMirror?.sessionId ?? '',
       160,

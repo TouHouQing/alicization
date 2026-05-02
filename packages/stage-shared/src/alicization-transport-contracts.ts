@@ -975,6 +975,7 @@ export type AlicizationMindTruthState
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
+export type AlicizationVisibleReplyAuthority = 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
 export type AlicizationDialogueActKernelTruthMode = AlicizationAnswerEvidenceMode | 'memory-only'
 
 export interface AlicizationDialogueActKernelEvidence {
@@ -1098,6 +1099,7 @@ export interface AlicizationMindTurnGovernance {
   decisionTraceId?: string | null
   turnMode: AlicizationMindTurnMode
   truthState: AlicizationMindTruthState
+  visibleReplyAuthority?: AlicizationVisibleReplyAuthority | null
   groundedThisTurn?: boolean
   personaKernelMode: 'full' | 'backgrounded' | 'muted'
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
@@ -1130,12 +1132,18 @@ export interface AlicizationMindTurnGovernance {
 export type AlicizationMindTurnEventKind
   = | 'governance-normalized'
     | 'recall-attribution'
+    | 'memory-deliberation-judged'
+    | 'memory-recall-withheld'
+    | 'memory-stable-core-surfaced'
+    | 'memory-followup-deferred'
+    | 'memory-wrong-thread-suppressed'
     | 'takeover-audit'
     | 'persistence-written'
     | 'dialogue-emitted'
     | 'reply-memory-coherence'
     | 'memory-facts-upserted'
     | 'memory-reconsolidated'
+    | 'person-state-updated'
 
 export interface AlicizationMindTurnEventInput {
   decisionTraceId: string
@@ -1172,7 +1180,16 @@ export interface AlicizationListMemoryDecisionTracesInput {
   limit?: number
 }
 
-export type AlicizationReplayBenchmarkPackId = 'default-humanlike-memory-v1'
+export interface AlicizationListPersonStateUpdatesInput {
+  decisionTraceId?: string
+  turnId?: string
+  limit?: number
+}
+
+export type AlicizationReplayBenchmarkPackId =
+  | 'default-humanlike-memory-v1'
+  | 'sampled-humanlike-memory-v1'
+  | 'backlog-humanlike-memory-v1'
 export type AlicizationReplayBenchmarkQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
 export interface AlicizationReplayMemoryQualityRecord {
@@ -1187,8 +1204,11 @@ export interface AlicizationReplayMemoryQualityRecord {
   uncertaintyDiscipline: AlicizationReplayBenchmarkQualityStatus
   implicitRecallQuality: AlicizationReplayBenchmarkQualityStatus
   temporalScopeFlexibility: AlicizationReplayBenchmarkQualityStatus
+  recentOnlyDrift: AlicizationReplayBenchmarkQualityStatus
   surfaceRestraint: AlicizationReplayBenchmarkQualityStatus
   relationshipRepairAdaptation: AlicizationReplayBenchmarkQualityStatus
+  closenessLadderDrift: AlicizationReplayBenchmarkQualityStatus
+  eventGraphRecallCollapse: AlicizationReplayBenchmarkQualityStatus
   templateLeakage: AlicizationReplayBenchmarkQualityStatus
 }
 
@@ -1199,8 +1219,11 @@ export interface AlicizationReplayBenchmarkStandardsRecord {
   replyMemoryCoherence: 'pass' | 'fail'
   implicitRecallQuality: 'pass' | 'fail'
   temporalScopeFlexibility: 'pass' | 'fail'
+  recentOnlyDrift: 'pass' | 'fail'
   surfaceRestraint: 'pass' | 'fail'
   relationshipRepairAdaptation: 'pass' | 'fail'
+  closenessLadderDrift: 'pass' | 'fail'
+  eventGraphRecallCollapse: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -1231,9 +1254,54 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
   }
 }
 
+export interface AlicizationReplayBenchmarkTracePointer {
+  kind: 'decision-trace' | 'synthetic-pack-turn'
+  packId: AlicizationReplayBenchmarkPackId
+  turnId: string
+  decisionTraceId: string | null
+  sessionId: string | null
+  activeThreadId: string | null
+}
+
+export interface AlicizationReplayBenchmarkFailureTurnRecord {
+  turnId: string
+  userText: string
+  failingDimensions: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
+  tracePointer: AlicizationReplayBenchmarkTracePointer
+  sampledCategories?: string[] | null
+}
+
+export interface AlicizationReplayBenchmarkDatasetFeedback {
+  backlogKey: string
+  appendedCount: number
+  totalCount: number
+  persisted: boolean
+  humanRatingRubric?: AlicizationReplayHumanRatingRubric | null
+  driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse'> | null
+}
+
+export interface AlicizationReplayHumanRatingDimension {
+  key:
+    | 'samePersonaFeel'
+    | 'realRememberedFeel'
+    | 'templateSmell'
+    | 'relationshipRhythm'
+    | 'repairCredibility'
+    | 'taskContinuity'
+  label: string
+  prompt: string
+  scale: '1-5'
+}
+
+export interface AlicizationReplayHumanRatingRubric {
+  version: 'human-rating-rubric-v1'
+  dimensions: AlicizationReplayHumanRatingDimension[]
+}
+
 export interface AlicizationRunReplayBenchmarkInput {
   packId?: AlicizationReplayBenchmarkPackId
   persistTelemetry?: boolean
+  sampleLimit?: number
 }
 
 export interface AlicizationRunReplayBenchmarkResult {
@@ -1245,6 +1313,8 @@ export interface AlicizationRunReplayBenchmarkResult {
   gate: AlicizationReplayBenchmarkGateReport
   telemetryPatch: AlicizationReplayBenchmarkTelemetryPatch
   telemetryPersisted: boolean
+  failingTurnSet: AlicizationReplayBenchmarkFailureTurnRecord[]
+  datasetFeedback: AlicizationReplayBenchmarkDatasetFeedback
 }
 
 export interface AlicizationMemoryDecisionTraceRecord {
@@ -1265,11 +1335,17 @@ export interface AlicizationMemoryDecisionTraceRecord {
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   } | null
   recallAttribution?: Record<string, unknown> | null
+  memoryDeliberationJudged?: Record<string, unknown> | null
+  memoryRecallWithheld?: Record<string, unknown> | null
+  memoryStableCoreSurfaced?: Record<string, unknown> | null
+  memoryFollowUpDeferred?: Record<string, unknown> | null
+  memoryWrongThreadSuppressed?: Record<string, unknown> | null
   replyMemoryCoherence?: Record<string, unknown> | null
   persistenceWritten?: Record<string, unknown> | null
   dialogueEmitted?: Record<string, unknown> | null
   takeoverAudit?: Record<string, unknown> | null
   memoryFactsUpserted?: Record<string, unknown> | null
+  personStateUpdated?: Record<string, unknown> | null
 }
 
 export type AlicizationDigitalLifeOperatingMode
@@ -1530,8 +1606,126 @@ export interface AlicizationPersonaReinforcementEventRecord {
   createdAt: number
 }
 
+export interface AlicizationPersonStateUpdateSourceTrailEntry {
+  kind: 'relationship-outcome' | 'reinforcement'
+  sourceKind: AlicizationRelationshipOutcomeSourceKind
+  summary: string
+  createdAt: number
+}
+
+export interface AlicizationPersonStateUpdateRelationshipShift {
+  trustDelta: number
+  closenessDelta: number
+  burdenDelta: number
+  boundaryDelta: number
+  repairDelta: number
+}
+
+export interface AlicizationPersonStateUpdateSurface {
+  version: 'person-state-update-surface-v1'
+  updatedAt: number
+  summary: string
+  dominantContexts: string[]
+  relationshipShift: AlicizationPersonStateUpdateRelationshipShift
+  reinforcementBias: Partial<Record<AlicizationPersonaReinforcementDimension, number>>
+  preferenceHints: string[]
+  sensitivityHints: string[]
+  repairHints: string[]
+  burdenHints: string[]
+  narrative: string[]
+  sourceTrail: AlicizationPersonStateUpdateSourceTrailEntry[]
+}
+
+export interface AlicizationPersonStateUpdateRecord extends AlicizationPersonStateUpdateSurface {
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  origin: 'user-turn' | 'subconscious-proactive' | 'system'
+  createdAt: number
+  activeThreadId: string | null
+  sourceKinds: AlicizationRelationshipOutcomeSourceKind[]
+  sourceCounts: {
+    relationshipOutcomes: number
+    reinforcementEvents: number
+    episodicEvents: number
+    reflections: number
+    memoryFacts: number
+  }
+}
+
+export type AlicizationPersonStateEvolutionShiftKind
+  = | 'trust-shift'
+    | 'closeness-shift'
+    | 'repair-posture-shift'
+    | 'autonomy-shift'
+    | 'burden-shift'
+    | 'execution-trust-shift'
+    | 'relationship-doctrine-shift'
+
+export interface AlicizationPersonStateEvolutionShift {
+  kind: AlicizationPersonStateEvolutionShiftKind
+  delta: number
+  rationale: string
+}
+
+export interface AlicizationPersonStateEvolutionEntryInput {
+  id?: string | null
+  cardId: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  activeThreadId?: string | null
+  sourceKind: 'relationship-outcome' | 'reinforcement' | 'person-state-update' | 'episodic-memory' | 'reflection'
+  summary: string
+  contexts?: string[] | null
+  relationshipDoctrine?: string | null
+  burdenLine?: string | null
+  trustMeaning?: string | null
+  dominantRung?: string | null
+  sourceTrail?: AlicizationPersonStateUpdateSourceTrailEntry[] | null
+  shifts: AlicizationPersonStateEvolutionShift[]
+  createdAt?: number
+}
+
+export interface AlicizationPersonStateEvolutionEntryRecord {
+  id: string
+  cardId: string
+  decisionTraceId: string | null
+  turnId: string | null
+  sessionId: string | null
+  activeThreadId: string | null
+  sourceKind: AlicizationPersonStateEvolutionEntryInput['sourceKind']
+  summary: string
+  contexts: string[]
+  relationshipDoctrine: string | null
+  burdenLine: string | null
+  trustMeaning: string | null
+  dominantRung: string | null
+  sourceTrail: AlicizationPersonStateUpdateSourceTrailEntry[]
+  shifts: AlicizationPersonStateEvolutionShift[]
+  createdAt: number
+}
+
+export interface AlicizationPersonStateEvolutionSummary {
+  trustShift: number
+  closenessShift: number
+  repairShift: number
+  autonomyShift: number
+  burdenShift: number
+  executionTrustShift: number
+  relationshipDoctrineShift: number
+  latestDoctrine: string | null
+  latestBurdenLine: string | null
+  latestTrustMeaning: string | null
+  latestDominantRung: string | null
+  recentSummaries: string[]
+  explanation: string[]
+  updatedAt: number | null
+}
+
 export type AlicizationMindHeadKey
   = | 'autobiographical-self'
+    | 'person-state-update-surface'
     | 'reflection-ledger'
     | 'motive-engine'
     | 'habit-policy'
@@ -2428,6 +2622,7 @@ export interface AlicizationDialogueStructuredPayload {
   thought: string
   emotion: AlicizationEmotion
   reply: string
+  visibleReplyAuthority?: AlicizationVisibleReplyAuthority | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null

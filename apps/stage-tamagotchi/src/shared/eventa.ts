@@ -44,6 +44,7 @@ import type {
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
+  AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
   AlicizationLongHorizonMemoryCueSnapshot as SharedAlicizationLongHorizonMemoryCueSnapshot,
@@ -66,14 +67,29 @@ import type {
   AlicizationMemoryFollowUpIntrusionRisk as SharedAlicizationMemoryFollowUpIntrusionRisk,
   AlicizationMemoryFollowUpPayoffDependency as SharedAlicizationMemoryFollowUpPayoffDependency,
   AlicizationMemoryFollowUpPreferredTiming as SharedAlicizationMemoryFollowUpPreferredTiming,
+  AlicizationMemoryStats as SharedAlicizationMemoryStats,
   AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
   AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
+  AlicizationReplayBenchmarkFailureTurnRecord as SharedAlicizationReplayBenchmarkFailureTurnRecord,
+  AlicizationReplayBenchmarkDatasetFeedback as SharedAlicizationReplayBenchmarkDatasetFeedback,
+  AlicizationReplayBenchmarkGateDimensionReport as SharedAlicizationReplayBenchmarkGateDimensionReport,
   AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
   AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
   AlicizationReplayBenchmarkTelemetryPatch as SharedAlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationReplayBenchmarkTracePointer as SharedAlicizationReplayBenchmarkTracePointer,
+  AlicizationReplayHumanRatingDimension as SharedAlicizationReplayHumanRatingDimension,
+  AlicizationReplayHumanRatingRubric as SharedAlicizationReplayHumanRatingRubric,
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
+  AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
+  AlicizationPersonStateEvolutionEntryInput as SharedAlicizationPersonStateEvolutionEntryInput,
+  AlicizationPersonStateEvolutionEntryRecord as SharedAlicizationPersonStateEvolutionEntryRecord,
+  AlicizationPersonStateEvolutionShift as SharedAlicizationPersonStateEvolutionShift,
+  AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
+  AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
+  AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
+  AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
   AlicizationMemoryRecollectionAgendaSnapshot as SharedAlicizationMemoryRecollectionAgendaSnapshot,
   AlicizationMemoryRecollectionEraFacet as SharedAlicizationMemoryRecollectionEraFacet,
   AlicizationMemoryRecollectionIntentSnapshot as SharedAlicizationMemoryRecollectionIntentSnapshot,
@@ -506,66 +522,7 @@ export interface AlicizationKillSwitchSnapshot {
   updatedAt: number
 }
 
-export interface AlicizationMemoryStats {
-  total: number
-  active: number
-  archived: number
-  tierCounts?: {
-    hot: number
-    warm: number
-    cold: number
-  }
-  surfaceCounts?: {
-    facts: number
-    episodic: number
-    consolidations: number
-  }
-  surfaceTierCounts?: {
-    facts: {
-      hot: number
-      warm: number
-      cold: number
-    }
-    episodic: {
-      hot: number
-      warm: number
-      cold: number
-    }
-    consolidations: {
-      hot: number
-      warm: number
-      cold: number
-    }
-  }
-  pendingSyncCount?: number
-  ingestHealth?: {
-    status: 'healthy' | 'backlog' | 'degraded'
-    pendingCount: number
-    failedCount: number
-    oldestPendingAgeMs: number | null
-    nextRetryAt: number | null
-    lastError: string | null
-  }
-  integrity?: {
-    status: 'ok' | 'degraded'
-    issues: string[]
-  }
-  writeHealth?: {
-    backlogCount: number
-    retryOldestAgeMs: number | null
-    nextRetryAt: number | null
-    blocked: boolean
-    lastError: string | null
-  }
-  retrievalHealth?: {
-    semanticLatencyMs: number | null
-    graphLatencyMs: number | null
-    reconstructionFrequency: number
-    reconstructedCount: number
-    templateLeakageFailCount: number
-  }
-  lastPrunedAt: number | null
-}
+export type AlicizationMemoryStats = SharedAlicizationMemoryStats
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
 export type AlicizationMemoryTier = SharedAlicizationMemoryTier
@@ -717,12 +674,28 @@ export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecor
 
 export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope, SharedAlicizationListMindTurnEventsInput {}
 export interface AlicizationListMemoryDecisionTracesPayload extends AlicizationCardScope, SharedAlicizationListMemoryDecisionTracesInput {}
+export interface AlicizationListPersonStateUpdatesPayload extends AlicizationCardScope, SharedAlicizationListPersonStateUpdatesInput {}
 export type AlicizationMemoryDecisionTraceRecord = SharedAlicizationMemoryDecisionTraceRecord
+export type AlicizationPersonStateEvolutionShiftKind = SharedAlicizationPersonStateEvolutionShiftKind
+export type AlicizationPersonStateEvolutionShift = SharedAlicizationPersonStateEvolutionShift
+export type AlicizationPersonStateEvolutionEntryInput = SharedAlicizationPersonStateEvolutionEntryInput
+export type AlicizationPersonStateEvolutionEntryRecord = SharedAlicizationPersonStateEvolutionEntryRecord
+export type AlicizationPersonStateEvolutionSummary = SharedAlicizationPersonStateEvolutionSummary
+export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
+export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
+export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 export type AlicizationReplayBenchmarkPackId = SharedAlicizationReplayBenchmarkPackId
+export type AlicizationReplayBenchmarkTracePointer = SharedAlicizationReplayBenchmarkTracePointer
+export type AlicizationReplayBenchmarkFailureTurnRecord = SharedAlicizationReplayBenchmarkFailureTurnRecord
+export type AlicizationReplayBenchmarkDatasetFeedback = SharedAlicizationReplayBenchmarkDatasetFeedback
+export type AlicizationReplayHumanRatingDimension = SharedAlicizationReplayHumanRatingDimension
+export type AlicizationReplayHumanRatingRubric = SharedAlicizationReplayHumanRatingRubric
 export type AlicizationReplayMemoryQualityRecord = SharedAlicizationReplayMemoryQualityRecord
 export type AlicizationReplayBenchmarkStandardsRecord = SharedAlicizationReplayBenchmarkStandardsRecord
+export type AlicizationReplayBenchmarkGateDimensionReport = SharedAlicizationReplayBenchmarkGateDimensionReport
 export type AlicizationReplayBenchmarkGateReport = SharedAlicizationReplayBenchmarkGateReport
 export type AlicizationReplayBenchmarkTelemetryPatch = SharedAlicizationReplayBenchmarkTelemetryPatch
+export type AlicizationRunReplayBenchmarkInput = SharedAlicizationRunReplayBenchmarkInput
 export interface AlicizationRunReplayBenchmarkPayload extends AlicizationCardScope, SharedAlicizationRunReplayBenchmarkInput {}
 export interface AlicizationRunReplayBenchmarkResult extends SharedAlicizationRunReplayBenchmarkResult {}
 
@@ -2108,6 +2081,8 @@ export interface AlicizationAnswerPlannerSnapshot {
   openingMove: string
   answerIntent: string
   relationshipPosture: 'restrained' | 'warm' | 'tender'
+  activeClosenessContext?: 'focused-work' | 'repair-window' | 'late-night-care' | 'execution-callback' | 'open-companionship' | 'general' | null
+  activeClosenessRung?: 'space-first' | 'measured-room' | 'nearby-soft' | 'warm-near' | 'close-hold' | null
   shouldAskForGrounding: boolean
   shouldAcknowledgeRepair: boolean
   selectedConcernEntryId?: string | null
@@ -2132,6 +2107,8 @@ export type AlicizationCompiledResponseMode
     | 'accompany-lightly'
     | 'answer-naturally'
 
+export type AlicizationReplyRealizationMode = 'provider-mind-required' | 'fallback-locally-allowed'
+
 export interface AlicizationAnswerCompilerSnapshot {
   answerSubject: AlicizationDialogueAnswerSubject
   screenReferenceMode: AlicizationDialogueScreenReferenceMode
@@ -2139,11 +2116,15 @@ export interface AlicizationAnswerCompilerSnapshot {
   relationMove: AlicizationMindRelationMove
   turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
   responseMode: AlicizationCompiledResponseMode
+  replyRealizationMode?: AlicizationReplyRealizationMode | null
+  expectedVisibleReplyAuthority?: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback' | null
   recommendedAct: AlicizationAnswerAct
   evidenceMode: AlicizationAnswerEvidenceMode
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
   personaKernelMode: 'full' | 'backgrounded' | 'muted'
   relationshipPosture: 'restrained' | 'warm' | 'tender'
+  activeClosenessContext?: 'focused-work' | 'repair-window' | 'late-night-care' | 'execution-callback' | 'open-companionship' | 'general' | null
+  activeClosenessRung?: 'space-first' | 'measured-room' | 'nearby-soft' | 'warm-near' | 'close-hold' | null
   openingDirective: string
   openingClaim: string
   supportingReality: string[]
@@ -2152,11 +2133,49 @@ export interface AlicizationAnswerCompilerSnapshot {
   nextMove?: string | null
   suppressAssociativeRecall: boolean
   labelCarryAsMemory: boolean
+  memoryShouldStayInward?: boolean | null
+  memoryWhyNow?: string | null
+  memoryWhyWithheld?: string | null
+  memoryFollowUpAffordanceSummary?: string | null
+  memoryStableCore?: string[] | null
+  memoryUnsafeDetails?: string[] | null
   maxSentences: number
   mustDo: string[]
   mustNotDo: string[]
   confidence: number
   narrative: string[]
+  updatedAt: number
+}
+
+export interface AlicizationMindTurnContractSnapshot {
+  version: 'mind-turn-contract-v1'
+  answerIntent: string | null
+  answerAct: AlicizationAnswerAct | null
+  turnMode: AlicizationAnswerCompilerSnapshot['turnMode']
+  responseMode: AlicizationCompiledResponseMode
+  evidenceMode: AlicizationAnswerEvidenceMode | null
+  openingStyle: AlicizationAnswerCompilerSnapshot['openingStyle']
+  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  replyRealizationMode: AlicizationReplyRealizationMode
+  personaKernelMode: AlicizationAnswerCompilerSnapshot['personaKernelMode']
+  activeClosenessContext: AlicizationAnswerCompilerSnapshot['activeClosenessContext']
+  activeClosenessRung: AlicizationAnswerCompilerSnapshot['activeClosenessRung']
+  relationshipPosture: AlicizationAnswerCompilerSnapshot['relationshipPosture']
+  labelCarryAsMemory: boolean
+  suppressAssociativeRecall: boolean
+  allowAffectionatePreface: boolean
+  allowStageDirections: boolean
+  allowBodyNarration: boolean
+  maxParagraphs: number
+  maxSentences: number
+  mustDo: string[]
+  mustNotDo: string[]
+  governingFocus: string
+  governingConcern: string | null
+  governingCommitment: string | null
+  governingInquiry: string | null
+  governingProject: string | null
+  reasons: string[]
   updatedAt: number
 }
 
@@ -2801,10 +2820,21 @@ export interface AlicizationChatStreamChunkEvent {
   text: string
 }
 
+export type AlicizationVisibleReplyExecutionMode = 'provider-stream' | 'provider-one-shot' | 'local-fallback'
+
+export interface AlicizationVisibleReplyExecution {
+  mode: AlicizationVisibleReplyExecutionMode
+  expectedVisibleReplyAuthority: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
+  actualVisibleReplyAuthority: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
+  providerMindExecuted: boolean
+  reason: string | null
+}
+
 export interface AlicizationChatMetaEvent {
   cardId: string
   turnId: string
   governance: AlicizationMindTurnGovernance | null
+  visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
@@ -2816,6 +2846,7 @@ export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
   status: 'completed' | 'aborted' | 'failed'
+  visibleReplyExecution?: AlicizationVisibleReplyExecution | null
   finishReason?: string
   fullText?: string
   error?: string
@@ -2957,6 +2988,7 @@ export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
 export const electronAlicizationListMemoryDecisionTraces = defineInvokeEventa<AlicizationMemoryDecisionTraceRecord[], AlicizationListMemoryDecisionTracesPayload>('eventa:invoke:electron:alicization:conversation:list-memory-decision-traces')
+export const electronAlicizationListPersonStateUpdates = defineInvokeEventa<AlicizationPersonStateUpdateRecord[], AlicizationListPersonStateUpdatesPayload>('eventa:invoke:electron:alicization:conversation:list-person-state-updates')
 export const electronAlicizationRunReplayBenchmark = defineInvokeEventa<AlicizationRunReplayBenchmarkResult, AlicizationRunReplayBenchmarkPayload>('eventa:invoke:electron:alicization:conversation:run-replay-benchmark')
 export const electronAlicizationUpsertTaskThread = defineInvokeEventa<AlicizationTaskThreadRecord, AlicizationUpsertTaskThreadPayload>('eventa:invoke:electron:alicization:executor:upsert-task-thread')
 export const electronAlicizationListTaskThreads = defineInvokeEventa<AlicizationTaskThreadRecord[], AlicizationListTaskThreadsPayload>('eventa:invoke:electron:alicization:executor:list-task-threads')

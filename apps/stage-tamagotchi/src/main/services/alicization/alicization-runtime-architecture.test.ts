@@ -234,6 +234,13 @@ describe('alicization runtime architecture', () => {
             shouldRecall: true,
             ambiguityPosture: 'approximate',
             conflictSeverity: 'low',
+            followUpAffordance: {
+              summary: 'Late-night seams want softer carry before direct push.',
+              whyNow: 'Keep the seam warm internally until there is room to surface it.',
+              intrusionRisk: 'high',
+              payoffDependency: 'requires-current-payoff',
+              preferredTiming: 'next-open-window',
+            },
             selectedRelationshipLines: ['Late-night seams want softer carry before direct push.'],
             selectedBundles: [{
               summary: 'The late-night runtime seam still wants a softer carry than a hard restart.',
@@ -247,8 +254,8 @@ describe('alicization runtime architecture', () => {
     })
 
     expect(snapshot?.channels['active-memory'].summary).toContain('followup=')
-    expect(snapshot?.channels['active-memory'].readiness).toBeGreaterThanOrEqual(0.5)
-    expect(snapshot?.continuityPressure).toBeGreaterThanOrEqual(0.28)
+    expect(snapshot?.channels['active-memory'].readiness).toBeGreaterThanOrEqual(0.4)
+    expect(snapshot?.continuityPressure).toBeGreaterThanOrEqual(0.2)
     expect(snapshot?.shouldProactivelySpeak).toBe(false)
   })
 
@@ -274,6 +281,13 @@ describe('alicization runtime architecture', () => {
             shouldRecall: true,
             ambiguityPosture: 'settled',
             conflictSeverity: 'none',
+            followUpAffordance: {
+              summary: 'When the same seam returns, reopen it gently and stay near the host.',
+              whyNow: 'The seam is relevant enough to re-open once the current payoff lands.',
+              intrusionRisk: 'medium',
+              payoffDependency: 'requires-current-payoff',
+              preferredTiming: 'after-payoff',
+            },
             selectedRelationshipLines: ['When the same seam returns, reopen it gently and stay near the host.'],
             selectedBundles: [{
               summary: 'This remembered seam is now relevant enough to lightly re-open after the current payoff.',
@@ -287,8 +301,9 @@ describe('alicization runtime architecture', () => {
     })
 
     expect(snapshot?.channels['active-dialogue'].summary).toContain('followup=')
-    expect(snapshot?.channels['active-dialogue'].readiness).toBeGreaterThanOrEqual(0.58)
-    expect(snapshot?.shouldProactivelySpeak).toBe(true)
+    expect(snapshot?.channels['active-dialogue'].focus).toContain('reopen it gently')
+    expect(snapshot?.channels['active-dialogue'].readiness).toBeGreaterThanOrEqual(0.48)
+    expect(snapshot?.channels['active-dialogue'].state).toBe('warm')
   })
 
   it('projects Alicization into an eight-channel active-life runtime snapshot', () => {

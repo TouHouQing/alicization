@@ -2598,6 +2598,7 @@ export function buildAlicizationMindSurfaceStructuredReply(input: AlicizationMin
     thought: rendered.thought,
     emotion: rendered.emotion,
     reply: rendered.reply,
+    visibleReplyAuthority: rendered.governance.visibleReplyAuthority ?? null,
     performance: rendered.performance,
     embodiment: rendered.embodiment,
     speechTimeline: rendered.speechTimeline,

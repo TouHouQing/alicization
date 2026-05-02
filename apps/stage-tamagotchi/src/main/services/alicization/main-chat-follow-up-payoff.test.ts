@@ -64,7 +64,7 @@ describe('main chat follow-up payoff', () => {
       ],
       decision: {
         lane: 'follow-up',
-        strategy: 'deterministic-payoff',
+        strategy: 'local-only',
         timeoutMs: 0,
         resolvedTimeZone: 'Asia/Shanghai',
         resolvedTimeZoneSource: 'context-hint',
@@ -107,6 +107,7 @@ describe('main chat follow-up payoff', () => {
     expect(parsed.reply).toContain('screenshot.png')
     expect(parsed.reply).toContain('todo.md')
     expect(parsed.reply).not.toContain('我直接沿刚才')
+    expect(parsed.visibleReplyAuthority).toBe('local-deterministic-fallback')
     expect(parsed.governance.answerSubject).toBe('task-knot')
     expect(parsed.governance.screenReferenceMode).toBe('helpful')
   })
@@ -140,7 +141,7 @@ describe('main chat follow-up payoff', () => {
       ],
       decision: {
         lane: 'follow-up',
-        strategy: 'deterministic-payoff',
+        strategy: 'local-only',
         timeoutMs: 0,
         resolvedTimeZone: 'Asia/Shanghai',
         resolvedTimeZoneSource: 'context-hint',
@@ -182,9 +183,46 @@ describe('main chat follow-up payoff', () => {
     expect(parsed.reply).toMatch(/CLI 那条.*(跑完了|收束了|回来了)/u)
     expect(parsed.reply).toContain('vitest passed on stage-tamagotchi')
     expect(parsed.reply).toContain('pnpm test finished without failures')
+    expect(parsed.visibleReplyAuthority).toBe('local-deterministic-fallback')
     expect(parsed.governance.answerAct).toBe('guide')
     expect(parsed.governance.dialogueActKernel.openingClaim).toContain('pnpm test finished without failures')
     expect(String(parsed.governance.dialogueActKernel.mustSay[0] ?? '')).toContain('vitest passed on stage-tamagotchi')
     expect(parsed.governance.mindTurnFrame.memory.memoryMode).toBe('task-thread')
+  })
+
+  it('does not synthesize deterministic follow-up payoff on compact llm-authored lanes', async () => {
+    const resolvePayoff = createAlicizationExecutionFollowUpPayoffResolver({
+      listTaskThreads: vi.fn(async () => [createThread()]),
+      listExecutionEvents: vi.fn(async () => [createEvent()]),
+    })
+
+    const structured = await resolvePayoff({
+      conversationMessages: [
+        { role: 'user', content: '帮我跑一下 stage-tamagotchi 的测试' },
+        { role: 'assistant', content: '我刚把那条测试任务接过去了。' },
+        { role: 'user', content: '刚才那个命令结果呢' },
+      ],
+      decision: {
+        lane: 'follow-up',
+        strategy: 'compact-one-shot',
+        timeoutMs: 6_500,
+        resolvedTimeZone: 'Asia/Shanghai',
+        resolvedTimeZoneSource: 'context-hint',
+        latestUserText: '刚才那个命令结果呢',
+        previousUserText: '帮我跑一下 stage-tamagotchi 的测试',
+        previousAssistantText: '我刚把那条测试任务接过去了。',
+        continuityAnchor: 'stage-tamagotchi 测试',
+        runtimeDigest: null,
+        personaKernel: null,
+        sessionMirror: null,
+        governance: null,
+        reasonCodes: ['short-follow-up', 'execution-carry'],
+      },
+      prepared: {
+        conversationSessionId: 'session-1',
+      } as any,
+    })
+
+    expect(structured).toBeNull()
   })
 })

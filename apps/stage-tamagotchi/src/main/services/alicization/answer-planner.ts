@@ -670,6 +670,8 @@ export function buildAnswerPlanner(input: {
   const dialogueWorldThread = runtimeSurface?.dialogue.dialogueWorldThread ?? input.dialogueWorldThread ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
+  const compiledActiveClosenessContext = answerCompiler?.activeClosenessContext ?? null
+  const compiledActiveClosenessRung = answerCompiler?.activeClosenessRung ?? null
   const selfContinuityAuthority = buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
   const ownership = dialogueEncounter?.ownership ?? input.ownership ?? null
   const dialogueSemantics = dialogueEncounter?.semantics ?? input.dialogueSemantics ?? null
@@ -741,6 +743,8 @@ export function buildAnswerPlanner(input: {
         160,
       ) || answerCompiler.openingClaim,
       relationshipPosture: answerCompiler.relationshipPosture,
+      activeClosenessContext: compiledActiveClosenessContext,
+      activeClosenessRung: compiledActiveClosenessRung,
       shouldAskForGrounding,
       shouldAcknowledgeRepair,
       selectedConcernEntryId: selectedConcern?.id ?? null,
@@ -756,6 +760,9 @@ export function buildAnswerPlanner(input: {
       mustNotDo: [...answerCompiler.mustNotDo],
       narrative: [
         ...answerCompiler.narrative,
+        compiledActiveClosenessContext && compiledActiveClosenessRung
+          ? `closeness-ladder:${compiledActiveClosenessContext}/${compiledActiveClosenessRung}`
+          : '',
         discourseState ? `compiled-subject:${discourseState.currentTurnSubject}` : '',
         focus,
       ].filter(Boolean),
@@ -885,6 +892,8 @@ export function buildAnswerPlanner(input: {
     }),
     answerIntent: normalizedAnswerIntent,
     relationshipPosture: posture,
+    activeClosenessContext: compiledActiveClosenessContext,
+    activeClosenessRung: compiledActiveClosenessRung,
     shouldAskForGrounding,
     shouldAcknowledgeRepair,
     selectedConcernEntryId: selectedConcern?.id ?? null,
@@ -915,6 +924,9 @@ export function buildAnswerPlanner(input: {
       `answer_act:${act}`,
       `evidence_mode:${mode}`,
       `relationship_posture:${posture}`,
+      compiledActiveClosenessContext && compiledActiveClosenessRung
+        ? `closeness-ladder:${compiledActiveClosenessContext}/${compiledActiveClosenessRung}`
+        : '',
       `focus_subject:${turnProfile.subject}`,
       `screen_reference:${turnProfile.screenReferenceMode}`,
       dialogueSemantics?.act ? `dialogue_act:${dialogueSemantics.act}` : '',
@@ -938,6 +950,7 @@ export function buildAlicizationAnswerPlannerSystemBlock(plan: AlicizationAnswer
     `Opening move: ${plan.openingMove}.`,
     `Answer intent: ${plan.answerIntent}.`,
     `Relationship posture: ${plan.relationshipPosture}.`,
+    `Closeness ladder: ${plan.activeClosenessContext && plan.activeClosenessRung ? `${plan.activeClosenessContext}/${plan.activeClosenessRung}` : 'none'}.`,
     `Ask for grounding: ${plan.shouldAskForGrounding ? 'yes' : 'no'}.`,
     `Acknowledge repair: ${plan.shouldAcknowledgeRepair ? 'yes' : 'no'}.`,
     `Selected concern continuity: ${plan.selectedConcernEntryId ?? 'none'}.`,

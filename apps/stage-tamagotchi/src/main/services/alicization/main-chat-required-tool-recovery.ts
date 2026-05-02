@@ -253,6 +253,7 @@ function buildDeterministicRecoveryStructuredText(input: {
     status,
     summary,
     outcome: output || summary,
+    visibleReplyAuthority: 'local-deterministic-fallback',
   })
 
   return JSON.stringify(structured)

@@ -1,9 +1,12 @@
 import type {
+  AlicizationDialoguePerformancePayload,
   AlicizationHostPersonModelSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
+import type { AlicizationActiveDialogueFastPathDecision } from './main-chat-active-dialogue-loop'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 import { sanitizeExecutionLedgerText } from './execution-ledger-shared'
@@ -12,12 +15,11 @@ import {
   formatAlicizationExecutionListingPreviewName,
   resolveAlicizationExecutionListingSummary,
 } from './execution-listing-surface'
-import {
-  renderAlicizationMindSurface,
-  type AlicizationMindSurfaceMove,
-} from './mind-surface-renderer'
+import { buildAlicizationActiveDialogueGovernedReply } from './main-chat-active-dialogue-loop'
+import { type AlicizationMindSurfaceMove } from './mind-surface-renderer'
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
+import { parseJsonObjectFromText } from './runtime-transport-content'
 const listingProtocolLeakPattern = /\bListed\s+(?:desktop\s+entries|entries)\s*\(\d+\):/iu
 const shellListingLeakPattern = /(?:^|\s)(?:drwx|total\s+\d+)/iu
 const mechanisticChannelLeadPattern = /^(?:刚才那个|这条)?\s*(?:CLI|Codex|Claude Code|OpenClaw)\b/iu
@@ -44,7 +46,7 @@ const allowedExecutionPayoffDeliveries = new Set([
   'teasing',
 ])
 
-export type AlicizationExecutionDeliveryReplySource = 'llm' | 'llm-repaired' | 'deterministic'
+export type AlicizationExecutionDeliveryReplySource = 'llm' | 'llm-repaired'
 export type AlicizationExecutionPayoffMode = 'inline-execution' | 'callback-delivery'
 
 export interface AlicizationExecutionDeliveryReplySelection {
@@ -57,6 +59,7 @@ export interface AlicizationExecutionPayoffStructured {
   thought: string
   emotion: string
   reply: string
+  visibleReplyAuthority?: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
   performance: {
     baseEmotion: string
     facialCue: string | null
@@ -65,7 +68,7 @@ export interface AlicizationExecutionPayoffStructured {
     emphasis: 0 | 1 | 2
   }
   parsePath: 'json'
-  format: 'mind-turn-v1' | 'subconscious-proactive-v1'
+  format: 'mind-turn-v1'
 }
 
 export type AlicizationExecutionOutcomeSurfaceStatus =
@@ -139,34 +142,6 @@ function buildExecutionPayoffEmotion(status: AlicizationExecutionOutcomeSurfaceS
   return 'apologetic'
 }
 
-function buildExecutionPayoffPerformance(emotion: string) {
-  return {
-    baseEmotion: emotion,
-    facialCue: emotion === 'thinking'
-      ? 'attentive'
-      : emotion === 'concerned'
-        ? 'concerned'
-        : emotion === 'apologetic'
-          ? 'hesitant'
-          : 'steady',
-    actionCue: emotion === 'thinking'
-      ? 'focus'
-      : emotion === 'concerned'
-        ? 'hesitate'
-        : emotion === 'apologetic'
-          ? 'lower'
-          : 'settled',
-    delivery: emotion === 'thinking'
-      ? 'calm'
-      : emotion === 'concerned' || emotion === 'apologetic'
-        ? 'hesitant'
-        : 'calm',
-    emphasis: emotion === 'thinking'
-      ? 0
-      : 1,
-  } satisfies AlicizationExecutionPayoffStructured['performance']
-}
-
 function normalizeOutcomeSurfaceStatus(raw: AlicizationExecutionOutcomeSurfaceStatus) {
   if (raw === 'completed' || raw === 'cancelled' || raw === 'blocked' || raw === 'failed')
     return raw
@@ -179,20 +154,32 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
   policy?: AlicizationExecutionResultDeliveryPolicy | null
   reply: string
   status: AlicizationExecutionOutcomeSurfaceStatus
+  personStateProjection?: AlicizationPersonStateProjection | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   goal?: string
 }) {
   const policy = input.policy ?? null
-  const contexts = inferHostSocialContextsFromText(input.goal ?? '')
-  const hostGuidance = buildHostSocialGuidance({
-    hostPersonModel: input.hostPersonModel ?? null,
-    contexts,
-  })
-  const doctrineGuidance = buildRelationshipDoctrineGuidance({
-    authority: input.selfContinuityAuthority ?? null,
-    contexts,
-  })
+  const personStateProjection = input.personStateProjection ?? null
+  const contexts = personStateProjection?.contexts ?? inferHostSocialContextsFromText(input.goal ?? '')
+  const hostGuidance = personStateProjection
+    ? {
+        cautious: personStateProjection.cautious,
+        restrained: personStateProjection.restrained,
+      }
+    : buildHostSocialGuidance({
+        hostPersonModel: input.hostPersonModel ?? null,
+        contexts,
+      })
+  const doctrineGuidance = personStateProjection
+    ? {
+        cautious: personStateProjection.cautious,
+        restrained: personStateProjection.restrained,
+      }
+    : buildRelationshipDoctrineGuidance({
+        authority: input.selfContinuityAuthority ?? null,
+        contexts,
+      })
   if ((!policy || policy.mode === 'deliver-now') && !hostGuidance.cautious && !doctrineGuidance.cautious)
     return input.reply
 
@@ -207,12 +194,12 @@ function applyExecutionResultDeliveryPolicyToReply(input: {
         return sanitizeText(`你现在要是能接，我把这条结果轻轻接回来给你：${baseReply}`, 220)
       if (policy?.tone === 'direct')
         return sanitizeText(`你要是现在能接结果，我就直接说：${baseReply}`, 220)
-      if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious)
+      if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || personStateProjection?.relationshipPosture === 'restrained')
         return sanitizeText(`你现在要是方便，我再把结果直接摊给你：${baseReply}`, 220)
       return sanitizeText(`你现在要是方便，我把结果直接接给你：${baseReply}`, 220)
     }
 
-    if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious)
+    if (policy?.tone === 'cautious' || hostGuidance.cautious || doctrineGuidance.cautious || personStateProjection?.relationshipPosture === 'restrained')
       return sanitizeText(`你现在要是方便，我把卡住的地方直接交代给你：${baseReply}`, 220)
     return sanitizeText(`你现在要是能接，我把这条执行状态直接说清：${baseReply}`, 220)
   }
@@ -228,6 +215,7 @@ function buildExecutionPayoffGovernance(input: {
   channel: string
   goal: string
   status: AlicizationExecutionOutcomeSurfaceStatus
+  personStateProjection?: AlicizationPersonStateProjection | null
 }): AlicizationMindTurnGovernance {
   const normalizedStatus = normalizeOutcomeSurfaceStatus(input.status)
   const focusAnchor = normalizedStatus === 'completed'
@@ -255,7 +243,7 @@ function buildExecutionPayoffGovernance(input: {
     groundedThisTurn: true,
     personaKernelMode: 'full',
     openingStyle: 'direct-answer',
-    relationshipPosture: 'warm',
+    relationshipPosture: input.personStateProjection?.relationshipPosture ?? 'warm',
     answerSubject: 'task-knot',
     screenReferenceMode: 'avoid',
     answerAct,
@@ -264,7 +252,7 @@ function buildExecutionPayoffGovernance(input: {
     liveSurface: null,
     focusAnchor,
     answerIntent,
-    openingMove: answerIntent,
+    openingMove: input.personStateProjection?.openingGuidance ?? answerIntent,
     carriedThread: null,
     suppressAssociativeRecall: true,
     labelCarryAsMemory: false,
@@ -390,27 +378,77 @@ function buildExecutionPayoffMoves(input: {
   }]
 }
 
-function renderExecutionPayoff(input: {
+function buildExecutionPayoffDecision(input: {
   mode: AlicizationExecutionPayoffMode
   channel: string
   goal: string
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   outcome: string
-}) {
-  const emotion = buildExecutionPayoffEmotion(input.status)
-  const performance = buildExecutionPayoffPerformance(emotion)
-  return renderAlicizationMindSurface({
+  personStateProjection?: AlicizationPersonStateProjection | null
+}): AlicizationActiveDialogueFastPathDecision {
+  const continuityAnchor = sanitizeText(input.summary || input.goal || input.outcome, 160)
+  return {
+    lane: 'follow-up',
+    strategy: 'compact-one-shot',
+    timeoutMs: 6_500,
+    resolvedTimeZone: 'UTC',
+    resolvedTimeZoneSource: 'utc-fallback',
+    latestUserText: sanitizeText(input.goal, 180) || 'execution result follow-up',
+    previousUserText: '',
+    previousAssistantText: sanitizeText(input.summary || input.outcome, 220),
+    continuityAnchor,
+    preparedExecutionCarryText: sanitizeText(input.outcome || input.summary || input.goal, 240),
+    runtimeDigest: null,
+    sessionMirror: null,
     governance: buildExecutionPayoffGovernance(input),
-    userText: sanitizeText(input.goal, 180),
+    personaKernel: null,
+    performanceManifest: undefined,
+    digitalLifeSpine: null,
+    reasonCodes: [
+      'execution-carry',
+      'execution-carry-llm-authored',
+      input.mode === 'callback-delivery'
+        ? 'execution-callback-surface'
+        : 'inline-execution-surface',
+    ],
+  }
+}
+
+export function buildAlicizationExecutionPayoffStructuredReply(input: {
+  mode: AlicizationExecutionPayoffMode
+  channel: string
+  goal: string
+  status: AlicizationExecutionOutcomeSurfaceStatus
+  summary: string
+  outcome: string
+  personStateProjection?: AlicizationPersonStateProjection | null
+  thought?: string | null
+  emotion?: string | null
+  delivery?: string | null
+  performance?: Partial<AlicizationDialoguePerformancePayload> | null
+  visibleReplyAuthority?: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
+}) {
+  const structured = buildAlicizationActiveDialogueGovernedReply({
+    decision: buildExecutionPayoffDecision(input),
     moves: buildExecutionPayoffMoves(input),
-    thought: buildExecutionPayoffThought({
+    thought: sanitizeText(input.thought, 220) || buildExecutionPayoffThought({
       mode: input.mode,
       status: input.status,
     }),
-    emotion,
-    delivery: performance.delivery,
+    emotion: sanitizeText(input.emotion, 24) || buildExecutionPayoffEmotion(input.status),
+    delivery: sanitizeText(input.delivery, 24) || undefined,
+    performance: input.performance,
+    visibleReplyAuthority: input.visibleReplyAuthority ?? 'llm-mind',
   })
+  const parsed = parseJsonObjectFromText(structured)
+  if (!parsed)
+    throw new Error('execution-payoff-surface-invalid-json')
+  return {
+    ...parsed,
+    parsePath: 'json',
+    format: 'mind-turn-v1',
+  } as AlicizationExecutionPayoffStructured
 }
 
 export function buildAlicizationInlineExecutionOutcomeReply(input: {
@@ -420,10 +458,11 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
   summary: string
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
-  const baseReply = renderExecutionPayoff({
+  const baseReply = buildAlicizationExecutionPayoffStructuredReply({
     ...input,
     mode: 'inline-execution',
   }).reply
@@ -431,6 +470,7 @@ export function buildAlicizationInlineExecutionOutcomeReply(input: {
     policy: input.policy,
     reply: baseReply,
     status: input.status,
+    personStateProjection: input.personStateProjection ?? null,
     hostPersonModel: input.hostPersonModel ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority ?? null,
     goal: input.goal,
@@ -444,10 +484,11 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
   summary: string
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
-  const baseReply = renderExecutionPayoff({
+  const baseReply = buildAlicizationExecutionPayoffStructuredReply({
     ...input,
     mode: 'callback-delivery',
   }).reply
@@ -455,6 +496,7 @@ export function buildAlicizationDeterministicExecutionDeliveryReply(input: {
     policy: input.policy,
     reply: baseReply,
     status: input.status,
+    personStateProjection: input.personStateProjection ?? null,
     hostPersonModel: input.hostPersonModel ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority ?? null,
     goal: input.goal,
@@ -479,6 +521,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
   status: AlicizationExecutionOutcomeSurfaceStatus
   summary: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }): AlicizationExecutionDeliveryReplySelection {
@@ -489,6 +532,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     summary: input.summary,
     outcome: input.outcome,
     policy: input.policy,
+    personStateProjection: input.personStateProjection ?? null,
     selfContinuityAuthority: input.selfContinuityAuthority,
     hostPersonModel: input.hostPersonModel ?? null,
   })
@@ -504,7 +548,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
 
   if (!llmReply) {
     return {
-      source: 'deterministic',
+      source: 'llm-repaired',
       reply: deterministicReply,
       reason: 'missing-llm-reply',
     }
@@ -535,15 +579,18 @@ export function selectAlicizationExecutionDeliveryReply(input: {
     }
   }
 
-  const contexts = inferHostSocialContextsFromText(input.goal)
-  const hostGuidance = buildHostSocialGuidance({
-    hostPersonModel: input.hostPersonModel ?? null,
-    contexts,
-  })
-  const doctrineGuidance = buildRelationshipDoctrineGuidance({
-    authority: input.selfContinuityAuthority ?? null,
-    contexts,
-  })
+  const hostGuidance = input.personStateProjection
+    ? { cautious: input.personStateProjection.cautious }
+    : buildHostSocialGuidance({
+        hostPersonModel: input.hostPersonModel ?? null,
+        contexts: inferHostSocialContextsFromText(input.goal),
+      })
+  const doctrineGuidance = input.personStateProjection
+    ? { cautious: input.personStateProjection.cautious }
+    : buildRelationshipDoctrineGuidance({
+        authority: input.selfContinuityAuthority ?? null,
+        contexts: inferHostSocialContextsFromText(input.goal),
+      })
   if ((input.policy?.mode === 'check-availability-first' || hostGuidance.cautious || doctrineGuidance.cautious) && !/(方便|能接|if you're free|if you have room|if now's a good time)/iu.test(llmReply)) {
     return {
       source: 'llm-repaired',
@@ -558,6 +605,7 @@ export function selectAlicizationExecutionDeliveryReply(input: {
       policy: input.policy,
       reply: llmReply,
       status: input.status,
+      personStateProjection: input.personStateProjection ?? null,
       hostPersonModel: input.hostPersonModel ?? null,
       selfContinuityAuthority: input.selfContinuityAuthority ?? null,
       goal: input.goal,
@@ -586,6 +634,7 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     focusAnchor?: string | null
     answerIntent?: string | null
   } | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
@@ -644,6 +693,25 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
           answerIntent: sanitizeText(input.governance.answerIntent, 160) || null,
         })}`
       : '',
+    input.personStateProjection
+      ? `Person-state projection JSON: ${JSON.stringify({
+          contexts: input.personStateProjection.contexts,
+          summary: sanitizeText(input.personStateProjection.summary, 180) || null,
+          regime: input.personStateProjection.personalityContinuityState.currentRegime,
+          activeClosenessContext: input.personStateProjection.activeClosenessContext,
+          activeClosenessRung: input.personStateProjection.activeClosenessRung,
+          closenessPosture: input.personStateProjection.personalityContinuityState.closenessPosture,
+          repairPosture: input.personStateProjection.personalityContinuityState.repairPosture,
+          relationshipPosture: input.personStateProjection.relationshipPosture,
+          openingGuidance: sanitizeText(input.personStateProjection.openingGuidance, 180) || null,
+          preferredProactiveStyle: input.personStateProjection.preferredProactiveStyle,
+          preference: sanitizeText(input.personStateProjection.preferenceText, 160) || null,
+          sensitivity: sanitizeText(input.personStateProjection.sensitivityText, 160) || null,
+          repairTrigger: sanitizeText(input.personStateProjection.repairTriggerText, 160) || null,
+          burden: sanitizeText(input.personStateProjection.burdenText, 160) || null,
+          trustRationale: sanitizeText(input.personStateProjection.trustRationale, 160) || null,
+        })}`
+      : '',
     input.selfContinuityAuthority
       ? `Self continuity authority JSON: ${JSON.stringify({
           selfLine: sanitizeText(input.selfContinuityAuthority.selfLine, 160) || null,
@@ -682,11 +750,13 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
       ? 'Let the same durable self line color this payoff so it sounds like Alicization, but never let it outrank the concrete finished result.'
       : '',
     'Carry the feeling that you stayed present through the execution and are now naturally paying it off to the Host.',
-    input.policy?.mode === 'check-availability-first'
+    input.policy?.mode === 'check-availability-first' || input.personStateProjection?.cautious
       ? 'Open with a quick check that the Host has room to receive the result, then land the result in the same reply.'
       : '',
-    input.hostPersonModel
-      ? 'If the host person model implies lighter touch, lower pressure, or a need for room, let that social memory soften how you hand off the result without becoming vague.'
+    input.personStateProjection
+      ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
+      : input.hostPersonModel
+        ? 'If the host person model implies lighter touch, lower pressure, or a need for room, let that social memory soften how you hand off the result without becoming vague.'
       : '',
     input.selfContinuityAuthority?.relationshipLine
       ? 'If the relationship doctrine implies repair before closeness, truth before warmth, or that presence should not become pressure, let that doctrine soften and sequence the handoff.'
@@ -727,30 +797,34 @@ export function buildAlicizationExecutionPayoffDeterministicStructured(input: {
   summary: string
   outcome: string
   policy?: AlicizationExecutionResultDeliveryPolicy | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  visibleReplyAuthority?: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
 }): AlicizationExecutionPayoffStructured {
-  const rendered = renderExecutionPayoff(input)
-  const emotion = rendered.emotion
+  const rendered = buildAlicizationExecutionPayoffStructuredReply({
+    ...input,
+    thought: null,
+    emotion: null,
+    delivery: null,
+    performance: null,
+    visibleReplyAuthority: input.visibleReplyAuthority ?? 'governed-repair-fallback',
+  })
 
   return {
+    ...rendered,
     thought: input.selfContinuityAuthority?.authoritySummary
-      ? `${rendered.thought}; self=${sanitizeText(input.selfContinuityAuthority.authoritySummary, 120)}`
-      : rendered.thought,
-    emotion,
+      ? `${sanitizeText(rendered.thought, 180)}; self=${sanitizeText(input.selfContinuityAuthority.authoritySummary, 120)}`
+      : sanitizeText(rendered.thought, 220),
     reply: applyExecutionResultDeliveryPolicyToReply({
       policy: input.policy,
-      reply: rendered.reply,
+      reply: sanitizeText(rendered.reply, 220),
       status: input.status,
+      personStateProjection: input.personStateProjection ?? null,
       hostPersonModel: input.hostPersonModel ?? null,
       selfContinuityAuthority: input.selfContinuityAuthority ?? null,
       goal: input.goal,
     }),
-    performance: buildExecutionPayoffPerformance(emotion),
-    parsePath: 'json',
-    format: input.mode === 'inline-execution'
-      ? 'mind-turn-v1'
-      : 'subconscious-proactive-v1',
   }
 }
 

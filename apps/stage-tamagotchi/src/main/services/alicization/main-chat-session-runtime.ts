@@ -9,6 +9,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationChatStartPayload,
+  AlicizationMindTurnContractSnapshot,
   AlicizationMindTurnGovernance,
   AlicizationRecallGovernorSnapshot,
   AlicizationSensoryCacheSnapshot,
@@ -43,8 +44,6 @@ import type {
   PreparedMainChatExecution,
   ResolvedCardCustomDirectives,
 } from './runtime-soul'
-import { clamp01 } from './runtime-soul'
-
 import {
   emptyAlicizationExecutionCallbackContext,
 } from './execution-callback-runtime'
@@ -71,11 +70,19 @@ import {
 } from './main-chat-execution-surface'
 import {
   buildAlicizationMainChatRuntimeSurface,
+  type AlicizationMainChatReplyAuthoritySurface,
+  type AlicizationMainChatReplyExecutionPlanSurface,
   shouldUseDialogueFirstLivingPromptMode,
 } from './main-chat-runtime-surface'
+import {
+  buildMemoryAnswerAnchorTag,
+  buildMemoryLatentBoundaryTag,
+  buildMemoryOpeningStrategyTag,
+} from './memory-deliberation-latent-controls'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
-import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
-import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -98,6 +105,7 @@ export interface AlicizationMainChatPerceptionAugmentation {
     suppressAssociativeRecall: boolean
     turnMode: AlicizationMindTurnGovernance['turnMode']
     personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
+    mindTurnContract: AlicizationMindTurnContractSnapshot | null
     mindTurnGovernance: AlicizationMindTurnGovernance | null
   }
 }
@@ -117,9 +125,12 @@ export interface AlicizationPreparedMainChatPrelude {
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
+  mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
   personaKernel: AlicizationPersonaKernelSnapshot | null
   performanceManifest: CharacterPerformanceCapabilitiesManifest | null
+  replyRealization: AlicizationMainChatReplyAuthoritySurface | null
+  replyExecutionPlan: AlicizationMainChatReplyExecutionPlanSurface | null
   runtimeSurface: AlicizationMainChatRuntimeSurface
   sessionMirror: AlicizationDialogueSessionMirror | null
   sessionTrace: AlicizationRuntimeCallChainSnapshot
@@ -164,6 +175,12 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId?: string | null
     turnId?: string | null
   }) => Promise<OrganicMemoryPromptContext>
+  prewarmOrganicMemoryAccessibility?: (input: {
+    recallSeed: string
+    recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
+    sessionId?: string | null
+    turnId?: string | null
+  }) => Promise<unknown>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
     turnId: string
@@ -224,53 +241,31 @@ function applyMemoryDeliberationToGovernance(input: {
   if (!governance || (!speech && !deliberation))
     return governance
 
-  const shouldRecall = deliberation?.shouldRecall ?? Boolean(speech)
-  if (!shouldRecall)
+  const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
+    deliberation,
+    speech,
+    recollectionIntent: input.context.recollectionIntent ?? null,
+  })
+  if (!deliberationKernel?.shouldRecall)
     return governance
 
-  const surfacePolicy = deliberation?.surfacePolicy ?? speech?.surfaceMode ?? 'internal-only'
-  const shouldStayInward = surfacePolicy === 'internal-only'
-    || !speech?.shouldSurface
-    || speech?.placement === 'internal-only'
-  const selectedChainSummary = (deliberation?.selectedChains ?? []).map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedChainStance = (deliberation?.selectedChains ?? []).map(item => item.currentStance).filter(Boolean).slice(0, 2).join(' | ') || null
-  const selectedChainPosture = (deliberation?.selectedChains ?? []).map(item => item.answerPosture).filter(Boolean).slice(0, 2).join(' | ') || null
-  const selectedBundleSummary = (deliberation?.selectedBundles ?? []).map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedEraSummary = deliberation?.selectedEras.map(item => item.summary).slice(0, 2).join(' | ') || null
-  const speechControls = deriveRecollectionSurfaceControls(speech)
-  const rationale = sanitizeGuidanceText(
-    deliberation?.whyNow
-      || speech?.rationale
-      || '',
-    220,
-  )
-  const selectedPeriodSummary = deliberation?.selectedPeriods.map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedProcedureSummary = deliberation?.selectedProcedures.map(item => item.label).slice(0, 2).join(' | ') || null
-  const selectedRelationshipSummary = deliberation?.selectedRelationshipLines.slice(0, 2).join(' | ') || null
-  const memoryControl = deliberation
-    ? deriveMemoryDeliberationControlState({
-        deliberation,
-        speech,
-        recollectionIntent: input.context.recollectionIntent ?? null,
-        shouldStayInward,
-      })
-    : null
-  const memoryControlSummary = memoryControl
-    ? [
-        `memory pressure=${memoryControl.memoryPressure}`,
-        `certainty=${memoryControl.certaintyPosture}`,
-        `relation=${memoryControl.relationshipVector}`,
-        `surface=${memoryControl.surfacePermission}`,
-        `depth=${memoryControl.retrospectiveDepth}`,
-        memoryControl.conflictBurden !== 'none' ? `conflict=${memoryControl.conflictBurden}` : '',
-      ].filter(Boolean).join(' | ')
-    : null
-  const inwardCarryRule = shouldStayInward
-    ? 'Before wording the visible reply, let the active recollection settle stance, pacing, and detail choice from the inside.'
-    : 'Let the active recollection guide the answer before speaking, but keep any visible memory gesture brief and subordinate to the live payoff.'
-  const inwardCarryBoundary = shouldStayInward
-    ? 'Do not narrate the active recollection unless the live payoff truly needs it.'
-    : 'Do not let recollection replace the live answer or expand into a retrospective dump.'
+  const surfacePolicy = deliberationKernel.surfacePolicy
+  const shouldStayInward = deliberationKernel.shouldStayInward
+  const selectedChainSummary = deliberationKernel.selectedChainSummary
+  const selectedChainStance = deliberationKernel.selectedChainStance
+  const selectedChainPosture = deliberationKernel.selectedChainPosture
+  const selectedBundleSummary = deliberationKernel.selectedBundleSummary
+  const selectedEraSummary = deliberationKernel.selectedEraSummary
+  const speechControls = deliberationKernel.speechControls
+  const speechLatentSummary = deliberationKernel.speechLatentSummary
+  const rationale = deliberationKernel.rationale
+  const selectedPeriodSummary = deliberationKernel.selectedPeriodSummary
+  const selectedProcedureSummary = deliberationKernel.selectedProcedureSummary
+  const selectedRelationshipSummary = deliberationKernel.selectedRelationshipSummary
+  const memoryControl = deliberationKernel.memoryControl
+  const memoryControlSummary = deliberationKernel.memoryControlSummary
+  const inwardCarryRule = deliberationKernel.inwardCarryRule
+  const inwardCarryBoundary = deliberationKernel.inwardCarryBoundary
   const baseMindTurnFrame = governance.mindTurnFrame ?? {
     world: {
       activeThread: governance.carriedThread ?? null,
@@ -331,7 +326,6 @@ function applyMemoryDeliberationToGovernance(input: {
   }
   const inwardThought = mergeGuidanceLine([
     baseMindTurnFrame.self.thought ?? null,
-    memoryControlSummary ? `Memory control state: ${memoryControlSummary}.` : null,
     selectedChainSummary
       ? `The experience chain shaping the answer is ${selectedChainSummary}.`
       : null,
@@ -350,6 +344,8 @@ function applyMemoryDeliberationToGovernance(input: {
     selectedRelationshipSummary
       ? `The remembered relationship line is ${selectedRelationshipSummary}.`
       : null,
+    memoryControlSummary ? `Memory latent controls: ${memoryControlSummary}.` : null,
+    !memoryControlSummary && speechLatentSummary ? `Recollection latent controls: ${speechLatentSummary}.` : null,
     speechControls
       ? `Let recollection stay ${speechControls.visibility} with ${speechControls.continuityRole} discipline and ${speechControls.certainty} certainty.`
       : null,
@@ -359,24 +355,22 @@ function applyMemoryDeliberationToGovernance(input: {
     rationale
       ? `An active recollection is shaping the answer from the inside because ${rationale.charAt(0).toLowerCase()}${rationale.slice(1)}`
       : null,
-    memoryControl?.answerDiscipline,
+    memoryControl ? `Memory latent controls: ${memoryControlSummary}.` : null,
     selectedChainStance
       ? `Current stance carried from remembered experience: ${selectedChainStance}.`
       : null,
   ])
   const inwardAnswerIntent = mergeGuidanceLine([
     baseMindTurnFrame.obligation.answerIntent ?? governance.answerIntent ?? null,
-    shouldStayInward
-      ? 'Let remembered continuity shape stance and chosen detail before any explicit memory mention.'
-      : `Let remembered continuity guide the answer through ${surfacePolicy} rather than through a fixed memory template.`,
-    memoryControl?.answerDiscipline,
+    memoryControl ? buildMemoryAnswerAnchorTag(memoryControl) : null,
+    !memoryControl && speechLatentSummary ? `recollection_answer_anchor{${speechLatentSummary}}` : null,
     selectedChainPosture,
   ])
   const inwardOpeningMove = baseMindTurnFrame.obligation.openingMove
     ?? governance.openingMove
     ?? (shouldStayInward
-      ? memoryControl?.openingDiscipline ?? 'Pay off the live ask first while keeping the remembered line inward.'
-      : memoryControl?.openingDiscipline ?? 'Let the remembered bundle open the reasoning, then pay off the live ask in the same reply.')
+      ? memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'memory_opening_strategy{mode=payoff-first-inward-carry}'
+      : memoryControl ? buildMemoryOpeningStrategyTag(memoryControl) : 'memory_opening_strategy{mode=embedded-memory-carry}')
 
   return {
     ...governance,
@@ -384,8 +378,6 @@ function applyMemoryDeliberationToGovernance(input: {
     openingMove: governance.openingMove ?? inwardOpeningMove,
     mustDo: mergeUniqueRules([
       inwardCarryRule,
-      memoryControl?.answerDiscipline,
-      memoryControl?.visibleDiscipline,
       ...(governance.mustDo ?? []),
     ]),
     mustNotDo: mergeUniqueRules([
@@ -448,182 +440,6 @@ function deriveMemoryDeliberationMemoryMode(input: {
     : 'dialogue-carry' as const
 }
 
-function deriveMemoryDeliberationControlState(input: {
-  deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
-  speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
-  recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
-  shouldStayInward: boolean
-}) {
-  const agenda = input.recollectionIntent?.recollectionAgenda ?? null
-  const selectedCount
-    = input.deliberation.selectedPeriods.length
-      + input.deliberation.selectedEpisodes.length
-      + input.deliberation.selectedProcedures.length
-      + input.deliberation.selectedBundles.length
-      + input.deliberation.selectedChains.length
-      + input.deliberation.selectedRelationshipLines.length
-  const memoryPressure = selectedCount >= 6 || input.deliberation.confidence >= 0.84
-    ? 'high'
-    : selectedCount >= 3 || input.deliberation.confidence >= 0.68
-      ? 'medium'
-      : 'low'
-  const certaintyPosture = input.speech?.certainty ?? (
-    input.deliberation.confidence >= 0.82
-      ? 'firm'
-      : input.deliberation.confidence >= 0.6
-        ? 'approximate'
-        : 'fragmentary'
-  )
-  const explicitConflictSeverity = input.deliberation.conflictSeverity ?? 'none'
-  const relationshipVector = input.deliberation.surfacePolicy === 'relationship-continuity'
-    || input.deliberation.selectedRelationshipLines.length > 0
-    || (agenda?.relationshipNeed ?? 0) >= 0.56
-    ? 'relational'
-    : input.deliberation.surfacePolicy === 'procedural-carry'
-      || input.deliberation.selectedProcedures.length > 0
-      || (agenda?.goalSimilarity ?? 0) >= 0.56
-      ? 'procedural'
-      : input.deliberation.selectedChains.length > 0 || input.deliberation.selectedBundles.length > 0
-        ? 'threaded'
-        : 'neutral'
-  const procedureCarryStrength = Number(clamp01(
-    (input.deliberation.selectedProcedures.length > 0 ? 0.42 : 0)
-    + (input.deliberation.surfacePolicy === 'procedural-carry' ? 0.38 : 0)
-    + ((agenda?.goalSimilarity ?? 0) * 0.18)
-    + input.deliberation.confidence * 0.2,
-  ).toFixed(2))
-  const conflictBurden = explicitConflictSeverity !== 'none'
-    ? explicitConflictSeverity
-    : input.deliberation.selectedEpisodes.some(item => item.provenance === 'reconstructed')
-      ? 'medium'
-      : input.deliberation.selectedEpisodes.some(item => item.provenance === 'dreamt' || item.provenance === 'inferred')
-        ? 'low'
-        : 'none'
-  const surfacePermission = input.shouldStayInward
-    ? 'inward-only'
-    : input.speech?.placement === 'before-payoff' || input.deliberation.surfacePolicy === 'answer-anchoring'
-      ? 'explicit-surface'
-      : 'soft-surface'
-  const retrospectiveDepth = input.deliberation.selectedPeriods.length > 0
-    || ((agenda?.candidateEraFacets ?? []).some(item => item.facet !== 'window' && item.weight >= 0.34))
-    ? 'period'
-    : input.deliberation.selectedChains.length > 0 || input.deliberation.selectedBundles.length > 0
-      ? 'thread'
-      : 'fragment'
-  const stableCore = input.deliberation.stableCore ?? []
-  const unsafeDetails = input.deliberation.unsafeDetails ?? []
-  const ambiguityPosture = input.deliberation.ambiguityPosture ?? 'settled'
-  const episodeProvenances = [...new Set(input.deliberation.selectedEpisodes.map(item => item.provenance))]
-  const dominantProvenance = episodeProvenances.includes('reconstructed')
-    ? 'reconstructed'
-    : episodeProvenances.includes('dreamt')
-      ? 'dreamt'
-      : episodeProvenances.includes('inferred')
-        ? 'inferred'
-        : episodeProvenances.includes('observed')
-          ? 'observed'
-          : episodeProvenances.includes('remembered')
-            ? 'remembered'
-            : 'remembered'
-  const provenancePosture = episodeProvenances.length > 1
-    ? 'mixed-memory'
-    : dominantProvenance === 'observed'
-      ? 'observed-memory'
-      : dominantProvenance === 'remembered'
-        ? 'remembered-memory'
-        : dominantProvenance === 'dreamt'
-          ? 'dream-residue'
-          : dominantProvenance === 'inferred'
-            ? 'inferred-pattern'
-            : 'reconstructed-memory'
-  const detailAssertionBudget = conflictBurden === 'high' || dominantProvenance === 'dreamt' || dominantProvenance === 'inferred'
-    ? 'minimal'
-    : conflictBurden === 'medium' || dominantProvenance === 'reconstructed' || episodeProvenances.length > 1
-      ? 'guarded'
-      : ambiguityPosture === 'ambiguous'
-        ? 'minimal'
-      : ambiguityPosture === 'approximate'
-        ? 'guarded'
-      : agenda?.uncertaintyTolerance === 'low'
-        ? 'guarded'
-      : 'open'
-  const certaintyFloor = conflictBurden === 'high'
-    ? 'fragmentary'
-    : ambiguityPosture === 'ambiguous'
-      ? 'fragmentary'
-    : ambiguityPosture === 'approximate' && certaintyPosture === 'firm'
-      ? 'approximate'
-    : conflictBurden === 'medium' && certaintyPosture === 'firm'
-      ? 'approximate'
-      : agenda?.uncertaintyTolerance === 'low' && certaintyPosture === 'firm'
-        ? 'approximate'
-      : (dominantProvenance === 'dreamt' || dominantProvenance === 'inferred') && certaintyPosture !== 'fragmentary'
-          ? 'fragmentary'
-          : dominantProvenance === 'reconstructed' && certaintyPosture === 'firm'
-            ? 'approximate'
-      : certaintyPosture
-
-  const openingDiscipline = input.shouldStayInward
-    ? 'Pay off the live ask first while keeping remembered continuity entirely as inner pressure.'
-    : relationshipVector === 'procedural'
-      ? 'Let the remembered way of handling this shape the opening without reciting a remembered line.'
-      : relationshipVector === 'relational'
-        ? 'Let remembered bond meaning soften the opening without narrating the bond history outright.'
-        : 'Let remembered continuity influence the opening as stance rather than as a quoted recollection.'
-  const answerDiscipline = [
-    `Memory pressure is ${memoryPressure}.`,
-    `Certainty posture is ${certaintyFloor}.`,
-    `Relationship vector is ${relationshipVector}.`,
-    `Retrospective depth is ${retrospectiveDepth}.`,
-    `Provenance posture is ${provenancePosture}.`,
-    `Detail assertion budget is ${detailAssertionBudget}.`,
-    ambiguityPosture !== 'settled' ? `Ambiguity posture is ${ambiguityPosture}.` : '',
-    agenda?.whyRecallNow ? `Recall agenda: ${agenda.whyRecallNow}` : '',
-    (agenda?.candidateTimeScopes?.length ?? 0) > 0
-      ? `Candidate time scopes: ${agenda?.candidateTimeScopes.slice(0, 2).map(item => `${item.scope}:${item.weight.toFixed(2)}`).join(' | ')}.`
-      : '',
-    (agenda?.candidateProcedureLines?.length ?? 0) > 0
-      ? `Candidate procedure lines: ${agenda?.candidateProcedureLines.slice(0, 2).join(' | ')}.`
-      : '',
-    conflictBurden !== 'none' ? `Conflict burden is ${conflictBurden}, so do not over-assert detail.` : '',
-    dominantProvenance === 'dreamt'
-      ? 'If this memory surfaces, treat it as dream residue or symbolic carry rather than lived fact.'
-      : dominantProvenance === 'inferred'
-        ? 'If this memory surfaces, treat it as inferred pattern or likely continuity rather than settled memory.'
-        : dominantProvenance === 'reconstructed'
-          ? 'If this memory surfaces, keep it approximate and center the stable core instead of exact remembered detail.'
-          : episodeProvenances.length > 1
-            ? 'If this memory surfaces, keep it blended and uncertainty-aware rather than pretending the variants fully agree.'
-            : '',
-    stableCore.length > 0 ? `Stable core: ${stableCore.slice(0, 2).join(' | ')}.` : '',
-    unsafeDetails.length > 0 ? `Unsafe detail boundary: ${unsafeDetails.slice(0, 2).join(' | ')}.` : '',
-  ].filter(Boolean).join(' ')
-  const visibleDiscipline = input.shouldStayInward
-    ? 'If memory stays active, let it bend stance, tone, and chosen detail from the inside rather than surfacing it explicitly.'
-    : surfacePermission === 'explicit-surface'
-      ? 'If memory becomes visible, surface at most one brief remembered contour and let the live payoff stay dominant.'
-      : 'If memory becomes visible, keep it soft and embedded inside the payoff rather than turning it into a recollection line.'
-
-  return {
-    memoryPressure,
-    certaintyPosture,
-    certaintyFloor,
-    relationshipVector,
-    procedureCarryStrength,
-    conflictBurden,
-    dominantProvenance,
-    provenancePosture,
-    detailAssertionBudget,
-    surfacePermission,
-    retrospectiveDepth,
-    stableCore,
-    unsafeDetails,
-    openingDiscipline,
-    answerDiscipline,
-    visibleDiscipline,
-  }
-}
-
 function mapAnswerActToReplyMotive(answerAct: AlicizationMindTurnGovernance['answerAct']) {
   switch (answerAct) {
     case 'guide':
@@ -667,28 +483,8 @@ function inferHostSocialContexts(input: {
   return [...new Set(contexts)]
 }
 
-function pickHostSocialPreference(input: {
-  contexts: string[]
-  hostPersonModel: NonNullable<OrganicMemoryPromptContext['hostPersonModel']>
-}) {
-  return input.hostPersonModel.preferredClosenessByContext
-    .filter(item => input.contexts.includes(item.context))
-    .sort((left, right) => right.confidence - left.confidence)[0] ?? null
-}
-
-function inferSocialPosture(input: {
-  preferenceText: string
-  trustStage: string
-}) {
-  const text = input.preferenceText.toLowerCase()
-  if (/(space|lighter|room|quiet|bounded|leave room|留白|空间|轻|安静|back off)/iu.test(text) || input.trustStage === 'guarded' || input.trustStage === 'cautious-open')
-    return 'restrained' as const
-  if (/(warm|closer|gentle|care|companionship|陪|温和|靠近|柔和)/iu.test(text))
-    return input.trustStage === 'trusted' ? 'tender' as const : 'warm' as const
-  return null
-}
-
 function applyHostPersonModelToGovernance(input: {
+  now: number
   governance: AlicizationMindTurnGovernance | null
   context: OrganicMemoryPromptContext
 }) {
@@ -708,36 +504,33 @@ function applyHostPersonModelToGovernance(input: {
   if (governance.answerSubject === 'relationship' || governance.answerSubject === 'alicization-self')
     contexts.push('open-window')
 
-  const preference = pickHostSocialPreference({
+  const projection = buildAlicizationPersonStateProjection({
+    now: input.now,
     contexts: [...new Set(contexts)],
     hostPersonModel,
+    habitPolicy: null,
+    selfContinuity: null,
+    selfState: null,
+    privateThought: null,
+    mindEcology: null,
   })
-  const preferenceText = sanitizeGuidanceText(preference?.preference ?? '', 180)
-  const sensitivity = sanitizeGuidanceText(hostPersonModel.sensitivities[0] ?? '', 180)
-  const repairTrigger = sanitizeGuidanceText(hostPersonModel.repairTriggers[0] ?? '', 180)
-  const burden = sanitizeGuidanceText(hostPersonModel.recurrentBurdens[0] ?? '', 180)
-  const trustRationale = sanitizeGuidanceText(hostPersonModel.trustLadder.rationale, 180)
-  const relationshipPosture = inferSocialPosture({
-    preferenceText,
-    trustStage: hostPersonModel.trustLadder.stage,
-  }) ?? governance.relationshipPosture
 
   return {
     ...governance,
-    relationshipPosture,
+    relationshipPosture: projection.relationshipPosture ?? governance.relationshipPosture,
     mustDo: mergeUniqueRules([
-      preferenceText ? `Host preference for this context: ${preferenceText}` : null,
-      repairTrigger ? `Repair trigger to respect: ${repairTrigger}` : null,
-      burden ? `Burden cue to respect: ${burden}` : null,
+      projection.preferenceText ? `Host preference for this context: ${projection.preferenceText}` : null,
+      projection.repairTriggerText ? `Repair trigger to respect: ${projection.repairTriggerText}` : null,
+      projection.burdenText ? `Burden cue to respect: ${projection.burdenText}` : null,
       ...(governance.mustDo ?? []),
     ]),
     mustNotDo: mergeUniqueRules([
-      sensitivity ? `Do not trigger host sensitivity: ${sensitivity}` : null,
+      projection.sensitivityText ? `Do not trigger host sensitivity: ${projection.sensitivityText}` : null,
       ...(governance.mustNotDo ?? []),
     ]),
     answerIntent: mergeGuidanceLine([
       governance.answerIntent ?? null,
-      trustRationale ? `Trust context: ${trustRationale}` : null,
+      projection.trustRationale ? `Trust context: ${projection.trustRationale}` : null,
     ], 220) ?? governance.answerIntent ?? null,
   }
 }
@@ -755,63 +548,48 @@ function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
   if (!surface || !governance || (!hostPersonModel && !relationshipDoctrine))
     return surface
 
-  const contexts = inferHostSocialContexts({
-    surface,
-    governance,
+  const projection = buildAlicizationPersonStateProjection({
+    now: input.now,
+    contexts: inferHostSocialContexts({
+      surface,
+      governance,
+    }),
+    autobiographicalSelf: surface.memory.autobiographicalSelf ?? null,
+    hostPersonModel: hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+    longHorizonMemory: surface.memory.longHorizonMemory ?? null,
+    motiveEngine: surface.memory.motiveEngine ?? null,
+    habitPolicy: surface.agency.habitPolicy ?? null,
+    selfContinuity: surface.memory.selfContinuity ?? null,
+    selfState: surface.agency.selfState ?? null,
+    privateThought: surface.cognition.privateThought ?? null,
+    mindEcology: buildMindEcologyFromRuntimeSurface(surface),
+    previousContinuityState: surface.memory.personalityContinuityState ?? null,
   })
-  const preference = hostPersonModel
-    ? pickHostSocialPreference({ contexts, hostPersonModel })
-    : null
-  const preferenceText = sanitizeGuidanceText(preference?.preference ?? '', 180)
-  const sensitivity = sanitizeGuidanceText(hostPersonModel?.sensitivities[0] ?? '', 180)
-  const repairTrigger = sanitizeGuidanceText(hostPersonModel?.repairTriggers[0] ?? '', 180)
-  const burden = sanitizeGuidanceText(hostPersonModel?.recurrentBurdens[0] ?? '', 180)
-  const routine = sanitizeGuidanceText(hostPersonModel?.routines[0] ?? '', 180)
-  const trustRationale = sanitizeGuidanceText(hostPersonModel?.trustLadder.rationale ?? '', 180)
-  const doctrineGuidance = buildRelationshipDoctrineGuidance({
-    authority: null,
-    doctrineText: relationshipDoctrine,
-    contexts,
-  })
-  const inferredPosture = inferSocialPosture({
-    preferenceText,
-    trustStage: hostPersonModel?.trustLadder.stage ?? 'cautious-open',
-  }) ?? (doctrineGuidance.restrained ? 'restrained' as const : null)
+  const contexts = projection.contexts
   const selectedMotive = (() => {
-    if (doctrineGuidance.repairBeforeCloseness && (repairTrigger || sensitivity))
+    if (projection.repairTriggerText && projection.relationshipPosture === 'restrained')
       return 'attune' as const
-    if (governance.answerSubject === 'relationship' && (repairTrigger || sensitivity))
+    if (governance.answerSubject === 'relationship' && (projection.repairTriggerText || projection.sensitivityText))
       return 'attune' as const
-    if (doctrineGuidance.restIntervention && contexts.includes('late-night'))
-      return 'care' as const
-    if (contexts.includes('late-night') && burden)
+    if (contexts.includes('late-night') && (projection.burdenText || projection.personalityContinuityState.currentRegime === 'late-night-care'))
       return 'care' as const
     return surface.dialogue.replyDeliberation?.selectedMotive ?? mapAnswerActToReplyMotive(governance.answerAct)
   })()
-  const openingGuidance = preferenceText && inferredPosture === 'restrained'
-    ? 'Open with the live answer first and keep the approach lighter.'
-    : doctrineGuidance.repairBeforeCloseness
-      ? 'Repair the seam before leaning closer.'
-      : doctrineGuidance.truthBeforeWarmth
-        ? 'Keep truth in front of warmth while you answer.'
-      : repairTrigger
-        ? 'Repair the seam before leaning closer.'
-        : burden && contexts.includes('late-night')
-        ? 'Keep the answer gentle and low-pressure.'
-        : null
   const socialWhyNow = mergeGuidanceLine([
     surface.dialogue.replyDeliberation?.whyThisReplyNow ?? null,
-    preferenceText ? `Host preference in this context: ${preferenceText}` : null,
-    sensitivity ? `Host sensitivity in play: ${sensitivity}` : null,
-    repairTrigger ? `Repair trigger in play: ${repairTrigger}` : null,
-    doctrineGuidance.doctrineSummary ? `Relationship doctrine in play: ${doctrineGuidance.doctrineSummary}` : null,
-    trustRationale ? `Trust line: ${trustRationale}` : null,
+    projection.preferenceText ? `Host preference in this context: ${projection.preferenceText}` : null,
+    `Closeness ladder in play: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
+    projection.sensitivityText ? `Host sensitivity in play: ${projection.sensitivityText}` : null,
+    projection.repairTriggerText ? `Repair trigger in play: ${projection.repairTriggerText}` : null,
+    projection.relationshipDoctrine ? `Relationship doctrine in play: ${projection.relationshipDoctrine}` : null,
+    projection.trustRationale ? `Trust line: ${projection.trustRationale}` : null,
+    projection.summary ? `Person-state: ${projection.summary}` : null,
   ], 240)
   const socialAnswerIntent = mergeGuidanceLine([
     surface.dialogue.answerPlanner?.answerIntent ?? governance.answerIntent ?? null,
-    relationshipDoctrine ? `Relationship doctrine: ${relationshipDoctrine}` : null,
-    routine ? `Routine cue: ${routine}` : null,
-    preferenceText ? `Preferred closeness here: ${preferenceText}` : null,
+    projection.relationshipDoctrine ? `Relationship doctrine: ${projection.relationshipDoctrine}` : null,
+    projection.routineText ? `Routine cue: ${projection.routineText}` : null,
+    projection.preferenceText ? `Preferred closeness here: ${projection.preferenceText}` : null,
   ], 220)
 
   return {
@@ -819,6 +597,8 @@ function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
     memory: {
       ...surface.memory,
       hostPersonModel: hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+      personalityContinuityState: projection.personalityContinuityState,
+      personStateProjection: projection,
     },
     dialogue: {
       ...surface.dialogue,
@@ -828,33 +608,34 @@ function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         memoryMode: surface.dialogue.replyDeliberation?.memoryMode ?? (governance.answerSubject === 'relationship' ? 'dialogue-carry' : 'task-thread'),
         openingBeat: mergeGuidanceLine([
           surface.dialogue.replyDeliberation?.openingBeat ?? null,
-          openingGuidance,
+          projection.openingGuidance,
         ], 220) || surface.dialogue.replyDeliberation?.openingBeat || governance.openingMove || socialWhyNow || '',
         whyThisReplyNow: socialWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || '',
         whyNotOtherCandidates: surface.dialogue.replyDeliberation?.whyNotOtherCandidates ?? [],
         withheldImpulses: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.withheldImpulses ?? []),
-          sensitivity ? `Do not trigger host sensitivity: ${sensitivity}` : null,
+          projection.sensitivityText ? `Do not trigger host sensitivity: ${projection.sensitivityText}` : null,
         ], 8),
         candidateMotives: surface.dialogue.replyDeliberation?.candidateMotives ?? [],
         shouldSpeak: surface.dialogue.replyDeliberation?.shouldSpeak ?? true,
         mustInclude: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
-          preferenceText ? `Respect host closeness preference: ${preferenceText}` : null,
-          repairTrigger ? `Respect repair trigger: ${repairTrigger}` : null,
-          doctrineGuidance.repairBeforeCloseness ? 'Let repair land before closeness.' : null,
-          doctrineGuidance.truthBeforeWarmth ? 'Let warmth answer to truth rather than outrunning it.' : null,
+          `Respect closeness ladder: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
+          projection.preferenceText ? `Respect host closeness preference: ${projection.preferenceText}` : null,
+          projection.repairTriggerText ? `Respect repair trigger: ${projection.repairTriggerText}` : null,
+          projection.relationshipPosture === 'restrained' ? 'Let repair land before closeness.' : null,
+          projection.relationshipDoctrine ? `Keep this doctrine alive: ${projection.relationshipDoctrine}` : null,
         ], 10),
         mustAvoid: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
-          sensitivity ? `Avoid this sensitivity: ${sensitivity}` : null,
-          burden ? `Avoid adding burden here: ${burden}` : null,
-          doctrineGuidance.leaveRoom ? 'Do not let presence become pressure.' : null,
+          projection.sensitivityText ? `Avoid this sensitivity: ${projection.sensitivityText}` : null,
+          projection.burdenText ? `Avoid adding burden here: ${projection.burdenText}` : null,
+          projection.restrained ? 'Do not let presence become pressure.' : null,
         ], 10),
         confidence: surface.dialogue.replyDeliberation?.confidence ?? 0.72,
         narrative: mergeUniqueRules([
           ...(surface.dialogue.replyDeliberation?.narrative ?? []),
-          'host-person-model',
+          'person-state-projection',
           ...contexts.map(context => `host-context:${context}`),
         ], 12),
         updatedAt: input.now,
@@ -865,15 +646,15 @@ function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         confidence: surface.dialogue.answerPlanner?.confidence ?? 0.72,
         governingFocus: mergeGuidanceLine([
           surface.dialogue.answerPlanner?.governingFocus ?? null,
-          preferenceText ? `Host preference: ${preferenceText}` : null,
-          relationshipDoctrine ? `Doctrine: ${relationshipDoctrine}` : null,
+          projection.preferenceText ? `Host preference: ${projection.preferenceText}` : null,
+          projection.relationshipDoctrine ? `Doctrine: ${projection.relationshipDoctrine}` : null,
         ], 220) || surface.dialogue.answerPlanner?.governingFocus || socialWhyNow || '',
         openingMove: mergeGuidanceLine([
           surface.dialogue.answerPlanner?.openingMove ?? null,
-          openingGuidance,
+          projection.openingGuidance,
         ], 220) || surface.dialogue.answerPlanner?.openingMove || governance.openingMove || '',
         answerIntent: socialAnswerIntent || surface.dialogue.answerPlanner?.answerIntent || governance.answerIntent || '',
-        relationshipPosture: inferredPosture ?? surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
+        relationshipPosture: projection.relationshipPosture ?? surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
         shouldAskForGrounding: surface.dialogue.answerPlanner?.shouldAskForGrounding ?? governance.shouldAskForGrounding,
         shouldAcknowledgeRepair: surface.dialogue.answerPlanner?.shouldAcknowledgeRepair ?? governance.shouldAcknowledgeRepair,
         selectedConcernEntryId: surface.dialogue.answerPlanner?.selectedConcernEntryId ?? null,
@@ -887,19 +668,20 @@ function applyHostPersonModelToDigitalLifeRuntimeSurface(input: {
         selectedTruthFrame: surface.dialogue.answerPlanner?.selectedTruthFrame ?? null,
         mustDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustDo ?? []),
-          preferenceText ? `Respect host preference here: ${preferenceText}` : null,
-          routine ? `Remember host routine: ${routine}` : null,
-          doctrineGuidance.repairBeforeCloseness ? 'Plan the answer so repair lands before closeness.' : null,
-          doctrineGuidance.truthBeforeWarmth ? 'Keep truth visibly ahead of warmth in the answer plan.' : null,
+          `Plan to the closeness ladder: ${projection.activeClosenessContext}/${projection.activeClosenessRung}.`,
+          projection.preferenceText ? `Respect host preference here: ${projection.preferenceText}` : null,
+          projection.routineText ? `Remember host routine: ${projection.routineText}` : null,
+          projection.relationshipPosture === 'restrained' ? 'Plan the answer so repair lands before closeness.' : null,
+          projection.relationshipDoctrine ? `Keep doctrine visible in the answer plan: ${projection.relationshipDoctrine}` : null,
         ], 10),
         mustNotDo: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
-          sensitivity ? `Do not ignore host sensitivity: ${sensitivity}` : null,
-          doctrineGuidance.leaveRoom ? 'Do not let closeness outrun room or turn into pressure.' : null,
+          projection.sensitivityText ? `Do not ignore host sensitivity: ${projection.sensitivityText}` : null,
+          projection.restrained ? 'Do not let closeness outrun room or turn into pressure.' : null,
         ], 10),
         narrative: mergeUniqueRules([
           ...(surface.dialogue.answerPlanner?.narrative ?? []),
-          'host-person-model',
+          'person-state-projection',
           ...contexts.map(context => `host-context:${context}`),
         ], 12),
         updatedAt: input.now,
@@ -917,42 +699,34 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   const surface = input.surface ?? null
   const governance = input.governance ?? null
   const deliberation = input.context.memoryDeliberation ?? null
-  if (!surface || !governance || !deliberation || !deliberation.shouldRecall)
-    return surface
-
   const speech = input.context.recollectionSpeechPlan ?? null
-  const shouldStayInward = deliberation.surfacePolicy === 'internal-only'
-    || !speech?.shouldSurface
-    || speech?.placement === 'internal-only'
-  const selectedChainSummary = (deliberation.selectedChains ?? []).map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedChainStance = (deliberation.selectedChains ?? []).map(item => item.currentStance).filter(Boolean).slice(0, 2).join(' | ') || null
-  const selectedChainPosture = (deliberation.selectedChains ?? []).map(item => item.answerPosture).filter(Boolean).slice(0, 2).join(' | ') || null
-  const selectedPeriodSummary = deliberation.selectedPeriods.map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedEraSummary = deliberation.selectedEras.map(item => item.summary).slice(0, 2).join(' | ') || null
-  const selectedProcedureSummary = deliberation.selectedProcedures.map(item => item.label).slice(0, 2).join(' | ') || null
-  const selectedRelationshipSummary = deliberation.selectedRelationshipLines.slice(0, 2).join(' | ') || null
-  const selectedBundleSummary = (deliberation.selectedBundles ?? []).map(item => item.summary).slice(0, 2).join(' | ') || null
-  const whyNow = sanitizeGuidanceText(deliberation.whyNow, 220)
-  const memoryControl = deriveMemoryDeliberationControlState({
+  const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation,
     speech,
     recollectionIntent: input.context.recollectionIntent ?? null,
-    shouldStayInward,
   })
-  const memoryControlSummary = [
-    `memory pressure=${memoryControl.memoryPressure}`,
-    `certainty=${memoryControl.certaintyFloor}`,
-    `relation=${memoryControl.relationshipVector}`,
-    `surface=${memoryControl.surfacePermission}`,
-    `depth=${memoryControl.retrospectiveDepth}`,
-    memoryControl.conflictBurden !== 'none' ? `conflict=${memoryControl.conflictBurden}` : '',
-  ].filter(Boolean).join(' | ')
+  if (!surface || !governance || !deliberationKernel?.shouldRecall || !deliberation)
+    return surface
+
+  const shouldStayInward = deliberationKernel.shouldStayInward
+  const selectedChainSummary = deliberationKernel.selectedChainSummary
+  const selectedChainStance = deliberationKernel.selectedChainStance
+  const selectedChainPosture = deliberationKernel.selectedChainPosture
+  const selectedPeriodSummary = deliberationKernel.selectedPeriodSummary
+  const selectedEraSummary = deliberationKernel.selectedEraSummary
+  const selectedProcedureSummary = deliberationKernel.selectedProcedureSummary
+  const selectedRelationshipSummary = deliberationKernel.selectedRelationshipSummary
+  const selectedBundleSummary = deliberationKernel.selectedBundleSummary
+  const whyNow = deliberationKernel.rationale
+  const followUpAffordance = deliberationKernel.followUpAffordance
+  const memoryControl = deliberationKernel.memoryControl!
+  const memoryControlSummary = deliberationKernel.memoryControlSummary
   const speakingIntention = mergeGuidanceLine([
     surface.dialogue.currentConsciousFrame?.speakingIntention ?? null,
     shouldStayInward
       ? 'Let remembered continuity shape the answer before any explicit memory mention.'
       : `Let remembered continuity guide the answer through ${deliberation.surfacePolicy}.`,
-    memoryControl.visibleDiscipline,
+    `Memory latent controls: ${memoryControlSummary}.`,
   ])
   const consciousNeed = mergeGuidanceLine([
     surface.dialogue.currentConsciousFrame?.consciousNeed ?? null,
@@ -984,19 +758,17 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   ])
   const replyWhyNow = mergeGuidanceLine([
     surface.dialogue.replyDeliberation?.whyThisReplyNow ?? null,
+    followUpAffordance?.whyNow ?? null,
     whyNow,
   ])
   const answerIntent = mergeGuidanceLine([
     surface.dialogue.answerPlanner?.answerIntent ?? governance.answerIntent ?? null,
-    shouldStayInward
-      ? 'Let remembered continuity shape stance and detail choice before any explicit memory mention.'
-      : `Let remembered continuity guide the answer through ${deliberation.surfacePolicy} rather than a rigid memory template.`,
-    memoryControl.answerDiscipline,
+    buildMemoryAnswerAnchorTag(memoryControl),
     selectedChainPosture,
   ])
   const openingMove = mergeGuidanceLine([
     surface.dialogue.answerPlanner?.openingMove ?? governance.openingMove ?? null,
-    memoryControl.openingDiscipline,
+    buildMemoryOpeningStrategyTag(memoryControl),
   ], 220)
   const mindTurnFrame = (governance.mindTurnFrame ?? surface.cognition.mindTurnFrame ?? null) as AlicizationDigitalLifeRuntimeSurface['cognition']['mindTurnFrame']
   const nextMindTurnFrame: AlicizationDigitalLifeRuntimeSurface['cognition']['mindTurnFrame'] = mindTurnFrame
@@ -1015,9 +787,9 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     truthDiscipline: surface.dialogue.currentConsciousFrame?.truthDiscipline === 'dialogue-first'
       ? 'dialogue-first'
       : 'memory-labeled',
-    consciousNeed: consciousNeed || surface.dialogue.currentConsciousFrame?.consciousNeed || memoryControlSummary || whyNow,
-    consciousTension: consciousTension || surface.dialogue.currentConsciousFrame?.consciousTension || whyNow,
-    speakingIntention: speakingIntention || surface.dialogue.currentConsciousFrame?.speakingIntention || memoryControl.visibleDiscipline || whyNow,
+    consciousNeed: consciousNeed || surface.dialogue.currentConsciousFrame?.consciousNeed || memoryControlSummary || whyNow || '',
+    consciousTension: consciousTension || surface.dialogue.currentConsciousFrame?.consciousTension || whyNow || '',
+    speakingIntention: speakingIntention || surface.dialogue.currentConsciousFrame?.speakingIntention || `Memory latent controls: ${memoryControlSummary}.` || whyNow || '',
     focusAnchor: surface.dialogue.currentConsciousFrame?.focusAnchor ?? governance.focusAnchor ?? null,
     withheldImpulse: surface.dialogue.currentConsciousFrame?.withheldImpulse ?? (shouldStayInward
       ? 'Do not flatten remembered continuity into a narrated memory dump.'
@@ -1043,11 +815,14 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       shouldStayInward,
       surfacePolicy: deliberation.surfacePolicy,
     }),
-    openingBeat: openingMove || surface.dialogue.replyDeliberation?.openingBeat || memoryControl.openingDiscipline || whyNow,
-    whyThisReplyNow: replyWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || whyNow,
+    openingBeat: openingMove || surface.dialogue.replyDeliberation?.openingBeat || whyNow || '',
+    whyThisReplyNow: replyWhyNow || surface.dialogue.replyDeliberation?.whyThisReplyNow || whyNow || '',
     whyNotOtherCandidates: surface.dialogue.replyDeliberation?.whyNotOtherCandidates ?? [],
     withheldImpulses: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.withheldImpulses ?? []),
+      followUpAffordance?.intrusionRisk === 'high'
+        ? 'Do not force the remembered follow-up forward before the host has room for it.'
+        : null,
       shouldStayInward
         ? 'Do not narrate the active recollection unless the live payoff truly needs it.'
         : 'Do not let recollection replace the live answer.',
@@ -1065,16 +840,12 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     shouldSpeak: surface.dialogue.replyDeliberation?.shouldSpeak ?? true,
     mustInclude: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.mustInclude ?? []),
-      shouldStayInward
-        ? 'Let memory shape tone inwardly before wording the visible reply.'
-        : 'If recollection surfaces, keep it brief and subordinate to the live payoff.',
-      memoryControl.visibleDiscipline,
+      `memory_latent_controls=${memoryControlSummary}`,
+      followUpAffordance?.summary ? `memory_follow_up_affordance=${followUpAffordance.summary}` : null,
     ], 8),
     mustAvoid: mergeUniqueRules([
       ...(surface.dialogue.replyDeliberation?.mustAvoid ?? []),
-      shouldStayInward
-        ? 'Do not expose the recollection as a standalone retrospective.'
-        : 'Do not turn recollection into a retrospective monologue.',
+      buildMemoryLatentBoundaryTag(memoryControl),
       memoryControl.dominantProvenance === 'dreamt'
         ? 'Do not present dream residue as lived remembered fact.'
         : null,
@@ -1088,6 +859,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       ...(surface.dialogue.replyDeliberation?.narrative ?? []),
       'memory-deliberation',
       `memory-deliberation:surface:${deliberation.surfacePolicy}`,
+      followUpAffordance?.preferredTiming ? `memory-deliberation:followup:${followUpAffordance.preferredTiming}` : null,
     ], 10),
     updatedAt: input.now,
   }
@@ -1104,9 +876,9 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       selectedProcedureSummary,
       selectedRelationshipSummary,
       memoryControlSummary,
-    ], 220) || memoryControlSummary || whyNow,
-    openingMove: openingMove || surface.dialogue.answerPlanner?.openingMove || memoryControl.openingDiscipline || whyNow,
-    answerIntent: answerIntent || surface.dialogue.answerPlanner?.answerIntent || memoryControl.answerDiscipline || whyNow,
+    ], 220) || memoryControlSummary || whyNow || '',
+    openingMove: openingMove || surface.dialogue.answerPlanner?.openingMove || whyNow || '',
+    answerIntent: answerIntent || surface.dialogue.answerPlanner?.answerIntent || whyNow || '',
     relationshipPosture: surface.dialogue.answerPlanner?.relationshipPosture ?? governance.relationshipPosture ?? 'warm',
     shouldAskForGrounding: surface.dialogue.answerPlanner?.shouldAskForGrounding ?? governance.shouldAskForGrounding,
     shouldAcknowledgeRepair: surface.dialogue.answerPlanner?.shouldAcknowledgeRepair ?? governance.shouldAcknowledgeRepair,
@@ -1121,9 +893,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     selectedTruthFrame: surface.dialogue.answerPlanner?.selectedTruthFrame ?? null,
     mustDo: mergeUniqueRules([
       ...(surface.dialogue.answerPlanner?.mustDo ?? []),
-      shouldStayInward
-        ? 'Let the remembered bundle guide answer posture from the inside.'
-        : 'Use the remembered bundle to anchor the answer before branching.',
+      `memory_latent_controls=${memoryControlSummary}`,
       memoryControl.dominantProvenance === 'dreamt'
         ? 'If the recollection becomes explicit, frame it as dream residue rather than lived fact.'
         : null,
@@ -1136,9 +906,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     ], 10),
     mustNotDo: mergeUniqueRules([
       ...(surface.dialogue.answerPlanner?.mustNotDo ?? []),
-      shouldStayInward
-        ? 'Do not force overt recollection when the memory should stay inward.'
-        : 'Do not let remembered continuity outrun the current payoff.',
+      buildMemoryLatentBoundaryTag(memoryControl),
       ...memoryControl.unsafeDetails.map(item => `Do not over-assert this remembered detail: ${item}`),
     ], 10),
     narrative: mergeUniqueRules([
@@ -1188,23 +956,22 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
           || selectedProcedureSummary
           || selectedRelationshipSummary
           || memoryControlSummary
-          || whyNow,
+          || whyNow
+          || '',
         confidence: deliberation.confidence,
       },
     ],
-    openingClaim: surface.dialogue.dialogueActKernel?.openingClaim ?? selectedEraSummary ?? selectedPeriodSummary ?? selectedChainSummary ?? selectedBundleSummary ?? selectedProcedureSummary ?? selectedRelationshipSummary ?? whyNow,
-    openingMove: openingMove || surface.dialogue.dialogueActKernel?.openingMove || memoryControl.openingDiscipline || whyNow,
-    whyNow: replyWhyNow || surface.dialogue.dialogueActKernel?.whyNow || whyNow,
+    openingClaim: surface.dialogue.dialogueActKernel?.openingClaim ?? selectedEraSummary ?? selectedPeriodSummary ?? selectedChainSummary ?? selectedBundleSummary ?? selectedProcedureSummary ?? selectedRelationshipSummary ?? whyNow ?? '',
+    openingMove: openingMove || surface.dialogue.dialogueActKernel?.openingMove || whyNow || '',
+    whyNow: replyWhyNow || surface.dialogue.dialogueActKernel?.whyNow || whyNow || '',
     mustSay: mergeUniqueRules([
       ...(surface.dialogue.dialogueActKernel?.mustSay ?? []),
       answerIntent,
-      memoryControl.visibleDiscipline,
+      `memory_latent_controls=${memoryControlSummary}`,
     ], 8),
     mustAvoid: mergeUniqueRules([
       ...(surface.dialogue.dialogueActKernel?.mustAvoid ?? []),
-      shouldStayInward
-        ? 'Do not surface recollection as a standalone retrospective.'
-        : 'Do not let recollection outrun the current payoff.',
+      buildMemoryLatentBoundaryTag(memoryControl),
     ], 8),
     sourceTrace: mergeUniqueRules([
       ...(surface.dialogue.dialogueActKernel?.sourceTrace ?? []),
@@ -1419,18 +1186,31 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       }),
     ])
 
+    const organicRecallSeed = [
+      contextualString,
+      executionCallbackContext.recallText,
+      executionLedgerContext.recallText,
+      prelude.perceptionAugmentation.memoryRecallSeed,
+      memoryCarryPolicy.recallSeed,
+      buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
+      buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
+    ].filter(Boolean).join('\n')
+    if (options.prewarmOrganicMemoryAccessibility) {
+      await agentTurn.trackPhase('organic-memory-prewarm', async () => {
+        await options.prewarmOrganicMemoryAccessibility?.({
+          recallSeed: organicRecallSeed,
+          recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+          turnId: payload.turnId,
+        })
+      }, {
+        personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+      })
+    }
+
     const organicPromptContext = await agentTurn.trackPhase('organic-memory-context', async () => {
       return options.tuneOrganicMemoryPromptContextForExecutiveTurn({
         context: await options.resolveOrganicMemoryPromptContext({
-          recallSeed: [
-            contextualString,
-            executionCallbackContext.recallText,
-            executionLedgerContext.recallText,
-            prelude.perceptionAugmentation.memoryRecallSeed,
-            memoryCarryPolicy.recallSeed,
-            buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
-            buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
-          ].filter(Boolean).join('\n'),
+          recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
         }),
@@ -1682,9 +1462,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       now,
     })
     const sociallyShapedGovernance = applyHostPersonModelToGovernance({
+      now,
       governance: effectiveMindTurnGovernanceWithRecollection,
       context: organicPromptContext,
     })
+    const llmMindAuthorityGovernance = sociallyShapedGovernance
+      ? {
+          ...sociallyShapedGovernance,
+          visibleReplyAuthority: 'llm-mind' as const,
+        }
+      : null
     const effectiveDigitalLifeSpine = digitalLifeSpine
       ? {
           ...digitalLifeSpine,
@@ -1741,7 +1528,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             ? 'task-or-direct-answer-obligation'
             : undefined,
         turnMode: prelude.perceptionAugmentation.chatGovernance.turnMode,
-        governance: sociallyShapedGovernance,
+        governance: llmMindAuthorityGovernance,
         tools,
         toolChoice,
         sessionPhases,
@@ -1792,9 +1579,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       customDirectivesResolution,
       hasVisualGrounding: runtimeSurface.hasVisualGrounding,
       governance: runtimeSurface.governance,
+      mindTurnContract: prelude.perceptionAugmentation.chatGovernance.mindTurnContract,
       organicMemoryContext: organicPromptContext,
       personaKernel,
       performanceManifest,
+      replyRealization: runtimeSurface.replyAuthority ?? null,
+      replyExecutionPlan: runtimeSurface.replyExecutionPlan ?? null,
       runtimeSurface,
       sessionMirror,
       sessionTrace: agentTurn.snapshot(),

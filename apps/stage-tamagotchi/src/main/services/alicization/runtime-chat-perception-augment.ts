@@ -35,19 +35,20 @@ import { buildDialogueWorldThreadSystemBlock } from './dialogue-world-thread'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { buildDiscourseStateSystemBlock } from './discourse-state'
 import { buildAlicizationExecutiveAnswerBrief } from './executive-answer-brief'
+import { buildMemorySearchGovernorSystemBlock } from './memory-search-runtime'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindSynthesisSystemBlock } from './mind-synthesizer'
 import {
   buildProactiveLayeredContext,
   inferScenarioFromContext,
 } from './proactive-layered-context'
-import { buildRecallGovernorSystemBlock } from './recall-governor'
 import { buildReplyDeliberationSystemBlock } from './reply-deliberator'
 import {
   buildAlicizationResponseCharter,
   buildAlicizationResponseCharterSystemBlock,
 } from './response-charter'
 import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
+import { buildAlicizationMindTurnContract, buildAlicizationMindTurnContractSystemBlock } from './mind-turn-contract'
 import {
   buildChatInspectionContractSystemBlock,
   buildChatPerceptionSystemBlock,
@@ -307,6 +308,13 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
       runtimeSurface: chatRuntimeSurface,
     })
+    const mindTurnContract = buildAlicizationMindTurnContract({
+      answerPlanner: chatMindState.answerPlanner ?? null,
+      answerCompiler: chatMindState.answerCompiler ?? null,
+      responseCharter,
+      responseSurfaceContract: responseSurfaceContract.contract,
+      now,
+    })
     const compactedMessages = executiveAnswerBrief.brief.shouldCompactHistory
       ? compactMindGovernedChatMessages({
           messages,
@@ -326,6 +334,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
       brief: executiveAnswerBrief.brief,
       charter: responseCharter,
       surfaceContract: responseSurfaceContract.contract,
+      mindTurnContract,
       mindTurnFrame: visualPresenceState.mindTurnFrame,
       kernel: visualPresenceState.dialogueActKernel,
       discourseState: visualPresenceState.discourseState,
@@ -377,7 +386,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         ? buildReplyDeliberationSystemBlock(visualPresenceState.replyDeliberation)
         : '',
       visualPresenceState.recallGovernor
-        ? buildRecallGovernorSystemBlock(visualPresenceState.recallGovernor)
+        ? buildMemorySearchGovernorSystemBlock(visualPresenceState.recallGovernor)
         : '',
       visualPresenceState.answerPlanner
         ? buildAlicizationAnswerPlannerSystemBlock(visualPresenceState.answerPlanner)
@@ -396,6 +405,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         : '',
       executiveAnswerBrief.systemBlock,
       responseSurfaceContract.systemBlock,
+      buildAlicizationMindTurnContractSystemBlock(mindTurnContract),
       buildAlicizationResponseCharterSystemBlock(responseCharter),
       chatRuntimeSystemBlock,
       buildChatPerceptionSystemBlock({
@@ -569,9 +579,10 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         fallbackReason: captureGovernance.fallbackReason,
       },
       chatGovernance: {
-        suppressAssociativeRecall: responseSurfaceContract.contract.suppressAssociativeRecall,
+        suppressAssociativeRecall: mindTurnContract.suppressAssociativeRecall,
         turnMode: executiveAnswerBrief.brief.turnMode,
-        personaKernelMode: responseSurfaceContract.contract.personaKernelMode,
+        personaKernelMode: mindTurnContract.personaKernelMode,
+        mindTurnContract,
         mindTurnGovernance,
       },
     }

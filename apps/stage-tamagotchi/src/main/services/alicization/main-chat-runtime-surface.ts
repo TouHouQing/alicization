@@ -59,6 +59,18 @@ export interface AlicizationMainChatTraceSurface {
   turnMode: AlicizationMindTurnGovernance['turnMode'] | null
 }
 
+export interface AlicizationMainChatReplyAuthoritySurface {
+  replyRealizationMode: 'provider-mind-required' | 'fallback-locally-allowed'
+  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  whyProviderMindRequired: string | null
+}
+
+export interface AlicizationMainChatReplyExecutionPlanSurface {
+  preferredMode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
+  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  reason: string | null
+}
+
 export interface AlicizationMainChatRuntimeSurface {
   action: AlicizationMainChatActionSurface | null
   capture: AlicizationMainChatCaptureSurface
@@ -69,6 +81,8 @@ export interface AlicizationMainChatRuntimeSurface {
   governance: AlicizationMindTurnGovernance | null
   hasVisualGrounding: boolean
   messages: Message[]
+  replyAuthority?: AlicizationMainChatReplyAuthoritySurface
+  replyExecutionPlan?: AlicizationMainChatReplyExecutionPlanSurface
   tooling: AlicizationMainChatToolingSurface
   trace: AlicizationMainChatTraceSurface
 }
@@ -405,10 +419,10 @@ export function buildAlicizationMainChatRuntimeSurface(
     ? ''
     : (input.executionRoutingEnforcementSystemBlock ?? '')
   const effectiveExecutionCallbackSystemBlocks = dialogueFirstLivingPromptMode
-    ? (input.executionCallbackSystemBlocks ?? [])
+    ? []
     : (input.executionCallbackSystemBlocks ?? [])
   const effectiveExecutionLedgerSystemBlocks = dialogueFirstLivingPromptMode
-    ? (input.executionLedgerSystemBlocks ?? [])
+    ? []
     : (input.executionLedgerSystemBlocks ?? [])
   const effectivePerformanceManifestSystemBlocks = dialogueFirstLivingPromptMode
     ? []
@@ -469,6 +483,27 @@ export function buildAlicizationMainChatRuntimeSurface(
     ? []
     : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
+  const expectedVisibleReplyAuthority = input.governance?.visibleReplyAuthority ?? 'llm-mind'
+  const replyRealizationMode = expectedVisibleReplyAuthority === 'llm-mind'
+    ? 'provider-mind-required' as const
+    : 'fallback-locally-allowed' as const
+  const whyProviderMindRequired = replyRealizationMode === 'provider-mind-required'
+    ? sanitizePromptText(
+        digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
+        ?? input.governance?.answerIntent
+        ?? '',
+        220,
+      ) || 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
+    : null
+  const replyExecutionPlan = {
+    preferredMode: replyRealizationMode === 'fallback-locally-allowed'
+      ? 'local-fallback' as const
+      : hasVisualGrounding
+        ? 'provider-one-shot' as const
+        : 'provider-stream' as const,
+    expectedVisibleReplyAuthority,
+    reason: whyProviderMindRequired,
+  }
 
   return {
     action: input.actionObligation
@@ -489,6 +524,12 @@ export function buildAlicizationMainChatRuntimeSurface(
     digitalLifeArchitecture,
     digitalLifeRuntimeSurface,
     hasVisualGrounding,
+    replyAuthority: {
+      replyRealizationMode,
+      expectedVisibleReplyAuthority,
+      whyProviderMindRequired,
+    },
+    replyExecutionPlan,
     trace: {
       decisionTraceId: sanitizePromptText(input.governance?.decisionTraceId, 120) || null,
       turnMode: input.governance?.turnMode ?? input.turnMode,

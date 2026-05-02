@@ -39,6 +39,7 @@ import {
   electronAlicizationListExecutorSessions,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationListPersonStateUpdates,
   electronAlicizationRunReplayBenchmark,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryUpsertFacts,
@@ -68,6 +69,10 @@ const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
 const desktopCapturerGetSourcesMock = vi.fn<() => Promise<any[]>>(async () => [])
 const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
+
+function buildMindHeadMetaKey(cardId: string, key: string) {
+  return `mind-head:${cardId}:${key}`
+}
 const screenCaptureDiagnosticsBySenderId = new Map<number, any>()
 const getScreenCaptureDiagnosticsForWebContentsIdMock = vi.fn((webContentsId: number) => screenCaptureDiagnosticsBySenderId.get(webContentsId) ?? null)
 const appBeforeQuitHandlers: Array<() => Promise<void> | void> = []
@@ -194,6 +199,15 @@ const dbStub = {
   appendExecutionEvents: vi.fn().mockResolvedValue(undefined),
   listExecutionEvents: vi.fn().mockResolvedValue([]),
   clearConversationData: vi.fn().mockResolvedValue(undefined),
+  readMindHead: vi.fn(async (cardId: string, key: string) => {
+    const raw = metaStore.get(buildMindHeadMetaKey(cardId, key))
+    if (!raw)
+      return null
+    return JSON.parse(raw)
+  }),
+  upsertMindHead: vi.fn(async (cardId: string, key: string, value: unknown) => {
+    metaStore.set(buildMindHeadMetaKey(cardId, key), JSON.stringify(value ?? null))
+  }),
   getMetaValue: vi.fn(async (key: string) => metaStore.get(key)),
   setMetaValue: vi.fn(async (key: string, value: string) => {
     metaStore.set(key, value)
@@ -364,6 +378,17 @@ function resetDbStubMocks() {
   dbStub.listExecutionEvents.mockResolvedValue([])
   dbStub.clearConversationData.mockReset()
   dbStub.clearConversationData.mockResolvedValue(undefined)
+  dbStub.readMindHead.mockReset()
+  dbStub.readMindHead.mockImplementation(async (cardId: string, key: string) => {
+    const raw = metaStore.get(buildMindHeadMetaKey(cardId, key))
+    if (!raw)
+      return null
+    return JSON.parse(raw)
+  })
+  dbStub.upsertMindHead.mockReset()
+  dbStub.upsertMindHead.mockImplementation(async (cardId: string, key: string, value: unknown) => {
+    metaStore.set(buildMindHeadMetaKey(cardId, key), JSON.stringify(value ?? null))
+  })
   dbStub.getMetaValue.mockReset()
   dbStub.getMetaValue.mockImplementation(async (key: string) => metaStore.get(key))
   dbStub.setMetaValue.mockReset()
@@ -1719,6 +1744,55 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         createdAt: 110,
       },
       {
+        id: 'evt-2b',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'memory-deliberation-judged',
+        payload: {
+          shouldRecall: true,
+          whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+          restraint: {
+            surfaceMode: 'stable-core-only',
+            shouldOnlySurfaceStableCore: true,
+            shouldDelayUntilAfterPayoff: true,
+          },
+          personState: {
+            activeClosenessContext: 'repair-window',
+            activeClosenessRung: 'measured-room',
+            relationshipPosture: 'restrained',
+          },
+        },
+        createdAt: 111,
+      },
+      {
+        id: 'evt-2c',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'memory-followup-deferred',
+        payload: {
+          preferredTiming: 'after-payoff',
+          payoffDependency: 'requires-current-payoff',
+        },
+        createdAt: 112,
+      },
+      {
+        id: 'evt-2d',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'memory-wrong-thread-suppressed',
+        payload: {
+          evidenceGap: 'need-disambiguation',
+          conflictSeverity: 'high',
+        },
+        createdAt: 113,
+      },
+      {
         id: 'evt-3',
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         turnId: 'turn-1',
@@ -1749,18 +1823,127 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       expect.objectContaining({
         decisionTraceId: 'mind:l9f3lq:feedfacecafe',
         activeThreadId: 'thread-runtime',
-        eventKinds: expect.arrayContaining(['governance-normalized', 'recall-attribution', 'reply-memory-coherence']),
+        eventKinds: expect.arrayContaining([
+          'governance-normalized',
+          'recall-attribution',
+          'memory-deliberation-judged',
+          'memory-followup-deferred',
+          'memory-wrong-thread-suppressed',
+          'reply-memory-coherence',
+        ]),
         recallAttribution: expect.objectContaining({
           whyNow: 'The remembered runtime seam still matters here.',
           followUpAffordance: expect.objectContaining({
             preferredTiming: 'after-payoff',
           }),
         }),
+        memoryDeliberationJudged: expect.objectContaining({
+          whyWithheld: expect.stringContaining('stable remembered core'),
+          restraint: expect.objectContaining({
+            surfaceMode: 'stable-core-only',
+            shouldOnlySurfaceStableCore: true,
+          }),
+          personState: expect.objectContaining({
+            activeClosenessContext: 'repair-window',
+          }),
+        }),
+        memoryFollowUpDeferred: expect.objectContaining({
+          preferredTiming: 'after-payoff',
+          payoffDependency: 'requires-current-payoff',
+        }),
+        memoryWrongThreadSuppressed: expect.objectContaining({
+          evidenceGap: 'need-disambiguation',
+          conflictSeverity: 'high',
+        }),
         replyMemoryCoherence: expect.objectContaining({
           coherenceState: 'inward-only',
         }),
       }),
     ]))
+  })
+
+  it('lists replayable person-state updates through invoke handler', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const listPersonStateUpdates = invokeHandlers.get(electronAlicizationListPersonStateUpdates)
+    expect(listPersonStateUpdates).toBeTypeOf('function')
+
+    dbStub.listMindTurnEvents.mockResolvedValue([
+      {
+        id: 'evt-person-state-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'person-state-updated',
+        payload: {
+          version: 'person-state-update-surface-v1',
+          updatedAt: 150,
+          summary: 'Recent outcomes nudged trust upward.',
+          dominantContexts: ['focused-work', 'general'],
+          relationshipShift: {
+            trustDelta: 0.12,
+            closenessDelta: -0.02,
+            burdenDelta: 0.05,
+            boundaryDelta: -0.03,
+            repairDelta: 0.04,
+          },
+          reinforcementBias: {
+            'autonomy-respect': 0.08,
+          },
+          preferenceHints: ['Lighter touch, more room, less interruption pressure.'],
+          sensitivityHints: ['Pressure and over-close timing become intrusive quickly.'],
+          repairHints: ['When the seam is off, repair before continuing.'],
+          burdenHints: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+          narrative: ['execution callback landed during focused work'],
+          sourceTrail: [{
+            kind: 'relationship-outcome',
+            sourceKind: 'execution',
+            summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
+            createdAt: 149,
+          }],
+          sourceKinds: ['execution'],
+          sourceCounts: {
+            relationshipOutcomes: 1,
+            reinforcementEvents: 1,
+            episodicEvents: 1,
+            reflections: 0,
+            memoryFacts: 0,
+          },
+        },
+        createdAt: 149,
+      },
+    ])
+
+    const result = await listPersonStateUpdates!({
+      cardId: 'default',
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      limit: 12,
+    })
+
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+      turnId: undefined,
+      limit: 72,
+    })
+    expect(result).toEqual([
+      expect.objectContaining({
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        summary: 'Recent outcomes nudged trust upward.',
+        dominantContexts: expect.arrayContaining(['focused-work']),
+        sourceKinds: ['execution'],
+        sourceCounts: expect.objectContaining({
+          relationshipOutcomes: 1,
+          reinforcementEvents: 1,
+        }),
+      }),
+    ])
   })
 
   it('runs the default replay benchmark through invoke handler and persists telemetry patch', async () => {
@@ -1795,6 +1978,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         }),
       }),
       telemetryPersisted: true,
+      failingTurnSet: expect.any(Array),
+      datasetFeedback: expect.objectContaining({
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: expect.any(Number),
+        totalCount: expect.any(Number),
+        persisted: expect.any(Boolean),
+      }),
     }))
     expect(dbStub.overrideMemoryStats).toBeCalledWith(expect.objectContaining({
       retrievalHealth: expect.objectContaining({
@@ -1804,6 +1994,450 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.memory-benchmark',
       action: 'replay-benchmark-ran',
+    }))
+  })
+
+  it('runs the sampled replay benchmark from recent real memory traces', async () => {
+    const sandboxPath = await createSandboxPath()
+    dbStub.listConversationTurnsSince.mockResolvedValue([
+      {
+        turnId: 'turn-sampled-1',
+        sessionId: 'session-sampled-1',
+        userText: '不是那条线，是另一条，你别把它们混在一起',
+        assistantText: '我先只抓住稳定那部分。',
+        structuredJson: JSON.stringify({
+          governance: {
+            decisionTraceId: 'mind:sampled:1',
+          },
+        }),
+        createdAt: Date.now() - 10_000,
+      },
+      {
+        turnId: 'turn-sampled-2',
+        sessionId: 'session-sampled-1',
+        userText: '继续按你以前那套接法把这个收回来',
+        assistantText: '我会先沿旧 procedure 接住它。',
+        structuredJson: JSON.stringify({
+          governance: {
+            decisionTraceId: 'mind:sampled:2',
+          },
+        }),
+        createdAt: Date.now() - 9_000,
+      },
+    ])
+    dbStub.listMindTurnEvents.mockImplementation(async (input?: { turnId?: string }) => {
+      if (input?.turnId === 'turn-sampled-1') {
+        return [
+          {
+            id: 'evt-sampled-1a',
+            decisionTraceId: 'mind:sampled:1',
+            turnId: 'turn-sampled-1',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'governance-normalized',
+            payload: {
+              turnMode: 'guide-current-knot',
+              truthState: 'remembered',
+              repairState: 'none',
+              answerSubject: 'task-knot',
+              screenReferenceMode: 'helpful',
+            },
+            createdAt: Date.now() - 10_000,
+          },
+          {
+            id: 'evt-sampled-1b',
+            decisionTraceId: 'mind:sampled:1',
+            turnId: 'turn-sampled-1',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'recall-attribution',
+            payload: {
+              shouldRecall: true,
+              surfacePolicy: 'procedural-carry',
+              confidence: 0.82,
+              whyNow: 'The nearby thread cluster is competing, so the stable core matters more.',
+              inwardLine: 'Keep the stable procedure inward first.',
+              visibleLine: 'I should only use the stable part of that old line.',
+              recollectionIntentMode: 'execution-procedure',
+              recollectionIntentTemporalFocus: 'experience-matched',
+              selectedPeriods: [{
+                id: 'period-sampled-1',
+                kind: 'consolidation',
+                summary: 'That runtime seam kept recurring across sessions.',
+              }],
+              selectedProcedures: [{
+                id: 'procedure-sampled-1',
+                label: 'same seam first',
+                approach: 'Return to the same seam before branching.',
+              }],
+              followUpAffordance: {
+                summary: 'Wait until the current payoff lands before reopening memory.',
+                whyNow: 'The payoff still has to land first.',
+                intrusionRisk: 'medium',
+                payoffDependency: 'requires-current-payoff',
+                preferredTiming: 'after-payoff',
+              },
+              searchTrace: {
+                firstHop: {
+                  focus: 'procedure',
+                  summary: 'Start from the remembered procedure.',
+                  targetIds: ['procedure-sampled-1'],
+                },
+                secondHop: {
+                  action: 'expand-procedure',
+                  evidenceGap: 'need-disambiguation',
+                  summary: 'A nearby thread cluster still competes with the current leading one.',
+                  targetIds: ['cluster:runtime-nearby'],
+                },
+                thirdHop: {
+                  ambiguityPosture: 'ambiguous',
+                  summary: 'Keep only the stable core on the surface.',
+                },
+              },
+            },
+            createdAt: Date.now() - 9_990,
+          },
+          {
+            id: 'evt-sampled-1c',
+            decisionTraceId: 'mind:sampled:1',
+            turnId: 'turn-sampled-1',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'memory-deliberation-judged',
+            payload: {
+              shouldRecall: true,
+              whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+              ambiguityPosture: 'ambiguous',
+              conflictSeverity: 'high',
+              restraint: {
+                surfaceMode: 'stable-core-only',
+                provenanceMode: 'reconstructed-memory',
+                shouldStayInward: false,
+                shouldOnlySurfaceStableCore: true,
+                shouldLabelProvenance: true,
+                shouldLabelHypothesis: true,
+                shouldSuppressSpecificity: true,
+                shouldDelayUntilAfterPayoff: true,
+              },
+              stableCore: ['Return to the same seam before branching.'],
+              unsafeDetails: ['A nearby competing thread cluster still matches the current recall cue.'],
+              personState: {
+                activeClosenessContext: 'repair-window',
+                activeClosenessRung: 'measured-room',
+                relationshipPosture: 'restrained',
+                openingGuidance: 'Repair the seam before leaning closer.',
+                currentRegime: 'repair-window',
+                repairPosture: 'repair-first',
+              },
+            },
+            createdAt: Date.now() - 9_980,
+          },
+          {
+            id: 'evt-sampled-1d',
+            decisionTraceId: 'mind:sampled:1',
+            turnId: 'turn-sampled-1',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'memory-followup-deferred',
+            payload: {
+              summary: 'Wait until the payoff lands before reopening memory.',
+              whyNow: 'The current answer still has to land first.',
+              payoffDependency: 'requires-current-payoff',
+              preferredTiming: 'after-payoff',
+              intrusionRisk: 'medium',
+            },
+            createdAt: Date.now() - 9_970,
+          },
+          {
+            id: 'evt-sampled-1e',
+            decisionTraceId: 'mind:sampled:1',
+            turnId: 'turn-sampled-1',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'memory-wrong-thread-suppressed',
+            payload: {
+              ambiguityPosture: 'ambiguous',
+              conflictSeverity: 'high',
+              evidenceGap: 'need-disambiguation',
+              conflictVariants: [{
+                id: 'cluster:runtime-nearby',
+                summary: 'A nearby thread cluster still competes for recall.',
+                provenance: 'reconstructed',
+                reason: 'Need to suppress the wrong thread lure.',
+              }],
+            },
+            createdAt: Date.now() - 9_960,
+          },
+        ]
+      }
+
+      if (input?.turnId === 'turn-sampled-2') {
+        return [
+          {
+            id: 'evt-sampled-2a',
+            decisionTraceId: 'mind:sampled:2',
+            turnId: 'turn-sampled-2',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'governance-normalized',
+            payload: {
+              turnMode: 'guide-current-knot',
+              truthState: 'remembered',
+              repairState: 'none',
+              answerSubject: 'task-knot',
+              screenReferenceMode: 'helpful',
+            },
+            createdAt: Date.now() - 9_000,
+          },
+          {
+            id: 'evt-sampled-2b',
+            decisionTraceId: 'mind:sampled:2',
+            turnId: 'turn-sampled-2',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'recall-attribution',
+            payload: {
+              shouldRecall: true,
+              surfacePolicy: 'procedural-carry',
+              confidence: 0.84,
+              whyNow: 'The host is asking for the remembered way of handling the task.',
+              inwardLine: 'The old procedure should shape the answer.',
+              visibleLine: 'This feels like the same procedure again.',
+              recollectionIntentMode: 'execution-procedure',
+              recollectionIntentTemporalFocus: 'cross-session',
+              selectedProcedures: [{
+                id: 'procedure-sampled-2',
+                label: 'patch -> verify',
+                approach: 'Patch first, verify second, then report.',
+              }],
+              selectedBundles: [{
+                id: 'bundle-sampled-2',
+                summary: 'Patch -> verify -> report stayed reliable across sessions.',
+                rationale: 'Same task migration, same reliable line.',
+                confidence: 0.88,
+                relationshipLine: 'Stay lived-in instead of narrating the memory.',
+              }],
+            },
+            createdAt: Date.now() - 8_990,
+          },
+          {
+            id: 'evt-sampled-2c',
+            decisionTraceId: 'mind:sampled:2',
+            turnId: 'turn-sampled-2',
+            sessionId: 'session-sampled-1',
+            origin: 'user-turn',
+            kind: 'memory-deliberation-judged',
+            payload: {
+              shouldRecall: true,
+              whyWithheld: null,
+              ambiguityPosture: 'settled',
+              conflictSeverity: 'none',
+              restraint: {
+                surfaceMode: 'free',
+                provenanceMode: 'memory',
+                shouldStayInward: false,
+                shouldOnlySurfaceStableCore: false,
+                shouldLabelProvenance: false,
+                shouldLabelHypothesis: false,
+                shouldSuppressSpecificity: false,
+                shouldDelayUntilAfterPayoff: false,
+              },
+              stableCore: ['Patch first, verify second, then report.'],
+              unsafeDetails: [],
+              personState: {
+                activeClosenessContext: 'execution-callback',
+                activeClosenessRung: 'nearby-soft',
+                relationshipPosture: 'warm',
+                openingGuidance: 'Keep the callback thread-faithful and bounded.',
+                currentRegime: 'execution-callback',
+                repairPosture: 'warm-repair',
+              },
+            },
+            createdAt: Date.now() - 8_980,
+          },
+        ]
+      }
+
+      return []
+    })
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const runReplayBenchmark = invokeHandlers.get(electronAlicizationRunReplayBenchmark)
+    expect(runReplayBenchmark).toBeTypeOf('function')
+
+    const result = await runReplayBenchmark!({
+      cardId: 'default',
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 2,
+      persistTelemetry: true,
+    })
+
+    expect(dbStub.listConversationTurnsSince).toBeCalledWith(0, {
+      limit: 24,
+    })
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      turnId: 'turn-sampled-1',
+      limit: 32,
+    })
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      turnId: 'turn-sampled-2',
+      limit: 32,
+    })
+    expect(result).toEqual(expect.objectContaining({
+      packId: 'sampled-humanlike-memory-v1',
+      turnCount: 2,
+      quality: expect.any(Array),
+      gate: expect.objectContaining({
+        dimensions: expect.any(Array),
+      }),
+      telemetryPersisted: true,
+      failingTurnSet: expect.any(Array),
+      datasetFeedback: expect.objectContaining({
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: expect.any(Number),
+        totalCount: expect.any(Number),
+        persisted: expect.any(Boolean),
+      }),
+    }))
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.memory-benchmark',
+      action: 'replay-benchmark-ran',
+      payload: expect.objectContaining({
+        packId: 'sampled-humanlike-memory-v1',
+        sampledTurnCount: 2,
+      }),
+    }))
+    if (result.datasetFeedback.persisted) {
+      expect(dbStub.setMetaValue).toBeCalledWith(
+        'replay_benchmark_dataset_backlog_v1',
+        expect.stringContaining('turn-sampled-'),
+      )
+    }
+  })
+
+  it('runs the backlog replay benchmark directly from replay benchmark dataset backlog', async () => {
+    const sandboxPath = await createSandboxPath()
+    metaStore.set('replay_benchmark_dataset_backlog_v1', JSON.stringify([
+      {
+        id: 'backlog-runtime-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-backlog-runtime-1',
+        userText: '不是那条线，是另一条',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-backlog-runtime-1',
+          decisionTraceId: 'mind:backlog:runtime-1',
+          sessionId: 'session-backlog-runtime',
+          activeThreadId: 'thread-backlog-runtime',
+        },
+        sampledCategories: ['wrong-thread', 'stable-core'],
+        replayTurn: {
+          turnId: 'turn-backlog-runtime-1',
+          userText: '不是那条线，是另一条',
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-backlog-runtime-1',
+            decisionTraceId: 'mind:backlog:runtime-1',
+            sessionId: 'session-backlog-runtime',
+            activeThreadId: 'thread-backlog-runtime',
+          },
+          sampledCategories: ['wrong-thread', 'stable-core'],
+          organicMemoryContext: {
+            hostAttitude: '',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            recollectionSpeechPlan: {
+              shouldSurface: true,
+              surfaceMode: 'answer-anchoring',
+              placement: 'after-payoff',
+              certainty: 'approximate',
+              internalLead: '先把错线程压住。',
+              visibleLead: '我先只用稳定那部分。',
+              styleNote: '只让 stable core 上表面。',
+              rationale: 'The wrong thread lure still has to stay suppressed.',
+              confidence: 0.8,
+            },
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: [],
+              selectedConsolidationIds: [],
+              selectedWindowIds: [],
+              selectedProcedureIds: [],
+              selectedEpisodeIds: [],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: [],
+              ambiguityPosture: 'ambiguous',
+              selectedEras: [],
+              selectedPeriods: [],
+              selectedEpisodes: [],
+              conflictSeverity: 'high',
+              conflictVariants: [{
+                id: 'cluster:runtime-nearby',
+                summary: 'A nearby thread cluster still competes for recall.',
+                provenance: 'reconstructed',
+                reason: 'Need to suppress the wrong thread lure.',
+              }],
+              stableCore: ['只保稳定核心。'],
+              unsafeDetails: ['不要把错线程说成真。'],
+              selectedProcedures: [],
+              selectedBundles: [],
+              selectedChains: [],
+              surfacePolicy: 'answer-anchoring',
+              confidence: 0.8,
+              whyNow: '这轮需要抑制错线程。',
+              inwardLine: '先把错线程压住。',
+              visibleLine: '我先只用稳定那部分。',
+              followUpAffordance: {
+                summary: '等 payoff 落地后再展开记忆。',
+                whyNow: '当前 payoff 还要先落地。',
+                intrusionRisk: 'medium',
+                payoffDependency: 'requires-current-payoff',
+                preferredTiming: 'after-payoff',
+              },
+            },
+          },
+        },
+        createdAt: Date.now() - 10_000,
+      },
+    ]))
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const runReplayBenchmark = invokeHandlers.get(electronAlicizationRunReplayBenchmark)
+    expect(runReplayBenchmark).toBeTypeOf('function')
+
+    const result = await runReplayBenchmark!({
+      cardId: 'default',
+      packId: 'backlog-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: true,
+    })
+
+    expect(dbStub.listConversationTurnsSince).not.toBeCalled()
+    expect(dbStub.listMindTurnEvents).not.toBeCalled()
+    expect(result).toEqual(expect.objectContaining({
+      packId: 'backlog-humanlike-memory-v1',
+      turnCount: 1,
+      quality: expect.any(Array),
+      failingTurnSet: expect.any(Array),
+      datasetFeedback: expect.objectContaining({
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+      }),
+    }))
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.memory-benchmark',
+      action: 'replay-benchmark-ran',
+      payload: expect.objectContaining({
+        packId: 'backlog-humanlike-memory-v1',
+      }),
     }))
   })
 
@@ -9998,6 +10632,223 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(appendedFragments.some((item: any) => item.sourceKind === 'attitude-shift')).toBe(false)
   })
 
+  it('runs nightly replay benchmark gate during scheduled dream runs and persists the latest report', async () => {
+    const sandboxPath = await createSandboxPath()
+    metaStore.set('replay_benchmark_dataset_backlog_v1', JSON.stringify([
+      {
+        id: 'nightly-backlog-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-nightly-backlog-1',
+        userText: '把那条错线程再压稳一点',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-nightly-backlog-1',
+          decisionTraceId: 'mind:nightly:backlog:1',
+          sessionId: 'session-nightly-backlog',
+          activeThreadId: 'thread-nightly-backlog',
+        },
+        sampledCategories: ['wrong-thread'],
+        replayTurn: {
+          turnId: 'turn-nightly-backlog-1',
+          userText: '把那条错线程再压稳一点',
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-nightly-backlog-1',
+            decisionTraceId: 'mind:nightly:backlog:1',
+            sessionId: 'session-nightly-backlog',
+            activeThreadId: 'thread-nightly-backlog',
+          },
+          sampledCategories: ['wrong-thread'],
+          organicMemoryContext: {
+            hostAttitude: '',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memoryDeliberation: {
+              shouldRecall: true,
+              selectedEraIds: [],
+              selectedConsolidationIds: [],
+              selectedWindowIds: [],
+              selectedProcedureIds: [],
+              selectedEpisodeIds: [],
+              selectedConversationTurnIds: [],
+              selectedRelationshipLines: [],
+              ambiguityPosture: 'ambiguous',
+              selectedEras: [],
+              selectedPeriods: [],
+              selectedEpisodes: [],
+              conflictSeverity: 'high',
+              conflictVariants: [{
+                id: 'cluster:nightly-backlog',
+                summary: 'A nearby wrong thread still competes.',
+                provenance: 'reconstructed',
+                reason: 'Need to suppress the wrong thread lure.',
+              }],
+              stableCore: ['只保稳定核心。'],
+              unsafeDetails: ['不要把错线程说成真。'],
+              selectedProcedures: [],
+              selectedBundles: [],
+              selectedChains: [],
+              surfacePolicy: 'answer-anchoring',
+              confidence: 0.8,
+              whyNow: '夜间回放仍需要守住错线程边界。',
+              inwardLine: '先把错线程压住。',
+              visibleLine: null,
+            },
+          },
+        },
+        createdAt: Date.now() - 30_000,
+      },
+    ]))
+    dbStub.listConversationTurnsSince.mockReset()
+    dbStub.listConversationTurnsSince.mockImplementation(async (_sinceExclusive: number, options?: { limit?: number }) => {
+      if (options?.limit === 2000) {
+        return [
+          {
+            turnId: 'turn-nightly-dream-source',
+            sessionId: 'session-nightly-dream',
+            userText: '今晚先别把那条线说死。',
+            assistantText: '我先把那条线轻轻压住。',
+            structuredJson: JSON.stringify({ emotion: 'thinking' }),
+            createdAt: Date.now() - 20_000,
+          },
+        ]
+      }
+      return [
+        {
+          turnId: 'turn-nightly-sampled-1',
+          sessionId: 'session-nightly-sampled',
+          userText: '继续按你以前那套接法把这个收回来',
+          assistantText: '我会先沿旧 procedure 接住它。',
+          structuredJson: JSON.stringify({
+            governance: {
+              decisionTraceId: 'mind:nightly:sampled:1',
+            },
+          }),
+          createdAt: Date.now() - 10_000,
+        },
+      ]
+    })
+    dbStub.listMindTurnEvents.mockReset()
+    dbStub.listMindTurnEvents.mockImplementation(async (input?: { turnId?: string }) => {
+      if (input?.turnId !== 'turn-nightly-sampled-1')
+        return []
+      return [
+        {
+          id: 'evt-nightly-sampled-1a',
+          decisionTraceId: 'mind:nightly:sampled:1',
+          turnId: 'turn-nightly-sampled-1',
+          sessionId: 'session-nightly-sampled',
+          origin: 'user-turn',
+          kind: 'governance-normalized',
+          payload: {
+            turnMode: 'guide-current-knot',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'task-knot',
+            screenReferenceMode: 'helpful',
+          },
+          createdAt: Date.now() - 10_000,
+        },
+        {
+          id: 'evt-nightly-sampled-1b',
+          decisionTraceId: 'mind:nightly:sampled:1',
+          turnId: 'turn-nightly-sampled-1',
+          sessionId: 'session-nightly-sampled',
+          origin: 'user-turn',
+          kind: 'recall-attribution',
+          payload: {
+            shouldRecall: true,
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.84,
+            whyNow: 'The host is asking for the remembered way of handling the task.',
+            inwardLine: 'The old procedure should shape the answer.',
+            visibleLine: 'This feels like the same procedure again.',
+            recollectionIntentMode: 'execution-procedure',
+            recollectionIntentTemporalFocus: 'cross-session',
+            selectedProcedures: [{
+              id: 'procedure-nightly-sampled-1',
+              label: 'patch -> verify',
+              approach: 'Patch first, verify second, then report.',
+            }],
+          },
+          createdAt: Date.now() - 9_990,
+        },
+        {
+          id: 'evt-nightly-sampled-1c',
+          decisionTraceId: 'mind:nightly:sampled:1',
+          turnId: 'turn-nightly-sampled-1',
+          sessionId: 'session-nightly-sampled',
+          origin: 'user-turn',
+          kind: 'memory-deliberation-judged',
+          payload: {
+            shouldRecall: true,
+            whyWithheld: null,
+            ambiguityPosture: 'settled',
+            conflictSeverity: 'none',
+            restraint: {
+              surfaceMode: 'free',
+              provenanceMode: 'memory',
+              shouldStayInward: false,
+              shouldOnlySurfaceStableCore: false,
+              shouldLabelProvenance: false,
+              shouldLabelHypothesis: false,
+              shouldSuppressSpecificity: false,
+              shouldDelayUntilAfterPayoff: false,
+            },
+            stableCore: ['Patch first, verify second, then report.'],
+            unsafeDetails: [],
+            personState: {
+              activeClosenessContext: 'execution-callback',
+              activeClosenessRung: 'nearby-soft',
+              relationshipPosture: 'warm',
+              openingGuidance: 'Keep the callback thread-faithful and bounded.',
+              currentRegime: 'execution-callback',
+              repairPosture: 'warm-repair',
+            },
+          },
+          createdAt: Date.now() - 9_980,
+        },
+      ]
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
+    expect(forceDream).toBeTypeOf('function')
+
+    const result = await forceDream!({
+      cardId: 'default',
+      reason: 'schedule-03:00',
+    })
+
+    expect(result.processedCards).toContain('default')
+    expect(metaStore.get('replay_benchmark_last_nightly_run_day_v1')).toBeTruthy()
+    const latestReport = String(metaStore.get('replay_benchmark_latest_report_v1') ?? '')
+    expect(latestReport).toContain('sampled-humanlike-memory-v1')
+    expect(latestReport).toContain('backlog-humanlike-memory-v1')
+    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.memory-benchmark',
+      action: 'replay-benchmark-nightly-ran',
+      payload: expect.objectContaining({
+        packs: expect.arrayContaining([
+          expect.objectContaining({
+            packId: 'sampled-humanlike-memory-v1',
+          }),
+          expect.objectContaining({
+            packId: 'backlog-humanlike-memory-v1',
+          }),
+        ]),
+      }),
+    }))
+  })
+
   it('archives previous core incarnation when shattering event triggers successful reforge', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -12366,7 +13217,30 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
           }),
         }),
       }),
+      expect.objectContaining({
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
+        kind: 'person-state-updated',
+        payload: expect.objectContaining({
+          version: 'person-state-update-surface-v1',
+          summary: expect.stringContaining('Preference shift'),
+          sourceKinds: expect.arrayContaining(['reply']),
+          sourceCounts: expect.objectContaining({
+            relationshipOutcomes: expect.any(Number),
+            reinforcementEvents: expect.any(Number),
+          }),
+        }),
+      }),
     ]))
+    expect(dbStub.upsertMindHead).toBeCalledWith(
+      'default',
+      'person-state-update-surface',
+      expect.objectContaining({
+        version: 'person-state-update-surface-v1',
+        summary: expect.any(String),
+      }),
+    )
     expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
       hostAttitude: expect.stringContaining('机器腔'),
       previousHostAttitude: null,

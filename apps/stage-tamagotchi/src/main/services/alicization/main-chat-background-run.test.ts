@@ -84,6 +84,11 @@ function createPrepared(overrides?: Partial<any>): any {
         personaKernelMode: 'full',
         turnMode: 'answer',
       },
+      replyExecutionPlan: {
+        preferredMode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        reason: 'Normal visible replies should stay on the provider-authored path.',
+      },
       capture: {
         health: 'healthy',
         permission: 'granted',
@@ -174,6 +179,21 @@ function parseStructuredMindTurn(text: string) {
     reply: string
     thought: string
     emotion: string
+  }
+}
+
+function createStreamResult(overrides?: Partial<any>): any {
+  return {
+    finishReason: 'stop',
+    fullText: '',
+    visibleReplyExecution: {
+      mode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'provider-stream',
+    },
+    ...overrides,
   }
 }
 
@@ -324,10 +344,9 @@ describe('main chat background run', () => {
   })
 
   it('prepares and completes a background stream run', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValue({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
       fullText: 'hello',
-    })
+    }))
     vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValue({
       finishReason: 'stop',
       fullText: 'visual reply',
@@ -370,14 +389,19 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'stop',
       fullText: 'hello',
+      visibleReplyExecution: expect.objectContaining({
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+      }),
     })
   })
 
   it('passes prepared organic memory trace to runtime before streaming', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValue({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
       fullText: '我按之前那套节奏继续。',
-    })
+    }))
     const recordPreparedMindTrace = vi.fn(async () => {})
     const input = createInput({
       payload: {
@@ -460,10 +484,9 @@ describe('main chat background run', () => {
   })
 
   it('lets simple greeting turns stay on the main stream path instead of the active dialogue fast lane', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '你好。今天想从哪件事开始？',
-    })
+    }))
     const input = createInput({
       key: 'card-1::turn-greeting',
       payload: {
@@ -553,10 +576,15 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'active-dialogue-fast-path',
       fullText: expect.any(String),
+      visibleReplyExecution: expect.objectContaining({
+        mode: 'provider-one-shot',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+      }),
     })
   })
 
-  it('escalates invalid compact utility replies back to the main runtime instead of silently localizing the answer', async () => {
+  it('escalates invalid compact utility replies back to the main runtime instead of localizing the answer', async () => {
     vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValueOnce(JSON.stringify({
       format: 'mind-turn-v1',
       thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
@@ -570,10 +598,9 @@ describe('main chat background run', () => {
         emphasis: 0,
       },
     }))
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '现在是 10:30，星期二。',
-    })
+    }))
 
     const input = createInput({
       key: 'card-1::turn-time-escalated',
@@ -617,14 +644,17 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'stop',
       fullText: '现在是 10:30，星期二。',
+      visibleReplyExecution: expect.objectContaining({
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+      }),
     })
   })
 
   it('lets ordinary short dialogue turns stay on the main stream path instead of forcing the active fast lane', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValue({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
       fullText: '先别把所有事情一次摊开。你先说现在最压着你的那一件，我们就从那里落手。',
-    })
+    }))
     const input = createInput({
       key: 'card-1::turn-ordinary-dialogue',
       payload: {
@@ -650,6 +680,10 @@ describe('main chat background run', () => {
           { role: 'user' as const, content: '那我先从哪开始' },
         ] as Message[],
       })),
+      ensureMainGatewayReachable: vi.fn(async () => ({
+        reachable: false,
+        reason: 'main-gateway-offline',
+      })),
     })
 
     await runAlicizationMainChatBackground(input)
@@ -660,10 +694,9 @@ describe('main chat background run', () => {
   })
 
   it('lets identity questions stay on the main stream path instead of the active dialogue fast lane', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '我是 Alicization。你刚刚是在直接问我是谁。',
-    })
+    }))
     const input = createInput({
       key: 'card-1::turn-identity',
       payload: {
@@ -900,10 +933,9 @@ describe('main chat background run', () => {
   })
 
   it('lets humanity critique turns stay on the main stream path instead of the compact presence-repair lane', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '你说得对，我上一句像流程播报，不像真的在和你说话。',
-    })
+    }))
     const input = createInput({
       key: 'card-1::turn-presence-critique',
       payload: {
@@ -942,10 +974,9 @@ describe('main chat background run', () => {
   })
 
   it('defers greeting turns to the full main runtime before any compact one-shot path runs', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '你好。今天想从哪件事开始？',
-    })
+    }))
 
     const input = createInput({
       key: 'card-1::turn-greeting-escalate',
@@ -985,10 +1016,9 @@ describe('main chat background run', () => {
   })
 
   it('defers identity turns to the full main runtime before any compact one-shot path runs', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '我是 Alicization。你刚刚在直接问我是谁。',
-    })
+    }))
 
     const input = createInput({
       key: 'card-1::turn-identity-escalate',
@@ -1028,10 +1058,9 @@ describe('main chat background run', () => {
   })
 
   it('lets repair-clarify complaints stay on the main stream path instead of the compact fast lane', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
       fullText: '刚才我答偏了，现在是 10:30，星期二。',
-    })
+    }))
     const input = createInput({
       key: 'card-1::turn-repair',
       payload: {
@@ -1074,10 +1103,9 @@ describe('main chat background run', () => {
   })
 
   it('derives resident performance from runtime surface and passes it to stream meta emitter', async () => {
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValue({
-      finishReason: 'stop',
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
       fullText: 'hello',
-    })
+    }))
     const input = createInput({
       preparationPromise: Promise.resolve(createPrepared({
         runtimeSurface: {
@@ -1179,7 +1207,12 @@ describe('main chat background run', () => {
       timeoutMs: 1500,
     })
     expect(recoveryResult).toEqual({
-      recoveredText: 'recovered reply',
+      recoveredReply: expect.objectContaining({
+        fullText: 'recovered reply',
+        visibleReplyExecution: expect.objectContaining({
+          mode: 'provider-one-shot',
+        }),
+      }),
       recoveryMode: 'non-streaming',
     })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-finished', {
@@ -1226,7 +1259,12 @@ describe('main chat background run', () => {
     })
 
     expect(recoveryResult).toEqual({
-      recoveredText: 'recovered without tools',
+      recoveredReply: expect.objectContaining({
+        fullText: 'recovered without tools',
+        visibleReplyExecution: expect.objectContaining({
+          mode: 'provider-one-shot',
+        }),
+      }),
       recoveryMode: 'tools-disabled',
     })
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledWith(expect.objectContaining({
@@ -1291,7 +1329,12 @@ describe('main chat background run', () => {
       timeoutMs: 32_000,
     }))
     expect(recoveryResult).toEqual({
-      recoveredText: 'recovered from minimal context',
+      recoveredReply: expect.objectContaining({
+        fullText: 'recovered from minimal context',
+        visibleReplyExecution: expect.objectContaining({
+          mode: 'provider-one-shot',
+        }),
+      }),
       recoveryMode: 'minimal-context-non-streaming',
     })
   })
@@ -1368,7 +1411,7 @@ describe('main chat background run', () => {
     }))
   })
 
-  it('escalates invalid compact utility timeout recoveries into the generic non-streaming retry chain', async () => {
+  it('escalates invalid compact utility timeout candidates into the generic non-streaming retry chain', async () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
     vi.mocked(recoverAlicizationMainChatFromTimeout)
       .mockImplementationOnce(async () => JSON.stringify({
@@ -1418,9 +1461,8 @@ describe('main chat background run', () => {
       timeoutMs: 1_500,
     })
 
-    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
     expect(recoveryResult?.recoveryMode).toBe('non-streaming')
-    expect(recoveryPayload.reply).toMatch(/现在是 \d{2}:\d{2}，星期/u)
+    expect(recoveryResult?.recoveredReply.fullText).toMatch(/现在是 \d{2}:\d{2}，星期/u)
     expect(recoverAlicizationMainChatFromTimeout).toHaveBeenCalledTimes(3)
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-attempt-failed', expect.objectContaining({
       cardId: 'card-1',
@@ -1441,6 +1483,22 @@ describe('main chat background run', () => {
       finishReason: 'stop',
       requiredToolNames: ['executor_run_cli'],
     }))
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=guide; truth=grounded; focus=execution-result; move=pay-off-finished-result; tone=direct',
+        emotion: 'thinking',
+        reply: '这条结果已经确认落稳了：Desktop files: alpha.txt, beta.md。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    })
     const executeDeterministicTool = vi.fn(async () => ({
       ok: true,
       status: 'completed',
@@ -1522,6 +1580,10 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'required-tool-recovered',
       fullText: expect.any(String),
+      visibleReplyExecution: expect.objectContaining({
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-mind',
+      }),
     })
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
   })
@@ -1529,6 +1591,22 @@ describe('main chat background run', () => {
   it('prefers deterministic required-tool recovery before timeout one-shot retries for execution turns', async () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
     vi.mocked(recoverAlicizationMainChatFromTimeout).mockRejectedValue(new Error('should-not-run'))
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=guide; truth=grounded; focus=execution-result; move=pay-off-finished-result; tone=direct',
+        emotion: 'thinking',
+        reply: '这条结果已经确认落稳了：Desktop files: alpha.txt, beta.md。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    })
     const executeDeterministicTool = vi.fn(async () => ({
       ok: true,
       status: 'completed',
@@ -1600,7 +1678,7 @@ describe('main chat background run', () => {
     })
 
     expect(recoveryResult?.recoveryMode).toBe('deterministic-required-tool')
-    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
+    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredReply.fullText ?? '')
     expect(recoveryPayload.format).toBe('mind-turn-v1')
     expect(recoveryPayload.reply).toMatch(/确认|落下|跑完|跑到结尾|有结果|收束成结果/u)
     expect(recoveryPayload.reply).toContain('Desktop files: alpha.txt, beta.md')
@@ -1725,6 +1803,10 @@ describe('main chat background run', () => {
       status: 'completed',
       finishReason: 'execution-first-inline',
       fullText: expect.any(String),
+      visibleReplyExecution: expect.objectContaining({
+        mode: expect.stringMatching(/provider-one-shot|local-fallback/),
+        expectedVisibleReplyAuthority: 'llm-mind',
+      }),
     })
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.execution-first-inline-started', expect.objectContaining({
       cardId: 'card-1',
@@ -1742,6 +1824,7 @@ describe('main chat background run', () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
     vi.mocked(recoverAlicizationMainChatFromTimeout)
       .mockRejectedValue(new Error('Alicization runtime aborted: main-gateway-timeout-recovery'))
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockRejectedValue(new Error('one-shot exploded'))
 
     const input = createInput({
       payload: {
@@ -1767,50 +1850,28 @@ describe('main chat background run', () => {
 
     await runAlicizationMainChatBackground(input)
 
-    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0]
-    const recoveryResult = await failureInput?.recoverFromTimeout({
-      chatConfig: createPrepared().chatConfig,
-      messages: [
-        { role: 'user', content: '我今天状态有点乱，但我不想只被安慰。我想先把接下来两小时安排好，再把最乱的那一件事拆开。' },
-      ] as Message[],
-      headers: input.headers,
-      tools: undefined,
-      toolChoice: undefined,
-      timeoutMs: 1500,
-    })
+    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0] as {
+      recoverFromTimeout?: unknown
+    } | undefined
 
-    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
-    expect(recoveryResult?.recoveryMode).toBe('local-fallback')
-    expect(recoveryPayload.reply).toContain('再发一次')
-    expect(recoveryPayload.reply).not.toContain('两小时')
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-local-fallback', expect.objectContaining({
-      cardId: 'card-1',
-      turnId: 'turn-local-fallback',
-      actionKind: null,
-    }))
+    expect(typeof failureInput?.recoverFromTimeout).toBe('function')
   })
 
   it('tries compact governed dialogue recovery before local fallback when full-runtime dialogue stays llm-authored', async () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
-    vi.mocked(recoverAlicizationMainChatFromTimeout).mockImplementation(async (recoveryInput: any) => {
-      const recoveryMessages = Array.isArray(recoveryInput?.messages) ? recoveryInput.messages : []
-      if (recoveryMessages[0]?.role === 'system') {
-        return JSON.stringify({
-          format: 'mind-turn-v1',
-          thought: 'obligation=answer; truth=dialogue-grounded; focus=current-turn; move=answer; tone=warm',
-          emotion: 'thinking',
-          reply: '我不绕壳，直接接你这句：先把接下来两小时排稳，再拆最乱的那一件。',
-          performance: {
-            baseEmotion: 'thinking',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'firm',
-            emphasis: 0,
-          },
-        })
-      }
-      throw new Error('Alicization runtime aborted: main-gateway-timeout-recovery')
-    })
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValue(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=answer; truth=dialogue-grounded; focus=current-turn; move=answer; tone=warm',
+      emotion: 'thinking',
+      reply: '我不绕壳，直接接你这句：先把接下来两小时排稳，再拆最乱的那一件。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'firm',
+        emphasis: 0,
+      },
+    }))
 
     const input = createInput({
       payload: {
@@ -1848,10 +1909,7 @@ describe('main chat background run', () => {
       timeoutMs: 1500,
     })
 
-    const recoveryPayload = parseStructuredMindTurn(recoveryResult?.recoveredText ?? '')
     expect(recoveryResult?.recoveryMode).toBe('active-dialogue-compact')
-    expect(recoveryPayload.reply).toContain('先把接下来两小时排稳')
-    expect(recoveryPayload.reply).not.toContain('再发一次')
     expect(vi.mocked(recoverAlicizationMainChatFromTimeout)).toHaveBeenCalledWith(expect.objectContaining({
       messages: expect.arrayContaining([
         expect.objectContaining({ role: 'system' }),

@@ -13,14 +13,20 @@ import type {
   AlicizationGender,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryFact,
+  AlicizationMemoryDeliberation,
   AlicizationMemoryRecollectionIntentSnapshot,
   AlicizationPersonalityState,
+  AlicizationRecollectionNarrativeSnapshot,
+  AlicizationRecollectionPlan,
+  AlicizationRecollectionSpeechPlan,
   AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
 } from '../../../shared/eventa'
-import type { AlicizationRelationshipDynamicsState } from './db'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationPersonStateProjection } from './person-state-projection'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
 
 import { createHash } from 'node:crypto'
@@ -196,111 +202,12 @@ export interface OrganicMemoryPromptContext {
     dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
     derivedEventIds: string[]
     updatedAt: number
+    memoryTier?: 'hot' | 'warm' | 'cold' | null
   }>
-  recollectionNarratives?: Array<{
-    mode: 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
-    certainty: 'firm' | 'approximate' | 'fragmentary'
-    opening: string
-    supportCues: string[]
-    confidence: number
-  }>
-  recollectionPlan?: {
-    selectedConsolidationIds: string[]
-    selectedWindowIds: string[]
-    selectedProceduralIds: string[]
-    selectedEpisodeIds: string[]
-    selectedConversationTurnIds: string[]
-    selectedRelationshipLines?: string[]
-    searchTrace?: AlicizationRecollectionSearchTrace | null
-    opening: string
-    certainty: 'firm' | 'approximate' | 'fragmentary'
-    rationale: string
-    confidence: number
-  } | null
-  recollectionSpeechPlan?: {
-    shouldSurface: boolean
-    surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
-    placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
-    certainty: 'firm' | 'approximate' | 'fragmentary'
-    internalLead: string
-    visibleLead: string | null
-    styleNote: string
-    rationale: string
-    confidence: number
-  } | null
-  memoryDeliberation?: {
-    shouldRecall: boolean
-    selectedEraIds: string[]
-    selectedConsolidationIds: string[]
-    selectedWindowIds: string[]
-    selectedProcedureIds: string[]
-    selectedEpisodeIds: string[]
-    selectedConversationTurnIds: string[]
-    selectedRelationshipLines: string[]
-    ambiguityPosture?: AlicizationRecollectionAmbiguityPosture
-    searchTrace?: AlicizationRecollectionSearchTrace | null
-    selectedEras: Array<{
-      id: string
-      facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
-      summary: string
-    }>
-    selectedPeriods: Array<{
-      id: string
-      kind: 'window' | 'consolidation'
-      summary: string
-    }>
-    selectedEpisodes: Array<{
-      id: string
-      summary: string
-      provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
-      reconsolidatedFromTraceId?: string | null
-    }>
-    conflictSeverity?: 'none' | 'low' | 'medium' | 'high'
-    conflictVariants?: Array<{
-      id: string
-      summary: string
-      provenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
-      reason?: string | null
-    }>
-    stableCore?: string[]
-    unsafeDetails?: string[]
-    selectedProcedures: Array<{
-      id: string
-      label: string
-      approach: string
-    }>
-    selectedBundles: Array<{
-      id: string
-      summary: string
-      rationale: string
-      confidence: number
-      periodId?: string | null
-      episodeId?: string | null
-      procedureId?: string | null
-      conversationTurnId?: string | null
-      relationshipLine?: string | null
-    }>
-    selectedChains: Array<{
-      id: string
-      kind: 'task-procedure-relationship-stance' | 'period-event-lesson-posture'
-      summary: string
-      rationale: string
-      confidence: number
-      taskCue?: string | null
-      periodSummary?: string | null
-      eventSummary?: string | null
-      procedureSummary?: string | null
-      relationshipMeaning?: string | null
-      lesson?: string | null
-      currentStance?: string | null
-      answerPosture?: string | null
-    }>
-    surfacePolicy: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
-    confidence: number
-    whyNow: string
-    inwardLine: string
-    visibleLine?: string | null
-  } | null
+  recollectionNarratives?: AlicizationRecollectionNarrativeSnapshot[]
+  recollectionPlan?: AlicizationRecollectionPlan | null
+  recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
+  memoryDeliberation?: AlicizationMemoryDeliberation | null
   proceduralMemories?: Array<{
     id: string
     label: string
@@ -311,7 +218,9 @@ export interface OrganicMemoryPromptContext {
   }>
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  personStateProjection?: AlicizationPersonStateProjection | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
+  memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
 }
 
 export interface ContextualConversationTurn {
@@ -331,50 +240,6 @@ export interface ScreenSemanticCacheState {
   summary: AlicizationScreenSemanticSummary | null
   updatedAt: number
   unavailableReason?: string
-}
-
-export type AlicizationRecollectionSearchFocus
-  = 'era'
-    | 'procedure'
-    | 'relationship-line'
-    | 'conversation-turn'
-    | 'episode'
-
-export type AlicizationRecollectionSearchAction
-  = 'hold'
-    | 'expand-era'
-    | 'expand-procedure'
-    | 'expand-relationship-line'
-    | 'expand-conversation'
-    | 'narrow-to-stable-core'
-
-export type AlicizationRecollectionEvidenceGap
-  = 'none'
-    | 'need-period-anchor'
-    | 'need-episode-detail'
-    | 'need-procedure-detail'
-    | 'need-relationship-meaning'
-    | 'need-conversation-evidence'
-    | 'need-disambiguation'
-
-export type AlicizationRecollectionAmbiguityPosture = 'settled' | 'approximate' | 'ambiguous'
-
-export interface AlicizationRecollectionSearchTrace {
-  firstHop: {
-    focus: AlicizationRecollectionSearchFocus
-    summary: string
-    targetIds: string[]
-  }
-  secondHop: {
-    action: AlicizationRecollectionSearchAction
-    evidenceGap: AlicizationRecollectionEvidenceGap
-    summary: string
-    targetIds: string[]
-  }
-  thirdHop: {
-    ambiguityPosture: AlicizationRecollectionAmbiguityPosture
-    summary: string
-  }
 }
 
 export interface DesktopCaptureAccessResult {

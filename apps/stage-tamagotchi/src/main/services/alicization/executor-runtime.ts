@@ -7,9 +7,9 @@ import type {
   AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
-import type { AlicizationRelationshipDynamicsState } from './db'
 import type { AlicizationDbService } from './db'
 import type { MainGatewayExecutionTaskThreadResult, MainGatewayExecutionToolContext } from './main-chat-execution-surface'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
 import type { AlicizationTaskThreadPlanningInput } from './task-thread-governor'
 import type { AlicizationTaskThreadDispatchInvocation } from './task-thread-orchestrator'

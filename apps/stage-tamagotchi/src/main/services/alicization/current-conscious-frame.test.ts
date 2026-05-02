@@ -5,6 +5,7 @@ import {
   buildCurrentConsciousFrameSystemBlock,
 } from './current-conscious-frame'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildCurrentConsciousFrame', () => {
@@ -268,5 +269,124 @@ describe('buildCurrentConsciousFrame', () => {
       shouldWithholdSpecificity: true,
     }))
     expect(frame?.focusAnchor).toContain('Git commit diff')
+  })
+
+  it('threads personality continuity regime into conscious reason tags and focused-work care framing', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(50_000),
+      discourseState: {
+        currentTurnSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        currentTurnSummary: 'The host sounds tired but is still in focused work.',
+        currentQuestion: '我有点累了',
+        owedAction: 'care-host',
+        relationMove: 'care',
+        continuityMode: 'dialogue-first',
+        confidence: 0.84,
+        narrative: [],
+        updatedAt: 50_000,
+      } as any,
+      conversationState: {
+        jointThread: 'The host is tired but still focused on the work line.',
+        hostMove: '我有点累了',
+        activeProject: 'runtime seam',
+        unansweredQuestion: '我有点累了',
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'care',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: ['runtime seam'],
+        shouldHoldThread: true,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 50_000,
+      } as any,
+      answerCompiler: {
+        answerSubject: 'host-state',
+        screenReferenceMode: 'avoid',
+        recommendedAct: 'care',
+        evidenceMode: 'dialogue-grounded',
+        turnMode: 'care',
+        openingClaim: '我有点累了',
+        openingDirective: 'Stay with the host state directly.',
+        careVector: 'The host sounds tired.',
+        supportingReality: [],
+        labelCarryAsMemory: false,
+        confidence: 0.82,
+      } as any,
+    })
+    runtimeSurface.memory.personalityContinuityState = buildAlicizationPersonalityContinuityState({
+      now: 50_000,
+      hostPersonModel: {
+        summary: 'Focused work windows need room first, then precise follow-up.',
+        routines: ['Focused work windows usually need space first, then precise follow-up.'],
+        sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
+        repairTriggers: ['If closeness feels heavy, back off first and reopen with lighter presence.'],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'The host trusts bounded continuity more than pushy warmth.',
+        },
+        preferredClosenessByContext: [{
+          context: 'focused-work',
+          preference: 'Lighter touch, more room, less interruption pressure.',
+          confidence: 0.86,
+        }],
+        recurrentBurdens: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+        narrative: [],
+        updatedAt: 50_000,
+      },
+      selfContinuity: runtimeSurface.memory.selfContinuity,
+      selfState: runtimeSurface.agency.selfState,
+      longHorizonMemory: runtimeSurface.memory.longHorizonMemory,
+      motiveEngine: runtimeSurface.memory.motiveEngine,
+      habitPolicy: runtimeSurface.agency.habitPolicy,
+      autobiographicalSelf: runtimeSurface.memory.autobiographicalSelf,
+      privateThought: runtimeSurface.cognition.privateThought,
+      mindEcology: {
+        moodLabel: 'focused',
+        replyHabit: 'hover-first',
+        relationshipHabit: 'give-space',
+        explorationHabit: 'follow-thread',
+        regulationHabit: 'soften-before-speaking',
+        temperament: {
+          attachment: 0.54,
+          curiosity: 0.48,
+          steadiness: 0.66,
+          directness: 0.34,
+          playfulness: 0.1,
+          irritability: 0.1,
+          tenderness: 0.58,
+        },
+        climate: {
+          valence: 0.44,
+          arousal: 0.3,
+          socialNeed: 0.42,
+          solitudeNeed: 0.46,
+          irritation: 0.08,
+          restlessness: 0.12,
+          reflectivePull: 0.44,
+        },
+        selfNarrative: 'Stay on the line without crowding the host.',
+        relationNarrative: 'Room first, then closeness.',
+        currentPreoccupation: 'Keep the runtime thread coherent without pushing too hard.',
+        learnedAdjustments: [],
+        recurringPatterns: [],
+        updatedAt: 50_000,
+      },
+    })
+
+    const frame = buildCurrentConsciousFrame({
+      now: 50_000,
+      runtimeSurface,
+    })
+
+    expect(frame?.consciousNeed).toContain('working space')
+    expect(frame?.reasonTags).toEqual(expect.arrayContaining([
+      'continuity-regime:focused-work',
+      'continuity-repair:measured-repair',
+    ]))
+    expect(buildCurrentConsciousFrameSystemBlock(frame)).toContain('[ALICIZATION_CURRENT_CONSCIOUS_FRAME]')
   })
 })

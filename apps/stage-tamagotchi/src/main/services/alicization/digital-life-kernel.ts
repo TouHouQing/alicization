@@ -1,8 +1,21 @@
-import type { AlicizationHostPersonModelSnapshot, AlicizationVisualPresenceStateSnapshot } from '../../../shared/eventa'
+import type {
+  AlicizationHostPersonModelSnapshot,
+  AlicizationMemoryDeliberation,
+  AlicizationRecollectionPlan,
+  AlicizationRecollectionSpeechPlan,
+  AlicizationVisualPresenceStateSnapshot,
+} from '../../../shared/eventa'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
-import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type {
+  AlicizationPersonStateProjection,
+} from './person-state-projection'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
+import type { AlicizationContinuityDeliberation } from './continuity-deliberation'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
+import { buildMindEcology } from './mind-ecology'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { deriveAlicizationContinuityDeliberationFromSurface } from './continuity-deliberation'
 import { updateVisualPresenceState } from './visual-episodic-memory'
 
 export interface AlicizationDigitalLifeMindStateCommitShape {
@@ -81,9 +94,11 @@ export interface AlicizationDigitalLifeRuntimeSurface {
   memory: Pick<AlicizationVisualPresenceStateSnapshot, 'workingMemoryEpisodes' | 'goalStack' | 'concerns' | 'concernContinuity' | 'longHorizonMemory' | 'selfContinuity' | 'autobiographicalSelf' | 'threadRuntime' | 'commitmentLedger' | 'inquiryPlanner' | 'repairLedger' | 'intentionStream' | 'reflectionLedger' | 'executiveCycle' | 'thoughtThreads' | 'desireMemory' | 'recallGovernor'> & {
     motiveEngine?: AlicizationVisualPresenceStateSnapshot['motiveEngine']
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
-    recollectionPlan?: OrganicMemoryPromptContext['recollectionPlan']
-    recollectionSpeechPlan?: OrganicMemoryPromptContext['recollectionSpeechPlan']
-    memoryDeliberation?: OrganicMemoryPromptContext['memoryDeliberation']
+    personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+    personStateProjection?: AlicizationPersonStateProjection | null
+    recollectionPlan?: AlicizationRecollectionPlan | null
+    recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
+    memoryDeliberation?: AlicizationMemoryDeliberation | null
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
@@ -130,6 +145,8 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   initiative: AlicizationDigitalLifeRuntimeSurface['agency']['initiative']
   autonomy: AlicizationDigitalLifeRuntimeSurface['agency']['autonomy']
   durabilityPulse: AlicizationDigitalLifeRuntimeSurface['perception']['durabilityPulse']
+  personalityContinuityState: AlicizationDigitalLifeRuntimeSurface['memory']['personalityContinuityState']
+  continuityDeliberation?: AlicizationContinuityDeliberation | null
 }
 
 export interface AlicizationDigitalLifeContinuitySignal {
@@ -265,6 +282,46 @@ export function commitAlicizationDigitalLifeMindState<TMindState extends Aliciza
 export function buildAlicizationDigitalLifeRuntimeSurface(
   state: AlicizationVisualPresenceStateSnapshot,
 ): AlicizationDigitalLifeRuntimeSurface {
+  const provisionalMindEcology = buildMindEcology({
+    now: state.updatedAt,
+    watchMode: state.watchMode,
+    worldModel: state.worldModel ?? null,
+    appraisal: state.appraisal ?? null,
+    subjectiveInference: state.subjectiveInference ?? null,
+    beliefRevision: state.beliefRevision ?? null,
+    relationshipModel: state.relationshipModel ?? null,
+    longHorizonMemory: state.longHorizonMemory ?? null,
+    selfContinuity: state.selfContinuity ?? null,
+    autobiographicalSelf: state.autobiographicalSelf ?? null,
+    motiveEngine: state.motiveEngine ?? null,
+    selfState: state.selfState ?? null,
+    selfGovernor: state.selfGovernor ?? null,
+    habitPolicy: state.habitPolicy ?? null,
+    mindDynamics: state.mindDynamics ?? null,
+    mindKernel: state.mindKernel ?? null,
+    commitmentLedger: state.commitmentLedger ?? null,
+    inquiryPlanner: state.inquiryPlanner ?? null,
+    reflectionLedger: state.reflectionLedger ?? null,
+    desireMemory: state.desireMemory ?? null,
+    privateThought: state.privateThought ?? null,
+    actionEcology: state.actionEcology ?? null,
+    answerPlanner: state.answerPlanner ?? null,
+    conversationState: state.conversationState ?? null,
+  })
+  const personStateProjection = buildAlicizationPersonStateProjection({
+    now: state.updatedAt,
+    contexts: ['general'],
+    autobiographicalSelf: state.autobiographicalSelf ?? null,
+    hostPersonModel: null,
+    longHorizonMemory: state.longHorizonMemory ?? null,
+    motiveEngine: state.motiveEngine ?? null,
+    habitPolicy: state.habitPolicy ?? null,
+    selfContinuity: state.selfContinuity ?? null,
+    selfState: state.selfState ?? null,
+    privateThought: state.privateThought ?? null,
+    mindEcology: provisionalMindEcology,
+  })
+  const personalityContinuityState = personStateProjection.personalityContinuityState
   return {
     version: 'digital-life-runtime-surface-v1',
     perception: {
@@ -314,6 +371,8 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       thoughtThreads: state.thoughtThreads ?? null,
       desireMemory: state.desireMemory ?? null,
       recallGovernor: state.recallGovernor ?? null,
+      personalityContinuityState,
+      personStateProjection,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,
@@ -463,5 +522,7 @@ export function buildAlicizationDigitalLifeProactivePolicySnapshot(
     initiative: surface.agency.initiative,
     autonomy: surface.agency.autonomy ?? null,
     durabilityPulse: surface.perception.durabilityPulse,
+    personalityContinuityState: surface.memory.personalityContinuityState ?? null,
+    continuityDeliberation: deriveAlicizationContinuityDeliberationFromSurface(surface),
   }
 }

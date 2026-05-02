@@ -14,6 +14,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
+import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 
 import { buildAutobiographicalContinuityLines } from './autobiographical-self'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
@@ -110,9 +111,11 @@ function estimateSceneFamiliarity(input: {
 function buildAffectiveCarry(input: {
   mindEcology?: AlicizationMindEcologySnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }) {
-  const moodLabel = sanitizeText(input.mindEcology?.moodLabel, 64) || null
-  const emotionalTension = input.privateThought?.emotionalTension ?? null
+  const rhythmState = input.personalityContinuityState?.rhythmState ?? null
+  const moodLabel = sanitizeText(rhythmState?.moodLabel ?? input.mindEcology?.moodLabel, 64) || null
+  const emotionalTension = rhythmState?.emotionalTension ?? input.privateThought?.emotionalTension ?? null
   const socialNeed = Number.isFinite(input.mindEcology?.climate.socialNeed)
     ? clamp01(Number(input.mindEcology?.climate.socialNeed))
     : null
@@ -124,6 +127,7 @@ function buildAffectiveCarry(input: {
     emotionalTension ? `tension:${emotionalTension}` : null,
     socialNeed != null ? `social-need:${socialNeed.toFixed(2)}` : null,
     reflectivePull != null ? `reflective-pull:${reflectivePull.toFixed(2)}` : null,
+    rhythmState?.summary ? `rhythm:${rhythmState.summary}` : null,
     sanitizeText(input.privateThought?.thoughtText, 140),
   ], 5).join(' | ')
   if (!moodLabel && !emotionalTension && socialNeed == null && reflectivePull == null && !summary)
@@ -139,9 +143,11 @@ function buildAffectiveCarry(input: {
 
 function buildEmbodiedCarry(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }) {
-  const presence = input.privateThought?.embodiedPresence ?? null
-  const suggestedStyle = input.privateThought?.suggestedStyle ?? null
+  const rhythmState = input.personalityContinuityState?.rhythmState ?? null
+  const presence = input.privateThought?.embodiedPresence ?? rhythmState?.embodiedPresence ?? null
+  const suggestedStyle = input.privateThought?.suggestedStyle ?? rhythmState?.suggestedStyle ?? null
   const afterglowFromScenario = input.privateThought?.afterglowFromScenario ?? null
   const shouldSpeak = typeof input.privateThought?.shouldSpeak === 'boolean'
     ? input.privateThought.shouldSpeak
@@ -151,6 +157,7 @@ function buildEmbodiedCarry(input: {
     suggestedStyle ? `style:${suggestedStyle}` : null,
     afterglowFromScenario ? `afterglow:${afterglowFromScenario}` : null,
     shouldSpeak != null ? `speak:${shouldSpeak ? 'yes' : 'no'}` : null,
+    rhythmState?.summary ? `rhythm:${rhythmState.summary}` : null,
   ], 4).join(' | ')
   if (!presence && !suggestedStyle && !afterglowFromScenario && shouldSpeak == null)
     return null
@@ -306,6 +313,7 @@ export function buildRecallGovernor(input: {
   desireMemory?: AlicizationDesireMemorySnapshot | null
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   sceneContext?: {
     cueSummary?: string | null
     appName?: string | null
@@ -384,7 +392,10 @@ export function buildRecallGovernor(input: {
     input.privateThought?.stance ? `stance:${input.privateThought.stance}` : null,
     input.mindEcology?.moodLabel ? `mood:${input.mindEcology.moodLabel}` : null,
     input.motiveEngine?.rulingDrive ? `drive:${input.motiveEngine.rulingDrive}` : null,
-  ], 6)
+    input.personalityContinuityState?.rhythmState.moodLabel ? `rhythm_mood:${input.personalityContinuityState.rhythmState.moodLabel}` : null,
+    input.personalityContinuityState?.rhythmState.emotionalTension ? `rhythm_tension:${input.personalityContinuityState.rhythmState.emotionalTension}` : null,
+    input.personalityContinuityState?.rhythmState.cadenceMode ? `rhythm_cadence:${input.personalityContinuityState.rhythmState.cadenceMode}` : null,
+  ], 8)
   const relationshipAnchors = uniqueList([
     conversationState.relationFrame ? `relation:${conversationState.relationFrame}` : null,
     dialogueWorldThread.relationDrift ? `drift:${dialogueWorldThread.relationDrift}` : null,
@@ -401,9 +412,11 @@ export function buildRecallGovernor(input: {
   const affectiveCarry = buildAffectiveCarry({
     mindEcology: input.mindEcology ?? null,
     privateThought: input.privateThought ?? null,
+    personalityContinuityState: input.personalityContinuityState ?? null,
   })
   const embodiedCarry = buildEmbodiedCarry({
     privateThought: input.privateThought ?? null,
+    personalityContinuityState: input.personalityContinuityState ?? null,
   })
   const salienceBias = clamp01(
     mode === 'emotional-resonance'
@@ -491,8 +504,9 @@ export function buildRecallGovernor(input: {
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
       affectiveCarry?.summary ? `affective-carry:${affectiveCarry.summary}` : null,
       embodiedCarry?.summary ? `embodied-carry:${embodiedCarry.summary}` : null,
+      input.personalityContinuityState?.rhythmState.summary ? `rhythm-carry:${input.personalityContinuityState.rhythmState.summary}` : null,
       sceneFamiliarityHint > 0 ? `scene-familiarity:${sceneFamiliarityHint.toFixed(2)}` : null,
-    ], 12),
+    ], 16),
     updatedAt: input.now,
   } satisfies AlicizationRecallGovernorSnapshot
 }

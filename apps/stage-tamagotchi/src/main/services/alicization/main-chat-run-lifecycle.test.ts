@@ -11,6 +11,20 @@ import {
   shouldRecordAlicizationMainGatewayGenerationTimeout,
 } from './main-chat-run-lifecycle'
 
+function createRecoveredReply(fullText: string): any {
+  return {
+    fullText,
+    visibleText: fullText,
+    visibleReplyExecution: {
+      mode: 'provider-one-shot',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'timeout-recovered-non-streaming',
+    },
+  }
+}
+
 function createBaseInput(
   overrides?: Partial<Parameters<typeof handleAlicizationMainChatRunFailure>[0]>,
 ): Parameters<typeof handleAlicizationMainChatRunFailure>[0] {
@@ -56,7 +70,7 @@ function createBaseInput(
     ensureMainGatewayReachable: vi.fn(async () => ({ reachable: true })),
     recordMainGatewayGenerationTimeout: vi.fn(async () => {}),
     recoverFromTimeout: vi.fn(async () => ({
-      recoveredText: '',
+      recoveredReply: createRecoveredReply(''),
       recoveryMode: 'original' as AlicizationMainChatTimeoutRecoveryMode,
     })),
     emitRecoveredText: vi.fn(),
@@ -133,7 +147,7 @@ describe('main chat run lifecycle', () => {
       error: controller.signal.reason,
       controller,
       recoverFromTimeout: vi.fn(async () => ({
-        recoveredText: 'recovered reply',
+        recoveredReply: createRecoveredReply('recovered reply'),
         recoveryMode: 'non-streaming' as const,
       })),
     })
@@ -143,7 +157,9 @@ describe('main chat run lifecycle', () => {
     expect(input.recoverFromTimeout).toHaveBeenCalledWith(expect.objectContaining({
       timeoutMs: 1500,
     }))
-    expect(input.emitRecoveredText).toHaveBeenCalledWith('recovered reply')
+    expect(input.emitRecoveredText).toHaveBeenCalledWith(expect.objectContaining({
+      fullText: 'recovered reply',
+    }))
     expect(input.queueScopedAuditLog).toHaveBeenCalledWith('card-1', expect.objectContaining({
       action: 'stream-timeout-recovered',
     }))
@@ -176,14 +192,16 @@ describe('main chat run lifecycle', () => {
       error: controller.signal.reason,
       controller,
       recoverFromTimeout: vi.fn(async () => ({
-        recoveredText,
+        recoveredReply: createRecoveredReply(recoveredText),
         recoveryMode: 'active-dialogue-compact' as const,
       })),
     })
 
     await handleAlicizationMainChatRunFailure(input)
 
-    expect(input.emitRecoveredText).toHaveBeenCalledWith(recoveredText)
+    expect(input.emitRecoveredText).toHaveBeenCalledWith(expect.objectContaining({
+      fullText: recoveredText,
+    }))
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovered', {
       cardId: 'card-1',
       turnId: 'turn-1',
@@ -217,7 +235,7 @@ describe('main chat run lifecycle', () => {
         reason: 'connect ECONNREFUSED 127.0.0.1:443',
       })),
       recoverFromTimeout: vi.fn(async () => ({
-        recoveredText: 'fallback reply',
+        recoveredReply: createRecoveredReply('fallback reply'),
         recoveryMode: 'tools-disabled' as const,
       })),
     })

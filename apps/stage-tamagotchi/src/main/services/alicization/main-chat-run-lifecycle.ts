@@ -3,6 +3,7 @@ import type { Message } from '@xsai/shared-chat'
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
+import type { AlicizationResolvedVisibleReply } from './main-chat-visible-reply-execution'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 function isAbortLikeError(error: unknown) {
@@ -159,10 +160,10 @@ interface HandleAlicizationMainChatRunFailureOptions {
     toolChoice: AlicizationPreparedMainChatExecutionResult['toolChoice']
     timeoutMs: number
   }) => Promise<{
-    recoveredText: string
+    recoveredReply: AlicizationResolvedVisibleReply
     recoveryMode: AlicizationMainChatTimeoutRecoveryMode
   }>
-  emitRecoveredText: (text: string) => void | Promise<void>
+  emitRecoveredText: (reply: AlicizationResolvedVisibleReply) => void | Promise<void>
   emitError: (reason: string) => void | Promise<void>
   finish: (payload: {
     status: 'completed' | 'aborted' | 'failed'
@@ -218,11 +219,45 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           toolChoice: input.toolChoice,
           timeoutMs: effectiveTimeoutRecoveryMs,
         })
-        const recoveredText = recoveryResult.recoveredText
+        const recoveredText = recoveryResult.recoveredReply.fullText
         const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
         if (recoveredText) {
           if (input.isRunActive())
-            await input.emitRecoveredText(recoveredText)
+            await input.emitRecoveredText(recoveryResult.recoveredReply)
+
+          try {
+            const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true })
+            if (!reachability.reachable) {
+              await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+                level: 'warning',
+                category: 'alicization.main-gateway',
+                action: 'stream-gateway-unreachable-advisory',
+                message: 'Recovered the reply, but the main gateway probe is still unreachable.',
+                payload: {
+                  cardId: input.payload.cardId,
+                  turnId: input.payload.turnId,
+                  providerId: input.payload.providerId,
+                  model: input.payload.model,
+                  dispatchBound: input.dispatchBound,
+                  cached: reachability.cached ?? false,
+                  code: reachability.code,
+                  reason: reachability.reason,
+                },
+              }))
+              await input.appendRuntimeDebugLine('chat-stream.gateway-unreachable-advisory', {
+                cardId: input.payload.cardId,
+                turnId: input.payload.turnId,
+                dispatchBound: input.dispatchBound,
+                cached: reachability.cached ?? false,
+                code: reachability.code,
+                reason: reachability.reason,
+                timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
+                timeoutRecoveryMode: effectiveRecoveryMode,
+                nonProgressEventTypes: [...input.nonProgressEventTypes],
+              })
+            }
+          }
+          catch {}
 
           await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
             level: 'warning',

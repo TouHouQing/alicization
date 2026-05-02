@@ -4,9 +4,13 @@ import type {
   AlicizationMemoryFact,
   AlicizationMemoryProvenance,
   AlicizationMemorySource,
+  AlicizationPersonaReinforcementEventRecord,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
-import type { AlicizationRelationshipDynamicsState } from './db'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 const dayMs = 24 * 60 * 60 * 1000
 
@@ -277,9 +281,197 @@ function factStatements(facts: AlicizationMemoryFact[]) {
     .filter(Boolean)
 }
 
+function relationshipOutcomeStatements(outcomes: AlicizationRelationshipOutcomeRecord[]) {
+  return outcomes.flatMap(outcome => uniqueTexts([
+    outcome.summary,
+    outcome.actionSummary,
+    summarizeRelationshipShift({
+      trustDelta: outcome.trustDelta,
+      closenessDelta: outcome.closenessDelta,
+      boundaryDelta: outcome.boundaryDelta,
+      burdenDelta: outcome.burdenDelta,
+      repairDelta: outcome.repairDelta,
+    } as AlicizationEpisodicEventRecord['relationshipShift']),
+  ], 4))
+}
+
+function personaReinforcementStatements(events: AlicizationPersonaReinforcementEventRecord[]) {
+  return events.flatMap(event => uniqueTexts([
+    event.summary,
+    `${event.dimension}:${event.valence}:${event.delta >= 0 ? '+' : ''}${event.delta.toFixed(2)}`,
+  ], 2))
+}
+
+function consolidationStatements(consolidations: AlicizationMemoryConsolidationRecord[]) {
+  return consolidations.flatMap(record => uniqueTexts([
+    record.summary,
+    record.lesson,
+    ...record.cues,
+  ], 4))
+}
+
+function inferConsolidationContext(record: AlicizationMemoryConsolidationRecord) {
+  const text = `${record.facet ?? ''} ${record.periodKey} ${record.summary} ${record.lesson ?? ''} ${record.cues.join(' ')}`.toLowerCase()
+  if (lateNightPattern.test(text))
+    return 'late-night'
+  if (focusedContextPattern.test(text))
+    return 'focused-work'
+  if (executionContextPattern.test(text))
+    return 'execution'
+  if (openContextPattern.test(text) || closenessPattern.test(text))
+    return 'open-window'
+  return 'general'
+}
+
+function inferOutcomeContext(record: AlicizationRelationshipOutcomeRecord) {
+  const text = `${record.actionSummary} ${record.summary}`.toLowerCase()
+  if (lateNightPattern.test(text))
+    return 'late-night'
+  if (focusedContextPattern.test(text))
+    return 'focused-work'
+  if (executionContextPattern.test(text))
+    return 'execution'
+  if (openContextPattern.test(text) || closenessPattern.test(text))
+    return 'open-window'
+  return 'general'
+}
+
+function buildClosenessPreferencesFromConsolidations(consolidations: AlicizationMemoryConsolidationRecord[]) {
+  const buckets = new Map<string, {
+    score: number
+    count: number
+    strongest: AlicizationMemoryConsolidationRecord | null
+  }>()
+
+  for (const record of consolidations) {
+    const key = inferConsolidationContext(record)
+    const text = `${record.summary} ${record.lesson ?? ''} ${record.cues.join(' ')}`
+    const delta = spacePattern.test(text)
+      ? -0.12
+      : closenessPattern.test(text)
+        ? 0.12
+        : repairPattern.test(text)
+          ? -0.06
+          : 0
+    const current = buckets.get(key) ?? {
+      score: 0,
+      count: 0,
+      strongest: null,
+    }
+    current.score += delta
+    current.count += 1
+    if (!current.strongest || record.confidence >= current.strongest.confidence)
+      current.strongest = record
+    buckets.set(key, current)
+  }
+
+  return [...buckets.entries()]
+    .map(([context, bucket]) => ({
+      context,
+      preference: describePreference(
+        context,
+        clamp01(0.5 + bucket.score / Math.max(1, bucket.count)),
+        bucket.strongest
+          ? {
+              id: bucket.strongest.id,
+              whatHappened: bucket.strongest.summary,
+              whatChanged: bucket.strongest.lesson,
+              relationshipMeaning: bucket.strongest.summary,
+              lesson: bucket.strongest.lesson,
+            } as AlicizationEpisodicEventRecord
+          : null,
+      ),
+      confidence: clamp01(Math.min(1, bucket.count / 4) * 0.45 + (bucket.strongest?.confidence ?? 0) * 0.45),
+    }))
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 4)
+}
+
+function buildClosenessPreferencesFromOutcomes(outcomes: AlicizationRelationshipOutcomeRecord[]) {
+  const buckets = new Map<string, {
+    score: number
+    count: number
+    strongest: AlicizationRelationshipOutcomeRecord | null
+  }>()
+
+  for (const record of outcomes) {
+    const key = inferOutcomeContext(record)
+    const delta = record.trustDelta
+      + record.closenessDelta
+      - Math.max(0, record.burdenDelta)
+      - Math.max(0, -record.boundaryDelta)
+    const current = buckets.get(key) ?? {
+      score: 0,
+      count: 0,
+      strongest: null,
+    }
+    current.score += delta
+    current.count += 1
+    if (!current.strongest || Math.abs(delta) >= Math.abs((current.strongest.trustDelta ?? 0) + (current.strongest.closenessDelta ?? 0)))
+      current.strongest = record
+    buckets.set(key, current)
+  }
+
+  return [...buckets.entries()]
+    .map(([context, bucket]) => ({
+      context,
+      preference: describePreference(
+        context,
+        clamp01(0.5 + bucket.score / Math.max(1, bucket.count)),
+        bucket.strongest
+          ? {
+              id: bucket.strongest.id,
+              whatHappened: bucket.strongest.summary,
+              whatChanged: bucket.strongest.actionSummary,
+              relationshipMeaning: bucket.strongest.summary,
+              lesson: bucket.strongest.summary,
+            } as AlicizationEpisodicEventRecord
+          : null,
+      ),
+      confidence: clamp01(Math.min(1, bucket.count / 4) * 0.45 + Math.min(1, Math.abs(bucket.score)) * 0.35 + (bucket.strongest ? 0.12 : 0)),
+    }))
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 4)
+}
+
+function buildClosenessPreferencesFromPersonStateUpdateSurface(surface: AlicizationPersonStateUpdateSurface | null | undefined) {
+  const current = surface ?? null
+  if (!current)
+    return []
+  const contexts = current.dominantContexts.length > 0
+    ? current.dominantContexts
+    : ['general']
+  return contexts.slice(0, 4).map((context, index) => ({
+    context,
+    preference: current.preferenceHints[index] ?? current.preferenceHints[0] ?? 'Stay near, but keep the approach bounded and responsive to the host move.',
+    confidence: clamp01(0.52 - index * 0.08 + Math.min(0.18, Math.abs(current.relationshipShift.trustDelta) + Math.abs(current.relationshipShift.closenessDelta))),
+  }))
+}
+
+function mergeClosenessPreferences(input: {
+  events: AlicizationHostPersonClosenessPreference[]
+  consolidations: AlicizationHostPersonClosenessPreference[]
+  outcomes?: AlicizationHostPersonClosenessPreference[]
+  updates?: AlicizationHostPersonClosenessPreference[]
+}) {
+  const merged = new Map<string, AlicizationHostPersonClosenessPreference>()
+  for (const item of [...input.events, ...input.consolidations, ...(input.outcomes ?? []), ...(input.updates ?? [])]) {
+    const existing = merged.get(item.context)
+    if (!existing || item.confidence >= existing.confidence)
+      merged.set(item.context, item)
+  }
+  return [...merged.values()]
+    .sort((left, right) => right.confidence - left.confidence)
+    .slice(0, 5)
+}
+
 export function buildHostPersonModelSnapshot(input: {
   events: AlicizationEpisodicEventRecord[]
   facts: AlicizationMemoryFact[]
+  consolidations?: AlicizationMemoryConsolidationRecord[]
+  relationshipOutcomes?: AlicizationRelationshipOutcomeRecord[]
+  reinforcementEvents?: AlicizationPersonaReinforcementEventRecord[]
+  personStateUpdateSurface?: AlicizationPersonStateUpdateSurface | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
   now: number
 }): AlicizationHostPersonModelSnapshot {
@@ -297,28 +489,95 @@ export function buildHostPersonModelSnapshot(input: {
       return right.updatedAt - left.updatedAt
     })
     .slice(0, 12)
+  const consolidations = [...(input.consolidations ?? [])]
+    .sort((left, right) => {
+      if (left.confidence !== right.confidence)
+        return right.confidence - left.confidence
+      return right.updatedAt - left.updatedAt
+    })
+    .slice(0, 10)
+  const relationshipOutcomes = [...(input.relationshipOutcomes ?? [])]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .slice(0, 14)
+  const reinforcementEvents = [...(input.reinforcementEvents ?? [])]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .slice(0, 16)
   const factLines = factStatements(facts)
+  const consolidationLines = consolidationStatements(consolidations)
+  const relationshipOutcomeLines = relationshipOutcomeStatements(relationshipOutcomes)
+  const reinforcementLines = personaReinforcementStatements(reinforcementEvents)
 
   const routines = uniqueTexts([
     ...events.map(describeRoutine),
+    ...consolidationLines.filter(line => routinePattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
+    ...relationshipOutcomeLines.filter(line => routinePattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
+    ...reinforcementLines.filter(line => routinePattern.test(line) || focusedContextPattern.test(line) || lateNightPattern.test(line)),
     ...factLines.filter(line => routinePattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line)),
   ], 5)
   const sensitivities = uniqueTexts([
     ...events.map(describeSensitivity),
+    ...consolidationLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line) || repairPattern.test(line)),
+    ...relationshipOutcomeLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
+    ...reinforcementLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
+    ...(input.personStateUpdateSurface?.sensitivityHints ?? []),
     ...factLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
   ], 6)
   const repairTriggers = uniqueTexts([
     ...events.map(describeRepairTrigger),
+    ...consolidationLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
+    ...relationshipOutcomeLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
+    ...reinforcementLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
+    ...(input.personStateUpdateSurface?.repairHints ?? []),
     ...factLines.filter(line => repairPattern.test(line) || roboticPattern.test(line)),
   ], 5)
   const recurrentBurdens = uniqueTexts([
     ...events.map(describeBurden),
+    ...consolidationLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
+    ...relationshipOutcomeLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
+    ...reinforcementLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
+    ...(input.personStateUpdateSurface?.burdenHints ?? []),
     ...factLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line)),
   ], 5)
-  const preferredClosenessByContext = buildClosenessPreferences(events)
-  const trustScore = computeTrustScore(events, input.relationshipDynamics ?? null)
+  const preferredClosenessByContext = mergeClosenessPreferences({
+    events: buildClosenessPreferences(events),
+    consolidations: buildClosenessPreferencesFromConsolidations(consolidations),
+    outcomes: buildClosenessPreferencesFromOutcomes(relationshipOutcomes),
+    updates: buildClosenessPreferencesFromPersonStateUpdateSurface(input.personStateUpdateSurface ?? null),
+  })
+  const trustScore = (() => {
+    let score = computeTrustScore(events, input.relationshipDynamics ?? null)
+    for (const outcome of relationshipOutcomes) {
+      score += outcome.trustDelta * 0.12
+      score += outcome.closenessDelta * 0.05
+      score -= Math.max(0, outcome.burdenDelta) * 0.03
+      score -= Math.max(0, -outcome.boundaryDelta) * 0.04
+      score += outcome.repairDelta * 0.03
+    }
+    for (const event of reinforcementEvents) {
+      const direction = event.valence === 'reinforce' ? 1 : -1
+      if (event.dimension === 'truthful-grounding' || event.dimension === 'gentle-repair')
+        score += direction * event.delta * 0.05
+      else if (event.dimension === 'companionship')
+        score += direction * event.delta * 0.04
+      else if (event.dimension === 'autonomy-respect')
+        score += direction * event.delta * 0.02
+    }
+    if (input.personStateUpdateSurface) {
+      score += input.personStateUpdateSurface.relationshipShift.trustDelta * 0.18
+      score += input.personStateUpdateSurface.relationshipShift.closenessDelta * 0.06
+      score -= Math.max(0, input.personStateUpdateSurface.relationshipShift.burdenDelta) * 0.05
+      score -= Math.max(0, -input.personStateUpdateSurface.relationshipShift.boundaryDelta) * 0.06
+      score += input.personStateUpdateSurface.relationshipShift.repairDelta * 0.04
+      score += Number(input.personStateUpdateSurface.reinforcementBias['truthful-grounding'] ?? 0) * 0.06
+      score += Number(input.personStateUpdateSurface.reinforcementBias.companionship ?? 0) * 0.04
+      score += Number(input.personStateUpdateSurface.reinforcementBias['autonomy-respect'] ?? 0) * 0.02
+    }
+    return clamp01(score)
+  })()
   const stage = trustStage(trustScore)
   const summary = sanitizeHumanlikeMemoryText([
+    input.personStateUpdateSurface?.summary ? `update=${input.personStateUpdateSurface.summary}` : '',
+    input.relationshipDynamics?.hostAttitude ? `attitude=${input.relationshipDynamics.hostAttitude}` : '',
     routines[0] ? `routine=${routines[0]}` : '',
     sensitivities[0] ? `sensitivity=${sensitivities[0]}` : '',
     repairTriggers[0] ? `repair=${repairTriggers[0]}` : '',
@@ -348,7 +607,12 @@ export function buildHostPersonModelSnapshot(input: {
     recurrentBurdens,
     narrative: uniqueTexts([
       summary,
+      input.personStateUpdateSurface?.summary ?? null,
       input.relationshipDynamics?.hostAttitude ?? null,
+      ...(input.personStateUpdateSurface?.narrative ?? []).slice(0, 4),
+      ...consolidations.slice(0, 4).map(record => record.summary || record.lesson || record.periodKey),
+      ...relationshipOutcomes.slice(0, 4).map(record => record.summary || record.actionSummary),
+      ...reinforcementEvents.slice(0, 4).map(record => record.summary),
       ...preferredClosenessByContext.map(item => `${item.context}:${item.preference}`),
       ...events.slice(0, 4).map(event => event.relationshipMeaning || event.lesson || event.whatChanged || event.whatHappened),
     ], 8),
@@ -356,6 +620,10 @@ export function buildHostPersonModelSnapshot(input: {
       input.now,
       ...events.map(event => event.updatedAt),
       ...facts.map(fact => fact.updatedAt),
+      ...consolidations.map(record => record.updatedAt),
+      ...relationshipOutcomes.map(record => record.createdAt),
+      ...reinforcementEvents.map(record => record.createdAt),
+      input.personStateUpdateSurface?.updatedAt ?? 0,
     ),
   }
 }

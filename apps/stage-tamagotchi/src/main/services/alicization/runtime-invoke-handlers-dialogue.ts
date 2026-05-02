@@ -3,12 +3,14 @@ import type {
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
   AlicizationDialogueRespondedPayload,
+  AlicizationListPersonStateUpdatesPayload,
   AlicizationRunReplayBenchmarkPayload,
   AlicizationRunReplayBenchmarkResult,
   AlicizationListMemoryDecisionTracesPayload,
   AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
   AlicizationMindTurnEventRecord,
+  AlicizationPersonStateUpdateRecord,
   AlicizationProactiveFeedbackKind,
   AlicizationProactiveFeedbackPayload,
   CharacterPerformanceCapabilitiesManifest,
@@ -18,9 +20,6 @@ import type {
   AlicizationProactiveLoopState,
   AlicizationRecentProactiveOutcome,
 } from './proactive-feedback'
-import type {
-  PendingDialogueDeliveryState,
-} from './runtime-soul'
 
 import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
 
@@ -31,16 +30,16 @@ import {
   electronAlicizationListConversationTurns,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
+  electronAlicizationListPersonStateUpdates,
   electronAlicizationRunReplayBenchmark,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationSetActiveSession,
 } from '../../../shared/eventa'
+import { personStateUpdateRecordFromMindTurnEvent } from './person-state-update-surface'
 import {
-  benchmarkMainChatSessionReplay,
-  buildDefaultHumanlikeMemoryBenchmarkPack,
-  buildReplayBenchmarkMemoryStatsPatch,
-} from './main-chat-session-replay-harness'
+  createAlicizationReplayBenchmarkRuntime,
+} from './replay-benchmark-runtime'
 
 interface ReplayConversationTurnRow {
   turnId: string | null
@@ -57,18 +56,19 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
     label?: string
     skipQueueWhenScopeAlreadyActive?: boolean
   }) => Promise<T>
-  normalizeCardId: (raw: unknown) => string
   normalizeSessionId: (raw: unknown) => string
   sanitizeText: (raw: unknown, fallback?: string) => string
   appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
   getActiveCardId: () => string
   persistActiveSessionId: (cardId: string, sessionId: string) => Promise<void>
   appendConversationTurnWithGuards: (payload: AlicizationConversationTurnInput) => Promise<boolean | undefined>
-  getDialogueAckMap: (cardId: string) => Map<string, number>
   getDialogueAckCursor: (cardId: string, sessionIdRaw: unknown) => number
-  persistDialogueAckMap: (cardId: string) => Promise<void>
-  pendingDialogueDeliveries: Map<string, PendingDialogueDeliveryState>
-  clearPendingDialogueDelivery: (entryOrKey: PendingDialogueDeliveryState | string) => void
+  ackDialogueDelivery: (input: {
+    cardId: unknown
+    sessionId: unknown
+    turnId: unknown
+    createdAt: unknown
+  }) => Promise<void>
   ensureProactiveLoopState: (cardId: string) => Promise<AlicizationProactiveLoopState>
   reportExplicitProactiveFeedback: (state: AlicizationProactiveLoopState, input: {
     turnId: string
@@ -92,6 +92,9 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   queueSubconsciousWake: (cardId: string, reason: string, delayMs?: number) => void
   getAlicizationDb: () => {
+    listConversationTurnsSince: (sinceExclusive: number, options?: {
+      limit?: number
+    }) => Promise<ReplayConversationTurnRow[]>
     listConversationTurnsBySession: (sessionId: string, options: {
       sinceCreatedAt?: number
       limit?: number
@@ -104,6 +107,8 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       limit?: number
     }) => Promise<AlicizationMindTurnEventRecord[]>
     overrideMemoryStats: (next: any) => Promise<any>
+    getMetaValue: (key: string) => Promise<string | undefined>
+    setMetaValue: (key: string, value: string) => Promise<void>
   }
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
   toReplayDialogueRespondedPayload: (row: ReplayConversationTurnRow, performanceManifest?: CharacterPerformanceCapabilitiesManifest | null) => AlicizationDialogueRespondedPayload | null
@@ -115,18 +120,14 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
   const {
     registerInvokeHandler,
     withCardScope,
-    normalizeCardId,
     normalizeSessionId,
     sanitizeText,
     appendRuntimeDebugLine,
     getActiveCardId,
     persistActiveSessionId,
     appendConversationTurnWithGuards,
-    getDialogueAckMap,
     getDialogueAckCursor,
-    persistDialogueAckMap,
-    pendingDialogueDeliveries,
-    clearPendingDialogueDelivery,
+    ackDialogueDelivery,
     ensureProactiveLoopState,
     reportExplicitProactiveFeedback,
     persistProactiveLoopState,
@@ -140,6 +141,10 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     clearAllConversationData,
     parseStructuredHint,
   } = options
+  const replayBenchmarkRuntime = createAlicizationReplayBenchmarkRuntime({
+    getAlicizationDb,
+    appendAuditLog,
+  })
 
   registerInvokeHandler(electronAlicizationSetActiveSession, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
@@ -155,47 +160,23 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
   registerInvokeHandler(electronAlicizationAckDialogue, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
     const sessionId = normalizeSessionId(payload.sessionId)
-    const turnId = sanitizeText(payload.turnId)
-    const createdAt = Number.isFinite(payload.createdAt)
-      ? Math.max(0, Math.floor(Number(payload.createdAt)))
-      : 0
-    if (!sessionId || !turnId || createdAt <= 0)
+    if (!sessionId)
       return
 
-    const ackMap = getDialogueAckMap(activeCardId)
     const previousCursor = getDialogueAckCursor(activeCardId, sessionId)
-    const nextCursor = Math.max(previousCursor, createdAt)
-    await appendRuntimeDebugLine('dialogue-ack.received', {
+    await ackDialogueDelivery({
       cardId: activeCardId,
       sessionId,
-      turnId,
-      createdAt,
+      turnId: payload.turnId,
+      createdAt: payload.createdAt,
+    })
+    const nextCursor = getDialogueAckCursor(activeCardId, sessionId)
+    await appendRuntimeDebugLine('dialogue-ack.applied', {
+      cardId: activeCardId,
+      sessionId,
+      turnId: sanitizeText(payload.turnId),
       previousCursor,
       nextCursor,
-    })
-    if (nextCursor !== previousCursor) {
-      ackMap.set(sessionId, nextCursor)
-      await persistDialogueAckMap(activeCardId)
-    }
-
-    let cleared = 0
-    for (const entry of pendingDialogueDeliveries.values()) {
-      if (normalizeCardId(entry.payload.cardId) !== activeCardId)
-        continue
-      if (normalizeSessionId(entry.payload.sessionId) !== sessionId)
-        continue
-      if (entry.payload.createdAt <= nextCursor) {
-        clearPendingDialogueDelivery(entry)
-        cleared += 1
-      }
-    }
-    await appendRuntimeDebugLine('dialogue-delivery.acked-cleared', {
-      cardId: activeCardId,
-      sessionId,
-      turnId,
-      ackCursor: nextCursor,
-      cleared,
-      remainingPending: pendingDialogueDeliveries.size,
     })
   }))
 
@@ -317,51 +298,29 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     })
     return buildAlicizationMemoryDecisionTraceRecords(rows).slice(0, Math.max(1, payload.limit ?? 20)) as AlicizationMemoryDecisionTraceRecord[]
   }))
+  registerInvokeHandler(electronAlicizationListPersonStateUpdates, async (payload: AlicizationListPersonStateUpdatesPayload) => await withCardScope(payload.cardId, async () => {
+    const rows = await getAlicizationDb().listMindTurnEvents({
+      decisionTraceId: payload.decisionTraceId,
+      turnId: payload.turnId,
+      limit: payload.limit ? Math.max(payload.limit * 6, payload.limit) : 180,
+    })
+    return rows
+      .filter(row => row.kind === 'person-state-updated')
+      .map(row => personStateUpdateRecordFromMindTurnEvent(row))
+      .filter((row): row is AlicizationPersonStateUpdateRecord => Boolean(row))
+      .slice(0, Math.max(1, payload.limit ?? 20))
+  }))
 
   registerInvokeHandler(electronAlicizationRunReplayBenchmark, async (payload: AlicizationRunReplayBenchmarkPayload) => await withCardScope(payload.cardId, async () => {
-    const packId = payload.packId === 'default-humanlike-memory-v1'
-      ? payload.packId
-      : 'default-humanlike-memory-v1'
-    const persistTelemetry = payload.persistTelemetry !== false
-    const benchmarkTurns = buildDefaultHumanlikeMemoryBenchmarkPack()
-    const result = await benchmarkMainChatSessionReplay({
-      turns: benchmarkTurns,
-    })
-    const telemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
-      gate: result.gate,
-    })
-    if (persistTelemetry) {
-      const currentStats = await getAlicizationDb().getMemoryStats()
-      await getAlicizationDb().overrideMemoryStats({
-        ...currentStats,
-        retrievalHealth: {
-          ...currentStats?.retrievalHealth,
-          ...telemetryPatch.retrievalHealth,
-        },
-      })
-      await appendAuditLog({
-        level: result.gate.passed ? 'notice' : 'warning',
+    return await replayBenchmarkRuntime.runReplayBenchmark({
+      packId: payload.packId,
+      sampleLimit: payload.sampleLimit,
+      persistTelemetry: payload.persistTelemetry,
+      auditContext: {
         category: 'alicization.memory-benchmark',
         action: 'replay-benchmark-ran',
-        message: result.gate.passed
-          ? 'Replay benchmark gate passed for the default humanlike memory pack.'
-          : 'Replay benchmark gate found failing dimensions in the default humanlike memory pack.',
-        payload: {
-          packId,
-          failingKeys: result.gate.failingKeys,
-          telemetryPatch,
-        },
-      })
-    }
-    return {
-      packId,
-      ranAt: Date.now(),
-      turnCount: benchmarkTurns.length,
-      quality: result.quality,
-      standards: result.standards,
-      gate: result.gate,
-      telemetryPatch,
-      telemetryPersisted: persistTelemetry,
-    } satisfies AlicizationRunReplayBenchmarkResult
+        cardId: payload.cardId,
+      },
+    }) satisfies AlicizationRunReplayBenchmarkResult
   }))
 }

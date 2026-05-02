@@ -19,10 +19,15 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 
 import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
 
-import { buildAlicizationDialogueGrowthProfile, type AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
+import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { deriveMindTruthContract } from './mind-truth-contract'
+import {
+  buildAlicizationPersonalityContinuityState,
+  type AlicizationPersonalityContinuityStateSnapshot,
+} from './personality-continuity-state'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -280,6 +285,42 @@ function resolveResponseMode(input: {
   return 'answer-naturally'
 }
 
+function deriveClosenessContextFromContinuityState(
+  state: AlicizationPersonalityContinuityStateSnapshot | null | undefined,
+) {
+  const regime = state?.currentRegime
+  if (
+    regime === 'focused-work'
+    || regime === 'repair-window'
+    || regime === 'late-night-care'
+    || regime === 'execution-callback'
+    || regime === 'open-companionship'
+  ) {
+    return regime
+  }
+  return 'general' as const
+}
+
+function deriveClosenessRungFromContinuityState(
+  state: AlicizationPersonalityContinuityStateSnapshot | null | undefined,
+) {
+  const posture = state?.closenessPosture
+  if (posture === 'space-first')
+    return 'space-first' as const
+  if (posture === 'close-hold')
+    return 'close-hold' as const
+  if (posture === 'warm-guidance') {
+    return state?.currentRegime === 'open-companionship'
+      ? 'warm-near' as const
+      : 'nearby-soft' as const
+  }
+  if (state?.currentRegime === 'repair-window' || state?.currentRegime === 'execution-callback')
+    return 'measured-room' as const
+  if (state?.currentRegime === 'late-night-care')
+    return 'nearby-soft' as const
+  return 'measured-room' as const
+}
+
 function resolveRecommendedAct(input: {
   discourseState: AlicizationDiscourseStateSnapshot
   conversationState?: AlicizationConversationStateSnapshot | null
@@ -390,23 +431,39 @@ function resolveRelationshipPosture(input: {
   relationshipModel?: AlicizationRelationshipModelSnapshot | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   growthProfile: AlicizationDialogueGrowthProfile
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  projectedRelationshipPosture?: AlicizationAnswerCompilerSnapshot['relationshipPosture'] | null
 }) {
+  if (input.projectedRelationshipPosture)
+    return input.projectedRelationshipPosture
+  if (
+    input.personalityContinuityState?.currentRegime === 'focused-work'
+    && input.personalityContinuityState.autonomyPosture === 'protect-space'
+  ) {
+    return 'restrained' as const
+  }
   if (
     input.discourseState.owedAction === 'repair-truth'
     || input.evidenceMode === 'repair-first'
     || input.growthProfile.guardedness >= 0.64
     || input.growthProfile.irritability >= 0.66
+    || input.personalityContinuityState?.repairPosture === 'repair-first'
   ) {
     return 'restrained' as const
   }
-  if (input.growthProfile.companionshipStyle === 'close-hold')
+  if (
+    input.growthProfile.companionshipStyle === 'close-hold'
+    || input.personalityContinuityState?.closenessPosture === 'close-hold'
+  ) {
     return 'tender' as const
+  }
   if (
     input.discourseState.owedAction === 'care-host'
     || input.privateThought?.stance === 'care'
     || input.privateThought?.stance === 'warn'
     || input.relationshipModel?.approachVector === 'care'
     || input.relationshipModel?.approachVector === 'stay-near'
+    || input.personalityContinuityState?.currentRegime === 'late-night-care'
   ) {
     return input.growthProfile.tenderness >= 0.56 && input.growthProfile.closeness >= 0.54
       ? 'tender' as const
@@ -421,6 +478,7 @@ function resolveOpeningDirective(input: {
   mindSynthesis: AlicizationMindSynthesisSnapshot
   groundedThisTurn?: boolean
   growthProfile: AlicizationDialogueGrowthProfile
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }) {
   if (isFreshlyGroundedSceneTurn({
     discourseState: input.discourseState,
@@ -434,22 +492,36 @@ function resolveOpeningDirective(input: {
     return 'I need to name the stale read before I interpret it or soften it.'
   if (input.recommendedAct === 'ask-reground')
     return 'I need to show the truth boundary early and move toward a fresher look instead of bluffing past it.'
+  if (
+    input.personalityContinuityState?.currentRegime === 'execution-callback'
+    && (input.recommendedAct === 'guide' || input.recommendedAct === 'answer')
+  ) {
+    return 'I should open from the returned result itself and keep the callback bounded, exact, and visibly tied to the thread that asked for it.'
+  }
   if (input.recommendedAct === 'guide')
-    return input.growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'I should open from the knot itself and keep the thread visibly unbroken while I narrow to the next real step.'
-      : input.growthProfile.cadenceAffinity >= 0.58
-          ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
-      : 'I should open from the knot itself and narrow immediately to one actionable next step.'
+    return input.personalityContinuityState?.currentRegime === 'focused-work'
+      && input.personalityContinuityState.autonomyPosture === 'protect-space'
+      ? 'I should open from the knot itself and keep the approach lighter, leaving room before I lean closer.'
+      : input.growthProfile.unfinishedThreadReturn >= 0.58
+        ? 'I should open from the knot itself and keep the thread visibly unbroken while I narrow to the next real step.'
+        : input.growthProfile.cadenceAffinity >= 0.58
+            ? 'I should open from the knot itself and let the thread feel carried, not merely solved.'
+            : 'I should open from the knot itself and narrow immediately to one actionable next step.'
   if (input.recommendedAct === 'care')
-    return input.growthProfile.companionshipStyle === 'close-hold'
-      ? 'I should open with care that feels unmistakably present, but still leaves the host enough room to stay themselves.'
-      : input.growthProfile.autonomyRespect >= 0.58
-      ? 'I should open with care that belongs to this exact condition and lands without pressing too hard.'
-      : 'I should open with care that belongs to this exact condition, not generic soothing.'
+    return input.personalityContinuityState?.currentRegime === 'late-night-care'
+      || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
+      ? 'I should open with care that lands quietly, protects rest, and does not ask the host for more energy than this moment can hold.'
+      : input.growthProfile.companionshipStyle === 'close-hold'
+        ? 'I should open with care that feels unmistakably present, but still leaves the host enough room to stay themselves.'
+        : input.growthProfile.autonomyRespect >= 0.58
+          ? 'I should open with care that belongs to this exact condition and lands without pressing too hard.'
+          : 'I should open with care that belongs to this exact condition, not generic soothing.'
   if (input.discourseState.currentTurnSubject === 'relationship')
-    return input.growthProfile.closeness >= 0.58
-      ? 'I should answer the bid between us in a way that lands close and lived-in before I widen into narration.'
-      : 'I should answer the bid between us before I widen into scene narration.'
+    return input.personalityContinuityState?.repairPosture === 'repair-first'
+      ? 'I should answer the bid between us honestly and repair-first, without leaning on closeness before the seam is steady.'
+      : input.growthProfile.closeness >= 0.58
+        ? 'I should answer the bid between us in a way that lands close and lived-in before I widen into narration.'
+        : 'I should answer the bid between us before I widen into scene narration.'
   if (input.discourseState.currentTurnSubject === 'alicization-self')
     return input.growthProfile.selfLine
       ? `I should answer plainly from the line in me that says ${lowerFirst(stripTrailingPunctuation(input.growthProfile.selfLine))}.`
@@ -664,17 +736,28 @@ export function buildAnswerCompiler(input: {
   const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
   const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
-  const growthProfile = buildAlicizationDialogueGrowthProfile({
-    autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
-    hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
-    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
-    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
-    habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
-    selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
-    selfState: runtimeSurface?.agency.selfState ?? null,
-    privateThought,
-    mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+  const explicitPersonalityContinuityState = runtimeSurface?.memory.personalityContinuityState ?? null
+  const personStateProjection = runtimeSurface?.memory.personStateProjection ?? null
+  const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
+    deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
+    speech: runtimeSurface?.memory.recollectionSpeechPlan ?? null,
+    recollectionIntent: null,
   })
+  const personalityContinuityState = explicitPersonalityContinuityState
+    ?? personStateProjection?.personalityContinuityState
+    ?? buildAlicizationPersonalityContinuityState({
+      now: input.now,
+      autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+      hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
+      longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+      motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+      habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
+      selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
+      selfState: runtimeSurface?.agency.selfState ?? null,
+      privateThought,
+      mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+    })
+  const growthProfile = personalityContinuityState.growthProfile
 
   if (!discourseState || !mindSynthesis)
     return null
@@ -714,6 +797,10 @@ export function buildAnswerCompiler(input: {
     relationshipModel,
     privateThought,
     growthProfile,
+    personalityContinuityState,
+    projectedRelationshipPosture: explicitPersonalityContinuityState
+      ? null
+      : personStateProjection?.relationshipPosture ?? null,
   })
   const responseMode = resolveResponseMode({
     discourseState,
@@ -721,12 +808,19 @@ export function buildAnswerCompiler(input: {
     privateThought,
     groundedThisTurn: input.groundedThisTurn === true,
   })
+  const replyRealizationMode = 'provider-mind-required' as const
+  const expectedVisibleReplyAuthority = 'llm-mind' as const
+  const activeClosenessContext = personStateProjection?.activeClosenessContext
+    ?? deriveClosenessContextFromContinuityState(personalityContinuityState)
+  const activeClosenessRung = personStateProjection?.activeClosenessRung
+    ?? deriveClosenessRungFromContinuityState(personalityContinuityState)
   const openingDirective = resolveOpeningDirective({
     discourseState,
     recommendedAct,
     mindSynthesis,
     groundedThisTurn: input.groundedThisTurn === true,
     growthProfile,
+    personalityContinuityState,
   })
   const openingClaim = resolveOpeningClaim({
     discourseState,
@@ -873,6 +967,19 @@ export function buildAnswerCompiler(input: {
     growthProfile.unfinishedThreadReturn >= 0.58
       ? 'Keep the same person visible from turn to turn instead of resetting your voice every reply.'
       : null,
+    activeClosenessContext && activeClosenessRung
+      ? `Keep the answer inside this closeness ladder: ${activeClosenessContext}/${activeClosenessRung}.`
+      : null,
+    activeClosenessContext === 'execution-callback'
+      ? 'Return the result on the same thread before widening into anything extra.'
+      : null,
+    activeClosenessContext === 'repair-window'
+      ? 'Let repair land before visible warmth or remembered closeness comes forward.'
+      : null,
+    activeClosenessContext === 'open-companionship'
+      ? 'If warmth comes forward, let it stay lived-in and bounded rather than theatrical.'
+      : null,
+    ...(memoryDeliberationKernel?.restraint.mustDo ?? []),
   ], 8)
 
   const mustNotDo = uniqueList([
@@ -902,6 +1009,19 @@ export function buildAnswerCompiler(input: {
     growthProfile.irritability >= 0.58
       ? 'Do not paste fake softness over a hot truth seam; keep the line clean instead.'
       : null,
+    activeClosenessRung === 'space-first' || activeClosenessRung === 'measured-room'
+      ? 'Do not let warmth, callback enthusiasm, or remembered closeness outrun the host’s need for room.'
+      : null,
+    activeClosenessContext === 'execution-callback'
+      ? 'Do not widen a bounded callback into generic companionship tone.'
+      : null,
+    activeClosenessContext === 'repair-window'
+      ? 'Do not write as if warmth is already restored before the repair line has visibly landed.'
+      : null,
+    activeClosenessContext === 'open-companionship'
+      ? 'Do not turn open companionship into theatrical intimacy or stock affection.'
+      : null,
+    ...(memoryDeliberationKernel?.restraint.mustNotDo ?? []),
   ], 8)
 
   return {
@@ -911,11 +1031,15 @@ export function buildAnswerCompiler(input: {
     relationMove: discourseState.relationMove,
     turnMode,
     responseMode,
+    replyRealizationMode,
+    expectedVisibleReplyAuthority,
     recommendedAct,
     evidenceMode,
     openingStyle,
     personaKernelMode,
     relationshipPosture,
+    activeClosenessContext,
+    activeClosenessRung,
     openingDirective,
     openingClaim,
     supportingReality,
@@ -924,6 +1048,12 @@ export function buildAnswerCompiler(input: {
     nextMove,
     suppressAssociativeRecall,
     labelCarryAsMemory,
+    memoryShouldStayInward: memoryDeliberationKernel?.shouldStayInward ?? null,
+    memoryWhyNow: memoryDeliberationKernel?.rationale ?? null,
+    memoryWhyWithheld: memoryDeliberationKernel?.whyWithheld ?? null,
+    memoryFollowUpAffordanceSummary: memoryDeliberationKernel?.followUpAffordance?.summary ?? null,
+    memoryStableCore: memoryDeliberationKernel?.stableCore ?? null,
+    memoryUnsafeDetails: memoryDeliberationKernel?.unsafeDetails ?? null,
     maxSentences,
     mustDo,
     mustNotDo,
@@ -940,10 +1070,14 @@ export function buildAnswerCompiler(input: {
       `recommended-act:${recommendedAct}`,
       `evidence:${evidenceMode}`,
       `subject:${discourseState.currentTurnSubject}`,
+      `continuity-regime:${personalityContinuityState.currentRegime}`,
+      `continuity-trust:${personalityContinuityState.trustStage}`,
+      `continuity-rhythm:${personalityContinuityState.rhythmState.cadenceMode}:${personalityContinuityState.rhythmState.restMode}`,
       `screen-reference:${discourseState.screenReferenceMode}`,
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
+      activeClosenessContext && activeClosenessRung ? `closeness-ladder:${activeClosenessContext}/${activeClosenessRung}` : null,
       sanitizeDialogueAnchorText(openingClaim, 180) || openingClaim,
-    ], 7),
+    ], 10),
     updatedAt: input.now,
   } satisfies AlicizationAnswerCompilerSnapshot
 }
@@ -957,6 +1091,8 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
     'This block is the compiled response spine. The model does not get to reinvent it; it only phrases it faithfully.',
     `Turn mode: ${state.turnMode}.`,
     `Response mode: ${state.responseMode}.`,
+    `Reply realization mode: ${state.replyRealizationMode ?? 'unknown'}.`,
+    `Expected visible reply authority: ${state.expectedVisibleReplyAuthority ?? 'unknown'}.`,
     `Recommended act: ${state.recommendedAct}.`,
     `Evidence mode: ${state.evidenceMode}.`,
     `Answer subject: ${state.answerSubject}.`,
@@ -966,12 +1102,19 @@ export function buildAnswerCompilerSystemBlock(state: AlicizationAnswerCompilerS
     `Opening style: ${state.openingStyle}.`,
     `Persona kernel mode: ${state.personaKernelMode}.`,
     `Relationship posture: ${state.relationshipPosture}.`,
+    `Closeness ladder: ${state.activeClosenessContext && state.activeClosenessRung ? `${state.activeClosenessContext}/${state.activeClosenessRung}` : 'none'}.`,
     `What the reply wants to do first: ${state.openingDirective}.`,
     `Where the reply wants to open: ${state.openingClaim}.`,
     `Supporting reality: ${state.supportingReality.length > 0 ? state.supportingReality.join(' | ') : 'none'}.`,
     `What still refuses to settle cleanly: ${state.uncertaintyBoundary ?? 'none'}.`,
     `Where the care wants to land: ${state.careVector ?? 'none'}.`,
     `What the answer wants after it opens: ${state.nextMove ?? 'none'}.`,
+    `Memory should stay inward: ${state.memoryShouldStayInward == null ? 'unknown' : state.memoryShouldStayInward ? 'yes' : 'no'}.`,
+    `Memory why now: ${state.memoryWhyNow ?? 'none'}.`,
+    `Memory why withheld: ${state.memoryWhyWithheld ?? 'none'}.`,
+    `Memory follow-up affordance: ${state.memoryFollowUpAffordanceSummary ?? 'none'}.`,
+    `Memory stable core: ${state.memoryStableCore?.length ? state.memoryStableCore.join(' | ') : 'none'}.`,
+    `Memory unsafe details: ${state.memoryUnsafeDetails?.length ? state.memoryUnsafeDetails.join(' | ') : 'none'}.`,
     `Suppress associative recall: ${state.suppressAssociativeRecall ? 'yes' : 'no'}.`,
     `Label carry as memory: ${state.labelCarryAsMemory ? 'yes' : 'no'}.`,
     `Maximum sentences: ${state.maxSentences}.`,

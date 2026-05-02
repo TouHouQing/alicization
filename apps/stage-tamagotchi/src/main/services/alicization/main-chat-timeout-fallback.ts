@@ -83,6 +83,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
         turnId: input.turnId,
       }),
       suppressGovernedLead: true,
+      visibleReplyAuthority: 'local-deterministic-fallback',
     })
   }
 
@@ -112,6 +113,7 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
         turnId: input.turnId,
       }),
       suppressGovernedLead: true,
+      visibleReplyAuthority: 'local-deterministic-fallback',
     })
   }
 

@@ -43,7 +43,7 @@ interface RegisterAlicizationMaintenanceInvokeHandlersOptions {
   screenSemanticCacheByCard: Map<string, unknown>
   subconsciousStateByCard: Map<string, unknown>
   activeSessionIdByCard: Map<string, unknown>
-  dialogueAckByCard: Map<string, unknown>
+  clearDialogueDeliveryCardState: (cardId: string) => void
   clearDialogueSessionMirrorCard: (cardId: string) => void
   clearExecutionDeliveryStateMemory: (cardId: string) => void
   bootstrap: () => Promise<unknown>
@@ -92,7 +92,7 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     screenSemanticCacheByCard,
     subconsciousStateByCard,
     activeSessionIdByCard,
-    dialogueAckByCard,
+    clearDialogueDeliveryCardState,
     clearDialogueSessionMirrorCard,
     clearExecutionDeliveryStateMemory,
     bootstrap,
@@ -148,7 +148,7 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     screenSemanticCacheByCard.delete(targetCardId)
     subconsciousStateByCard.delete(targetCardId)
     activeSessionIdByCard.delete(targetCardId)
-    dialogueAckByCard.delete(targetCardId)
+    clearDialogueDeliveryCardState(targetCardId)
     clearDialogueSessionMirrorCard(targetCardId)
     clearExecutionDeliveryStateMemory(targetCardId)
     if (targetCardId === defaultAlicizationCardId) {

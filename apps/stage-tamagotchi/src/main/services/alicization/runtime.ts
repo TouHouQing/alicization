@@ -23,10 +23,8 @@ import type {
   AlicizationPresencePulsePayload,
   AlicizationProactiveMetadata,
   AlicizationReminderScheduleResult,
-  AlicizationSoulFrontmatter,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousTickResult,
-  AlicizationTaskThreadRecord,
   AlicizationVisualPresenceStateSnapshot,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
@@ -42,16 +40,13 @@ import type {
 } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
-import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
 import type {
   AlicizationRuntimeSetupOptions,
 } from './runtime-governance'
 import type {
-  CardScopeOptions,
   ChatRunState,
   DesktopCaptureAccessResult,
   OrganicMemoryPromptContext,
-  PendingDialogueDeliveryState,
   ScreenSemanticCacheState,
   SubconsciousCardState,
 } from './runtime-soul'
@@ -113,17 +108,12 @@ import {
   updatePerceptionStateWithObservation,
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
-import {
-  buildAutobiographicalEpisodesFromPreparedMirror,
-  buildAutobiographicalEpisodesFromSessionMirrorSync,
-} from './autobiographical-episode-sync'
 import { setupAlicizationDb } from './db'
 import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
 import { buildDialogueTurnMemoryFragment } from './dialogue-memory'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
-import { adjustProactiveStyleFromHostPersonModel, buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
-import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
+import { inferHostSocialContextsFromText } from './host-social-guidance'
 import {
   buildDialogueTurnSemantics,
 } from './dialogue-turn-semantics'
@@ -132,7 +122,6 @@ import {
 } from './digital-life-kernel'
 import {
   commitAlicizationDigitalLifeSpine,
-  deriveAlicizationDigitalLifeSpineFromSurface,
   deriveAlicizationDigitalLifeSpine,
 } from './digital-life-spine'
 import {
@@ -141,31 +130,17 @@ import {
 } from './execution-callback-runtime'
 import {
   createAlicizationExecutionDeliveryRuntime,
-  hasAlicizationExecutionDeliveryRetainedState,
 } from './execution-delivery-runtime'
 import {
   alicizationTerminalTaskThreadStatuses,
-  readExecutionOutcome,
-  readLatestExecutionEvent,
   readTaskThreadActivityAt,
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
-import {
-  buildAlicizationExecutionPayoffDeterministicStructured,
-  buildAlicizationExecutionPayoffPrompt,
-  selectAlicizationExecutionDeliveryReply,
-} from './execution-delivery-surface'
-import {
-  type AlicizationExecutionResultDeliveryPolicy,
-  deriveExecutionResultDeliveryPolicy,
-} from './execution-interaction-learning'
-import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { createAlicizationExecutorRuntime } from './executor-runtime'
 import { buildAsyncFactMemoryFragments } from './fact-memory'
 import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from './main-chat-abort'
 import { runAlicizationMainChatBackground } from './main-chat-background-run'
 import { handleAlicizationDirectChatStart } from './main-chat-direct-start'
-import { createAlicizationExecutionFollowUpPayoffResolver } from './main-chat-follow-up-payoff'
 import { syncAlicizationMainChatLlmRoute } from './main-chat-llm-route-sync'
 import { createAlicizationMainChatRunStateController } from './main-chat-run-state'
 import {
@@ -179,10 +154,13 @@ import {
   createAlicizationMemoryLedgerRuntime,
   emptyAlicizationExecutionLedgerContext,
 } from './memory-ledger-runtime'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 import { sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
 import { buildMindTruthContractLines, deriveMindTruthContract } from './mind-truth-contract'
 import { isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
+import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import {
   createDefaultProactiveLoopState,
   normalizeProactiveLoopState,
@@ -192,8 +170,6 @@ import {
   recoverProactiveRhythmAfterDream,
   registerProactiveDelivery,
   reportExplicitProactiveFeedback,
-  settleExpiredProactiveOutcomes,
-  settleProactiveOutcomesOnUserTurnStart,
   updateLateNightActivityState,
 } from './proactive-feedback'
 import { progressProactiveCadenceState } from './proactive-cadence'
@@ -217,7 +193,12 @@ import { evaluateProactivePolicy } from './proactive-policy'
 import {
   rankScreenSemanticCaptureCandidates,
 } from './proactive-screen-semantic'
+import { createAlicizationRuntimeProactiveFeedback } from './runtime-proactive-feedback'
 import { buildReflectionLedgerFragment } from './reflection-memory'
+import { createAlicizationRuntimeDialogueDelivery } from './runtime-dialogue-delivery'
+import { createAlicizationRuntimeDialogueFeedback } from './runtime-dialogue-feedback'
+import { createAlicizationRuntimeExecutionFeedback } from './runtime-execution-feedback'
+import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createAlicizationAgentSessionMirrorRuntime } from './runtime-agent-session-mirror'
 import { createAlicizationCardPromptRuntime } from './runtime-card-prompt'
 import { createAlicizationChatPerceptionAugmentRuntime } from './runtime-chat-perception-augment'
@@ -239,20 +220,25 @@ import {
   readStringValue,
   type AlicizationMindTraceMemorySnapshot,
 } from './runtime-governance'
-import { createAlicizationInspectionIntentRuntime } from './runtime-inspection-intent'
 import { registerAlicizationChatInvokeHandlers } from './runtime-invoke-handlers-chat'
 import { registerAlicizationDialogueInvokeHandlers } from './runtime-invoke-handlers-dialogue'
 import { registerAlicizationMaintenanceInvokeHandlers } from './runtime-invoke-handlers-maintenance'
 import { registerAlicizationMemoryInvokeHandlers } from './runtime-invoke-handlers-memory'
 import { registerAlicizationSoulStateInvokeHandlers } from './runtime-invoke-handlers-soul-state'
 import { registerAlicizationTaskInvokeHandlers } from './runtime-invoke-handlers-task'
-import { createAlicizationMainChatContextRuntime } from './runtime-main-chat-context'
-import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
 import { createAlicizationMainGatewayConfigRuntime } from './runtime-main-gateway-config'
 import { createAlicizationMainGatewayOneShotRuntime } from './runtime-main-gateway-one-shot'
+import { createAlicizationRuntimeMainChatRuntime } from './runtime-main-chat-runtime'
+import { createAlicizationRuntimeCardScopeLifecycle } from './runtime-card-scope-lifecycle'
+import { createAlicizationRuntimeCardScopeOrchestrator } from './runtime-card-scope-orchestrator'
+import { createAlicizationRuntimeCardScopeState } from './runtime-card-scope-state'
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
-import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
-import { createAlicizationOrganicMemoryPromptRuntime } from './runtime-organic-memory-prompt'
+import { createAlicizationRuntimeMemoryClosure } from './runtime-memory-closure'
+import { createAlicizationRuntimeMemoryRuntime } from './runtime-memory-runtime'
+import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
+import { createAlicizationRuntimeVisualPresenceState } from './runtime-visual-presence-state'
+import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
+import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
 import {
   normalizeOrganicRecallText,
   selectPromptActiveThoughts,
@@ -395,22 +381,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const scopeLifecycleQueueState = {
     queue: Promise.resolve<unknown>(undefined),
   }
-  let revision = 0
-  let watching = false
-  let soulSnapshot: AlicizationSoulSnapshot | null = null
-  let queuedWrite: Promise<AlicizationSoulSnapshot | void> = Promise.resolve()
-  let soulWatchTimer: ReturnType<typeof setTimeout> | undefined
-  let soulWatcher: import('node:fs').FSWatcher | undefined
+  let cardScopeOrchestrator: ReturnType<typeof createAlicizationRuntimeCardScopeOrchestrator> | null = null
+  const soulLifecycleState = {
+    revision: 0,
+    watching: false,
+    soulSnapshot: null as AlicizationSoulSnapshot | null,
+    queuedWrite: Promise.resolve<AlicizationSoulSnapshot | void>(undefined),
+    soulWatchTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    soulWatcher: undefined as import('node:fs').FSWatcher | undefined,
+    muteWatchUntil: 0,
+  }
   let pruneTimer: ReturnType<typeof setInterval> | undefined
   let subconsciousTimer: ReturnType<typeof setInterval> | undefined
   let reminderDueTimer: ReturnType<typeof setTimeout> | undefined
   let dreamTimer: ReturnType<typeof setInterval> | undefined
-  let muteWatchUntil = 0
   const turnWriteAbortControllers = new Map<string, AbortController>()
   const activeSessionIdByCard = new Map<string, string>()
-  const dialogueAckByCard = new Map<string, Map<string, number>>()
-  const dialogueReplyFeedbackAckByCard = new Map<string, string>()
-  const pendingDialogueDeliveries = new Map<string, PendingDialogueDeliveryState>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
   const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
   const perceptionStateByCard = new Map<string, AlicizationPerceptionState>()
@@ -422,6 +408,45 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const screenSemanticCacheByCard = new Map<string, ScreenSemanticCacheState>()
   const pendingDurabilityPulseByCard = new Map<string, AlicizationDurabilityPulseSnapshot>()
   const foregroundProbeTimeoutStreakByPid = new Map<number, number>()
+  let soulLifecycleRuntime: ReturnType<typeof createAlicizationRuntimeSoulLifecycle> | null = null
+  const snapshotFromContent = (content: string) => {
+    if (!soulLifecycleRuntime)
+      throw new Error('SOUL lifecycle runtime is not initialized yet.')
+    return soulLifecycleRuntime.snapshotFromContent(content)
+  }
+  const stopWatch = () => {
+    if (!soulLifecycleRuntime)
+      return
+    soulLifecycleRuntime.stopWatch()
+  }
+  const ensureWatchState = async () => {
+    if (!soulLifecycleRuntime)
+      throw new Error('SOUL lifecycle runtime is not initialized yet.')
+    await soulLifecycleRuntime.ensureWatchState()
+  }
+  const bootstrap = async () => {
+    if (!soulLifecycleRuntime)
+      throw new Error('SOUL lifecycle runtime is not initialized yet.')
+    return await soulLifecycleRuntime.bootstrap()
+  }
+  async function withCardScope<T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
+    label?: string
+    skipQueueWhenScopeAlreadyActive?: boolean
+  }) {
+    if (!cardScopeOrchestrator)
+      throw new Error('Card scope orchestrator is not initialized yet.')
+    return await cardScopeOrchestrator.withCardScope(nextCardIdRaw, task, options)
+  }
+  const queueSoulMutation = async (task: (current: AlicizationSoulSnapshot) => Promise<AlicizationSoulSnapshot>) => {
+    if (!soulLifecycleRuntime)
+      throw new Error('SOUL lifecycle runtime is not initialized yet.')
+    return await soulLifecycleRuntime.queueSoulMutation(task)
+  }
+  const initializeGenesis = async (input: AlicizationGenesisInput) => {
+    if (!soulLifecycleRuntime)
+      throw new Error('SOUL lifecycle runtime is not initialized yet.')
+    return await soulLifecycleRuntime.initializeGenesis(input)
+  }
   const desktopCaptureAccessRuntime = createDesktopCaptureAccessRuntime({
     getSources: async options => await desktopCapturer.getSources(options),
     getScreenPermissionStatus: () => {
@@ -471,6 +496,93 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     toAlicizationChatStreamDispatchPayload,
     emitChatStreamEventForState,
   } = chatStreamRuntime
+  const deliverDialogueResponded = (payload: AlicizationDialogueRespondedPayload) => {
+    context.emit(alicizationDialogueResponded, payload)
+
+    const dispatchPayload = toAlicizationChatStreamDispatchPayload('dialogue-responded', payload)
+    const dispatchedSenderIds = new Set<number>()
+    const allWebContents = webContents.getAllWebContents()
+    for (const target of allWebContents) {
+      if (target.isDestroyed())
+        continue
+      try {
+        target.send(alicizationChatStreamDispatchChannel, dispatchPayload)
+        dispatchedSenderIds.add(target.id)
+      }
+      catch (error) {
+        void appendRuntimeDebugLine('dialogue-dispatch.failed', {
+          cardId: payload.cardId,
+          sessionId: payload.sessionId,
+          turnId: payload.turnId,
+          senderId: target.id,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    if (dispatchedSenderIds.size === 0) {
+      void appendRuntimeDebugLine('dialogue-dispatch.skipped', {
+        cardId: payload.cardId,
+        sessionId: payload.sessionId,
+        turnId: payload.turnId,
+        reason: 'no-renderer',
+      })
+    }
+  }
+  const cardScopeStateRuntime = createAlicizationRuntimeCardScopeState({
+    now: () => Date.now(),
+    userDataPath,
+    activeCardIdRef: () => activeCardId,
+    normalizeCardId,
+    getMetaValue: key => alicizationDb.getMetaValue(key),
+    setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+    getLatestConversationSessionId: async () => await alicizationDb.getLatestConversationSessionId().catch(() => undefined),
+    appendAuditLog: async (input, cardId) => await appendAuditLog(input, cardId),
+    getAlicizationKillSwitchSnapshot,
+    getAlicizationCardKillSwitchSnapshot,
+    setAlicizationCardKillSwitchState,
+    activeSessionIdByCard,
+    subconsciousStateByCard,
+    proactiveLoopStateByCard,
+    visualPresenceStateByCard,
+    readdir,
+    activeSessionMetaKey: alicizationCardActiveSessionMetaKey,
+    scopedKillSwitchMetaKey: alicizationCardKillSwitchMetaKey,
+  })
+  const normalizeSessionId = cardScopeStateRuntime.normalizeSessionId
+  const getScopedKillSwitchSnapshot = (cardId = activeCardId) => cardScopeStateRuntime.getScopedKillSwitchSnapshot(cardId)
+  const persistScopedKillSwitch = cardScopeStateRuntime.persistScopedKillSwitch
+  const persistActiveSessionId = cardScopeStateRuntime.persistActiveSessionId
+  const restoreActiveSessionId = cardScopeStateRuntime.restoreActiveSessionId
+  const ensureActiveOrLatestSessionId = cardScopeStateRuntime.ensureActiveOrLatestSessionId
+  const listKnownCardIds = cardScopeStateRuntime.listKnownCardIds
+  const restoreScopedKillSwitch = cardScopeStateRuntime.restoreScopedKillSwitch
+  const dialogueDeliveryRuntime = createAlicizationRuntimeDialogueDelivery({
+    normalizeCardId,
+    normalizeSessionId,
+    sanitizeText,
+    getActiveCardId: () => activeCardId,
+    getActiveSessionIdForCard: cardId => activeSessionIdByCard.get(normalizeCardId(cardId)) ?? '',
+    withCardScope,
+    appendRuntimeDebugLine,
+    deliverDialogueResponded,
+    alicizationDb,
+    dialogueAckStateMetaKey: alicizationDialogueAckStateMetaKey,
+    dialogueReplyFeedbackAckMetaKey: alicizationDialogueReplyFeedbackAckMetaKey,
+    dialogueDeliveryRetryBaseMs,
+    dialogueDeliveryRetryMaxMs,
+    dialogueDeliveryRetryMaxAttempts,
+  })
+  const {
+    getDialogueAckCursor,
+    restoreDialogueAckMap,
+    ensureDialogueReplyFeedbackAck,
+    persistDialogueReplyFeedbackAck,
+    emitDialogueRespondedWithDelivery,
+    ackDialogueDelivery,
+    clearPendingDialogueDeliveriesByCard,
+    clearAllPendingDialogueDeliveries,
+  } = dialogueDeliveryRuntime
   const mainChatRunState = createAlicizationMainChatRunStateController({
     runs: chatRuns,
     sessionTraceGetters: chatRunSessionTraceGetters,
@@ -492,6 +604,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!deliberation)
       return null
 
+    const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
+      deliberation,
+      speech: context?.recollectionSpeechPlan ?? null,
+      recollectionIntent: context?.recollectionIntent ?? null,
+    })
+    const personStateProjection = prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection ?? null
+    const personalityContinuityState = personStateProjection?.personalityContinuityState
+      ?? prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.personalityContinuityState
+      ?? null
+
     return {
       shouldRecall: deliberation.shouldRecall,
       surfacePolicy: deliberation.surfacePolicy,
@@ -500,6 +622,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       inwardLine: deliberation.inwardLine,
       visibleLine: deliberation.visibleLine ?? null,
       ambiguityPosture: deliberation.ambiguityPosture ?? 'settled',
+      whyWithheld: deliberationKernel?.whyWithheld ?? null,
+      shouldStayInward: deliberationKernel?.shouldStayInward ?? false,
+      restraintSurfaceMode: deliberationKernel?.restraint.surfaceMode ?? null,
+      restraintProvenanceMode: deliberationKernel?.restraint.provenanceMode ?? null,
+      shouldOnlySurfaceStableCore: deliberationKernel?.restraint.shouldOnlySurfaceStableCore ?? false,
+      shouldLabelProvenance: deliberationKernel?.restraint.shouldLabelProvenance ?? false,
+      shouldLabelHypothesis: deliberationKernel?.restraint.shouldLabelHypothesis ?? false,
+      shouldSuppressSpecificity: deliberationKernel?.restraint.shouldSuppressSpecificity ?? false,
+      shouldDelayUntilAfterPayoff: deliberationKernel?.restraint.shouldDelayUntilAfterPayoff ?? false,
+      memoryControlSummary: deliberationKernel?.memoryControlSummary ?? null,
+      activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
+      activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
+      relationshipPosture: personStateProjection?.relationshipPosture ?? null,
+      openingGuidance: personStateProjection?.openingGuidance ?? null,
+      personalityCurrentRegime: personalityContinuityState?.currentRegime ?? null,
+      personalityRepairPosture: personalityContinuityState?.repairPosture ?? null,
       recollectionIntentMode: context?.recollectionIntent?.mode ?? null,
       recollectionIntentTemporalFocus: context?.recollectionIntent?.temporalFocus ?? null,
       speechShouldSurface: context?.recollectionSpeechPlan?.shouldSurface ?? null,
@@ -552,6 +690,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         answerPosture: item.answerPosture ?? null,
       })),
       selectedRelationshipLines: [...deliberation.selectedRelationshipLines],
+      followUpAffordance: deliberation.followUpAffordance
+        ? {
+            summary: deliberation.followUpAffordance.summary,
+            whyNow: deliberation.followUpAffordance.whyNow,
+            intrusionRisk: deliberation.followUpAffordance.intrusionRisk,
+            payoffDependency: deliberation.followUpAffordance.payoffDependency,
+            preferredTiming: deliberation.followUpAffordance.preferredTiming,
+          }
+        : null,
       searchTrace: deliberation.searchTrace
         ? {
             firstHop: {
@@ -603,60 +750,83 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
     listTaskThreads: input => alicizationDb.listTaskThreads(input),
   })
-  const organicMemoryAccessRuntime = createAlicizationOrganicMemoryAccessRuntime({
-    getSoulSnapshot: () => soulSnapshot,
-    bootstrap: async () => await bootstrap(),
-    listActiveThoughts: async () => await alicizationDb.listActiveThoughts(),
-    countSubconsciousFragments: async () => await alicizationDb.countSubconsciousFragments(),
-    listRecentSubconsciousFragments: async limit => await alicizationDb.listRecentSubconsciousFragments(limit),
-    getMetaValue: async key => await alicizationDb.getMetaValue(key),
-    replaceActiveThoughts: async (items) => {
-      await alicizationDb.replaceActiveThoughts(items)
+  const memoryRuntime = createAlicizationRuntimeMemoryRuntime({
+    organicMemoryAccess: {
+      getActiveCardId: () => activeCardId,
+      getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
+      bootstrap: async () => await bootstrap(),
+      listActiveThoughts: async () => await alicizationDb.listActiveThoughts(),
+      countSubconsciousFragments: async () => await alicizationDb.countSubconsciousFragments(),
+      listRecentSubconsciousFragments: async limit => await alicizationDb.listRecentSubconsciousFragments(limit),
+      getMetaValue: async key => await alicizationDb.getMetaValue(key),
+      replaceActiveThoughts: async (items) => {
+        await alicizationDb.replaceActiveThoughts(items)
+      },
+      setMetaValue: async (key, value) => await alicizationDb.setMetaValue(key, value),
+      searchSubconsciousFragments: async (query, limit) => await alicizationDb.searchSubconsciousFragments(query, limit),
+      listRecentEpisodicEvents: async limit => await alicizationDb.listRecentEpisodicEvents(limit),
+      listMemoryConsolidations: async limit => await alicizationDb.listMemoryConsolidations(limit).catch(() => []),
+      getLatestRelationshipDynamics: async () => await alicizationDb.getLatestRelationshipDynamics().catch(() => null),
+      listRelationshipOutcomes: async input => await alicizationDb.listRelationshipOutcomes(input).catch(() => []),
+      listPersonaReinforcementEvents: async input => await alicizationDb.listPersonaReinforcementEvents(input).catch(() => []),
+      summarizePersonStateEvolution: async input => await alicizationDb.summarizePersonStateEvolution(input).catch(() => ({
+        trustShift: 0,
+        closenessShift: 0,
+        repairShift: 0,
+        autonomyShift: 0,
+        burdenShift: 0,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0,
+        latestDoctrine: null,
+        latestBurdenLine: null,
+        latestTrustMeaning: null,
+        latestDominantRung: null,
+        recentSummaries: [],
+        explanation: [],
+        updatedAt: null,
+      })),
+      readMindHead: async <T>(cardId: string, key: 'person-state-update-surface') => await alicizationDb.readMindHead<T>(cardId, key).catch((): T | null => null),
+      searchEpisodicEvents: async input => await alicizationDb.searchEpisodicEvents(input),
+      searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
+      searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
+      listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
     },
-    setMetaValue: async (key, value) => await alicizationDb.setMetaValue(key, value),
-    searchSubconsciousFragments: async (query, limit) => await alicizationDb.searchSubconsciousFragments(query, limit),
-    listRecentEpisodicEvents: async limit => await alicizationDb.listRecentEpisodicEvents(limit),
-    searchEpisodicEvents: async input => await alicizationDb.searchEpisodicEvents(input),
-    searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
-    searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
-    listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
+    organicMemorySearch: {
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getLatestRelationshipDynamics: async () => await alicizationDb.getLatestRelationshipDynamics().catch(() => null),
+      retrieveMemoryFacts: async (recallSeed, limit) => await alicizationDb.retrieveMemoryFacts(recallSeed, limit).catch(() => []),
+      planRecollectionIntent: async input => await generateMemoryRecollectionIntentWithGateway(input),
+      planMemoryRecollection: async input => await generateMemoryRecollectionPlanWithGateway(input),
+      planRecollectionSpeech: async input => await generateMemoryRecollectionSpeechPlanWithGateway(input),
+      planMemoryDeliberation: async input => await generateMemoryDeliberationWithGateway(input),
+      isPersonaResidueMemoryText,
+    },
+    memoryReconsolidation: {
+      sanitizeMindGovernanceDecisionTraceId,
+      sanitizeText,
+      errorMessageFrom,
+      appendAuditLog,
+      alicizationDb: {
+        listMindTurnEvents: input => alicizationDb.listMindTurnEvents(input),
+        searchEpisodicEvents: input => alicizationDb.searchEpisodicEvents(input),
+        appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+      },
+    },
   })
   const {
     getOrganicMemorySnapshot,
     getPerformanceManifest,
     setPerformanceManifest,
     searchOrganicSubconsciousFragments,
-    recallSubconsciousFragmentsWithGovernor,
-    recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
-    recallConversationHistory,
-    recallMemoryConsolidations,
     resolveRecentContextualTurns,
-  } = organicMemoryAccessRuntime
-  const organicMemoryPromptRuntime = createAlicizationOrganicMemoryPromptRuntime({
-    normalizeOrganicRecallText,
-    selectPromptActiveThoughts,
-    getOrganicMemorySnapshot,
-    getLatestRelationshipDynamics: async () => await alicizationDb.getLatestRelationshipDynamics().catch(() => null),
-    retrieveMemoryFacts: async (recallSeed, limit) => await alicizationDb.retrieveMemoryFacts(recallSeed, limit).catch(() => []),
-    recallSubconsciousFragmentsWithGovernor,
-    recallEpisodicEventsWithGovernor,
-    buildHostPersonModel,
-    recallConversationHistory,
-    recallMemoryConsolidations,
-    planRecollectionIntent: async input => await generateMemoryRecollectionIntentWithGateway(input),
-    planMemoryRecollection: async input => await generateMemoryRecollectionPlanWithGateway(input),
-    planRecollectionSpeech: async input => await generateMemoryRecollectionSpeechPlanWithGateway(input),
-    planMemoryDeliberation: async input => await generateMemoryDeliberationWithGateway(input),
-    isPersonaResidueMemoryText,
-  })
-  const {
     buildProactiveRecallSeed,
     buildOrganicMemorySystemBlocks,
     tuneOrganicMemoryPromptContextForExecutiveTurn,
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext,
-  } = organicMemoryPromptRuntime
+  } = memoryRuntime
   const sessionContinuityBuildersRuntime = createAlicizationSessionContinuityBuildersRuntime({
     sanitizeText,
     sanitizeBriefText,
@@ -668,6 +838,58 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     proactiveDismissCooldownMs,
     buildVisualPresenceCapturePersistFingerprint,
   })
+  const visualPresenceStateRuntime = createAlicizationRuntimeVisualPresenceState({
+    now: () => Date.now(),
+    normalizeCardId,
+    getActiveCardId: () => activeCardId,
+    withCardScope,
+    alicizationDb: {
+      getMetaValue: key => alicizationDb.getMetaValue(key),
+      setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+      upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+    },
+    perceptionStateByCard,
+    visualPresenceStateByCard,
+    visualPresenceCapturePersistMetaByCard,
+    createDefaultPerceptionState,
+    normalizePerceptionState,
+    createDefaultVisualPresenceState,
+    normalizeVisualPresenceState,
+    buildVisualPresenceCapturePersistFingerprint,
+    emitVisualPresenceState,
+    perceptionMetaKey: alicizationPerceptionStateMetaKey,
+    visualPresenceMetaKey: alicizationVisualPresenceStateMetaKey,
+  })
+  const persistPerceptionState = visualPresenceStateRuntime.persistPerceptionState
+  const ensurePerceptionState = visualPresenceStateRuntime.ensurePerceptionState
+  const persistVisualPresenceState = visualPresenceStateRuntime.persistVisualPresenceState
+  const ensureVisualPresenceState = visualPresenceStateRuntime.ensureVisualPresenceState
+  const memoryClosureRuntime = createAlicizationRuntimeMemoryClosure({
+    now: () => Date.now(),
+    normalizeCardId,
+    getActiveCardId: () => activeCardId,
+    withCardScope,
+    errorMessageFrom,
+    ensureMindGovernanceDecisionTraceId: (raw, traceNow) => {
+      const normalized = sanitizeMindGovernanceDecisionTraceId(raw)
+      return normalized || `mind:${Math.max(0, Math.floor(traceNow ?? Date.now())).toString(36)}:${randomUUID().replace(/-/g, '').slice(0, 12)}`
+    },
+    appendAuditLog,
+      alicizationDb: {
+        appendRelationshipOutcomes: entries => alicizationDb.appendRelationshipOutcomes(entries),
+        appendEpisodicEvents: events => alicizationDb.appendEpisodicEvents(events),
+        appendPersonaReinforcementEvents: events => alicizationDb.appendPersonaReinforcementEvents(events),
+        appendPersonStateEvolutionEntries: entries => alicizationDb.appendPersonStateEvolutionEntries(entries),
+        upsertMemoryReflections: reflections => alicizationDb.upsertMemoryReflections(reflections),
+      upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
+      readMindHead: (cardId, key) => alicizationDb.readMindHead(cardId, key),
+      upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+      appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+    },
+  })
+  const persistOutcomeClosure = memoryClosureRuntime.persistOutcomeClosure
+  const persistPreparedMirrorAutobiographicalEpisodes = memoryClosureRuntime.persistPreparedMirrorAutobiographicalEpisodes
+  const persistSessionMirrorAutobiographicalEpisodes = memoryClosureRuntime.persistSessionMirrorAutobiographicalEpisodes
   const {
     buildExecutionDeliveryAction,
     buildTaskThreadSessionMirrorAction,
@@ -682,10 +904,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildVisualPresenceContinuitySignal,
   } = sessionContinuityBuildersRuntime
   const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime()
-  const resolveActiveDialogueDeterministicReply = createAlicizationExecutionFollowUpPayoffResolver({
-    listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
-    listTaskThreads: input => alicizationDb.listTaskThreads(input),
-  })
   const agentRuntime = createAlicizationAgentRuntime({
     getSensorySnapshot: async () => sensoryBus.getSnapshot(),
     resolveConversationSessionId: async cardId => await ensureActiveOrLatestSessionId(cardId),
@@ -721,7 +939,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   } = mainGatewayConfigRuntime
   const cardPromptRuntime = createAlicizationCardPromptRuntime({
     getActiveCardId: () => activeCardId,
-    getSoulSnapshot: () => soulSnapshot,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
     resolveCardPaths,
     normalizeCardId,
     sanitizeText,
@@ -791,44 +1009,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     generateMainGatewayText,
     resolveProactiveScreenSemanticSummary,
   } = mainGatewayOneShotRuntime
-  let resolveInspectionIntentFromMessageHistory = (
-    _input: { userText: string, messages: AlicizationChatStartPayload['messages'] },
-  ) => false
-  const mainChatContextRuntime = createAlicizationMainChatContextRuntime({
-    getActiveCardId: () => activeCardId,
-    normalizeOrganicRecallText,
-    readTransportContentAsText,
-    isInternalAlicizationRepairPrompt,
-    emptyAlicizationExecutionCallbackContext,
-    emptyAlicizationExecutionLedgerContext,
-    ensureActiveOrLatestSessionId,
-    buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
-    buildExecutionLedgerContext: input => memoryLedgerRuntime.buildExecutionLedgerContext(input),
-    listTaskThreadsBySession: input => alicizationDb.listTaskThreads(input),
-    resolveRecentContextualTurns,
-    shouldExtendContextualRecall,
-    resolveInspectionIntentFromMessageHistory: input => resolveInspectionIntentFromMessageHistory(input),
-    detectInvitedInspectionIntent,
+  const mainChatRuntime = createAlicizationRuntimeMainChatRuntime({
+    context: {
+      getActiveCardId: () => activeCardId,
+      normalizeOrganicRecallText,
+      readTransportContentAsText,
+      isInternalAlicizationRepairPrompt,
+      emptyAlicizationExecutionCallbackContext,
+      emptyAlicizationExecutionLedgerContext,
+      ensureActiveOrLatestSessionId,
+      buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
+      buildExecutionLedgerContext: input => memoryLedgerRuntime.buildExecutionLedgerContext(input),
+      listTaskThreadsBySession: input => alicizationDb.listTaskThreads(input),
+      resolveRecentContextualTurns,
+      shouldExtendContextualRecall,
+      detectInvitedInspectionIntent,
+    },
+    inspection: {
+      normalizeOrganicRecallText,
+      readLatestAssistantMessageText: messages => mainChatRuntime.readLatestAssistantMessageText(messages as any),
+      readTransportContentAsText,
+    },
   })
   const {
-    buildMainChatExecutionCallbackContext,
-    buildMainChatExecutionLedgerContext,
-    buildMainChatPendingAffirmationThread,
-    buildMainChatContextualString,
     readLatestUserMessageText,
     readLatestAssistantMessageText,
     redactStaleInspectionHistoryMessages,
-  } = mainChatContextRuntime
-  redactStaleInspectionHistoryMessagesForChat = redactStaleInspectionHistoryMessages
-  const inspectionIntentRuntime = createAlicizationInspectionIntentRuntime({
-    normalizeOrganicRecallText,
-    readLatestAssistantMessageText,
-    readTransportContentAsText,
-  })
-  const {
     buildDialogueIngressContext,
     resolveInspectionIntentForChatTurn,
-  } = inspectionIntentRuntime
+  } = mainChatRuntime
+  redactStaleInspectionHistoryMessagesForChat = redactStaleInspectionHistoryMessages
   const mindStateRuntime = createAlicizationMindStateRuntime({
     buildDialogueIngressContext,
     generateMainGatewayText,
@@ -847,6 +1057,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildMindAttentionSignature,
     buildMindSceneSignature,
   } = mindStateRuntime
+  const replayBenchmarkRuntime = createAlicizationReplayBenchmarkRuntime({
+    getAlicizationDb: () => alicizationDb,
+    appendAuditLog,
+  })
   const {
     probeForegroundPidLiveness,
     updateForegroundProbeTimeoutStreak,
@@ -899,7 +1113,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     rememberSceneResidue,
     resolveDesktopCaptureAccess,
     resolveForegroundDecisionTarget,
-    resolveHostAttitude: async () => (soulSnapshot ?? await bootstrap()).frontmatter.host_attitude,
+    resolveHostAttitude: async () => (soulLifecycleState.soulSnapshot ?? await bootstrap()).frontmatter.host_attitude,
     resolveInspectionIntentForChatTurn,
     resolveSenderCaptureSnapshot: senderWebContentsId => senderWebContentsId
       ? deriveSensoryCaptureSnapshotFromDiagnostics(getScreenCaptureDiagnosticsForWebContentsId(senderWebContentsId))
@@ -907,7 +1121,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     sampleSubconsciousInterruptionContext,
     shouldSuppressWeakGenericBrowserInspectionAnchor,
   })
-  resolveInspectionIntentFromMessageHistory = sensoryRuntime.resolveInspectionIntentFromMessageHistory
+  mainChatRuntime.bindInspectionIntentFromMessageHistory(sensoryRuntime.resolveInspectionIntentFromMessageHistory)
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
     buildMainRuntimeCorePromptBlocks,
     buildOrganicMemorySystemBlocks,
@@ -925,6 +1139,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveCardHostName,
     resolveCardPersonaKernel,
     resolveExecutionCapabilitiesForPrompt,
+    prewarmOrganicMemoryAccessibility: async input => await memoryRuntime.prewarmAccessibilityLine(input),
     resolveOrganicMemoryPromptContext,
     resolveSessionContinuitySignals: async ({ cardId }) => await resolveAgentSessionContinuitySignals(cardId),
     resolveTaskPlanningCapabilities,
@@ -1019,19 +1234,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
-  const getScopedKillSwitchSnapshot = (cardId = activeCardId) => {
-    const globalSnapshot = getAlicizationKillSwitchSnapshot()
-    const cardSnapshot = getAlicizationCardKillSwitchSnapshot(cardId)
-    if (globalSnapshot.state === 'SUSPENDED') {
-      return {
-        state: 'SUSPENDED' as const,
-        reason: globalSnapshot.reason ?? cardSnapshot.reason ?? 'global',
-        updatedAt: Math.max(globalSnapshot.updatedAt, cardSnapshot.updatedAt),
-      }
-    }
-    return cardSnapshot
-  }
-
   const emitKillSwitchChanged = (cardId = activeCardId) => {
     context.emit(alicizationKillSwitchStateChanged, {
       cardId,
@@ -1053,6 +1255,40 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       console.warn('[alicization-runtime] failed to append audit log:', error)
     }
   }
+  soulLifecycleRuntime = createAlicizationRuntimeSoulLifecycle({
+    state: soulLifecycleState,
+    getPaths: () => ({
+      soulRoot,
+      soulPath,
+      legacyPromptProfilePath,
+      legacySparkProfilePath,
+    }),
+    now: () => Date.now(),
+    existsSync,
+    mkdir,
+    readFile: async (path, encoding) => await readFile(path, encoding),
+    unlink,
+    importWatch: async () => await import('node:fs'),
+    writeSoulContent,
+    parseSoul,
+    hashContent,
+    withNeedsGenesis,
+    defaultFrontmatter,
+    defaultSoulBody,
+    toSoulContent,
+    extractPersonaNotesFromBody,
+    buildSoulBody,
+    resolveAlicizationSoulPersonaKernel,
+    normalizeCustomDirectives,
+    normalizeHostAttitude,
+    normalizeCoreIncarnation,
+    normalizeGender,
+    normalizeMindAge,
+    clamp01,
+    currentSoulSchemaVersion,
+    emitSoulChanged: snapshot => emitSoulChanged(snapshot),
+    appendAuditLog: async input => await appendAuditLog(input),
+  })
   setAlicizationAuditLogger(appendAuditLog)
 
   sensoryBus = createAlicizationSensoryBus({
@@ -1061,330 +1297,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     cpuWindowMs: 1_000,
     appendAuditLog: input => appendAuditLog(input, activeCardId),
   })
-
-  async function persistScopedKillSwitch(cardId: string, state: 'ACTIVE' | 'SUSPENDED', reason?: string) {
-    const snapshot = setAlicizationCardKillSwitchState(cardId, state, reason)
-    await alicizationDb.setMetaValue(alicizationCardKillSwitchMetaKey, JSON.stringify(snapshot)).catch(() => {})
-    return snapshot
-  }
-
-  function normalizeSessionId(raw: unknown) {
-    if (typeof raw !== 'string')
-      return ''
-    return raw.trim()
-  }
-
-  function getDialogueAckMap(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    let map = dialogueAckByCard.get(cardId)
-    if (!map) {
-      map = new Map<string, number>()
-      dialogueAckByCard.set(cardId, map)
-    }
-    return map
-  }
-
-  function getDialogueAckCursor(cardIdRaw: unknown, sessionIdRaw: unknown) {
-    const sessionId = normalizeSessionId(sessionIdRaw)
-    if (!sessionId)
-      return 0
-    const map = getDialogueAckMap(cardIdRaw)
-    const cursor = map.get(sessionId)
-    return typeof cursor === 'number' && Number.isFinite(cursor) ? cursor : 0
-  }
-
-  function normalizeDialogueAckObject(raw: unknown) {
-    const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
-    const entries = Object.entries(source)
-      .map(([sessionId, cursorRaw]) => {
-        const normalizedSessionId = normalizeSessionId(sessionId)
-        const cursor = Number(cursorRaw)
-        if (!normalizedSessionId || !Number.isFinite(cursor))
-          return null
-        return [normalizedSessionId, Math.max(0, Math.floor(cursor))] as const
-      })
-      .filter((entry): entry is readonly [string, number] => Boolean(entry))
-    return new Map<string, number>(entries)
-  }
-
-  async function persistDialogueAckMap(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const payload = Object.fromEntries(getDialogueAckMap(cardId).entries())
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, JSON.stringify(payload)).catch(() => {})
-      return
-    }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, JSON.stringify(payload)).catch(() => {})
-    }, {
-      label: `dialogue-ack.persist:${cardId}`,
-    })
-  }
-
-  async function restoreDialogueAckMap(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const setMap = (map: Map<string, number>) => {
-      dialogueAckByCard.set(cardId, map)
-      return map
-    }
-
-    if (cardId !== activeCardId) {
-      await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(alicizationDialogueAckStateMetaKey).catch(() => undefined)
-        if (!raw) {
-          setMap(new Map())
-          return
-        }
-        try {
-          setMap(normalizeDialogueAckObject(JSON.parse(raw)))
-        }
-        catch {
-          setMap(new Map())
-        }
-      }, {
-        label: `dialogue-ack.restore:${cardId}`,
-      })
-      return getDialogueAckMap(cardId)
-    }
-
-    const raw = await alicizationDb.getMetaValue(alicizationDialogueAckStateMetaKey).catch(() => undefined)
-    if (!raw)
-      return setMap(new Map())
-    try {
-      return setMap(normalizeDialogueAckObject(JSON.parse(raw)))
-    }
-    catch {
-      return setMap(new Map())
-    }
-  }
-
-  async function ensureDialogueReplyFeedbackAck(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const existing = dialogueReplyFeedbackAckByCard.get(cardId)
-    if (typeof existing === 'string')
-      return existing
-
-    const apply = (raw: unknown) => {
-      const normalized = sanitizeText(raw, '')
-      dialogueReplyFeedbackAckByCard.set(cardId, normalized)
-      return normalized
-    }
-
-    if (cardId !== activeCardId) {
-      return await withCardScope(cardId, async () => {
-        return apply(await alicizationDb.getMetaValue(alicizationDialogueReplyFeedbackAckMetaKey).catch(() => undefined))
-      }, {
-        label: `dialogue-reply-feedback-ack.restore:${cardId}`,
-      })
-    }
-
-    return apply(await alicizationDb.getMetaValue(alicizationDialogueReplyFeedbackAckMetaKey).catch(() => undefined))
-  }
-
-  async function persistDialogueReplyFeedbackAck(cardIdRaw: unknown, ack: string) {
-    const cardId = normalizeCardId(cardIdRaw)
-    dialogueReplyFeedbackAckByCard.set(cardId, ack)
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, ack).catch(() => {})
-      return
-    }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, ack).catch(() => {})
-    }, {
-      label: `dialogue-reply-feedback-ack.persist:${cardId}`,
-    })
-  }
-
-  function createPendingDialogueDeliveryKey(payload: Pick<AlicizationDialogueRespondedPayload, 'cardId' | 'sessionId' | 'turnId'>) {
-    return `${normalizeCardId(payload.cardId)}::${normalizeSessionId(payload.sessionId)}::${sanitizeText(payload.turnId)}`
-  }
-
-  function clearPendingDialogueDelivery(entryOrKey: PendingDialogueDeliveryState | string) {
-    const key = typeof entryOrKey === 'string' ? entryOrKey : entryOrKey.key
-    const pending = typeof entryOrKey === 'string' ? pendingDialogueDeliveries.get(entryOrKey) : entryOrKey
-    if (pending?.timer) {
-      clearTimeout(pending.timer)
-      pending.timer = undefined
-    }
-    pendingDialogueDeliveries.delete(key)
-  }
-
-  function clearPendingDialogueDeliveriesByCard(cardIdRaw: unknown) {
-    const normalizedCardId = normalizeCardId(cardIdRaw)
-    for (const pending of pendingDialogueDeliveries.values()) {
-      if (normalizeCardId(pending.payload.cardId) !== normalizedCardId)
-        continue
-      clearPendingDialogueDelivery(pending)
-    }
-  }
-
-  function clearAllPendingDialogueDeliveries() {
-    for (const pending of pendingDialogueDeliveries.values()) {
-      clearPendingDialogueDelivery(pending)
-    }
-    pendingDialogueDeliveries.clear()
-  }
-
-  function shouldSkipPendingDialogueRetry(payload: AlicizationDialogueRespondedPayload) {
-    const currentCursor = getDialogueAckCursor(payload.cardId, payload.sessionId)
-    return payload.createdAt <= currentCursor
-  }
-
-  function schedulePendingDialogueRetry(entry: PendingDialogueDeliveryState, reason: string) {
-    clearPendingDialogueDelivery(entry)
-
-    if (shouldSkipPendingDialogueRetry(entry.payload))
-      return
-    if (entry.attempts >= dialogueDeliveryRetryMaxAttempts)
-      return
-
-    const delayMs = Math.min(
-      dialogueDeliveryRetryMaxMs,
-      dialogueDeliveryRetryBaseMs * 2 ** Math.max(0, entry.attempts),
-    )
-
-    entry.timer = setTimeout(() => {
-      const current = pendingDialogueDeliveries.get(entry.key)
-      if (!current)
-        return
-      if (shouldSkipPendingDialogueRetry(current.payload)) {
-        clearPendingDialogueDelivery(current)
-        return
-      }
-
-      emitDialogueRespondedEvent(current.payload)
-      current.attempts += 1
-      void appendRuntimeDebugLine('dialogue-responded.retry', {
-        cardId: current.payload.cardId,
-        sessionId: current.payload.sessionId,
-        turnId: current.payload.turnId,
-        attempts: current.attempts,
-        reason,
-      })
-      schedulePendingDialogueRetry(current, 'unacked-retry')
-    }, delayMs)
-
-    pendingDialogueDeliveries.set(entry.key, entry)
-  }
-
-  function emitDialogueRespondedEvent(payload: AlicizationDialogueRespondedPayload) {
-    context.emit(alicizationDialogueResponded, payload)
-    emitDialogueRespondedDispatch(payload)
-  }
-
-  function emitDialogueRespondedDispatch(payload: AlicizationDialogueRespondedPayload) {
-    const dispatchPayload = toAlicizationChatStreamDispatchPayload('dialogue-responded', payload)
-    const dispatchedSenderIds = new Set<number>()
-    const allWebContents = webContents.getAllWebContents()
-    for (const target of allWebContents) {
-      if (target.isDestroyed())
-        continue
-      try {
-        target.send(alicizationChatStreamDispatchChannel, dispatchPayload)
-        dispatchedSenderIds.add(target.id)
-      }
-      catch (error) {
-        void appendRuntimeDebugLine('dialogue-dispatch.failed', {
-          cardId: payload.cardId,
-          sessionId: payload.sessionId,
-          turnId: payload.turnId,
-          senderId: target.id,
-          reason: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
-    if (dispatchedSenderIds.size === 0) {
-      void appendRuntimeDebugLine('dialogue-dispatch.skipped', {
-        cardId: payload.cardId,
-        sessionId: payload.sessionId,
-        turnId: payload.turnId,
-        reason: 'no-renderer',
-      })
-    }
-  }
-
-  function emitDialogueRespondedWithDelivery(payload: AlicizationDialogueRespondedPayload) {
-    emitDialogueRespondedEvent(payload)
-
-    if (payload.origin !== 'subconscious-proactive')
-      return
-
-    const key = createPendingDialogueDeliveryKey(payload)
-    const existing = pendingDialogueDeliveries.get(key)
-    const next: PendingDialogueDeliveryState = existing
-      ? {
-          ...existing,
-          payload,
-        }
-      : {
-          key,
-          payload,
-          attempts: 0,
-        }
-    void appendRuntimeDebugLine('dialogue-delivery.pending-registered', {
-      cardId: payload.cardId,
-      sessionId: payload.sessionId,
-      turnId: payload.turnId,
-      createdAt: payload.createdAt,
-      hasExisting: Boolean(existing),
-      currentActiveSession: normalizeSessionId(activeSessionIdByCard.get(normalizeCardId(payload.cardId))),
-    })
-    schedulePendingDialogueRetry(next, 'initial-delivery')
-  }
-
-  async function persistActiveSessionId(cardId: string, sessionId: string) {
-    const normalizedCardId = normalizeCardId(cardId)
-    const normalizedSessionId = normalizeSessionId(sessionId)
-    if (!normalizedSessionId)
-      return
-
-    activeSessionIdByCard.set(normalizedCardId, normalizedSessionId)
-    await alicizationDb.setMetaValue(alicizationCardActiveSessionMetaKey, normalizedSessionId).catch(() => {})
-  }
-
-  async function restoreActiveSessionId(cardId: string) {
-    const normalizedCardId = normalizeCardId(cardId)
-    const rawFromMeta = await alicizationDb.getMetaValue(alicizationCardActiveSessionMetaKey).catch(() => undefined)
-    const fromMeta = normalizeSessionId(rawFromMeta)
-    if (fromMeta) {
-      activeSessionIdByCard.set(normalizedCardId, fromMeta)
-      return fromMeta
-    }
-
-    const latestFromTurns = normalizeSessionId(await alicizationDb.getLatestConversationSessionId().catch(() => undefined))
-    if (latestFromTurns) {
-      activeSessionIdByCard.set(normalizedCardId, latestFromTurns)
-      await alicizationDb.setMetaValue(alicizationCardActiveSessionMetaKey, latestFromTurns).catch(() => {})
-      return latestFromTurns
-    }
-
-    return ''
-  }
-
-  async function ensureActiveOrLatestSessionId(cardId: string) {
-    const normalizedCardId = normalizeCardId(cardId)
-    const fromMemory = normalizeSessionId(activeSessionIdByCard.get(normalizedCardId))
-    if (fromMemory)
-      return fromMemory
-
-    const restored = normalizeSessionId(await restoreActiveSessionId(normalizedCardId))
-    if (restored)
-      return restored
-
-    const fallback = `session:auto:${normalizedCardId}:${Date.now()}`
-    await persistActiveSessionId(normalizedCardId, fallback)
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.session',
-      action: 'auto-created',
-      message: 'Auto-created fallback conversation session for card scope.',
-      payload: {
-        sessionId: fallback,
-      },
-    }, normalizedCardId)
-    return fallback
-  }
 
   async function resolveAgentSessionContinuitySignals(
     cardIdRaw: unknown,
@@ -1443,72 +1355,31 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
-  async function queueExecutionDeliveryCandidate(input: {
-    cardId: string
-    thread: AlicizationTaskThreadRecord
-  }) {
-    const cardId = normalizeCardId(input.cardId)
-    const sessionId = normalizeSessionId(input.thread.sessionId)
-    if (!sessionId)
-      return null
-    if (!alicizationTerminalTaskThreadStatuses.has(input.thread.status))
-      return null
+  const runtimeExecutionDelivery = createAlicizationRuntimeExecutionDelivery({
+    getActiveCardId: () => activeCardId,
+    normalizeCardId,
+    normalizeSessionId,
+    withCardScope,
+    queueSubconsciousWake,
+    appendAuditLog,
+    syncSessionMirrorFromCurrentCardState,
+    alicizationDb: {
+      getMetaValue: key => alicizationDb.getMetaValue(key),
+      setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+      listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
+    },
+    executionDeliveryRuntime,
+    executionDeliveryStateMetaKey: alicizationExecutionDeliveryStateMetaKey,
+    generateMainGatewayText,
+    getPerformanceManifest,
+    normalizeAlicizationEmotion,
+    normalizeAlicizationPerformancePayload,
+    clampAlicizationPerformancePayloadToManifest,
+    ensureVisualPresenceState,
+    buildHostPersonModel,
+  })
 
-    const events = await alicizationDb.listExecutionEvents({
-      threadId: input.thread.id,
-      limit: 8,
-    }).catch(() => [])
-    const latestEvent = readLatestExecutionEvent(events)
-    const completedAt = readTaskThreadActivityAt(input.thread)
-    const queued = executionDeliveryRuntime.enqueue({
-      cardId,
-      sessionId,
-      threadId: input.thread.id,
-      decisionTraceId: input.thread.decisionTraceId,
-      turnId: input.thread.turnId,
-      channel: input.thread.selectedChannel ?? input.thread.proposedChannel ?? 'executor',
-      status: input.thread.status,
-      goal: input.thread.goal,
-      summary: input.thread.summary,
-      outcome: readExecutionOutcome(events),
-      signature: sanitizeExecutionLedgerText(
-        latestEvent
-          ? `${input.thread.id}:${latestEvent.id ?? latestEvent.createdAt}`
-          : `${input.thread.id}:${completedAt}`,
-        220,
-      ),
-      completedAt,
-    })
-
-    if (!queued)
-      return null
-
-    await persistExecutionDeliveryState(cardId)
-    await syncSessionMirrorFromCurrentCardState({
-      cardId,
-      decisionTraceId: queued.decisionTraceId,
-      sessionId: queued.sessionId,
-      source: 'execution-delivery-queued',
-      turnId: queued.turnId,
-      taskThread: input.thread,
-    })
-
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.executor.delivery',
-      action: 'queued',
-      message: 'Queued a settled task-thread callback for subconscious delivery.',
-      payload: {
-        threadId: queued.threadId,
-        sessionId: queued.sessionId,
-        status: queued.status,
-        channel: queued.channel,
-        completedAt: queued.completedAt,
-      },
-    }, cardId)
-    queueSubconsciousWake(cardId, `execution-delivery:${queued.threadId}`, 240)
-    return queued
-  }
+  const queueExecutionDeliveryCandidate = runtimeExecutionDelivery.queueExecutionDeliveryCandidate
 
   async function dispatchTaskThreadWithExecutionDelivery(invocation: Parameters<typeof taskThreadOrchestrator.dispatch>[0]) {
     const scopedCardId = activeCardId
@@ -1696,529 +1567,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await restoreProactiveLoopState(cardId)
   }
 
-  async function persistExecutionDeliveryState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const state = executionDeliveryRuntime.snapshot(cardId)
-    const value = hasAlicizationExecutionDeliveryRetainedState(state)
-      ? JSON.stringify(state)
-      : ''
+  const persistExecutionDeliveryState = runtimeExecutionDelivery.persistExecutionDeliveryState
 
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationExecutionDeliveryStateMetaKey, value).catch(() => {})
-      return state
-    }
-
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationExecutionDeliveryStateMetaKey, value).catch(() => {})
-    }, {
-      label: `execution-delivery.persist:${cardId}`,
-    })
-    return state
-  }
-
-  async function restoreExecutionDeliveryState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const apply = (raw: string | undefined) => {
-      if (!raw)
-        return executionDeliveryRuntime.restore(cardId, null)
-      try {
-        return executionDeliveryRuntime.restore(cardId, JSON.parse(raw))
-      }
-      catch {
-        return executionDeliveryRuntime.restore(cardId, null)
-      }
-    }
-
-    const restored = cardId === activeCardId
-      ? apply(await alicizationDb.getMetaValue(alicizationExecutionDeliveryStateMetaKey).catch(() => undefined))
-      : await withCardScope(cardId, async () => apply(await alicizationDb.getMetaValue(alicizationExecutionDeliveryStateMetaKey).catch(() => undefined)), {
-          label: `execution-delivery.restore:${cardId}`,
-        })
-
-    if (cardId === activeCardId && restored.pending.length > 0)
-      queueSubconsciousWake(cardId, 'execution-delivery-restore', 240)
-    return restored
-  }
-
-  async function persistPerceptionState(cardIdRaw: unknown, state: AlicizationPerceptionState) {
-    const cardId = normalizeCardId(cardIdRaw)
-    perceptionStateByCard.set(cardId, state)
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, JSON.stringify(state)).catch(() => {})
-      return
-    }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, JSON.stringify(state)).catch(() => {})
-    }, {
-      label: `perception.persist:${cardId}`,
-    })
-  }
-
-  async function restorePerceptionState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const now = Date.now()
-    const setState = (state: AlicizationPerceptionState) => {
-      perceptionStateByCard.set(cardId, state)
-      return state
-    }
-
-    if (cardId !== activeCardId) {
-      await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(alicizationPerceptionStateMetaKey).catch(() => undefined)
-        if (!raw) {
-          setState(createDefaultPerceptionState(now))
-          return
-        }
-        try {
-          setState(normalizePerceptionState(JSON.parse(raw), now))
-        }
-        catch {
-          setState(createDefaultPerceptionState(now))
-        }
-      }, {
-        label: `perception.restore:${cardId}`,
-      })
-      return perceptionStateByCard.get(cardId) ?? createDefaultPerceptionState(now)
-    }
-
-    const raw = await alicizationDb.getMetaValue(alicizationPerceptionStateMetaKey).catch(() => undefined)
-    if (!raw)
-      return setState(createDefaultPerceptionState(now))
-    try {
-      return setState(normalizePerceptionState(JSON.parse(raw), now))
-    }
-    catch {
-      return setState(createDefaultPerceptionState(now))
-    }
-  }
-
-  async function ensurePerceptionState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const current = perceptionStateByCard.get(cardId) ?? await restorePerceptionState(cardId)
-    const normalized = normalizePerceptionState(current, Date.now())
-    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
-      await persistPerceptionState(cardId, normalized)
-      return normalized
-    }
-    return current
-  }
-
-  function rememberVisualPresencePersistMeta(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot, persistedAt: number = Date.now()) {
-    const cardId = normalizeCardId(cardIdRaw)
-    visualPresenceCapturePersistMetaByCard.set(cardId, {
-      fingerprint: buildVisualPresenceCapturePersistFingerprint(state),
-      persistedAt: Number.isFinite(persistedAt) ? Math.max(0, Math.floor(persistedAt)) : Date.now(),
-    })
-  }
-
-  async function persistVisualPresenceState(
-    cardIdRaw: unknown,
-    state: AlicizationVisualPresenceStateSnapshot,
-    options: {
-      debounceWindowMs?: number
-      fingerprint?: string
-    } = {},
-  ) {
-    const cardId = normalizeCardId(cardIdRaw)
-    visualPresenceStateByCard.set(cardId, state)
-    const fingerprint = options.fingerprint ?? buildVisualPresenceCapturePersistFingerprint(state)
-    const debounceWindowMs = Number.isFinite(options.debounceWindowMs) ? Math.max(0, Math.floor(options.debounceWindowMs!)) : 0
-    const previousPersistMeta = visualPresenceCapturePersistMetaByCard.get(cardId)
-    const now = Date.now()
-    if (
-      debounceWindowMs > 0
-      && previousPersistMeta?.fingerprint === fingerprint
-      && now - previousPersistMeta.persistedAt < debounceWindowMs
-    ) {
-      return
-    }
-
-    rememberVisualPresencePersistMeta(cardId, state, now)
-    await persistMindHeadsFromVisualState(cardId, state)
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, JSON.stringify(state)).catch(() => {})
-      emitVisualPresenceState(cardId, state)
-      return
-    }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, JSON.stringify(state)).catch(() => {})
-    }, {
-      label: `visual-presence.persist:${cardId}`,
-    })
-    emitVisualPresenceState(cardId, state)
-  }
-
-  async function persistMindHeadsFromVisualState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const task = async () => {
-      await alicizationDb.upsertMindHead(cardId, 'autobiographical-self', state.autobiographicalSelf ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'reflection-ledger', state.reflectionLedger ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'motive-engine', state.motiveEngine ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'habit-policy', state.habitPolicy ?? null)
-    }
-
-    if (cardId === activeCardId) {
-      await task().catch(() => {})
-      return
-    }
-
-    await withCardScope(cardId, async () => {
-      await task().catch(() => {})
-    }, {
-      label: `mind-heads.persist:${cardId}`,
-    })
-  }
-
-  async function persistOutcomeClosure(cardIdRaw: unknown, input: ReturnType<typeof attachSynthesizedReflections>) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const closure = attachSynthesizedReflections(input)
-    if (
-      closure.relationshipOutcomes.length === 0
-      && closure.reinforcementEvents.length === 0
-      && closure.memoryFacts.length === 0
-      && closure.reflections.length === 0
-      && closure.episodicEvents.length === 0
-    ) {
-      return
-    }
-
-    const task = async () => {
-      if (closure.relationshipOutcomes.length > 0)
-        await alicizationDb.appendRelationshipOutcomes(closure.relationshipOutcomes)
-      if (closure.episodicEvents.length > 0)
-        await alicizationDb.appendEpisodicEvents(closure.episodicEvents)
-      if (closure.reinforcementEvents.length > 0)
-        await alicizationDb.appendPersonaReinforcementEvents(closure.reinforcementEvents)
-      if (closure.reflections.length > 0)
-        await alicizationDb.upsertMemoryReflections(closure.reflections)
-      if (closure.memoryFacts.length > 0)
-        await alicizationDb.upsertMemoryFacts(closure.memoryFacts, 'rule')
-    }
-
-    try {
-      if (cardId === activeCardId) {
-        await task()
-      }
-      else {
-        await withCardScope(cardId, async () => {
-          await task()
-        }, {
-          label: `outcome-closure.persist:${cardId}`,
-        })
-      }
-    }
-    catch (error) {
-      await appendAuditLog({
-        level: 'warning',
-        category: 'alicization.memory',
-        action: 'outcome-closure-persist-failed',
-        message: 'Failed to persist mind-memory closure records from a runtime outcome.',
-        payload: {
-          cardId,
-          reason: errorMessageFrom(error) ?? 'unknown-error',
-          relationshipOutcomes: closure.relationshipOutcomes.length,
-          episodicEvents: closure.episodicEvents.length,
-          reinforcementEvents: closure.reinforcementEvents.length,
-          reflections: closure.reflections.length,
-          memoryFacts: closure.memoryFacts.length,
-        },
-      }, cardId)
-    }
-  }
-
-  async function persistAutobiographicalEpisodes(cardIdRaw: unknown, input: {
-    label: string
-    events: import('../../../shared/eventa').AlicizationEpisodicEventInput[]
-  }) {
-    const cardId = normalizeCardId(cardIdRaw)
-    if (input.events.length === 0)
-      return
-
-    const task = async () => {
-      await alicizationDb.appendEpisodicEvents(input.events)
-    }
-
-    try {
-      if (cardId === activeCardId) {
-        await task()
-      }
-      else {
-        await withCardScope(cardId, async () => {
-          await task()
-        }, {
-          label: `${input.label}:${cardId}`,
-        })
-      }
-    }
-    catch (error) {
-      await appendAuditLog({
-        level: 'warning',
-        category: 'alicization.memory',
-        action: 'autobiographical-episode-sync-failed',
-        message: 'Failed to backfill autobiographical episodes from continuity or execution sync.',
-        payload: {
-          cardId,
-          label: input.label,
-          count: input.events.length,
-          reason: errorMessageFrom(error) ?? 'unknown-error',
-        },
-      }, cardId)
-    }
-  }
-
-  async function persistPreparedMirrorAutobiographicalEpisodes(input: {
-    cardId: string
-    decisionTraceId?: string | null
-    turnId?: string | null
-    sessionId: string
-    previousMirror?: AlicizationDialogueSessionMirror | null
-    mirror: AlicizationDialogueSessionMirror
-  }) {
-    const events = buildAutobiographicalEpisodesFromPreparedMirror(input)
-    await persistAutobiographicalEpisodes(input.cardId, {
-      label: 'prepared-session-mirror.autobio',
-      events,
-    })
-  }
-
-  async function persistSessionMirrorAutobiographicalEpisodes(input: {
-    cardId: string
-    decisionTraceId?: string | null
-    source: string
-    turnId?: string | null
-    sessionId: string
-    previousMirror?: AlicizationDialogueSessionMirror | null
-    mirror: AlicizationDialogueSessionMirror
-    taskThread?: AlicizationTaskThreadRecord | null
-  }) {
-    const events = buildAutobiographicalEpisodesFromSessionMirrorSync(input)
-    await persistAutobiographicalEpisodes(input.cardId, {
-      label: 'session-mirror.autobio',
-      events,
-    })
-  }
-
-  function collectRecallTelemetryTexts(payload: Record<string, unknown> | null | undefined) {
-    const texts: string[] = []
-    const push = (raw: unknown) => {
-      const text = sanitizeText(raw, '').slice(0, 180)
-      if (text)
-        texts.push(text)
-    }
-
-    push(payload?.whyNow)
-    push(payload?.inwardLine)
-    push(payload?.visibleLine)
-
-    for (const key of ['selectedPeriods', 'selectedEpisodes', 'selectedProcedures', 'selectedBundles', 'selectedChains'] as const) {
-      const items = Array.isArray(payload?.[key]) ? payload[key] : []
-      for (const item of items) {
-        if (!item || typeof item !== 'object')
-          continue
-        const candidate = item as Record<string, unknown>
-        push(candidate.summary)
-        push(candidate.label)
-        push(candidate.approach)
-        push(candidate.rationale)
-        push(candidate.currentStance)
-        push(candidate.answerPosture)
-        push(candidate.relationshipLine)
-      }
-    }
-
-    const relationshipLines = Array.isArray(payload?.selectedRelationshipLines) ? payload.selectedRelationshipLines : []
-    for (const line of relationshipLines)
-      push(line)
-
-    return [...new Set(texts)].slice(0, 18)
-  }
-
-  function collectReplyMemoryCoherenceState(payload: Record<string, unknown> | null | undefined) {
-    return {
-      coherenceState: sanitizeText(payload?.coherenceState, '').slice(0, 64) || null,
-      surfacePolicy: sanitizeText(payload?.surfacePolicy, '').slice(0, 64) || null,
-      explicitSurfaceExpected: payload?.explicitSurfaceExpected === true,
-      explicitSurfaceObserved: payload?.explicitSurfaceObserved === true,
-      matchedCueKinds: Array.isArray(payload?.matchedCueKinds)
-        ? payload.matchedCueKinds.map(item => sanitizeText(item, '').slice(0, 64)).filter(Boolean).slice(0, 8)
-        : [],
-    }
-  }
-
-  function buildDialogueFeedbackReconsolidationRationale(
-    feedback: ReturnType<typeof deriveDialogueReplyFeedbackKind>,
-  ) {
-    if (feedback === 'robotic')
-      return 'The host corrected this thread for sounding robotic, so the remembered way of replying should now move toward lived-in directness instead of shell fluency.'
-    if (feedback === 'missed')
-      return 'The host corrected this thread for missing the point, so the remembered way of replying should now repair the seam before continuing.'
-    if (feedback === 'intrusive')
-      return 'The host corrected this thread for landing too heavily, so the remembered way of replying should now leave more room and lower pressure.'
-    if (feedback === 'interrupted')
-      return 'The host turned away from this line before it landed, so the remembered way of replying should now wait for a fresher opening.'
-    return 'The host corrected this remembered line, so the recalled way of answering should change on the next similar turn.'
-  }
-
-  async function reconsolidateDialogueFeedbackMemoryTrace(input: {
-    cardId: string
-    decisionTraceId: string | null
-    feedback: ReturnType<typeof deriveDialogueReplyFeedbackKind>
-    previousAssistantText: string
-    userText: string
-    sessionId: string | null
-    turnId: string | null
-    at: number
-  }) {
-    const decisionTraceId = sanitizeMindGovernanceDecisionTraceId(input.decisionTraceId)
-    if (!decisionTraceId || !input.feedback || input.feedback === 'received')
-      return
-
-    const events = await alicizationDb.listMindTurnEvents({
-      decisionTraceId,
-      limit: 24,
-    }).catch(() => [])
-    const recallEvent = events.find(event => event.kind === 'recall-attribution') ?? null
-    if (!recallEvent?.payload)
-      return
-
-    const coherenceEvent = events.find(event => event.kind === 'reply-memory-coherence') ?? null
-    const recallTexts = collectRecallTelemetryTexts(recallEvent.payload)
-    if (recallTexts.length === 0)
-      return
-
-    const coherence = collectReplyMemoryCoherenceState(coherenceEvent?.payload ?? null)
-    const feedbackSeed = [
-      input.userText,
-      input.previousAssistantText,
-      ...recallTexts,
-      coherence.coherenceState ? `coherence:${coherence.coherenceState}` : '',
-    ].filter(Boolean).join(' | ')
-
-    const reconsolidated = await alicizationDb.searchEpisodicEvents({
-      recallSeed: feedbackSeed,
-      limit: 4,
-      sessionId: input.sessionId,
-      turnId: input.turnId,
-      affectAnchors: [
-        `feedback:${input.feedback}`,
-        input.feedback === 'missed' ? 'missed answer repair pressure' : '',
-        input.feedback === 'robotic' ? 'robotic shell repair pressure' : '',
-        input.feedback === 'intrusive' ? 'intrusive closeness pressure' : '',
-        input.feedback === 'interrupted' ? 'interrupted line pressure' : '',
-      ].filter(Boolean),
-      relationshipAnchors: [
-        'host correction',
-        input.userText,
-        coherence.coherenceState ? `reply-memory-coherence:${coherence.coherenceState}` : '',
-      ].filter(Boolean),
-      carryAsMemory: true,
-      recollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'experience-matched',
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: true,
-        queryHints: recallTexts.slice(0, 8),
-        rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
-        confidence: 0.78,
-      },
-      reconsolidationDecisionTraceId: decisionTraceId,
-    }).catch(async (error) => {
-      await appendAuditLog({
-        level: 'warning',
-        category: 'alicization.memory',
-        action: 'dialogue-feedback-reconsolidation-failed',
-        message: 'Failed to reconsolidate recalled memory after host correction feedback.',
-        payload: {
-          cardId: input.cardId,
-          decisionTraceId,
-          feedback: input.feedback,
-          reason: errorMessageFrom(error) ?? 'unknown-error',
-        },
-      }, input.cardId)
-      return []
-    })
-
-    await alicizationDb.appendMindTurnEvents([{
-      decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
-      origin: 'user-turn',
-      kind: 'memory-reconsolidated',
-      payload: {
-        source: 'dialogue-feedback',
-        feedback: input.feedback,
-        recallCueCount: recallTexts.length,
-        recalledEpisodeIds: reconsolidated.map(event => event.id),
-        reconsolidatedCount: reconsolidated.length,
-        coherence,
-      },
-      createdAt: input.at,
-    }]).catch(async (error) => {
-      await appendAuditLog({
-        level: 'warning',
-        category: 'alicization.memory',
-        action: 'dialogue-feedback-reconsolidation-event-failed',
-        message: 'Failed to append memory reconsolidation trace event after host feedback.',
-        payload: {
-          cardId: input.cardId,
-          decisionTraceId,
-          feedback: input.feedback,
-          reason: errorMessageFrom(error) ?? 'unknown-error',
-        },
-      }, input.cardId)
-    })
-  }
-
-  async function restoreVisualPresenceState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const now = Date.now()
-    const setState = (state: AlicizationVisualPresenceStateSnapshot) => {
-      visualPresenceStateByCard.set(cardId, state)
-      rememberVisualPresencePersistMeta(cardId, state, state.updatedAt)
-      return state
-    }
-
-    if (cardId !== activeCardId) {
-      await withCardScope(cardId, async () => {
-        const raw = await alicizationDb.getMetaValue(alicizationVisualPresenceStateMetaKey).catch(() => undefined)
-        if (!raw) {
-          setState(createDefaultVisualPresenceState(now))
-          return
-        }
-        try {
-          setState(normalizeVisualPresenceState(JSON.parse(raw), now))
-        }
-        catch {
-          setState(createDefaultVisualPresenceState(now))
-        }
-      }, {
-        label: `visual-presence.restore:${cardId}`,
-      })
-      return visualPresenceStateByCard.get(cardId) ?? createDefaultVisualPresenceState(now)
-    }
-
-    const raw = await alicizationDb.getMetaValue(alicizationVisualPresenceStateMetaKey).catch(() => undefined)
-    if (!raw)
-      return setState(createDefaultVisualPresenceState(now))
-    try {
-      return setState(normalizeVisualPresenceState(JSON.parse(raw), now))
-    }
-    catch {
-      return setState(createDefaultVisualPresenceState(now))
-    }
-  }
-
-  async function ensureVisualPresenceState(cardIdRaw: unknown) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const current = visualPresenceStateByCard.get(cardId) ?? await restoreVisualPresenceState(cardId)
-    const normalized = normalizeVisualPresenceState(current, Date.now())
-    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
-      await persistVisualPresenceState(cardId, normalized)
-      return normalized
-    }
-    return current
-  }
+  const restoreExecutionDeliveryState = runtimeExecutionDelivery.restoreExecutionDeliveryState
 
   function buildVisualPresenceCapturePersistFingerprint(state: AlicizationVisualPresenceStateSnapshot) {
     return [
@@ -2328,39 +1679,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return next
   }
 
-  async function settlePendingProactiveOutcomesFromUserTurn(cardIdRaw: unknown, at: number, source: string) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const current = await ensureProactiveLoopState(cardId)
-    const settled = settleProactiveOutcomesOnUserTurnStart(current, at)
-    if (settled.appliedOutcomes.length === 0)
-      return settled.state
-
-    await persistProactiveLoopState(cardId, settled.state)
-    await syncSessionMirrorFromCurrentCardState({
-      cardId,
-      source: 'proactive-feedback',
-      proactiveOutcomes: settled.appliedOutcomes,
-      turnId: buildMainGatewayAgentTurnId('proactive-feedback', source, cardId, at),
-    })
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.subconscious',
-      action: 'proactive-feedback-settled',
-      message: 'Settled proactive feedback from a direct user reply window.',
-      payload: {
-        source,
-        outcomes: settled.appliedOutcomes,
-      },
-    }, cardId)
-    await persistOutcomeClosure(cardId, buildProactiveFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      outcomes: settled.appliedOutcomes,
-    }))
-    queueSubconsciousWake(cardId, 'feedback:user-turn-settlement', 600)
-    return settled.state
-  }
-
   function parseStoredConversationStructured(raw: unknown) {
     if (typeof raw !== 'string' || !raw.trim())
       return null
@@ -2375,403 +1693,75 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  function isOrdinaryDialogueConversationRow(row: {
-    turnId?: string | null
-    structuredJson?: string | null
-  }) {
-    const turnId = sanitizeText(row.turnId, '')
-    if (turnId.startsWith('reminder:') || turnId.startsWith('subconscious:') || turnId.startsWith('execution-callback:'))
-      return false
+  const runtimeDialogueFeedback = createAlicizationRuntimeDialogueFeedback({
+    normalizeCardId,
+    sanitizeText,
+    readLatestUserMessageText,
+    ensureActiveOrLatestSessionId,
+    withCardScope,
+    ensureDialogueReplyFeedbackAck,
+    persistDialogueReplyFeedbackAck,
+    parseStoredConversationStructured,
+    deriveDialogueReplyFeedbackKind,
+    attachSynthesizedReflections,
+    buildDialogueReplyFeedbackOutcomeClosure,
+    persistOutcomeClosure,
+    appendAuditLog,
+    memoryReconsolidationRuntime: memoryRuntime.memoryReconsolidationRuntime,
+    alicizationDb: {
+      listConversationTurnsBySession: (sessionId, options) => alicizationDb.listConversationTurnsBySession(sessionId, options),
+      getLatestRelationshipDynamics: () => alicizationDb.getLatestRelationshipDynamics(),
+      appendRelationshipDynamics: input => alicizationDb.appendRelationshipDynamics(input),
+    },
+  })
 
-    const structured = parseStoredConversationStructured(row.structuredJson)
-    const format = sanitizeText(structured?.format, '').toLowerCase()
-    return format !== 'subconscious-proactive-v1'
-      && format !== 'subconscious-proactive-llm-v1'
-      && format !== 'subconscious-reminder-v1'
-  }
+  const settleRecentDialogueReplyFeedbackFromUserTurn
+    = runtimeDialogueFeedback.settleRecentDialogueReplyFeedbackFromUserTurn
 
-  function buildDialogueReplyFeedbackAckKey(row: {
-    turnId?: string | null
-    sessionId: string
-    createdAt: number
-  }) {
-    const normalizedTurnId = sanitizeText(row.turnId, '')
-    return normalizedTurnId
-      ? `${row.sessionId}::${normalizedTurnId}`
-      : `${row.sessionId}::${Math.max(0, Math.floor(Number(row.createdAt) || 0))}`
-  }
+  const runtimeExecutionFeedback = createAlicizationRuntimeExecutionFeedback({
+    normalizeCardId,
+    sanitizeText,
+    readLatestUserMessageText,
+    readLatestAssistantMessageText,
+    ensureActiveOrLatestSessionId,
+    withCardScope,
+    readTaskThreadActivityAt,
+    attachSynthesizedReflections,
+    buildExecutionProposalFeedbackOutcomeClosure,
+    buildExecutionResultFeedbackOutcomeClosure,
+    deriveExecutionProposalFeedbackKind,
+    deriveExecutionResultFeedbackKind,
+    persistOutcomeClosure,
+    appendAuditLog,
+    alicizationDb: {
+      listTaskThreads: input => alicizationDb.listTaskThreads(input),
+      upsertTaskThread: input => alicizationDb.upsertTaskThread(input),
+    },
+  })
 
-  async function settleRecentDialogueReplyFeedbackFromUserTurn(
-    payload: AlicizationChatStartPayload,
-    at: number,
-    source: string,
-  ) {
-    const cardId = normalizeCardId(payload.cardId)
-    const userText = readLatestUserMessageText(payload.messages)
-    if (!userText)
-      return null
+  const runtimeProactiveFeedback = createAlicizationRuntimeProactiveFeedback({
+    normalizeCardId,
+    ensureProactiveLoopState,
+    persistProactiveLoopState,
+    syncSessionMirrorFromCurrentCardState,
+    buildMainGatewayAgentTurnId,
+    appendAuditLog,
+    persistOutcomeClosure,
+    buildProactiveFeedbackOutcomeClosure,
+    queueSubconsciousWake,
+  })
 
-    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
-    if (!sessionId)
-      return null
+  const settlePendingProactiveOutcomesFromUserTurn
+    = runtimeProactiveFeedback.settlePendingProactiveOutcomesFromUserTurn
 
-    const turns = await withCardScope(cardId, async () => await alicizationDb.listConversationTurnsBySession(sessionId, {
-      limit: 12,
-    }).catch(() => []), {
-      label: `dialogue-reply-feedback.list:${cardId}`,
-      skipQueueWhenScopeAlreadyActive: true,
-    })
-    const latest = turns
-      .slice()
-      .reverse()
-      .find((row) => {
-        return sanitizeText(row.assistantText, '').length > 0
-          && isOrdinaryDialogueConversationRow(row)
-      }) ?? null
-    if (!latest)
-      return null
+  const settlePendingExecutionProposalFeedbackFromUserTurn
+    = runtimeExecutionFeedback.settlePendingExecutionProposalFeedbackFromUserTurn
 
-    const ackKey = buildDialogueReplyFeedbackAckKey({
-      turnId: latest.turnId,
-      sessionId: latest.sessionId,
-      createdAt: latest.createdAt,
-    })
-    const settledAck = await ensureDialogueReplyFeedbackAck(cardId)
-    if (settledAck === ackKey)
-      return null
+  const settleRecentExecutionResultFeedbackFromUserTurn
+    = runtimeExecutionFeedback.settleRecentExecutionResultFeedbackFromUserTurn
 
-    const feedback = deriveDialogueReplyFeedbackKind({
-      previousAssistantText: latest.assistantText ?? '',
-      userText,
-    })
-    if (!feedback)
-      return null
-
-    const structured = parseStoredConversationStructured(latest.structuredJson)
-    const governance = structured?.governance && typeof structured.governance === 'object' && !Array.isArray(structured.governance)
-      ? structured.governance as Record<string, unknown>
-      : null
-    const decisionTraceId = sanitizeText(governance?.decisionTraceId, '') || null
-    const closure = attachSynthesizedReflections(buildDialogueReplyFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      sessionId,
-      decisionTraceId,
-      turnId: sanitizeText(latest.turnId, '') || null,
-      feedback,
-      previousAssistantText: latest.assistantText ?? '',
-    }))
-    await persistOutcomeClosure(cardId, closure)
-    await reconsolidateDialogueFeedbackMemoryTrace({
-      cardId,
-      decisionTraceId,
-      feedback,
-      previousAssistantText: latest.assistantText ?? '',
-      userText,
-      sessionId,
-      turnId: sanitizeText(latest.turnId, '') || null,
-      at,
-    })
-    const previousDynamics = await alicizationDb.getLatestRelationshipDynamics().catch(() => null)
-    const hostAttitude = feedback === 'received'
-      ? '开始更愿意把 Alicization 当作真的在接话的人，而不是只剩一层壳。'
-      : feedback === 'robotic'
-        ? '开始对 Alicization 的机器腔和模板壳失去耐心，希望她更像真的人在说话。'
-        : feedback === 'missed'
-          ? '开始怀疑 Alicization 是否真的抓住了这句的中心，更想让她先修正再继续。'
-          : feedback === 'intrusive'
-            ? '开始觉得 Alicization 靠得太重，想让她留出更多空间和分寸。'
-            : '暂时把这条回复线放开，不想让 Alicization 继续缠在同一处。'
-    await alicizationDb.appendRelationshipDynamics({
-      hostAttitude,
-      previousHostAttitude: previousDynamics?.hostAttitude ?? null,
-      obedienceDelta: 0,
-      livelinessDelta: feedback === 'received' ? 0.01 : feedback === 'robotic' ? -0.01 : 0,
-      sensibilityDelta: feedback === 'received'
-        ? 0.02
-        : feedback === 'robotic' || feedback === 'missed' || feedback === 'intrusive'
-          ? 0.03
-          : 0.01,
-      source: `dialogue-feedback:${feedback}`,
-      createdAt: at,
-    }).catch(() => {})
-    await persistDialogueReplyFeedbackAck(cardId, ackKey)
-
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.dialogue-feedback',
-      action: 'reply-feedback-settled',
-      message: 'Settled host feedback on the latest ordinary Alicization reply.',
-      payload: {
-        source,
-        cardId,
-        sessionId,
-        previousTurnId: latest.turnId ?? null,
-        feedback,
-        userText,
-      },
-    }, cardId)
-    return feedback
-  }
-
-  async function settlePendingExecutionProposalFeedbackFromUserTurn(
-    payload: AlicizationChatStartPayload,
-    at: number,
-    source: string,
-  ) {
-    const cardId = normalizeCardId(payload.cardId)
-    const userText = readLatestUserMessageText(payload.messages)
-    if (!userText)
-      return null
-
-    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
-    if (!sessionId)
-      return null
-
-    const threads = await withCardScope(cardId, async () => await alicizationDb.listTaskThreads({
-      sessionId,
-      status: ['needs-affirmation'],
-      limit: 6,
-    }).catch(() => []), {
-      label: `execution-proposal-feedback.list:${cardId}`,
-      skipQueueWhenScopeAlreadyActive: true,
-    })
-    const latest = threads
-      .slice()
-      .sort((left, right) =>
-        Math.max(
-          Number(right.completedAt ?? 0),
-          Number(right.lastEventAt ?? 0),
-          Number(right.updatedAt ?? 0),
-          Number(right.createdAt ?? 0),
-        ) - Math.max(
-          Number(left.completedAt ?? 0),
-          Number(left.lastEventAt ?? 0),
-          Number(left.updatedAt ?? 0),
-          Number(left.createdAt ?? 0),
-        ),
-      )[0] ?? null
-    if (!latest)
-      return null
-
-    const fabric = (latest.metadata && typeof latest.metadata === 'object' && !Array.isArray(latest.metadata) && latest.metadata.fabric && typeof latest.metadata.fabric === 'object' && !Array.isArray(latest.metadata.fabric))
-      ? latest.metadata.fabric as { affirmationReasonCodes?: unknown }
-      : null
-    const feedback = deriveExecutionProposalFeedbackKind({
-      userText,
-      thread: {
-        threadId: latest.id,
-        goal: latest.goal,
-        summary: latest.summary ?? '',
-        proposedChannel: latest.proposedChannel ?? null,
-        selectedChannel: latest.selectedChannel ?? null,
-        affirmationReasonCodes: Array.isArray(fabric?.affirmationReasonCodes)
-          ? fabric!.affirmationReasonCodes as string[]
-          : [],
-      },
-    })
-    if (!feedback)
-      return null
-
-    const closure = attachSynthesizedReflections(buildExecutionProposalFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      sessionId,
-      decisionTraceId: latest.decisionTraceId ?? null,
-      turnId: sanitizeText(payload.turnId) || null,
-      feedback,
-      thread: {
-        threadId: latest.id,
-        goal: latest.goal,
-        summary: latest.summary ?? '',
-        proposedChannel: latest.proposedChannel ?? null,
-        selectedChannel: latest.selectedChannel ?? null,
-        affirmationReasonCodes: Array.isArray(fabric?.affirmationReasonCodes)
-          ? fabric!.affirmationReasonCodes as string[]
-          : [],
-      },
-    }))
-    await persistOutcomeClosure(cardId, closure)
-
-    if (feedback === 'denied' || feedback === 'interrupted') {
-      const nextStatus = feedback === 'denied' ? 'cancelled' : 'paused'
-      await withCardScope(cardId, async () => {
-        await alicizationDb.upsertTaskThread({
-          ...latest,
-          status: nextStatus,
-          summary: feedback === 'denied'
-            ? 'The host explicitly declined this proactive execution proposal.'
-            : 'The host turned away from this proactive execution proposal before confirming it.',
-          updatedAt: at,
-          lastEventAt: at,
-          completedAt: feedback === 'denied' ? at : latest.completedAt ?? null,
-        })
-      }, {
-        label: `execution-proposal-feedback.thread-update:${cardId}`,
-        skipQueueWhenScopeAlreadyActive: true,
-      })
-    }
-
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.execution-proposal',
-      action: 'proposal-feedback-settled',
-      message: 'Settled host feedback for a pending proactive execution proposal.',
-      payload: {
-        source,
-        cardId,
-        sessionId,
-        threadId: latest.id,
-        feedback,
-        userText,
-      },
-    }, cardId)
-    return feedback
-  }
-
-  async function settleRecentExecutionResultFeedbackFromUserTurn(
-    payload: AlicizationChatStartPayload,
-    at: number,
-    source: string,
-  ) {
-    const cardId = normalizeCardId(payload.cardId)
-    const userText = readLatestUserMessageText(payload.messages)
-    if (!userText)
-      return null
-
-    const previousAssistantText = readLatestAssistantMessageText(payload.messages as any)
-    const sessionId = await ensureActiveOrLatestSessionId(cardId).catch(() => '')
-    if (!sessionId)
-      return null
-
-    const threads = await withCardScope(cardId, async () => await alicizationDb.listTaskThreads({
-      sessionId,
-      status: ['completed', 'failed', 'blocked', 'cancelled'],
-      limit: 8,
-    }).catch(() => []), {
-      label: `execution-result-feedback.list:${cardId}`,
-      skipQueueWhenScopeAlreadyActive: true,
-    })
-    const latest = threads
-      .filter(thread => thread.origin === 'subconscious-proactive')
-      .filter((thread) => {
-        const executionMetadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
-          && thread.metadata.execution && typeof thread.metadata.execution === 'object' && !Array.isArray(thread.metadata.execution)
-          ? thread.metadata.execution as { resultFeedbackSettledAt?: unknown }
-          : null
-        return !Number.isFinite(Number(executionMetadata?.resultFeedbackSettledAt))
-      })
-      .filter(thread => at - readTaskThreadActivityAt(thread) <= 30 * 60_000)
-      .sort((left, right) => readTaskThreadActivityAt(right) - readTaskThreadActivityAt(left))[0] ?? null
-    if (!latest)
-      return null
-
-    const feedback = deriveExecutionResultFeedbackKind({
-      previousAssistantText,
-      userText,
-      thread: {
-        threadId: latest.id,
-        goal: latest.goal,
-        summary: latest.summary ?? '',
-        outcome: latest.summary ?? '',
-        proposedChannel: latest.proposedChannel ?? null,
-        selectedChannel: latest.selectedChannel ?? null,
-      },
-    })
-    if (!feedback)
-      return null
-
-    const closure = attachSynthesizedReflections(buildExecutionResultFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      sessionId,
-      decisionTraceId: latest.decisionTraceId ?? null,
-      turnId: sanitizeText(payload.turnId) || null,
-      feedback,
-      thread: {
-        threadId: latest.id,
-        goal: latest.goal,
-        summary: latest.summary ?? '',
-        outcome: latest.summary ?? '',
-        proposedChannel: latest.proposedChannel ?? null,
-        selectedChannel: latest.selectedChannel ?? null,
-      },
-    }))
-    await persistOutcomeClosure(cardId, closure)
-
-    await withCardScope(cardId, async () => {
-      const metadata = latest.metadata && typeof latest.metadata === 'object' && !Array.isArray(latest.metadata)
-        ? latest.metadata as Record<string, unknown>
-        : {}
-      const executionMetadata = metadata.execution && typeof metadata.execution === 'object' && !Array.isArray(metadata.execution)
-        ? metadata.execution as Record<string, unknown>
-        : {}
-      await alicizationDb.upsertTaskThread({
-        ...latest,
-        metadata: {
-          ...metadata,
-          execution: {
-            ...executionMetadata,
-            resultFeedbackKind: feedback,
-            resultFeedbackSettledAt: at,
-            resultFeedbackTurnId: sanitizeText(payload.turnId) || null,
-          },
-        },
-        updatedAt: at,
-      })
-    }, {
-      label: `execution-result-feedback.thread-update:${cardId}`,
-      skipQueueWhenScopeAlreadyActive: true,
-    })
-
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.execution-result',
-      action: 'result-feedback-settled',
-      message: 'Settled host feedback for a finished proactive execution result.',
-      payload: {
-        source,
-        cardId,
-        sessionId,
-        threadId: latest.id,
-        feedback,
-        userText,
-      },
-    }, cardId)
-    return feedback
-  }
-
-  async function settleExpiredPendingProactiveOutcomes(cardIdRaw: unknown, at: number, source: string) {
-    const cardId = normalizeCardId(cardIdRaw)
-    const current = await ensureProactiveLoopState(cardId)
-    const settled = settleExpiredProactiveOutcomes(current, at)
-    if (settled.appliedOutcomes.length === 0)
-      return settled.state
-
-    await persistProactiveLoopState(cardId, settled.state)
-    await syncSessionMirrorFromCurrentCardState({
-      cardId,
-      source: 'proactive-feedback',
-      proactiveOutcomes: settled.appliedOutcomes,
-      turnId: buildMainGatewayAgentTurnId('proactive-feedback', source, cardId, at),
-    })
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.subconscious',
-      action: 'proactive-feedback-settled',
-      message: 'Settled proactive feedback after reply timeout elapsed.',
-      payload: {
-        source,
-        outcomes: settled.appliedOutcomes,
-      },
-    }, cardId)
-    await persistOutcomeClosure(cardId, buildProactiveFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      outcomes: settled.appliedOutcomes,
-    }))
-    return settled.state
-  }
+  const settleExpiredPendingProactiveOutcomes
+    = runtimeProactiveFeedback.settleExpiredPendingProactiveOutcomes
 
   async function flushCurrentSubconsciousState(reason: string) {
     const current = subconsciousStateByCard.get(activeCardId)
@@ -2836,193 +1826,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  async function listKnownCardIds() {
-    const cardsRoot = join(userDataPath, 'alicizations', 'cards')
-    const ids = new Set<string>([
-      ...subconsciousStateByCard.keys(),
-      ...activeSessionIdByCard.keys(),
-      ...proactiveLoopStateByCard.keys(),
-      ...visualPresenceStateByCard.keys(),
-      normalizeCardId(activeCardId),
-    ])
-    try {
-      const entries = await readdir(cardsRoot, { withFileTypes: true })
-      for (const entry of entries) {
-        if (entry.isDirectory())
-          ids.add(normalizeCardId(entry.name))
-      }
-    }
-    catch {
-      // ignore
-    }
-    return [...ids]
-  }
-
-  async function clearAllConversationData(reason: string) {
-    const startedAt = Date.now()
-    const previousCardId = normalizeCardId(activeCardId)
-    const cardIds = await listKnownCardIds()
-    await appendRuntimeDebugLine('conversation-clear-all.started', {
-      reason,
-      previousCardId,
-      cardCount: cardIds.length,
-      cardIds,
-    })
-
-    await abortAllTurnWrites(`conversation-clear-all:${reason}`).catch(() => {})
-    clearReminderDueTimer()
-    clearAllPendingDialogueDeliveries()
-    executionDeliveryRuntime.clear()
-    mainChatRunState.clearFinishedRuns()
-    clearQueuedSubconsciousWake()
-
-    try {
-      for (const cardId of cardIds) {
-        await switchCardScope(cardId)
-        await alicizationDb.clearConversationData()
-        await alicizationDb.setMetaValue(alicizationCardActiveSessionMetaKey, '').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationDialogueAckStateMetaKey, '{}').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationDialogueReplyFeedbackAckMetaKey, '').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, '').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationExecutionDeliveryStateMetaKey, '').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationPerceptionStateMetaKey, '').catch(() => {})
-        await alicizationDb.setMetaValue(alicizationVisualPresenceStateMetaKey, '').catch(() => {})
-        activeSessionIdByCard.delete(cardId)
-        dialogueAckByCard.delete(cardId)
-        dialogueReplyFeedbackAckByCard.delete(cardId)
-        proactiveLoopStateByCard.delete(cardId)
-        perceptionStateByCard.delete(cardId)
-        visualPresenceStateByCard.delete(cardId)
-        visualPresenceCapturePersistMetaByCard.delete(cardId)
-        emitVisualPresenceState(cardId, null)
-        screenSemanticCacheByCard.delete(cardId)
-        dialogueSessionManager.clear(cardId)
-        executionDeliveryRuntime.clear(cardId)
-        clearPendingDialogueDeliveriesByCard(cardId)
-        await appendAuditLog({
-          level: 'notice',
-          category: 'conversation',
-          action: 'clear-all',
-          message: 'Cleared all conversation turns and scheduled reminder tasks for card scope.',
-          payload: {
-            reason,
-          },
-        }, cardId)
-      }
-    }
-    finally {
-      await switchCardScope(previousCardId).catch(() => {})
-      await scheduleNextReminderDueCheck(`conversation-clear-all:${reason}`).catch(() => {})
-      await appendRuntimeDebugLine('conversation-clear-all.finished', {
-        reason,
-        elapsedMs: Date.now() - startedAt,
-        restoredCardId: activeCardId,
-      })
-    }
-  }
-
-  async function deleteAllAlicizationData(reason: string) {
-    const startedAt = Date.now()
-    await appendRuntimeDebugLine('delete-all-data.started', {
-      reason,
-      activeCardId,
-    })
-
-    await abortAllTurnWrites(`delete-all-data:${reason}`).catch(() => {})
-    clearReminderDueTimer()
-    stopWatch()
-    sensoryBus.stop('manual')
-
-    if (pruneTimer) {
-      clearInterval(pruneTimer)
-      pruneTimer = undefined
-    }
-    if (subconsciousTimer) {
-      clearInterval(subconsciousTimer)
-      subconsciousTimer = undefined
-    }
-    if (dreamTimer) {
-      clearInterval(dreamTimer)
-      dreamTimer = undefined
-    }
-
-    clearAllPendingDialogueDeliveries()
-    executionDeliveryRuntime.clear()
-    turnWriteAbortControllers.clear()
-    mainChatRunState.clearAll()
-    dialogueSessionManager.clear()
-    clearQueuedSubconsciousWake()
-    activeSessionIdByCard.clear()
-    dialogueAckByCard.clear()
-    dialogueReplyFeedbackAckByCard.clear()
-    subconsciousStateByCard.clear()
-    proactiveLoopStateByCard.clear()
-    perceptionStateByCard.clear()
-    visualPresenceStateByCard.clear()
-    visualPresenceCapturePersistMetaByCard.clear()
-    screenSemanticCacheByCard.clear()
-    pendingDurabilityPulseByCard.clear()
-    foregroundProbeTimeoutStreakByPid.clear()
-    subconsciousTickInFlight = null
-    queuedWrite = Promise.resolve()
-    soulSnapshot = null
-    watching = false
-    muteWatchUntil = 0
-    revision = 0
-
-    await alicizationDb.close().catch(() => {})
-    await rm(join(userDataPath, 'alicizations'), { recursive: true, force: true })
-
-    activeProviderId = ''
-    activeModelId = ''
-    providerCredentials = {}
-    setAlicizationKillSwitchState('ACTIVE', 'delete-all-data')
-    setAlicizationCardKillSwitchState(defaultAlicizationCardId, 'ACTIVE', 'delete-all-data')
-
-    activeCardId = defaultAlicizationCardId
-    ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
-    alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
-    await restoreScopedKillSwitch(activeCardId)
-    await restoreActiveSessionId(activeCardId)
-    await restoreDialogueAckMap(activeCardId)
-    await restoreSubconsciousState(activeCardId)
-    await restoreProactiveLoopState(activeCardId)
-    await restoreExecutionDeliveryState(activeCardId)
-
-    sensoryBus = createAlicizationSensoryBus({
-      tickMs: 60_000,
-      staleMs: 90_000,
-      cpuWindowMs: 1_000,
-      appendAuditLog: input => appendAuditLog(input, activeCardId),
-    })
-    if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED')
-      sensoryBus.start()
-
-    await persistLlmConfigToDisk().catch(() => {})
-    await bootstrap()
-    await scheduleNextReminderDueCheck(`delete-all-data:${reason}`).catch(() => {})
-    startMemorySalienceRefreshTimer()
-    startSubconsciousTimer()
-    startDreamTimer()
-    emitKillSwitchChanged(activeCardId)
-
-    await appendAuditLog({
-      level: 'notice',
-      category: 'alicization.runtime',
-      action: 'delete-all-data-completed',
-      message: 'Deleted all Alicization runtime data and reinitialized default scope.',
-      payload: {
-        reason,
-        elapsedMs: Date.now() - startedAt,
-      },
-    }, activeCardId)
-    await appendRuntimeDebugLine('delete-all-data.finished', {
-      reason,
-      elapsedMs: Date.now() - startedAt,
-      activeCardId,
-    })
-  }
-
   const llmConfigPath = join(userDataPath, 'alicizations', 'llm-config.json')
   const runtimeDebugLogPath = join(userDataPath, 'alicizations', 'runtime-debug.log')
 
@@ -3081,28 +1884,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  async function restoreScopedKillSwitch(cardId: string) {
-    const raw = await alicizationDb.getMetaValue(alicizationCardKillSwitchMetaKey).catch(() => undefined)
-    if (!raw) {
-      setAlicizationCardKillSwitchState(cardId, 'ACTIVE', 'bootstrap')
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as { state?: unknown, reason?: unknown, updatedAt?: unknown }
-      const state = parsed.state === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE'
-      const reason = typeof parsed.reason === 'string' ? parsed.reason : undefined
-      const snapshot = setAlicizationCardKillSwitchState(cardId, state, reason)
-      if (typeof parsed.updatedAt === 'number' && Number.isFinite(parsed.updatedAt)) {
-        snapshot.updatedAt = parsed.updatedAt
-      }
-    }
-    catch {
-      setAlicizationCardKillSwitchState(cardId, 'ACTIVE', 'bootstrap')
-    }
-  }
-
-  async function switchCardScope(nextCardIdRaw: unknown) {
+  async function switchCardScopeInner(nextCardIdRaw: unknown) {
     const nextCardId = normalizeCardId(nextCardIdRaw)
     if (nextCardId === activeCardId)
       return
@@ -3123,11 +1905,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     clearReminderDueTimer()
     turnWriteAbortControllers.clear()
-    queuedWrite = Promise.resolve()
-    soulSnapshot = null
-    watching = false
-    muteWatchUntil = 0
-    revision = 0
+    soulLifecycleState.queuedWrite = Promise.resolve()
+    soulLifecycleState.soulSnapshot = null
+    soulLifecycleState.watching = false
+    soulLifecycleState.muteWatchUntil = 0
+    soulLifecycleState.revision = 0
 
     await alicizationDb.close().catch(() => {})
 
@@ -3159,44 +1941,135 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   }
 
-  async function withCardScope<T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: CardScopeOptions) {
-    const requestedCardId = normalizeCardId(nextCardIdRaw)
-    const label = sanitizeText(options?.label, 'anonymous')
-    const queuedAt = Date.now()
-    const execute = async () => {
-      const waitMs = Date.now() - queuedAt
-      if (label !== 'anonymous' || waitMs >= 250) {
-        await appendRuntimeDebugLine('card-scope.acquired', {
-          label,
-          requestedCardId,
-          activeCardIdBeforeSwitch: activeCardId,
-          waitMs,
-        })
+  cardScopeOrchestrator = createAlicizationRuntimeCardScopeOrchestrator({
+    scopeLifecycleQueueState,
+    now: () => Date.now(),
+    getActiveCardId: () => activeCardId,
+    normalizeCardId,
+    sanitizeText,
+    appendRuntimeDebugLine,
+    switchCardScopeInner: async (nextCardIdRaw) => await switchCardScopeInner(nextCardIdRaw),
+  })
+  const switchCardScope = cardScopeOrchestrator.switchCardScope
+  const cardScopeLifecycleRuntime = createAlicizationRuntimeCardScopeLifecycle({
+    now: () => Date.now(),
+    getActiveCardId: () => activeCardId,
+    defaultAlicizationCardId,
+    normalizeCardId,
+    listKnownCardIds,
+    switchCardScope: async (nextCardIdRaw) => await switchCardScope(nextCardIdRaw),
+    abortAllTurnWrites: async reason => await abortAllTurnWrites(reason),
+    clearReminderDueTimer,
+    clearAllPendingDialogueDeliveries,
+    clearQueuedSubconsciousWake,
+    clearExecutionDeliveryStateAll: () => executionDeliveryRuntime.clear(),
+    clearExecutionDeliveryStateCard: (cardId: string) => executionDeliveryRuntime.clear(cardId),
+    clearMainChatFinishedRuns: () => mainChatRunState.clearFinishedRuns(),
+    clearMainChatRunsAll: () => mainChatRunState.clearAll(),
+    clearDialogueDeliveryCardState: (cardId: string) => dialogueDeliveryRuntime.clearCardState(cardId),
+    clearDialogueDeliveryAllState: () => dialogueDeliveryRuntime.clearAllState(),
+    clearDialogueSessionMirrorCard: (cardId: string) => dialogueSessionManager.clear(cardId),
+    clearDialogueSessionMirrorAll: () => dialogueSessionManager.clear(),
+    clearPendingDialogueDeliveriesByCard,
+    stopWatch,
+    stopSensoryBus: () => sensoryBus.stop('manual'),
+    clearPruneTimer: () => {
+      if (pruneTimer) {
+        clearInterval(pruneTimer)
+        pruneTimer = undefined
       }
-      await switchCardScope(requestedCardId)
-      try {
-        return await task()
+    },
+    clearSubconsciousTimer: () => {
+      if (subconsciousTimer) {
+        clearInterval(subconsciousTimer)
+        subconsciousTimer = undefined
       }
-      finally {
-        if (label !== 'anonymous' || waitMs >= 250) {
-          await appendRuntimeDebugLine('card-scope.completed', {
-            label,
-            requestedCardId,
-            activeCardIdAfterTask: activeCardId,
-            waitMs,
-            totalMs: Date.now() - queuedAt,
-          })
-        }
+    },
+    clearDreamTimer: () => {
+      if (dreamTimer) {
+        clearInterval(dreamTimer)
+        dreamTimer = undefined
       }
-    }
+    },
+    turnWriteAbortControllers,
+    alicizationDb: {
+      clearConversationData: () => alicizationDb.clearConversationData(),
+      setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+      close: () => alicizationDb.close(),
+    },
+    activeSessionIdByCard,
+    subconsciousStateByCard,
+    proactiveLoopStateByCard,
+    perceptionStateByCard,
+    visualPresenceStateByCard,
+    visualPresenceCapturePersistMetaByCard,
+    screenSemanticCacheByCard,
+    pendingDurabilityPulseByCard,
+    foregroundProbeTimeoutStreakByPid,
+    resetSubconsciousTickInFlight: () => {
+      subconsciousTickInFlight = null
+    },
+    resetSoulLifecycleState: () => {
+      soulLifecycleState.queuedWrite = Promise.resolve()
+      soulLifecycleState.soulSnapshot = null
+      soulLifecycleState.watching = false
+      soulLifecycleState.muteWatchUntil = 0
+      soulLifecycleState.revision = 0
+    },
+    removeAlicizationsRoot: async () => {
+      await rm(join(userDataPath, 'alicizations'), { recursive: true, force: true })
+    },
+    resetProviderConfig: () => {
+      activeProviderId = ''
+      activeModelId = ''
+      providerCredentials = {}
+    },
+    resetKillSwitches: () => {
+      setAlicizationKillSwitchState('ACTIVE', 'delete-all-data')
+      setAlicizationCardKillSwitchState(defaultAlicizationCardId, 'ACTIVE', 'delete-all-data')
+    },
+    reinitializeDefaultScope: async () => {
+      activeCardId = defaultAlicizationCardId
+      ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
+      alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
+      await restoreScopedKillSwitch(activeCardId)
+      await restoreActiveSessionId(activeCardId)
+      await restoreDialogueAckMap(activeCardId)
+      await restoreSubconsciousState(activeCardId)
+      await restoreProactiveLoopState(activeCardId)
+      await restoreExecutionDeliveryState(activeCardId)
 
-    if (options?.skipQueueWhenScopeAlreadyActive && requestedCardId === activeCardId)
-      return await execute()
+      sensoryBus = createAlicizationSensoryBus({
+        tickMs: 60_000,
+        staleMs: 90_000,
+        cpuWindowMs: 1_000,
+        appendAuditLog: input => appendAuditLog(input, activeCardId),
+      })
+      if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED')
+        sensoryBus.start()
 
-    const next = scopeLifecycleQueueState.queue.then(execute, execute)
-    scopeLifecycleQueueState.queue = next.then(() => undefined, () => undefined)
-    return await next
-  }
+      await persistLlmConfigToDisk().catch(() => {})
+      await bootstrap()
+      await scheduleNextReminderDueCheck('delete-all-data:reinitialize').catch(() => {})
+      startMemorySalienceRefreshTimer()
+      startSubconsciousTimer()
+      startDreamTimer()
+      emitKillSwitchChanged(activeCardId)
+    },
+    emitVisualPresenceState,
+    appendRuntimeDebugLine,
+    appendAuditLog,
+    scheduleNextReminderDueCheck: async reason => await scheduleNextReminderDueCheck(reason),
+    activeSessionMetaKey: alicizationCardActiveSessionMetaKey,
+    dialogueAckStateMetaKey: alicizationDialogueAckStateMetaKey,
+    dialogueReplyFeedbackAckMetaKey: alicizationDialogueReplyFeedbackAckMetaKey,
+    proactiveLoopStateMetaKey: alicizationProactiveLoopStateMetaKey,
+    executionDeliveryStateMetaKey: alicizationExecutionDeliveryStateMetaKey,
+    perceptionStateMetaKey: alicizationPerceptionStateMetaKey,
+    visualPresenceStateMetaKey: alicizationVisualPresenceStateMetaKey,
+  })
+  const clearAllConversationData = cardScopeLifecycleRuntime.clearAllConversationData
+  const deleteAllAlicizationData = cardScopeLifecycleRuntime.deleteAllAlicizationData
 
   type ReminderScheduleSource = 'tool' | 'manual-fallback' | 'autonomy'
 
@@ -3635,26 +2508,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     throw error
   }
 
-  function snapshotFromContent(content: string): AlicizationSoulSnapshot {
-    const parsed = parseSoul(content)
-    const hash = hashContent(content)
-    if (!soulSnapshot || soulSnapshot.hash !== hash) {
-      revision += 1
-    }
-    else {
-      revision = soulSnapshot.revision
-    }
-
-    return withNeedsGenesis({
-      soulPath,
-      content,
-      frontmatter: parsed.frontmatter,
-      revision,
-      hash,
-      watching,
-    })
-  }
-
   async function writeAtomicContent(path: string, category: string, content: string) {
     await mkdir(soulRoot, { recursive: true })
     const tempPath = `${path}.${pid}.${Date.now()}.tmp`
@@ -3698,304 +2551,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function writeSoulContent(content: string) {
     await writeAtomicContent(soulPath, 'soul', content)
-  }
-
-  async function readSoulSnapshot() {
-    await mkdir(soulRoot, { recursive: true })
-    if (!existsSync(soulPath)) {
-      const content = toSoulContent(defaultFrontmatter, defaultSoulBody)
-      await writeSoulContent(content)
-    }
-
-    const content = await readFile(soulPath, 'utf-8')
-    const snapshot = snapshotFromContent(content)
-    soulSnapshot = snapshot
-    return snapshot
-  }
-
-  function clearWatchTimer() {
-    if (!soulWatchTimer)
-      return
-
-    clearTimeout(soulWatchTimer)
-    soulWatchTimer = undefined
-  }
-
-  function stopWatch() {
-    if (soulWatcher) {
-      soulWatcher.close()
-      soulWatcher = undefined
-    }
-    clearWatchTimer()
-  }
-
-  function scheduleWatchReload() {
-    if (!watching)
-      return
-
-    clearWatchTimer()
-    soulWatchTimer = setTimeout(async () => {
-      if (Date.now() <= muteWatchUntil) {
-        scheduleWatchReload()
-        return
-      }
-
-      if (!existsSync(soulPath))
-        return
-
-      try {
-        const content = await readFile(soulPath, 'utf-8')
-        if (soulSnapshot?.hash === hashContent(content))
-          return
-
-        const next = snapshotFromContent(content)
-        soulSnapshot = next
-        emitSoulChanged(next)
-      }
-      catch (error) {
-        console.warn('[alicization-runtime] failed to reload SOUL.md:', error)
-        void appendAuditLog({
-          level: 'warning',
-          category: 'soul',
-          action: 'watch-reload-failed',
-          message: 'Failed to reload SOUL.md from fs.watch event.',
-          payload: {
-            reason: error instanceof Error ? error.message : String(error),
-          },
-        })
-      }
-    }, 80)
-  }
-
-  async function ensureWatchState() {
-    if (soulSnapshot?.needsGenesis) {
-      watching = false
-      stopWatch()
-      return
-    }
-
-    if (!watching) {
-      const { watch } = await import('node:fs')
-      soulWatcher = watch(soulPath, () => scheduleWatchReload())
-    }
-
-    watching = true
-  }
-
-  async function cleanupLegacyProfileFiles() {
-    const removeIfExists = async (path: string, category: string) => {
-      if (!existsSync(path))
-        return
-
-      try {
-        await unlink(path)
-        await appendAuditLog({
-          level: 'notice',
-          category: 'migration',
-          action: 'legacy-profile-removed',
-          message: 'Removed deprecated profile file.',
-          payload: {
-            path,
-            category,
-          },
-        })
-      }
-      catch (error) {
-        await appendAuditLog({
-          level: 'warning',
-          category: 'migration',
-          action: 'legacy-profile-remove-failed',
-          message: 'Failed to remove deprecated profile file.',
-          payload: {
-            path,
-            category,
-            reason: error instanceof Error ? error.message : String(error),
-          },
-        })
-      }
-    }
-
-    await removeIfExists(legacyPromptProfilePath, 'prompt-profile')
-    await removeIfExists(legacySparkProfilePath, 'spark-profile')
-  }
-
-  async function bootstrap() {
-    await cleanupLegacyProfileFiles()
-    const snapshot = await readSoulSnapshot()
-    await ensureWatchState()
-    return {
-      ...snapshot,
-      watching,
-    }
-  }
-
-  async function queueSoulMutation(task: (current: AlicizationSoulSnapshot) => Promise<AlicizationSoulSnapshot>) {
-    const execute = async () => {
-      const current = soulSnapshot ?? await bootstrap()
-      const next = await task(current)
-      muteWatchUntil = Date.now() + 400
-      await writeSoulContent(next.content)
-      soulSnapshot = {
-        ...next,
-        watching,
-      }
-      emitSoulChanged(soulSnapshot)
-      return soulSnapshot
-    }
-    queuedWrite = queuedWrite.then(execute, execute)
-
-    await queuedWrite.catch(async (error) => {
-      await appendAuditLog({
-        level: 'warning',
-        category: 'soul',
-        action: 'mutation-failed',
-        message: 'SOUL mutation failed.',
-        payload: {
-          reason: error instanceof Error ? error.message : String(error),
-        },
-      })
-      throw error
-    })
-    return soulSnapshot!
-  }
-
-  function normalizePersonality(personality: AlicizationPersonalityState) {
-    return {
-      obedience: clamp01(personality.obedience),
-      liveliness: clamp01(personality.liveliness),
-      sensibility: clamp01(personality.sensibility),
-    } satisfies AlicizationPersonalityState
-  }
-
-  async function initializeGenesis(input: AlicizationGenesisInput) {
-    const ownerName = sanitizeText(input.ownerName)
-    const hostName = sanitizeText(input.hostName)
-    const alicizationName = sanitizeText(input.alicizationName)
-    const relationship = sanitizeText(input.relationship)
-    const gender = normalizeGender(input.gender)
-    const genderCustom = sanitizeText(input.genderCustom)
-
-    if (!ownerName) {
-      throw new Error('ownerName is required')
-    }
-    if (!hostName) {
-      throw new Error('hostName is required')
-    }
-    if (!alicizationName) {
-      throw new Error('alicizationName is required')
-    }
-    if (!relationship) {
-      throw new Error('relationship is required')
-    }
-    if (gender === 'custom' && !genderCustom) {
-      throw new Error('genderCustom is required when gender is custom')
-    }
-    if (!Number.isFinite(input.mindAge) || input.mindAge <= 0) {
-      throw new Error('mindAge must be a positive number')
-    }
-
-    const known = soulSnapshot
-    const candidate = await readSoulSnapshot()
-
-    if (!input.allowOverwrite && known && candidate.hash !== known.hash && candidate.needsGenesis) {
-      await appendAuditLog({
-        level: 'notice',
-        category: 'genesis',
-        action: 'conflict-candidate',
-        message: 'Genesis detected external SOUL changes before confirmation.',
-      })
-      return {
-        soul: known,
-        conflict: true,
-        conflictCandidate: candidate,
-      }
-    }
-
-    const candidatePersonaKernel = candidate.frontmatter.initialized
-      ? resolveAlicizationSoulPersonaKernel(candidate.frontmatter, {
-          placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
-        })
-      : null
-    const shouldCarryHostAttitude = Boolean(
-      candidate.frontmatter.initialized
-      && sanitizeText(candidate.frontmatter.host_attitude)
-      && candidate.frontmatter.host_attitude !== candidatePersonaKernel?.hostAttitudeSeed,
-    )
-    const shouldCarryCoreIncarnation = Boolean(
-      candidate.frontmatter.initialized
-      && normalizeCoreIncarnation(candidate.frontmatter.core_incarnation)
-      && candidate.frontmatter.core_incarnation !== candidatePersonaKernel?.coreIncarnationSeed,
-    )
-
-    const nextFrontmatterBase: AlicizationSoulFrontmatter = {
-      ...candidate.frontmatter,
-      schemaVersion: currentSoulSchemaVersion,
-      initialized: true,
-      custom_directives: typeof input.customDirectives === 'string'
-        ? normalizeCustomDirectives(input.customDirectives)
-        : normalizeCustomDirectives(candidate.frontmatter.custom_directives),
-      profile: {
-        ownerName,
-        hostName,
-        alicizationName,
-        gender,
-        genderCustom,
-        relationship,
-        mindAge: normalizeMindAge(input.mindAge),
-      },
-      personality: normalizePersonality(input.personality),
-      host_attitude: shouldCarryHostAttitude
-        ? candidate.frontmatter.host_attitude
-        : '',
-      core_incarnation: shouldCarryCoreIncarnation
-        ? candidate.frontmatter.core_incarnation
-        : '',
-    }
-    const seededPersonaKernel = resolveAlicizationSoulPersonaKernel(nextFrontmatterBase, {
-      placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
-    })
-    const nextFrontmatter: AlicizationSoulFrontmatter = {
-      ...nextFrontmatterBase,
-      host_attitude: normalizeHostAttitude(seededPersonaKernel.hostAttitude),
-      core_incarnation: normalizeCoreIncarnation(seededPersonaKernel.coreIncarnation),
-    }
-
-    const candidateBody = parseSoul(candidate.content).body
-    const previousPersonaNotes = extractPersonaNotesFromBody(candidateBody)
-    const personaNotes = typeof input.personaNotes === 'string'
-      ? sanitizeText(input.personaNotes)
-      : previousPersonaNotes
-    const nextContent = toSoulContent(nextFrontmatter, buildSoulBody(nextFrontmatter, personaNotes))
-    const nextSnapshot = snapshotFromContent(nextContent)
-    const persisted = await queueSoulMutation(async (current) => {
-      if (!input.allowOverwrite && current.hash !== candidate.hash) {
-        throw new Error('SOUL changed during Genesis, please retry with allowOverwrite=true')
-      }
-      return nextSnapshot
-    })
-
-    await ensureWatchState()
-    await appendAuditLog({
-      level: 'info',
-      category: 'genesis',
-      action: 'completed',
-      message: 'Genesis initialized successfully.',
-      payload: {
-        ownerName: nextFrontmatter.profile.ownerName,
-        hostName: nextFrontmatter.profile.hostName,
-        alicizationName: nextFrontmatter.profile.alicizationName,
-        gender: nextFrontmatter.profile.gender,
-        relationship: nextFrontmatter.profile.relationship,
-        mindAge: nextFrontmatter.profile.mindAge,
-      },
-    })
-    return {
-      soul: {
-        ...persisted,
-        watching,
-      },
-      conflict: false,
-    }
   }
 
   async function suspendKillSwitch(reason?: string) {
@@ -4158,7 +2713,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         memoryTrace: pendingMindTraceTelemetry?.memoryTrace ?? null,
       })
       if (events.length === 0)
-        return
+        return [] as typeof events
       try {
         await alicizationDb.appendMindTurnEvents(events, { signal })
       }
@@ -4176,6 +2731,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           },
         })
       }
+      return events
     }
 
     const shouldSkipDispatchOnlyPersistence = normalizedPayload.origin === 'user-turn'
@@ -4362,7 +2918,44 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           },
         })
       }
-      await appendMindTurnTraceEvents(emittedDialoguePayload)
+      const appendedMindTurnTraceEvents = await appendMindTurnTraceEvents(emittedDialoguePayload)
+      if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.userText).length > 0 && appendedMindTurnTraceEvents.length > 0) {
+        await replayBenchmarkRuntime.ingestRuntimeSamplingConversationTurn({
+          row: {
+            turnId: normalizedPayload.turnId ?? null,
+            sessionId: normalizedPayload.sessionId ?? '',
+            userText: normalizedPayload.userText ?? null,
+            assistantText: normalizedPayload.assistantText ?? null,
+            structuredJson: normalizedPayload.structured ? JSON.stringify(normalizedPayload.structured) : null,
+            createdAt: normalizedCreatedAt,
+          },
+          traceRecords: buildAlicizationMemoryDecisionTraceRecords(
+            appendedMindTurnTraceEvents.map((event, index) => ({
+              id: `${event.decisionTraceId}:${event.kind}:${index}`,
+              decisionTraceId: event.decisionTraceId,
+              turnId: event.turnId ?? null,
+              sessionId: event.sessionId ?? null,
+              origin: event.origin ?? 'user-turn',
+              kind: event.kind,
+              payload: event.payload ?? null,
+              createdAt: event.createdAt ?? normalizedCreatedAt,
+            })),
+          ),
+        }).catch(async (error) => {
+          await appendAuditLog({
+            level: 'warning',
+            category: 'alicization.memory-benchmark',
+            action: 'runtime-sampling-backlog-ingest-failed',
+            message: 'Failed to ingest a real runtime turn into the replay benchmark sampling backlog.',
+            payload: {
+              turnId: normalizedPayload.turnId ?? null,
+              sessionId: normalizedPayload.sessionId ?? null,
+              decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
+              reason: errorMessageFrom(error) ?? 'unknown-error',
+            },
+          })
+        })
+      }
       return true
     }
     catch (error) {
@@ -5668,13 +4261,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const runtimeDigestSystemBlock = buildAlicizationRuntimeSystemBlock(runtimeDigest)
     const truthContract = buildMindTruthContractLines(digitalLifeRuntimeSurface)
     const hostPersonModel = organicPromptContext.hostPersonModel ?? null
-    const doctrineGuidance = buildRelationshipDoctrineGuidance({
-      doctrineText: digitalLifeRuntimeSurface.memory.autobiographicalSelf?.relationshipDoctrine ?? null,
-      contexts: inferHostSocialContextsFromText([
-        policyDecision.scenario,
-        layeredContext.workload.kind,
-        layeredContext.content.kind,
-      ].join(' ')),
+    const proactivePersonContexts = inferHostSocialContextsFromText([
+      policyDecision.scenario,
+      layeredContext.workload.kind,
+      layeredContext.content.kind,
+    ].join(' '))
+    const personStateProjection = buildAlicizationPersonStateProjection({
+      now: Date.now(),
+      contexts: proactivePersonContexts,
+      autobiographicalSelf: digitalLifeRuntimeSurface.memory.autobiographicalSelf ?? null,
+      hostPersonModel,
+      longHorizonMemory: digitalLifeRuntimeSurface.memory.longHorizonMemory ?? null,
+      motiveEngine: digitalLifeRuntimeSurface.memory.motiveEngine ?? null,
+      habitPolicy: digitalLifeRuntimeSurface.agency.habitPolicy ?? null,
+      selfContinuity: digitalLifeRuntimeSurface.memory.selfContinuity ?? null,
+      selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
+      privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
+      mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
+      previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
     })
     const system = [
       '[SYSTEM OVERRIDE: 内部动机触发]',
@@ -5706,13 +4310,28 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             recurrentBurdens: hostPersonModel.recurrentBurdens.slice(0, 3),
           })}`
         : '',
-      doctrineGuidance.doctrineSummary
+      personStateProjection.relationshipDoctrine
         ? `Relationship doctrine JSON: ${JSON.stringify({
-            doctrine: doctrineGuidance.doctrineSummary,
-            repairBeforeCloseness: doctrineGuidance.repairBeforeCloseness,
-            truthBeforeWarmth: doctrineGuidance.truthBeforeWarmth,
-            leaveRoom: doctrineGuidance.leaveRoom,
-            restIntervention: doctrineGuidance.restIntervention,
+            doctrine: personStateProjection.relationshipDoctrine,
+            cautious: personStateProjection.cautious,
+            restrained: personStateProjection.restrained,
+            openingGuidance: personStateProjection.openingGuidance,
+            preferredProactiveStyle: personStateProjection.preferredProactiveStyle,
+          })}`
+        : '',
+      personStateProjection.summary
+        ? `Person-state projection JSON: ${JSON.stringify({
+            contexts: personStateProjection.contexts,
+            summary: personStateProjection.summary,
+            regime: personStateProjection.personalityContinuityState.currentRegime,
+            closenessPosture: personStateProjection.personalityContinuityState.closenessPosture,
+            repairPosture: personStateProjection.personalityContinuityState.repairPosture,
+            relationshipPosture: personStateProjection.relationshipPosture,
+            preference: personStateProjection.preferenceText,
+            sensitivity: personStateProjection.sensitivityText,
+            repairTrigger: personStateProjection.repairTriggerText,
+            burden: personStateProjection.burdenText,
+            trustRationale: personStateProjection.trustRationale,
           })}`
         : '',
       `Style constraint: ${styleInstruction.instruction}`,
@@ -5723,11 +4342,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       'performance must be an object with keys: baseEmotion, facialCue, actionCue, delivery, emphasis.',
       'reply must be concise, context-relevant, and non-generic. No markdown, no extra keys.',
       'If truth state is remembered, imagined, or uncertain, do not present screen details as current facts. Phrase them as carried memory, tentative hypothesis, residual impression, or unfinished regrounding.',
-      hostPersonModel
-        ? 'If the host person model implies lighter touch, more room, or a known repair trigger, let that social memory narrow how hard you interrupt and how closely you lean in.'
-        : '',
-      doctrineGuidance.doctrineSummary
-        ? 'If the relationship doctrine says repair before closeness, truth before warmth, or rest deserves intervention, let that doctrine shape the proactive tone and timing.'
+      personStateProjection.summary
+        ? 'Use the person-state projection as the single social authority for tone, distance, and timing. Do not invent a second relationship posture beside it.'
         : '',
     ].join('\n')
     const user = 'Generate one proactive utterance now. Avoid robotic greetings and avoid generic caring platitudes.'
@@ -5855,6 +4471,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     },
   ) {
+    const now = Date.now()
     const lowObedience = personality.obedience <= 0.2
     const personaTone = inferFallbackPersonaTone(personaContext.customDirectives)
     const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
@@ -5919,20 +4536,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       policyDecision.scenario === 'coding' ? 'focused-work' : 'general',
       policyDecision.scenario === 'late-night-care' ? 'late-night' : 'general',
     ])
-    const hostSocialGuidance = buildHostSocialGuidance({
+    const personStateProjection = buildAlicizationPersonStateProjection({
+      now,
+      contexts: proactiveHostContexts,
+      autobiographicalSelf: digitalLifeRuntimeSurface.memory.autobiographicalSelf ?? null,
       hostPersonModel: personaContext.hostPersonModel ?? null,
-      contexts: proactiveHostContexts,
+      longHorizonMemory: digitalLifeRuntimeSurface.memory.longHorizonMemory ?? null,
+      motiveEngine: digitalLifeRuntimeSurface.memory.motiveEngine ?? null,
+      habitPolicy: digitalLifeRuntimeSurface.agency.habitPolicy ?? null,
+      selfContinuity: digitalLifeRuntimeSurface.memory.selfContinuity ?? null,
+      selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
+      privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
+      mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
+      previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
     })
-    const doctrineGuidance = buildRelationshipDoctrineGuidance({
-      doctrineText: digitalLifeRuntimeSurface.memory.autobiographicalSelf?.relationshipDoctrine ?? null,
-      contexts: proactiveHostContexts,
-    })
-    const adjustedStyle = adjustProactiveStyleFromHostPersonModel({
-      currentStyle: policyDecision.style,
-      hostPersonModel: personaContext.hostPersonModel ?? null,
-      contexts: proactiveHostContexts,
-    })
-    const doctrineAdjustedStyle = doctrineGuidance.preferredProactiveStyle ?? adjustedStyle
+    const doctrineAdjustedStyle = personStateProjection.preferredProactiveStyle ?? policyDecision.style
     const styleInstruction = buildProactiveStyleInstruction(doctrineAdjustedStyle)
 
     const reply = (() => {
@@ -6012,9 +4630,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const sociallyAdjustedReply = (() => {
       if (doctrineAdjustedStyle === 'silent-observe')
         return '我先不挤进来，只把这条线轻轻挂着。'
-      if ((hostSocialGuidance.cautious || doctrineGuidance.cautious) && doctrineAdjustedStyle === 'light-nudge')
+      if (personStateProjection.cautious && doctrineAdjustedStyle === 'light-nudge')
         return `${reply.replace(/[。！!？?]+$/u, '')}。我就轻一点提醒你。`
-      if ((hostSocialGuidance.preferredProactiveStyle === 'gentle-care' || doctrineGuidance.preferredProactiveStyle === 'gentle-care') && doctrineAdjustedStyle === 'gentle-care')
+      if (personStateProjection.preferredProactiveStyle === 'gentle-care' && doctrineAdjustedStyle === 'gentle-care')
         return `${reply.replace(/[。！!？?]+$/u, '')}。我会尽量放轻一点。`
       return reply
     })()
@@ -6028,10 +4646,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       `sensibility=${personality.sensibility.toFixed(2)}`,
       `personaTone=${personaTone}`,
       hostAttitude ? `hostAttitude=${hostAttitude}` : 'hostAttitude=none',
-      hostSocialGuidance.preferenceText ? `hostPreference=${hostSocialGuidance.preferenceText}` : 'hostPreference=none',
-      hostSocialGuidance.sensitivityText ? `hostSensitivity=${hostSocialGuidance.sensitivityText}` : 'hostSensitivity=none',
-      hostSocialGuidance.repairTriggerText ? `hostRepairTrigger=${hostSocialGuidance.repairTriggerText}` : 'hostRepairTrigger=none',
-      doctrineGuidance.doctrineSummary ? `relationshipDoctrine=${doctrineGuidance.doctrineSummary}` : 'relationshipDoctrine=none',
+      personStateProjection.preferenceText ? `hostPreference=${personStateProjection.preferenceText}` : 'hostPreference=none',
+      personStateProjection.sensitivityText ? `hostSensitivity=${personStateProjection.sensitivityText}` : 'hostSensitivity=none',
+      personStateProjection.repairTriggerText ? `hostRepairTrigger=${personStateProjection.repairTriggerText}` : 'hostRepairTrigger=none',
+      personStateProjection.relationshipDoctrine ? `relationshipDoctrine=${personStateProjection.relationshipDoctrine}` : 'relationshipDoctrine=none',
+      personStateProjection.summary ? `personState=${personStateProjection.summary}` : 'personState=none',
       coreIncarnation ? `coreIncarnation=${coreIncarnation}` : 'coreIncarnation=none',
       lowObedience ? 'low-obedience bias active' : 'default bias',
       `scenario=${policyDecision.scenario}`,
@@ -6120,179 +4739,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return parseCoreIncarnationReforgePayload(raw)
   }
 
-  function formatExecutionDeliveryStatus(status: AlicizationTaskThreadRecord['status']) {
-    if (status === 'completed')
-      return 'completed'
-    if (status === 'cancelled')
-      return 'cancelled'
-    if (status === 'blocked')
-      return 'blocked'
-    return 'failed'
-  }
+  const buildExecutionDeliveryDeterministicStructured
+    = runtimeExecutionDelivery.buildExecutionDeliveryDeterministicStructured
 
-  function buildExecutionDeliveryDeterministicStructured(input: {
-    channel: string
-    goal: string
-    outcome: string
-    status: AlicizationTaskThreadRecord['status']
-    summary: string
-    policy?: AlicizationExecutionResultDeliveryPolicy | null
-    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
-    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-  }) {
-    return buildAlicizationExecutionPayoffDeterministicStructured({
-      mode: 'callback-delivery',
-      channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
-      goal: input.goal,
-      status: input.status,
-      summary: input.summary,
-      outcome: input.outcome,
-      policy: input.policy,
-      selfContinuityAuthority: input.selfContinuityAuthority,
-      hostPersonModel: input.hostPersonModel ?? null,
-    })
-  }
+  const selectExecutionDeliveryReplySurface
+    = runtimeExecutionDelivery.selectExecutionDeliveryReplySurface
 
-  function selectExecutionDeliveryReplySurface(input: {
-    channel: string
-    goal: string
-    llmReply?: string | null
-    outcome: string
-    status: AlicizationTaskThreadRecord['status']
-    summary: string
-    deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
-    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
-    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-  }) {
-    return selectAlicizationExecutionDeliveryReply({
-      ...input,
-      policy: input.deliveryPolicy,
-      selfContinuityAuthority: input.selfContinuityAuthority,
-      hostPersonModel: input.hostPersonModel ?? null,
-    })
-  }
+  const generateExecutionCallbackStructuredWithGateway
+    = runtimeExecutionDelivery.generateExecutionCallbackStructuredWithGateway
 
-  async function generateExecutionCallbackStructuredWithGateway(input: {
-    cardId: string
-    channel: string
-    completedAt: number
-    decisionTraceId?: string | null
-    goal: string
-    outcome: string
-    sessionId: string
-    status: AlicizationTaskThreadRecord['status']
-    summary: string
-    threadId: string
-    turnId?: string | null
-    deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
-    selfContinuityAuthority?: ReturnType<typeof buildSelfContinuityAuthorityFromRuntimeSurface>
-    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-    agentTurnInput?: {
-      turnId: string
-      decisionTraceId?: string | null
-    }
-    agentTurn?: AlicizationAgentTurnRuntime | null
-  }) {
-    const prompt = buildAlicizationExecutionPayoffPrompt({
-      mode: 'callback-delivery',
-      channel: sanitizeExecutionLedgerText(input.channel, 48) || 'executor',
-      status: formatExecutionDeliveryStatus(input.status),
-      goal: sanitizeExecutionLedgerText(input.goal, 180) || 'the current task',
-      summary: sanitizeExecutionLedgerText(input.summary, 220),
-      outcome: sanitizeExecutionLedgerText(input.outcome, 240),
-      policy: input.deliveryPolicy,
-      selfContinuityAuthority: input.selfContinuityAuthority,
-      hostPersonModel: input.hostPersonModel ?? null,
-      trace: {
-        decisionTraceId: input.decisionTraceId,
-        turnMode: 'answer',
-        personaKernelMode: 'backgrounded',
-      },
-    })
+  const resolveExecutionResultDeliveryPolicyForRuntime
+    = runtimeExecutionDelivery.resolveExecutionResultDeliveryPolicyForRuntime
 
-    const raw = await generateMainGatewayText({
-      system: prompt.system,
-      user: prompt.user,
-      timeoutMs: 15_000,
-      source: 'execution-callback',
-      cardId: input.cardId,
-      agentTurn: input.agentTurn,
-      agentTurnInput: input.agentTurnInput,
-      captureAgentSensorySnapshot: false,
-    })
-    if (!raw)
-      return null
+  const resolveExecutionSelfContinuityAuthorityForRuntime
+    = runtimeExecutionDelivery.resolveExecutionSelfContinuityAuthorityForRuntime
 
-    const parsed = parseJsonObjectFromText(raw)
-    if (!parsed)
-      return null
+  const resolveExecutionHostPersonModelForRuntime
+    = runtimeExecutionDelivery.resolveExecutionHostPersonModelForRuntime
 
-    const thought = sanitizeText(parsed.thought)
-    const reply = sanitizeText(parsed.reply)
-    const normalizedEmotion = normalizeAlicizationEmotion(parsed.emotion)
-    const performanceManifest = await getPerformanceManifest()
-    const performance = clampAlicizationPerformancePayloadToManifest(
-      normalizeAlicizationPerformancePayload(parsed.performance, normalizedEmotion.emotion),
-      performanceManifest,
-      normalizedEmotion.emotion,
-    ).performance
-    if (!thought || !reply || normalizedEmotion.downgraded)
-      return null
-
-    return {
-      thought,
-      emotion: performance.baseEmotion,
-      reply,
-      performance,
-      parsePath: 'json',
-      format: 'subconscious-proactive-llm-v1' as const,
-    }
-  }
-
-  async function resolveExecutionResultDeliveryPolicyForRuntime(input: {
-    agentTurn?: AlicizationAgentTurnRuntime | null
-    cardId: string
-    status: AlicizationTaskThreadRecord['status']
-  }) {
-    const spineFromTurn = input.agentTurn?.getSessionSnapshot().digitalLifeSpine ?? null
-    const state = spineFromTurn
-      ? null
-      : await ensureVisualPresenceState(input.cardId).catch(() => null)
-    const spine = spineFromTurn
-      ?? (state ? deriveAlicizationDigitalLifeSpineFromSurface(buildAlicizationDigitalLifeRuntimeSurface(state)) : null)
-
-    return deriveExecutionResultDeliveryPolicy({
-      digitalLifeSpine: spine,
-      status: input.status === 'completed' || input.status === 'failed' || input.status === 'blocked' || input.status === 'cancelled'
-        ? input.status
-        : 'completed',
-    })
-  }
-
-  async function resolveExecutionSelfContinuityAuthorityForRuntime(input: {
-    agentTurn?: AlicizationAgentTurnRuntime | null
-    cardId: string
-  }) {
-    const spineFromTurn = input.agentTurn?.getSessionSnapshot().digitalLifeSpine ?? null
-    const state = spineFromTurn
-      ? null
-      : await ensureVisualPresenceState(input.cardId).catch(() => null)
-    const runtimeSurface = spineFromTurn?.runtimeSurface
-      ?? (state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null)
-    return buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
-  }
-
-  async function resolveExecutionHostPersonModelForRuntime(input: {
-    agentTurn?: AlicizationAgentTurnRuntime | null
-    cardId: string
-  }) {
-    const runtimeSurface = input.agentTurn?.getSessionSnapshot().digitalLifeSpine?.runtimeSurface ?? null
-    if (runtimeSurface?.memory.hostPersonModel)
-      return runtimeSurface.memory.hostPersonModel
-    return await buildHostPersonModel({
-      now: Date.now(),
-    }).catch(() => null)
-  }
+  const resolveExecutionPersonStateProjectionForRuntime
+    = runtimeExecutionDelivery.resolveExecutionPersonStateProjectionForRuntime
 
   async function generateReminderStructuredWithGateway(
     personality: AlicizationPersonalityState,
@@ -6370,7 +4836,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     reminderClaimBatchSize,
     reminderOverdueTierThresholdMinutes,
     reminderLlmRetryDelayMs,
-    getSoulSnapshot: () => soulSnapshot,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
     bootstrap,
     generateReminderStructuredWithGateway,
     appendAuditLog,
@@ -6392,6 +4858,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveExecutionResultDeliveryPolicy: resolveExecutionResultDeliveryPolicyForRuntime,
     resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,
     resolveExecutionHostPersonModel: resolveExecutionHostPersonModelForRuntime,
+    resolveExecutionPersonStateProjection: resolveExecutionPersonStateProjectionForRuntime,
     persistExecutionDeliveryState: async cardId => await persistExecutionDeliveryState(cardId),
     queueSubconsciousWake,
     executionCallbackRuntime,
@@ -6507,7 +4974,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   const { runSubconsciousTickForCurrentCard } = createAlicizationSubconsciousTickRuntime({
     getActiveCardId: () => activeCardId,
-    getSoulSnapshot: () => soulSnapshot,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
     getAlicizationDb: () => alicizationDb,
     setProactiveLoopStateCache: (cardId: string, state: unknown) => proactiveLoopStateByCard.set(cardId, state as any),
     setSubconsciousStateCache: (cardId: string, state: unknown) => subconsciousStateByCard.set(cardId, state as any),
@@ -6647,7 +5114,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     ensureSubconsciousState,
     ensureProactiveLoopState,
     getAlicizationDb: () => alicizationDb,
-    getSoulSnapshot: () => soulSnapshot,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
     bootstrap,
     buildMainGatewayAgentTurnId,
     getActiveCardId: () => activeCardId,
@@ -6692,6 +5159,30 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             processedCards.push(activeCardId)
           else
             skippedCards.push({ cardId: activeCardId, reason: result.skippedReason ?? 'skipped' })
+
+          const shouldRunNightlyReplayBenchmark = reason === 'schedule-03:00' || reason === 'schedule-catch-up'
+          if (shouldRunNightlyReplayBenchmark) {
+            const nightlyResult = await replayBenchmarkRuntime.runNightlyReplayBenchmarkGate({
+              cardId: activeCardId,
+              persistTelemetry: true,
+              reason,
+            })
+            if (!nightlyResult.ran && nightlyResult.skippedReason) {
+              await appendRuntimeDebugLine('replay-benchmark-nightly.skipped', {
+                cardId: activeCardId,
+                reason,
+                skippedReason: nightlyResult.skippedReason,
+              })
+            }
+            else {
+              await appendRuntimeDebugLine('replay-benchmark-nightly.completed', {
+                cardId: activeCardId,
+                reason,
+                packIds: nightlyResult.results.map(item => item.packId),
+                failingKeys: nightlyResult.results.flatMap(item => item.gate.failingKeys),
+              })
+            }
+          }
         }, {
           label: `dream:${reason}:${cardId}`,
         })
@@ -6722,7 +5213,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     sensoryRuntime,
     ensureProactiveLoopState,
     ensureSubconsciousState,
-    getSoulSnapshot: () => soulSnapshot,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
     bootstrap,
     listPendingScheduledTaskCount: async limit => (await alicizationDb.listPendingScheduledTasks(limit).catch(() => [])).length,
     buildDigitalLifeMindState,
@@ -6749,14 +5240,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await executorRuntime.resumeMainGatewayTaskThread(input)
   }
 
-  const { prepareMainChatPrelude, prepareMainChatExecution } = createAlicizationMainChatPreludeRuntime({
-    readLatestUserMessageText,
+  const { prepareMainChatPrelude, prepareMainChatExecution } = mainChatRuntime.createPreludeRuntime({
     senderWebContentsIdFromInvokeOptions,
     resolveChatMessages,
-    buildMainChatContextualString,
-    buildMainChatExecutionCallbackContext,
-    buildMainChatExecutionLedgerContext,
-    buildMainChatPendingAffirmationThread,
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution: async input => await mainChatSessionRuntime.prepareExecution(input),
   })
@@ -6843,7 +5329,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordPreparedMindTrace: async ({ payload, prepared }) => {
         rememberPreparedMindTrace({ payload, prepared })
       },
-      resolveActiveDialogueDeterministicReply,
       suppressInlineExecutionDeliveries: async ({ cardId, entries }) => {
         let suppressedCount = 0
         for (const entry of entries) {
@@ -6946,8 +5431,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     withCardScope,
     cardIdFrom,
     bootstrap,
-    getSoulSnapshot: () => soulSnapshot,
-    getWatching: () => watching,
+    getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
+    getWatching: () => soulLifecycleState.watching,
     initializeGenesis,
     queueSoulMutation,
     parseSoul,
@@ -6986,18 +5471,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   registerAlicizationDialogueInvokeHandlers({
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),
     withCardScope,
-    normalizeCardId,
     normalizeSessionId,
     sanitizeText,
     appendRuntimeDebugLine,
     getActiveCardId: () => activeCardId,
     persistActiveSessionId,
     appendConversationTurnWithGuards,
-    getDialogueAckMap,
     getDialogueAckCursor,
-    persistDialogueAckMap,
-    pendingDialogueDeliveries,
-    clearPendingDialogueDelivery,
+    ackDialogueDelivery,
     ensureProactiveLoopState,
     reportExplicitProactiveFeedback,
     persistProactiveLoopState,
@@ -7063,7 +5544,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     screenSemanticCacheByCard,
     subconsciousStateByCard,
     activeSessionIdByCard,
-    dialogueAckByCard,
+    clearDialogueDeliveryCardState: cardId => dialogueDeliveryRuntime.clearCardState(cardId),
     clearDialogueSessionMirrorCard: cardId => dialogueSessionManager.clear(cardId),
     clearExecutionDeliveryStateMemory: (cardId: string) => executionDeliveryRuntime.clear(cardId),
     bootstrap,
@@ -7152,9 +5633,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     stopWatch()
     sensoryBus.stop('shutdown')
     turnWriteAbortControllers.clear()
-    for (const pending of pendingDialogueDeliveries.values())
-      clearPendingDialogueDelivery(pending)
-    pendingDialogueDeliveries.clear()
+    dialogueDeliveryRuntime.clearAllPendingDialogueDeliveries()
     mainChatRunState.clearAll()
     if (typeof ipcMain.removeHandler === 'function') {
       ipcMain.removeHandler(alicizationChatStartInvokeChannel)

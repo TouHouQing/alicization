@@ -3,11 +3,18 @@ import type {
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
   AlicizationOrganicMemorySnapshot,
+  AlicizationPersonaReinforcementEventRecord,
+  AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
+import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { ContextualConversationTurn } from './runtime-soul'
 
 import { filterOrganicMemoryEntries, isPersonaResidueMemoryText } from './organic-memory-hygiene'
@@ -26,9 +33,20 @@ import {
   alicizationPerformanceManifestMetaKey,
 } from './runtime-soul'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
+import {
+  buildAlicizationMemoryAccessCacheKey,
+  buildAlicizationMemoryAccessibilityPlan,
+  tuneMemoryConsolidationSearchInput,
+} from './memory-accessibility-runtime'
+import {
+  applyMemoryTuningAdviceToHostPersonModel,
+  parseMemoryTuningAdvice,
+  replayBenchmarkTuningAdviceMetaKey,
+} from './memory-tuning-advice'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 
-interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
+export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
+  getActiveCardId: () => string
   getSoulSnapshot: () => AlicizationSoulSnapshot | null
   bootstrap: () => Promise<AlicizationSoulSnapshot>
   listActiveThoughts: () => Promise<AlicizationActiveThought[]>
@@ -39,6 +57,23 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   setMetaValue: (key: string, value: string) => Promise<void>
   searchSubconsciousFragments: (query: string, limit: number) => Promise<AlicizationSubconsciousFragment[]>
   listRecentEpisodicEvents: (limit: number) => Promise<AlicizationEpisodicEventRecord[]>
+  listMemoryConsolidations: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
+  getLatestRelationshipDynamics: () => Promise<AlicizationRelationshipDynamicsState | null>
+  listRelationshipOutcomes: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  listPersonaReinforcementEvents: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+  }) => Promise<AlicizationPersonaReinforcementEventRecord[]>
+  summarizePersonStateEvolution: (input?: {
+    cardId?: string
+    limit?: number
+  }) => Promise<AlicizationPersonStateEvolutionSummary>
+  readMindHead: <T>(cardId: string, key: 'person-state-update-surface') => Promise<T | null>
   searchEpisodicEvents: (input: {
     recallSeed: string
     limit?: number
@@ -91,6 +126,64 @@ interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
 }
 
 export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlicizationOrganicMemoryAccessRuntimeOptions) {
+  const transientRecallCache = new Map<string, {
+    value: unknown
+    expiresAt: number
+  }>()
+
+  function readTransientRecallCache<T>(key: string, now = Date.now()) {
+    const cached = transientRecallCache.get(key)
+    if (!cached)
+      return null
+    if (cached.expiresAt <= now) {
+      transientRecallCache.delete(key)
+      return null
+    }
+    return cached.value as T
+  }
+
+  function writeTransientRecallCache(key: string, value: unknown, ttlMs: number, now = Date.now()) {
+    transientRecallCache.set(key, {
+      value,
+      expiresAt: now + Math.max(250, ttlMs),
+    })
+  }
+
+  async function prewarmAccessibilityLine(input: {
+    recallSeed: string
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    sessionId?: string | null
+    turnId?: string | null
+  }) {
+    const recallSeed = normalizeOrganicRecallText(input.recallSeed)
+    if (!recallSeed)
+      return null
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed,
+      recallGovernor: input.recallGovernor ?? null,
+    })
+    if (!plan.prewarmKey)
+      return plan
+
+    void recallEpisodicEventsWithGovernor({
+      recallSeed,
+      sessionId: input.sessionId ?? null,
+      turnId: input.turnId ?? null,
+      recallGovernor: input.recallGovernor ?? null,
+    }).catch(() => [])
+    void recallConversationHistory({
+      query: recallSeed,
+      limit: plan.conversationLimit,
+      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+    }).catch(() => [])
+    void recallMemoryConsolidations({
+      query: recallSeed,
+      limit: plan.consolidationLimit,
+      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+    }).catch(() => [])
+    return plan
+  }
+
   async function getOrganicMemorySnapshot() {
     const currentSoul = options.getSoulSnapshot() ?? await options.bootstrap()
     const [rawActiveThoughts, subconsciousCount, rawRecentSubconsciousFragments, rawLastDreamedAt] = await Promise.all([
@@ -178,10 +271,27 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed || input.recallGovernor?.mode === 'scene')
       return []
-
-    return await options.searchEpisodicEvents({
+    const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
-      limit: input.recallGovernor?.mode === 'emotional-resonance' ? 4 : 3,
+      recallGovernor: input.recallGovernor ?? null,
+    })
+    const cacheKey = buildAlicizationMemoryAccessCacheKey({
+      namespace: 'episodic',
+      recallSeed,
+      plan,
+      sessionId: input.sessionId ?? null,
+      turnId: input.turnId ?? null,
+    })
+    const cached = readTransientRecallCache<AlicizationEpisodicEventRecord[]>(cacheKey)
+    if (cached)
+      return cached
+
+    const rows = await options.searchEpisodicEvents({
+      recallSeed,
+      limit: Math.max(
+        input.recallGovernor?.mode === 'emotional-resonance' ? 4 : 3,
+        plan.episodicLimit,
+      ),
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
       threadAnchors: input.recallGovernor?.threadAnchors ?? [],
@@ -193,23 +303,52 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       allowDream: input.recallGovernor?.mode === 'self-continuity' || input.recallGovernor?.mode === 'emotional-resonance',
       recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
     }).catch(() => [])
+    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
+    return rows
   }
 
   async function buildHostPersonModel(input?: {
     now?: number
   }): Promise<AlicizationHostPersonModelSnapshot | null> {
     const now = Number.isFinite(input?.now) ? Number(input?.now) : Date.now()
-    const [events] = await Promise.all([
+    const cardId = options.getActiveCardId()
+    const [events, consolidations, relationshipDynamics, relationshipOutcomes, reinforcementEvents, personStateUpdateSurface] = await Promise.all([
       options.listRecentEpisodicEvents(18).catch(() => []),
+      options.listMemoryConsolidations(16).catch(() => []),
+      options.getLatestRelationshipDynamics().catch(() => null),
+      options.listRelationshipOutcomes({ cardId, limit: 16 }).catch(() => []),
+      options.listPersonaReinforcementEvents({ cardId, limit: 24 }).catch(() => []),
+      options.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null),
     ])
-    if (events.length === 0)
+    if (
+      events.length === 0
+      && consolidations.length === 0
+      && relationshipOutcomes.length === 0
+      && reinforcementEvents.length === 0
+      && !relationshipDynamics
+    ) {
       return null
-    return buildHostPersonModelSnapshot({
+    }
+    const baseModel = buildHostPersonModelSnapshot({
       events,
       facts: [],
-      relationshipDynamics: null,
+      consolidations,
+      relationshipOutcomes,
+      reinforcementEvents,
+      personStateUpdateSurface,
+      relationshipDynamics,
       now,
     })
+    const tuningAdvice = await getMemoryTuningAdvice().catch(() => null)
+    return applyMemoryTuningAdviceToHostPersonModel({
+      hostPersonModel: baseModel,
+      tuningAdvice,
+    })
+  }
+
+  async function getMemoryTuningAdvice(): Promise<AlicizationMemoryTuningAdvice | null> {
+    const raw = await options.getMetaValue(replayBenchmarkTuningAdviceMetaKey).catch(() => undefined)
+    return parseMemoryTuningAdvice(raw)
   }
 
   async function recallConversationHistory(input: {
@@ -217,11 +356,32 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
   }) {
-    return await options.searchConversationTurnsForRecall({
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: input.query,
+      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
+    })
+    const cacheKey = buildAlicizationMemoryAccessCacheKey({
+      namespace: 'conversation',
+      recallSeed: input.query,
+      plan,
+    })
+    const cached = readTransientRecallCache<Array<{
+      turnId: string | null
+      sessionId: string
+      userText: string
+      assistantText: string
+      createdAt: number
+    }>>(cacheKey)
+    if (cached)
+      return cached
+
+    const rows = await options.searchConversationTurnsForRecall({
       query: input.query,
-      limit: input.limit,
+      limit: Math.max(input.limit ?? 0, plan.conversationLimit),
       recollectionIntent: input.recollectionIntent ?? null,
     }).catch(() => [])
+    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
+    return rows
   }
 
   async function recallMemoryConsolidations(input: {
@@ -229,11 +389,29 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
   }) {
-    return await options.searchMemoryConsolidations({
-      query: input.query,
-      limit: input.limit,
-      recollectionIntent: input.recollectionIntent ?? null,
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: input.query,
+      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
+    })
+    const cacheKey = buildAlicizationMemoryAccessCacheKey({
+      namespace: 'consolidation',
+      recallSeed: input.query,
+      plan,
+    })
+    const cached = readTransientRecallCache<AlicizationMemoryConsolidationRecord[]>(cacheKey)
+    if (cached)
+      return cached
+
+    const rows = await options.searchMemoryConsolidations({
+      ...tuneMemoryConsolidationSearchInput({
+        query: input.query,
+        plan,
+        recollectionIntent: input.recollectionIntent ?? null,
+      }),
+      limit: Math.max(input.limit ?? 0, plan.consolidationLimit),
     }).catch(() => [])
+    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
+    return rows
   }
 
   async function resolveRecentContextualTurns(sessionId: string, turnCount: number) {
@@ -258,8 +436,10 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    getMemoryTuningAdvice,
     recallConversationHistory,
     recallMemoryConsolidations,
+    prewarmAccessibilityLine,
     resolveRecentContextualTurns,
   }
 }

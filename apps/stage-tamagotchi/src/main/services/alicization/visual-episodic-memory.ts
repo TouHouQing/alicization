@@ -1457,11 +1457,15 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
   const relationMove = candidate.relationMove
   const turnMode = candidate.turnMode
   const responseMode = candidate.responseMode
+  const replyRealizationMode = candidate.replyRealizationMode
+  const expectedVisibleReplyAuthority = candidate.expectedVisibleReplyAuthority
   const recommendedAct = candidate.recommendedAct
   const evidenceMode = candidate.evidenceMode
   const openingStyle = candidate.openingStyle
   const personaKernelMode = candidate.personaKernelMode
   const relationshipPosture = candidate.relationshipPosture
+  const activeClosenessContext = candidate.activeClosenessContext
+  const activeClosenessRung = candidate.activeClosenessRung
   if (
     (answerSubject !== 'alicization-self'
       && answerSubject !== 'relationship'
@@ -1498,6 +1502,13 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       && responseMode !== 'care-with-boundary'
       && responseMode !== 'accompany-lightly'
       && responseMode !== 'answer-naturally')
+    || (replyRealizationMode != null
+      && replyRealizationMode !== 'provider-mind-required'
+      && replyRealizationMode !== 'fallback-locally-allowed')
+    || (expectedVisibleReplyAuthority != null
+      && expectedVisibleReplyAuthority !== 'llm-mind'
+      && expectedVisibleReplyAuthority !== 'governed-repair-fallback'
+      && expectedVisibleReplyAuthority !== 'local-deterministic-fallback')
     || (recommendedAct !== 'answer'
       && recommendedAct !== 'guide'
       && recommendedAct !== 'ask-reground'
@@ -1517,6 +1528,19 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       && openingStyle !== 'light-accompaniment')
     || (personaKernelMode !== 'full' && personaKernelMode !== 'backgrounded' && personaKernelMode !== 'muted')
     || (relationshipPosture !== 'restrained' && relationshipPosture !== 'warm' && relationshipPosture !== 'tender')
+    || (activeClosenessContext != null
+      && activeClosenessContext !== 'focused-work'
+      && activeClosenessContext !== 'repair-window'
+      && activeClosenessContext !== 'late-night-care'
+      && activeClosenessContext !== 'execution-callback'
+      && activeClosenessContext !== 'open-companionship'
+      && activeClosenessContext !== 'general')
+    || (activeClosenessRung != null
+      && activeClosenessRung !== 'space-first'
+      && activeClosenessRung !== 'measured-room'
+      && activeClosenessRung !== 'nearby-soft'
+      && activeClosenessRung !== 'warm-near'
+      && activeClosenessRung !== 'close-hold')
   ) {
     return null
   }
@@ -1533,11 +1557,34 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     relationMove,
     turnMode,
     responseMode,
+    replyRealizationMode: replyRealizationMode === 'provider-mind-required' || replyRealizationMode === 'fallback-locally-allowed'
+      ? replyRealizationMode
+      : null,
+    expectedVisibleReplyAuthority: expectedVisibleReplyAuthority === 'llm-mind'
+      || expectedVisibleReplyAuthority === 'governed-repair-fallback'
+      || expectedVisibleReplyAuthority === 'local-deterministic-fallback'
+      ? expectedVisibleReplyAuthority
+      : null,
     recommendedAct,
     evidenceMode,
     openingStyle,
     personaKernelMode,
     relationshipPosture,
+    activeClosenessContext: activeClosenessContext === 'focused-work'
+      || activeClosenessContext === 'repair-window'
+      || activeClosenessContext === 'late-night-care'
+      || activeClosenessContext === 'execution-callback'
+      || activeClosenessContext === 'open-companionship'
+      || activeClosenessContext === 'general'
+      ? activeClosenessContext
+      : null,
+    activeClosenessRung: activeClosenessRung === 'space-first'
+      || activeClosenessRung === 'measured-room'
+      || activeClosenessRung === 'nearby-soft'
+      || activeClosenessRung === 'warm-near'
+      || activeClosenessRung === 'close-hold'
+      ? activeClosenessRung
+      : null,
     openingDirective,
     openingClaim,
     supportingReality: Array.isArray(candidate.supportingReality)
@@ -1548,6 +1595,18 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     nextMove: sanitizeText(candidate.nextMove, 180) || null,
     suppressAssociativeRecall: candidate.suppressAssociativeRecall === true,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
+    memoryShouldStayInward: typeof candidate.memoryShouldStayInward === 'boolean'
+      ? candidate.memoryShouldStayInward
+      : null,
+    memoryWhyNow: sanitizeText(candidate.memoryWhyNow, 220) || null,
+    memoryWhyWithheld: sanitizeText(candidate.memoryWhyWithheld, 220) || null,
+    memoryFollowUpAffordanceSummary: sanitizeText(candidate.memoryFollowUpAffordanceSummary, 220) || null,
+    memoryStableCore: Array.isArray(candidate.memoryStableCore)
+      ? candidate.memoryStableCore.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : null,
+    memoryUnsafeDetails: Array.isArray(candidate.memoryUnsafeDetails)
+      ? candidate.memoryUnsafeDetails.filter((item): item is string => typeof item === 'string').map(item => sanitizeText(item, 180)).filter(Boolean).slice(0, 6)
+      : null,
     maxSentences: Number.isFinite(Number(candidate.maxSentences))
       ? Math.max(1, Math.floor(Number(candidate.maxSentences)))
       : 4,

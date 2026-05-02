@@ -1,0 +1,579 @@
+import type {
+  AlicizationAuditLogInput,
+  AlicizationMemoryDecisionTraceRecord,
+  AlicizationMindTurnEventRecord,
+  AlicizationReplayBenchmarkFailureTurnRecord,
+  AlicizationReplayBenchmarkGateDimensionReport,
+  AlicizationReplayBenchmarkGateReport,
+  AlicizationReplayBenchmarkPackId,
+  AlicizationReplayBenchmarkStandardsRecord,
+  AlicizationReplayBenchmarkTelemetryPatch,
+  AlicizationRunReplayBenchmarkInput,
+  AlicizationRunReplayBenchmarkResult,
+} from '../../../shared/eventa'
+
+import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
+
+import {
+  benchmarkMainChatSessionReplay,
+  buildReplayBenchmarkBacklogPack,
+  buildReplayBenchmarkFailingTurnSet,
+  buildReplayHumanRatingRubric,
+  buildReplayBenchmarkMemoryStatsPatch,
+  buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildSampledHumanlikeMemoryBenchmarkPack,
+  mergeReplayBenchmarkDatasetBacklog,
+} from './main-chat-session-replay-harness'
+import {
+  deriveMemoryTuningAdviceFromReplayBenchmark,
+  replayBenchmarkTuningAdviceMetaKey,
+} from './memory-tuning-advice'
+
+interface ReplayConversationTurnRow {
+  turnId: string | null
+  sessionId: string
+  userText: string | null
+  assistantText: string | null
+  structuredJson: string | null
+  createdAt: number
+}
+
+interface ReplayBenchmarkDbAccess {
+  listConversationTurnsSince: (sinceExclusive: number, options?: {
+    limit?: number
+  }) => Promise<ReplayConversationTurnRow[]>
+  listMindTurnEvents: (options: {
+    decisionTraceId?: string
+    turnId?: string
+    activeThreadId?: string
+    limit?: number
+  }) => Promise<AlicizationMindTurnEventRecord[]>
+  getMemoryStats: () => Promise<any>
+  overrideMemoryStats: (next: any) => Promise<any>
+  getMetaValue: (key: string) => Promise<string | undefined>
+  setMetaValue: (key: string, value: string) => Promise<void>
+}
+
+interface CreateAlicizationReplayBenchmarkRuntimeOptions {
+  getAlicizationDb: () => ReplayBenchmarkDbAccess
+  appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
+  getNow?: () => number
+}
+
+export const replayBenchmarkDatasetBacklogKey = 'replay_benchmark_dataset_backlog_v1'
+export const replayBenchmarkRuntimeSamplingBacklogKey = 'replay_benchmark_runtime_sampling_backlog_v1'
+export const replayBenchmarkLatestReportMetaKey = 'replay_benchmark_latest_report_v1'
+export const replayBenchmarkLastNightlyRunDayKey = 'replay_benchmark_last_nightly_run_day_v1'
+
+function parseReplayBenchmarkDatasetBacklog(raw: string | undefined) {
+  if (!raw)
+    return [] as Array<Record<string, unknown>>
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.filter(item => item && typeof item === 'object') as Array<Record<string, unknown>>
+      : []
+  }
+  catch {
+    return []
+  }
+}
+
+function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmarkPackId {
+  return raw === 'sampled-humanlike-memory-v1'
+    || raw === 'backlog-humanlike-memory-v1'
+    || raw === 'default-humanlike-memory-v1'
+    ? raw
+    : 'default-humanlike-memory-v1'
+}
+
+function sanitizeReplayBenchmarkSampleText(raw: string) {
+  return raw
+    .replace(/https?:\/\/\S+/giu, '<url>')
+    .replace(/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/gu, '<email>')
+    .replace(/(?:\/Users\/|[A-Za-z]:\\)[^\s"'`]+/gu, '<path>')
+    .replace(/\b(?:mind|turn|session|thread):[A-Za-z0-9:_-]+\b/gu, '<id>')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/giu, '<uuid>')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function anonymizeReplayBenchmarkSample<T>(value: T): T {
+  if (typeof value === 'string')
+    return sanitizeReplayBenchmarkSampleText(value) as T
+  if (Array.isArray(value))
+    return value.map(item => anonymizeReplayBenchmarkSample(item)) as T
+  if (!value || typeof value !== 'object')
+    return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, anonymizeReplayBenchmarkSample(item)]),
+  ) as T
+}
+
+const replayBenchmarkStandardKeys = [
+  'eraSelectionQuality',
+  'procedureCarryQuality',
+  'wrongThreadSuppression',
+  'replyMemoryCoherence',
+  'implicitRecallQuality',
+  'temporalScopeFlexibility',
+  'recentOnlyDrift',
+  'surfaceRestraint',
+  'relationshipRepairAdaptation',
+  'closenessLadderDrift',
+  'eventGraphRecallCollapse',
+  'templateLeakage',
+] as const satisfies Array<keyof AlicizationReplayBenchmarkStandardsRecord>
+
+const replayBenchmarkThresholds: Record<keyof AlicizationReplayBenchmarkStandardsRecord, number> = {
+  eraSelectionQuality: 0.75,
+  procedureCarryQuality: 0.75,
+  wrongThreadSuppression: 0.75,
+  replyMemoryCoherence: 0.8,
+  implicitRecallQuality: 0.75,
+  temporalScopeFlexibility: 0.75,
+  recentOnlyDrift: 0.75,
+  surfaceRestraint: 0.75,
+  relationshipRepairAdaptation: 0.75,
+  closenessLadderDrift: 0.75,
+  eventGraphRecallCollapse: 0.75,
+  templateLeakage: 1,
+}
+
+function buildReplayBenchmarkNoopResult(input: {
+  packId: AlicizationReplayBenchmarkPackId
+  ranAt: number
+  telemetryPersisted: boolean
+  datasetFeedback: AlicizationRunReplayBenchmarkResult['datasetFeedback']
+}) {
+  const standards = Object.fromEntries(
+    replayBenchmarkStandardKeys.map(key => [key, 'pass']),
+  ) as unknown as AlicizationReplayBenchmarkStandardsRecord
+  const dimensions = replayBenchmarkStandardKeys.map((key): AlicizationReplayBenchmarkGateDimensionReport => ({
+    key,
+    status: 'pass',
+    applicableCount: 0,
+    passedCount: 0,
+    minimumPassingRatio: replayBenchmarkThresholds[key],
+    passedRatio: 1,
+    failingTurnIds: [],
+  }))
+  const gate: AlicizationReplayBenchmarkGateReport = {
+    passed: true,
+    failingKeys: [],
+    dimensions,
+    standards,
+  }
+  const telemetryPatch: AlicizationReplayBenchmarkTelemetryPatch = {
+    retrievalHealth: {
+      semanticLatencyMs: null,
+      graphLatencyMs: null,
+      reconstructionFrequency: 0,
+      reconstructedCount: 0,
+      templateLeakageFailCount: 0,
+    },
+  }
+  return {
+    packId: input.packId,
+    ranAt: input.ranAt,
+    turnCount: 0,
+    quality: [],
+    standards,
+    gate,
+    telemetryPatch,
+    telemetryPersisted: input.telemetryPersisted,
+    failingTurnSet: [] as AlicizationReplayBenchmarkFailureTurnRecord[],
+    datasetFeedback: {
+      ...input.datasetFeedback,
+      humanRatingRubric: buildReplayHumanRatingRubric(),
+      driftSignals: [],
+    },
+  } satisfies AlicizationRunReplayBenchmarkResult
+}
+
+async function collectTraceRecordsForConversationRows(input: {
+  db: ReplayBenchmarkDbAccess
+  rows: ReplayConversationTurnRow[]
+}) {
+  const traces: AlicizationMemoryDecisionTraceRecord[] = []
+  for (const row of input.rows) {
+    const turnId = typeof row.turnId === 'string' ? row.turnId.trim() : ''
+    if (!turnId)
+      continue
+    const events = await input.db.listMindTurnEvents({
+      turnId,
+      limit: 32,
+    })
+    const records = buildAlicizationMemoryDecisionTraceRecords(events)
+    const trace = records.find(record => record.turnId === turnId) ?? records[0] ?? null
+    if (trace)
+      traces.push(trace)
+  }
+  return traces
+}
+
+function buildNightlyDateKey(now: number) {
+  const date = new Date(now)
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+}
+
+function inferFallbackRuntimeSampleCategories(traceRecord: AlicizationMemoryDecisionTraceRecord) {
+  const categories = new Set<string>()
+  categories.add(traceRecord.origin === 'subconscious-proactive' ? 'proactive' : 'dialogue')
+  if ((traceRecord.governance?.repairState ?? 'none') !== 'none')
+    categories.add('repair')
+  return [...categories]
+}
+
+export function createAlicizationReplayBenchmarkRuntime(
+  options: CreateAlicizationReplayBenchmarkRuntimeOptions,
+) {
+  const getNow = options.getNow ?? (() => Date.now())
+
+  async function resolveBenchmarkTurns(input: {
+    packId: AlicizationReplayBenchmarkPackId
+    sampleLimit: number
+  }) {
+    const db = options.getAlicizationDb()
+    if (input.packId === 'default-humanlike-memory-v1')
+      return buildDefaultHumanlikeMemoryBenchmarkPack()
+
+    if (input.packId === 'backlog-humanlike-memory-v1') {
+      return buildReplayBenchmarkBacklogPack({
+        backlogEntries: parseReplayBenchmarkDatasetBacklog(
+          await db.getMetaValue(replayBenchmarkDatasetBacklogKey),
+        ),
+        limit: input.sampleLimit,
+      })
+    }
+
+    const runtimeSamplingBacklogTurns = buildReplayBenchmarkBacklogPack({
+      backlogEntries: parseReplayBenchmarkDatasetBacklog(
+        await db.getMetaValue(replayBenchmarkRuntimeSamplingBacklogKey),
+      ),
+      limit: input.sampleLimit,
+    })
+    if (runtimeSamplingBacklogTurns.length >= input.sampleLimit)
+      return runtimeSamplingBacklogTurns
+
+    const rows = await db.listConversationTurnsSince(0, {
+      limit: Math.max(input.sampleLimit * 12, input.sampleLimit),
+    })
+    const traces = await collectTraceRecordsForConversationRows({
+      db,
+      rows,
+    })
+    const rawTurns = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: rows,
+      memoryDecisionTraces: traces,
+      limit: input.sampleLimit,
+    })
+    if (runtimeSamplingBacklogTurns.length === 0)
+      return rawTurns
+
+    const selected = [...runtimeSamplingBacklogTurns]
+    const selectedTurnIds = new Set(selected.map(item => item.turnId))
+    for (const turn of rawTurns) {
+      if (selectedTurnIds.has(turn.turnId))
+        continue
+      selected.push(turn)
+      selectedTurnIds.add(turn.turnId)
+      if (selected.length >= input.sampleLimit)
+        break
+    }
+    return selected
+  }
+
+  async function ingestRuntimeSamplingConversationTurn(input: {
+    row: ReplayConversationTurnRow
+    traceRecords: AlicizationMemoryDecisionTraceRecord[]
+  }) {
+    const db = options.getAlicizationDb()
+    const turns = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [input.row],
+      memoryDecisionTraces: input.traceRecords,
+      limit: 1,
+    })
+
+    const traceRecord = input.traceRecords[0] ?? null
+    const fallbackTurn = traceRecord && input.row.turnId && input.row.userText
+      ? {
+          turnId: input.row.turnId,
+          userText: input.row.userText,
+          tracePointer: {
+            kind: 'decision-trace' as const,
+            packId: 'sampled-humanlike-memory-v1' as const,
+            turnId: input.row.turnId,
+            decisionTraceId: traceRecord.decisionTraceId,
+            sessionId: traceRecord.sessionId,
+            activeThreadId: traceRecord.activeThreadId,
+          },
+          sampledCategories: inferFallbackRuntimeSampleCategories(traceRecord),
+        }
+      : null
+    const selectedTurn = turns[0] ?? fallbackTurn
+    if (!selectedTurn)
+      return null
+
+    const anonymizedTurn = anonymizeReplayBenchmarkSample(selectedTurn)
+    const tracePointer = anonymizedTurn.tracePointer ?? {
+      kind: 'synthetic-pack-turn' as const,
+      packId: 'sampled-humanlike-memory-v1' as const,
+      turnId: anonymizedTurn.turnId,
+      decisionTraceId: null,
+      sessionId: null,
+      activeThreadId: null,
+    }
+    const id = [
+      'runtime-sample',
+      tracePointer.decisionTraceId ?? tracePointer.turnId,
+      input.row.createdAt,
+    ].join('::')
+    const existing = parseReplayBenchmarkDatasetBacklog(
+      await db.getMetaValue(replayBenchmarkRuntimeSamplingBacklogKey),
+    )
+    const nextEntries = new Map<string, Record<string, unknown>>(
+      existing.map(item => [String(item.id ?? ''), item]),
+    )
+    nextEntries.set(id, {
+      id,
+      packId: 'sampled-humanlike-memory-v1',
+      turnId: anonymizedTurn.turnId,
+      userText: anonymizedTurn.userText,
+      failingDimensions: [],
+      tracePointer,
+      sampledCategories: anonymizedTurn.sampledCategories ?? [],
+      replayTurn: anonymizedTurn,
+      createdAt: input.row.createdAt,
+    })
+    const merged = [...nextEntries.values()]
+      .sort((left, right) => Number(right.createdAt ?? 0) - Number(left.createdAt ?? 0))
+      .slice(0, 240)
+    await db.setMetaValue(
+      replayBenchmarkRuntimeSamplingBacklogKey,
+      JSON.stringify(merged),
+    )
+    return {
+      sampledTurn: anonymizedTurn,
+      totalCount: merged.length,
+    }
+  }
+
+  async function runReplayBenchmark(input: AlicizationRunReplayBenchmarkInput & {
+    auditContext?: {
+      category?: string
+      action?: string
+      cardId?: string
+    }
+  }) {
+    const db = options.getAlicizationDb()
+    const now = getNow()
+    const packId = normalizeReplayBenchmarkPackId(input.packId)
+    const persistTelemetry = input.persistTelemetry !== false
+    const sampleLimit = Math.max(1, Math.min(24, Math.floor(input.sampleLimit ?? 12)))
+    const turns = await resolveBenchmarkTurns({
+      packId,
+      sampleLimit,
+    })
+
+    const existingDatasetBacklog = parseReplayBenchmarkDatasetBacklog(
+      await db.getMetaValue(replayBenchmarkDatasetBacklogKey),
+    )
+    const datasetFeedback: AlicizationRunReplayBenchmarkResult['datasetFeedback'] = {
+      backlogKey: replayBenchmarkDatasetBacklogKey,
+      appendedCount: 0,
+      totalCount: existingDatasetBacklog.length,
+      persisted: false,
+      humanRatingRubric: buildReplayHumanRatingRubric(),
+      driftSignals: [],
+    }
+
+    if (turns.length === 0) {
+      return buildReplayBenchmarkNoopResult({
+        packId,
+        ranAt: now,
+        telemetryPersisted: persistTelemetry,
+        datasetFeedback,
+      })
+    }
+
+    const replay = await benchmarkMainChatSessionReplay({
+      turns,
+    })
+    const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
+      packId,
+      turns,
+      quality: replay.quality,
+      gate: replay.gate,
+    })
+
+    if (packId !== 'backlog-humanlike-memory-v1') {
+      const nextDatasetBacklog = mergeReplayBenchmarkDatasetBacklog({
+        existing: existingDatasetBacklog as any,
+        packId,
+        turns,
+        failingTurnSet,
+        now,
+      })
+      datasetFeedback.appendedCount = nextDatasetBacklog.appendedCount
+      datasetFeedback.totalCount = nextDatasetBacklog.entries.length
+      if (nextDatasetBacklog.appendedCount > 0) {
+        await db.setMetaValue(
+          replayBenchmarkDatasetBacklogKey,
+          JSON.stringify(nextDatasetBacklog.entries),
+        )
+        datasetFeedback.persisted = true
+      }
+    }
+
+    const telemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
+      gate: replay.gate,
+    })
+
+    if (persistTelemetry) {
+      const currentStats = await db.getMemoryStats()
+      await db.overrideMemoryStats({
+        ...currentStats,
+        retrievalHealth: {
+          ...currentStats?.retrievalHealth,
+          ...telemetryPatch.retrievalHealth,
+        },
+      })
+    }
+
+    const result = {
+      packId,
+      ranAt: now,
+      turnCount: turns.length,
+      quality: replay.quality,
+      standards: replay.standards,
+      gate: replay.gate,
+      telemetryPatch,
+      telemetryPersisted: persistTelemetry,
+      failingTurnSet,
+      datasetFeedback,
+    } satisfies AlicizationRunReplayBenchmarkResult
+
+    if (input.auditContext) {
+      await options.appendAuditLog({
+        level: result.gate.passed ? 'notice' : 'warning',
+        category: input.auditContext.category ?? 'alicization.memory-benchmark',
+        action: input.auditContext.action ?? 'replay-benchmark-ran',
+        message: result.gate.passed
+          ? `Replay benchmark gate passed for ${packId}.`
+          : `Replay benchmark gate found failing dimensions in ${packId}.`,
+        payload: {
+          packId,
+          sampledTurnCount: turns.length,
+          failingKeys: result.gate.failingKeys,
+          failingTurnCount: result.failingTurnSet.length,
+          datasetFeedback: result.datasetFeedback,
+          telemetryPatch: result.telemetryPatch,
+        },
+      }, input.auditContext.cardId)
+    }
+
+    return result
+  }
+
+  async function runNightlyReplayBenchmarkGate(input?: {
+    cardId?: string
+    sampleLimit?: number
+    persistTelemetry?: boolean
+    dateKey?: string
+    reason?: string
+  }) {
+    const db = options.getAlicizationDb()
+    const now = getNow()
+    const dateKey = input?.dateKey ?? buildNightlyDateKey(now)
+    const previousDateKey = await db.getMetaValue(replayBenchmarkLastNightlyRunDayKey)
+    if (previousDateKey === dateKey) {
+      return {
+        ran: false,
+        skippedReason: 'already-ran-today',
+        results: [] as AlicizationRunReplayBenchmarkResult[],
+      }
+    }
+
+    const sampledResult = await runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: input?.sampleLimit,
+      persistTelemetry: input?.persistTelemetry,
+      auditContext: {
+        category: 'alicization.memory-benchmark',
+        action: 'replay-benchmark-nightly-sampled-ran',
+        cardId: input?.cardId,
+      },
+    })
+    const backlogEntries = parseReplayBenchmarkDatasetBacklog(
+      await db.getMetaValue(replayBenchmarkDatasetBacklogKey),
+    )
+    const results: AlicizationRunReplayBenchmarkResult[] = [sampledResult]
+    if (backlogEntries.length > 0) {
+      const backlogResult = await runReplayBenchmark({
+        packId: 'backlog-humanlike-memory-v1',
+        sampleLimit: input?.sampleLimit,
+        persistTelemetry: input?.persistTelemetry,
+        auditContext: {
+          category: 'alicization.memory-benchmark',
+          action: 'replay-benchmark-nightly-backlog-ran',
+          cardId: input?.cardId,
+        },
+      })
+      results.push(backlogResult)
+    }
+
+    await db.setMetaValue(replayBenchmarkLastNightlyRunDayKey, dateKey)
+    await db.setMetaValue(replayBenchmarkLatestReportMetaKey, JSON.stringify({
+      ranAt: now,
+      dateKey,
+      reason: input?.reason ?? 'nightly',
+      packs: results.map(result => ({
+        packId: result.packId,
+        turnCount: result.turnCount,
+        gate: result.gate,
+        failingTurnSet: result.failingTurnSet,
+        datasetFeedback: result.datasetFeedback,
+      })),
+    }))
+    const tuningAdvice = deriveMemoryTuningAdviceFromReplayBenchmark({
+      results,
+      now,
+    })
+    await db.setMetaValue(
+      replayBenchmarkTuningAdviceMetaKey,
+      JSON.stringify(tuningAdvice),
+    )
+
+    await options.appendAuditLog({
+      level: results.some(result => !result.gate.passed) ? 'warning' : 'notice',
+      category: 'alicization.memory-benchmark',
+      action: 'replay-benchmark-nightly-ran',
+      message: results.some(result => !result.gate.passed)
+        ? 'Nightly replay benchmark gate found failing dimensions.'
+        : 'Nightly replay benchmark gate passed.',
+      payload: {
+        dateKey,
+        reason: input?.reason ?? 'nightly',
+        packs: results.map(result => ({
+          packId: result.packId,
+          turnCount: result.turnCount,
+          failingKeys: result.gate.failingKeys,
+          failingTurnCount: result.failingTurnSet.length,
+        })),
+      },
+    }, input?.cardId)
+
+    return {
+      ran: true,
+      results,
+    }
+  }
+
+  return {
+    parseReplayBenchmarkDatasetBacklog,
+    ingestRuntimeSamplingConversationTurn,
+    runReplayBenchmark,
+    runNightlyReplayBenchmarkGate,
+  }
+}

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationDeterministicExecutionDeliveryReply,
+  buildAlicizationExecutionPayoffDeterministicStructured,
   buildAlicizationExecutionPayoffPrompt,
+  buildAlicizationExecutionPayoffStructuredReply,
   buildAlicizationInlineExecutionOutcomeReply,
   selectAlicizationExecutionDeliveryReply,
 } from './execution-delivery-surface'
@@ -34,7 +36,7 @@ describe('execution delivery surface', () => {
     })
 
     expect(reply).toContain('callback fallback mirror ok')
-    expect(reply).toMatch(/有结果|落到结果|收束成结果|做完/u)
+    expect(reply).toMatch(/确认落稳|结果|收束/u)
   })
 
   it('keeps failure callbacks explicit when execution is blocked', () => {
@@ -47,7 +49,7 @@ describe('execution delivery surface', () => {
     })
 
     expect(reply).toContain('permission required')
-    expect(reply).toMatch(/跑出去|拦住|失败/u)
+    expect(reply).toMatch(/没真正离开准备面|拦住|失败/u)
   })
 
   it('renders inline executor listing replies without protocol leakage', () => {
@@ -163,6 +165,42 @@ describe('execution delivery surface', () => {
     expect(reply).toContain('patched runtime line')
   })
 
+  it('lets person-state projection act as the single cautious delivery authority for execution callbacks', () => {
+    const reply = buildAlicizationDeterministicExecutionDeliveryReply({
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['focused-work', 'execution-callback', 'execution'],
+        summary: 'regime=focused-work | closeness=space-first | repair=repair-first | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Repair the seam before leaning closer.',
+        preferredProactiveStyle: 'light-nudge',
+        preferenceText: 'Lighter touch, more room, less interruption pressure.',
+        sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+        repairTriggerText: 'If closeness feels heavy, back off first and reopen with lighter presence.',
+        burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        routineText: 'Focused work windows usually need space first, then precise follow-up.',
+        trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+        relationshipDoctrine: 'Trust is protected by repair before closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'focused-work',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(reply).toContain('你现在要是方便')
+    expect(reply).toContain('patched runtime line')
+  })
+
   it('threads self continuity authority into the payoff prompt surface', () => {
     const prompt = buildAlicizationExecutionPayoffPrompt({
       mode: 'callback-delivery',
@@ -219,5 +257,100 @@ describe('execution delivery surface', () => {
     expect(prompt.system).toContain('Host person model JSON')
     expect(prompt.system).toContain('cautious-open')
     expect(prompt.system).toContain('lighter touch')
+  })
+
+  it('threads person-state projection into the payoff prompt surface as the single social authority', () => {
+    const prompt = buildAlicizationExecutionPayoffPrompt({
+      mode: 'callback-delivery',
+      channel: 'codex',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      personStateProjection: {
+        contexts: ['focused-work', 'execution-callback', 'execution'],
+        summary: 'regime=focused-work | closeness=space-first | repair=repair-first | posture=restrained',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Repair the seam before leaning closer.',
+        preferredProactiveStyle: 'light-nudge',
+        preferenceText: 'Lighter touch, more room, less interruption pressure.',
+        sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+        repairTriggerText: 'If closeness feels heavy, back off first and reopen with lighter presence.',
+        burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        routineText: 'Focused work windows usually need space first, then precise follow-up.',
+        trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+        relationshipDoctrine: 'Trust is protected by repair before closeness.',
+        cautious: true,
+        restrained: true,
+        personalityContinuityState: {
+          currentRegime: 'focused-work',
+          closenessPosture: 'space-first',
+          repairPosture: 'repair-first',
+        } as any,
+      } as any,
+    })
+
+    expect(prompt.system).toContain('Person-state projection JSON')
+    expect(prompt.system).toContain('activeClosenessContext')
+    expect(prompt.system).toContain('activeClosenessRung')
+    expect(prompt.system).toContain('Repair the seam before leaning closer')
+    expect(prompt.system).toContain('single social authority')
+  })
+
+  it('normalizes callback delivery through the same mind-turn surface builder', () => {
+    const structured = buildAlicizationExecutionPayoffStructuredReply({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      thought: 'obligation=guide; truth=grounded; focus=execution-result; move=pay-off-finished-result; tone=direct',
+      emotion: 'thinking',
+      delivery: 'calm',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: 'attentive',
+        actionCue: 'focus',
+        delivery: 'calm',
+        emphasis: 0,
+      },
+    })
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect(structured.reply).toContain('patched runtime line')
+    expect(structured.thought).toContain('obligation=guide')
+    expect((structured as any).visibleReplyAuthority).toBe('llm-mind')
+  })
+
+  it('keeps deterministic callback structured payload on mind-turn-v1 instead of a separate callback-only surface', () => {
+    const structured = buildAlicizationExecutionPayoffDeterministicStructured({
+      mode: 'callback-delivery',
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+    })
+
+    expect(structured.format).toBe('mind-turn-v1')
+    expect(structured.reply).toContain('patched runtime line')
+    expect((structured as any).visibleReplyAuthority).toBe('governed-repair-fallback')
+  })
+
+  it('labels missing llm callback payoff as governed repair fallback instead of raw deterministic authority', () => {
+    const selected = selectAlicizationExecutionDeliveryReply({
+      channel: 'cli',
+      goal: 'Patch the runtime line.',
+      status: 'completed',
+      summary: 'patched runtime line',
+      outcome: 'patched runtime line',
+      llmReply: '',
+    })
+
+    expect(selected.source).toBe('llm-repaired')
+    expect(selected.reason).toBe('missing-llm-reply')
   })
 })

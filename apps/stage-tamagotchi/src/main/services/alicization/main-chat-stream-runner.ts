@@ -1,4 +1,10 @@
-import type { AlicizationChatStartPayload, AlicizationChatStreamChunkEvent, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent } from '../../../shared/eventa'
+import type {
+  AlicizationChatStartPayload,
+  AlicizationChatStreamChunkEvent,
+  AlicizationChatToolCallEvent,
+  AlicizationChatToolResultEvent,
+  AlicizationVisibleReplyExecution,
+} from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 
 import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
@@ -8,6 +14,7 @@ import { streamText } from '@xsai/stream-text'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
+import { resolveAlicizationPreparedVisibleReplyExecution } from './main-chat-visible-reply-execution'
 import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { parseJsonObjectFromText } from './runtime-transport-content'
@@ -17,6 +24,7 @@ type StreamTextInvoker = (input: Record<string, unknown>) => unknown
 export interface AlicizationMainChatStreamRunnerResult {
   finishReason: string
   fullText: string
+  visibleReplyExecution: AlicizationVisibleReplyExecution
 }
 
 export interface AlicizationMainChatStreamMetaController {
@@ -109,6 +117,12 @@ export async function runAlicizationMainChatStream(
     return {
       finishReason: visualOneShot.finishReason || 'stop',
       fullText: visualOneShot.fullText || '',
+      visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
+        prepared: input.prepared,
+        mode: 'provider-one-shot',
+        providerMindExecuted: true,
+        reason: 'visual-grounding-one-shot',
+      }),
     }
   }
 
@@ -415,5 +429,11 @@ export async function runAlicizationMainChatStream(
   return {
     finishReason,
     fullText,
+    visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: input.prepared,
+      mode: 'provider-stream',
+      providerMindExecuted: true,
+      reason: 'provider-stream',
+    }),
   }
 }

@@ -82,6 +82,44 @@ const episodicEvents = new Map<string, {
   reconsolidation_count: number
   latest_reconsolidation_json: string | null
 }>()
+const episodicReconsolidationOverlays = new Map<string, {
+  id: string
+  event_id: string
+  at: number
+  decision_trace_id: string | null
+  provenance: string
+  confidence: number
+  reason: string
+  emotion_tags_json: string | null
+  relationship_meaning: string | null
+  lesson: string | null
+  created_at: number
+}>()
+const eventGraphNodes = new Map<string, {
+  node_id: string
+  card_id: string
+  node_kind: string
+  canonical_key: string
+  label: string
+  semantic_text: string
+  provenance: string
+  source_event_id: string | null
+  payload_json: string | null
+  created_at: number
+  updated_at: number
+}>()
+const eventGraphEdges = new Map<string, {
+  edge_id: string
+  card_id: string
+  source_node_id: string
+  target_node_id: string
+  edge_kind: string
+  weight: number
+  provenance: string
+  payload_json: string | null
+  created_at: number
+  updated_at: number
+}>()
 const memoryConsolidations = new Map<string, {
   id: string
   kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
@@ -480,18 +518,66 @@ class FakeSqliteDatabase {
         latest_reconsolidation_json: existing?.latest_reconsolidation_json ?? null,
       })
     }
+    else if (sql.includes('INSERT INTO event_graph_nodes')) {
+      const [nodeId, cardId, nodeKind, canonicalKey, label, semanticText, provenance, sourceEventId, payloadJson, createdAt, updatedAt]
+        = actualParams as [string, string, string, string, string, string, string, string | null, string | null, number, number]
+      const existing = eventGraphNodes.get(nodeId)
+      eventGraphNodes.set(nodeId, {
+        node_id: nodeId,
+        card_id: cardId,
+        node_kind: nodeKind,
+        canonical_key: canonicalKey,
+        label,
+        semantic_text: semanticText,
+        provenance,
+        source_event_id: existing?.source_event_id ?? sourceEventId ?? null,
+        payload_json: existing?.payload_json ?? payloadJson ?? null,
+        created_at: existing?.created_at ?? createdAt,
+        updated_at: updatedAt,
+      })
+    }
+    else if (sql.includes('INSERT INTO event_graph_edges')) {
+      const [edgeId, cardId, sourceNodeId, targetNodeId, edgeKind, weight, provenance, payloadJson, createdAt, updatedAt]
+        = actualParams as [string, string, string, string, string, number, string, string | null, number, number]
+      const existing = eventGraphEdges.get(edgeId)
+      eventGraphEdges.set(edgeId, {
+        edge_id: edgeId,
+        card_id: cardId,
+        source_node_id: sourceNodeId,
+        target_node_id: targetNodeId,
+        edge_kind: edgeKind,
+        weight: Math.max(existing?.weight ?? 0, weight),
+        provenance,
+        payload_json: existing?.payload_json ?? payloadJson ?? null,
+        created_at: existing?.created_at ?? createdAt,
+        updated_at: updatedAt,
+      })
+    }
+    else if (sql.includes('INSERT INTO episodic_reconsolidation_overlays')) {
+      const [id, eventId, at, decisionTraceId, provenance, confidence, reason, emotionTagsJson, relationshipMeaning, lesson, createdAt]
+        = actualParams as [string, string, number, string | null, string, number, string, string | null, string | null, string | null, number]
+      episodicReconsolidationOverlays.set(id, {
+        id,
+        event_id: eventId,
+        at,
+        decision_trace_id: decisionTraceId ?? null,
+        provenance,
+        confidence,
+        reason,
+        emotion_tags_json: emotionTagsJson ?? null,
+        relationship_meaning: relationshipMeaning ?? null,
+        lesson: lesson ?? null,
+        created_at: createdAt,
+      })
+    }
     else if (sql.includes('UPDATE episodic_events')) {
-      const [confidence, emotionTagsJson, relationshipMeaning, lesson, updatedAt, lastRecalledAt, recallCount, reconsolidationCount, latestReconsolidationJson, id]
-        = actualParams as [number, string | null, string | null, string | null, number, number | null, number, number, string | null, string]
+      const [updatedAt, lastRecalledAt, recallCount, reconsolidationCount, latestReconsolidationJson, id]
+        = actualParams as [number, number | null, number, number, string | null, string]
       const event = episodicEvents.get(id)
       if (!event) {
         changes = 0
       }
       else {
-        event.confidence = confidence
-        event.emotion_tags_json = emotionTagsJson ?? null
-        event.relationship_meaning = relationshipMeaning ?? null
-        event.lesson = lesson ?? null
         event.updated_at = updatedAt
         event.last_recalled_at = lastRecalledAt ?? null
         event.recall_count = recallCount
@@ -658,6 +744,15 @@ class FakeSqliteDatabase {
     }
     else if (sql.includes('DELETE FROM episodic_events')) {
       episodicEvents.clear()
+    }
+    else if (sql.includes('DELETE FROM event_graph_edges')) {
+      eventGraphEdges.clear()
+    }
+    else if (sql.includes('DELETE FROM event_graph_nodes')) {
+      eventGraphNodes.clear()
+    }
+    else if (sql.includes('DELETE FROM episodic_reconsolidation_overlays')) {
+      episodicReconsolidationOverlays.clear()
     }
     else if (sql.includes('DELETE FROM memory_consolidations')) {
       memoryConsolidations.clear()
@@ -1001,6 +1096,34 @@ class FakeSqliteDatabase {
       actualCallback?.(null, rows)
       return this
     }
+    if (_sql.includes('FROM episodic_reconsolidation_overlays')) {
+      const ids = actualParams.map(value => String(value ?? ''))
+      const rows = [...episodicReconsolidationOverlays.values()]
+        .filter(overlay => ids.includes(overlay.event_id))
+        .sort((a, b) => {
+          if (a.at !== b.at)
+            return b.at - a.at
+          return b.created_at - a.created_at
+        })
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM event_graph_nodes')) {
+      const nodeIds = actualParams.map(value => String(value ?? ''))
+      const rows = [...eventGraphNodes.values()].filter(node => nodeIds.includes(node.node_id))
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM event_graph_edges')) {
+      const limit = Number(actualParams.at(-1) ?? 4000)
+      const ids = actualParams.slice(0, -1).map(value => String(value ?? ''))
+      const rows = [...eventGraphEdges.values()]
+        .filter(edge => ids.includes(edge.source_node_id) || ids.includes(edge.target_node_id))
+        .sort((a, b) => b.updated_at - a.updated_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
     if (_sql.includes('FROM memory_consolidations')) {
       const limit = Number(actualParams.at(-1) ?? 48)
       const rows = [...memoryConsolidations.values()]
@@ -1041,6 +1164,9 @@ describe('alicization sqlite dao', () => {
     taskThreads.clear()
     executionEvents.length = 0
     episodicEvents.clear()
+    episodicReconsolidationOverlays.clear()
+    eventGraphNodes.clear()
+    eventGraphEdges.clear()
     memoryConsolidations.clear()
     memoryFacts.clear()
     memoryArchive.clear()
@@ -1086,6 +1212,8 @@ describe('alicization sqlite dao', () => {
     expect(runCalls.some(sql => sql.includes('DELETE FROM task_threads'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM executor_sessions'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM executor_events'))).toBe(true)
+    expect(runCalls.some(sql => sql.includes('DELETE FROM event_graph_edges'))).toBe(true)
+    expect(runCalls.some(sql => sql.includes('DELETE FROM event_graph_nodes'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM scheduled_tasks'))).toBe(true)
     await db.close()
   })
@@ -1142,6 +1270,79 @@ describe('alicization sqlite dao', () => {
     expect(rows[0]?.recallCount).toBe(1)
     expect(rows[0]?.reconsolidationCount).toBe(1)
     expect(rows[0]?.latestReconsolidation?.emotionTags).toContain('repair')
+  })
+
+  it('persists event graph neighborhood rows alongside episodic events', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendEpisodicEvents([
+      {
+        id: 'episode-graph-source',
+        cardId: 'card-1',
+        turnId: 'turn-graph-source',
+        sessionId: 'session-graph',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+        whereSummary: 'terminal diff lane',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We returned to the same runtime seam before branching.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'The line held together.',
+        relationshipMeaning: 'Return to the seam before branching.',
+        lesson: 'Keep the same seam alive first.',
+        sourceSummary: 'runtime seam repair',
+        confidence: 0.84,
+        salience: 0.82,
+        sceneAttachment: 0.7,
+        consolidationPriority: 0.8,
+        derivedFrom: [
+          { kind: 'task-thread', id: 'thread-runtime-seam', label: 'runtime seam task thread' },
+          { kind: 'scene', label: 'terminal diff lane' },
+        ],
+        tags: ['runtime seam', 'repair rhythm'],
+      },
+      {
+        id: 'episode-graph-adjacent',
+        cardId: 'card-1',
+        turnId: 'turn-graph-adjacent',
+        sessionId: 'session-graph',
+        sourceKind: 'execution-result',
+        provenance: 'remembered',
+        occurredAt: Date.UTC(2026, 3, 20, 9, 0, 0),
+        whereSummary: 'handoff lane',
+        withWhom: ['host'],
+        threadAnchor: 'handoff carry',
+        whatHappened: 'That handoff only worked because we returned before branching.',
+        felt: 'steady',
+        emotionTags: ['focused'],
+        whatChanged: 'The line stayed coherent across the handoff.',
+        relationshipMeaning: 'Carry the same line before opening a new branch.',
+        lesson: 'Return before branching when reconnecting the task line.',
+        sourceSummary: 'runtime seam handoff',
+        confidence: 0.76,
+        salience: 0.74,
+        sceneAttachment: 0.48,
+        consolidationPriority: 0.72,
+        derivedFrom: [{ kind: 'episodic-event', id: 'episode-graph-source' }],
+        tags: ['return before branching', 'handoff'],
+      },
+    ])
+
+    const neighborhood = await db.listEventGraphNeighborhood({
+      eventIds: ['episode-graph-adjacent'],
+    })
+
+    expect(neighborhood.nodes.map(node => node.nodeId)).toContain('event:episode-graph-adjacent')
+    expect(neighborhood.nodes.map(node => node.nodeKind)).toContain('task-thread')
+    expect(neighborhood.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceNodeId: 'event:episode-graph-adjacent',
+        targetNodeId: 'event:episode-graph-source',
+        edgeKind: 'derived-from',
+      }),
+    ]))
   })
 
   it('keeps contradictory remembered variants without deleting them and lowers certainty on recall', async () => {

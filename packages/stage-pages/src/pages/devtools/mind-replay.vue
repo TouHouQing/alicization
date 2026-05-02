@@ -7,7 +7,7 @@ import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import MindReplayBenchmarkReport from './components/mind-replay-benchmark-report.vue'
+import MindReplayDiagnosisPanel from './components/mind-replay-diagnosis-panel.vue'
 import MindReplayMemoryTraceCard from './components/mind-replay-memory-trace-card.vue'
 
 const store = useAlicizationMindReplayStore()
@@ -19,6 +19,13 @@ const {
   benchmarkLoading,
   benchmarkSupported,
   benchmarkReport,
+  selectedBenchmarkPackId,
+  selectedBenchmarkSampleLimit,
+  selectedDiagnosisDimension,
+  selectedDiagnosisTurnId,
+  benchmarkDimensionGroups,
+  filteredBenchmarkFailingTurns,
+  memoryHealthComparisonRows,
   lastError,
   replayCoverage,
   replaySummary,
@@ -216,9 +223,14 @@ function clearAll() {
 
 async function runBenchmark() {
   await store.runReplayBenchmark({
-    packId: 'default-humanlike-memory-v1',
+    packId: selectedBenchmarkPackId.value,
+    sampleLimit: selectedBenchmarkSampleLimit.value,
     persistTelemetry: true,
   })
+}
+
+async function inspectBenchmarkTurn(turnId: string | null) {
+  await store.drillDownBenchmarkTurn(turnId)
 }
 </script>
 
@@ -298,31 +310,24 @@ async function runBenchmark() {
       </div>
     </section>
 
-    <section
-      :class="[
-        'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
-        'bg-white/70', 'p-4',
-        'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
-      ]"
-    >
-      <div :class="['mb-3', 'flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
-        <div :class="['text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
-          {{ tMind('benchmark.section_title', 'Replay Benchmark') }}
-        </div>
-        <Button
-          :label="tMind('benchmark.run', 'Run Default Benchmark')"
-          icon="i-solar:play-circle-bold-duotone"
-          size="sm"
-          :disabled="benchmarkLoading || !benchmarkSupported"
-          @click="runBenchmark"
-        />
-      </div>
-      <MindReplayBenchmarkReport
-        :report="benchmarkReport"
-        :loading="benchmarkLoading"
-        :supported="benchmarkSupported"
-      />
-    </section>
+    <MindReplayDiagnosisPanel
+      :report="benchmarkReport"
+      :loading="benchmarkLoading"
+      :supported="benchmarkSupported"
+      :pack-id="selectedBenchmarkPackId"
+      :sample-limit="selectedBenchmarkSampleLimit"
+      :dimension-groups="benchmarkDimensionGroups"
+      :selected-dimension="selectedDiagnosisDimension"
+      :failing-turns="filteredBenchmarkFailingTurns"
+      :selected-turn-id="selectedDiagnosisTurnId"
+      :memory-health-rows="memoryHealthComparisonRows"
+      @run="runBenchmark"
+      @update:pack-id="store.setBenchmarkPackId($event)"
+      @update:sample-limit="store.setBenchmarkSampleLimit($event)"
+      @update:selected-dimension="store.setSelectedDiagnosisDimension($event)"
+      @update:selected-turn-id="store.setSelectedDiagnosisTurnId($event)"
+      @inspect-turn="inspectBenchmarkTurn"
+    />
 
     <section
       :class="[

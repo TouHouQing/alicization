@@ -34,6 +34,17 @@ function createPrepared(overrides?: Partial<any>) {
   } as any
 }
 
+function createVisibleReplyExecution(overrides?: Partial<any>) {
+  return {
+    mode: 'provider-stream',
+    expectedVisibleReplyAuthority: 'llm-mind',
+    actualVisibleReplyAuthority: 'llm-mind',
+    providerMindExecuted: true,
+    reason: 'provider-stream',
+    ...overrides,
+  }
+}
+
 function createStreamMetaController() {
   let lastReply = ''
   return {
@@ -86,6 +97,10 @@ describe('main chat stream runner', () => {
     expect(result).toEqual({
       finishReason: 'stop',
       fullText: '我先看着这个窗口。',
+      visibleReplyExecution: createVisibleReplyExecution({
+        mode: 'provider-one-shot',
+        reason: 'visual-grounding-one-shot',
+      }),
     })
     expect(generateNonStreaming).toHaveBeenCalledOnce()
     expect(streamTextImpl).not.toHaveBeenCalled()
@@ -149,6 +164,7 @@ describe('main chat stream runner', () => {
     expect(result).toEqual({
       finishReason: 'stop',
       fullText: '你好。',
+      visibleReplyExecution: createVisibleReplyExecution(),
     })
     expect([...nonProgressEventTypes]).toEqual(['provider-keepalive'])
     expect(incrementChunkStats).toHaveBeenNthCalledWith(1, '你好')
@@ -221,6 +237,7 @@ describe('main chat stream runner', () => {
     expect(result).toEqual({
       finishReason: 'stop',
       fullText: structuredText,
+      visibleReplyExecution: createVisibleReplyExecution(),
     })
     expect(emitChunk).toHaveBeenCalledTimes(1)
     expect(emitChunk).toHaveBeenCalledWith({
@@ -357,6 +374,7 @@ describe('main chat stream runner', () => {
     expect(result).toEqual({
       finishReason: 'stop',
       fullText: '你好',
+      visibleReplyExecution: createVisibleReplyExecution(),
     })
     expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.first-event-timeout-grace-armed', expect.objectContaining({
       cardId: 'card-1',

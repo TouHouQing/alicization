@@ -16,11 +16,20 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
+import {
+  buildMemoryLatentBoundaryTag,
+  buildMemoryOpeningStrategyTag,
+} from './memory-deliberation-latent-controls'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
 export interface AlicizationResponseSurfaceContract {
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
+  replyRealizationMode?: 'provider-mind-required' | 'fallback-locally-allowed'
+  expectedVisibleReplyAuthority?: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  activeClosenessContext?: string | null
+  activeClosenessRung?: string | null
   maxParagraphs: number
   maxSentences: number
   personaKernelMode: AlicizationPersonaKernelMode
@@ -29,6 +38,7 @@ export interface AlicizationResponseSurfaceContract {
   allowBodyNarration: boolean
   labelCarryAsMemory: boolean
   suppressAssociativeRecall: boolean
+  recollectionLatentControls?: string[] | null
   mustDo: string[]
   mustNotDo: string[]
 }
@@ -41,6 +51,7 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
     return {
       mustDo: [] as string[],
       mustNotDo: [] as string[],
+      latentControls: [] as string[],
     }
   }
 
@@ -48,47 +59,123 @@ export function buildRecollectionSpeechVisibleSurfaceRules(
   const mustNotDo: string[] = []
   const controls = deriveRecollectionSurfaceControls(speechPlan)
   if (!controls)
-    return { mustDo, mustNotDo }
+    return { mustDo, mustNotDo, latentControls: [] as string[] }
 
-  if (!controls.shouldSurface || controls.visibility === 'internal-only') {
-    pushUnique(mustDo, 'Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
-    pushUnique(mustDo, 'If memory stays internal, let it bend stance, choice of detail, or tone rather than announcing the memory itself.')
-    pushUnique(mustNotDo, 'Do not dump recalled memory into the visible reply just because it became mentally active.')
-    pushUnique(mustNotDo, 'Do not reuse drafted recollection wording verbatim in the visible reply.')
-    return { mustDo, mustNotDo }
-  }
+  const latentControls = [
+    `recollection_surface_permission=${!controls.shouldSurface || controls.visibility === 'internal-only' ? 'inward-only' : controls.visibility === 'embedded-payoff' ? 'soft-surface' : 'explicit-surface'}`,
+    `recollection_visibility=${controls.visibility}`,
+    `recollection_continuity_role=${controls.continuityRole}`,
+    `recollection_certainty_floor=${controls.certainty}`,
+    `recollection_payoff_order=${controls.visibility === 'brief-before-payoff' ? 'memory-before-payoff' : 'payoff-first'}`,
+    `recollection_template_boundary=${controls.templateBoundary}`,
+    `recollection_label_uncertainty=${controls.certainty === 'firm' ? 'no' : 'yes'}`,
+    `recollection_frame_prior_procedure=${controls.continuityRole === 'procedure-carry' ? 'yes' : 'no'}`,
+    `recollection_avoid_archive_dump=yes`,
+    `recollection_avoid_date_recital=yes`,
+    `recollection_avoid_execution_impersonation=${controls.continuityRole === 'procedure-carry' ? 'yes' : 'no'}`,
+    buildMemoryOpeningStrategyTag({
+      memoryPressure: 'medium',
+      certaintyPosture: controls.certainty,
+      certaintyFloor: controls.certainty,
+      relationshipVector: controls.continuityRole === 'procedure-carry'
+        ? 'procedural'
+        : controls.continuityRole === 'relationship-carry'
+          ? 'relational'
+          : controls.continuityRole === 'period-carry'
+            ? 'threaded'
+            : 'neutral',
+      procedureCarryStrength: controls.continuityRole === 'procedure-carry' ? 0.72 : 0,
+      conflictBurden: controls.certainty === 'fragmentary' ? 'high' : controls.certainty === 'approximate' ? 'medium' : 'none',
+      dominantProvenance: 'remembered',
+      provenancePosture: 'remembered-memory',
+      detailAssertionBudget: controls.certainty === 'firm' ? 'open' : controls.certainty === 'approximate' ? 'guarded' : 'minimal',
+      surfacePermission: !controls.shouldSurface || controls.visibility === 'internal-only' ? 'inward-only' : controls.visibility === 'embedded-payoff' ? 'soft-surface' : 'explicit-surface',
+      retrospectiveDepth: controls.continuityRole === 'period-carry' ? 'period' : controls.continuityRole === 'memory-carry' ? 'fragment' : 'thread',
+      openingStrategy: !controls.shouldSurface || controls.visibility === 'internal-only'
+        ? 'payoff-first-inward-carry'
+        : controls.continuityRole === 'procedure-carry'
+          ? 'brief-procedure-carry'
+          : controls.continuityRole === 'relationship-carry'
+            ? 'brief-relationship-carry'
+            : 'embedded-memory-carry',
+      answerStrategy: controls.continuityRole === 'procedure-carry'
+        ? 'procedure-anchor'
+        : controls.continuityRole === 'relationship-carry'
+          ? 'relationship-anchor'
+          : controls.continuityRole === 'period-carry'
+            ? 'period-anchor'
+            : 'stance-first',
+      visibilityDiscipline: !controls.shouldSurface || controls.visibility === 'internal-only'
+        ? 'internal-influence-only'
+        : controls.visibility === 'embedded-payoff'
+          ? 'embedded-visible-memory'
+          : 'brief-visible-memory',
+      labelUncertainty: controls.certainty !== 'firm',
+      frameAsPriorProcedure: controls.continuityRole === 'procedure-carry',
+      avoidArchiveDump: true,
+      avoidDateRecital: true,
+      avoidExecutionImpersonation: controls.continuityRole === 'procedure-carry',
+      stableCore: [],
+      unsafeDetails: [],
+    }),
+    buildMemoryLatentBoundaryTag({
+      memoryPressure: 'medium',
+      certaintyPosture: controls.certainty,
+      certaintyFloor: controls.certainty,
+      relationshipVector: controls.continuityRole === 'procedure-carry'
+        ? 'procedural'
+        : controls.continuityRole === 'relationship-carry'
+          ? 'relational'
+          : controls.continuityRole === 'period-carry'
+            ? 'threaded'
+            : 'neutral',
+      procedureCarryStrength: controls.continuityRole === 'procedure-carry' ? 0.72 : 0,
+      conflictBurden: controls.certainty === 'fragmentary' ? 'high' : controls.certainty === 'approximate' ? 'medium' : 'none',
+      dominantProvenance: 'remembered',
+      provenancePosture: 'remembered-memory',
+      detailAssertionBudget: controls.certainty === 'firm' ? 'open' : controls.certainty === 'approximate' ? 'guarded' : 'minimal',
+      surfacePermission: !controls.shouldSurface || controls.visibility === 'internal-only' ? 'inward-only' : controls.visibility === 'embedded-payoff' ? 'soft-surface' : 'explicit-surface',
+      retrospectiveDepth: controls.continuityRole === 'period-carry' ? 'period' : controls.continuityRole === 'memory-carry' ? 'fragment' : 'thread',
+      openingStrategy: !controls.shouldSurface || controls.visibility === 'internal-only'
+        ? 'payoff-first-inward-carry'
+        : controls.continuityRole === 'procedure-carry'
+          ? 'brief-procedure-carry'
+          : controls.continuityRole === 'relationship-carry'
+            ? 'brief-relationship-carry'
+            : 'embedded-memory-carry',
+      answerStrategy: controls.continuityRole === 'procedure-carry'
+        ? 'procedure-anchor'
+        : controls.continuityRole === 'relationship-carry'
+          ? 'relationship-anchor'
+          : controls.continuityRole === 'period-carry'
+            ? 'period-anchor'
+            : 'stance-first',
+      visibilityDiscipline: !controls.shouldSurface || controls.visibility === 'internal-only'
+        ? 'internal-influence-only'
+        : controls.visibility === 'embedded-payoff'
+          ? 'embedded-visible-memory'
+          : 'brief-visible-memory',
+      labelUncertainty: controls.certainty !== 'firm',
+      frameAsPriorProcedure: controls.continuityRole === 'procedure-carry',
+      avoidArchiveDump: true,
+      avoidDateRecital: true,
+      avoidExecutionImpersonation: controls.continuityRole === 'procedure-carry',
+      stableCore: [],
+      unsafeDetails: [],
+    }),
+  ]
 
-  if (controls.visibility === 'brief-before-payoff')
-    pushUnique(mustDo, 'If recollection is surfaced, let one brief remembered gesture open the reply before the main payoff.')
-  else if (controls.visibility === 'brief-after-payoff')
-    pushUnique(mustDo, 'Pay off the live ask first, then add at most one brief recollection only if it sharpens continuity.')
-  else
-    pushUnique(mustDo, 'Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
-
-  pushUnique(mustDo, 'Keep any surfaced recollection subordinate to the live payoff rather than following drafted memory wording.')
   pushUnique(mustNotDo, 'Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
-
-  if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary') {
-    pushUnique(mustDo, 'Keep the visible recollection approximate and uncertainty-aware instead of claiming exactness.')
-    pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
-  }
-
-  if (controls.continuityRole === 'procedure-carry') {
-    pushUnique(mustDo, 'Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
-    pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
-  }
-
-  if (controls.continuityRole === 'relationship-carry')
-    pushUnique(mustDo, 'If bond history is surfaced, keep it relational and current-turn-relevant instead of narrating a long retrospective.')
-
-  if (controls.continuityRole === 'period-carry')
-    pushUnique(mustDo, 'If memory opens from a remembered period, keep it as one short period cue before the actual payoff.')
-
   pushUnique(mustNotDo, 'Do not turn recollection into a standalone archive dump or date-recital.')
+  if (controls.certainty === 'approximate' || controls.certainty === 'fragmentary')
+    pushUnique(mustNotDo, 'Do not present fragmentary or approximate recollection as exact remembered wording.')
+  if (controls.continuityRole === 'procedure-carry')
+    pushUnique(mustNotDo, 'Do not let remembered procedure impersonate fresh execution completion.')
 
   return {
     mustDo,
     mustNotDo,
+    latentControls,
   }
 }
 
@@ -99,6 +186,23 @@ function pushUnique(target: string[], value: string) {
   if (target.includes(normalized))
     return
   target.push(normalized)
+}
+
+function resolveAffectionatePrefaceAllowance(input: {
+  personaKernelMode: AlicizationPersonaKernelMode
+  briefTurnMode: AlicizationExecutiveAnswerBrief['turnMode']
+  relationshipPosture: AlicizationResponseCharter['relationshipPosture']
+  activeClosenessRung?: string | null
+}) {
+  if (input.personaKernelMode !== 'full')
+    return false
+  if (!input.activeClosenessRung)
+    return input.briefTurnMode === 'care' && input.relationshipPosture !== 'restrained'
+  if (input.activeClosenessRung === 'close-hold')
+    return input.briefTurnMode === 'care' || input.briefTurnMode === 'accompany'
+  if (input.activeClosenessRung === 'warm-near')
+    return input.briefTurnMode === 'care'
+  return false
 }
 
 interface AlicizationDialogueEncounterSurface extends Pick<
@@ -130,8 +234,13 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
-  const recollectionIntent = runtimeSurface?.memory.recallGovernor?.recollectionIntent ?? null
+  const personStateProjection = runtimeSurface?.memory.personStateProjection ?? null
   const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
+  const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
+    deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
+    speech: recollectionSpeechPlan,
+    recollectionIntent: null,
+  })
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: dialogueEncounterSurface?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
@@ -144,6 +253,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     suppressAssociativeRecall: answerCompiler?.suppressAssociativeRecall ?? false,
     claimEvidenceLedger,
     currentConsciousFrame: null,
+    memoryRestraint: memoryDeliberationKernel?.restraint ?? null,
   })
 
   const openingStyle = input.executionReplyObligation
@@ -175,18 +285,28 @@ export function buildAlicizationResponseSurfaceContract(input: {
       : brief.turnMode === 'grounded-inspection' || brief.turnMode === 'screen-repair'
         ? 4
         : 4)
-
-  const allowAffectionatePreface = personaKernelMode === 'full'
-    && brief.turnMode === 'care'
-    && charter.relationshipPosture !== 'restrained'
+  const replyRealizationMode = answerCompiler?.replyRealizationMode ?? 'provider-mind-required'
+  const expectedVisibleReplyAuthority = answerCompiler?.expectedVisibleReplyAuthority ?? 'llm-mind'
+  const activeClosenessContext = personStateProjection?.activeClosenessContext ?? charter.activeClosenessContext ?? null
+  const activeClosenessRung = personStateProjection?.activeClosenessRung ?? charter.activeClosenessRung ?? null
+  const allowAffectionatePreface = resolveAffectionatePrefaceAllowance({
+    personaKernelMode,
+    briefTurnMode: brief.turnMode,
+    relationshipPosture: charter.relationshipPosture,
+    activeClosenessRung,
+  })
   const allowStageDirections = false
   const allowBodyNarration = false
   const explicitDialogueFirstSurfaceAvoid = dialogueEncounterSurface?.screenReferenceMode === 'avoid'
     || dialogueFocus?.screenReferenceMode === 'avoid'
     || answerCompiler?.screenReferenceMode === 'avoid'
-  const labelCarryAsMemory = truthDiscipline.shouldBlockScreenCarry
+  const baseLabelCarryAsMemory = answerCompiler?.labelCarryAsMemory
+    ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain')
+  const labelCarryAsMemory = truthDiscipline.shouldKeepMemoryInward || truthDiscipline.shouldBlockScreenCarry
     ? false
-    : (answerCompiler?.labelCarryAsMemory ?? (brief.separateCarryFromSurface || brief.truthState === 'remembered' || brief.truthState === 'uncertain'))
+    : truthDiscipline.shouldLabelMemoryProvenance
+      ? true
+      : baseLabelCarryAsMemory
   const suppressAssociativeRecall = truthDiscipline.shouldSuppressAssociativeRecall || (answerCompiler?.suppressAssociativeRecall ?? (brief.turnMode === 'grounded-inspection'
     || (brief.turnMode === 'screen-repair' && (brief.separateCarryFromSurface || brief.carriedThread !== null))
     || brief.turnMode === 'guide-current-knot'
@@ -197,12 +317,18 @@ export function buildAlicizationResponseSurfaceContract(input: {
     'Keep the reply compact and current-turn-governed.',
     'Speak as someone fulfilling the present obligation, not as someone performing a default persona script.',
     'Sound like one continuing subject in the moment, not like a narrator summarizing internal state.',
+    replyRealizationMode === 'provider-mind-required'
+      ? 'Fully realize the visible reply inside this provider-mind turn instead of leaving payoff wording for a later local fallback layer.'
+      : 'Only use local fallback wording when this turn is explicitly marked as a fallback-only lane.',
   ]
   const mustNotDo = [
     'Do not begin with moans, pet names, ellipsis-only prefaces, or decorative roleplay.',
     'Do not use parenthetical stage directions or body-action narration.',
     'Do not mirror or lightly paraphrase the host\'s latest line as the spine of the reply.',
     'Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.',
+    replyRealizationMode === 'provider-mind-required'
+      ? 'Do not stop at a thin shell that assumes a local deterministic layer will finish the real visible reply for you.'
+      : 'Do not pretend a fallback-only lane is a provider-mind authored normal answer.',
   ]
 
   if (openingStyle === 'direct-correction') {
@@ -244,6 +370,21 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (truthDiscipline.forbidUnsupportedSpecificity) {
     pushUnique(mustNotDo, 'Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
   }
+  if (truthDiscipline.shouldKeepMemoryInward) {
+    pushUnique(mustDo, 'Let remembered continuity contour the answer from the inside instead of announcing recollection outright.')
+    pushUnique(mustNotDo, 'Do not surface recollection just because it is active internally; keep the live payoff in front.')
+  }
+  if (truthDiscipline.shouldOnlySurfaceMemoryStableCore) {
+    pushUnique(mustDo, 'If recollection becomes visible, let only the stable remembered core cross onto the surface.')
+    pushUnique(mustNotDo, 'Do not let contested remembered detail outrun the stable core.')
+  }
+  if (truthDiscipline.shouldLabelMemoryProvenance) {
+    pushUnique(mustDo, 'If recollection becomes visible, mark it as memory, residue, inference, or reconstruction rather than settled live fact.')
+  }
+  if (truthDiscipline.shouldDelayMemoryUntilAfterPayoff) {
+    pushUnique(mustDo, 'Land the live payoff first, then reopen remembered continuity only if room remains.')
+    pushUnique(mustNotDo, 'Do not let recollection step in front of the current payoff.')
+  }
   if (digitalLifeArchitecture?.operatingMode === 'speaking' || digitalLifeArchitecture?.dominantSystem === 'dialogue') {
     pushUnique(mustDo, 'Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
   }
@@ -263,6 +404,29 @@ export function buildAlicizationResponseSurfaceContract(input: {
   if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
     pushUnique(mustDo, 'If warmth appears, keep it brief and subordinate to the actual issue.')
   }
+  if (personStateProjection) {
+    pushUnique(mustDo, `Keep the visible closeness inside this ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`)
+    if (personStateProjection.activeClosenessRung === 'space-first' || personStateProjection.activeClosenessRung === 'measured-room') {
+      pushUnique(mustNotDo, 'Do not let visible warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
+    }
+    if (personStateProjection.activeClosenessRung === 'nearby-soft') {
+      pushUnique(mustDo, 'Let care stay low-pressure and nearby-soft rather than widening into high-energy companionship.')
+    }
+    if (personStateProjection.activeClosenessRung === 'close-hold') {
+      pushUnique(mustDo, 'If warmth comes forward, keep it lived-in and bounded rather than theatrical.')
+    }
+  }
+  if (activeClosenessContext === 'execution-callback') {
+    pushUnique(mustDo, 'Keep callback delivery thread-faithful and bounded to the same result line.')
+    pushUnique(mustNotDo, 'Do not widen a bounded execution callback into generic companionship tone.')
+  }
+  if (activeClosenessContext === 'repair-window') {
+    pushUnique(mustDo, 'Let repair stay visibly ahead of closeness until the seam is actually steady.')
+    pushUnique(mustNotDo, 'Do not write as if warmth is already restored before the repair lands.')
+  }
+  if (activeClosenessContext === 'open-companionship') {
+    pushUnique(mustDo, 'If warmth comes forward, let it stay openly near and lived-in instead of turning theatrical or generic.')
+  }
   if (
     brief.turnMode === 'care'
     || brief.turnMode === 'accompany'
@@ -275,18 +439,10 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustDo, 'If carried continuity is mentioned, label it as memory, residue, or the thread still being held.')
     pushUnique(mustNotDo, 'Do not present carried continuity as the literal current screen.')
   }
-  if (recollectionIntent && recollectionIntent.mode !== 'none') {
-    pushUnique(mustDo, 'If remembered material enters the visible reply, let one recollected period, relationship line, or remembered approach lead before finer details.')
-    pushUnique(mustDo, 'Phrase recollection as remembered continuity rather than current observation.')
-    if (recollectionIntent.temporalFocus === 'cross-session' || recollectionIntent.temporalFocus === 'distant') {
-      pushUnique(mustDo, 'When the recalled memory feels distant or reconstructed, allow approximate wording instead of overclaiming exactness.')
-      pushUnique(mustNotDo, 'Do not present distant remembered details as verbatim certainty unless the turn truly grounds them.')
-    }
-    if (recollectionIntent.searchProceduralExperience) {
-      pushUnique(mustDo, 'If the turn is asking how something was previously handled, surface the remembered way of doing it before proposing a new branch.')
-      pushUnique(mustNotDo, 'Do not speak as if remembered procedure means the current task already finished in this turn.')
-    }
-  }
+  for (const item of memoryDeliberationKernel?.restraint.mustDo ?? [])
+    pushUnique(mustDo, item)
+  for (const item of memoryDeliberationKernel?.restraint.mustNotDo ?? [])
+    pushUnique(mustNotDo, item)
   const recollectionSpeechRules = buildRecollectionSpeechVisibleSurfaceRules(recollectionSpeechPlan)
   for (const item of recollectionSpeechRules.mustDo)
     pushUnique(mustDo, item)
@@ -305,6 +461,10 @@ export function buildAlicizationResponseSurfaceContract(input: {
 
   const contract: AlicizationResponseSurfaceContract = {
     openingStyle,
+    replyRealizationMode,
+    expectedVisibleReplyAuthority,
+    activeClosenessContext,
+    activeClosenessRung,
     maxParagraphs,
     maxSentences,
     personaKernelMode,
@@ -313,6 +473,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     allowBodyNarration,
     labelCarryAsMemory,
     suppressAssociativeRecall,
+    recollectionLatentControls: recollectionSpeechRules.latentControls,
     mustDo,
     mustNotDo,
   }
@@ -323,6 +484,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
       '[ALICIZATION_RESPONSE_SURFACE]',
       'This block controls the visible surface of the reply. It outranks persona performance habits.',
       `Opening style: ${contract.openingStyle}.`,
+      `Reply realization mode: ${contract.replyRealizationMode}.`,
+      `Expected visible reply authority: ${contract.expectedVisibleReplyAuthority}.`,
+      contract.activeClosenessContext && contract.activeClosenessRung
+        ? `Closeness ladder: ${contract.activeClosenessContext}/${contract.activeClosenessRung}.`
+        : '',
       `Maximum paragraphs: ${contract.maxParagraphs}.`,
       `Maximum sentences: ${contract.maxSentences}.`,
       `Persona kernel mode: ${contract.personaKernelMode}.`,
@@ -331,6 +497,15 @@ export function buildAlicizationResponseSurfaceContract(input: {
       `Body narration allowed: ${contract.allowBodyNarration ? 'yes' : 'no'}.`,
       `Label carried continuity explicitly: ${contract.labelCarryAsMemory ? 'yes' : 'no'}.`,
       `Suppress associative recall noise for this turn: ${contract.suppressAssociativeRecall ? 'yes' : 'no'}.`,
+      `Truth discipline memory surface: ${truthDiscipline.memorySurfaceMode ?? 'none'}.`,
+      `Truth discipline memory provenance: ${truthDiscipline.memoryProvenanceMode ?? 'none'}.`,
+      `Truth discipline memory inward-only: ${truthDiscipline.shouldKeepMemoryInward ? 'yes' : 'no'}.`,
+      `Truth discipline stable-core-only: ${truthDiscipline.shouldOnlySurfaceMemoryStableCore ? 'yes' : 'no'}.`,
+      `Truth discipline delay memory until payoff: ${truthDiscipline.shouldDelayMemoryUntilAfterPayoff ? 'yes' : 'no'}.`,
+      truthDiscipline.memoryWhyWithheld
+        ? `Truth discipline memory why withheld: ${truthDiscipline.memoryWhyWithheld}.`
+        : '',
+      ...(contract.recollectionLatentControls ?? []).map(item => `- ${item}`),
       digitalLifeArchitecture
         ? `Digital life mode: ${digitalLifeArchitecture.operatingMode}.`
         : '',

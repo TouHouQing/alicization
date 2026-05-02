@@ -14,7 +14,19 @@ function createAlicizationBridgeStub(overrides?: Partial<Parameters<typeof setAl
     getKillSwitchState: vi.fn(),
     suspendKillSwitch: vi.fn(),
     resumeKillSwitch: vi.fn(),
-    getMemoryStats: vi.fn(),
+    getMemoryStats: vi.fn().mockResolvedValue({
+      total: 0,
+      active: 0,
+      archived: 0,
+      lastPrunedAt: null,
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0,
+        reconstructedCount: 0,
+        templateLeakageFailCount: 0,
+      },
+    }),
     runMemoryPrune: vi.fn(),
     updateMemoryStats: vi.fn(),
     retrieveMemoryFacts: vi.fn(),
@@ -269,8 +281,35 @@ describe('alicization mind replay store', () => {
   })
 
   it('runs the default replay benchmark when the bridge exposes it', async () => {
+    const getMemoryStats = vi.fn()
+      .mockResolvedValueOnce({
+        total: 10,
+        active: 9,
+        archived: 1,
+        lastPrunedAt: null,
+        retrievalHealth: {
+          semanticLatencyMs: 11,
+          graphLatencyMs: 22,
+          reconstructionFrequency: 1,
+          reconstructedCount: 3,
+          templateLeakageFailCount: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        total: 10,
+        active: 9,
+        archived: 1,
+        lastPrunedAt: null,
+        retrievalHealth: {
+          semanticLatencyMs: 11,
+          graphLatencyMs: 22,
+          reconstructionFrequency: 1,
+          reconstructedCount: 3,
+          templateLeakageFailCount: 2,
+        },
+      })
     const runReplayBenchmark = vi.fn().mockResolvedValue({
-      packId: 'default-humanlike-memory-v1',
+      packId: 'sampled-humanlike-memory-v1',
       ranAt: 123,
       turnCount: 11,
       quality: [],
@@ -286,13 +325,180 @@ describe('alicization mind replay store', () => {
         templateLeakage: 'pass',
       },
       gate: {
-        passed: true,
-        failingKeys: [],
-        dimensions: [],
+        passed: false,
+        failingKeys: ['wrongThreadSuppression'],
+        dimensions: [{
+          key: 'wrongThreadSuppression',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-failing-1'],
+        }],
         standards: {
           eraSelectionQuality: 'pass',
           procedureCarryQuality: 'pass',
-          wrongThreadSuppression: 'pass',
+          wrongThreadSuppression: 'fail',
+          replyMemoryCoherence: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          templateLeakage: 'pass',
+        },
+      },
+      telemetryPatch: {
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 2,
+        },
+      },
+      telemetryPersisted: true,
+      failingTurnSet: [
+        {
+          turnId: 'turn-failing-1',
+          userText: '不是那条线，是另一条',
+          failingDimensions: ['wrongThreadSuppression'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-failing-1',
+            decisionTraceId: 'mind:failing:1',
+            sessionId: 'session-1',
+            activeThreadId: 'thread-1',
+          },
+          sampledCategories: ['wrong-thread'],
+        },
+      ],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 1,
+        totalCount: 1,
+        persisted: true,
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      getMemoryStats,
+      runReplayBenchmark,
+    }))
+
+    const store = useAlicizationMindReplayStore()
+    const result = await store.runReplayBenchmark()
+
+    expect(runReplayBenchmark).toBeCalledWith({
+      packId: 'sampled-humanlike-memory-v1',
+      persistTelemetry: undefined,
+      sampleLimit: 12,
+    })
+    expect(store.benchmarkSupported).toBe(true)
+    expect(store.benchmarkReport).toEqual(result)
+    expect(store.benchmarkStatsBefore).toEqual(expect.objectContaining({
+      retrievalHealth: expect.objectContaining({
+        templateLeakageFailCount: 0,
+      }),
+    }))
+    expect(store.benchmarkStatsAfter).toEqual(expect.objectContaining({
+      retrievalHealth: expect.objectContaining({
+        templateLeakageFailCount: 2,
+      }),
+    }))
+    expect(store.benchmarkDimensionGroups).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'wrongThreadSuppression',
+      }),
+    ]))
+    expect(store.filteredBenchmarkFailingTurns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-failing-1',
+        decisionTraceId: 'mind:failing:1',
+      }),
+    ]))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'templateLeakageFailCount')).toEqual(expect.objectContaining({
+      before: 0,
+      after: 2,
+      patch: 2,
+    }))
+  })
+
+  it('filters failing turns by dimension and drills down through decision trace id', async () => {
+    const listMindTurnEvents = vi.fn().mockResolvedValue([
+      {
+        id: 'evt-1',
+        decisionTraceId: 'mind:failing:1',
+        turnId: 'turn-failing-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'governance-normalized',
+        payload: null,
+        createdAt: 100,
+      },
+      {
+        id: 'evt-2',
+        decisionTraceId: 'mind:failing:1',
+        turnId: 'turn-failing-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'persistence-written',
+        payload: null,
+        createdAt: 120,
+      },
+    ])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
+      {
+        decisionTraceId: 'mind:failing:1',
+        turnId: 'turn-failing-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        activeThreadId: 'thread-1',
+        createdAt: 100,
+        lastUpdatedAt: 120,
+        eventKinds: ['governance-normalized', 'persistence-written'],
+        governance: null,
+        recallAttribution: null,
+        replyMemoryCoherence: null,
+        persistenceWritten: null,
+        dialogueEmitted: null,
+        takeoverAudit: null,
+        memoryFactsUpserted: null,
+      },
+    ])
+    const runReplayBenchmark = vi.fn().mockResolvedValue({
+      packId: 'sampled-humanlike-memory-v1',
+      ranAt: 123,
+      turnCount: 1,
+      quality: [],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'fail',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        templateLeakage: 'pass',
+      },
+      gate: {
+        passed: false,
+        failingKeys: ['wrongThreadSuppression'],
+        dimensions: [{
+          key: 'wrongThreadSuppression',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-failing-1'],
+        }],
+        standards: {
+          eraSelectionQuality: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'fail',
           replyMemoryCoherence: 'pass',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'pass',
@@ -311,20 +517,49 @@ describe('alicization mind replay store', () => {
         },
       },
       telemetryPersisted: true,
+      failingTurnSet: [{
+        turnId: 'turn-failing-1',
+        userText: '不是那条线，是另一条',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-failing-1',
+          decisionTraceId: 'mind:failing:1',
+          sessionId: 'session-1',
+          activeThreadId: 'thread-1',
+        },
+        sampledCategories: ['wrong-thread'],
+      }],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 1,
+        totalCount: 1,
+        persisted: true,
+      },
     })
-
     setAlicizationBridge(createAlicizationBridgeStub({
       runReplayBenchmark,
+      listMindTurnEvents,
+      listMemoryDecisionTraces,
     }))
-
     const store = useAlicizationMindReplayStore()
-    const result = await store.runReplayBenchmark()
+    await store.runReplayBenchmark()
+    store.setSelectedDiagnosisDimension('wrongThreadSuppression')
 
-    expect(runReplayBenchmark).toBeCalledWith({
-      packId: 'default-humanlike-memory-v1',
-      persistTelemetry: undefined,
+    expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
+      turnId: 'turn-failing-1',
+    }))
+    await store.drillDownBenchmarkTurn('turn-failing-1')
+    expect(listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: 'mind:failing:1',
+      turnId: undefined,
+      limit: 200,
     })
-    expect(store.benchmarkSupported).toBe(true)
-    expect(store.benchmarkReport).toEqual(result)
+    expect(store.traceRecords).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        decisionTraceId: 'mind:failing:1',
+      }),
+    ]))
   })
 })

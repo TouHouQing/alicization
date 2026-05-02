@@ -30,6 +30,7 @@ import {
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
 } from './main-chat-runtime-surface'
+import { deriveAlicizationContinuityDeliberationForFastPath } from './continuity-deliberation'
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
 import {
   buildAlicizationMindSurfaceDialogueMove,
@@ -72,7 +73,6 @@ export type AlicizationActiveDialogueFastPathLane
 
 export type AlicizationActiveDialogueFastPathStrategy
   = | 'local-only'
-    | 'deterministic-payoff'
     | 'compact-one-shot'
 
 export class AlicizationActiveDialogueMindAuthorityEscalationError extends Error {
@@ -135,6 +135,7 @@ interface AlicizationActiveDialogueEncounterContext {
   previousAssistantText: string
   continuityAnchor: string
   preparedExecutionCarryText: string
+  runtimeDigest: AlicizationRuntimeDigest | null
   sessionMirror: AlicizationDialogueSessionMirror | null
   shortTurn: boolean
   hasContinuity: boolean
@@ -486,9 +487,20 @@ function deriveAlicizationActiveDialogueEncounter(
       || remainingFollowUpPattern.test(input.latestUserText)
       || continuityCheckPattern.test(input.latestUserText)
     )
+  const continuityAuthority = deriveAlicizationContinuityDeliberationForFastPath({
+    runtimeDigest: input.runtimeDigest,
+    continuityAnchor: input.continuityAnchor,
+    preparedExecutionCarryText: input.preparedExecutionCarryText,
+    latestUserText: input.latestUserText,
+    previousUserText: input.previousUserText,
+    previousAssistantText: input.previousAssistantText,
+    sessionMirror: input.sessionMirror,
+    shortTurn: input.shortTurn,
+    hasContinuity: input.hasContinuity,
+  })
 
   if (explicitCarry) {
-    const executionCarry = looksLikeExecutionCarry({
+    const executionCarry = continuityAuthority.kind === 'execution-callback' || looksLikeExecutionCarry({
       continuityAnchor: input.continuityAnchor,
       previousAssistantText: input.previousAssistantText,
       preparedExecutionCarryText: input.preparedExecutionCarryText,
@@ -502,6 +514,8 @@ function deriveAlicizationActiveDialogueEncounter(
         'short-follow-up',
         'explicit-carry',
         input.hasContinuity ? 'session-carry' : '',
+        continuityAuthority.kind === 'dialogue-carry' ? 'continuity-authority-dialogue' : '',
+        continuityAuthority.kind === 'memory-follow-up' ? 'continuity-authority-memory' : '',
         input.preparedExecutionCarryText ? 'prepared-execution-ledger' : '',
         executionCarry ? 'execution-carry' : '',
         executionCarry ? 'execution-carry-llm-authored' : '',
@@ -1108,7 +1122,10 @@ function describeFastPathMind(decision: AlicizationActiveDialogueFastPathDecisio
   }
 }
 
-function buildFastPathGovernance(decision: AlicizationActiveDialogueFastPathDecision): AlicizationMindTurnGovernance {
+function buildFastPathGovernance(
+  decision: AlicizationActiveDialogueFastPathDecision,
+  visibleReplyAuthority: AlicizationMindTurnGovernance['visibleReplyAuthority'] = 'llm-mind',
+): AlicizationMindTurnGovernance {
   const descriptor = describeFastPathMind(decision)
   const baseGovernance = decision.governance
   const focusAnchor = descriptor.focus
@@ -1180,6 +1197,7 @@ function buildFastPathGovernance(decision: AlicizationActiveDialogueFastPathDeci
     decisionTraceId: baseGovernance?.decisionTraceId ?? null,
     turnMode: descriptor.turnMode,
     truthState: descriptor.truthState,
+    visibleReplyAuthority,
     groundedThisTurn,
     personaKernelMode: baseGovernance?.personaKernelMode ?? 'full',
     openingStyle: descriptor.openingStyle,
@@ -1980,8 +1998,12 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
   delivery?: string
   performance?: Partial<AlicizationDialoguePerformancePayload> | null
   suppressGovernedLead?: boolean
+  visibleReplyAuthority?: AlicizationMindTurnGovernance['visibleReplyAuthority']
 }) {
-  const governance = buildFastPathGovernance(input.decision)
+  const governance = buildFastPathGovernance(
+    input.decision,
+    input.visibleReplyAuthority ?? 'llm-mind',
+  )
   const governedThought = buildFastPathGovernedThought(input.decision, governance)
   const moves = input.moves?.length
     ? input.moves
@@ -2018,6 +2040,7 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
       decision,
       reply: directInfraFallback,
       suppressGovernedLead: true,
+      visibleReplyAuthority: 'local-deterministic-fallback',
     })
   }
 
@@ -2025,7 +2048,14 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
     decision,
     moves: buildDecisionLocalMoves(decision),
     suppressGovernedLead: true,
+    visibleReplyAuthority: 'local-deterministic-fallback',
   })
+}
+
+function allowsDeterministicVisibleReplyForDecision(
+  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
+) {
+  return decision.strategy === 'local-only'
 }
 
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
@@ -2068,13 +2098,14 @@ function normalizeCompactReplyPayload(
     localFallbackMode?: 'allow' | 'escalate'
   },
 ) {
-  const localFallbackMode = options?.localFallbackMode ?? 'allow'
+  const localFallbackMode = options?.localFallbackMode
+    ?? (allowsDeterministicVisibleReplyForDecision(decision) ? 'allow' : 'escalate')
   // NOTICE: Explicit `local-only` decisions are infra-only fallback lanes.
   // Any other strategy must escalate instead of silently synthesizing a local
   // visible reply, otherwise deterministic fallback would leak back into the
   // normal reply authority surface.
   const shouldEscalateLocalAuthoring = localFallbackMode === 'escalate'
-    && decision.strategy !== 'local-only'
+    && !allowsDeterministicVisibleReplyForDecision(decision)
   const normalizedRaw = sanitizeText(raw, 2_000)
   if (!normalizedRaw) {
     if (shouldEscalateLocalAuthoring) {
@@ -2175,6 +2206,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     previousAssistantText,
     continuityAnchor,
     preparedExecutionCarryText,
+    runtimeDigest,
     sessionMirror,
     shortTurn,
     hasContinuity,
@@ -2198,7 +2230,6 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     && (recollectionIntent.searchConversations || recollectionIntent.searchProceduralExperience || recollectionIntent.mode === 'autobiographical-history' || recollectionIntent.mode === 'relationship-history')
   const adjustedEncounter = memoryHeavyRecollection && (
     encounter.strategy === 'local-only'
-    || encounter.strategy === 'deterministic-payoff'
     || encounter.kind === 'follow-up'
   )
     ? {

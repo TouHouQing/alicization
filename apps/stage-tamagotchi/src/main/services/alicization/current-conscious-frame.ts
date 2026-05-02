@@ -14,9 +14,13 @@ import type {
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { buildAlicizationDialogueGrowthProfile, type AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
+import {
+  buildAlicizationPersonalityContinuityState,
+  type AlicizationPersonalityContinuityStateSnapshot,
+} from './personality-continuity-state'
 import { sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
+import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -175,6 +179,7 @@ function resolveConsciousNeed(input: {
   dialogueEncounter?: AlicizationDialogueEncounterSurface | null
   primaryAnchor: string | null
   growthProfile: AlicizationDialogueGrowthProfile
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }) {
   const surfaceNeed = pickSurfaceText(
     input.conversationState?.owedRepair,
@@ -188,6 +193,9 @@ function resolveConsciousNeed(input: {
         ? `The seam still feels off around ${lowerFirst(stripTrailingPunctuation(surfaceNeed))}, and I need to steady it before I keep going.`
         : 'The seam still feels off, and I need to steady it before I keep going.'
     case 'guide':
+      if (input.personalityContinuityState?.currentRegime === 'execution-callback') {
+        return 'I need to land the returned result on the same live thread it came from, without letting the callback sprawl into a second reality.'
+      }
       return pickSurfaceText(
         input.primaryAnchor,
         input.conversationState?.unansweredQuestion,
@@ -204,6 +212,12 @@ function resolveConsciousNeed(input: {
           )))}.`
         : 'The knot wants my hands on it, not a speech around it.'
     case 'care':
+      if (
+        input.personalityContinuityState?.currentRegime === 'focused-work'
+        && input.personalityContinuityState.autonomyPosture === 'protect-space'
+      ) {
+        return 'I need to stay close to the host’s present state without crowding the working space they are still inside.'
+      }
       return pickSurfaceText(
         input.primaryAnchor,
         input.answerCompiler.careVector,
@@ -312,17 +326,21 @@ export function buildCurrentConsciousFrame(input: {
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const initiative = runtimeSurface?.agency.initiative ?? input.initiative ?? null
   const desireMemory = runtimeSurface?.memory.desireMemory ?? input.desireMemory ?? null
-  const growthProfile = buildAlicizationDialogueGrowthProfile({
-    autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
-    hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
-    longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
-    motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
-    habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
-    selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
-    selfState: runtimeSurface?.agency.selfState ?? null,
-    privateThought,
-    mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
-  })
+  const personalityContinuityState = runtimeSurface?.memory.personalityContinuityState
+    ?? runtimeSurface?.memory.personStateProjection?.personalityContinuityState
+    ?? buildAlicizationPersonalityContinuityState({
+      now: input.now,
+      autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
+      hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
+      longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
+      motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
+      habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,
+      selfContinuity: runtimeSurface?.memory.selfContinuity ?? null,
+      selfState: runtimeSurface?.agency.selfState ?? null,
+      privateThought,
+      mindEcology: runtimeSurface ? buildMindEcologyFromRuntimeSurface(runtimeSurface) : null,
+    })
+  const growthProfile = personalityContinuityState.growthProfile
 
   if (!discourseState || !answerCompiler)
     return null
@@ -372,6 +390,7 @@ export function buildCurrentConsciousFrame(input: {
     dialogueEncounter,
     primaryAnchor,
     growthProfile,
+    personalityContinuityState,
   })
   const surfaceTension = pickSurfaceText(
     strongestMindStatement(mindSynthesis?.concerns)?.summary,
@@ -421,6 +440,9 @@ export function buildCurrentConsciousFrame(input: {
       `subject:${dialogueEncounter?.subject ?? discourseState.currentTurnSubject}`,
       `center:${centerOfGravity}`,
       `discipline:${truthDiscipline}`,
+      `continuity-regime:${personalityContinuityState.currentRegime}`,
+      `continuity-repair:${personalityContinuityState.repairPosture}`,
+      `continuity-rhythm:${personalityContinuityState.rhythmState.cadenceMode}:${personalityContinuityState.rhythmState.restMode}`,
       privateThought?.stance ? `stance:${privateThought.stance}` : null,
       initiative?.selectedAction ? `initiative:${initiative.selectedAction}` : null,
       answerCompiler.recommendedAct ? `act:${answerCompiler.recommendedAct}` : null,

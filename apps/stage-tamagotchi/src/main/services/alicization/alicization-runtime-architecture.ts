@@ -3,6 +3,7 @@ import type { AlicizationActiveLoopSnapshot } from './alicization-active-loop'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 
 import { deriveAlicizationActiveLoopSnapshot } from './alicization-active-loop'
+import { deriveAlicizationContinuityDeliberationFromSpine } from './continuity-deliberation'
 
 export type AlicizationRuntimeChannelId
   = | 'dialogue'
@@ -103,25 +104,9 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
-function uniqueTextList(values: Array<string | null | undefined>, maxItems = 4) {
-  const result: string[] = []
-  for (const value of values) {
-    const text = sanitizeText(value, 180)
-    if (!text || result.some(item => item.toLowerCase() === text.toLowerCase()))
-      continue
-    result.push(text)
-    if (result.length >= maxItems)
-      break
-  }
-  return result
-}
-
 function deriveRecollectionFollowUpCarry(spine: AlicizationDigitalLifeSpineSnapshot) {
-  const memory = spine.runtimeSurface.memory
-  const deliberation = memory.memoryDeliberation ?? null
-  const recollectionPlan = memory.recollectionPlan ?? null
-  const speechPlan = memory.recollectionSpeechPlan ?? null
-  if (!deliberation && !recollectionPlan) {
+  const continuity = deriveAlicizationContinuityDeliberationFromSpine(spine)
+  if (continuity.kind === 'none' || !continuity.summary) {
     return {
       memoryWeight: 0,
       dialogueWeight: 0,
@@ -129,76 +114,26 @@ function deriveRecollectionFollowUpCarry(spine: AlicizationDigitalLifeSpineSnaps
       summary: null as string | null,
     }
   }
-
-  const relationshipLines = uniqueTextList([
-    ...(deliberation?.selectedRelationshipLines ?? []),
-    ...(recollectionPlan?.selectedRelationshipLines ?? []),
-  ], 3)
-  const bundleSummary = sanitizeText(deliberation?.selectedBundles?.[0]?.summary, 180) || null
-  const chainSummary = sanitizeText(deliberation?.selectedChains?.[0]?.summary, 180) || null
-  const searchSummary = sanitizeText(
-    deliberation?.searchTrace?.thirdHop.summary
-    ?? recollectionPlan?.searchTrace?.thirdHop.summary,
-    180,
-  ) || null
-  const ambiguity = deliberation?.ambiguityPosture
-    ?? recollectionPlan?.searchTrace?.thirdHop.ambiguityPosture
-    ?? 'settled'
-  const conflictSeverity = deliberation?.conflictSeverity ?? 'none'
-  const internalOnly = speechPlan?.shouldSurface === false
-    || speechPlan?.placement === 'internal-only'
-  const speechReady = speechPlan
-    ? speechPlan.shouldSurface === true && speechPlan.placement !== 'internal-only'
-    : relationshipLines.length > 0 && ambiguity !== 'ambiguous' && conflictSeverity !== 'high'
-  const relationshipReady = relationshipLines.length > 0
-    || /repair|care|warm|space|trust|companionship|follow-up|陪|修复|温和|空间|信任|跟进/u.test([
-      bundleSummary,
-      chainSummary,
-      searchSummary,
-    ].filter(Boolean).join(' '))
-  const settledCarry = ambiguity === 'settled'
-    ? 1
-    : ambiguity === 'approximate'
-      ? 0.72
-      : 0.42
-  const conflictPenalty = conflictSeverity === 'high'
-    ? 0.26
-    : conflictSeverity === 'medium'
-      ? 0.14
-      : conflictSeverity === 'low'
-        ? 0.06
+  const memoryWeight = continuity.kind === 'dialogue-carry'
+      || continuity.kind === 'memory-follow-up'
+      || continuity.kind === 'execution-callback'
+    ? clamp01(continuity.pressure * 0.88)
+    : 0
+  const dialogueWeight = continuity.shouldSpeakNow
+    ? clamp01(continuity.pressure * 0.82)
+    : 0
+  const companionshipWeight = continuity.kind === 'dialogue-carry'
+    ? clamp01(continuity.pressure * 0.46)
+    : continuity.kind === 'memory-follow-up'
+      ? clamp01(continuity.pressure * 0.28)
+      : continuity.kind === 'execution-callback'
+        ? clamp01(continuity.pressure * 0.16)
         : 0
-
   return {
-    memoryWeight: clamp01(
-      (deliberation?.shouldRecall ? 0.24 : 0.12)
-      + relationshipLines.length * 0.08
-      + ((deliberation?.selectedBundles.length ?? 0) > 0 ? 0.1 : 0)
-      + ((deliberation?.selectedChains.length ?? 0) > 0 ? 0.14 : 0)
-      + settledCarry * 0.14
-      - conflictPenalty,
-    ),
-    dialogueWeight: speechReady
-      ? clamp01(
-          (relationshipReady ? 0.26 : 0.12)
-          + relationshipLines.length * 0.06
-          + ((deliberation?.selectedChains.length ?? 0) > 0 ? 0.08 : 0)
-          + settledCarry * 0.2
-          - conflictPenalty,
-        )
-      : 0,
-    companionshipWeight: clamp01(
-      (relationshipReady ? 0.2 : 0.08)
-      + settledCarry * 0.08
-      - conflictPenalty
-      - (internalOnly ? 0.06 : 0),
-    ),
-    summary: firstNonEmptyText(
-      relationshipLines[0],
-      bundleSummary,
-      chainSummary,
-      searchSummary,
-    ) || null,
+    memoryWeight,
+    dialogueWeight,
+    companionshipWeight,
+    summary: continuity.summary,
   }
 }
 

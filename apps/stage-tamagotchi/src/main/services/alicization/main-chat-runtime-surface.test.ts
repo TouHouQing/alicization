@@ -399,6 +399,11 @@ describe('main chat runtime surface', () => {
     expect(result.tooling.enforcedToolNames).toEqual(['executor_run_codex', 'executor_run_openclaw'])
     expect(result.tooling.routingRequired).toBe(true)
     expect(result.capture.hasVisualGrounding).toBe(false)
+    expect(result.replyAuthority!).toEqual(expect.objectContaining({
+      replyRealizationMode: 'provider-mind-required',
+      expectedVisibleReplyAuthority: 'llm-mind',
+    }))
+    expect(result.replyAuthority!.whyProviderMindRequired).toBeTruthy()
     expect(result.trace.decisionTraceId).toBe('trace-1')
     expect(result.trace.sessionPhases).toEqual(['contextual-memory', 'runtime-surface'])
     expect(result.digitalLifeArchitecture).toEqual(expect.objectContaining({

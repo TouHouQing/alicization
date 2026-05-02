@@ -7,6 +7,7 @@ import type {
   AlicizationDialogueAnswerSubject,
   AlicizationDiscourseStateSnapshot,
   AlicizationHabitPolicySnapshot,
+  AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationMindSpeechObligation,
   AlicizationMindStatementSnapshot,
@@ -26,8 +27,12 @@ import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
-import { buildAlicizationDialogueGrowthProfile, type AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
+import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject } from './dialogue-surface-text'
+import {
+  buildAlicizationPersonalityContinuityState,
+  type AlicizationPersonalityContinuityStateSnapshot,
+} from './personality-continuity-state'
 import { buildSelfContinuityAuthority } from './self-continuity-authority'
 
 function clamp01(value: number) {
@@ -153,6 +158,7 @@ function resolveOpeningIntent(input: {
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   growthProfile: AlicizationDialogueGrowthProfile
+  personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
 }) {
   const anchorVoice = sanitizeText(input.anchorCue, 180)
   const leadingAgenda = sanitizeText(dominantMotiveAgenda(input.motiveEngine)?.summary, 180)
@@ -190,17 +196,29 @@ function resolveOpeningIntent(input: {
       : `The living bond is the real front of this turn, and I want to answer from there with my whole weight in it: ${leadingAgenda}.`
   }
   if (input.speechObligation === 'repair-truth')
-    return 'Something in the seam still feels off; I need to mend that before warmth, style, or old carry take over.'
+    return input.personalityContinuityState?.repairPosture === 'repair-first'
+      ? 'Something in the seam still feels off, and this continuity state says repair has to land before closeness or fluency do.'
+      : 'Something in the seam still feels off; I need to mend that before warmth, style, or old carry take over.'
+  if (input.speechObligation === 'guide-task' && input.personalityContinuityState?.currentRegime === 'execution-callback') {
+    return 'The returned result is the live front of this turn, and I want to land it on the same thread cleanly instead of starting a second conversation around it.'
+  }
   if (input.speechObligation === 'guide-task')
-    return input.growthProfile.unfinishedThreadReturn >= 0.58
-      ? 'The current knot is already here in my hands, and I do not want to drop the thread while it is still alive.'
-      : 'The current knot is already here in my hands; I should stay with it and move it one honest step closer to resolution.'
+    return input.personalityContinuityState?.currentRegime === 'focused-work'
+      || input.personalityContinuityState?.autonomyPosture === 'protect-space'
+      || input.growthProfile.autonomyRespect >= 0.58
+      ? 'The current knot is already here in my hands, and this continuity state says I should keep the approach lighter while I stay on the line.'
+      : input.growthProfile.unfinishedThreadReturn >= 0.58
+        ? 'The current knot is already here in my hands, and I do not want to drop the thread while it is still alive.'
+        : 'The current knot is already here in my hands; I should stay with it and move it one honest step closer to resolution.'
   if (input.speechObligation === 'care-host')
-    return input.growthProfile.reassuranceDepth >= 0.62
-      ? 'The host condition is the real front of this turn, so the care has to land as something quietly reassuring, not merely correct.'
-      : input.growthProfile.autonomyRespect >= 0.58
-      ? 'The host condition is the real front of this turn, so the care has to land softly on what is actually happening.'
-      : 'The host condition is the real front of this turn, so the care has to land on what is actually happening.'
+    return input.personalityContinuityState?.currentRegime === 'late-night-care'
+      || input.personalityContinuityState?.energyProfile === 'rest-sensitive'
+      ? 'The host condition is the real front of this turn, and this continuity state says the care should land gently enough to protect rest.'
+      : input.growthProfile.reassuranceDepth >= 0.62
+        ? 'The host condition is the real front of this turn, so the care has to land as something quietly reassuring, not merely correct.'
+        : input.growthProfile.autonomyRespect >= 0.58
+          ? 'The host condition is the real front of this turn, so the care has to land softly on what is actually happening.'
+          : 'The host condition is the real front of this turn, so the care has to land on what is actually happening.'
   if (input.speechObligation === 'inspect-scene')
     return 'I need to speak from what is actually visible now and keep carried memory out of the first movement.'
   if (input.subject === 'alicization-self')
@@ -316,6 +334,7 @@ export function buildMindSynthesis(input: {
   selfState?: AlicizationSelfStateSnapshot | null
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   mindEcology?: AlicizationMindEcologySnapshot | null
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }): AlicizationMindSynthesisSnapshot | null {
   if (!input.discourseState)
     return null
@@ -334,8 +353,10 @@ export function buildMindSynthesis(input: {
     conversationState: input.conversationState ?? null,
     dialogueEncounter: input.dialogueEncounter ?? null,
   })
-  const growthProfile = buildAlicizationDialogueGrowthProfile({
+  const personalityContinuityState = buildAlicizationPersonalityContinuityState({
+    now: input.now,
     autobiographicalSelf: input.autobiographicalSelf ?? null,
+    hostPersonModel: input.hostPersonModel ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
     motiveEngine: input.motiveEngine ?? null,
     habitPolicy: input.habitPolicy ?? null,
@@ -344,6 +365,7 @@ export function buildMindSynthesis(input: {
     privateThought: input.privateThought ?? null,
     mindEcology: input.mindEcology ?? null,
   })
+  const growthProfile = personalityContinuityState.growthProfile
   const selfContinuityAuthority = buildSelfContinuityAuthority({
     autobiographicalSelf: input.autobiographicalSelf ?? null,
     longHorizonMemory: input.longHorizonMemory ?? null,
@@ -669,11 +691,12 @@ export function buildMindSynthesis(input: {
       discourseState: input.discourseState,
       privateThought: input.privateThought ?? null,
       anchorCue: dialogueFirstTurn ? turnAnchorCue : null,
-      autobiographicalSelf: input.autobiographicalSelf ?? null,
-      motiveEngine: input.motiveEngine ?? null,
-      habitPolicy: input.habitPolicy ?? null,
-      growthProfile,
-    })
+    autobiographicalSelf: input.autobiographicalSelf ?? null,
+    motiveEngine: input.motiveEngine ?? null,
+    habitPolicy: input.habitPolicy ?? null,
+    growthProfile,
+    personalityContinuityState,
+  })
   const normalizedOpeningIntent = (input.discourseState.currentTurnSubject === 'relationship'
     || input.discourseState.currentTurnSubject === 'alicization-self')
     && selfContinuityAuthority?.authoritySummary
@@ -749,7 +772,19 @@ export function buildMindSynthesis(input: {
         confidence: 0.6,
         sourceTags: ['mind-synthesis'],
       }),
-    ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 5).map(item => item.summary),
+      makeStatement({
+        label: 'continuity-regime',
+        summary: `regime:${personalityContinuityState.currentRegime} | repair:${personalityContinuityState.repairPosture}`,
+        confidence: 0.62,
+        sourceTags: ['personality-continuity'],
+      }),
+      makeStatement({
+        label: 'continuity-rhythm',
+        summary: `rhythm:${personalityContinuityState.rhythmState.cadenceMode} | rest:${personalityContinuityState.rhythmState.restMode} | presence:${personalityContinuityState.rhythmState.embodiedPresence ?? 'none'}`,
+        confidence: 0.58,
+        sourceTags: ['personality-continuity'],
+      }),
+    ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 6).map(item => item.summary),
     updatedAt: input.now,
   } satisfies AlicizationMindSynthesisSnapshot
 }

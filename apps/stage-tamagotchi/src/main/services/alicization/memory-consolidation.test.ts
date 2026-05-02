@@ -214,4 +214,56 @@ describe('memory consolidation', () => {
 
     expect(rows[0]?.facet).toBe('relationship-era')
   })
+
+  it('uses semantic and graph cues to surface the right task-era even when the recall wording changes', () => {
+    const rows = searchMemoryConsolidationRecords({
+      query: '继续把那条断掉的线接回去',
+      records: [
+        {
+          id: 'autobio:task-era:runtime',
+          kind: 'autobiographical',
+          facet: 'task-era',
+          periodKey: 'runtime-seam',
+          periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          summary: 'That task era kept turning back to the runtime seam until it stabilized.',
+          lesson: 'Return to the same seam before branching.',
+          cues: ['runtime seam', 'repair rhythm'],
+          confidence: 0.78,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-seam', 'episode-handoff'],
+          updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+          memoryTier: 'warm',
+        },
+        {
+          id: 'autobio:phase:other',
+          kind: 'autobiographical',
+          facet: 'phase',
+          periodKey: 'other-phase',
+          periodStartedAt: Date.UTC(2026, 3, 17, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 17, 10, 0, 0),
+          summary: 'That phase was mostly about a general dashboard cleanup.',
+          lesson: 'Keep the UI tidy.',
+          cues: ['dashboard', 'cleanup'],
+          confidence: 0.8,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['episode-other'],
+          updatedAt: Date.UTC(2026, 3, 17, 10, 0, 0),
+          memoryTier: 'warm',
+        },
+      ],
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['return before branching', 'runtime seam'],
+        rationale: 'The host is asking to reconnect the same task line.',
+        confidence: 0.82,
+      },
+    })
+
+    expect(rows[0]?.id).toBe('autobio:task-era:runtime')
+  })
 })

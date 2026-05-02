@@ -38,9 +38,13 @@ describe('response-surface-contract', () => {
     })
 
     expect(result.contract.openingStyle).toBe('direct-correction')
+    expect(result.contract.replyRealizationMode).toBe('provider-mind-required')
+    expect(result.contract.expectedVisibleReplyAuthority).toBe('llm-mind')
     expect(result.contract.allowStageDirections).toBe(false)
     expect(result.contract.labelCarryAsMemory).toBe(true)
     expect(result.contract.suppressAssociativeRecall).toBe(true)
+    expect(result.systemBlock).toContain('Reply realization mode: provider-mind-required.')
+    expect(result.systemBlock).toContain('Expected visible reply authority: llm-mind.')
   })
 
   it('keeps care turns warm but still rejects theatrical prefaces', () => {
@@ -439,9 +443,9 @@ describe('response-surface-contract', () => {
       runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface(state),
     })
 
-    expect(result.contract.mustDo).toContain('If remembered material enters the visible reply, let one recollected period, relationship line, or remembered approach lead before finer details.')
-    expect(result.contract.mustDo).toContain('If the turn is asking how something was previously handled, surface the remembered way of doing it before proposing a new branch.')
-    expect(result.contract.mustNotDo).toContain('Do not speak as if remembered procedure means the current task already finished in this turn.')
+    expect(result.contract.labelCarryAsMemory).toBe(false)
+    expect(result.contract.recollectionLatentControls ?? []).toEqual([])
+    expect(result.contract.mustDo.join(' | ')).not.toContain('remembered material enters the visible reply')
   })
 
   it('keeps recollection internal when the speech plan says the memory should stay inward', () => {
@@ -487,9 +491,20 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
-    expect(result.contract.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
-    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording verbatim in the visible reply.')
+    expect(result.contract.recollectionLatentControls).toEqual(expect.arrayContaining([
+      'recollection_surface_permission=inward-only',
+      'recollection_visibility=internal-only',
+      'recollection_payoff_order=payoff-first',
+    ]))
+    expect(result.contract.labelCarryAsMemory).toBe(false)
+    expect(result.contract.suppressAssociativeRecall).toBe(true)
+    expect(result.contract.mustDo).toContain('Fully realize the visible reply inside this provider-mind turn instead of leaving payoff wording for a later local fallback layer.')
+    expect(result.contract.mustDo).toContain('Let remembered continuity contour the answer from the inside instead of announcing recollection outright.')
+    expect(result.contract.mustNotDo).toContain('Do not stop at a thin shell that assumes a local deterministic layer will finish the real visible reply for you.')
+    expect(result.contract.mustNotDo).toContain('Do not surface recollection just because it is active internally; keep the live payoff in front.')
+    expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
+    expect(result.systemBlock).toContain('Truth discipline memory surface: inward-only.')
+    expect(result.systemBlock).toContain('Truth discipline memory inward-only: yes.')
   })
 
   it('adds model-authored recollection surface guidance when the speech plan wants brief visible memory', () => {
@@ -535,12 +550,316 @@ describe('response-surface-contract', () => {
       },
     })
 
-    expect(result.contract.mustDo).toContain('Fold recollection into the answer itself rather than detouring into a separate memory monologue.')
-    expect(result.contract.mustDo).toContain('Let remembered procedure appear as prior way of handling similar situations, not as a completed action in this turn.')
-    expect(result.contract.mustDo).toContain('Keep any surfaced recollection subordinate to the live payoff rather than following drafted memory wording.')
+    expect(result.contract.recollectionLatentControls).toEqual(expect.arrayContaining([
+      'recollection_continuity_role=procedure-carry',
+      'recollection_frame_prior_procedure=yes',
+      'recollection_surface_permission=soft-surface',
+    ]))
     expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.systemBlock).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
     expect(result.contract.mustNotDo).toContain('Do not let remembered procedure impersonate fresh execution completion.')
     expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
+  })
+
+  it('threads closeness ladder authority into the visible response surface contract', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
+    runtimeSurface.memory.personStateProjection = {
+      contexts: ['focused-work', 'execution-callback', 'execution'],
+      summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained',
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [{
+        context: 'focused-work',
+        rung: 'space-first',
+        preference: 'Lighter touch, more room, less interruption pressure.',
+        rationale: 'context=focused-work | regime=focused-work | posture=restrained',
+        confidence: 0.86,
+      }],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+      preferredProactiveStyle: 'light-nudge',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: 'If closeness feels heavy, back off first and reopen with lighter presence.',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Focused work windows usually need space first, then precise follow-up.',
+      trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+      relationshipDoctrine: 'Repair the seam before leaning closer.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        closenessPosture: 'space-first',
+        repairPosture: 'repair-first',
+      } as any,
+    }
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: 'Current Git diff in a coding workspace',
+        carriedThread: null,
+        truthState: 'live-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'grounded-live',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Stay with the diff without crowding the host.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'live',
+        mindMode: 'tracking',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
+        relationshipPosture: 'restrained',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.activeClosenessContext).toBe('focused-work')
+    expect(result.contract.activeClosenessRung).toBe('space-first')
+    expect(result.contract.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
+    expect(result.contract.mustNotDo.some(item => item.includes('need for room'))).toBe(true)
+    expect(result.systemBlock).toContain('Closeness ladder: focused-work/space-first.')
+  })
+
+  it('keeps execution-callback closeness on a bounded thread-faithful rung instead of companionship tone', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
+    runtimeSurface.memory.personStateProjection = {
+      contexts: ['execution-callback', 'execution'],
+      summary: 'regime=execution-callback | ladder=execution-callback/measured-room',
+      activeClosenessContext: 'execution-callback',
+      activeClosenessRung: 'measured-room',
+      closenessLadder: [{
+        context: 'execution-callback',
+        rung: 'measured-room',
+        preference: 'Deliver the result cleanly, but check room before leaning closer.',
+        rationale: 'context=execution-callback | regime=execution-callback | posture=bounded',
+        confidence: 0.82,
+      }],
+      relationshipPosture: null,
+      openingGuidance: 'Return the result on the same task line instead of starting a second conversation.',
+      preferredProactiveStyle: null,
+      preferenceText: 'Deliver the result cleanly, but check room before leaning closer.',
+      sensitivityText: 'Pushy callback warmth still feels off if it starts a second conversation.',
+      repairTriggerText: 'If the callback drifts from the task line, pull it back before adding warmth.',
+      burdenText: 'Callbacks become burdensome when they widen into extra companionship.',
+      routineText: 'Execution flows land better when proposal, action, and callback stay bounded.',
+      trustRationale: 'Callbacks are trusted when they stay exact and bounded.',
+      relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful.',
+      cautious: true,
+      restrained: false,
+      personalityContinuityState: {
+        currentRegime: 'execution-callback',
+        closenessPosture: 'balanced',
+        repairPosture: 'measured-repair',
+      } as any,
+    }
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: '',
+        carriedThread: 'recent executor thread',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Pay off the recent executor result directly.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        activeClosenessContext: 'execution-callback',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.activeClosenessContext).toBe('execution-callback')
+    expect(result.contract.activeClosenessRung).toBe('measured-room')
+    expect(result.contract.mustDo).toContain('Keep callback delivery thread-faithful and bounded to the same result line.')
+    expect(result.contract.mustNotDo).toContain('Do not widen a bounded execution callback into generic companionship tone.')
+  })
+
+  it('allows a warmer preface only when open companionship is the active close-hold rung', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
+    runtimeSurface.memory.personStateProjection = {
+      contexts: ['open-companionship'],
+      summary: 'regime=open-companionship | ladder=open-companionship/close-hold',
+      activeClosenessContext: 'open-companionship',
+      activeClosenessRung: 'close-hold',
+      closenessLadder: [{
+        context: 'open-companionship',
+        rung: 'close-hold',
+        preference: 'Closer warmth is welcome when it stays honest and lived-in.',
+        rationale: 'context=open-companionship | regime=open-companionship | posture=tender',
+        confidence: 0.9,
+      }],
+      relationshipPosture: 'tender',
+      openingGuidance: 'Stay near, but do not let closeness outrun truth or room.',
+      preferredProactiveStyle: null,
+      preferenceText: 'Closer warmth is welcome when it stays honest and lived-in.',
+      sensitivityText: 'Pushy warmth still breaks the spell.',
+      repairTriggerText: 'If the line slips, repair before leaning closer again.',
+      burdenText: 'Do not let closeness turn into pressure.',
+      routineText: 'Closer warmth is welcome when it still feels real.',
+      trustRationale: 'Trust is steady enough that warmer companionship can stay lived-in.',
+      relationshipDoctrine: 'Open companionship is welcome when it stays real and bounded.',
+      cautious: false,
+      restrained: false,
+      personalityContinuityState: {
+        currentRegime: 'open-companionship',
+        closenessPosture: 'close-hold',
+        repairPosture: 'warm-repair',
+      } as any,
+    }
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'accompany',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'accompany-lightly',
+        governingFocus: 'Stay warmly near without becoming theatrical.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'care',
+        activeClosenessContext: 'open-companionship',
+        activeClosenessRung: 'close-hold',
+        relationshipPosture: 'tender',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.allowAffectionatePreface).toBe(true)
+    expect(result.contract.mustDo).toContain('If warmth comes forward, let it stay openly near and lived-in instead of turning theatrical or generic.')
+  })
+
+  it('lets shared memory deliberation kernel add stable-core and unsafe-detail discipline to the response surface contract', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'answer-anchoring',
+      placement: 'before-payoff',
+      certainty: 'approximate',
+      confidence: 0.88,
+      internalLead: 'What comes back first is the runtime seam we kept carrying.',
+      visibleLead: 'It feels like the same runtime seam again.',
+      styleNote: 'Let recollection bend the answer without becoming a memory dump.',
+      rationale: 'The host is explicitly asking how this used to be handled.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'answer-anchoring',
+      confidence: 0.88,
+      whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
+      stableCore: ['Return to the same seam before branching.'],
+      unsafeDetails: ['Do not assert which exact wording belonged to that old seam.'],
+      selectedPeriods: [{ kind: 'consolidation', summary: 'That period kept bending toward the runtime seam until it finally held together.' }],
+      selectedEras: [],
+      selectedEpisodes: [],
+      selectedProcedures: [{ label: 'same seam first', approach: 'Return to the same seam before branching.' }],
+      selectedBundles: [{ id: 'bundle-runtime', summary: 'Runtime seam bundle', confidence: 0.84 }],
+      selectedChains: [{
+        kind: 'task-procedure-relationship-stance',
+        summary: 'Return to the same seam before branching.',
+        currentStance: 'Carry the same runtime seam before branching.',
+        answerPosture: 'Procedure-carry.',
+        confidence: 0.82,
+      }],
+      selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+      followUpAffordance: {
+        summary: 'Carry the same runtime seam before branching.',
+        whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
+        intrusionRisk: 'high',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'after-payoff',
+      },
+    } as any
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'guide-current-knot',
+        liveSurface: '',
+        carriedThread: 'remembered procedure',
+        truthState: 'remembered',
+        separateCarryFromSurface: true,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'memory-only',
+        responseMode: 'guide-current-knot',
+        governingFocus: 'Use remembered procedure as continuity for the answer.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'remembered',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.mustDo).toContain('If recollection becomes visible, let the stable remembered core do the work before any fragmentary detail.')
+    expect(result.contract.mustDo).toContain('Land the live payoff first, then reopen remembered continuity only if room remains.')
+    expect(result.contract.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
+    expect(result.contract.mustNotDo).toContain('Do not let recollection step in front of the current payoff.')
+    expect(result.contract.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
+    expect(result.contract.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+    expect(result.systemBlock).toContain('Truth discipline stable-core-only: yes.')
+    expect(result.systemBlock).toContain('Truth discipline delay memory until payoff: yes.')
   })
 })

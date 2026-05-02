@@ -44,11 +44,17 @@ export function buildAlicizationMemoryDecisionTraceRecords(
       const byKind = (kind: AlicizationMindTurnEventKind) => rows.find(row => row.kind === kind) ?? null
       const governance = byKind('governance-normalized')
       const recallAttribution = byKind('recall-attribution')
+      const memoryDeliberationJudged = byKind('memory-deliberation-judged')
+      const memoryRecallWithheld = byKind('memory-recall-withheld')
+      const memoryStableCoreSurfaced = byKind('memory-stable-core-surfaced')
+      const memoryFollowUpDeferred = byKind('memory-followup-deferred')
+      const memoryWrongThreadSuppressed = byKind('memory-wrong-thread-suppressed')
       const replyMemoryCoherence = byKind('reply-memory-coherence')
       const persistenceWritten = byKind('persistence-written')
       const dialogueEmitted = byKind('dialogue-emitted')
       const takeoverAudit = byKind('takeover-audit')
       const memoryFactsUpserted = byKind('memory-facts-upserted')
+      const personStateUpdated = byKind('person-state-updated')
       const activeThreadId = extractActiveThreadId(governance?.payload)
         || extractActiveThreadId(persistenceWritten?.payload)
         || extractActiveThreadId(dialogueEmitted?.payload)
@@ -78,11 +84,17 @@ export function buildAlicizationMemoryDecisionTraceRecords(
             }
           : null,
         recallAttribution: recallAttribution?.payload ?? null,
+        memoryDeliberationJudged: memoryDeliberationJudged?.payload ?? null,
+        memoryRecallWithheld: memoryRecallWithheld?.payload ?? null,
+        memoryStableCoreSurfaced: memoryStableCoreSurfaced?.payload ?? null,
+        memoryFollowUpDeferred: memoryFollowUpDeferred?.payload ?? null,
+        memoryWrongThreadSuppressed: memoryWrongThreadSuppressed?.payload ?? null,
         replyMemoryCoherence: replyMemoryCoherence?.payload ?? null,
         persistenceWritten: persistenceWritten?.payload ?? null,
         dialogueEmitted: dialogueEmitted?.payload ?? null,
         takeoverAudit: takeoverAudit?.payload ?? null,
         memoryFactsUpserted: memoryFactsUpserted?.payload ?? null,
+        personStateUpdated: personStateUpdated?.payload ?? null,
       } satisfies AlicizationMemoryDecisionTraceRecord
     })
     .sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt || left.decisionTraceId.localeCompare(right.decisionTraceId))

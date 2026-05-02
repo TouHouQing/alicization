@@ -472,6 +472,7 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
 
   const answerAct = readStringValue(candidate.answerAct).trim()
   const evidenceMode = readStringValue(candidate.evidenceMode).trim()
+  const visibleReplyAuthority = readStringValue(candidate.visibleReplyAuthority).trim()
   const mindMode = readStringValue(candidate.mindMode).trim()
   const embodiedPresence = readStringValue(candidate.embodiedPresence).trim()
   const emotionalTension = readStringValue(candidate.emotionalTension).trim()
@@ -493,6 +494,13 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
     decisionTraceId: decisionTraceId || null,
     turnMode: turnMode as AlicizationMindTurnGovernance['turnMode'],
     truthState: truthState as AlicizationMindTurnGovernance['truthState'],
+    visibleReplyAuthority: [
+      'llm-mind',
+      'governed-repair-fallback',
+      'local-deterministic-fallback',
+    ].includes(visibleReplyAuthority)
+      ? visibleReplyAuthority as AlicizationMindTurnGovernance['visibleReplyAuthority']
+      : null,
     groundedThisTurn: candidate.groundedThisTurn === true,
     personaKernelMode: personaKernelMode as AlicizationMindTurnGovernance['personaKernelMode'],
     openingStyle: openingStyle as AlicizationMindTurnGovernance['openingStyle'],
@@ -1785,6 +1793,9 @@ export function coerceConversationTurnToMindGovernedPayload(
         thought: finalThought,
         emotion: finalEmotion,
         reply: finalReply,
+        visibleReplyAuthority: shouldOverrideVisibleReply
+          ? 'governed-repair-fallback'
+          : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
         performance: finalPerformance,
         embodiment: finalEmbodiment,
         speechTimeline: finalSpeechTimeline,
@@ -1866,6 +1877,9 @@ export function coerceConversationTurnToMindGovernedPayload(
       hard_fallback_reason: hardFallbackReason,
       fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
       visible_reply_authority: shouldOverrideVisibleReply ? 'mind-surface-renderer' : 'assistant-structured',
+      visible_reply_realization_authority: shouldOverrideVisibleReply
+        ? 'governed-repair-fallback'
+        : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
       reply_kept_despite_mismatch: replyKeptDespiteMismatch,
       organic_direct_reply: organicDirectReply,
     },
@@ -1880,6 +1894,22 @@ export interface AlicizationMindTraceMemorySnapshot {
   inwardLine: string
   visibleLine?: string | null
   ambiguityPosture?: 'settled' | 'approximate' | 'ambiguous'
+  whyWithheld?: string | null
+  shouldStayInward?: boolean
+  restraintSurfaceMode?: 'inward-only' | 'stable-core-only' | 'provenance-labeled' | 'free' | null
+  restraintProvenanceMode?: 'none' | 'memory' | 'dream-residue' | 'inferred-pattern' | 'reconstructed-memory' | 'mixed-memory' | null
+  shouldOnlySurfaceStableCore?: boolean
+  shouldLabelProvenance?: boolean
+  shouldLabelHypothesis?: boolean
+  shouldSuppressSpecificity?: boolean
+  shouldDelayUntilAfterPayoff?: boolean
+  memoryControlSummary?: string | null
+  activeClosenessContext?: string | null
+  activeClosenessRung?: string | null
+  relationshipPosture?: string | null
+  openingGuidance?: string | null
+  personalityCurrentRegime?: string | null
+  personalityRepairPosture?: string | null
   recollectionIntentMode?: string | null
   recollectionIntentTemporalFocus?: string | null
   speechShouldSurface?: boolean | null
@@ -1932,6 +1962,13 @@ export interface AlicizationMindTraceMemorySnapshot {
     answerPosture?: string | null
   }>
   selectedRelationshipLines: string[]
+  followUpAffordance?: {
+    summary: string
+    whyNow: string
+    intrusionRisk: 'low' | 'medium' | 'high'
+    payoffDependency: 'memory-only' | 'requires-current-payoff' | 'can-surface-softly'
+    preferredTiming: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window'
+  } | null
   searchTrace?: {
     firstHop: {
       focus: 'era' | 'procedure' | 'relationship-line' | 'conversation-turn' | 'episode'
@@ -1987,6 +2024,24 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
     whyNow: sanitizeMindTraceTelemetryText(snapshot.whyNow, 240) || null,
     inwardLine: sanitizeMindTraceTelemetryText(snapshot.inwardLine, 220) || null,
     visibleLine: sanitizeMindTraceTelemetryText(snapshot.visibleLine, 220) || null,
+    whyWithheld: sanitizeMindTraceTelemetryText(snapshot.whyWithheld, 220) || null,
+    shouldStayInward: snapshot.shouldStayInward ?? false,
+    restraintSurfaceMode: sanitizeMindTraceTelemetryText(snapshot.restraintSurfaceMode, 64) || null,
+    restraintProvenanceMode: sanitizeMindTraceTelemetryText(snapshot.restraintProvenanceMode, 64) || null,
+    shouldOnlySurfaceStableCore: snapshot.shouldOnlySurfaceStableCore ?? false,
+    shouldLabelProvenance: snapshot.shouldLabelProvenance ?? false,
+    shouldLabelHypothesis: snapshot.shouldLabelHypothesis ?? false,
+    shouldSuppressSpecificity: snapshot.shouldSuppressSpecificity ?? false,
+    shouldDelayUntilAfterPayoff: snapshot.shouldDelayUntilAfterPayoff ?? false,
+    memoryControlSummary: sanitizeMindTraceTelemetryText(snapshot.memoryControlSummary, 240) || null,
+    personState: {
+      activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
+      activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
+      relationshipPosture: sanitizeMindTraceTelemetryText(snapshot.relationshipPosture, 64) || null,
+      openingGuidance: sanitizeMindTraceTelemetryText(snapshot.openingGuidance, 220) || null,
+      currentRegime: sanitizeMindTraceTelemetryText(snapshot.personalityCurrentRegime, 64) || null,
+      repairPosture: sanitizeMindTraceTelemetryText(snapshot.personalityRepairPosture, 64) || null,
+    },
     recollectionIntentMode: sanitizeMindTraceTelemetryText(snapshot.recollectionIntentMode, 64) || null,
     recollectionIntentTemporalFocus: sanitizeMindTraceTelemetryText(snapshot.recollectionIntentTemporalFocus, 64) || null,
     speechShouldSurface: snapshot.speechShouldSurface ?? null,
@@ -2041,6 +2096,15 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
     selectedRelationshipLines: snapshot.selectedRelationshipLines
       .map(line => sanitizeMindTraceTelemetryText(line, 180))
       .filter(Boolean),
+    followUpAffordance: snapshot.followUpAffordance
+      ? {
+          summary: sanitizeMindTraceTelemetryText(snapshot.followUpAffordance.summary, 220),
+          whyNow: sanitizeMindTraceTelemetryText(snapshot.followUpAffordance.whyNow, 220),
+          intrusionRisk: snapshot.followUpAffordance.intrusionRisk,
+          payoffDependency: snapshot.followUpAffordance.payoffDependency,
+          preferredTiming: snapshot.followUpAffordance.preferredTiming,
+        }
+      : null,
   }
 }
 
@@ -2122,6 +2186,168 @@ function summarizeReplyMemoryCoherencePayload(input: {
   }
 }
 
+function summarizeMemoryDeliberationJudgedPayload(snapshot: AlicizationMindTraceMemorySnapshot) {
+  return {
+    shouldRecall: snapshot.shouldRecall,
+    surfacePolicy: snapshot.surfacePolicy,
+    confidence: Number(clamp01(snapshot.confidence).toFixed(2)),
+    whyNow: sanitizeMindTraceTelemetryText(snapshot.whyNow, 240) || null,
+    whyWithheld: sanitizeMindTraceTelemetryText(snapshot.whyWithheld, 220) || null,
+    ambiguityPosture: snapshot.ambiguityPosture ?? 'settled',
+    conflictSeverity: snapshot.conflictSeverity ?? 'none',
+    restraint: {
+      shouldStayInward: snapshot.shouldStayInward ?? false,
+      surfaceMode: sanitizeMindTraceTelemetryText(snapshot.restraintSurfaceMode, 64) || null,
+      provenanceMode: sanitizeMindTraceTelemetryText(snapshot.restraintProvenanceMode, 64) || null,
+      shouldOnlySurfaceStableCore: snapshot.shouldOnlySurfaceStableCore ?? false,
+      shouldLabelProvenance: snapshot.shouldLabelProvenance ?? false,
+      shouldLabelHypothesis: snapshot.shouldLabelHypothesis ?? false,
+      shouldSuppressSpecificity: snapshot.shouldSuppressSpecificity ?? false,
+      shouldDelayUntilAfterPayoff: snapshot.shouldDelayUntilAfterPayoff ?? false,
+    },
+    stableCore: (snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+    unsafeDetails: (snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+    followUpAffordance: snapshot.followUpAffordance
+      ? {
+          summary: sanitizeMindTraceTelemetryText(snapshot.followUpAffordance.summary, 220) || null,
+          whyNow: sanitizeMindTraceTelemetryText(snapshot.followUpAffordance.whyNow, 220) || null,
+          intrusionRisk: snapshot.followUpAffordance.intrusionRisk,
+          payoffDependency: snapshot.followUpAffordance.payoffDependency,
+          preferredTiming: snapshot.followUpAffordance.preferredTiming,
+        }
+      : null,
+    searchTrace: snapshot.searchTrace
+      ? {
+          firstHopFocus: snapshot.searchTrace.firstHop.focus,
+          secondHopAction: snapshot.searchTrace.secondHop.action,
+          evidenceGap: snapshot.searchTrace.secondHop.evidenceGap,
+          thirdHopAmbiguity: snapshot.searchTrace.thirdHop.ambiguityPosture,
+        }
+      : null,
+    memoryControlSummary: sanitizeMindTraceTelemetryText(snapshot.memoryControlSummary, 240) || null,
+    personState: {
+      activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
+      activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
+      relationshipPosture: sanitizeMindTraceTelemetryText(snapshot.relationshipPosture, 64) || null,
+      openingGuidance: sanitizeMindTraceTelemetryText(snapshot.openingGuidance, 220) || null,
+      currentRegime: sanitizeMindTraceTelemetryText(snapshot.personalityCurrentRegime, 64) || null,
+      repairPosture: sanitizeMindTraceTelemetryText(snapshot.personalityRepairPosture, 64) || null,
+    },
+  }
+}
+
+function shouldEmitWrongThreadSuppression(snapshot: AlicizationMindTraceMemorySnapshot) {
+  return snapshot.ambiguityPosture === 'ambiguous'
+    || snapshot.searchTrace?.secondHop.evidenceGap === 'need-disambiguation'
+    || (snapshot.conflictVariants ?? []).some(item => String(item.id ?? '').startsWith('cluster:'))
+}
+
+function buildMemoryDeliberationTraceEvents(input: {
+  decisionTraceId: string
+  turnId: string | null
+  sessionId: string | null
+  origin: 'user-turn' | 'subconscious-proactive'
+  snapshot: AlicizationMindTraceMemorySnapshot
+  createdAt: number
+}) {
+  const events: AlicizationMindTurnEventInput[] = [{
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    origin: input.origin,
+    kind: 'memory-deliberation-judged',
+    payload: summarizeMemoryDeliberationJudgedPayload(input.snapshot),
+    createdAt: input.createdAt,
+  }]
+
+  if (input.snapshot.whyWithheld || input.snapshot.shouldStayInward || input.snapshot.restraintSurfaceMode === 'inward-only') {
+    events.push({
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      origin: input.origin,
+      kind: 'memory-recall-withheld',
+      payload: {
+        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        shouldStayInward: input.snapshot.shouldStayInward ?? false,
+        surfaceMode: sanitizeMindTraceTelemetryText(input.snapshot.restraintSurfaceMode, 64) || null,
+        stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        unsafeDetails: (input.snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        intrusionRisk: input.snapshot.followUpAffordance?.intrusionRisk ?? null,
+        preferredTiming: input.snapshot.followUpAffordance?.preferredTiming ?? null,
+        activeClosenessContext: sanitizeMindTraceTelemetryText(input.snapshot.activeClosenessContext, 64) || null,
+        activeClosenessRung: sanitizeMindTraceTelemetryText(input.snapshot.activeClosenessRung, 64) || null,
+        relationshipPosture: sanitizeMindTraceTelemetryText(input.snapshot.relationshipPosture, 64) || null,
+      },
+      createdAt: input.createdAt,
+    })
+  }
+
+  if (input.snapshot.shouldOnlySurfaceStableCore || (input.snapshot.unsafeDetails?.length ?? 0) > 0) {
+    events.push({
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      origin: input.origin,
+      kind: 'memory-stable-core-surfaced',
+      payload: {
+        stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        unsafeDetails: (input.snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        surfaceMode: sanitizeMindTraceTelemetryText(input.snapshot.restraintSurfaceMode, 64) || null,
+        shouldOnlySurfaceStableCore: input.snapshot.shouldOnlySurfaceStableCore ?? false,
+      },
+      createdAt: input.createdAt,
+    })
+  }
+
+  if (input.snapshot.shouldDelayUntilAfterPayoff || input.snapshot.followUpAffordance?.preferredTiming === 'after-payoff') {
+    events.push({
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      origin: input.origin,
+      kind: 'memory-followup-deferred',
+      payload: {
+        summary: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.summary, 220) || null,
+        whyNow: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.whyNow, 220) || null,
+        payoffDependency: input.snapshot.followUpAffordance?.payoffDependency ?? null,
+        preferredTiming: input.snapshot.followUpAffordance?.preferredTiming ?? null,
+        intrusionRisk: input.snapshot.followUpAffordance?.intrusionRisk ?? null,
+        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+      },
+      createdAt: input.createdAt,
+    })
+  }
+
+  if (shouldEmitWrongThreadSuppression(input.snapshot)) {
+    events.push({
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      origin: input.origin,
+      kind: 'memory-wrong-thread-suppressed',
+      payload: {
+        ambiguityPosture: input.snapshot.ambiguityPosture ?? 'settled',
+        conflictSeverity: input.snapshot.conflictSeverity ?? 'none',
+        evidenceGap: input.snapshot.searchTrace?.secondHop.evidenceGap ?? null,
+        whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+        stableCore: (input.snapshot.stableCore ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        unsafeDetails: (input.snapshot.unsafeDetails ?? []).map(item => sanitizeMindTraceTelemetryText(item, 180)).filter(Boolean),
+        conflictVariants: (input.snapshot.conflictVariants ?? []).map(item => ({
+          id: item.id,
+          summary: sanitizeMindTraceTelemetryText(item.summary, 180),
+          reason: sanitizeMindTraceTelemetryText(item.reason, 180) || null,
+          provenance: item.provenance,
+        })),
+      },
+      createdAt: input.createdAt,
+    })
+  }
+
+  return events
+}
+
 export function buildMindTurnTraceEvents(input: {
   payload: AlicizationConversationTurnInput
   governedTurn: ReturnType<typeof coerceConversationTurnToMindGovernedPayload>
@@ -2176,6 +2402,14 @@ export function buildMindTurnTraceEvents(input: {
       payload: summarizeRecallAttributionPayload(input.memoryTrace),
       createdAt: input.createdAt,
     })
+    events.push(...buildMemoryDeliberationTraceEvents({
+      decisionTraceId,
+      turnId,
+      sessionId,
+      origin,
+      snapshot: input.memoryTrace,
+      createdAt: input.createdAt,
+    }))
   }
 
   if (input.governedTurn.tookOver && input.governedTurn.audit) {
@@ -2283,6 +2517,7 @@ export function normalizeDialogueRespondedPayload(
   const format = governance && input.origin !== 'subconscious-proactive' && normalizedFormat === 'epoch1-v1'
     ? 'mind-turn-v1'
     : normalizedFormat
+  const visibleReplyAuthority = readStringValue((structuredPayload as Record<string, unknown>).visibleReplyAuthority).trim()
   const proactive = normalizeProactiveMetadata((structuredPayload as Record<string, unknown>).proactive)
   const dialogueActKernel = normalizeDialogueActKernel(
     (structuredPayload as Record<string, unknown>).dialogueActKernel ?? governance?.dialogueActKernel,
@@ -2355,6 +2590,13 @@ export function normalizeDialogueRespondedPayload(
       thought,
       emotion: embodiment.emotion,
       reply,
+      visibleReplyAuthority: [
+        'llm-mind',
+        'governed-repair-fallback',
+        'local-deterministic-fallback',
+      ].includes(visibleReplyAuthority)
+        ? visibleReplyAuthority as AlicizationDialogueRespondedPayload['structured']['visibleReplyAuthority']
+        : governance?.visibleReplyAuthority ?? null,
       performance: embodiment.performance,
       embodiment,
       speechTimeline,

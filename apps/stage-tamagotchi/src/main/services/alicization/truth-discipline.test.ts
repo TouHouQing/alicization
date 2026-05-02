@@ -51,4 +51,48 @@ describe('truth-discipline', () => {
     expect(flags.shouldLabelHypothesis).toBe(true)
     expect(flags.forbidUnsupportedSpecificity).toBe(true)
   })
+
+  it('threads memory restraint into shared truth discipline flags', () => {
+    const flags = deriveAlicizationTruthDiscipline({
+      answerSubject: 'task-knot',
+      screenReferenceMode: 'helpful',
+      truthState: 'remembered',
+      turnMode: 'guide-current-knot',
+      repairState: 'none',
+      evidenceMode: 'continuity-carry',
+      labelCarryAsMemory: true,
+      suppressAssociativeRecall: false,
+      memoryRestraint: {
+        surfaceMode: 'inward-only',
+        provenanceMode: 'reconstructed-memory',
+        shouldStayInward: true,
+        shouldOnlySurfaceStableCore: true,
+        shouldLabelProvenance: true,
+        shouldLabelHypothesis: true,
+        shouldSuppressSpecificity: true,
+        shouldDelayUntilAfterPayoff: true,
+        whyWithheld: 'The recollection should not outrun the live payoff.',
+      },
+    })
+
+    expect(flags.mode).toBe('memory-labeled')
+    expect(flags.memorySurfaceMode).toBe('inward-only')
+    expect(flags.memoryProvenanceMode).toBe('reconstructed-memory')
+    expect(flags.shouldKeepMemoryInward).toBe(true)
+    expect(flags.shouldOnlySurfaceMemoryStableCore).toBe(true)
+    expect(flags.shouldLabelMemoryProvenance).toBe(true)
+    expect(flags.shouldDelayMemoryUntilAfterPayoff).toBe(true)
+    expect(flags.shouldLabelHypothesis).toBe(true)
+    expect(flags.forbidUnsupportedSpecificity).toBe(true)
+    expect(flags.shouldSuppressAssociativeRecall).toBe(true)
+    expect(flags.memoryWhyWithheld).toContain('live payoff')
+    expect(flags.reasonTags).toEqual(expect.arrayContaining([
+      'memory-surface:inward-only',
+      'memory-provenance:reconstructed-memory',
+      'memory-inward-only',
+      'memory-stable-core-only',
+      'memory-label-provenance',
+      'memory-delay-until-payoff',
+    ]))
+  })
 })

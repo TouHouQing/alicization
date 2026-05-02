@@ -342,6 +342,23 @@ describe('buildRecallGovernor', () => {
         recurringPatterns: [],
         updatedAt: 40_000,
       } as any,
+      personalityContinuityState: {
+        currentRegime: 'late-night-care',
+        rhythmState: {
+          cadenceMode: 'cooldown',
+          restMode: 'rest-protective',
+          embodiedPresence: 'concerned',
+          suggestedStyle: 'gentle-care',
+          moodLabel: 'afterglow',
+          emotionalTension: 'late-night-drain',
+          cadencePressure: 0.28,
+          restPressure: 0.82,
+          memoryResonance: 0.74,
+          companionshipTempo: 0.52,
+          summary: 'cadence:cooldown | rest:rest-protective | mood:afterglow | tension:late-night-drain | presence:concerned',
+          rationale: ['Protect rest before reopening the seam.'],
+        },
+      } as any,
       sceneContext: {
         cueSummary: 'Cursor late-night diff lane',
         appName: 'Cursor',
@@ -358,6 +375,12 @@ describe('buildRecallGovernor', () => {
       moodLabel: 'afterglow',
       emotionalTension: 'late-night-drain',
     }))
+    expect(governor?.affectiveCarry?.summary).toContain('rhythm:cadence:cooldown')
+    expect(governor?.affectAnchors).toEqual(expect.arrayContaining([
+      'rhythm_mood:afterglow',
+      'rhythm_tension:late-night-drain',
+      'rhythm_cadence:cooldown',
+    ]))
     expect(governor?.embodiedCarry).toEqual(expect.objectContaining({
       presence: 'glance',
       afterglowFromScenario: 'coding',

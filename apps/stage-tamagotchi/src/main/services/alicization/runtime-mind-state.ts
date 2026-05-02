@@ -71,8 +71,9 @@ import { buildMotiveEngine } from './motive-engine'
 import { stabilizeMindStateInvariants } from './mind-state-invariants'
 import { buildMindSynthesis } from './mind-synthesizer'
 import { buildMindTurnFrame } from './mind-turn-frame'
+import { buildTurnRecallGovernor } from './memory-search-runtime'
+import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import { buildPrivateThoughtLoop } from './private-thought-loop'
-import { buildRecallGovernor } from './recall-governor'
 import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
@@ -2056,7 +2057,19 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       runtimeSurface: dialogueWorldThreadRuntimeSurface,
     })
     const sceneSnapshot = input.visualHeartbeat.scene
-    const recallGovernor = buildRecallGovernor({
+    const provisionalPersonalityContinuityState = buildAlicizationPersonalityContinuityState({
+      now: input.now,
+      autobiographicalSelf,
+      longHorizonMemory,
+      motiveEngine,
+      habitPolicy,
+      selfContinuity,
+      selfState,
+      privateThought,
+      mindEcology,
+      recentMemoryConsolidations,
+    })
+    const recallGovernor = buildTurnRecallGovernor({
       now: input.now,
       userText: input.userText,
       dialogueWorldThread,
@@ -2071,6 +2084,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       desireMemory,
       motiveEngine,
       mindEcology,
+      personalityContinuityState: provisionalPersonalityContinuityState,
       sceneContext: {
         cueSummary: sanitizeBriefText(
           sceneSnapshot?.summary

@@ -97,7 +97,7 @@ describe('runtime delivery reminders', () => {
       })),
       selectExecutionDeliveryReplySurface: vi.fn(() => ({
         reply: 'reply from deterministic',
-        source: 'deterministic' as const,
+        source: 'llm-repaired' as const,
         reason: 'missing-llm-reply',
       })),
       resolveExecutionResultDeliveryPolicy: vi.fn(async () => ({

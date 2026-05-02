@@ -1,5 +1,6 @@
 import type {
   AlicizationListMemoryDecisionTracesPayload,
+  AlicizationMemoryStats,
   AlicizationMemoryDecisionTraceRecord,
   AlicizationListMindTurnEventsPayload,
   AlicizationRunReplayBenchmarkPayload,
@@ -72,6 +73,22 @@ function pickString(raw: unknown) {
   return typeof raw === 'string' ? raw.trim() : ''
 }
 
+function pickNumber(raw: unknown) {
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = typeof value === 'string' ? value.trim() : ''
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+  }
+  return result
+}
+
 export interface AlicizationMindReplayCoverage {
   requiredComplete: boolean
   hasGovernanceNormalized: boolean
@@ -94,6 +111,34 @@ export interface AlicizationMindReplaySummary {
   memoryExtractionTriggerSet: Array<'batch' | 'idle' | 'force' | 'manual'>
   fallbackReasonSet: string[]
   coverage: AlicizationMindReplayCoverage
+}
+
+export interface AlicizationMindReplayBenchmarkDimensionGroup {
+  key: string
+  status: 'pass' | 'fail'
+  applicableCount: number
+  passedCount: number
+  minimumPassingRatio: number
+  passedRatio: number
+  failingTurnCount: number
+}
+
+export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
+  turnId: string
+  userText: string
+  failingDimensions: string[]
+  sampledCategories: string[]
+  tracePointerKind: 'decision-trace' | 'synthetic-pack-turn'
+  decisionTraceId: string | null
+  sessionId: string | null
+  activeThreadId: string | null
+}
+
+export interface AlicizationMindReplayMemoryHealthComparisonRow {
+  key: string
+  before: number | null
+  after: number | null
+  patch: number | null
 }
 
 export function deriveMindReplayCoverage(events: AlicizationMindTurnEventRecord[]): AlicizationMindReplayCoverage {
@@ -168,12 +213,99 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   const lastError = ref<string | null>(null)
   const lastQuery = ref<AlicizationListMindTurnEventsPayload | null>(null)
   const benchmarkReport = ref<AlicizationRunReplayBenchmarkResult | null>(null)
+  const benchmarkStatsBefore = ref<AlicizationMemoryStats | null>(null)
+  const benchmarkStatsAfter = ref<AlicizationMemoryStats | null>(null)
+  const selectedBenchmarkPackId = ref<NonNullable<AlicizationRunReplayBenchmarkPayload['packId']>>('sampled-humanlike-memory-v1')
+  const selectedBenchmarkSampleLimit = ref(12)
+  const selectedDiagnosisDimension = ref<string>('all')
+  const selectedDiagnosisTurnId = ref<string | null>(null)
 
   const sortedEvents = computed(() => sortMindTurnEvents(events.value))
   const sortedTraceRecords = computed(() => sortMemoryDecisionTraces(traceRecords.value))
   const replayCoverage = computed(() => deriveMindReplayCoverage(sortedEvents.value))
   const replaySummary = computed(() => deriveMindReplaySummary(sortedEvents.value))
   const benchmarkSupported = computed(() => hasAlicizationBridge() && Boolean(getAlicizationBridge().runReplayBenchmark))
+  const benchmarkPackOptions = computed(() => [
+    { label: 'Sampled', value: 'sampled-humanlike-memory-v1' },
+    { label: 'Backlog', value: 'backlog-humanlike-memory-v1' },
+    { label: 'Default', value: 'default-humanlike-memory-v1' },
+  ] as const)
+  const benchmarkDimensionGroups = computed<AlicizationMindReplayBenchmarkDimensionGroup[]>(() => {
+    const dimensions = benchmarkReport.value?.gate.dimensions ?? []
+    return dimensions.map(dimension => ({
+      key: dimension.key,
+      status: dimension.status,
+      applicableCount: dimension.applicableCount,
+      passedCount: dimension.passedCount,
+      minimumPassingRatio: dimension.minimumPassingRatio,
+      passedRatio: dimension.passedRatio,
+      failingTurnCount: dimension.failingTurnIds.length,
+    }))
+  })
+  const benchmarkFailingTurns = computed<AlicizationMindReplayBenchmarkTurnDiagnosis[]>(() => {
+    const failingTurns = benchmarkReport.value?.failingTurnSet ?? []
+    return failingTurns.map((item) => {
+      const tracePointer = item.tracePointer
+      return {
+        turnId: item.turnId,
+        userText: item.userText,
+        failingDimensions: [...item.failingDimensions],
+        sampledCategories: [...(item.sampledCategories ?? [])],
+        tracePointerKind: tracePointer.kind,
+        decisionTraceId: tracePointer.decisionTraceId ?? null,
+        sessionId: tracePointer.sessionId ?? null,
+        activeThreadId: tracePointer.activeThreadId ?? null,
+      }
+    })
+  })
+  const filteredBenchmarkFailingTurns = computed(() => {
+    if (selectedDiagnosisDimension.value === 'all')
+      return benchmarkFailingTurns.value
+    return benchmarkFailingTurns.value.filter(item => item.failingDimensions.includes(selectedDiagnosisDimension.value))
+  })
+  const selectedBenchmarkTurn = computed(() => {
+    if (!selectedDiagnosisTurnId.value)
+      return filteredBenchmarkFailingTurns.value[0] ?? null
+    return filteredBenchmarkFailingTurns.value.find(item => item.turnId === selectedDiagnosisTurnId.value) ?? filteredBenchmarkFailingTurns.value[0] ?? null
+  })
+  const benchmarkDimensionKeySet = computed(() => uniqueStrings(benchmarkDimensionGroups.value.map(item => item.key)))
+  const memoryHealthComparisonRows = computed<AlicizationMindReplayMemoryHealthComparisonRow[]>(() => {
+    const before = benchmarkStatsBefore.value?.retrievalHealth
+    const after = benchmarkStatsAfter.value?.retrievalHealth
+    const patch = benchmarkReport.value?.telemetryPatch.retrievalHealth
+    return [
+      {
+        key: 'templateLeakageFailCount',
+        before: pickNumber(before?.templateLeakageFailCount),
+        after: pickNumber(after?.templateLeakageFailCount),
+        patch: pickNumber(patch?.templateLeakageFailCount),
+      },
+      {
+        key: 'reconstructionFrequency',
+        before: pickNumber(before?.reconstructionFrequency),
+        after: pickNumber(after?.reconstructionFrequency),
+        patch: pickNumber(patch?.reconstructionFrequency),
+      },
+      {
+        key: 'reconstructedCount',
+        before: pickNumber(before?.reconstructedCount),
+        after: pickNumber(after?.reconstructedCount),
+        patch: pickNumber(patch?.reconstructedCount),
+      },
+      {
+        key: 'semanticLatencyMs',
+        before: pickNumber(before?.semanticLatencyMs),
+        after: pickNumber(after?.semanticLatencyMs),
+        patch: pickNumber(patch?.semanticLatencyMs),
+      },
+      {
+        key: 'graphLatencyMs',
+        before: pickNumber(before?.graphLatencyMs),
+        after: pickNumber(after?.graphLatencyMs),
+        patch: pickNumber(patch?.graphLatencyMs),
+      },
+    ]
+  })
 
   async function queryReplayLab(payload: AlicizationListMindTurnEventsPayload | AlicizationListMemoryDecisionTracesPayload) {
     const query = normalizeReplayQuery(payload)
@@ -251,16 +383,26 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
 
     benchmarkLoading.value = true
     try {
-      const result = await getAlicizationBridge().runReplayBenchmark!({
-        packId: payload?.packId ?? 'default-humanlike-memory-v1',
+      const bridge = getAlicizationBridge()
+      benchmarkStatsBefore.value = await bridge.getMemoryStats()
+      const result = await bridge.runReplayBenchmark!({
+        packId: payload?.packId ?? selectedBenchmarkPackId.value,
         persistTelemetry: payload?.persistTelemetry,
+        sampleLimit: payload?.sampleLimit ?? selectedBenchmarkSampleLimit.value,
       })
       benchmarkReport.value = result
+      benchmarkStatsAfter.value = await bridge.getMemoryStats()
+      const selectedDimension = selectedDiagnosisDimension.value
+      if (selectedDimension !== 'all' && !result.gate.dimensions.some(item => item.key === selectedDimension))
+        selectedDiagnosisDimension.value = 'all'
+      selectedDiagnosisTurnId.value = result.failingTurnSet[0]?.turnId ?? null
       lastError.value = null
       return result
     }
     catch (error) {
       benchmarkReport.value = null
+      benchmarkStatsBefore.value = null
+      benchmarkStatsAfter.value = null
       lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
@@ -292,6 +434,43 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
 
   function clearBenchmarkReport() {
     benchmarkReport.value = null
+    benchmarkStatsBefore.value = null
+    benchmarkStatsAfter.value = null
+    selectedDiagnosisTurnId.value = null
+    selectedDiagnosisDimension.value = 'all'
+  }
+
+  function setBenchmarkPackId(packId: NonNullable<AlicizationRunReplayBenchmarkPayload['packId']>) {
+    selectedBenchmarkPackId.value = packId
+  }
+
+  function setBenchmarkSampleLimit(limit: number) {
+    if (!Number.isFinite(limit))
+      return
+    selectedBenchmarkSampleLimit.value = Math.max(1, Math.min(maxQueryLimit, Math.floor(limit)))
+  }
+
+  function setSelectedDiagnosisDimension(value: string) {
+    selectedDiagnosisDimension.value = value || 'all'
+    selectedDiagnosisTurnId.value = filteredBenchmarkFailingTurns.value[0]?.turnId ?? null
+  }
+
+  function setSelectedDiagnosisTurnId(turnId: string | null) {
+    selectedDiagnosisTurnId.value = turnId
+  }
+
+  async function drillDownBenchmarkTurn(turnIdRaw?: string | null) {
+    const turn = benchmarkFailingTurns.value.find(item => item.turnId === turnIdRaw)
+      ?? selectedBenchmarkTurn.value
+    if (!turn)
+      return {
+        events: [],
+        traceRecords: [],
+      }
+    selectedDiagnosisTurnId.value = turn.turnId
+    if (turn.decisionTraceId)
+      return await queryReplayLab({ decisionTraceId: turn.decisionTraceId, limit: defaultQueryLimit })
+    return await queryReplayLab({ turnId: turn.turnId, limit: defaultQueryLimit })
   }
 
   return {
@@ -303,6 +482,19 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     lastQuery,
     benchmarkSupported,
     benchmarkReport,
+    benchmarkStatsBefore,
+    benchmarkStatsAfter,
+    benchmarkPackOptions,
+    selectedBenchmarkPackId,
+    selectedBenchmarkSampleLimit,
+    selectedDiagnosisDimension,
+    selectedDiagnosisTurnId,
+    benchmarkDimensionGroups,
+    benchmarkFailingTurns,
+    filteredBenchmarkFailingTurns,
+    selectedBenchmarkTurn,
+    benchmarkDimensionKeySet,
+    memoryHealthComparisonRows,
     replayCoverage,
     replaySummary,
     queryReplayLab,
@@ -313,5 +505,10 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     queryByTurnId,
     clearReplay,
     clearBenchmarkReport,
+    setBenchmarkPackId,
+    setBenchmarkSampleLimit,
+    setSelectedDiagnosisDimension,
+    setSelectedDiagnosisTurnId,
+    drillDownBenchmarkTurn,
   }
 })

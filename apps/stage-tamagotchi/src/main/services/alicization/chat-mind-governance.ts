@@ -5,6 +5,7 @@ import type {
   AlicizationConversationStateSnapshot,
   AlicizationDialogueActKernelSnapshot,
   AlicizationDialogueTurnEncounterSnapshot,
+  AlicizationMindTurnContractSnapshot,
   AlicizationDialogueWorldThreadSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationMindKernelMode,
@@ -182,6 +183,7 @@ export function buildAlicizationMindTurnGovernance(input: {
   brief: AlicizationExecutiveAnswerBrief
   charter: AlicizationResponseCharter
   surfaceContract: AlicizationResponseSurfaceContract
+  mindTurnContract?: AlicizationMindTurnContractSnapshot | null
   mindTurnFrame?: AlicizationMindTurnFrameSnapshot | null
   kernel?: AlicizationDialogueActKernelSnapshot | null
   discourseState?: AlicizationDiscourseStateSnapshot | null
@@ -302,14 +304,15 @@ export function buildAlicizationMindTurnGovernance(input: {
     currentConsciousFrame: null,
     claimEvidenceLedger,
   })
+  const mindTurnContract = input.mindTurnContract ?? null
 
   return {
     decisionTraceId: ensureMindGovernanceDecisionTraceId(input.decisionTraceId),
     turnMode,
     truthState,
     groundedThisTurn,
-    personaKernelMode: input.surfaceContract.personaKernelMode,
-    openingStyle: input.surfaceContract.openingStyle,
+    personaKernelMode: mindTurnContract?.personaKernelMode ?? input.surfaceContract.personaKernelMode,
+    openingStyle: mindTurnContract?.openingStyle ?? input.surfaceContract.openingStyle,
     relationshipPosture: mindTurnFrame?.relation.relationshipPosture ?? input.charter.relationshipPosture,
     answerSubject,
     screenReferenceMode,
@@ -382,14 +385,14 @@ export function buildAlicizationMindTurnGovernance(input: {
           return carry
         })(),
     suppressAssociativeRecall: truthDiscipline.shouldSuppressAssociativeRecall,
-    labelCarryAsMemory: mindTurnFrame?.memory.labelCarryAsMemory ?? recallGovernor?.carryAsMemory ?? answerCompiler?.labelCarryAsMemory ?? input.surfaceContract.labelCarryAsMemory,
+    labelCarryAsMemory: mindTurnFrame?.memory.labelCarryAsMemory ?? recallGovernor?.carryAsMemory ?? answerCompiler?.labelCarryAsMemory ?? mindTurnContract?.labelCarryAsMemory ?? input.surfaceContract.labelCarryAsMemory,
     shouldAskForGrounding: groundedThisTurn
       ? false
       : mindTurnFrame?.obligation.shouldAskForGrounding ?? answerPlanner?.shouldAskForGrounding
         ?? (kernel?.speechAct === 'ask-reground' || answerCompiler?.recommendedAct === 'ask-reground' || repairState === 'need-reground'),
     shouldAcknowledgeRepair: mindTurnFrame?.obligation.shouldAcknowledgeRepair ?? answerPlanner?.shouldAcknowledgeRepair
       ?? (kernel?.turnMode === 'screen-repair' || answerCompiler?.turnMode === 'screen-repair' || repairState === 'stale-anchor'),
-    maxSentences: answerCompiler?.maxSentences ?? input.surfaceContract.maxSentences,
+    maxSentences: answerCompiler?.maxSentences ?? mindTurnContract?.maxSentences ?? input.surfaceContract.maxSentences,
     mindMode: mindTurnFrame?.self.mindMode ?? mindMode ?? null,
     embodiedPresence: mindTurnFrame?.self.embodiedPresence ?? privateThought?.embodiedPresence ?? 'none',
     emotionalTension: mindTurnFrame?.self.emotionalTension ?? privateThought?.emotionalTension,
@@ -405,6 +408,7 @@ export function buildAlicizationMindTurnGovernance(input: {
         : null,
       ...(answerCompiler?.mustDo ?? []),
       ...input.brief.mustDo,
+      ...(mindTurnContract?.mustDo ?? []),
       ...input.surfaceContract.mustDo,
       ...(answerPlanner?.mustDo ?? []),
     ], 12),
@@ -416,6 +420,7 @@ export function buildAlicizationMindTurnGovernance(input: {
         : null,
       ...(answerCompiler?.mustNotDo ?? []),
       ...input.brief.mustNotDo,
+      ...(mindTurnContract?.mustNotDo ?? []),
       ...input.surfaceContract.mustNotDo,
       ...(answerPlanner?.mustNotDo ?? []),
     ], 12),

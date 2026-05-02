@@ -1,0 +1,357 @@
+<script setup lang="ts">
+import type {
+  AlicizationMindReplayBenchmarkDimensionGroup,
+  AlicizationMindReplayBenchmarkTurnDiagnosis,
+  AlicizationMindReplayMemoryHealthComparisonRow,
+} from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
+import type { AlicizationRunReplayBenchmarkResult } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+
+import { Button, FieldInput, SelectTab } from '@proj-alicization/ui'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+import MindReplayBenchmarkReport from './mind-replay-benchmark-report.vue'
+
+const props = defineProps<{
+  report: AlicizationRunReplayBenchmarkResult | null
+  loading: boolean
+  supported: boolean
+  packId: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1'
+  sampleLimit: number
+  dimensionGroups: AlicizationMindReplayBenchmarkDimensionGroup[]
+  selectedDimension: string
+  failingTurns: AlicizationMindReplayBenchmarkTurnDiagnosis[]
+  selectedTurnId: string | null
+  memoryHealthRows: AlicizationMindReplayMemoryHealthComparisonRow[]
+}>()
+
+const emit = defineEmits<{
+  (event: 'update:packId', value: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1'): void
+  (event: 'update:sampleLimit', value: number): void
+  (event: 'update:selectedDimension', value: string): void
+  (event: 'update:selectedTurnId', value: string | null): void
+  (event: 'run'): void
+  (event: 'inspectTurn', value: string | null): void
+}>()
+
+const { t, te } = useI18n()
+const i18nPageKey = 'settings.pages.system.sections.section.developer.sections.section.mind-replay.page.diagnosis'
+
+function tDiagnosis(path: string, fallback: string, params?: Record<string, unknown>) {
+  const key = `${i18nPageKey}.${path}`
+  if (!te(key))
+    return fallback
+  return String(t(key, params ?? {}))
+}
+
+const sampleLimitText = computed({
+  get: () => String(props.sampleLimit),
+  set: (value: string) => {
+    const parsed = Number.parseInt(value, 10)
+    if (!Number.isFinite(parsed))
+      return
+    emit('update:sampleLimit', parsed)
+  },
+})
+
+const packOptions = computed(() => [
+  {
+    label: tDiagnosis('packs.sampled', 'Sampled'),
+    value: 'sampled-humanlike-memory-v1',
+  },
+  {
+    label: tDiagnosis('packs.backlog', 'Backlog'),
+    value: 'backlog-humanlike-memory-v1',
+  },
+  {
+    label: tDiagnosis('packs.default', 'Default'),
+    value: 'default-humanlike-memory-v1',
+  },
+])
+
+const dimensionOptions = computed(() => [
+  {
+    label: tDiagnosis('dimensions.all', 'All'),
+    value: 'all',
+  },
+  ...props.dimensionGroups.map(group => ({
+    label: `${group.key} (${group.failingTurnCount})`,
+    value: group.key,
+  })),
+])
+
+function updatePackId(value: unknown) {
+  if (value === 'sampled-humanlike-memory-v1' || value === 'backlog-humanlike-memory-v1' || value === 'default-humanlike-memory-v1')
+    emit('update:packId', value)
+}
+
+function updateSelectedDimension(value: unknown) {
+  emit('update:selectedDimension', typeof value === 'string' ? value : 'all')
+}
+
+function pickDimensionTone(status: 'pass' | 'fail') {
+  if (status === 'fail') {
+    return [
+      'border-amber-300',
+      'bg-amber-50/70',
+      'text-amber-900',
+      'dark:border-amber-800/70',
+      'dark:bg-amber-950/20',
+      'dark:text-amber-100',
+    ]
+  }
+
+  return [
+    'border-emerald-300',
+    'bg-emerald-50/70',
+    'text-emerald-900',
+    'dark:border-emerald-800/70',
+    'dark:bg-emerald-950/20',
+    'dark:text-emerald-100',
+  ]
+}
+
+function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
+  if (turn.decisionTraceId)
+    return turn.decisionTraceId
+  return `${turn.tracePointerKind}:${turn.turnId}`
+}
+</script>
+
+<template>
+  <section
+    :class="[
+      'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+      'bg-white/70', 'p-4',
+      'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+    ]"
+  >
+    <div :class="['mb-4', 'flex', 'flex-col', 'gap-3']">
+      <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-3']">
+        <div>
+          <div :class="['text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('title', 'Diagnosis Console') }}
+          </div>
+          <div :class="['mt-1', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('description', 'Group failing dimensions, drill into failing turns, and compare benchmark telemetry against memory health snapshots.') }}
+          </div>
+        </div>
+        <Button
+          :label="tDiagnosis('actions.run', 'Run Diagnosis')"
+          icon="i-solar:play-circle-bold-duotone"
+          size="sm"
+          :disabled="loading || !supported"
+          @click="emit('run')"
+        />
+      </div>
+
+      <div :class="['grid', 'gap-3', 'lg:grid-cols-[minmax(0,1fr)_12rem]']">
+        <div :class="['flex', 'flex-col', 'gap-2']">
+          <div :class="['text-xs', 'font-medium', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('packs.label', 'Benchmark Pack') }}
+          </div>
+          <SelectTab
+            :model-value="packId"
+            size="sm"
+            :options="packOptions"
+            @update:model-value="updatePackId"
+          />
+        </div>
+        <FieldInput
+          v-model="sampleLimitText"
+          :label="tDiagnosis('sample_limit.label', 'Sample Limit')"
+          :description="tDiagnosis('sample_limit.description', 'Used by sampled/backlog packs.')"
+          type="number"
+        />
+      </div>
+    </div>
+
+    <MindReplayBenchmarkReport
+      :report="report"
+      :loading="loading"
+      :supported="supported"
+    />
+
+    <div
+      v-if="report"
+      :class="['mt-4', 'grid', 'gap-4', 'xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,1fr)]']"
+    >
+      <div :class="['flex', 'flex-col', 'gap-4']">
+        <section
+          :class="[
+            'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+            'bg-neutral-50/70', 'p-4',
+            'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
+          ]"
+        >
+          <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('dimensions.title', 'Failing Dimension Groups') }}
+          </div>
+          <div :class="['mb-3']">
+            <SelectTab
+              :model-value="selectedDimension"
+              size="sm"
+              :options="dimensionOptions"
+              @update:model-value="updateSelectedDimension"
+            />
+          </div>
+          <div :class="['grid', 'gap-2', 'md:grid-cols-2']">
+            <div
+              v-for="group in dimensionGroups"
+              :key="group.key"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
+                ...pickDimensionTone(group.status),
+              ]"
+            >
+              <div :class="['flex', 'items-center', 'justify-between', 'gap-2']">
+                <div :class="['font-mono', 'text-xs']">
+                  {{ group.key }}
+                </div>
+                <div :class="['text-[11px]', 'font-medium']">
+                  {{ group.status }}
+                </div>
+              </div>
+              <div :class="['mt-2', 'text-[11px]']">
+                {{ tDiagnosis('dimensions.summary', '{passed}/{applicable} passed, {failing} failing', {
+                  passed: group.passedCount,
+                  applicable: group.applicableCount,
+                  failing: group.failingTurnCount,
+                }) }}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          :class="[
+            'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+            'bg-neutral-50/70', 'p-4',
+            'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
+          ]"
+        >
+          <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('turns.title', 'Failing Turns') }}
+          </div>
+          <div
+            v-if="failingTurns.length === 0"
+            :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']"
+          >
+            {{ tDiagnosis('turns.empty', 'No failing turns for the current diagnosis filter.') }}
+          </div>
+          <div
+            v-else
+            :class="['flex', 'flex-col', 'gap-2']"
+          >
+            <button
+              v-for="turn in failingTurns"
+              :key="turn.turnId"
+              type="button"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'p-3', 'text-left',
+                selectedTurnId === turn.turnId
+                  ? 'border-cyan-400 bg-cyan-50/70 dark:border-cyan-700/80 dark:bg-cyan-950/20'
+                  : 'border-neutral-200/80 bg-white/70 dark:border-neutral-800/70 dark:bg-neutral-950/40',
+              ]"
+              @click="emit('update:selectedTurnId', turn.turnId)"
+            >
+              <div :class="['flex', 'items-start', 'justify-between', 'gap-3']">
+                <div :class="['min-w-0', 'flex-1']">
+                  <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                    {{ turn.turnId }}
+                  </div>
+                  <div :class="['mt-1', 'text-xs', 'text-neutral-600', 'dark:text-neutral-300']">
+                    {{ turn.userText }}
+                  </div>
+                  <div :class="['mt-2', 'font-mono', 'text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
+                    {{ turnTraceLabel(turn) }}
+                  </div>
+                </div>
+                <Button
+                  :label="tDiagnosis('turns.inspect', 'Inspect')"
+                  icon="i-solar:eye-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  @click.stop="emit('inspectTurn', turn.turnId)"
+                />
+              </div>
+              <div :class="['mt-2', 'flex', 'flex-wrap', 'gap-1.5']">
+                <span
+                  v-for="dimension in turn.failingDimensions"
+                  :key="`${turn.turnId}:${dimension}`"
+                  :class="[
+                    'rounded-full', 'border', 'border-solid',
+                    'border-amber-300', 'px-2', 'py-0.5',
+                    'font-mono', 'text-[11px]', 'text-amber-800',
+                    'dark:border-amber-800/70', 'dark:text-amber-200',
+                  ]"
+                >
+                  {{ dimension }}
+                </span>
+                <span
+                  v-for="category in turn.sampledCategories"
+                  :key="`${turn.turnId}:${category}`"
+                  :class="[
+                    'rounded-full', 'border', 'border-solid',
+                    'border-cyan-300', 'px-2', 'py-0.5',
+                    'font-mono', 'text-[11px]', 'text-cyan-800',
+                    'dark:border-cyan-800/70', 'dark:text-cyan-200',
+                  ]"
+                >
+                  {{ category }}
+                </span>
+              </div>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <section
+        :class="[
+          'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+          'bg-neutral-50/70', 'p-4',
+          'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
+        ]"
+      >
+        <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+          {{ tDiagnosis('health.title', 'Memory Health Before / After') }}
+        </div>
+        <div :class="['grid', 'gap-2']">
+          <div
+            v-for="row in memoryHealthRows"
+            :key="row.key"
+            :class="[
+              'rounded-xl', 'border', 'border-solid', 'border-neutral-200/80',
+              'bg-white/70', 'px-3', 'py-3',
+              'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+            ]"
+          >
+            <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+              {{ row.key }}
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-3', 'gap-2', 'text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
+              <div>
+                <div>{{ tDiagnosis('health.before', 'before') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-neutral-700', 'dark:text-neutral-200']">
+                  {{ row.before ?? 'n/a' }}
+                </div>
+              </div>
+              <div>
+                <div>{{ tDiagnosis('health.after', 'after') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-neutral-700', 'dark:text-neutral-200']">
+                  {{ row.after ?? 'n/a' }}
+                </div>
+              </div>
+              <div>
+                <div>{{ tDiagnosis('health.patch', 'patch') }}</div>
+                <div :class="['mt-1', 'font-mono', 'text-neutral-700', 'dark:text-neutral-200']">
+                  {{ row.patch ?? 'n/a' }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+</template>

@@ -698,6 +698,59 @@ describe('browser alicization bridge visual presence listeners', () => {
     ]))
   })
 
+  it('keeps browser-local memory stats aligned with the shared runtime contract instead of drifting into a fallback-only shape', async () => {
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.upsertMemoryFacts?.({
+      facts: [{
+        subject: 'host',
+        predicate: 'prefers',
+        object: 'direct answers',
+        confidence: 0.84,
+      }],
+      source: 'rule',
+      trace: {
+        decisionTraceId: 'trace-browser-stats',
+        turnId: 'turn-browser-stats',
+        sessionId: 'session-browser-stats',
+      },
+    })
+
+    const stats = await bridge.getMemoryStats()
+    expect(stats).toEqual(expect.objectContaining({
+      total: 1,
+      active: 1,
+      archived: expect.any(Number),
+      lastPrunedAt: null,
+      tierCounts: expect.objectContaining({
+        hot: expect.any(Number),
+        warm: expect.any(Number),
+        cold: expect.any(Number),
+      }),
+      ingestHealth: expect.objectContaining({
+        status: 'healthy',
+        pendingCount: 0,
+        failedCount: 0,
+      }),
+      writeHealth: expect.objectContaining({
+        backlogCount: 0,
+        blocked: false,
+      }),
+      retrievalHealth: expect.objectContaining({
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0,
+        reconstructedCount: 0,
+        templateLeakageFailCount: 0,
+      }),
+      integrity: expect.objectContaining({
+        status: 'ok',
+        issues: [],
+      }),
+    }))
+  })
+
   it('lets active-session continuity and proactive feedback shape browser-local runtime digest instead of creating a second reality', async () => {
     const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
       {

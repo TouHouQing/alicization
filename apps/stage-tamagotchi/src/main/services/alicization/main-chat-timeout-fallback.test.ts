@@ -170,11 +170,13 @@ describe('main chat timeout fallback', () => {
         answerSubject: string
         screenReferenceMode: string
       }
+      visibleReplyAuthority: string
     }
     expect(reply).toContain('再发一次')
     expect(reply).not.toContain('provider')
     expect(reply).not.toContain('baseUrl')
     expect(payload.reply).toContain('再发一次')
+    expect(payload.visibleReplyAuthority).toBe('local-deterministic-fallback')
     expect(payload.governance.answerSubject).toBe('relationship')
     expect(payload.governance.screenReferenceMode).toBe('avoid')
   })

@@ -5,6 +5,7 @@ import type {
   AlicizationDialogueAnswerSubject,
   AlicizationDialogueScreenReferenceMode,
 } from '../../../shared/eventa'
+import type { AlicizationMemoryRestraintJudge } from './memory-restraint-judge'
 
 type AlicizationTruthDisciplineMode
   = | 'repair-first'
@@ -20,6 +21,13 @@ export interface AlicizationTruthDisciplineFlags {
   forbidUnsupportedSpecificity: boolean
   shouldSuppressAssociativeRecall: boolean
   shouldBlockScreenCarry: boolean
+  memorySurfaceMode: AlicizationMemoryRestraintJudge['surfaceMode'] | null
+  memoryProvenanceMode: AlicizationMemoryRestraintJudge['provenanceMode'] | null
+  shouldKeepMemoryInward: boolean
+  shouldOnlySurfaceMemoryStableCore: boolean
+  shouldLabelMemoryProvenance: boolean
+  shouldDelayMemoryUntilAfterPayoff: boolean
+  memoryWhyWithheld: string | null
   reasonTags: string[]
 }
 
@@ -96,6 +104,18 @@ export function deriveAlicizationTruthDiscipline(input: {
   suppressAssociativeRecall?: boolean
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
+  memoryRestraint?: Pick<
+    AlicizationMemoryRestraintJudge,
+    | 'surfaceMode'
+    | 'provenanceMode'
+    | 'shouldStayInward'
+    | 'shouldOnlySurfaceStableCore'
+    | 'shouldLabelProvenance'
+    | 'shouldLabelHypothesis'
+    | 'shouldSuppressSpecificity'
+    | 'shouldDelayUntilAfterPayoff'
+    | 'whyWithheld'
+  > | null
 }): AlicizationTruthDisciplineFlags {
   const mode = resolveMode({
     consciousTruthDiscipline: input.currentConsciousFrame?.truthDiscipline ?? null,
@@ -107,18 +127,30 @@ export function deriveAlicizationTruthDiscipline(input: {
     evidenceMode: input.evidenceMode ?? null,
     labelCarryAsMemory: input.labelCarryAsMemory === true,
   })
+  const memoryRestraint = input.memoryRestraint ?? null
   const dialogueFirst = mode === 'dialogue-first'
     || input.screenReferenceMode === 'avoid'
     || isDialogueFirstSubject(input.answerSubject)
+  const shouldKeepMemoryInward = memoryRestraint?.shouldStayInward === true
+    || memoryRestraint?.surfaceMode === 'inward-only'
+  const shouldOnlySurfaceMemoryStableCore = memoryRestraint?.shouldOnlySurfaceStableCore === true
+    || memoryRestraint?.surfaceMode === 'stable-core-only'
+  const shouldLabelMemoryProvenance = memoryRestraint?.shouldLabelProvenance === true
+    || memoryRestraint?.surfaceMode === 'provenance-labeled'
+  const shouldDelayMemoryUntilAfterPayoff = memoryRestraint?.shouldDelayUntilAfterPayoff === true
   const shouldLabelHypothesis = input.claimEvidenceLedger?.shouldLabelHypothesis === true
     || mode === 'observe-then-hypothesize'
     || mode === 'memory-labeled'
     || input.truthState === 'uncertain'
+    || memoryRestraint?.shouldLabelHypothesis === true
   const forbidUnsupportedSpecificity = input.claimEvidenceLedger?.forbidUnsupportedSpecificity === true
     || mode === 'observe-then-hypothesize'
     || mode === 'repair-first'
+    || memoryRestraint?.shouldSuppressSpecificity === true
   const shouldSuppressAssociativeRecall = input.suppressAssociativeRecall === true
     || mode === 'repair-first'
+    || shouldKeepMemoryInward
+    || shouldDelayMemoryUntilAfterPayoff
   const shouldBlockScreenCarry = dialogueFirst || mode === 'memory-labeled'
 
   return {
@@ -128,6 +160,13 @@ export function deriveAlicizationTruthDiscipline(input: {
     forbidUnsupportedSpecificity,
     shouldSuppressAssociativeRecall,
     shouldBlockScreenCarry,
+    memorySurfaceMode: memoryRestraint?.surfaceMode ?? null,
+    memoryProvenanceMode: memoryRestraint?.provenanceMode ?? null,
+    shouldKeepMemoryInward,
+    shouldOnlySurfaceMemoryStableCore,
+    shouldLabelMemoryProvenance,
+    shouldDelayMemoryUntilAfterPayoff,
+    memoryWhyWithheld: memoryRestraint?.whyWithheld ?? null,
     reasonTags: uniqueTags([
       `mode:${mode}`,
       dialogueFirst ? 'dialogue-first-turn' : '',
@@ -135,6 +174,12 @@ export function deriveAlicizationTruthDiscipline(input: {
       forbidUnsupportedSpecificity ? 'forbid-unsupported-specificity' : '',
       shouldSuppressAssociativeRecall ? 'suppress-associative-recall' : '',
       shouldBlockScreenCarry ? 'block-screen-carry' : '',
+      memoryRestraint?.surfaceMode ? `memory-surface:${memoryRestraint.surfaceMode}` : '',
+      memoryRestraint?.provenanceMode ? `memory-provenance:${memoryRestraint.provenanceMode}` : '',
+      shouldKeepMemoryInward ? 'memory-inward-only' : '',
+      shouldOnlySurfaceMemoryStableCore ? 'memory-stable-core-only' : '',
+      shouldLabelMemoryProvenance ? 'memory-label-provenance' : '',
+      shouldDelayMemoryUntilAfterPayoff ? 'memory-delay-until-payoff' : '',
     ]),
   }
 }

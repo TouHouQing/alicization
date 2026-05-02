@@ -5,6 +5,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
+import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
@@ -62,6 +63,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     status: AlicizationTaskThreadRecord['status']
     summary: string
     deliveryPolicy?: AlicizationExecutionResultDeliveryPolicy | null
+    personStateProjection?: AlicizationPersonStateProjection | null
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   }) => {
@@ -82,6 +84,11 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
   }) => Promise<AlicizationHostPersonModelSnapshot | null>
+  resolveExecutionPersonStateProjection?: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+    goal?: string | null
+  }) => Promise<AlicizationPersonStateProjection | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
@@ -461,6 +468,13 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             cardId: options.getActiveCardId(),
           })
         : null
+      const personStateProjection = options.resolveExecutionPersonStateProjection
+        ? await options.resolveExecutionPersonStateProjection({
+            agentTurn,
+            cardId: options.getActiveCardId(),
+            goal: pendingDelivery.goal,
+          })
+        : null
       if (deliveryPolicy.mode === 'hold-for-opening') {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
@@ -507,6 +521,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           decisionTraceId: pendingDelivery.decisionTraceId,
         },
         deliveryPolicy,
+        personStateProjection,
         selfContinuityAuthority,
         hostPersonModel,
       })
@@ -517,6 +532,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         status: pendingDelivery.status,
         summary: pendingDelivery.summary,
         policy: deliveryPolicy,
+        personStateProjection,
         selfContinuityAuthority,
         hostPersonModel,
       })
@@ -528,6 +544,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         status: pendingDelivery.status,
         summary: pendingDelivery.summary,
         deliveryPolicy,
+        personStateProjection,
         selfContinuityAuthority,
         hostPersonModel,
       })

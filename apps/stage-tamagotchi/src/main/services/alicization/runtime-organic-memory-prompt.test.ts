@@ -722,6 +722,11 @@ describe('runtime-organic-memory-prompt', () => {
       shouldRecall: true,
       surfacePolicy: 'answer-anchoring',
       whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
+      followUpAffordance: expect.objectContaining({
+        summary: expect.stringContaining('Carry the same runtime seam before branching.'),
+        payoffDependency: 'can-surface-softly',
+        preferredTiming: 'same-turn-if-invited',
+      }),
       selectedRelationshipLines: expect.arrayContaining(['Carry the same runtime seam before branching.']),
       selectedBundles: expect.arrayContaining([
         expect.objectContaining({
@@ -761,6 +766,7 @@ describe('runtime-organic-memory-prompt', () => {
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_MEMORY_DELIBERATION]')
     expect(systemText).toContain('surface_policy=answer-anchoring')
+    expect(systemText).toContain('why_withheld=Only the stable remembered core should surface; unstable remembered detail stays inward.')
     expect(systemText).toContain('selected_periods=consolidation:That period kept bending toward the runtime seam until it finally held together.')
     expect(systemText).toContain('selected_bundles=bundle-runtime:That period kept bending toward the runtime seam until it finally held together.')
     expect(systemText).toContain('selected_chains=task-procedure-relationship-stance:Return to the same seam before branching.')
@@ -1635,7 +1641,7 @@ describe('runtime-organic-memory-prompt', () => {
       isPersonaResidueMemoryText: () => false,
     })
 
-    const cautiousContext = await createRuntime({
+    const cautiousRuntime = createRuntime({
       summary: 'The host wants more room during focused work.',
       routines: [],
       sensitivities: ['Pressure and over-close timing become intrusive quickly.'],
@@ -1653,7 +1659,8 @@ describe('runtime-organic-memory-prompt', () => {
       recurrentBurdens: ['Focused work gets overloaded quickly by extra conversational pressure.'],
       narrative: [],
       updatedAt: Date.UTC(2026, 3, 18, 12, 0, 0),
-    }).resolveOrganicMemoryPromptContext({
+    })
+    const cautiousContext = await cautiousRuntime.resolveOrganicMemoryPromptContext({
       recallSeed: '你记得我对这类事的敏感点吗',
       recallGovernor: {
         allowActiveThoughts: true,
@@ -1671,7 +1678,7 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    const warmContext = await createRuntime({
+    const warmRuntime = createRuntime({
       summary: 'The host can hold warmer directness when the opening is clearly there.',
       routines: [],
       sensitivities: [],
@@ -1689,7 +1696,8 @@ describe('runtime-organic-memory-prompt', () => {
       recurrentBurdens: [],
       narrative: [],
       updatedAt: Date.UTC(2026, 3, 18, 12, 0, 0),
-    }).resolveOrganicMemoryPromptContext({
+    })
+    const warmContext = await warmRuntime.resolveOrganicMemoryPromptContext({
       recallSeed: '你记得我对这类事的敏感点吗',
       recallGovernor: {
         allowActiveThoughts: true,
@@ -1709,6 +1717,74 @@ describe('runtime-organic-memory-prompt', () => {
 
     expect(cautiousContext.memoryDeliberation?.selectedEras[0]?.id).toBe('consolidation-light')
     expect(warmContext.memoryDeliberation?.selectedEras[0]?.id).toBe('consolidation-close')
+    expect(cautiousContext.personStateProjection?.preferenceText).toContain('Lighter touch')
+    expect(cautiousContext.personStateProjection?.activeClosenessRung === 'space-first' || cautiousContext.personStateProjection?.activeClosenessRung === 'measured-room').toBe(true)
+    expect(warmContext.personStateProjection?.relationshipPosture === 'warm' || warmContext.personStateProjection?.relationshipPosture === 'tender').toBe(true)
+    expect(cautiousRuntime.buildOrganicMemorySystemBlocks(cautiousContext).join('\n\n')).toContain('[ALICIZATION_PERSON_STATE_PROJECTION]')
+  })
+
+  it('lets person-state evolution summary keep focused-work recall posture space-first even without direct host preference text', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => ({
+        summary: 'The host is workable but sensitive to pressure.',
+        routines: [],
+        sensitivities: [],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.72,
+          rationale: 'Trust is present but bounded.',
+        },
+        preferredClosenessByContext: [],
+        recurrentBurdens: [],
+        narrative: [],
+        updatedAt: Date.UTC(2026, 3, 18, 12, 0, 0),
+      }),
+      getPersonStateEvolutionSummary: async () => ({
+        trustShift: 0.08,
+        closenessShift: -0.02,
+        repairShift: 0.05,
+        autonomyShift: 0.04,
+        burdenShift: 0.06,
+        executionTrustShift: 0.02,
+        relationshipDoctrineShift: 0.08,
+        latestDoctrine: 'Repair before closeness.',
+        latestBurdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
+        latestTrustMeaning: 'Bounded repair felt safer.',
+        latestDominantRung: 'space-first',
+        recentSummaries: ['Trust rose after a bounded repair.'],
+        explanation: ['Trust rose after bounded repair.'],
+        updatedAt: Date.UTC(2026, 3, 18, 12, 0, 0),
+      }),
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: vi.fn(async () => null),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续按之前那样修这个 runtime seam',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.personStateProjection?.preferenceText).toContain('Lighter touch')
+    expect(context.personStateProjection?.burdenText).toContain('Focused work gets overloaded quickly')
+    expect(context.personStateProjection?.relationshipDoctrine).toContain('Repair before closeness')
+    expect(context.personStateProjection?.trustRationale).toContain('Bounded repair felt safer')
   })
 
   it('lets relationship doctrine suppress closeness-heavy recall and foreground repair-first eras', async () => {
@@ -1812,7 +1888,184 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    expect(context.memoryDeliberation?.selectedEras[0]?.id).toBe('consolidation-repair')
+    expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-repair')
+  })
+
+  it('lets benchmark tuning advice clamp ambiguous recollection back inward', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-ambiguous',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-ambiguous',
+        sessionId: 'session-ambiguous',
+        occurredAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        whereSummary: 'runtime seam',
+        withWhom: ['host'],
+        threadAnchor: 'runtime continuity',
+        whatHappened: 'Two nearby runtime lines kept competing for recall.',
+        felt: 'uncertain',
+        emotionTags: ['uncertain'],
+        whatChanged: 'Only the stable core felt safe enough to carry.',
+        relationshipMeaning: 'Keep the line bounded.',
+        lesson: 'Do not let the wrong thread outrun the payoff.',
+        sourceKind: 'execution-result',
+        sourceSummary: 'ambiguous runtime seam',
+        provenance: 'reconstructed',
+        confidence: 0.66,
+        salience: 0.82,
+        sceneAttachment: 0.42,
+        consolidationPriority: 0.76,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['runtime seam'],
+        createdAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 18, 8, 10, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      } as any],
+      buildHostPersonModel: async () => null,
+      getMemoryTuningAdvice: async () => ({
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: Date.UTC(2026, 3, 30, 3, 0, 0),
+        sourceReportAt: Date.UTC(2026, 3, 30, 3, 0, 0),
+        focusDimensions: ['wrongThreadSuppression', 'surfaceRestraint'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.08,
+          temporalWindowBias: 0.1,
+          wrongThreadPenalty: 0.18,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.2,
+          delayUntilAfterPayoffBias: 0.16,
+          provenanceLabelBias: 0.12,
+          specificityClampBias: 0.12,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+        },
+        notes: ['Surface restraint failed, so ambiguous recollection should stay inward more aggressively.'],
+      }),
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [{
+        id: 'consolidation-runtime',
+        kind: 'autobiographical',
+        facet: 'task-era',
+        periodKey: '2026-04-runtime',
+        periodStartedAt: Date.UTC(2026, 3, 18, 8, 0, 0),
+        periodEndedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+        summary: 'That period kept returning to the runtime seam until it stabilized.',
+        lesson: 'Return to the seam before opening a new branch.',
+        cues: ['runtime seam'],
+        confidence: 0.78,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-ambiguous'],
+        updatedAt: Date.UTC(2026, 3, 18, 10, 0, 0),
+      }],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'execution-procedure' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam'],
+        rationale: 'The host is asking for a remembered runtime way of handling this.',
+        confidence: 0.82,
+      })),
+      planRecollectionSpeech: vi.fn(async () => ({
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring' as const,
+        placement: 'before-payoff' as const,
+        certainty: 'firm' as const,
+        internalLead: 'The remembered runtime seam comes back first.',
+        visibleLead: 'This feels like the same runtime seam again.',
+        styleNote: 'Let the memory briefly open the answer.',
+        rationale: 'The host is explicitly asking for remembered handling.',
+        confidence: 0.86,
+      })),
+      planMemoryDeliberation: vi.fn(async () => ({
+        shouldRecall: true,
+        selectedEraIds: ['consolidation-runtime'],
+        selectedConsolidationIds: ['consolidation-runtime'],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: ['episode-ambiguous'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Keep the line bounded.'],
+        ambiguityPosture: 'ambiguous' as const,
+        selectedEras: [{
+          id: 'consolidation-runtime',
+          facet: 'task-era' as const,
+          summary: 'That period kept returning to the runtime seam until it stabilized.',
+        }],
+        selectedPeriods: [{
+          id: 'consolidation-runtime',
+          kind: 'consolidation' as const,
+          summary: 'That period kept returning to the runtime seam until it stabilized.',
+        }],
+        selectedEpisodes: [{
+          id: 'episode-ambiguous',
+          summary: 'Two nearby runtime lines kept competing for recall.',
+          provenance: 'reconstructed' as const,
+        }],
+        conflictSeverity: 'high' as const,
+        conflictVariants: [{
+          id: 'cluster:runtime-nearby',
+          summary: 'A nearby runtime line still competes for recall.',
+          provenance: 'reconstructed' as const,
+          reason: 'Need to suppress the wrong thread lure.',
+        }],
+        stableCore: ['Return to the seam before opening a new branch.'],
+        unsafeDetails: ['Do not state the competing runtime line as settled fact.'],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'answer-anchoring' as const,
+        confidence: 0.72,
+        whyNow: 'The stable core still helps, but the remembered detail is conflict-prone.',
+        inwardLine: 'Keep only the stable seam inward until the payoff lands.',
+        visibleLine: 'This feels like the same seam, but I should not over-claim it.',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '继续按之前那样处理 runtime seam',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+        recollectionIntent: {
+          mode: 'execution-procedure',
+          temporalFocus: 'experience-matched',
+          searchEpisodes: true,
+          searchConversations: false,
+          searchProceduralExperience: true,
+          queryHints: ['runtime seam'],
+          rationale: 'The host is asking for a remembered runtime way of handling this.',
+          confidence: 0.82,
+        },
+      } as any,
+    })
+
+    expect(context.memoryTuningAdvice?.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0.16)
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
+    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
+    expect(context.recollectionSpeechPlan?.certainty).toBe('approximate')
   })
 
   it('lets familiar scene cues trigger recollection even without explicit retrospective wording', async () => {

@@ -3,17 +3,21 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
   AlicizationRuntimeDigest,
+  AlicizationVisibleReplyExecution,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { buildAlicizationChatStreamEmbodimentMeta, readStringValue } from './runtime-governance'
 
-export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'embodiment' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
+export function buildAlicizationChatMetaSignature(body: Pick<AlicizationChatMetaEvent, 'governance' | 'visibleReplyExecution' | 'embodiment' | 'speechTimeline' | 'digitalLife' | 'digitalLifeSpine' | 'runtimeDigest'>) {
   const lastSegment = body.speechTimeline?.segments.at(-1)
   const lastFrame = body.digitalLife?.frames.at(-1)
   return JSON.stringify({
     decisionTraceId: body.governance?.decisionTraceId ?? null,
+    visibleReplyExecutionMode: body.visibleReplyExecution?.mode ?? null,
+    visibleReplyExecutionAuthority: body.visibleReplyExecution?.actualVisibleReplyAuthority ?? null,
+    visibleReplyExecutionProviderMind: body.visibleReplyExecution?.providerMindExecuted ?? null,
     emotion: body.embodiment?.emotion ?? null,
     variationToken: body.embodiment?.variationToken ?? null,
     postureHint: body.embodiment?.postureHint ?? null,
@@ -93,6 +97,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
   cardId: string
   turnId: string
   getGovernance: () => AlicizationMindTurnGovernance | null | undefined
+  getVisibleReplyExecution?: () => AlicizationVisibleReplyExecution | null | undefined
   getDigitalLifeSpine?: () => AlicizationChatMetaEvent['digitalLifeSpine']
   getRuntimeDigest?: () => AlicizationRuntimeDigest | null | undefined
   getResidentPerformance?: () => AlicizationResidentPerformanceSnapshot | null | undefined
@@ -117,6 +122,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       cardId: input.cardId,
       turnId: input.turnId,
       governance: meta.governance,
+      visibleReplyExecution: input.getVisibleReplyExecution?.() ?? null,
       embodiment: meta.embodiment,
       speechTimeline: meta.speechTimeline,
       digitalLife: meta.digitalLife,

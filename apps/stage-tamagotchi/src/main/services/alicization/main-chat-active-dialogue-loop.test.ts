@@ -1313,7 +1313,7 @@ describe('main chat active dialogue loop', () => {
     expect(payload.governance.screenReferenceMode).toBe('avoid')
   })
 
-  it('falls back to authoritative local clock reply when compact one-shot returns the wrong time basis', () => {
+  it('escalates utility-time compact replies when the provider returns the wrong time basis', () => {
     const conversationMessages = [
       { role: 'user', content: '后面按东京时间回答，现在几点了？' },
     ] as Message[]
@@ -1329,23 +1329,17 @@ describe('main chat active dialogue loop', () => {
       runtimeDigest: null,
     })
 
-    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+    expect(() => normalizeAlicizationActiveDialogueFastPathReply({
       decision: decision!,
       rawText: JSON.stringify({
         reply: '现在是 12:06，星期二。',
         thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
         emotion: 'thinking',
       }),
-    })
-    const fallback = buildAlicizationActiveDialogueFallbackReply({
-      actionKind: 'answer',
-      conversationMessages,
-    })
-
-    expect(JSON.parse(normalized)).toEqual(JSON.parse(fallback))
+    })).toThrow('active-dialogue-invalid-compact-reply:utility-time')
   })
 
-  it('escalates wrong-time compact replies instead of silently replacing them on the normal reply path', () => {
+  it('keeps utility-time lanes on provider-mind authority even under escalation mode', () => {
     const conversationMessages = [
       { role: 'user', content: '后面按东京时间回答，现在几点了？' },
     ] as Message[]
@@ -1368,7 +1362,7 @@ describe('main chat active dialogue loop', () => {
         thought: 'obligation=answer; truth=live-grounded; focus=local time; move=direct-reply; tone=direct',
         emotion: 'thinking',
       }),
-    })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
+    })).toThrow('active-dialogue-invalid-compact-reply:utility-time')
   })
 
   it('turns expression requests into embodied mind-turns instead of meta dialogue shells', () => {
@@ -1413,8 +1407,8 @@ describe('main chat active dialogue loop', () => {
     expect(payload.digitalLife?.mode).toBeTruthy()
   })
 
-  it('repairs expression-request meta shells from compact one-shot into embodied replies', () => {
-    const normalized = normalizeAlicizationActiveDialogueFastPathReply({
+  it('escalates expression-request meta shells instead of locally repairing them on the normal reply path', () => {
+    expect(() => normalizeAlicizationActiveDialogueFastPathReply({
       decision: {
         lane: 'dialogue',
         strategy: 'compact-one-shot',
@@ -1439,25 +1433,7 @@ describe('main chat active dialogue loop', () => {
         thought: 'obligation=answer; truth=dialogue-grounded; focus=current-user-turn; move=meta-shell; tone=direct',
         emotion: 'angry',
       }),
-    })
-
-    const payload = JSON.parse(normalized) as {
-      reply: string
-      performance: {
-        baseEmotion: string
-        facialCue: string | null
-      }
-      embodiment: {
-        emotion: string
-      } | null
-    }
-
-    expect(payload.reply).not.toContain('直接接')
-    expect(payload.reply).not.toContain('请你表现出最生气的表情')
-    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
-    expect(payload.performance.baseEmotion).toBe('angry')
-    expect(payload.performance.facialCue).toBeTruthy()
-    expect(payload.embodiment?.emotion).toBe('angry')
+    })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
   })
 
   it('answers self-appraisal turns from durable self instead of generic listening shells', () => {

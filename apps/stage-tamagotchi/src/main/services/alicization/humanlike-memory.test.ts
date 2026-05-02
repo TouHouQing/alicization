@@ -114,4 +114,134 @@ describe('humanlike memory helpers', () => {
     expect(snapshot.trustLadder.stage === 'cautious-open' || snapshot.trustLadder.stage === 'warming' || snapshot.trustLadder.stage === 'trusted').toBe(true)
     expect(snapshot.summary.length).toBeGreaterThan(0)
   })
+
+  it('lets consolidations and relationship dynamics keep shaping the host model even when fresh episodes are sparse', () => {
+    const snapshot = buildHostPersonModelSnapshot({
+      now: 40_000,
+      facts: [],
+      relationshipDynamics: {
+        hostAttitude: 'Focused work is still sensitive, but trust holds if the return stays light and precise.',
+        previousHostAttitude: 'Focused work is sensitive.',
+        obedienceDelta: 0,
+        livelinessDelta: 0.02,
+        sensibilityDelta: 0.04,
+        source: 'dialogue-feedback:received',
+        createdAt: 38_000,
+      },
+      consolidations: [
+        {
+          id: 'relationship-era:focused',
+          kind: 'autobiographical',
+          facet: 'relationship-era',
+          periodKey: '2026-04-focused',
+          periodStartedAt: 30_000,
+          periodEndedAt: 38_000,
+          summary: 'Focused work periods stay safer when closeness leaves room first and repair settles before the return.',
+          lesson: 'If the host is focused and the seam is off, repair first, then re-enter with a lighter touch.',
+          cues: ['focused-work', 'room-before-closeness', 'repair-first'],
+          confidence: 0.88,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['evt-1'],
+          updatedAt: 38_000,
+          memoryTier: 'warm',
+        },
+      ],
+      events: [],
+    })
+
+    expect(snapshot.summary).toContain('attitude=')
+    expect(snapshot.repairTriggers.some(item => item.includes('repair first') || item.includes('repair'))).toBe(true)
+    expect(snapshot.preferredClosenessByContext.some(item => item.context === 'focused-work')).toBe(true)
+    expect(snapshot.narrative.some(item => item.includes('Focused work periods stay safer'))).toBe(true)
+  })
+
+  it('lets relationship outcomes and reinforcement events keep shaping host preferences and trust', () => {
+    const snapshot = buildHostPersonModelSnapshot({
+      now: 52_000,
+      facts: [],
+      events: [],
+      relationshipDynamics: null,
+      relationshipOutcomes: [
+        {
+          id: 'outcome-1',
+          cardId: 'card-1',
+          decisionTraceId: null,
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          sourceKind: 'execution',
+          actionSummary: 'execution callback landed during focused work',
+          closenessDelta: -0.02,
+          trustDelta: 0.08,
+          burdenDelta: 0.06,
+          boundaryDelta: -0.04,
+          misreadDelta: 0,
+          repairDelta: 0.03,
+          openLoopDelta: 0.04,
+          summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
+          createdAt: 50_000,
+        },
+      ],
+      reinforcementEvents: [
+        {
+          id: 'reinforce-1',
+          cardId: 'card-1',
+          decisionTraceId: null,
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          sourceKind: 'execution',
+          dimension: 'autonomy-respect',
+          delta: 0.08,
+          valence: 'reinforce',
+          summary: 'Respecting working space kept the callback acceptable.',
+          createdAt: 51_000,
+        },
+      ],
+    })
+
+    expect(snapshot.preferredClosenessByContext.some(item => item.context === 'focused-work')).toBe(true)
+    expect(snapshot.recurrentBurdens.some(item => item.includes('Focused work') || item.includes('callback'))).toBe(true)
+    expect(snapshot.narrative.some(item => item.includes('lighter interruption pressure'))).toBe(true)
+    expect(snapshot.trustLadder.score).toBeGreaterThan(0.5)
+  })
+
+  it('lets explicit person-state update surfaces feed the host model even before older stores are re-read', () => {
+    const snapshot = buildHostPersonModelSnapshot({
+      now: 60_000,
+      facts: [],
+      events: [],
+      relationshipDynamics: null,
+      personStateUpdateSurface: {
+        version: 'person-state-update-surface-v1',
+        updatedAt: 59_000,
+        summary: 'Recent outcomes nudged trust upward. Preference shift: Lighter touch, more room, less interruption pressure.',
+        dominantContexts: ['focused-work', 'execution'],
+        relationshipShift: {
+          trustDelta: 0.08,
+          closenessDelta: -0.02,
+          burdenDelta: 0.05,
+          boundaryDelta: -0.03,
+          repairDelta: 0.03,
+        },
+        reinforcementBias: {
+          'autonomy-respect': 0.08,
+        },
+        preferenceHints: ['Lighter touch, more room, less interruption pressure.'],
+        sensitivityHints: ['Pressure and over-close timing become intrusive quickly.'],
+        repairHints: ['When the seam is off, repair before continuing.'],
+        burdenHints: ['Focused work gets overloaded quickly by extra conversational pressure.'],
+        narrative: ['The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.'],
+        sourceTrail: [{
+          kind: 'relationship-outcome',
+          sourceKind: 'execution',
+          summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
+          createdAt: 59_000,
+        }],
+      },
+    })
+
+    expect(snapshot.summary).toContain('update=')
+    expect(snapshot.preferredClosenessByContext.some(item => item.context === 'focused-work')).toBe(true)
+    expect(snapshot.sensitivities.some(item => item.includes('Pressure'))).toBe(true)
+    expect(snapshot.repairTriggers.some(item => item.includes('repair'))).toBe(true)
+  })
 })

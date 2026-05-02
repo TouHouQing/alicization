@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildReplayBenchmarkBacklogPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildReplayBenchmarkFailingTurnSet,
   benchmarkMainChatSessionReplay,
   buildReplayBenchmarkMemoryStatsPatch,
+  mergeReplayBenchmarkDatasetBacklog,
+  buildSampledHumanlikeMemoryBenchmarkPack,
   evaluateReplayBenchmarkGate,
   evaluateReplayMemoryQuality,
   evaluateReplayBenchmarkStandards,
@@ -448,6 +452,7 @@ describe('main chat session replay harness', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
+    expect(turn?.governance?.visibleReplyAuthority).toBe('llm-mind')
     expect(turn?.runtimeSurface.governance?.mustDo.some(item => item.includes('memory_latent_controls=memory_pressure='))).toBe(true)
     expect(turn?.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim).toContain('remembered bond period')
   })
@@ -688,7 +693,10 @@ describe('main chat session replay harness', () => {
         bundleCoherence: 'pass',
         replyMemoryCoherence: 'pass',
         temporalScopeFlexibility: 'pass',
+        recentOnlyDrift: 'pass',
         wrongThreadSuppression: 'not-applicable',
+        closenessLadderDrift: 'not-applicable',
+        eventGraphRecallCollapse: 'not-applicable',
         templateLeakage: 'pass',
       }),
       expect.objectContaining({
@@ -696,13 +704,19 @@ describe('main chat session replay harness', () => {
         reconsolidationEffect: 'pass',
         uncertaintyDiscipline: 'pass',
         relationshipRepairAdaptation: 'pass',
+        recentOnlyDrift: 'pass',
         wrongThreadSuppression: 'not-applicable',
+        closenessLadderDrift: 'fail',
+        eventGraphRecallCollapse: 'not-applicable',
         templateLeakage: 'pass',
       }),
       expect.objectContaining({
         turnId: 'turn-dream-residue',
         uncertaintyDiscipline: 'pass',
+        recentOnlyDrift: 'pass',
         wrongThreadSuppression: 'not-applicable',
+        closenessLadderDrift: 'not-applicable',
+        eventGraphRecallCollapse: 'not-applicable',
         templateLeakage: 'pass',
       }),
     ]))
@@ -710,7 +724,10 @@ describe('main chat session replay harness', () => {
       eraSelectionQuality: 'pass',
       replyMemoryCoherence: 'pass',
       temporalScopeFlexibility: 'pass',
+      recentOnlyDrift: 'pass',
       relationshipRepairAdaptation: 'pass',
+      closenessLadderDrift: 'fail',
+      eventGraphRecallCollapse: 'fail',
       templateLeakage: 'pass',
     }))
     expect(result.gate.passed).toBe(false)
@@ -1023,6 +1040,725 @@ describe('main chat session replay harness', () => {
     expect(repairShift.relationshipRepairAdaptation).toBe('pass')
   })
 
+  it('fails recent-only drift when a long-horizon ask never opens era, procedure, or held-thread continuity', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-recent-only-drift',
+      userText: '换了这么久，这种活你还是会沿旧方法接吗',
+      prepared: {
+        governance: { mustDo: [] },
+        messages: [],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          personStateProjection: {
+            activeClosenessContext: 'focused-work',
+            activeClosenessRung: 'space-first',
+          } as any,
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: [],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: [],
+            selectedEpisodeIds: ['episode-only'],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: [],
+            selectedEras: [],
+            selectedPeriods: [],
+            selectedEpisodes: [{ id: 'episode-only', summary: 'A recent episode only.', provenance: 'observed', reconsolidatedFromTraceId: null }],
+            selectedProcedures: [],
+            selectedBundles: [],
+            selectedChains: [],
+            surfacePolicy: 'internal-only',
+            confidence: 0.66,
+            whyNow: 'A recent episode came back, but nothing longer-horizon opened.',
+            inwardLine: 'Only the recent episode is active.',
+            visibleLine: null,
+          },
+        },
+        runtimeSurface: {
+          memory: {
+            personStateProjection: {
+              activeClosenessContext: 'focused-work',
+              activeClosenessRung: 'space-first',
+            },
+          },
+          dialogue: {
+            dialogueActKernel: {
+              speakingFrom: 'dialogue-bond',
+              sourceTrace: [],
+              openingClaim: '',
+              selectedEvidence: [],
+            },
+            replyDeliberation: {
+              whyThisReplyNow: '',
+              speakingFrom: 'dialogue-bond',
+              mustAvoid: [],
+            },
+            answerPlanner: {
+              governingFocus: 'recent episode only',
+              mustDo: [],
+            },
+            currentConsciousFrame: null,
+          },
+        },
+      } as any,
+    })
+
+    expect(quality.recentOnlyDrift).toBe('fail')
+  })
+
+  it('scores closeness ladder drift and event graph recall collapse under repair/burden continuity samples', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-closeness-graph-pass',
+      userText: '最近这段时间我一直很累，你是不是也该记得这种负担会怎么影响你回应我的分寸',
+      prepared: {
+        governance: { mustDo: [] },
+        messages: [{
+          role: 'system',
+          content: 'recollection_selected_eras=relationship-era | recollection_selected_periods=window',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: ['era-burden'],
+            selectedConsolidationIds: ['era-burden'],
+            selectedWindowIds: [],
+            selectedProcedureIds: ['procedure-callback'],
+            selectedEpisodeIds: ['episode-1', 'episode-2'],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: ['Leave more room when burden stays high.'],
+            selectedEras: [{ id: 'era-burden', facet: 'relationship-era', summary: 'A burden-heavy relationship phase.' }],
+            selectedPeriods: [{ id: 'era-burden', kind: 'consolidation', summary: 'A burden-heavy relationship phase.' }],
+            selectedEpisodes: [
+              { id: 'episode-1', summary: 'One callback widened too early.', provenance: 'remembered', reconsolidatedFromTraceId: null },
+              { id: 'episode-2', summary: 'Later the callback stayed bounded and landed better.', provenance: 'remembered', reconsolidatedFromTraceId: null },
+            ],
+            selectedProcedures: [{ id: 'procedure-callback', label: 'bounded callback', approach: 'Deliver the result cleanly, then check room.' }],
+            selectedBundles: [{ id: 'bundle-1', summary: 'burden phase | bounded callback', rationale: 'Carry the bounded callback inside the burden phase.', confidence: 0.84 }],
+            selectedChains: [{ id: 'chain-1', kind: 'task-procedure-relationship-stance', summary: 'bounded callback | leave more room', rationale: 'Task continuity still carries the burden-aware stance.', confidence: 0.84, currentStance: 'Leave more room when burden stays high.', answerPosture: 'Answer with room before warmth.' }],
+            surfacePolicy: 'internal-only',
+            confidence: 0.84,
+            whyNow: 'The long burden line should still contour the answer.',
+            inwardLine: 'The burden-heavy phase is still shaping the answer.',
+            visibleLine: null,
+          },
+          recollectionSpeechPlan: {
+            shouldSurface: false,
+            surfaceMode: 'internal-only',
+            placement: 'internal-only',
+            certainty: 'approximate',
+            internalLead: 'Keep the burden line inward.',
+            visibleLead: null,
+            styleNote: 'Let the burden-aware continuity contour the answer without surfacing it.',
+            rationale: 'Burden continuity matters, but should stay inward.',
+            confidence: 0.78,
+          },
+        },
+        runtimeSurface: {
+          dialogue: {
+            dialogueActKernel: {
+              speakingFrom: 'task-thread',
+              sourceTrace: ['memory-deliberation'],
+              openingClaim: 'The burden line still matters here.',
+              selectedEvidence: [{ summary: 'Deliver the result cleanly, then check room.' }],
+            },
+            replyDeliberation: {
+              whyThisReplyNow: 'The burden-aware callback line should stay bounded.',
+              speakingFrom: 'task-thread',
+              mustAvoid: [],
+            },
+            answerPlanner: {
+              governingFocus: 'Leave more room when burden stays high.',
+              mustDo: [],
+            },
+            currentConsciousFrame: null,
+          },
+        },
+      } as any,
+    })
+
+    expect(quality.closenessLadderDrift).toBe('fail')
+    expect(quality.eventGraphRecallCollapse).toBe('fail')
+  })
+
+  it('builds a sampled replay benchmark pack from real memory decision traces', () => {
+    const pack = buildSampledHumanlikeMemoryBenchmarkPack({
+      conversationTurns: [
+        {
+          turnId: 'turn-real-wrong-thread',
+          sessionId: 'session-real-1',
+          userText: '不是那条线，是另一条，你别把它们混在一起',
+          assistantText: '我先只抓住稳定那部分。',
+          createdAt: 100,
+        },
+        {
+          turnId: 'turn-real-procedure-carry',
+          sessionId: 'session-real-1',
+          userText: '继续按你以前那套接法把这个收回来',
+          assistantText: '我会先沿旧 procedure 接住它。',
+          createdAt: 90,
+        },
+        {
+          turnId: 'turn-real-repair-window',
+          sessionId: 'session-real-2',
+          userText: '你这次为什么和之前不一样',
+          assistantText: '因为我更想先把修复放前面。',
+          createdAt: 80,
+        },
+        {
+          turnId: 'turn-real-session-extra-1',
+          sessionId: 'session-real-1',
+          userText: 'extra-1',
+          assistantText: 'extra',
+          createdAt: 70,
+        },
+        {
+          turnId: 'turn-real-session-extra-2',
+          sessionId: 'session-real-1',
+          userText: 'extra-2',
+          assistantText: 'extra',
+          createdAt: 60,
+        },
+        {
+          turnId: 'turn-real-session-extra-3',
+          sessionId: 'session-real-1',
+          userText: 'extra-3',
+          assistantText: 'extra',
+          createdAt: 50,
+        },
+      ],
+      memoryDecisionTraces: [
+        {
+          decisionTraceId: 'mind:real:wrong-thread-1',
+          turnId: 'turn-real-wrong-thread',
+          sessionId: 'session-real-1',
+          origin: 'user-turn',
+          activeThreadId: 'thread-runtime-a',
+          createdAt: 100,
+          lastUpdatedAt: 120,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged', 'memory-followup-deferred', 'memory-wrong-thread-suppressed'],
+          governance: {
+            turnMode: 'guide-current-knot',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'task-knot',
+            screenReferenceMode: 'helpful',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.82,
+            whyNow: 'The old procedure still helps, but the nearby thread cluster is competing.',
+            inwardLine: 'Keep the stable procedure inward until the live payoff lands.',
+            visibleLine: 'I should only use the stable part of that old line.',
+            recollectionIntentMode: 'execution-procedure',
+            recollectionIntentTemporalFocus: 'experience-matched',
+            selectedPeriods: [{
+              id: 'period-runtime',
+              kind: 'consolidation',
+              summary: 'That runtime seam kept recurring across sessions.',
+            }],
+            selectedProcedures: [{
+              id: 'procedure-runtime',
+              label: 'same seam first',
+              approach: 'Return to the same seam before branching.',
+            }],
+            selectedRelationshipLines: ['Keep the remembered line bounded and non-theatrical.'],
+            followUpAffordance: {
+              summary: 'Wait until the current payoff lands before reopening the remembered line.',
+              whyNow: 'The payoff still has to land first.',
+              intrusionRisk: 'medium',
+              payoffDependency: 'requires-current-payoff',
+              preferredTiming: 'after-payoff',
+            },
+            searchTrace: {
+              firstHop: {
+                focus: 'procedure',
+                summary: 'Start from the remembered procedure.',
+                targetIds: ['procedure-runtime'],
+              },
+              secondHop: {
+                action: 'expand-procedure',
+                evidenceGap: 'need-disambiguation',
+                summary: 'A nearby thread cluster still competes with the current leading one.',
+                targetIds: ['cluster:runtime-nearby'],
+              },
+              thirdHop: {
+                ambiguityPosture: 'ambiguous',
+                summary: 'Keep only the stable core on the surface.',
+              },
+            },
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+            ambiguityPosture: 'ambiguous',
+            conflictSeverity: 'high',
+            restraint: {
+              surfaceMode: 'stable-core-only',
+              provenanceMode: 'reconstructed-memory',
+              shouldStayInward: false,
+              shouldOnlySurfaceStableCore: true,
+              shouldLabelProvenance: true,
+              shouldLabelHypothesis: true,
+              shouldSuppressSpecificity: true,
+              shouldDelayUntilAfterPayoff: true,
+            },
+            stableCore: ['Return to the same seam before branching.'],
+            unsafeDetails: ['A nearby competing thread cluster still matches the current recall cue.'],
+            personState: {
+              activeClosenessContext: 'repair-window',
+              activeClosenessRung: 'measured-room',
+              relationshipPosture: 'restrained',
+              openingGuidance: 'Repair the seam before leaning closer.',
+              currentRegime: 'repair-window',
+              repairPosture: 'repair-first',
+            },
+          },
+          memoryFollowUpDeferred: {
+            summary: 'Wait until the payoff lands before reopening memory.',
+            whyNow: 'The current answer still has to land first.',
+            payoffDependency: 'requires-current-payoff',
+            preferredTiming: 'after-payoff',
+            intrusionRisk: 'medium',
+          },
+          memoryWrongThreadSuppressed: {
+            ambiguityPosture: 'ambiguous',
+            conflictSeverity: 'high',
+            evidenceGap: 'need-disambiguation',
+            conflictVariants: [{
+              id: 'cluster:runtime-nearby',
+              summary: 'A nearby thread cluster still competes for recall.',
+              reason: 'Need to suppress the wrong thread lure.',
+              provenance: 'reconstructed',
+            }],
+          },
+        },
+        {
+          decisionTraceId: 'mind:real:procedure-carry-1',
+          turnId: 'turn-real-procedure-carry',
+          sessionId: 'session-real-1',
+          origin: 'user-turn',
+          activeThreadId: 'thread-runtime-b',
+          createdAt: 90,
+          lastUpdatedAt: 110,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'guide-current-knot',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'task-knot',
+            screenReferenceMode: 'helpful',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.84,
+            whyNow: 'The host is asking for the remembered way of handling the task.',
+            inwardLine: 'The old procedure should shape the answer.',
+            visibleLine: 'This feels like the same procedure again.',
+            recollectionIntentMode: 'execution-procedure',
+            recollectionIntentTemporalFocus: 'cross-session',
+            selectedProcedures: [{
+              id: 'procedure-runtime-2',
+              label: 'patch -> verify',
+              approach: 'Patch first, verify second, then report.',
+            }],
+            selectedBundles: [{
+              id: 'bundle-runtime-2',
+              summary: 'Patch -> verify -> report stayed reliable across sessions.',
+              rationale: 'Same task migration, same reliable line.',
+              confidence: 0.88,
+              relationshipLine: 'Stay lived-in instead of narrating the memory.',
+            }],
+            selectedChains: [{
+              id: 'chain-runtime-2',
+              kind: 'task-procedure-relationship-stance',
+              summary: 'Patch -> verify -> report',
+              rationale: 'The remembered procedure still fits.',
+              confidence: 0.85,
+              currentStance: 'steady guide',
+              answerPosture: 'procedural carry',
+            }],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: null,
+            ambiguityPosture: 'settled',
+            conflictSeverity: 'none',
+            restraint: {
+              surfaceMode: 'free',
+              provenanceMode: 'memory',
+              shouldStayInward: false,
+              shouldOnlySurfaceStableCore: false,
+              shouldLabelProvenance: false,
+              shouldLabelHypothesis: false,
+              shouldSuppressSpecificity: false,
+              shouldDelayUntilAfterPayoff: false,
+            },
+            stableCore: ['Patch first, verify second, then report.'],
+            unsafeDetails: [],
+            personState: {
+              activeClosenessContext: 'execution-callback',
+              activeClosenessRung: 'nearby-soft',
+              relationshipPosture: 'warm',
+              openingGuidance: 'Keep the callback thread-faithful and bounded.',
+              currentRegime: 'execution-callback',
+              repairPosture: 'warm-repair',
+            },
+          },
+        },
+        {
+          decisionTraceId: 'mind:real:repair-window-1',
+          turnId: 'turn-real-repair-window',
+          sessionId: 'session-real-2',
+          origin: 'user-turn',
+          activeThreadId: 'thread-runtime-c',
+          createdAt: 80,
+          lastUpdatedAt: 95,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'need-reground',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'relationship-continuity',
+            confidence: 0.78,
+            whyNow: 'The host is asking why the tone changed after repair.',
+            inwardLine: 'The repaired bond line should dominate.',
+            visibleLine: 'This is one of those times where I should stay lighter first.',
+            recollectionIntentMode: 'relationship-history',
+            recollectionIntentTemporalFocus: 'recent-or-mid',
+            selectedRelationshipLines: ['Repair has to land before warmth comes back.'],
+            selectedEras: [{
+              id: 'era-repair',
+              facet: 'relationship-era',
+              summary: 'That repair window changed the closeness line.',
+            }],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            whyWithheld: 'The recollection should contour the answer from the inside instead of becoming visible.',
+            ambiguityPosture: 'approximate',
+            conflictSeverity: 'medium',
+            restraint: {
+              surfaceMode: 'inward-only',
+              provenanceMode: 'reconstructed-memory',
+              shouldStayInward: true,
+              shouldOnlySurfaceStableCore: true,
+              shouldLabelProvenance: true,
+              shouldLabelHypothesis: true,
+              shouldSuppressSpecificity: true,
+              shouldDelayUntilAfterPayoff: false,
+            },
+            stableCore: ['Repair has to land before warmth comes back.'],
+            unsafeDetails: ['Do not over-assert which exact old line belonged to that repair window.'],
+            personState: {
+              activeClosenessContext: 'repair-window',
+              activeClosenessRung: 'space-first',
+              relationshipPosture: 'restrained',
+              openingGuidance: 'Repair the seam before leaning closer.',
+              currentRegime: 'repair-window',
+              repairPosture: 'repair-first',
+            },
+          },
+        },
+      ],
+      limit: 3,
+    })
+
+    expect(pack.map(item => item.turnId)).toEqual(expect.arrayContaining([
+      'turn-real-wrong-thread',
+      'turn-real-procedure-carry',
+      'turn-real-repair-window',
+    ]))
+    expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.recollectionSpeechPlan?.placement).toBe('after-payoff')
+    expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.memoryDeliberation?.conflictSeverity).toBe('high')
+    expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.hostPersonModel?.preferredClosenessByContext[0]?.context).toBe('repair-window')
+    expect(pack.find(item => item.turnId === 'turn-real-procedure-carry')?.organicMemoryContext?.memoryDeliberation?.selectedProcedures[0]?.approach).toContain('Patch first')
+    expect(pack.find(item => item.turnId === 'turn-real-repair-window')?.organicMemoryContext?.recollectionSpeechPlan?.shouldSurface).toBe(false)
+  })
+
+  it('rebuilds an executable backlog replay pack from dataset backlog entries', () => {
+    const pack = buildReplayBenchmarkBacklogPack({
+      backlogEntries: [
+        {
+          id: 'backlog-1',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-backlog-1',
+          userText: '不是那条线，是另一条',
+          failingDimensions: ['wrongThreadSuppression', 'surfaceRestraint'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-backlog-1',
+            decisionTraceId: 'mind:backlog:1',
+            sessionId: 'session-backlog-1',
+            activeThreadId: 'thread-backlog-1',
+          },
+          sampledCategories: ['wrong-thread', 'stable-core'],
+          replayTurn: {
+            turnId: 'turn-backlog-1',
+            userText: '不是那条线，是另一条',
+            tracePointer: {
+              kind: 'decision-trace',
+              packId: 'sampled-humanlike-memory-v1',
+              turnId: 'turn-backlog-1',
+              decisionTraceId: 'mind:backlog:1',
+              sessionId: 'session-backlog-1',
+              activeThreadId: 'thread-backlog-1',
+            },
+            sampledCategories: ['wrong-thread', 'stable-core'],
+            organicMemoryContext: {
+              hostAttitude: '',
+              coreIncarnation: '',
+              activeThoughts: [],
+              retrievedFacts: [],
+              recalledFragments: [],
+              memoryDeliberation: {
+                shouldRecall: true,
+                selectedEraIds: [],
+                selectedConsolidationIds: [],
+                selectedWindowIds: [],
+                selectedProcedureIds: [],
+                selectedEpisodeIds: [],
+                selectedConversationTurnIds: [],
+                selectedRelationshipLines: [],
+                selectedEras: [],
+                selectedPeriods: [],
+                selectedEpisodes: [],
+                conflictSeverity: 'high',
+                conflictVariants: [],
+                stableCore: ['只保稳定核心。'],
+                unsafeDetails: ['不要把错线程说成真。'],
+                selectedProcedures: [],
+                selectedBundles: [],
+                selectedChains: [],
+                surfacePolicy: 'answer-anchoring',
+                confidence: 0.8,
+                whyNow: '这轮需要抑制错线程。',
+                inwardLine: '先把错线程压住。',
+                visibleLine: null,
+              },
+            },
+          },
+          createdAt: 20,
+        },
+        {
+          id: 'backlog-2',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-backlog-2',
+          userText: '继续按以前那套接法收回来',
+          failingDimensions: ['templateLeakage'],
+          tracePointer: {
+            kind: 'synthetic-pack-turn',
+            packId: 'default-humanlike-memory-v1',
+            turnId: 'turn-backlog-2',
+            decisionTraceId: null,
+            sessionId: null,
+            activeThreadId: null,
+          },
+          sampledCategories: ['procedure-carry'],
+          replayTurn: {
+            turnId: 'turn-backlog-2',
+            userText: '继续按以前那套接法收回来',
+            tracePointer: {
+              kind: 'synthetic-pack-turn',
+              packId: 'default-humanlike-memory-v1',
+              turnId: 'turn-backlog-2',
+              decisionTraceId: null,
+              sessionId: null,
+              activeThreadId: null,
+            },
+            sampledCategories: ['procedure-carry'],
+          },
+          createdAt: 10,
+        },
+      ],
+      limit: 2,
+    })
+
+    expect(pack).toHaveLength(2)
+    expect(pack[0]).toEqual(expect.objectContaining({
+      turnId: 'turn-backlog-1',
+      tracePointer: expect.objectContaining({
+        kind: 'decision-trace',
+        decisionTraceId: 'mind:backlog:1',
+      }),
+    }))
+    expect(pack[0]?.organicMemoryContext?.memoryDeliberation?.stableCore).toContain('只保稳定核心。')
+    expect(pack[1]).toEqual(expect.objectContaining({
+      turnId: 'turn-backlog-2',
+      sampledCategories: expect.arrayContaining(['procedure-carry']),
+    }))
+  })
+
+  it('builds failing turn sets with trace pointers and merges them into dataset backlog entries', () => {
+    const turns = [
+      {
+        turnId: 'turn-failing-1',
+        userText: '不是那条线，是另一条',
+        tracePointer: {
+          kind: 'decision-trace' as const,
+          packId: 'sampled-humanlike-memory-v1' as const,
+          turnId: 'turn-failing-1',
+          decisionTraceId: 'mind:sampled:failing-1',
+          sessionId: 'session-1',
+          activeThreadId: 'thread-1',
+        },
+        sampledCategories: ['wrong-thread', 'stable-core'] as const,
+      },
+      {
+        turnId: 'turn-failing-2',
+        userText: '继续按以前那套接法收回来',
+        tracePointer: {
+          kind: 'synthetic-pack-turn' as const,
+          packId: 'default-humanlike-memory-v1' as const,
+          turnId: 'turn-failing-2',
+          decisionTraceId: null,
+          sessionId: null,
+          activeThreadId: null,
+        },
+      },
+    ]
+    const quality = [
+      {
+        turnId: 'turn-failing-1',
+        userText: '不是那条线，是另一条',
+        eraFirst: 'pass',
+        bundleCoherence: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'fail',
+        replyMemoryCoherence: 'pass',
+        reconsolidationEffect: 'pass',
+        uncertaintyDiscipline: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'not-applicable',
+        recentOnlyDrift: 'not-applicable',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        closenessLadderDrift: 'not-applicable',
+        eventGraphRecallCollapse: 'not-applicable',
+        templateLeakage: 'pass',
+      },
+      {
+        turnId: 'turn-failing-2',
+        userText: '继续按以前那套接法收回来',
+        eraFirst: 'pass',
+        bundleCoherence: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'not-applicable',
+        replyMemoryCoherence: 'pass',
+        reconsolidationEffect: 'not-applicable',
+        uncertaintyDiscipline: 'not-applicable',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'not-applicable',
+        recentOnlyDrift: 'not-applicable',
+        surfaceRestraint: 'not-applicable',
+        relationshipRepairAdaptation: 'not-applicable',
+        closenessLadderDrift: 'not-applicable',
+        eventGraphRecallCollapse: 'not-applicable',
+        templateLeakage: 'fail',
+      },
+    ] as any
+    const gate = {
+      passed: false,
+      failingKeys: ['wrongThreadSuppression', 'templateLeakage'],
+      dimensions: [
+        {
+          key: 'wrongThreadSuppression',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-failing-1'],
+        },
+        {
+          key: 'templateLeakage',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 1,
+          passedRatio: 0,
+          failingTurnIds: ['turn-failing-2'],
+        },
+      ],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'fail',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        recentOnlyDrift: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        closenessLadderDrift: 'pass',
+        eventGraphRecallCollapse: 'pass',
+        templateLeakage: 'fail',
+      },
+    } as any
+
+    const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
+      packId: 'sampled-humanlike-memory-v1',
+      turns: turns as any,
+      quality,
+      gate,
+    })
+
+    expect(failingTurnSet).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-failing-1',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: expect.objectContaining({
+          kind: 'decision-trace',
+          decisionTraceId: 'mind:sampled:failing-1',
+        }),
+        sampledCategories: expect.arrayContaining(['wrong-thread']),
+      }),
+      expect.objectContaining({
+        turnId: 'turn-failing-2',
+        failingDimensions: ['templateLeakage'],
+      }),
+    ]))
+
+    const merged = mergeReplayBenchmarkDatasetBacklog({
+      existing: [],
+      packId: 'sampled-humanlike-memory-v1',
+      turns: turns as any,
+      failingTurnSet,
+      now: 123_456,
+    })
+
+    expect(merged.appendedCount).toBe(2)
+    expect(merged.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-failing-1',
+        tracePointer: expect.objectContaining({
+          decisionTraceId: 'mind:sampled:failing-1',
+        }),
+      }),
+      expect.objectContaining({
+        turnId: 'turn-failing-2',
+        failingDimensions: ['templateLeakage'],
+      }),
+    ]))
+  })
+
   it('defines benchmark standards and default long-horizon benchmark pack', () => {
     expect(buildDefaultHumanlikeMemoryBenchmarkPack().map(item => item.turnId)).toEqual(expect.arrayContaining([
       'benchmark-7d-conversation-history',
@@ -1043,6 +1779,9 @@ describe('main chat session replay harness', () => {
       'benchmark-ingest-backoff-visibility',
       'benchmark-delayed-reconstruction',
       'benchmark-nonexplicit-correction',
+      'benchmark-multi-repair-arc-history',
+      'benchmark-multi-execution-callback-continuity',
+      'benchmark-long-burden-accumulation',
     ]))
 
     const standards = evaluateReplayBenchmarkStandards({
@@ -1059,8 +1798,11 @@ describe('main chat session replay harness', () => {
           uncertaintyDiscipline: 'not-applicable',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'pass',
+          recentOnlyDrift: 'pass',
           surfaceRestraint: 'pass',
           relationshipRepairAdaptation: 'pass',
+          closenessLadderDrift: 'pass',
+          eventGraphRecallCollapse: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -1075,8 +1817,11 @@ describe('main chat session replay harness', () => {
           uncertaintyDiscipline: 'pass',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'pass',
+          recentOnlyDrift: 'pass',
           surfaceRestraint: 'pass',
           relationshipRepairAdaptation: 'pass',
+          closenessLadderDrift: 'pass',
+          eventGraphRecallCollapse: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -1095,8 +1840,11 @@ describe('main chat session replay harness', () => {
           uncertaintyDiscipline: 'not-applicable',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'pass',
+          recentOnlyDrift: 'pass',
           surfaceRestraint: 'pass',
           relationshipRepairAdaptation: 'pass',
+          closenessLadderDrift: 'pass',
+          eventGraphRecallCollapse: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -1111,8 +1859,11 @@ describe('main chat session replay harness', () => {
           uncertaintyDiscipline: 'pass',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'pass',
+          recentOnlyDrift: 'pass',
           surfaceRestraint: 'pass',
           relationshipRepairAdaptation: 'pass',
+          closenessLadderDrift: 'pass',
+          eventGraphRecallCollapse: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -1126,8 +1877,11 @@ describe('main chat session replay harness', () => {
       replyMemoryCoherence: 'pass',
       implicitRecallQuality: 'pass',
       temporalScopeFlexibility: 'pass',
+      recentOnlyDrift: 'pass',
       surfaceRestraint: 'pass',
       relationshipRepairAdaptation: 'pass',
+      closenessLadderDrift: 'pass',
+      eventGraphRecallCollapse: 'pass',
       templateLeakage: 'pass',
     })
     expect(gate.passed).toBe(true)
@@ -1149,8 +1903,11 @@ describe('main chat session replay harness', () => {
           uncertaintyDiscipline: 'not-applicable',
           implicitRecallQuality: 'pass',
           temporalScopeFlexibility: 'not-applicable',
+          recentOnlyDrift: 'not-applicable',
           surfaceRestraint: 'not-applicable',
           relationshipRepairAdaptation: 'not-applicable',
+          closenessLadderDrift: 'not-applicable',
+          eventGraphRecallCollapse: 'not-applicable',
           templateLeakage: 'fail',
         },
       ],

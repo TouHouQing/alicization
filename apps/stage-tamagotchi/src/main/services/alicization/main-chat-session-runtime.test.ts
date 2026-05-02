@@ -229,6 +229,7 @@ function createPrelude(overrides?: {
         suppressAssociativeRecall: false,
         turnMode: 'answer',
         personaKernelMode: 'full',
+        mindTurnContract: null,
         mindTurnGovernance: {
           decisionTraceId: 'trace-1',
           turnMode: 'answer',
@@ -364,6 +365,14 @@ describe('main chat session runtime', () => {
       },
       capture: null,
     } satisfies AlicizationSensoryCacheSnapshot))
+    const prewarmOrganicMemoryAccessibility = vi.fn(async () => null)
+    const resolveOrganicMemoryPromptContext = vi.fn(async () => ({
+      hostAttitude: '礼貌而克制，保持观察',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+    }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }) => [`[CORE:${hostName}]`],
@@ -383,13 +392,8 @@ describe('main chat session runtime', () => {
       resolveCardHostName: vi.fn(async () => 'Kirito'),
       resolveCardPersonaKernel: vi.fn(async () => null),
       resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
-      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
-        hostAttitude: '礼貌而克制，保持观察',
-        coreIncarnation: '',
-        activeThoughts: [],
-        retrievedFacts: [],
-        recalledFragments: [],
-      })),
+      prewarmOrganicMemoryAccessibility,
+      resolveOrganicMemoryPromptContext,
       resolveSessionContinuitySignals: vi.fn(async () => ([{
         kind: 'presence',
         state: 'observed',
@@ -435,6 +439,7 @@ describe('main chat session runtime', () => {
       'execution-ledger',
       'session-continuity',
       'agent-session-context',
+      'organic-memory-prewarm',
       'organic-memory-context',
       'performance-manifest',
       'card-directives',
@@ -489,6 +494,24 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.version).toBe('digital-life-runtime-surface-v1')
     expect(result.runtimeSurface.digitalLifeSpine?.version).toBe('digital-life-spine-v1')
     expect(result.runtimeSurface.digitalLifeSpine?.architecture).toEqual(result.runtimeSurface.digitalLifeArchitecture)
+    expect(result.replyRealization).toEqual(expect.objectContaining({
+      replyRealizationMode: 'provider-mind-required',
+      expectedVisibleReplyAuthority: 'llm-mind',
+    }))
+    expect(result.replyRealization?.whyProviderMindRequired).toBeTruthy()
+    expect(prewarmOrganicMemoryAccessibility).toHaveBeenCalledTimes(1)
+    expect(resolveOrganicMemoryPromptContext).toHaveBeenCalledTimes(1)
+    const prewarmCalls = prewarmOrganicMemoryAccessibility.mock.calls as Array<any[]>
+    const resolveCalls = resolveOrganicMemoryPromptContext.mock.calls as Array<any[]>
+    const prewarmInput = prewarmCalls[0]?.[0] as any
+    const resolveInput = resolveCalls[0]?.[0] as any
+    expect(prewarmInput).toEqual(expect.objectContaining({
+      turnId: 'turn-1',
+    }))
+    expect(resolveInput).toEqual(expect.objectContaining({
+      recallSeed: prewarmInput?.recallSeed,
+      turnId: 'turn-1',
+    }))
 
     expect(result.tools?.some((entry: any) => String(entry?.function?.name) === 'sensory_capture_state')).toBe(false)
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
@@ -1137,6 +1160,13 @@ describe('main chat session runtime', () => {
             whyNow: 'The recollection should stay inward but remain available right after this turn.',
             inwardLine: 'What returns first is the runtime seam we kept carrying.',
             visibleLine: null,
+            followUpAffordance: {
+              summary: 'Carry the same runtime seam forward when the next opening appears.',
+              whyNow: 'The recollection should stay inward now but remain follow-up eligible.',
+              intrusionRisk: 'high' as const,
+              payoffDependency: 'requires-current-payoff' as const,
+              preferredTiming: 'next-open-window' as const,
+            },
           },
         }
       }
@@ -1380,6 +1410,7 @@ describe('main chat session runtime', () => {
             suppressAssociativeRecall: false,
             turnMode: 'answer',
             personaKernelMode: 'full',
+            mindTurnContract: null,
             mindTurnGovernance: {
               decisionTraceId: 'trace-dialogue-living',
               turnMode: 'answer',
@@ -1612,12 +1643,11 @@ describe('main chat session runtime', () => {
     )).toBe(true)
     expect(result.sessionMirror?.recollectionSummary).toContain('foreground=What returns first is the runtime seam we kept carrying.')
     expect(result.sessionMirror?.recollectionSurfaceSummary).toContain('surface=inward')
-    expect(result.governance?.mustDo).toContain('Let active recollection stay as inner carry unless surfacing it materially helps the current payoff.')
-    expect(result.governance?.mustNotDo).toContain('Do not dump recalled memory into the visible reply just because it became mentally active.')
-    expect(result.governance?.mustDo).toContain('Before wording the visible reply, let the active recollection settle stance, pacing, and detail choice from the inside.')
-    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Let recollection stay internal-only')
+    expect(result.governance?.mustDo.join(' | ')).toMatch(/(memory|recollection)_latent_controls=/)
+    expect(result.governance?.mustNotDo.join(' | ')).toContain('Do not reuse drafted recollection wording')
+    expect(result.governance?.mindTurnFrame?.self.thought).toContain('Recollection latent controls:')
     expect(result.governance?.mindTurnFrame?.self.thought).not.toContain('What returns first is the runtime seam we kept carrying.')
-    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('Let remembered continuity shape stance and chosen detail before any explicit memory mention.')
+    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('recollection_answer_anchor{')
     expect(result.governance?.mindTurnFrame?.obligation.whyNow).toContain('An active recollection is shaping the answer from the inside')
     expect(result.governance?.mindTurnFrame?.narrative).toContain('memory:inward-recollection')
   })
@@ -1735,6 +1765,13 @@ describe('main chat session runtime', () => {
           whyNow: 'The answer should be anchored by the remembered runtime seam instead of treating this like a fresh disconnected task.',
           inwardLine: 'What comes back first is the runtime seam we kept carrying.',
           visibleLine: 'It feels like the same runtime seam again.',
+          followUpAffordance: {
+            summary: 'Carry the same runtime seam before branching.',
+            whyNow: 'The seam is relevant enough to lightly reopen inside the current payoff.',
+            intrusionRisk: 'medium' as const,
+            payoffDependency: 'requires-current-payoff' as const,
+            preferredTiming: 'after-payoff' as const,
+          },
         },
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
@@ -1768,9 +1805,9 @@ describe('main chat session runtime', () => {
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_DELIBERATION]'),
     )).toBe(true)
-    expect(result.governance?.mustDo.join(' | ')).toContain('Memory pressure is')
+    expect(result.governance?.mustDo.join(' | ')).toContain('memory_latent_controls=memory_pressure=')
     expect(result.governance?.mindTurnFrame?.self.thought).toContain('runtime seam')
-    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('answer-anchoring')
+    expect(result.governance?.mindTurnFrame?.obligation.answerIntent).toContain('memory_answer_anchor{')
     expect(result.governance?.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.consciousTension).toContain('Stay on the same seam before branching.')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.reasonTags).toContain('memory-deliberation')
@@ -1781,8 +1818,9 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.mustSay.join(' | ')).not.toContain('It feels like the same runtime seam again.')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.speakingFrom).toBe('held-memory')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow).toContain('remembered runtime seam')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('answer-anchoring')
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('Memory pressure is')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude).toContain('memory_follow_up_affordance=Carry the same runtime seam before branching.')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.narrative).toContain('memory-deliberation:followup:after-payoff')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('memory_answer_anchor{')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.mindTurnFrame?.narrative).toContain('memory-deliberation:surface:answer-anchoring')
   })
 
@@ -1881,8 +1919,14 @@ describe('main chat session runtime', () => {
     })
 
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel?.preferredClosenessByContext[0]?.context).toBe('focused-work')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.relationshipPosture).toBe('restrained')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.preferredProactiveStyle).toBe('light-nudge')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.activeClosenessContext).toBe('focused-work')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.activeClosenessRung).toBe('space-first')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustAvoid.some(item => item.includes('Pressure and over-close timing'))).toBe(true)
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustInclude.some(item => item.includes('focused-work/space-first'))).toBe(true)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.relationshipPosture).toBe('restrained')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.openingMove).toContain('Repair the seam before leaning closer')
     expect(result.governance?.mustNotDo.some(item => item.includes('Pressure and over-close timing'))).toBe(true)
     expect(result.governance?.answerIntent).toContain('Trust context:')

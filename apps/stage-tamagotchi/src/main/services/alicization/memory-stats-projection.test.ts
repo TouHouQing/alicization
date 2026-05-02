@@ -1,0 +1,131 @@
+import { describe, expect, it } from 'vitest'
+
+import { buildAlicizationMemoryStatsProjection, deriveAlicizationMemoryIntegrity } from './memory-stats-projection'
+
+describe('memory stats projection', () => {
+  it('projects aggregate memory stats from facts, episodes, and consolidations', () => {
+    const result = buildAlicizationMemoryStatsProjection({
+      facts: [
+        {
+          id: 'fact-1',
+          subject: 'host',
+          predicate: 'likes',
+          object: 'direct answers',
+          confidence: 0.9,
+          source: 'manual',
+          dedupeKey: 'host|likes|direct answers',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 1,
+          provenance: 'remembered',
+          memoryTier: 'hot',
+        } as any,
+      ],
+      episodicEvents: [
+        {
+          memoryTier: 'warm',
+          provenance: 'remembered',
+          latestReconsolidation: {
+            provenance: 'reconstructed',
+          },
+          reconsolidationCount: 1,
+        },
+      ],
+      consolidations: [
+        {
+          memoryTier: 'cold',
+        },
+      ],
+      factTierCounts: { hot: 1, warm: 0, cold: 0 },
+      episodicTierCounts: { hot: 0, warm: 1, cold: 0 },
+      consolidationTierCounts: { hot: 0, warm: 0, cold: 1 },
+      pendingSyncCount: 3,
+      ingestHealth: {
+        status: 'backlog',
+        pendingCount: 2,
+        failedCount: 1,
+        oldestPendingAgeMs: 5_000,
+        nextRetryAt: 9_000,
+        lastError: null,
+      },
+      lastPrunedAt: 42,
+      retrievalTelemetry: {
+        semanticLatencyMs: 12,
+        graphLatencyMs: 20,
+        templateLeakageFailCount: 4,
+      },
+      currentTs: 100,
+    })
+
+    expect(result.total).toBe(3)
+    expect(result.tierCounts).toEqual({
+      hot: 1,
+      warm: 1,
+      cold: 1,
+    })
+    expect(result.surfaceCounts).toEqual({
+      facts: 1,
+      episodic: 1,
+      consolidations: 1,
+    })
+    expect(result.retrievalHealth).toEqual({
+      semanticLatencyMs: 12,
+      graphLatencyMs: 20,
+      reconstructionFrequency: 1,
+      reconstructedCount: 1,
+      templateLeakageFailCount: 4,
+    })
+    expect(result.writeHealth).toEqual({
+      backlogCount: 3,
+      retryOldestAgeMs: 5_000,
+      nextRetryAt: 9_000,
+      blocked: false,
+      lastError: null,
+    })
+  })
+
+  it('flags malformed and duplicate facts in integrity projection', () => {
+    const result = deriveAlicizationMemoryIntegrity({
+      facts: [
+        {
+          id: 'fact-1',
+          subject: '',
+          predicate: 'likes',
+          object: 'direct answers',
+          confidence: 0.8,
+          source: 'manual',
+          dedupeKey: 'host|likes|direct answers',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 0,
+          provenance: 'remembered',
+          memoryTier: 'hot',
+        } as any,
+        {
+          id: 'fact-2',
+          subject: 'host',
+          predicate: 'likes',
+          object: 'direct answers',
+          confidence: 0.8,
+          source: 'manual',
+          dedupeKey: 'host|likes|direct answers',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 0,
+          provenance: 'remembered',
+          memoryTier: 'hot',
+        } as any,
+      ],
+      currentTs: 100,
+    })
+
+    expect(result.status).toBe('degraded')
+    expect(result.issues).toEqual(expect.arrayContaining([
+      'malformed-fact:fact-1',
+      'duplicate-dedupe:host|likes|direct answers',
+    ]))
+  })
+})

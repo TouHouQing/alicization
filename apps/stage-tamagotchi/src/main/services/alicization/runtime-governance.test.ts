@@ -59,6 +59,7 @@ describe('runtime-governance', () => {
     expect(governed.reasons).toContain('strict-repair-organic-reply-preserved')
     expect(governed.payload.assistantText).toBe('不是刚才那页了，我按这张新画面重新说。')
     expect(String(structured.reply ?? '')).toBe('不是刚才那页了，我按这张新画面重新说。')
+    expect(structured.visibleReplyAuthority).toBe('llm-mind')
     expect(String(structured.reply ?? '')).not.toContain('先按你眼前这件事说')
   })
 
@@ -232,6 +233,7 @@ describe('runtime-governance', () => {
     expect(governed.payload.assistantText).not.toContain('重新落地')
     expect(String(structured.reply ?? '')).not.toContain('真实边界')
     expect(String(structured.reply ?? '')).not.toContain('重新落地')
+    expect(structured.visibleReplyAuthority).toBe('governed-repair-fallback')
     expect(structured.performance).toEqual(expect.objectContaining({
       baseEmotion: 'thinking',
       delivery: 'firm',
@@ -408,6 +410,22 @@ describe('runtime-governance', () => {
         whyNow: 'the host asked to continue in the remembered way rather than starting from zero',
         inwardLine: 'remember the previous repair rhythm before speaking',
         visibleLine: '按前几天那样接回去',
+        whyWithheld: 'Only the stable remembered core should surface; unstable remembered detail stays inward.',
+        shouldStayInward: false,
+        restraintSurfaceMode: 'stable-core-only',
+        restraintProvenanceMode: 'reconstructed-memory',
+        shouldOnlySurfaceStableCore: true,
+        shouldLabelProvenance: true,
+        shouldLabelHypothesis: true,
+        shouldSuppressSpecificity: true,
+        shouldDelayUntilAfterPayoff: true,
+        memoryControlSummary: 'memory_pressure=high | detail_assertion_budget=guarded',
+        activeClosenessContext: 'repair-window',
+        activeClosenessRung: 'measured-room',
+        relationshipPosture: 'restrained',
+        openingGuidance: 'Repair the seam before leaning closer.',
+        personalityCurrentRegime: 'repair-window',
+        personalityRepairPosture: 'repair-first',
         recollectionIntentMode: 'execution-procedure',
         recollectionIntentTemporalFocus: 'experience-matched',
         speechShouldSurface: true,
@@ -451,19 +469,63 @@ describe('runtime-governance', () => {
           answerPosture: '直接接着做',
         }],
         selectedRelationshipLines: ['这种时候先给结果，不要飘回空话'],
+        conflictSeverity: 'high',
+        conflictVariants: [{
+          id: 'cluster:runtime-nearby',
+          summary: '另一条相近的 runtime 线程也还在竞争这次回想',
+          provenance: 'reconstructed',
+          reason: 'A nearby competing thread cluster still matches the current recall cue.',
+        }],
+        stableCore: ['先 patch 再 verify 再汇报'],
+        unsafeDetails: ['A nearby competing thread cluster still matches the current recall cue.'],
+        followUpAffordance: {
+          summary: 'Let the remembered repair rhythm contour the answer after the live payoff lands.',
+          whyNow: 'The current payoff still has to land before the remembered line opens further.',
+          intrusionRisk: 'medium',
+          payoffDependency: 'requires-current-payoff',
+          preferredTiming: 'after-payoff',
+        },
+        searchTrace: {
+          firstHop: {
+            focus: 'procedure',
+            summary: 'Start from the remembered repair procedure.',
+            targetIds: ['procedure-1'],
+          },
+          secondHop: {
+            action: 'expand-procedure',
+            evidenceGap: 'need-disambiguation',
+            summary: 'The procedure is relevant, but the nearby thread cluster still needs disambiguation.',
+            targetIds: ['cluster:runtime-nearby'],
+          },
+          thirdHop: {
+            ambiguityPosture: 'ambiguous',
+            summary: 'Keep the stable core and suppress the competing thread detail.',
+          },
+        },
       },
     })
 
     expect(events.map(event => event.kind)).toEqual(expect.arrayContaining([
       'governance-normalized',
       'recall-attribution',
+      'memory-deliberation-judged',
+      'memory-recall-withheld',
+      'memory-stable-core-surfaced',
+      'memory-followup-deferred',
+      'memory-wrong-thread-suppressed',
       'persistence-written',
       'reply-memory-coherence',
     ]))
     expect(events.find(event => event.kind === 'recall-attribution')?.payload).toEqual(expect.objectContaining({
       shouldRecall: true,
       surfacePolicy: 'procedural-carry',
+      whyWithheld: expect.stringContaining('stable remembered core'),
+      shouldDelayUntilAfterPayoff: true,
       recollectionIntentMode: 'execution-procedure',
+      personState: expect.objectContaining({
+        currentRegime: 'repair-window',
+        repairPosture: 'repair-first',
+      }),
       selectedProcedures: expect.arrayContaining([
         expect.objectContaining({
           label: 'patch -> verify',
@@ -472,6 +534,40 @@ describe('runtime-governance', () => {
       selectedEpisodes: expect.arrayContaining([
         expect.objectContaining({
           reconsolidatedFromTraceId: 'mind:l9f3lq:feedbacktrace',
+        }),
+      ]),
+    }))
+    expect(events.find(event => event.kind === 'memory-deliberation-judged')?.payload).toEqual(expect.objectContaining({
+      shouldRecall: true,
+      restraint: expect.objectContaining({
+        surfaceMode: 'stable-core-only',
+        shouldOnlySurfaceStableCore: true,
+        shouldDelayUntilAfterPayoff: true,
+      }),
+      personState: expect.objectContaining({
+        activeClosenessContext: 'repair-window',
+        relationshipPosture: 'restrained',
+      }),
+    }))
+    expect(events.find(event => event.kind === 'memory-recall-withheld')?.payload).toEqual(expect.objectContaining({
+      shouldStayInward: false,
+      preferredTiming: 'after-payoff',
+      relationshipPosture: 'restrained',
+    }))
+    expect(events.find(event => event.kind === 'memory-stable-core-surfaced')?.payload).toEqual(expect.objectContaining({
+      shouldOnlySurfaceStableCore: true,
+      stableCore: expect.arrayContaining(['先 patch 再 verify 再汇报']),
+    }))
+    expect(events.find(event => event.kind === 'memory-followup-deferred')?.payload).toEqual(expect.objectContaining({
+      payoffDependency: 'requires-current-payoff',
+      preferredTiming: 'after-payoff',
+    }))
+    expect(events.find(event => event.kind === 'memory-wrong-thread-suppressed')?.payload).toEqual(expect.objectContaining({
+      evidenceGap: 'need-disambiguation',
+      conflictSeverity: 'high',
+      conflictVariants: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'cluster:runtime-nearby',
         }),
       ]),
     }))

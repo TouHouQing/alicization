@@ -31,6 +31,7 @@ const sourceKindLabelKeys: Record<AlicizationSubconsciousFragment['sourceKind'],
   'reflection-ledger': 'settings.pages.card.alicization.organic_memory.source_kinds.reflection_ledger',
   'dialogue-turn': 'settings.pages.card.alicization.organic_memory.source_kinds.dialogue_turn',
   'fact-ledger': 'settings.pages.card.alicization.organic_memory.source_kinds.fact_ledger',
+  'autobiographical-episode': 'settings.pages.card.alicization.organic_memory.source_kinds.autobiographical_episode',
 }
 
 const tier3DisplayItems = computed(() => {

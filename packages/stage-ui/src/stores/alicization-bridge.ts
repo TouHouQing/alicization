@@ -35,9 +35,13 @@ import type {
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
+  AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
   AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
+  AlicizationMemoryStats as SharedAlicizationMemoryStats,
+  AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
+  AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
   AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
   AlicizationReplayBenchmarkPackId as SharedAlicizationReplayBenchmarkPackId,
   AlicizationReplayBenchmarkStandardsRecord as SharedAlicizationReplayBenchmarkStandardsRecord,
@@ -173,72 +177,15 @@ export interface AlicizationKillSwitchSnapshot {
   updatedAt: number
 }
 
-export interface AlicizationMemoryStats {
-  total: number
-  active: number
-  archived: number
-  tierCounts?: {
-    hot: number
-    warm: number
-    cold: number
-  }
-  surfaceCounts?: {
-    facts: number
-    episodic: number
-    consolidations: number
-  }
-  surfaceTierCounts?: {
-    facts: {
-      hot: number
-      warm: number
-      cold: number
-    }
-    episodic: {
-      hot: number
-      warm: number
-      cold: number
-    }
-    consolidations: {
-      hot: number
-      warm: number
-      cold: number
-    }
-  }
-  pendingSyncCount?: number
-  ingestHealth?: {
-    status: 'healthy' | 'backlog' | 'degraded'
-    pendingCount: number
-    failedCount: number
-    oldestPendingAgeMs: number | null
-    nextRetryAt: number | null
-    lastError: string | null
-  }
-  integrity?: {
-    status: 'ok' | 'degraded'
-    issues: string[]
-  }
-  writeHealth?: {
-    backlogCount: number
-    retryOldestAgeMs: number | null
-    nextRetryAt: number | null
-    blocked: boolean
-    lastError: string | null
-  }
-  retrievalHealth?: {
-    semanticLatencyMs: number | null
-    graphLatencyMs: number | null
-    reconstructionFrequency: number
-    reconstructedCount: number
-    templateLeakageFailCount: number
-  }
-  lastPrunedAt: number | null
-}
+export type AlicizationMemoryStats = SharedAlicizationMemoryStats
 
 export type AlicizationMemorySource = SharedAlicizationMemorySource
 export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
 export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
+export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
+export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 
 export interface AlicizationMemoryFact {
   id: string
@@ -401,6 +348,7 @@ export type AlicizationReplayBenchmarkTelemetryPatch = SharedAlicizationReplayBe
 
 export interface AlicizationListMindTurnEventsPayload extends SharedAlicizationListMindTurnEventsInput {}
 export interface AlicizationListMemoryDecisionTracesPayload extends SharedAlicizationListMemoryDecisionTracesInput {}
+export interface AlicizationListPersonStateUpdatesPayload extends SharedAlicizationListPersonStateUpdatesInput {}
 export interface AlicizationRunReplayBenchmarkPayload extends SharedAlicizationRunReplayBenchmarkInput {}
 export interface AlicizationRunReplayBenchmarkResult extends SharedAlicizationRunReplayBenchmarkResult {}
 
@@ -1974,6 +1922,7 @@ interface AlicizationBridge {
   appendConversationTurn: (payload: AlicizationConversationTurnInput) => Promise<void>
   listMindTurnEvents?: (payload: AlicizationListMindTurnEventsPayload) => Promise<AlicizationMindTurnEventRecord[]>
   listMemoryDecisionTraces?: (payload: AlicizationListMemoryDecisionTracesPayload) => Promise<AlicizationMemoryDecisionTraceRecord[]>
+  listPersonStateUpdates?: (payload: AlicizationListPersonStateUpdatesPayload) => Promise<AlicizationPersonStateUpdateRecord[]>
   runReplayBenchmark?: (payload: AlicizationRunReplayBenchmarkPayload) => Promise<AlicizationRunReplayBenchmarkResult>
   upsertTaskThread?: (payload: AlicizationUpsertTaskThreadPayload) => Promise<AlicizationTaskThreadRecord>
   listTaskThreads?: (payload: AlicizationListTaskThreadsPayload) => Promise<AlicizationTaskThreadRecord[]>

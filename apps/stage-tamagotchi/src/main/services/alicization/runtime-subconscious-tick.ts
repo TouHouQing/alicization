@@ -450,7 +450,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         runtimeDigest: proactiveRuntimeSnapshot,
         ...committedDigitalLifeSpine.current.proactivePolicy,
       })
-
       const hardSuppressed = !decision.shouldInterrupt
         && (
           decision.style === 'silent-observe'

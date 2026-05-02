@@ -340,6 +340,113 @@ describe('response-charter', () => {
     expect(block).toContain('Must not do:')
   })
 
+  it('threads closeness ladder authority into the response charter when runtime surface provides person-state projection', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    runtimeSurface.memory.personStateProjection = {
+      contexts: ['focused-work', 'execution-callback', 'execution'],
+      summary: 'regime=focused-work | ladder=focused-work/space-first | posture=restrained',
+      activeClosenessContext: 'focused-work',
+      activeClosenessRung: 'space-first',
+      closenessLadder: [{
+        context: 'focused-work',
+        rung: 'space-first',
+        preference: 'Lighter touch, more room, less interruption pressure.',
+        rationale: 'context=focused-work | regime=focused-work | posture=restrained',
+        confidence: 0.86,
+      }],
+      relationshipPosture: 'restrained',
+      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
+      preferredProactiveStyle: 'light-nudge',
+      preferenceText: 'Lighter touch, more room, less interruption pressure.',
+      sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
+      repairTriggerText: 'If closeness feels heavy, back off first and reopen with lighter presence.',
+      burdenText: 'Focused work gets overloaded quickly by extra conversational pressure.',
+      routineText: 'Focused work windows usually need space first, then precise follow-up.',
+      trustRationale: 'Trust is warming, but the host still needs clear room while focused.',
+      relationshipDoctrine: 'Repair the seam before leaning closer.',
+      cautious: true,
+      restrained: true,
+      personalityContinuityState: {
+        currentRegime: 'focused-work',
+        closenessPosture: 'space-first',
+        repairPosture: 'repair-first',
+      } as any,
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.activeClosenessContext).toBe('focused-work')
+    expect(charter.activeClosenessRung).toBe('space-first')
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo.some(item => item.includes('focused-work/space-first'))).toBe(true)
+    expect(charter.mustNotDo.some(item => item.includes('need for room'))).toBe(true)
+    expect(charter.reasons.some(item => item.includes('focused-work/space-first'))).toBe(true)
+
+    const block = buildAlicizationResponseCharterSystemBlock(charter)
+    expect(block).toContain('Closeness ladder: focused-work/space-first.')
+  })
+
+  it('lets shared memory deliberation kernel feed reasons and truth discipline in the response charter', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createState())
+    runtimeSurface.memory.recollectionSpeechPlan = {
+      shouldSurface: true,
+      surfaceMode: 'answer-anchoring',
+      placement: 'before-payoff',
+      certainty: 'approximate',
+      confidence: 0.88,
+      internalLead: 'What comes back first is the runtime seam we kept carrying.',
+      visibleLead: 'It feels like the same runtime seam again.',
+      styleNote: 'Let recollection bend the answer without becoming a memory dump.',
+      rationale: 'The host is explicitly asking how this used to be handled.',
+    } as any
+    runtimeSurface.memory.memoryDeliberation = {
+      shouldRecall: true,
+      surfacePolicy: 'answer-anchoring',
+      confidence: 0.88,
+      whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
+      stableCore: ['Return to the same seam before branching.'],
+      unsafeDetails: ['Do not assert which exact wording belonged to that old seam.'],
+      selectedPeriods: [{ kind: 'consolidation', summary: 'That period kept bending toward the runtime seam until it finally held together.' }],
+      selectedEras: [],
+      selectedEpisodes: [],
+      selectedProcedures: [{ label: 'same seam first', approach: 'Return to the same seam before branching.' }],
+      selectedBundles: [{ id: 'bundle-runtime', summary: 'Runtime seam bundle', confidence: 0.84 }],
+      selectedChains: [{
+        kind: 'task-procedure-relationship-stance',
+        summary: 'Return to the same seam before branching.',
+        currentStance: 'Carry the same runtime seam before branching.',
+        answerPosture: 'Procedure-carry.',
+        confidence: 0.82,
+      }],
+      selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
+      followUpAffordance: {
+        summary: 'Carry the same runtime seam before branching.',
+        whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
+        intrusionRisk: 'high',
+        payoffDependency: 'requires-current-payoff',
+        preferredTiming: 'after-payoff',
+      },
+    } as any
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.reasons.some(item => item.includes('remembered runtime seam'))).toBe(true)
+    expect(charter.mustDo).toContain('If recollection becomes visible, let the stable remembered core do the work before any fragmentary detail.')
+    expect(charter.mustDo).toContain('If recollection is pressing forward too hard, keep recollection inward until the host has room for it.')
+    expect(charter.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
+    expect(charter.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
+  })
+
   it('lets the conscious frame impose hypothesis discipline on coarse screen turns', () => {
     const charter = buildAlicizationResponseCharter({
       context: createContext(),

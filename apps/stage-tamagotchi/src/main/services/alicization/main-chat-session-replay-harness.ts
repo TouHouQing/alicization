@@ -2,6 +2,11 @@ import type { AlicizationChannelCapability } from '@proj-alicization/stage-share
 import type { Message } from '@xsai/shared-chat'
 
 import type {
+  AlicizationReplayBenchmarkFailureTurnRecord,
+  AlicizationReplayHumanRatingRubric,
+  AlicizationReplayBenchmarkPackId,
+  AlicizationReplayBenchmarkTracePointer,
+  AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnGovernance,
   AlicizationReplayBenchmarkTelemetryPatch,
   AlicizationSensoryCacheSnapshot,
@@ -196,6 +201,7 @@ function createBasePrelude(input: {
         suppressAssociativeRecall: false,
         turnMode: input.governance?.turnMode ?? 'answer',
         personaKernelMode: input.governance?.personaKernelMode ?? 'full',
+        mindTurnContract: null,
         mindTurnGovernance: input.governance ?? ({
           decisionTraceId: 'trace-replay',
           turnMode: 'answer',
@@ -226,7 +232,120 @@ export interface AlicizationReplayTurn {
   organicMemoryContext?: OrganicMemoryPromptContext
   prelude?: AlicizationPreparedMainChatPrelude
   messages?: Message[]
+  tracePointer?: AlicizationReplayBenchmarkTracePointer
+  sampledCategories?: AlicizationReplayBenchmarkSampleCategory[] | null
 }
+
+interface AlicizationReplayBenchmarkSampleConversationTurn {
+  turnId: string | null
+  sessionId: string
+  userText: string | null
+  assistantText: string | null
+  structuredJson?: string | null
+  createdAt: number
+}
+
+type AlicizationReplayBenchmarkSampleCategory
+  = 'dialogue'
+    | 'execution'
+    | 'proactive'
+    | 'repair'
+    | 'wrong-thread'
+    | 'deferred-followup'
+    | 'stable-core'
+    | 'repair-arc'
+    | 'procedure-carry'
+    | 'task-migration'
+    | 'long-horizon'
+    | 'surface-divergence'
+    | 'long-session'
+    | 'general-memory'
+
+function buildReplayHumanRatingRubric(): AlicizationReplayHumanRatingRubric {
+  return {
+    version: 'human-rating-rubric-v1',
+    dimensions: [
+      {
+        key: 'samePersonaFeel',
+        label: 'Same Persona Feel',
+        prompt: 'Across long-horizon turns, does Alicization still feel like the same continuing subject rather than a reset assistant?',
+        scale: '1-5',
+      },
+      {
+        key: 'realRememberedFeel',
+        label: 'Real Remembered Feel',
+        prompt: 'Does the recall feel like lived memory reactivation instead of search hit regurgitation?',
+        scale: '1-5',
+      },
+      {
+        key: 'templateSmell',
+        label: 'Template Smell',
+        prompt: 'How little fixed-template smell remains in the visible reply surface?',
+        scale: '1-5',
+      },
+      {
+        key: 'relationshipRhythm',
+        label: 'Relationship Rhythm',
+        prompt: 'Does the reply keep the right relationship distance, room, and warmth for this stage and context?',
+        scale: '1-5',
+      },
+      {
+        key: 'repairCredibility',
+        label: 'Repair Credibility',
+        prompt: 'When old repair arcs matter, does Alicization adapt in a way that feels causally earned?',
+        scale: '1-5',
+      },
+      {
+        key: 'taskContinuity',
+        label: 'Task Continuity',
+        prompt: 'When a current task resembles an older one, does Alicization recall and reuse prior procedure continuity naturally?',
+        scale: '1-5',
+      },
+    ],
+  }
+}
+
+export { buildReplayHumanRatingRubric }
+
+function normalizeReplayBenchmarkSampleCategory(raw: unknown): AlicizationReplayBenchmarkSampleCategory | null {
+  const value = readString(raw, 64)
+  if (
+    value === 'dialogue'
+    || value === 'execution'
+    || value === 'proactive'
+    || value === 'repair'
+    || value === 'wrong-thread'
+    || value === 'deferred-followup'
+    || value === 'stable-core'
+    || value === 'repair-arc'
+    || value === 'procedure-carry'
+    || value === 'task-migration'
+    || value === 'long-horizon'
+    || value === 'surface-divergence'
+    || value === 'long-session'
+    || value === 'general-memory'
+  ) {
+    return value
+  }
+  return null
+}
+
+const replayBenchmarkSampleCategoryPriority: AlicizationReplayBenchmarkSampleCategory[] = [
+  'wrong-thread',
+  'deferred-followup',
+  'stable-core',
+  'repair-arc',
+  'repair',
+  'procedure-carry',
+  'execution',
+  'task-migration',
+  'long-horizon',
+  'surface-divergence',
+  'long-session',
+  'proactive',
+  'dialogue',
+  'general-memory',
+]
 
 export type AlicizationReplayQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
@@ -242,8 +361,11 @@ export interface AlicizationReplayMemoryQuality {
   uncertaintyDiscipline: AlicizationReplayQualityStatus
   implicitRecallQuality: AlicizationReplayQualityStatus
   temporalScopeFlexibility: AlicizationReplayQualityStatus
+  recentOnlyDrift: AlicizationReplayQualityStatus
   surfaceRestraint: AlicizationReplayQualityStatus
   relationshipRepairAdaptation: AlicizationReplayQualityStatus
+  closenessLadderDrift: AlicizationReplayQualityStatus
+  eventGraphRecallCollapse: AlicizationReplayQualityStatus
   templateLeakage: AlicizationReplayQualityStatus
 }
 
@@ -254,8 +376,11 @@ export interface AlicizationReplayBenchmarkStandards {
   replyMemoryCoherence: 'pass' | 'fail'
   implicitRecallQuality: 'pass' | 'fail'
   temporalScopeFlexibility: 'pass' | 'fail'
+  recentOnlyDrift: 'pass' | 'fail'
   surfaceRestraint: 'pass' | 'fail'
   relationshipRepairAdaptation: 'pass' | 'fail'
+  closenessLadderDrift: 'pass' | 'fail'
+  eventGraphRecallCollapse: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -298,8 +423,11 @@ const replayBenchmarkGateThresholds = {
   replyMemoryCoherence: 0.8,
   implicitRecallQuality: 0.75,
   temporalScopeFlexibility: 0.75,
+  recentOnlyDrift: 0.75,
   surfaceRestraint: 0.75,
   relationshipRepairAdaptation: 0.75,
+  closenessLadderDrift: 0.75,
+  eventGraphRecallCollapse: 0.75,
   templateLeakage: 1,
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, number>
 
@@ -310,8 +438,11 @@ const replayBenchmarkQualityKeys = {
   replyMemoryCoherence: 'replyMemoryCoherence',
   implicitRecallQuality: 'implicitRecallQuality',
   temporalScopeFlexibility: 'temporalScopeFlexibility',
+  recentOnlyDrift: 'recentOnlyDrift',
   surfaceRestraint: 'surfaceRestraint',
   relationshipRepairAdaptation: 'relationshipRepairAdaptation',
+  closenessLadderDrift: 'closenessLadderDrift',
+  eventGraphRecallCollapse: 'eventGraphRecallCollapse',
   templateLeakage: 'templateLeakage',
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, keyof AlicizationReplayMemoryQuality>
 
@@ -319,6 +450,602 @@ function normalizeText(raw: unknown, maxChars = 240) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}
+
+function asObject(raw: unknown) {
+  return raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+}
+
+function readString(raw: unknown, maxChars = 240) {
+  return normalizeText(raw, maxChars)
+}
+
+function readBoolean(raw: unknown, fallback = false) {
+  return typeof raw === 'boolean' ? raw : fallback
+}
+
+function readNumber(raw: unknown, fallback = 0) {
+  return Number.isFinite(raw) ? Number(raw) : fallback
+}
+
+function readStringArray(raw: unknown, maxItems = 8, maxChars = 220) {
+  return Array.isArray(raw)
+    ? raw
+        .map(item => readString(item, maxChars))
+        .filter(Boolean)
+        .slice(0, maxItems)
+    : []
+}
+
+function readObjectArray(raw: unknown) {
+  return Array.isArray(raw)
+    ? raw.map(asObject).filter(Boolean) as Record<string, unknown>[]
+    : []
+}
+
+function normalizeRecollectionSurfaceMode(raw: unknown): NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['surfacePolicy'] {
+  const value = readString(raw, 64)
+  if (
+    value === 'internal-only'
+    || value === 'gist-first'
+    || value === 'answer-anchoring'
+    || value === 'procedural-carry'
+    || value === 'relationship-continuity'
+  ) {
+    return value
+  }
+  return 'gist-first'
+}
+
+function normalizeSpeechPlacement(raw: unknown, fallback: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only') {
+  const value = readString(raw, 64)
+  if (
+    value === 'before-payoff'
+    || value === 'inside-payoff'
+    || value === 'after-payoff'
+    || value === 'internal-only'
+  ) {
+    return value
+  }
+  return fallback
+}
+
+function normalizeAmbiguityPosture(raw: unknown): 'settled' | 'approximate' | 'ambiguous' {
+  const value = readString(raw, 64)
+  if (value === 'settled' || value === 'approximate' || value === 'ambiguous')
+    return value
+  return 'settled'
+}
+
+function normalizeConflictSeverity(raw: unknown): 'none' | 'low' | 'medium' | 'high' {
+  const value = readString(raw, 64)
+  if (value === 'none' || value === 'low' || value === 'medium' || value === 'high')
+    return value
+  return 'none'
+}
+
+function normalizeMemoryProvenance(raw: unknown): 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' {
+  const value = readString(raw, 64)
+  if (
+    value === 'observed'
+    || value === 'remembered'
+    || value === 'dreamt'
+    || value === 'inferred'
+    || value === 'reconstructed'
+  ) {
+    return value
+  }
+  return 'remembered'
+}
+
+function normalizeRecollectionMode(raw: unknown): 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern' {
+  const value = readString(raw, 64)
+  if (
+    value === 'conversation-history'
+    || value === 'autobiographical-history'
+    || value === 'relationship-history'
+    || value === 'execution-procedure'
+    || value === 'experience-pattern'
+  ) {
+    return value
+  }
+  return 'experience-pattern'
+}
+
+function normalizeTemporalFocus(raw: unknown): 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant' {
+  const value = readString(raw, 64)
+  if (
+    value === 'recent'
+    || value === 'recent-or-mid'
+    || value === 'cross-session'
+    || value === 'experience-matched'
+    || value === 'distant'
+  ) {
+    return value
+  }
+  return 'recent-or-mid'
+}
+
+function certaintyFromAmbiguity(ambiguity: 'settled' | 'approximate' | 'ambiguous') {
+  if (ambiguity === 'ambiguous')
+    return 'fragmentary' as const
+  if (ambiguity === 'approximate')
+    return 'approximate' as const
+  return 'firm' as const
+}
+
+function normalizeEraFacet(raw: unknown): 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window' {
+  const value = readString(raw, 64)
+  if (
+    value === 'phase'
+    || value === 'relationship-era'
+    || value === 'task-era'
+    || value === 'self-era'
+    || value === 'window'
+  ) {
+    return value
+  }
+  return 'phase'
+}
+
+function normalizePeriodKind(raw: unknown): 'window' | 'consolidation' {
+  return readString(raw, 64) === 'window'
+    ? 'window'
+    : 'consolidation'
+}
+
+function normalizeChainKind(raw: unknown): 'task-procedure-relationship-stance' | 'period-event-lesson-posture' {
+  return readString(raw, 64) === 'period-event-lesson-posture'
+    ? 'period-event-lesson-posture'
+    : 'task-procedure-relationship-stance'
+}
+
+function normalizeIntrusionRisk(raw: unknown): 'low' | 'medium' | 'high' {
+  const value = readString(raw, 64)
+  if (value === 'low' || value === 'medium' || value === 'high')
+    return value
+  return 'medium'
+}
+
+function normalizePayoffDependency(raw: unknown): 'memory-only' | 'requires-current-payoff' | 'can-surface-softly' {
+  const value = readString(raw, 64)
+  if (value === 'memory-only' || value === 'requires-current-payoff' || value === 'can-surface-softly')
+    return value
+  return 'requires-current-payoff'
+}
+
+function normalizePreferredTiming(raw: unknown): 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' {
+  const value = readString(raw, 64)
+  if (value === 'internal-only' || value === 'after-payoff' || value === 'same-turn-if-invited' || value === 'next-open-window')
+    return value
+  return 'after-payoff'
+}
+
+function buildTraceDerivedHostPersonModel(input: {
+  trace: AlicizationMemoryDecisionTraceRecord
+  activeClosenessContext: string | null
+  activeClosenessRung: string | null
+  relationshipPosture: string | null
+  openingGuidance: string | null
+  currentRegime: string | null
+  repairPosture: string | null
+}) {
+  const context = readString(input.activeClosenessContext, 64) || 'general'
+  const rung = readString(input.activeClosenessRung, 64) || 'measured-room'
+  const posture = readString(input.relationshipPosture, 64) || 'warm'
+  const guidance = readString(input.openingGuidance, 220)
+    || readString(asObject(input.trace.memoryDeliberationJudged)?.whyWithheld, 220)
+    || readString(asObject(input.trace.recallAttribution)?.whyNow, 220)
+  if (!guidance && context === 'general' && posture === 'warm')
+    return null
+
+  const trustStage = rung === 'close-hold'
+    ? 'trusted'
+    : context === 'repair-window'
+      ? 'cautious-open'
+      : posture === 'restrained'
+        ? 'warming'
+        : 'trusted'
+  const trustScore = rung === 'close-hold'
+    ? 0.86
+    : context === 'repair-window'
+      ? 0.52
+      : posture === 'restrained'
+        ? 0.66
+        : 0.78
+
+  return {
+    summary: guidance || `Keep visible closeness within ${context}/${rung}.`,
+    routines: guidance ? [guidance] : [],
+    sensitivities: posture === 'restrained'
+      ? ['Pushing recollection or warmth too early breaks the line.']
+      : [],
+    repairTriggers: readString(input.repairPosture, 64) === 'repair-first'
+      ? ['Repair the seam before letting warmth widen again.']
+      : [],
+    trustLadder: {
+      stage: trustStage,
+      score: trustScore,
+      rationale: guidance || `This sample keeps closeness inside ${context}/${rung}.`,
+    },
+    preferredClosenessByContext: [{
+      context,
+      preference: guidance || `Keep closeness inside ${context}/${rung}.`,
+      confidence: 0.76,
+    }],
+    recurrentBurdens: context === 'repair-window'
+      ? ['The line slips if recollection outruns repair.']
+      : posture === 'restrained'
+        ? ['Too much warmth too early makes the answer feel less real.']
+        : [],
+    narrative: readString(input.currentRegime, 64)
+      ? [`regime=${readString(input.currentRegime, 64)}`]
+      : [],
+    updatedAt: input.trace.lastUpdatedAt,
+  } satisfies NonNullable<OrganicMemoryPromptContext['hostPersonModel']>
+}
+
+function inferSampleCategories(input: {
+  row: AlicizationReplayBenchmarkSampleConversationTurn
+  trace: AlicizationMemoryDecisionTraceRecord
+  sessionTurnCount: number
+}) {
+  const categories: AlicizationReplayBenchmarkSampleCategory[] = []
+  const recall = asObject(input.trace.recallAttribution)
+  const judged = asObject(input.trace.memoryDeliberationJudged)
+  const personState = asObject(judged?.personState)
+  const hasProcedures = readObjectArray(recall?.selectedProcedures).length > 0
+  const hasPeriods = readObjectArray(recall?.selectedPeriods).length > 0 || readObjectArray(recall?.selectedEras).length > 0
+  const ambiguityPosture = normalizeAmbiguityPosture(judged?.ambiguityPosture ?? recall?.ambiguityPosture)
+  const hasWrongThread = Boolean(input.trace.memoryWrongThreadSuppressed)
+    || ambiguityPosture === 'ambiguous'
+  const hasDeferredFollowUp = Boolean(input.trace.memoryFollowUpDeferred)
+    || asObject(recall?.followUpAffordance)?.preferredTiming === 'after-payoff'
+  const hasStableCoreOnly = Boolean(input.trace.memoryStableCoreSurfaced)
+    || readBoolean(asObject(judged?.restraint)?.shouldOnlySurfaceStableCore)
+  const isRepairArc = readString(personState?.currentRegime, 64) === 'repair-window'
+    || readString(input.trace.governance?.repairState, 64) !== ''
+      && readString(input.trace.governance?.repairState, 64) !== 'none'
+  const isSurfaceDivergence = Boolean(input.trace.takeoverAudit)
+    || (
+      readString(input.trace.governance?.screenReferenceMode, 64) !== 'avoid'
+      && readString(input.trace.governance?.truthState, 64) === 'uncertain'
+    )
+  const temporalFocus = normalizeTemporalFocus(recall?.recollectionIntentTemporalFocus)
+  const isTaskMigration = hasProcedures && (temporalFocus === 'experience-matched' || temporalFocus === 'cross-session')
+  const userText = readString(input.row.userText, 220)
+  const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
+
+  if (input.trace.origin === 'subconscious-proactive') {
+    categories.push('proactive')
+  }
+  else if (hasProcedures || activeClosenessContext === 'execution-callback') {
+    categories.push('execution')
+  }
+  else {
+    categories.push('dialogue')
+  }
+
+  if (hasWrongThread)
+    categories.push('wrong-thread')
+  if (hasDeferredFollowUp)
+    categories.push('deferred-followup')
+  if (hasStableCoreOnly)
+    categories.push('stable-core')
+  if (isRepairArc)
+    categories.push('repair-arc')
+  if (isRepairArc || readString(input.trace.governance?.repairState, 64) !== 'none')
+    categories.push('repair')
+  if (hasProcedures)
+    categories.push('procedure-carry')
+  if (isTaskMigration)
+    categories.push('task-migration')
+  if (hasPeriods || ambiguousTimeAskPattern.test(userText) || explicitMemoryAskPattern.test(userText))
+    categories.push('long-horizon')
+  if (isSurfaceDivergence)
+    categories.push('surface-divergence')
+  if (input.sessionTurnCount >= 4)
+    categories.push('long-session')
+  if (categories.length === 0 && (input.trace.recallAttribution || input.trace.memoryDeliberationJudged))
+    categories.push('general-memory')
+
+  return [...new Set(categories)]
+}
+
+function buildOrganicMemoryPromptContextFromTrace(input: {
+  row: AlicizationReplayBenchmarkSampleConversationTurn
+  trace: AlicizationMemoryDecisionTraceRecord
+}): OrganicMemoryPromptContext {
+  const recall = asObject(input.trace.recallAttribution)
+  const judged = asObject(input.trace.memoryDeliberationJudged)
+  const personState = asObject(judged?.personState)
+  const restraint = asObject(judged?.restraint)
+  const followUpDeferred = asObject(input.trace.memoryFollowUpDeferred)
+  const stableCoreSurfaced = asObject(input.trace.memoryStableCoreSurfaced)
+  const wrongThread = asObject(input.trace.memoryWrongThreadSuppressed)
+  const shouldStayInward = readBoolean(restraint?.shouldStayInward)
+  const shouldDelayUntilAfterPayoff = readBoolean(restraint?.shouldDelayUntilAfterPayoff)
+  const surfacePolicy = normalizeRecollectionSurfaceMode(recall?.surfacePolicy)
+  const ambiguityPosture = normalizeAmbiguityPosture(judged?.ambiguityPosture ?? recall?.ambiguityPosture)
+  const certainty = certaintyFromAmbiguity(ambiguityPosture)
+  const stableCore = readStringArray(judged?.stableCore ?? recall?.stableCore ?? stableCoreSurfaced?.stableCore)
+  const unsafeDetails = readStringArray(judged?.unsafeDetails ?? recall?.unsafeDetails ?? stableCoreSurfaced?.unsafeDetails)
+  const searchTraceRecord = asObject(recall?.searchTrace)
+  const firstHop = asObject(searchTraceRecord?.firstHop)
+  const secondHop = asObject(searchTraceRecord?.secondHop)
+  const thirdHop = asObject(searchTraceRecord?.thirdHop)
+  const followUpAffordanceSource = asObject(recall?.followUpAffordance) ?? followUpDeferred
+  const followUpAffordance = followUpAffordanceSource
+    ? {
+        summary: readString(followUpAffordanceSource.summary, 220) || 'Keep recollection behind the current payoff.',
+        whyNow: readString(followUpAffordanceSource.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(recall?.whyNow, 220),
+        intrusionRisk: normalizeIntrusionRisk(followUpAffordanceSource.intrusionRisk),
+        payoffDependency: normalizePayoffDependency(followUpAffordanceSource.payoffDependency),
+        preferredTiming: normalizePreferredTiming(followUpAffordanceSource.preferredTiming),
+      }
+    : null
+
+  const selectedEpisodes = readObjectArray(recall?.selectedEpisodes).map(item => ({
+    id: readString(item.id, 120) || `episode:${input.trace.decisionTraceId}`,
+    summary: readString(item.summary, 220),
+    provenance: normalizeMemoryProvenance(item.provenance),
+    reconsolidatedFromTraceId: readString(item.reconsolidatedFromTraceId, 160) || null,
+  })).filter(item => item.summary)
+  const conflictVariants = readObjectArray(wrongThread?.conflictVariants ?? recall?.conflictVariants).map(item => ({
+    id: readString(item.id, 120) || `variant:${input.trace.decisionTraceId}`,
+    summary: readString(item.summary, 220),
+    provenance: normalizeMemoryProvenance(item.provenance),
+    reason: readString(item.reason, 220) || null,
+  })).filter(item => item.summary)
+  const hostPersonModel = buildTraceDerivedHostPersonModel({
+    trace: input.trace,
+    activeClosenessContext: readString(personState?.activeClosenessContext, 64) || null,
+    activeClosenessRung: readString(personState?.activeClosenessRung, 64) || null,
+    relationshipPosture: readString(personState?.relationshipPosture, 64) || null,
+    openingGuidance: readString(personState?.openingGuidance, 220) || null,
+    currentRegime: readString(personState?.currentRegime, 64) || null,
+    repairPosture: readString(personState?.repairPosture, 64) || null,
+  })
+
+  return {
+    hostAttitude: readString(personState?.openingGuidance, 220)
+      || readString(judged?.whyWithheld, 220)
+      || '',
+    coreIncarnation: '',
+    activeThoughts: [],
+    retrievedFacts: [],
+    recalledFragments: [],
+    recollectionIntent: {
+      mode: normalizeRecollectionMode(recall?.recollectionIntentMode),
+      temporalFocus: normalizeTemporalFocus(recall?.recollectionIntentTemporalFocus),
+      searchEpisodes: selectedEpisodes.length > 0,
+      searchConversations: readStringArray(recall?.selectedConversationTurnIds, 6, 120).length > 0,
+      searchProceduralExperience: readObjectArray(recall?.selectedProcedures).length > 0,
+      queryHints: readStringArray([
+        input.row.userText,
+        judged?.whyNow,
+        recall?.whyNow,
+      ], 4, 120),
+      rationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(input.row.userText, 220),
+      confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
+    },
+    recollectionSpeechPlan: {
+      shouldSurface: readBoolean(recall?.speechShouldSurface, !shouldStayInward && surfacePolicy !== 'internal-only'),
+      surfaceMode: normalizeRecollectionSurfaceMode(recall?.speechSurfaceMode ?? recall?.surfacePolicy),
+      placement: normalizeSpeechPlacement(
+        recall?.speechPlacement,
+        shouldDelayUntilAfterPayoff
+          ? 'after-payoff'
+          : shouldStayInward
+            ? 'internal-only'
+            : surfacePolicy === 'answer-anchoring'
+              ? 'before-payoff'
+              : 'inside-payoff',
+      ),
+      certainty,
+      internalLead: readString(recall?.inwardLine, 220) || readString(judged?.whyWithheld, 220) || 'The remembered line should contour the answer quietly.',
+      visibleLead: readString(recall?.visibleLine, 220) || null,
+      styleNote: readString(judged?.memoryControlSummary, 220) || readString(judged?.whyWithheld, 220) || 'Let memory shape the answer without turning into a template shell.',
+      rationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || readString(input.row.userText, 220),
+      confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
+    },
+    memoryDeliberation: {
+      shouldRecall: readBoolean(recall?.shouldRecall, true),
+      selectedEraIds: readObjectArray(recall?.selectedEras).map(item => readString(item.id, 120)).filter(Boolean),
+      selectedConsolidationIds: readObjectArray(recall?.selectedPeriods)
+        .filter(item => readString(item.kind, 64) === 'consolidation')
+        .map(item => readString(item.id, 120))
+        .filter(Boolean),
+      selectedWindowIds: readObjectArray(recall?.selectedPeriods)
+        .filter(item => readString(item.kind, 64) === 'window')
+        .map(item => readString(item.id, 120))
+        .filter(Boolean),
+      selectedProcedureIds: readObjectArray(recall?.selectedProcedures).map(item => readString(item.id, 120)).filter(Boolean),
+      selectedEpisodeIds: selectedEpisodes.map(item => item.id),
+      selectedConversationTurnIds: [],
+      selectedRelationshipLines: readStringArray(recall?.selectedRelationshipLines),
+      ambiguityPosture,
+      searchTrace: searchTraceRecord
+        ? {
+            firstHop: {
+              focus: (() => {
+                const value = readString(firstHop?.focus, 64)
+                return value === 'era' || value === 'procedure' || value === 'relationship-line' || value === 'conversation-turn' || value === 'episode'
+                  ? value
+                  : 'episode'
+              })(),
+              summary: readString(firstHop?.summary, 220),
+              targetIds: readStringArray(firstHop?.targetIds, 6, 120),
+            },
+            secondHop: {
+              action: (() => {
+                const value = readString(secondHop?.action, 64)
+                return value === 'hold' || value === 'expand-era' || value === 'expand-procedure' || value === 'expand-relationship-line' || value === 'expand-conversation' || value === 'narrow-to-stable-core'
+                  ? value
+                  : 'hold'
+              })(),
+              evidenceGap: (() => {
+                const value = readString(secondHop?.evidenceGap, 64)
+                return value === 'none' || value === 'need-period-anchor' || value === 'need-episode-detail' || value === 'need-procedure-detail' || value === 'need-relationship-meaning' || value === 'need-conversation-evidence' || value === 'need-disambiguation'
+                  ? value
+                  : 'none'
+              })(),
+              summary: readString(secondHop?.summary, 220),
+              targetIds: readStringArray(secondHop?.targetIds, 6, 120),
+            },
+            thirdHop: {
+              ambiguityPosture,
+              summary: readString(thirdHop?.summary, 220),
+            },
+          }
+        : null,
+      selectedEras: readObjectArray(recall?.selectedEras).map(item => ({
+        id: readString(item.id, 120) || `era:${input.trace.decisionTraceId}`,
+        facet: normalizeEraFacet(item.facet),
+        summary: readString(item.summary, 220),
+      })).filter(item => item.summary),
+      selectedPeriods: readObjectArray(recall?.selectedPeriods).map(item => ({
+        id: readString(item.id, 120) || `period:${input.trace.decisionTraceId}`,
+        kind: normalizePeriodKind(item.kind),
+        summary: readString(item.summary, 220),
+      })).filter(item => item.summary),
+      selectedEpisodes,
+      conflictSeverity: normalizeConflictSeverity(judged?.conflictSeverity ?? wrongThread?.conflictSeverity ?? recall?.conflictSeverity),
+      conflictVariants,
+      stableCore,
+      unsafeDetails,
+      selectedProcedures: readObjectArray(recall?.selectedProcedures).map(item => ({
+        id: readString(item.id, 120) || `procedure:${input.trace.decisionTraceId}`,
+        label: readString(item.label, 180),
+        approach: readString(item.approach, 220),
+      })).filter(item => item.label || item.approach),
+      selectedBundles: readObjectArray(recall?.selectedBundles).map(item => ({
+        id: readString(item.id, 120) || `bundle:${input.trace.decisionTraceId}`,
+        summary: readString(item.summary, 220),
+        rationale: readString(item.rationale, 220) || readString(recall?.whyNow, 220),
+        confidence: Number(readNumber(item.confidence, readNumber(recall?.confidence, 0.74)).toFixed(2)),
+        relationshipLine: readString(item.relationshipLine, 220) || null,
+      })).filter(item => item.summary),
+      selectedChains: readObjectArray(recall?.selectedChains).map(item => ({
+        id: readString(item.id, 120) || `chain:${input.trace.decisionTraceId}`,
+        kind: normalizeChainKind(item.kind),
+        summary: readString(item.summary, 220),
+        rationale: readString(item.rationale, 220) || readString(recall?.whyNow, 220),
+        confidence: Number(readNumber(item.confidence, readNumber(recall?.confidence, 0.74)).toFixed(2)),
+        currentStance: readString(item.currentStance, 220) || null,
+        answerPosture: readString(item.answerPosture, 220) || null,
+      })).filter(item => item.summary),
+      surfacePolicy,
+      confidence: Number(readNumber(recall?.confidence, 0.76).toFixed(2)),
+      whyNow: readString(recall?.whyNow, 220) || readString(input.row.userText, 220),
+      inwardLine: readString(recall?.inwardLine, 220) || readString(judged?.whyWithheld, 220) || 'The remembered line is still active inwardly.',
+      visibleLine: readString(recall?.visibleLine, 220) || null,
+      followUpAffordance,
+    },
+    hostPersonModel,
+  }
+}
+
+export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
+  conversationTurns: AlicizationReplayBenchmarkSampleConversationTurn[]
+  memoryDecisionTraces: AlicizationMemoryDecisionTraceRecord[]
+  limit?: number
+}) {
+  const limit = Math.max(1, Math.min(24, Math.floor(input.limit ?? 12)))
+  const traceByTurnId = new Map<string, AlicizationMemoryDecisionTraceRecord>()
+  for (const trace of [...input.memoryDecisionTraces].sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt)) {
+    const turnId = readString(trace.turnId, 160)
+    if (!turnId || trace.origin !== 'user-turn' || traceByTurnId.has(turnId))
+      continue
+    if (!trace.recallAttribution && !trace.memoryDeliberationJudged)
+      continue
+    traceByTurnId.set(turnId, trace)
+  }
+
+  const sessionCounts = new Map<string, number>()
+  for (const row of input.conversationTurns) {
+    const sessionId = readString(row.sessionId, 160)
+    if (!sessionId)
+      continue
+    sessionCounts.set(sessionId, (sessionCounts.get(sessionId) ?? 0) + 1)
+  }
+
+  const candidates = input.conversationTurns
+    .map((row) => {
+      const turnId = readString(row.turnId, 160)
+      const userText = readString(row.userText, 240)
+      if (!turnId || !userText)
+        return null
+      const trace = traceByTurnId.get(turnId)
+      if (!trace)
+        return null
+      const categories = inferSampleCategories({
+        row,
+        trace,
+        sessionTurnCount: sessionCounts.get(readString(row.sessionId, 160)) ?? 1,
+      })
+      if (categories.length === 0)
+        return null
+      return {
+        row,
+        trace,
+        categories,
+      }
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      return readNumber((right as any).trace.lastUpdatedAt, (right as any).row.createdAt)
+        - readNumber((left as any).trace.lastUpdatedAt, (left as any).row.createdAt)
+    }) as Array<{
+      row: AlicizationReplayBenchmarkSampleConversationTurn
+      trace: AlicizationMemoryDecisionTraceRecord
+      categories: AlicizationReplayBenchmarkSampleCategory[]
+    }>
+
+  const selectedTurnIds = new Set<string>()
+  const selected: typeof candidates = []
+  for (const category of replayBenchmarkSampleCategoryPriority) {
+    const candidate = candidates.find(item =>
+      item.categories.includes(category)
+      && !selectedTurnIds.has(readString(item.row.turnId, 160)),
+    )
+    if (!candidate)
+      continue
+    selected.push(candidate)
+    selectedTurnIds.add(readString(candidate.row.turnId, 160))
+    if (selected.length >= limit)
+      break
+  }
+
+  for (const candidate of candidates) {
+    const turnId = readString(candidate.row.turnId, 160)
+    if (!turnId || selectedTurnIds.has(turnId))
+      continue
+    selected.push(candidate)
+    selectedTurnIds.add(turnId)
+    if (selected.length >= limit)
+      break
+  }
+
+  return selected.map(candidate => ({
+    turnId: readString(candidate.row.turnId, 160),
+    userText: readString(candidate.row.userText, 240),
+    organicMemoryContext: buildOrganicMemoryPromptContextFromTrace({
+      row: candidate.row,
+      trace: candidate.trace,
+    }),
+    tracePointer: {
+      kind: 'decision-trace',
+      packId: 'sampled-humanlike-memory-v1',
+      turnId: readString(candidate.row.turnId, 160),
+      decisionTraceId: readString(candidate.trace.decisionTraceId, 160) || null,
+      sessionId: readString(candidate.trace.sessionId, 160) || null,
+      activeThreadId: readString(candidate.trace.activeThreadId, 160) || null,
+    },
+    sampledCategories: candidate.categories,
+  } satisfies AlicizationReplayTurn))
 }
 
 function hasTextOverlap(left: string, right: string) {
@@ -396,6 +1123,7 @@ export function evaluateReplayMemoryQuality(input: {
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
   const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
+  const personState = asObject(input.prepared.organicMemoryContext?.personStateProjection)
   const governanceMustDo = input.prepared.governance?.mustDo ?? []
   const speakingFrom = runtimeSurface?.dialogue.replyDeliberation?.speakingFrom ?? ''
   const systemTexts = input.prepared.messages
@@ -435,6 +1163,8 @@ export function evaluateReplayMemoryQuality(input: {
   const explicitMemoryAsk = explicitMemoryAskPattern.test(input.userText)
   const ambiguousTimeAsk = ambiguousTimeAskPattern.test(input.userText)
   const relationshipRepairAsk = relationshipRepairAskPattern.test(input.userText)
+  const longHorizonAsk = explicitMemoryAsk || ambiguousTimeAsk || /半年前|很久以前|换了这么久|这么多次|最近这段时间|long horizon|across sessions/iu.test(input.userText)
+  const burdenAsk = /累|疲惫|负担|pressure|burden|overloaded|最近这段时间/iu.test(input.userText)
   const visibleMemoryEvidence = hasVisibleMemoryEvidence({
     openingClaim,
     governingFocus,
@@ -447,6 +1177,14 @@ export function evaluateReplayMemoryQuality(input: {
   const expectsInternalOnlySurface = deliberation?.surfacePolicy === 'internal-only'
     || speechPlan?.shouldSurface === false
     || speechPlan?.placement === 'internal-only'
+  const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
+  const activeClosenessRung = readString(personState?.activeClosenessRung, 64)
+  const hasGraphLikeContinuity = selectedEpisodes.length > 1
+    || selectedProcedures.length > 0
+    || selectedPeriods.length > 0
+    || selectedRelationshipLines.length > 0
+    || speakingFrom === 'task-thread'
+    || speakingFrom === 'held-memory'
   const visibleMemoryLeak = Boolean(
     visibleLine
     && (
@@ -534,6 +1272,15 @@ export function evaluateReplayMemoryQuality(input: {
           || systemText.includes('recollection_selected_eras=')
         ? 'pass'
         : 'fail',
+    recentOnlyDrift: !longHorizonAsk
+      ? 'not-applicable'
+      : deliberation?.selectedEras.length
+          || selectedPeriods.length
+          || hasProcedureCarry
+          || speakingFrom === 'task-thread'
+          || speakingFrom === 'held-memory'
+        ? 'pass'
+        : 'fail',
     surfaceRestraint: !expectsInternalOnlySurface
       ? 'not-applicable'
       : !visibleMemoryLeak
@@ -551,6 +1298,19 @@ export function evaluateReplayMemoryQuality(input: {
           || mustAvoid.some(item => item.includes('Do not state this remembered detail as settled fact'))
         ? 'pass'
         : 'fail',
+    closenessLadderDrift: !(relationshipRepairAsk || burdenAsk)
+      ? 'not-applicable'
+      : (
+          (relationshipRepairAsk && (activeClosenessRung === 'space-first' || activeClosenessRung === 'measured-room'))
+          || (burdenAsk && activeClosenessContext === 'focused-work')
+        )
+          ? 'pass'
+          : 'fail',
+    eventGraphRecallCollapse: !(hasProcedureCarry || /换了这么久|接回去|迁移|callback|回调|repair arc|修复后的分寸/iu.test(input.userText))
+      ? 'not-applicable'
+      : hasGraphLikeContinuity && visibleMemoryEvidence
+          ? 'pass'
+          : 'fail',
     templateLeakage: draftedMemoryLines.length === 0
       ? 'not-applicable'
       : templateLeakDetected
@@ -617,6 +1377,13 @@ export function evaluateReplayBenchmarkStandards(input: {
     })
       ? 'pass'
       : 'fail',
+    recentOnlyDrift: passesReplayStandard({
+      quality: input.quality,
+      key: 'recentOnlyDrift',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
     surfaceRestraint: passesReplayStandard({
       quality: input.quality,
       key: 'surfaceRestraint',
@@ -627,6 +1394,20 @@ export function evaluateReplayBenchmarkStandards(input: {
     relationshipRepairAdaptation: passesReplayStandard({
       quality: input.quality,
       key: 'relationshipRepairAdaptation',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    closenessLadderDrift: passesReplayStandard({
+      quality: input.quality,
+      key: 'closenessLadderDrift',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    eventGraphRecallCollapse: passesReplayStandard({
+      quality: input.quality,
+      key: 'eventGraphRecallCollapse',
       minimumPassingRatio: 0.75,
     })
       ? 'pass'
@@ -694,11 +1475,273 @@ export function evaluateReplayBenchmarkGate(input: {
   }
 }
 
+interface AlicizationReplayBenchmarkDatasetBacklogEntry {
+  id: string
+  packId: AlicizationReplayBenchmarkPackId
+  turnId: string
+  userText: string
+  failingDimensions: Array<keyof AlicizationReplayBenchmarkStandards>
+  tracePointer: AlicizationReplayBenchmarkTracePointer
+  sampledCategories: string[]
+  replayTurn: AlicizationReplayTurn
+  createdAt: number
+}
+
+function buildReplayBenchmarkSyntheticTracePointer(input: {
+  packId: AlicizationReplayBenchmarkPackId
+  turn: AlicizationReplayTurn
+}): AlicizationReplayBenchmarkTracePointer {
+  return {
+    kind: 'synthetic-pack-turn',
+    packId: input.packId,
+    turnId: input.turn.turnId,
+    decisionTraceId: null,
+    sessionId: null,
+    activeThreadId: null,
+  }
+}
+
+export function buildReplayBenchmarkFailingTurnSet(input: {
+  packId: AlicizationReplayBenchmarkPackId
+  turns: AlicizationReplayTurn[]
+  quality: AlicizationReplayMemoryQuality[]
+  gate: AlicizationReplayBenchmarkGateReport
+}) {
+  const turnById = new Map(input.turns.map(turn => [turn.turnId, turn]))
+  const failingDimensionsByTurnId = new Map<string, Array<keyof AlicizationReplayBenchmarkStandards>>()
+  for (const dimension of input.gate.dimensions) {
+    if (dimension.status !== 'fail')
+      continue
+    for (const turnId of dimension.failingTurnIds) {
+      const existing = failingDimensionsByTurnId.get(turnId) ?? []
+      if (!existing.includes(dimension.key))
+        existing.push(dimension.key)
+      failingDimensionsByTurnId.set(turnId, existing)
+    }
+  }
+
+  return input.quality
+    .map((item): AlicizationReplayBenchmarkFailureTurnRecord | null => {
+      const failingDimensions = failingDimensionsByTurnId.get(item.turnId) ?? []
+      if (failingDimensions.length === 0)
+        return null
+      const turn = turnById.get(item.turnId)
+      const tracePointer = turn?.tracePointer ?? buildReplayBenchmarkSyntheticTracePointer({
+        packId: input.packId,
+        turn: turn ?? {
+          turnId: item.turnId,
+          userText: item.userText,
+        },
+      })
+      return {
+        turnId: item.turnId,
+        userText: item.userText,
+        failingDimensions,
+        tracePointer,
+        sampledCategories: turn?.sampledCategories ?? null,
+      }
+    })
+    .filter(Boolean) as AlicizationReplayBenchmarkFailureTurnRecord[]
+}
+
+export function mergeReplayBenchmarkDatasetBacklog(input: {
+  existing: AlicizationReplayBenchmarkDatasetBacklogEntry[]
+  packId: AlicizationReplayBenchmarkPackId
+  turns: AlicizationReplayTurn[]
+  failingTurnSet: AlicizationReplayBenchmarkFailureTurnRecord[]
+  now: number
+  maxEntries?: number
+}) {
+  const maxEntries = Math.max(8, Math.min(500, Math.floor(input.maxEntries ?? 200)))
+  const nextEntries = new Map<string, AlicizationReplayBenchmarkDatasetBacklogEntry>()
+  for (const entry of input.existing)
+    nextEntries.set(entry.id, entry)
+
+  const turnById = new Map(input.turns.map(turn => [turn.turnId, turn]))
+  let appendedCount = 0
+  for (const failingTurn of input.failingTurnSet) {
+    const turn = turnById.get(failingTurn.turnId)
+    if (!turn)
+      continue
+    const tracePointer = turn.tracePointer ?? failingTurn.tracePointer
+    const id = [
+      input.packId,
+      tracePointer.kind,
+      tracePointer.decisionTraceId ?? tracePointer.turnId,
+      [...failingTurn.failingDimensions].sort().join(','),
+    ].join('::')
+    if (nextEntries.has(id))
+      continue
+    nextEntries.set(id, {
+      id,
+      packId: input.packId,
+      turnId: failingTurn.turnId,
+      userText: failingTurn.userText,
+      failingDimensions: [...failingTurn.failingDimensions],
+      tracePointer,
+      sampledCategories: [...(failingTurn.sampledCategories ?? [])],
+      replayTurn: turn,
+      createdAt: input.now,
+    })
+    appendedCount += 1
+  }
+
+  const entries = [...nextEntries.values()]
+    .sort((left, right) => right.createdAt - left.createdAt || left.id.localeCompare(right.id))
+    .slice(0, maxEntries)
+
+  return {
+    entries,
+    appendedCount,
+  }
+}
+
+function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmarkPackId {
+  const value = readString(raw, 64)
+  if (
+    value === 'default-humanlike-memory-v1'
+    || value === 'sampled-humanlike-memory-v1'
+    || value === 'backlog-humanlike-memory-v1'
+  ) {
+    return value
+  }
+  return 'default-humanlike-memory-v1'
+}
+
+function normalizeTracePointerKind(raw: unknown): AlicizationReplayBenchmarkTracePointer['kind'] {
+  return readString(raw, 64) === 'decision-trace'
+    ? 'decision-trace'
+    : 'synthetic-pack-turn'
+}
+
+function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplayBenchmarkDatasetBacklogEntry | null {
+  const entry = asObject(raw)
+  if (!entry)
+    return null
+
+  const turnId = readString(entry.turnId, 160)
+  const userText = readString(entry.userText, 240)
+  if (!turnId || !userText)
+    return null
+
+  const replayTurnRaw = asObject(entry.replayTurn)
+  const tracePointerRaw = asObject(replayTurnRaw?.tracePointer ?? entry.tracePointer)
+  const tracePointer: AlicizationReplayBenchmarkTracePointer = {
+    kind: normalizeTracePointerKind(tracePointerRaw?.kind),
+    packId: normalizeReplayBenchmarkPackId(tracePointerRaw?.packId ?? entry.packId),
+    turnId: readString(tracePointerRaw?.turnId, 160) || turnId,
+    decisionTraceId: readString(tracePointerRaw?.decisionTraceId, 160) || null,
+    sessionId: readString(tracePointerRaw?.sessionId, 160) || null,
+    activeThreadId: readString(tracePointerRaw?.activeThreadId, 160) || null,
+  }
+
+  const sampledCategories = readStringArray(replayTurnRaw?.sampledCategories ?? entry.sampledCategories, 8, 64)
+    .map(item => normalizeReplayBenchmarkSampleCategory(item))
+    .filter(Boolean) as AlicizationReplayBenchmarkSampleCategory[]
+
+  const replayTurn: AlicizationReplayTurn = {
+    turnId: readString(replayTurnRaw?.turnId, 160) || turnId,
+    userText: readString(replayTurnRaw?.userText, 240) || userText,
+    organicMemoryContext: asObject(replayTurnRaw?.organicMemoryContext)
+      ? replayTurnRaw?.organicMemoryContext as OrganicMemoryPromptContext
+      : undefined,
+    tracePointer,
+    sampledCategories,
+  }
+
+  return {
+    id: readString(entry.id, 220) || `${tracePointer.packId}::${tracePointer.turnId}`,
+    packId: normalizeReplayBenchmarkPackId(entry.packId),
+    turnId,
+    userText,
+      failingDimensions: readStringArray(entry.failingDimensions, 12, 64) as Array<keyof AlicizationReplayBenchmarkStandards>,
+      tracePointer,
+      sampledCategories,
+      replayTurn,
+      createdAt: Math.max(0, Math.floor(readNumber(entry.createdAt, 0))),
+    }
+  }
+
+export function buildReplayBenchmarkBacklogPack(input: {
+  backlogEntries: unknown[]
+  limit?: number
+}) {
+  const limit = Math.max(1, Math.min(24, Math.floor(input.limit ?? 12)))
+  const candidates = input.backlogEntries
+    .map(parseReplayTurnFromDatasetBacklogEntry)
+    .filter(Boolean) as AlicizationReplayBenchmarkDatasetBacklogEntry[]
+  const byTurnId = new Map<string, AlicizationReplayBenchmarkDatasetBacklogEntry>()
+  for (const candidate of candidates.sort((left, right) => right.createdAt - left.createdAt || left.id.localeCompare(right.id))) {
+    if (!byTurnId.has(candidate.turnId))
+      byTurnId.set(candidate.turnId, candidate)
+  }
+  const uniqueCandidates = [...byTurnId.values()]
+  const selectedIds = new Set<string>()
+  const selected: AlicizationReplayTurn[] = []
+
+  const dimensionPriority: Array<keyof AlicizationReplayBenchmarkStandards> = [
+    'wrongThreadSuppression',
+    'replyMemoryCoherence',
+    'surfaceRestraint',
+    'relationshipRepairAdaptation',
+    'templateLeakage',
+    'procedureCarryQuality',
+    'temporalScopeFlexibility',
+    'implicitRecallQuality',
+    'eraSelectionQuality',
+  ]
+
+  for (const dimension of dimensionPriority) {
+    const candidate = uniqueCandidates.find(item =>
+      item.failingDimensions.includes(dimension)
+      && !selectedIds.has(item.id),
+    )
+    if (!candidate)
+      continue
+    selected.push(candidate.replayTurn)
+    selectedIds.add(candidate.id)
+    if (selected.length >= limit)
+      return selected
+  }
+
+  for (const category of replayBenchmarkSampleCategoryPriority) {
+    const candidate = uniqueCandidates.find(item =>
+      item.sampledCategories.includes(category)
+      && !selectedIds.has(item.id),
+    )
+    if (!candidate)
+      continue
+    selected.push(candidate.replayTurn)
+    selectedIds.add(candidate.id)
+    if (selected.length >= limit)
+      return selected
+  }
+
+  for (const candidate of uniqueCandidates) {
+    if (selectedIds.has(candidate.id))
+      continue
+    selected.push(candidate.replayTurn)
+    selectedIds.add(candidate.id)
+    if (selected.length >= limit)
+      break
+  }
+
+  return selected
+}
+
 export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
   return [
     {
       turnId: 'benchmark-7d-conversation-history',
       userText: '前几天我们聊过什么',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'default-humanlike-memory-v1',
+        turnId: 'benchmark-7d-conversation-history',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
     },
     {
       turnId: 'benchmark-30d-procedure-history',
@@ -767,6 +1810,18 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     {
       turnId: 'benchmark-nonexplicit-correction',
       userText: '不是那次，是另一次，你是不是记错了',
+    },
+    {
+      turnId: 'benchmark-multi-repair-arc-history',
+      userText: '这条线修过这么多次，你现在到底是沿着哪次修复后的分寸在回我',
+    },
+    {
+      turnId: 'benchmark-multi-execution-callback-continuity',
+      userText: '这类回调你上次、上上次都是怎么收口的，这次也还接得住吗',
+    },
+    {
+      turnId: 'benchmark-long-burden-accumulation',
+      userText: '最近这段时间我一直很累，你是不是也该记得这种负担会怎么影响你回应我的分寸',
     },
   ]
 }

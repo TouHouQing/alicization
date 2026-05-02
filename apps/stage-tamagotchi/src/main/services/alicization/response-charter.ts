@@ -19,11 +19,13 @@ import type {
   AlicizationDigitalLifeSubsystemId,
 } from './digital-life-architecture'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
+import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildEpistemicSurfacePosture } from './epistemic-surface'
+import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 
 export type AlicizationResponseEpistemicMode
   = | 'grounded-live'
@@ -54,6 +56,8 @@ export interface AlicizationResponseCharter {
   digitalLifeOperatingMode?: AlicizationDigitalLifeOperatingMode | null
   digitalLifeDominantSystem?: AlicizationDigitalLifeSubsystemId | null
   digitalLifeSummary?: string | null
+  activeClosenessContext?: AlicizationPersonStateProjection['activeClosenessContext'] | null
+  activeClosenessRung?: AlicizationPersonStateProjection['activeClosenessRung'] | null
   relationshipPosture: 'restrained' | 'warm' | 'tender'
   reasons: string[]
   mustDo: string[]
@@ -322,6 +326,19 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   return items
 }
 
+function mergeRelationshipPosture(input: {
+  projected?: AlicizationResponseCharter['relationshipPosture'] | null
+  computed: AlicizationResponseCharter['relationshipPosture']
+}) {
+  if (!input.projected)
+    return input.computed
+  if (input.computed === 'restrained' || input.projected === 'restrained')
+    return 'restrained' as const
+  if (input.computed === 'tender' || input.projected === 'tender')
+    return 'tender' as const
+  return 'warm' as const
+}
+
 export function buildAlicizationResponseCharter(input: {
   context: AlicizationProactiveLayeredContext
   state: AlicizationVisualPresenceStateSnapshot
@@ -361,6 +378,12 @@ export function buildAlicizationResponseCharter(input: {
   const reflectionLedger = runtimeSurface.memory.reflectionLedger ?? null
   const executiveCycle = runtimeSurface.memory.executiveCycle ?? null
   const recallGovernor = runtimeSurface.memory.recallGovernor ?? null
+  const personStateProjection = runtimeSurface.memory.personStateProjection ?? null
+  const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
+    deliberation: runtimeSurface.memory.memoryDeliberation ?? null,
+    speech: runtimeSurface.memory.recollectionSpeechPlan ?? null,
+    recollectionIntent: null,
+  })
   const discourseState = runtimeSurface.dialogue.discourseState ?? input.discourseState ?? null
   const mindSynthesis = runtimeSurface.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
   const dialogueWorldThread = runtimeSurface.dialogue.dialogueWorldThread ?? null
@@ -428,14 +451,25 @@ export function buildAlicizationResponseCharter(input: {
       digitalLifeOperatingMode: digitalLifeArchitecture?.operatingMode ?? null,
       digitalLifeDominantSystem: digitalLifeArchitecture?.dominantSystem ?? null,
       digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
-      relationshipPosture: answerCompiler.relationshipPosture,
+      activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
+      activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
+      relationshipPosture: mergeRelationshipPosture({
+        projected: personStateProjection?.relationshipPosture ?? null,
+        computed: answerCompiler.relationshipPosture,
+      }),
       reasons: uniqueList([
+        personStateProjection
+          ? `Closeness ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
+          : null,
         currentConsciousFrame?.consciousNeed,
         currentConsciousFrame?.consciousTension,
         currentConsciousFrame?.speakingIntention,
         claimEvidenceLedger?.observedSurface,
         claimEvidenceLedger?.taskHypothesis,
         claimEvidenceLedger?.intentHypothesis,
+        memoryDeliberationKernel?.rationale,
+        memoryDeliberationKernel?.selectedChainSummary,
+        memoryDeliberationKernel?.selectedBundleSummary,
         dialogueActKernel?.whyNow,
         ...(dialogueActKernel?.sourceTrace ?? []),
         dialogueWorldThread?.activeThread,
@@ -446,6 +480,9 @@ export function buildAlicizationResponseCharter(input: {
         discourseState?.currentTurnSummary,
       ], 4),
       mustDo: uniqueList([
+        personStateProjection
+          ? `Keep the answer inside the closeness ladder for this turn: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
+          : null,
         currentConsciousFrame?.truthDiscipline === 'observe-then-hypothesize'
           ? 'Separate present observation from hypothesis in the visible answer.'
           : null,
@@ -462,6 +499,9 @@ export function buildAlicizationResponseCharter(input: {
         ...answerCompiler.mustDo,
       ], 8),
       mustNotDo: uniqueList([
+        personStateProjection?.activeClosenessRung === 'space-first'
+          ? 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.'
+          : null,
         currentConsciousFrame?.shouldWithholdSpecificity
           ? 'Do not jump from coarse cues to specific file, class, enum, or field claims.'
           : null,
@@ -531,6 +571,9 @@ export function buildAlicizationResponseCharter(input: {
   pushUnique(reasons, answerPlanner?.answerIntent ?? '')
   pushUnique(reasons, privateThought?.thoughtText ?? '')
   pushUnique(reasons, dialogueActKernel?.whyNow ?? '')
+  pushUnique(reasons, memoryDeliberationKernel?.rationale ?? '')
+  pushUnique(reasons, memoryDeliberationKernel?.selectedChainSummary ?? '')
+  pushUnique(reasons, memoryDeliberationKernel?.selectedBundleSummary ?? '')
 
   const mustDo: string[] = [
     'Answer from the current living focus before relationship performance or old dialogue residue.',
@@ -586,6 +629,10 @@ export function buildAlicizationResponseCharter(input: {
   if (!recallGovernor?.allowRecalledFragments) {
     mustNotDo.push('Do not pull in decorative recalled fragments when the recall governor has not admitted them.')
   }
+  for (const item of memoryDeliberationKernel?.restraint.mustDo ?? [])
+    mustDo.push(item)
+  for (const item of memoryDeliberationKernel?.restraint.mustNotDo ?? [])
+    mustNotDo.push(item)
 
   if (reflection?.revision)
     mustDo.push(`Carry forward this revision: ${reflection.revision}`)
@@ -627,6 +674,11 @@ export function buildAlicizationResponseCharter(input: {
   if (digitalLifeArchitecture?.operatingMode === 'remembering' || digitalLifeArchitecture?.dominantSystem === 'memory') {
     mustDo.push('When continuity is memory-led, name it as carry or memory instead of present-tense sight.')
     mustNotDo.push('Do not let remembered continuity impersonate a fresh live read.')
+  }
+  if (personStateProjection) {
+    pushUnique(mustDo, `Keep the answer inside the closeness ladder for this turn: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`)
+    if (personStateProjection.activeClosenessRung === 'space-first')
+      pushUnique(mustNotDo, 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
   }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
     mustNotDo.push('Do not let the urge to speak outrun the host’s actual turn.')
@@ -687,8 +739,19 @@ export function buildAlicizationResponseCharter(input: {
     digitalLifeOperatingMode: digitalLifeArchitecture?.operatingMode ?? null,
     digitalLifeDominantSystem: digitalLifeArchitecture?.dominantSystem ?? null,
     digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
-    relationshipPosture,
-    reasons: reasons.slice(0, 4),
+    activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
+    activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
+    relationshipPosture: mergeRelationshipPosture({
+      projected: personStateProjection?.relationshipPosture ?? null,
+      computed: relationshipPosture,
+    }),
+    reasons: uniqueList([
+      personStateProjection
+        ? `Closeness ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`
+        : null,
+      memoryDeliberationKernel?.rationale ? `Memory deliberation: ${memoryDeliberationKernel.rationale}` : null,
+      ...reasons,
+    ], 4),
     mustDo,
     mustNotDo,
   } satisfies AlicizationResponseCharter
@@ -717,6 +780,9 @@ export function buildAlicizationResponseCharterSystemBlock(charter: AlicizationR
       : '',
     charter.digitalLifeSummary
       ? `Digital life architecture: ${charter.digitalLifeSummary}.`
+      : '',
+    charter.activeClosenessContext && charter.activeClosenessRung
+      ? `Closeness ladder: ${charter.activeClosenessContext}/${charter.activeClosenessRung}.`
       : '',
     `Relationship posture: ${charter.relationshipPosture}.`,
   ].filter(Boolean)

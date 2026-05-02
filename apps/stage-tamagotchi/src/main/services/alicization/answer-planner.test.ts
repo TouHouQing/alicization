@@ -360,6 +360,8 @@ describe('buildAnswerPlanner', () => {
         openingStyle: 'direct-answer',
         personaKernelMode: 'focused-guide',
         relationshipPosture: 'warm',
+        activeClosenessContext: 'focused-work',
+        activeClosenessRung: 'space-first',
         openingDirective: 'Stay with the runtime diff knot.',
         openingClaim: 'The runtime diff knot is still the governing thread.',
         supportingReality: ['runtime.ts diff'],
@@ -449,6 +451,8 @@ describe('buildAnswerPlanner', () => {
 
     expect(planner.act).toBe('guide')
     expect(planner.evidenceMode).toBe('live-grounded')
+    expect(planner.activeClosenessContext).toBe('focused-work')
+    expect(planner.activeClosenessRung).toBe('space-first')
     expect(planner.selectedRuntimeThreadId).toBe('thread::runtime-surface')
     expect(planner.selectedTruthFrame).toBe('live')
     expect(planner.openingMove).toContain('runtime diff')
