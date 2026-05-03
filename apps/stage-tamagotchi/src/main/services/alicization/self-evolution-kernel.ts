@@ -58,6 +58,10 @@ function deriveNextLearningAction(input: {
     contradictionCount: number
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
+    procedureFactCount?: number
+    relationshipFactCount?: number
+    selfModelFactCount?: number
+    worldModelFactCount?: number
   } | null
   sourceSignals: string[]
 }) {
@@ -112,6 +116,10 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     contradictionCount: number
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
+    procedureFactCount?: number
+    relationshipFactCount?: number
+    selfModelFactCount?: number
+    worldModelFactCount?: number
   } | null
   reflectionSummary?: string | null
   reflectionLesson?: string | null
@@ -124,6 +132,9 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const longHorizonMemory = input.longHorizonMemory ?? null
   const hostPersonModel = input.hostPersonModel ?? null
   const knowledgeEvidence = input.knowledgeEvidence ?? null
+  const relationshipCount = knowledgeEvidence?.relationshipFactCount ?? 0
+  const selfModelCount = knowledgeEvidence?.selfModelFactCount ?? 0
+  const worldModelCount = knowledgeEvidence?.worldModelFactCount ?? 0
 
   const relationshipDoctrine = sanitizeText(
     evolution?.latestDoctrine
@@ -185,6 +196,9 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     input.reflectionTargetScope ? `reflection:${input.reflectionTargetScope}` : null,
     contradictionPressure >= 0.42 ? 'resolve-contradictions' : null,
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0 ? 'internalize-procedure' : null,
+    relationshipCount > 0 ? 'internalize-relationship' : null,
+    selfModelCount > 0 ? 'internalize-self-model' : null,
+    worldModelCount > 0 ? 'internalize-world-model' : null,
     relationshipDoctrine ? `relationship:${relationshipDoctrine}` : null,
     burdenLine ? `burden:${burdenLine}` : null,
     trustMeaning ? `trust:${trustMeaning}` : null,

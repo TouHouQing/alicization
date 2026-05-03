@@ -4,7 +4,12 @@ import type {
   AlicizationMindTurnEventRecord,
 } from './alicization-transport-contracts'
 
+import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
+import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import { deriveAlicizationMindParticipationFromTrace } from './alicization-mind-participation'
+import { normalizeAlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
+import { normalizeAlicizationOrganicMemoryStageReplay } from './alicization-memory-stage-replay'
+import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 function asObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
@@ -22,6 +27,18 @@ function extractActiveThreadId(payload: Record<string, unknown> | null | undefin
   const digitalLifeSpine = asObject(payload?.digitalLifeSpine)
   const runtime = asObject(digitalLifeSpine?.runtime)
   return sanitizeText(runtime?.activeThreadId, 160) || null
+}
+
+function extractDerivedMindStateBundle(payload: Record<string, unknown> | null | undefined) {
+  return normalizeAlicizationDerivedMindStateBundle(payload?.derivedMindStateBundle)
+}
+
+function extractMemoryStageReplay(payload: Record<string, unknown> | null | undefined): AlicizationOrganicMemoryStageReplay | null {
+  return normalizeAlicizationOrganicMemoryStageReplay(payload?.memoryStageReplay)
+}
+
+function extractMemoryResolutionLedger(payload: Record<string, unknown> | null | undefined): AlicizationMemoryResolutionLedger | null {
+  return normalizeAlicizationMemoryResolutionLedger(payload?.memoryResolutionLedger)
 }
 
 function uniqueKinds(kinds: AlicizationMindTurnEventKind[]) {
@@ -60,6 +77,18 @@ export function buildAlicizationMemoryDecisionTraceRecords(
       const activeThreadId = extractActiveThreadId(governance?.payload)
         || extractActiveThreadId(persistenceWritten?.payload)
         || extractActiveThreadId(dialogueEmitted?.payload)
+        || null
+      const derivedMindStateBundle = extractDerivedMindStateBundle(governance?.payload)
+        || extractDerivedMindStateBundle(persistenceWritten?.payload)
+        || extractDerivedMindStateBundle(dialogueEmitted?.payload)
+        || null
+      const memoryStageReplay = extractMemoryStageReplay(governance?.payload)
+        || extractMemoryStageReplay(persistenceWritten?.payload)
+        || extractMemoryStageReplay(dialogueEmitted?.payload)
+        || null
+      const memoryResolutionLedger = extractMemoryResolutionLedger(governance?.payload)
+        || extractMemoryResolutionLedger(persistenceWritten?.payload)
+        || extractMemoryResolutionLedger(dialogueEmitted?.payload)
         || null
 
       return {
@@ -110,6 +139,9 @@ export function buildAlicizationMemoryDecisionTraceRecords(
           dialogueEmitted: dialogueEmitted?.payload ?? null,
           persistenceWritten: persistenceWritten?.payload ?? null,
         }),
+        derivedMindStateBundle,
+        memoryStageReplay,
+        memoryResolutionLedger,
       } satisfies AlicizationMemoryDecisionTraceRecord
     })
     .sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt || left.decisionTraceId.localeCompare(right.decisionTraceId))

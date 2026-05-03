@@ -20,6 +20,8 @@ type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntime
   | 'recordMemoryCandidateGenerationLatency'
   | 'recordMemoryPlannerLatency'
   | 'recordMemorySpeechPlanLatency'
+  | 'recordOrganicMemoryStageLatency'
+  | 'recordOrganicMemoryStageBudget'
 >
 
 export interface CreateAlicizationRuntimeMemoryRuntimeOptions {

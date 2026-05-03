@@ -19,6 +19,7 @@ describe('memory-tuning-advice', () => {
           quality: [],
           standards: {
             eraSelectionQuality: 'pass',
+            resolutionLedgerQuality: 'pass',
             procedureCarryQuality: 'fail',
             wrongThreadSuppression: 'fail',
             replyMemoryCoherence: 'pass',
@@ -43,6 +44,7 @@ describe('memory-tuning-advice', () => {
             dimensions: [],
             standards: {
               eraSelectionQuality: 'pass',
+              resolutionLedgerQuality: 'pass',
               procedureCarryQuality: 'fail',
               wrongThreadSuppression: 'fail',
               replyMemoryCoherence: 'pass',

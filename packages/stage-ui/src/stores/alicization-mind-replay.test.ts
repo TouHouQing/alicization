@@ -530,6 +530,14 @@ describe('alicization mind replay store', () => {
           activeThreadId: 'thread-1',
         },
         sampledCategories: ['wrong-thread'],
+        resolutionLedgerSummary: {
+          dominantClusterSummary: 'Runtime seam cluster',
+          competingClusterSummary: 'Nearby competing seam',
+          finalSurfacePolicy: 'procedural-carry',
+          shouldStayInward: false,
+          shouldDelayUntilAfterPayoff: true,
+          rejectedCandidateCount: 1,
+        },
       }],
       datasetFeedback: {
         backlogKey: 'replay_benchmark_dataset_backlog_v1',
@@ -549,6 +557,10 @@ describe('alicization mind replay store', () => {
 
     expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
       turnId: 'turn-failing-1',
+      resolutionLedgerSummary: expect.objectContaining({
+        dominantClusterSummary: 'Runtime seam cluster',
+        rejectedCandidateCount: 1,
+      }),
     }))
     await store.drillDownBenchmarkTurn('turn-failing-1')
     expect(listMindTurnEvents).toBeCalledWith({

@@ -1,6 +1,8 @@
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
+import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
+import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
 
 export type AlicizationMemorySource = 'rule' | 'async-llm'
@@ -16,6 +18,12 @@ export type AlicizationKnowledgeValidationStatus
     | 'validated'
     | 'superseded'
 
+export type AlicizationMemoryDomain
+  = 'procedure'
+    | 'relationship'
+    | 'self-model'
+    | 'world-model'
+
 export interface AlicizationMemoryFact {
   id: string
   subject: string
@@ -30,6 +38,7 @@ export interface AlicizationMemoryFact {
   accessCount: number
   knowledgeStage?: AlicizationKnowledgeAssimilationStage | null
   validationStatus?: AlicizationKnowledgeValidationStatus | null
+  memoryDomain?: AlicizationMemoryDomain | null
   validationCount?: number | null
   contradictionCount?: number | null
   sourceLabel?: string | null
@@ -50,6 +59,7 @@ export interface AlicizationMemoryFactInput {
   confidence: number
   knowledgeStage?: AlicizationKnowledgeAssimilationStage | null
   validationStatus?: AlicizationKnowledgeValidationStatus | null
+  memoryDomain?: AlicizationMemoryDomain | null
   validationCount?: number | null
   contradictionCount?: number | null
   sourceLabel?: string | null
@@ -1268,6 +1278,7 @@ export interface AlicizationReplayMemoryQualityRecord {
   userText: string
   eraFirst: AlicizationReplayBenchmarkQualityStatus
   bundleCoherence: AlicizationReplayBenchmarkQualityStatus
+  resolutionLedgerQuality: AlicizationReplayBenchmarkQualityStatus
   procedureCarryQuality: AlicizationReplayBenchmarkQualityStatus
   wrongThreadSuppression: AlicizationReplayBenchmarkQualityStatus
   replyMemoryCoherence: AlicizationReplayBenchmarkQualityStatus
@@ -1291,6 +1302,7 @@ export interface AlicizationReplayMemoryQualityRecord {
 
 export interface AlicizationReplayBenchmarkStandardsRecord {
   eraSelectionQuality: 'pass' | 'fail'
+  resolutionLedgerQuality: 'pass' | 'fail'
   procedureCarryQuality: 'pass' | 'fail'
   wrongThreadSuppression: 'pass' | 'fail'
   replyMemoryCoherence: 'pass' | 'fail'
@@ -1377,6 +1389,14 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
   failingDimensions: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
   tracePointer: AlicizationReplayBenchmarkTracePointer
   sampledCategories?: string[] | null
+  resolutionLedgerSummary?: {
+    dominantClusterSummary: string | null
+    competingClusterSummary: string | null
+    finalSurfacePolicy: string | null
+    shouldStayInward: boolean
+    shouldDelayUntilAfterPayoff: boolean
+    rejectedCandidateCount: number
+  } | null
 }
 
 export interface AlicizationReplayBenchmarkDatasetFeedback {
@@ -1469,6 +1489,9 @@ export interface AlicizationMemoryDecisionTraceRecord {
   memoryFactsUpserted?: Record<string, unknown> | null
   personStateUpdated?: Record<string, unknown> | null
   participation?: AlicizationMindParticipationSnapshot | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
 }
 
 export type AlicizationDigitalLifeOperatingMode
@@ -1869,6 +1892,107 @@ export interface AlicizationSelfEvolutionKernelSnapshot {
   activeLearningFocuses: string[]
   sourceSignals: string[]
   summary: string
+}
+
+export interface AlicizationDerivedMindStateBundle {
+  version: 'derived-mind-state-bundle-v1'
+  source: 'main-runtime' | 'browser-fallback'
+  producedAt: number
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  personStateProjection?: Record<string, unknown> | null
+  knowledgeEvidence?: {
+    validationCount: number
+    contradictionCount: number
+    stronglyValidatedProcedureCount: number
+    contradictionHeavyFactCount: number
+  } | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  recollectionIntent?: Record<string, unknown> | null
+  recollectionPlan?: Record<string, unknown> | null
+  recollectionSpeechPlan?: Record<string, unknown> | null
+  memoryDeliberation?: Record<string, unknown> | null
+  dialogueRhythm?: {
+    activeClosenessContext?: string | null
+    activeClosenessRung?: string | null
+    relationshipDoctrine?: string | null
+    burdenLine?: string | null
+    trustMeaning?: string | null
+    stabilitySignal?: string | null
+  } | null
+  summary: string
+}
+
+export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): AlicizationDerivedMindStateBundle | null {
+  const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
+    ? raw as Record<string, unknown>
+    : null
+  if (!candidate)
+    return null
+
+  const source = typeof candidate.source === 'string' && (
+    candidate.source === 'main-runtime'
+    || candidate.source === 'browser-fallback'
+  )
+    ? candidate.source
+    : null
+  const producedAt = Number(candidate.producedAt)
+  const summary = sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 220)
+  if (!source || !Number.isFinite(producedAt))
+    return null
+
+  const knowledgeEvidence = candidate.knowledgeEvidence && typeof candidate.knowledgeEvidence === 'object'
+    ? candidate.knowledgeEvidence as Record<string, unknown>
+    : null
+  const selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
+    ? candidate.selfEvolution as Record<string, unknown>
+    : null
+  const dialogueRhythm = candidate.dialogueRhythm && typeof candidate.dialogueRhythm === 'object'
+    ? candidate.dialogueRhythm as Record<string, unknown>
+    : null
+
+  return {
+    version: 'derived-mind-state-bundle-v1',
+    source,
+    producedAt: Math.max(0, Math.floor(producedAt)),
+    hostPersonModel: candidate.hostPersonModel && typeof candidate.hostPersonModel === 'object'
+      ? candidate.hostPersonModel as AlicizationHostPersonModelSnapshot
+      : null,
+    personStateProjection: candidate.personStateProjection && typeof candidate.personStateProjection === 'object'
+      ? candidate.personStateProjection as Record<string, unknown>
+      : null,
+    knowledgeEvidence: knowledgeEvidence
+      ? {
+          validationCount: Math.max(0, Math.floor(Number(knowledgeEvidence.validationCount ?? 0))),
+          contradictionCount: Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionCount ?? 0))),
+          stronglyValidatedProcedureCount: Math.max(0, Math.floor(Number(knowledgeEvidence.stronglyValidatedProcedureCount ?? 0))),
+          contradictionHeavyFactCount: Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionHeavyFactCount ?? 0))),
+        }
+      : null,
+    selfEvolution: selfEvolution ? selfEvolution as unknown as AlicizationSelfEvolutionKernelSnapshot : null,
+    recollectionIntent: candidate.recollectionIntent && typeof candidate.recollectionIntent === 'object'
+      ? candidate.recollectionIntent as Record<string, unknown>
+      : null,
+    recollectionPlan: candidate.recollectionPlan && typeof candidate.recollectionPlan === 'object'
+      ? candidate.recollectionPlan as Record<string, unknown>
+      : null,
+    recollectionSpeechPlan: candidate.recollectionSpeechPlan && typeof candidate.recollectionSpeechPlan === 'object'
+      ? candidate.recollectionSpeechPlan as Record<string, unknown>
+      : null,
+    memoryDeliberation: candidate.memoryDeliberation && typeof candidate.memoryDeliberation === 'object'
+      ? candidate.memoryDeliberation as Record<string, unknown>
+      : null,
+    dialogueRhythm: dialogueRhythm
+      ? {
+          activeClosenessContext: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.activeClosenessContext, 64) || null,
+          activeClosenessRung: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.activeClosenessRung, 64) || null,
+          relationshipDoctrine: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.relationshipDoctrine, 180) || null,
+          burdenLine: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.burdenLine, 180) || null,
+          trustMeaning: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.trustMeaning, 180) || null,
+          stabilitySignal: sanitizeAlicizationDigitalLifeDigestText(dialogueRhythm.stabilitySignal, 180) || null,
+        }
+      : null,
+    summary,
+  }
 }
 
 export type AlicizationMindHeadKey

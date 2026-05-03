@@ -17,7 +17,14 @@ import type { AlicizationPersonaKernelMode } from './dialogue-obligation'
 import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { buildAlicizationScreenSurfaceCue } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationScreenSurfaceCue,
+  readHostPersonModelFromDerivedMindStateBundle,
+  readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readMemoryDeliberationFromDerivedMindStateBundle,
+  readPersonStateProjectionFromDerivedMindStateBundle,
+  readRecollectionSpeechPlanFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 
 import type { AlicizationDialogueGrowthProfile } from './dialogue-growth-profile'
 import { isDialogueFirstSubject, sanitizeDialogueAnchorText, sanitizeDialogueSurfaceText } from './dialogue-surface-text'
@@ -736,20 +743,31 @@ export function buildAnswerCompiler(input: {
   const relationshipModel = runtimeSurface?.world.relationshipModel ?? input.relationshipModel ?? null
   const repairLedger = runtimeSurface?.memory.repairLedger ?? input.repairLedger ?? null
   const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
   const explicitPersonalityContinuityState = runtimeSurface?.memory.personalityContinuityState ?? null
-  const personStateProjection = runtimeSurface?.memory.personStateProjection ?? null
+  const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? runtimeSurface?.memory.personStateProjection
+    ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
-    deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
-    speech: runtimeSurface?.memory.recollectionSpeechPlan ?? null,
+    deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? runtimeSurface?.memory.memoryDeliberation
+      ?? null,
+    speech: readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? runtimeSurface?.memory.recollectionSpeechPlan
+      ?? null,
     recollectionIntent: null,
-    knowledgeEvidence: runtimeSurface?.memory.knowledgeEvidence ?? null,
+    knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
+      ?? runtimeSurface?.memory.knowledgeEvidence
+      ?? null,
   })
   const personalityContinuityState = explicitPersonalityContinuityState
     ?? personStateProjection?.personalityContinuityState
     ?? buildAlicizationPersonalityContinuityState({
       now: input.now,
       autobiographicalSelf: runtimeSurface?.memory.autobiographicalSelf ?? null,
-      hostPersonModel: runtimeSurface?.memory.hostPersonModel ?? null,
+      hostPersonModel: readHostPersonModelFromDerivedMindStateBundle(derivedBundle)
+        ?? runtimeSurface?.memory.hostPersonModel
+        ?? null,
       longHorizonMemory: runtimeSurface?.memory.longHorizonMemory ?? null,
       motiveEngine: runtimeSurface?.memory.motiveEngine ?? null,
       habitPolicy: runtimeSurface?.agency.habitPolicy ?? null,

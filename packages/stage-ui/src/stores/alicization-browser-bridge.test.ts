@@ -549,6 +549,24 @@ describe('browser alicization bridge visual presence listeners', () => {
       version: 'self-evolution-kernel-v1',
       nextLearningAction: expect.stringMatching(/record|reflect|internalize/u),
     }))
+    expect(snapshot?.derivedMindStateBundle).toEqual(expect.objectContaining({
+      version: 'derived-mind-state-bundle-v1',
+      source: 'browser-fallback',
+      knowledgeEvidence: expect.any(Object),
+      selfEvolution: expect.any(Object),
+    }))
+    expect(snapshot?.memoryStageReplay).toEqual(expect.objectContaining({
+      version: 'organic-memory-stage-replay-v1',
+      stages: expect.any(Array),
+    }))
+    expect(snapshot?.memoryResolutionLedger).toEqual(expect.objectContaining({
+      version: 'memory-resolution-ledger-v1',
+      selectedCandidates: expect.any(Array),
+    }))
+    expect(snapshot?.learningExecutionState).toEqual(expect.objectContaining({
+      nextLearningAction: expect.any(String),
+      activeLearningFocuses: expect.any(Array),
+    }))
 
     const visualPresence = await bridge.getVisualPresenceState?.()
     expect(visualPresence?.privateThought?.thoughtText).toContain('recollection=')
@@ -761,6 +779,93 @@ describe('browser alicization bridge visual presence listeners', () => {
         issues: [],
       }),
     }))
+  })
+
+  it('keeps browser local runtime parity across knowledge, learning, relationship cadence, and participation surfaces', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-browser-parity' },
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await bridge.appendConversationTurn?.({
+      turnId: 'turn-browser-parity',
+      sessionId: 'session-browser-parity',
+      origin: 'user-turn',
+      userText: '继续把 runtime seam 修掉，但别太机械。',
+      assistantText: '我会先沿同一条 seam 继续，再把结果说得更轻一点。',
+      structured: {
+        format: 'mind-turn-v1',
+        emotion: 'thinking',
+        reply: '我会先沿同一条 seam 继续，再把结果说得更轻一点。',
+        governance: {
+          decisionTraceId: 'trace-browser-parity',
+          turnMode: 'guide-current-knot',
+          truthState: 'remembered',
+          focusAnchor: 'runtime seam',
+        },
+      },
+      createdAt: Date.now(),
+    } as any)
+
+    const snapshot = await bridge.getOrganicMemorySnapshot?.()
+    expect(snapshot?.knowledgeEvidence).toEqual(expect.objectContaining({
+      validationCount: expect.any(Number),
+      stronglyValidatedProcedureCount: expect.any(Number),
+    }))
+    expect(snapshot?.selfEvolution).toEqual(expect.objectContaining({
+      nextLearningAction: expect.any(String),
+      activeLearningFocuses: expect.any(Array),
+    }))
+    expect(snapshot?.learningExecutionState).toEqual(expect.objectContaining({
+      nextLearningAction: expect.any(String),
+      activeLearningFocuses: expect.any(Array),
+    }))
+    expect(snapshot?.memoryResolutionLedger).toEqual(expect.objectContaining({
+      finalSurfacePolicy: expect.anything(),
+    }))
+
+    const seenMetaEvents: any[] = []
+    await bridge.streamChat?.({
+      turnId: 'turn-browser-parity-stream',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: async (event) => {
+        if (event.type === 'meta')
+          seenMetaEvents.push(event)
+      },
+    })
+
+    expect(seenMetaEvents).toHaveLength(1)
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning).toEqual(expect.objectContaining({
+      nextLearningAction: expect.any(String),
+      activeLearningFocuses: expect.any(Array),
+    }))
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.summary).toContain('recollection=')
+    expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
+      dominantChannel: 'active-memory',
+      continuityPressure: expect.any(Number),
+      companionshipPressure: expect.any(Number),
+    }))
+
+    const traces = await bridge.listMemoryDecisionTraces?.({
+      decisionTraceId: 'trace-browser-parity',
+      limit: 5,
+    } as any)
+    expect(traces?.[0]).toEqual(expect.objectContaining({
+      participation: expect.objectContaining({
+        memoryParticipation: expect.any(Number),
+      }),
+    }))
+
+    vi.unstubAllGlobals()
   })
 
   it('lets active-session continuity and proactive feedback shape browser-local runtime digest instead of creating a second reality', async () => {

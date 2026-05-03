@@ -135,6 +135,7 @@ const replayBenchmarkStandardKeys = [
 
 const replayBenchmarkThresholds: Record<keyof AlicizationReplayBenchmarkStandardsRecord, number> = {
   eraSelectionQuality: 0.75,
+  resolutionLedgerQuality: 0.75,
   procedureCarryQuality: 0.75,
   wrongThreadSuppression: 0.75,
   replyMemoryCoherence: 0.8,
@@ -257,7 +258,7 @@ function buildReplayBenchmarkRegressionTriage(input: {
   return input.failingKeys.map((dimension) => {
     let owner: 'memory retrieval' | 'planner' | 'evolution' | 'contract' | 'visible realization' | 'proactive parity' = 'visible realization'
     let firstCheck = 'Inspect answer shaping and output realization first.'
-    if (['wrongThreadSuppression', 'recentOnlyDrift', 'eventGraphRecallCollapse'].includes(dimension)) {
+    if (['wrongThreadSuppression', 'recentOnlyDrift', 'eventGraphRecallCollapse', 'resolutionLedgerQuality'].includes(dimension)) {
       owner = 'memory retrieval'
       firstCheck = 'Check retrieval ranking, event graph recall, and wrong-thread suppression traces first.'
     }

@@ -1,10 +1,17 @@
 import type {
   AlicizationKnowledgeAssimilationStage,
   AlicizationKnowledgeValidationStatus,
+  AlicizationMemoryDomain,
   AlicizationMemoryFact,
   AlicizationMemoryFactInput,
   AlicizationMemorySource,
 } from '../../../shared/eventa'
+
+import {
+  getMemoryDomainPolicy,
+  inferMemoryDomainFromFact,
+  normalizeMemoryDomain,
+} from './memory-domain-model'
 
 function sanitizeText(raw: unknown, maxChars = 180) {
   if (typeof raw !== 'string')
@@ -124,6 +131,14 @@ function deriveWorkingKnowledgeStage(input: {
   existing: AlicizationMemoryFact | null
   support: ReturnType<typeof buildSupportEvidence>
 }) {
+  const domain: AlicizationMemoryDomain = input.fact.memoryDomain
+    ? normalizeMemoryDomain(input.fact.memoryDomain)
+    : inferMemoryDomainFromFact({
+        subject: input.fact.subject,
+        predicate: input.fact.predicate,
+        object: input.fact.object,
+      })
+  const domainPolicy = getMemoryDomainPolicy(domain)
   if (input.fact.knowledgeStage)
     return input.fact.knowledgeStage
   if (input.existing?.knowledgeStage === 'internalized-long-horizon-knowledge')
@@ -132,8 +147,10 @@ function deriveWorkingKnowledgeStage(input: {
   const correctionPressure = input.support.conflictingSiblings.length > 0
     && input.fact.confidence >= 0.8
     && isBoundaryLike(input.fact.predicate)
+  const requiresStricterInternalization = domain === 'relationship' || domain === 'self-model'
   if (
-    evidence >= 0.82
+    evidence >= domainPolicy.internalizationThreshold
+    && (!requiresStricterInternalization || input.support.repeatedValidationPressure >= 4)
     && (isBoundaryLike(input.fact.predicate) || input.support.priorValidated || input.support.repeatedAccessPressure >= 5)
   ) {
     return 'internalized-long-horizon-knowledge'
@@ -213,6 +230,24 @@ function findPotentialSupersededFacts(input: {
   })
 }
 
+function findPotentialReopenFacts(input: {
+  fact: AlicizationMemoryFactInput
+  existingFacts: AlicizationMemoryFact[]
+}) {
+  const subject = input.fact.subject.trim().toLowerCase()
+  const predicate = input.fact.predicate.trim().toLowerCase()
+  const object = input.fact.object.trim().toLowerCase()
+  if (!subject || !predicate || !object)
+    return [] as AlicizationMemoryFact[]
+
+  return input.existingFacts.filter((item) => {
+    return item.subject.trim().toLowerCase() === subject
+      && item.predicate.trim().toLowerCase() === predicate
+      && item.knowledgeStage === 'internalized-long-horizon-knowledge'
+      && scoreObjectSimilarity(item.object, object) < 0.45
+  })
+}
+
 export interface AssimilateMemoryFactsInput {
   facts: AlicizationMemoryFactInput[]
   source: AlicizationMemorySource
@@ -273,6 +308,10 @@ export function createAlicizationKnowledgeAssimilationRuntime() {
             fact: normalized,
             existingFacts: input.existingFacts,
           })
+      const reopenCandidates = findPotentialReopenFacts({
+        fact: normalized,
+        existingFacts: input.existingFacts,
+      })
       const supersedes = normalizeStringList([
         ...(normalized.supersedes ?? []),
         ...conflictingCandidates.map(item => item.id),
@@ -298,6 +337,17 @@ export function createAlicizationKnowledgeAssimilationRuntime() {
             nextValidationStatus: 'superseded',
             nextKnowledgeStage: candidate.knowledgeStage ?? 'working-understanding',
             sourceLabel: `superseded-by:${sanitizeText(normalized.object, 96)}`,
+            appendConflictsWith: [dedupeKey],
+          })
+        }
+      }
+      if (reopenCandidates.length > 0) {
+        for (const candidate of reopenCandidates) {
+          corrections.push({
+            targetFactId: candidate.id,
+            nextValidationStatus: 'provisional',
+            nextKnowledgeStage: 'validated-knowledge',
+            sourceLabel: `reopened-by:${sanitizeText(normalized.object, 96)}`,
             appendConflictsWith: [dedupeKey],
           })
         }

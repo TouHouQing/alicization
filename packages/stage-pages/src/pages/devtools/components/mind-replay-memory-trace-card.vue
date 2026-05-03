@@ -88,6 +88,11 @@ const persistenceWritten = computed(() => asRecord(props.trace.persistenceWritte
 const dialogueEmitted = computed(() => asRecord(props.trace.dialogueEmitted))
 const takeoverAudit = computed(() => asRecord(props.trace.takeoverAudit))
 const digitalLifeSpine = computed(() => governance.value?.digitalLifeSpine ?? null)
+const derivedMindStateBundle = computed(() => asRecord((props.trace as any).derivedMindStateBundle))
+const memoryStageReplay = computed(() => asRecord((props.trace as any).memoryStageReplay))
+const memoryStageReplayStages = computed(() => asObjectArray(memoryStageReplay.value?.stages))
+const memoryResolutionLedger = computed(() => asRecord((props.trace as any).memoryResolutionLedger))
+const resolutionCandidates = computed(() => asObjectArray(memoryResolutionLedger.value?.candidates))
 
 const searchTrace = computed(() => asRecord(recallAttribution.value?.searchTrace))
 const firstHop = computed(() => asRecord(searchTrace.value?.firstHop))
@@ -374,6 +379,86 @@ const runtimeCarryRows = computed(() => compactRows([
     label: tTrace('runtime.proactive_action', 'Proactive Action'),
     value: asString(digitalLifeSpine.value?.proactive?.selectedAction, 80),
   },
+  {
+    label: tTrace('runtime.bundle_source', 'Bundle Source'),
+    value: asString(derivedMindStateBundle.value?.source, 80),
+  },
+  {
+    label: tTrace('runtime.bundle_summary', 'Bundle Summary'),
+    value: asString(derivedMindStateBundle.value?.summary, 180),
+  },
+  {
+    label: tTrace('runtime.bundle_rhythm', 'Bundle Rhythm'),
+    value: compactRows([
+      { label: 'context', value: asString(asRecord(derivedMindStateBundle.value?.dialogueRhythm)?.activeClosenessContext, 80) },
+      { label: 'rung', value: asString(asRecord(derivedMindStateBundle.value?.dialogueRhythm)?.activeClosenessRung, 80) },
+      { label: 'doctrine', value: asString(asRecord(derivedMindStateBundle.value?.dialogueRhythm)?.relationshipDoctrine, 160) },
+    ]).map(row => `${row.label}=${row.value}`).join(' | '),
+  },
+]))
+
+const stageReplayCards = computed(() => {
+  return memoryStageReplayStages.value.map((stage, index) => ({
+    key: `${asString(stage.stage, 80) || 'stage'}-${index}`,
+    title: asString(stage.stage, 80) || `stage-${index + 1}`,
+    rows: compactRows([
+      {
+        label: 'summary',
+        value: asString(stage.summary, 220),
+      },
+      {
+        label: 'latency',
+        value: asNumberText(stage.latencyMs, 0),
+      },
+      {
+        label: 'budget',
+        value: asString(stage.budgetClass, 80),
+      },
+      {
+        label: 'inputs',
+        value: asStringList(stage.inputs, 8, 140).join(' | '),
+      },
+      {
+        label: 'outputs',
+        value: asStringList(stage.outputs, 8, 140).join(' | '),
+      },
+      {
+        label: 'diagnostics',
+        value: asStringList(stage.diagnostics, 8, 160).join(' | '),
+      },
+    ]),
+  })).filter(card => card.rows.length > 0)
+})
+
+const resolutionLedgerRows = computed(() => compactRows([
+  {
+    label: 'dominant cluster',
+    value: asString(memoryResolutionLedger.value?.dominantClusterSummary, 200),
+  },
+  {
+    label: 'competing cluster',
+    value: asString(memoryResolutionLedger.value?.competingClusterSummary, 200),
+  },
+  {
+    label: 'final surface',
+    value: asString(memoryResolutionLedger.value?.finalSurfacePolicy, 120),
+  },
+  {
+    label: 'stay inward',
+    value: asBooleanText(memoryResolutionLedger.value?.shouldStayInward),
+  },
+  {
+    label: 'delay after payoff',
+    value: asBooleanText(memoryResolutionLedger.value?.shouldDelayUntilAfterPayoff),
+  },
+  {
+    label: 'stable core only',
+    value: asBooleanText(memoryResolutionLedger.value?.stableCoreOnly),
+  },
+  {
+    label: 'rationale',
+    value: asString(memoryResolutionLedger.value?.finalRationale, 220),
+  },
 ]))
 
 const finalAuthorityRows = computed(() => compactRows([
@@ -500,6 +585,99 @@ const hasRetrievalData = computed(() => {
           </div>
           <div :class="['mt-1', 'text-xs', 'text-sky-900', 'dark:text-sky-100']">
             {{ row.value }}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="stageReplayCards.length > 0"
+      :class="['mt-4']"
+    >
+      <div :class="['mb-2', 'text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
+        {{ tTrace('stage_replay.title', 'Stage Replay') }}
+      </div>
+      <div :class="['grid', 'gap-3', 'md:grid-cols-2']">
+        <div
+          v-for="card in stageReplayCards"
+          :key="card.key"
+          :class="[
+            'rounded-xl', 'border', 'border-solid', 'border-emerald-200/80',
+            'bg-emerald-50/60', 'px-3', 'py-3',
+            'dark:border-emerald-900/60', 'dark:bg-emerald-950/15',
+          ]"
+        >
+          <div :class="['text-xs', 'font-semibold', 'uppercase', 'tracking-wide', 'text-emerald-700', 'dark:text-emerald-300']">
+            {{ card.title }}
+          </div>
+          <div :class="['mt-2', 'space-y-2']">
+            <div
+              v-for="row in card.rows"
+              :key="`${card.key}-${row.label}`"
+            >
+              <div :class="['text-[11px]', 'uppercase', 'tracking-wide', 'text-emerald-600/90', 'dark:text-emerald-400/80']">
+                {{ row.label }}
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-emerald-950', 'dark:text-emerald-50']">
+                {{ row.value }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      v-if="resolutionLedgerRows.length > 0 || resolutionCandidates.length > 0"
+      :class="['mt-4']"
+    >
+      <div :class="['mb-2', 'text-sm', 'font-semibold', 'text-neutral-800', 'dark:text-neutral-100']">
+        {{ tTrace('resolution_ledger.title', 'Resolution Ledger') }}
+      </div>
+      <div :class="['grid', 'gap-2', 'md:grid-cols-2']">
+        <div
+          v-for="row in resolutionLedgerRows"
+          :key="row.label"
+          :class="[
+            'rounded-xl', 'border', 'border-solid', 'border-amber-200/80',
+            'bg-amber-50/60', 'px-3', 'py-2',
+            'dark:border-amber-900/60', 'dark:bg-amber-950/15',
+          ]"
+        >
+          <div :class="['text-[11px]', 'uppercase', 'tracking-wide', 'text-amber-700', 'dark:text-amber-300']">
+            {{ row.label }}
+          </div>
+          <div :class="['mt-1', 'text-xs', 'text-amber-950', 'dark:text-amber-50']">
+            {{ row.value }}
+          </div>
+        </div>
+      </div>
+      <div
+        v-if="resolutionCandidates.length > 0"
+        :class="['mt-3', 'space-y-2']"
+      >
+        <div
+          v-for="candidate in resolutionCandidates"
+          :key="`${asString(candidate.id, 120)}-${asString(candidate.status, 40)}`"
+          :class="[
+            'rounded-xl', 'border', 'border-solid',
+            asString(candidate.status, 40) === 'selected'
+              ? 'border-emerald-200/80 bg-emerald-50/50 dark:border-emerald-900/50 dark:bg-emerald-950/10'
+              : 'border-rose-200/80 bg-rose-50/50 dark:border-rose-900/50 dark:bg-rose-950/10',
+            'px-3', 'py-2',
+          ]"
+        >
+          <div :class="['text-[11px]', 'uppercase', 'tracking-wide', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ asString(candidate.status, 40) }} · {{ asString(candidate.id, 120) }}
+          </div>
+          <div :class="['mt-1', 'text-xs', 'text-neutral-900', 'dark:text-neutral-50']">
+            {{ asString(candidate.summary, 220) }}
+          </div>
+          <div
+            v-if="asString(candidate.reason, 220)"
+            :class="['mt-1', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+          >
+            {{ asString(candidate.reason, 220) }}
           </div>
         </div>
       </div>

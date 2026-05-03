@@ -132,6 +132,14 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
   decisionTraceId: string | null
   sessionId: string | null
   activeThreadId: string | null
+  resolutionLedgerSummary: {
+    dominantClusterSummary: string | null
+    competingClusterSummary: string | null
+    finalSurfacePolicy: string | null
+    shouldStayInward: boolean
+    shouldDelayUntilAfterPayoff: boolean
+    rejectedCandidateCount: number
+  } | null
 }
 
 export interface AlicizationMindReplayMemoryHealthComparisonRow {
@@ -275,6 +283,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         decisionTraceId: tracePointer.decisionTraceId ?? null,
         sessionId: tracePointer.sessionId ?? null,
         activeThreadId: tracePointer.activeThreadId ?? null,
+        resolutionLedgerSummary: item.resolutionLedgerSummary ?? null,
       }
     })
   })

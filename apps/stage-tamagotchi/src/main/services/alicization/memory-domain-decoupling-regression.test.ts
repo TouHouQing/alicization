@@ -261,13 +261,15 @@ describe('memory domain decoupling regression', () => {
       blocked: true,
       lastError: 'temporary fail',
     })
-    expect(projected.retrievalHealth).toEqual({
+    expect(projected.retrievalHealth).toEqual(expect.objectContaining({
       semanticLatencyMs: 18,
       graphLatencyMs: 26,
       reconstructionFrequency: 1,
       reconstructedCount: 1,
       templateLeakageFailCount: 5,
-    })
+      organicStageTelemetry: expect.any(Object),
+      organicStageBudgetCounts: expect.any(Object),
+    }))
   })
 
   it('keeps reply and recollection authority off direct db imports after the split', () => {

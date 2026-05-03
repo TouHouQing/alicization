@@ -134,4 +134,108 @@ describe('knowledge assimilation runtime', () => {
       validationStatus: 'validated',
     }))
   })
+
+  it('keeps relationship facts more conservative than procedural facts under the same promotion evidence', () => {
+    const runtime = createAlicizationKnowledgeAssimilationRuntime()
+    const procedure = runtime.assimilateMemoryFactsDetailed({
+      source: 'async-llm',
+      existingFacts: [{
+        id: 'fact-procedure',
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'verify before sounding certain',
+        confidence: 0.84,
+        source: 'async-llm',
+        dedupeKey: 'assistant|procedure|verify before sounding certain',
+        createdAt: 1,
+        updatedAt: 10,
+        lastAccessAt: 11,
+        accessCount: 6,
+        validationCount: 3,
+        contradictionCount: 0,
+        memoryDomain: 'procedure',
+        knowledgeStage: 'validated-knowledge',
+        validationStatus: 'validated',
+      }],
+      facts: [{
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'verify before sounding certain',
+        confidence: 0.86,
+        memoryDomain: 'procedure',
+      }],
+    })
+    const relationship = runtime.assimilateMemoryFactsDetailed({
+      source: 'async-llm',
+      existingFacts: [{
+        id: 'fact-relationship',
+        subject: 'relationship',
+        predicate: 'boundary',
+        object: 'leave more room before closeness',
+        confidence: 0.84,
+        source: 'async-llm',
+        dedupeKey: 'relationship|boundary|leave more room before closeness',
+        createdAt: 1,
+        updatedAt: 10,
+        lastAccessAt: 11,
+        accessCount: 6,
+        validationCount: 3,
+        contradictionCount: 0,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'validated-knowledge',
+        validationStatus: 'validated',
+      }],
+      facts: [{
+        subject: 'relationship',
+        predicate: 'boundary',
+        object: 'leave more room before closeness',
+        confidence: 0.86,
+        memoryDomain: 'relationship',
+      }],
+    })
+
+    expect(procedure.facts[0]?.knowledgeStage).toBe('internalized-long-horizon-knowledge')
+    expect(relationship.facts[0]?.knowledgeStage).toBe('validated-knowledge')
+  })
+
+  it('reopens internalized knowledge by downgrading it when a conflicting replacement arrives', () => {
+    const runtime = createAlicizationKnowledgeAssimilationRuntime()
+    const result = runtime.assimilateMemoryFactsDetailed({
+      source: 'async-llm',
+      existingFacts: [{
+        id: 'fact-internalized-old',
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'report immediately after patch',
+        confidence: 0.88,
+        source: 'async-llm',
+        dedupeKey: 'assistant|procedure|report immediately after patch',
+        createdAt: 1,
+        updatedAt: 10,
+        lastAccessAt: 11,
+        accessCount: 8,
+        validationCount: 4,
+        contradictionCount: 0,
+        memoryDomain: 'procedure',
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+      }],
+      facts: [{
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'wait for verify before reporting after patch',
+        confidence: 0.86,
+        memoryDomain: 'procedure',
+      }],
+    })
+
+    expect(result.corrections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-internalized-old',
+        nextValidationStatus: 'provisional',
+        nextKnowledgeStage: 'validated-knowledge',
+        sourceLabel: expect.stringContaining('reopened-by:'),
+      }),
+    ]))
+  })
 })

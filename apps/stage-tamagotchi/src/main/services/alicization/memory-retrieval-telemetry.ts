@@ -14,6 +14,11 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   prewarmHitCount: number
   prewarmMissCount: number
   budgetClassCounts: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  organicStageTelemetry: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', {
+    latencyMs: number | null
+    sampleCount: number
+  }>>
+  organicStageBudgetCounts: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>>>
   hotKeyStats: Array<{
     key: string
     candidateCount: number
@@ -45,6 +50,11 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   cacheHitRatio?: number
   prewarmHitRatio?: number
   budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  organicStageTelemetry?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', {
+    latencyMs: number | null
+    sampleCount: number
+  }>>
+  organicStageBudgetCounts?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>>>
   hotKeyStats?: Array<{
     key: string
     candidateCount: number
@@ -73,6 +83,15 @@ export type AlicizationMemoryRetrievalBudgetClass
     | 'nightly-benchmark'
     | 'diagnosis-replay'
 
+export type AlicizationOrganicMemoryRuntimeStage
+  = 'search-prelude'
+    | 'candidate-generation'
+    | 'candidate-ranking'
+    | 'recollection-planning'
+    | 'surface-planning'
+    | 'self-evolution-integration'
+    | 'prompt-blocks'
+
 interface CreateAlicizationMemoryRetrievalTelemetryRuntimeOptions {
   now: () => number
   key: string
@@ -98,6 +117,8 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     prewarmHitCount: 0,
     prewarmMissCount: 0,
     budgetClassCounts: {},
+    organicStageTelemetry: {},
+    organicStageBudgetCounts: {},
     hotKeyStats: [],
     recallHitRate: 0,
     recallMissRate: 0,
@@ -135,6 +156,12 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const prewarmMissCount = Number(candidate.prewarmMissCount)
   const budgetClassCounts = candidate.budgetClassCounts && typeof candidate.budgetClassCounts === 'object'
     ? candidate.budgetClassCounts as Record<string, unknown>
+    : {}
+  const organicStageTelemetry = candidate.organicStageTelemetry && typeof candidate.organicStageTelemetry === 'object'
+    ? candidate.organicStageTelemetry as Record<string, unknown>
+    : {}
+  const organicStageBudgetCounts = candidate.organicStageBudgetCounts && typeof candidate.organicStageBudgetCounts === 'object'
+    ? candidate.organicStageBudgetCounts as Record<string, unknown>
     : {}
   const hotKeyStats = Array.isArray(candidate.hotKeyStats)
     ? candidate.hotKeyStats
@@ -174,6 +201,45 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       'nightly-benchmark': Number.isFinite(Number(budgetClassCounts['nightly-benchmark'])) ? Math.max(0, Math.floor(Number(budgetClassCounts['nightly-benchmark']))) : 0,
       'diagnosis-replay': Number.isFinite(Number(budgetClassCounts['diagnosis-replay'])) ? Math.max(0, Math.floor(Number(budgetClassCounts['diagnosis-replay']))) : 0,
     },
+    organicStageTelemetry: Object.fromEntries(
+      [
+        'search-prelude',
+        'candidate-generation',
+        'candidate-ranking',
+        'recollection-planning',
+        'surface-planning',
+        'self-evolution-integration',
+        'prompt-blocks',
+      ].map((stage) => {
+        const entry = organicStageTelemetry[stage]
+        const candidate = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}
+        return [stage, {
+          latencyMs: Number.isFinite(Number(candidate.latencyMs)) ? Math.max(0, Number(candidate.latencyMs)) : null,
+          sampleCount: Number.isFinite(Number(candidate.sampleCount)) ? Math.max(0, Math.floor(Number(candidate.sampleCount))) : 0,
+        }]
+      }),
+    ),
+    organicStageBudgetCounts: Object.fromEntries(
+      [
+        'search-prelude',
+        'candidate-generation',
+        'candidate-ranking',
+        'recollection-planning',
+        'surface-planning',
+        'self-evolution-integration',
+        'prompt-blocks',
+      ].map((stage) => {
+        const entry = organicStageBudgetCounts[stage]
+        const candidate = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}
+        return [stage, {
+          'realtime-reply': Number.isFinite(Number(candidate['realtime-reply'])) ? Math.max(0, Math.floor(Number(candidate['realtime-reply']))) : 0,
+          'deep-recall-reply': Number.isFinite(Number(candidate['deep-recall-reply'])) ? Math.max(0, Math.floor(Number(candidate['deep-recall-reply']))) : 0,
+          'proactive-generation': Number.isFinite(Number(candidate['proactive-generation'])) ? Math.max(0, Math.floor(Number(candidate['proactive-generation']))) : 0,
+          'nightly-benchmark': Number.isFinite(Number(candidate['nightly-benchmark'])) ? Math.max(0, Math.floor(Number(candidate['nightly-benchmark']))) : 0,
+          'diagnosis-replay': Number.isFinite(Number(candidate['diagnosis-replay'])) ? Math.max(0, Math.floor(Number(candidate['diagnosis-replay']))) : 0,
+        }]
+      }),
+    ),
     hotKeyStats: hotKeyStats
       .map((item) => {
         const candidate = item && typeof item === 'object' ? item as Record<string, unknown> : null
@@ -399,6 +465,57 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
     })
   }
 
+  const recordOrganicStageLatency = async (inputValue: {
+    stage: AlicizationOrganicMemoryRuntimeStage
+    latencyMs: number
+  }) => {
+    const currentTs = input.now()
+    await input.enqueueWrite(async () => {
+      const telemetry = await getTelemetry()
+      const currentStage = telemetry.organicStageTelemetry[inputValue.stage] ?? {
+        latencyMs: null,
+        sampleCount: 0,
+      }
+      await writeTelemetry({
+        ...telemetry,
+        organicStageTelemetry: {
+          ...telemetry.organicStageTelemetry,
+          [inputValue.stage]: {
+            latencyMs: blendAlicizationMemoryTelemetryLatency(
+              currentStage.latencyMs,
+              currentStage.sampleCount,
+              inputValue.latencyMs,
+            ),
+            sampleCount: currentStage.sampleCount + 1,
+          },
+        },
+        lastUpdatedAt: currentTs,
+      })
+    })
+  }
+
+  const recordOrganicStageBudget = async (inputValue: {
+    stage: AlicizationOrganicMemoryRuntimeStage
+    budgetClass: AlicizationMemoryRetrievalBudgetClass
+  }) => {
+    const currentTs = input.now()
+    await input.enqueueWrite(async () => {
+      const telemetry = await getTelemetry()
+      const currentStage = telemetry.organicStageBudgetCounts[inputValue.stage] ?? {}
+      await writeTelemetry({
+        ...telemetry,
+        organicStageBudgetCounts: {
+          ...telemetry.organicStageBudgetCounts,
+          [inputValue.stage]: {
+            ...currentStage,
+            [inputValue.budgetClass]: (currentStage[inputValue.budgetClass] ?? 0) + 1,
+          },
+        },
+        lastUpdatedAt: currentTs,
+      })
+    })
+  }
+
   const recordHotKeyOutcome = async (inputValue: {
     key: string
     hit: boolean
@@ -504,6 +621,18 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
             ...next.budgetClassCounts,
           }
         : telemetry.budgetClassCounts,
+      organicStageTelemetry: next.organicStageTelemetry
+        ? {
+            ...telemetry.organicStageTelemetry,
+            ...next.organicStageTelemetry,
+          }
+        : telemetry.organicStageTelemetry,
+      organicStageBudgetCounts: next.organicStageBudgetCounts
+        ? {
+            ...telemetry.organicStageBudgetCounts,
+            ...next.organicStageBudgetCounts,
+          }
+        : telemetry.organicStageBudgetCounts,
       hotKeyStats: Array.isArray(next.hotKeyStats) && next.hotKeyStats.length > 0
         ? next.hotKeyStats
         : telemetry.hotKeyStats,
@@ -543,6 +672,8 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
     recordCacheAccess,
     recordPrewarmAccess,
     recordBudgetClass,
+    recordOrganicStageLatency,
+    recordOrganicStageBudget,
     recordHotKeyOutcome,
     recordParticipation,
     applyHealthOverride,

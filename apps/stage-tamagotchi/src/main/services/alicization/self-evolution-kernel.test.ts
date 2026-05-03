@@ -151,4 +151,48 @@ describe('self evolution kernel', () => {
       shouldVerify: false,
     }))
   })
+
+  it('surfaces relationship, self-model, and world-model learning focuses when domain evidence is present', () => {
+    const kernel = buildAlicizationSelfEvolutionKernel({
+      personStateEvolutionSummary: {
+        trustShift: 0.04,
+        closenessShift: 0.03,
+        repairShift: 0.02,
+        autonomyShift: 0.05,
+        burdenShift: 0,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0.03,
+        latestDoctrine: 'Leave more room before closeness.',
+        latestBurdenLine: null,
+        latestTrustMeaning: 'Trust grows when timing stays real.',
+        latestDominantRung: 'measured-room',
+        recentSummaries: ['Relationship timing is still changing.'],
+        explanation: ['Relationship timing is still changing.'],
+        updatedAt: 140,
+      },
+      knowledgeEvidence: {
+        validationCount: 2,
+        contradictionCount: 0,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 0,
+        procedureFactCount: 0,
+        relationshipFactCount: 2,
+        selfModelFactCount: 1,
+        worldModelFactCount: 1,
+      },
+      reflectionSummary: 'Several non-procedural lessons are starting to stabilize.',
+      reflectionLesson: 'These lessons should stay visible in learning focus.',
+      reflectionTargetScope: 'relationship',
+      reflectionPressure: 0.22,
+      autobiographicalLatestInflection: 'Stay real without crowding.',
+      autobiographicalStability: 0.7,
+    })
+
+    expect(kernel?.activeLearningFocuses).toEqual(expect.arrayContaining([
+      'reflection:relationship',
+      'internalize-relationship',
+      'internalize-self-model',
+      'internalize-world-model',
+    ]))
+  })
 })

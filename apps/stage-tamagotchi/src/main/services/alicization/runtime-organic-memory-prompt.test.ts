@@ -2929,4 +2929,71 @@ describe('runtime-organic-memory-prompt', () => {
       validationCount: 1,
     }))
   })
+
+  it('records decomposed organic memory stage telemetry and budgets', async () => {
+    const stageLatencies: Array<{ stage: string, latencyMs: number }> = []
+    const stageBudgets: Array<{ stage: string, budgetClass: string }> = []
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: 'stay grounded',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      getMemoryStats: async () => null,
+      getMemoryTuningAdvice: async () => null,
+      getPersonStateEvolutionSummary: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+      recordOrganicMemoryStageLatency: async (input) => {
+        stageLatencies.push(input)
+      },
+      recordOrganicMemoryStageBudget: async (input) => {
+        stageBudgets.push(input)
+      },
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: 'continue runtime seam',
+      budgetClass: 'deep-recall-reply',
+    })
+    runtime.buildOrganicMemorySystemBlocks(context)
+
+    expect(stageBudgets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ stage: 'search-prelude', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'candidate-generation', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'candidate-ranking', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'recollection-planning', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'surface-planning', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'self-evolution-integration', budgetClass: 'deep-recall-reply' }),
+      expect.objectContaining({ stage: 'prompt-blocks', budgetClass: 'realtime-reply' }),
+    ]))
+    expect(stageLatencies.map(item => item.stage)).toEqual(expect.arrayContaining([
+      'search-prelude',
+      'candidate-generation',
+      'candidate-ranking',
+      'recollection-planning',
+      'surface-planning',
+      'self-evolution-integration',
+      'prompt-blocks',
+    ]))
+    expect(stageLatencies.every(item => item.latencyMs >= 0)).toBe(true)
+    expect(context.memoryResolutionLedger).toEqual(expect.objectContaining({
+      version: 'memory-resolution-ledger-v1',
+      finalSurfacePolicy: null,
+      selectedCandidates: expect.any(Array),
+      rejectedCandidates: expect.any(Array),
+    }))
+  })
 })

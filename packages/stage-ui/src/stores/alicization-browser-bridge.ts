@@ -41,6 +41,7 @@ import type {
 import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationMemoryDecisionTraceRecords,
+  buildDerivedMindStateBundle,
   deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
   buildAlicizationNewsSurface,
@@ -2170,6 +2171,99 @@ function buildBrowserSelfEvolution(input: {
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['selfEvolution']>
 }
 
+function buildBrowserLearningExecutionState(selfEvolution: AlicizationOrganicMemorySnapshot['selfEvolution']) {
+  if (!selfEvolution)
+    return null
+  return {
+    nextLearningAction: selfEvolution.nextLearningAction,
+    shouldRecord: selfEvolution.shouldRecord,
+    shouldReflect: selfEvolution.shouldReflect,
+    shouldVerify: selfEvolution.shouldVerify,
+    shouldRevise: selfEvolution.shouldRevise,
+    shouldInternalize: selfEvolution.shouldInternalize,
+    activeLearningFocuses: [...selfEvolution.activeLearningFocuses],
+  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['learningExecutionState']>
+}
+
+function buildBrowserMemoryStageReplay(input: {
+  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+  recollectionPlan: AlicizationOrganicMemorySnapshot['recollectionPlan']
+  recollectionSpeechPlan: AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']
+  selfEvolution: AlicizationOrganicMemorySnapshot['selfEvolution']
+}) {
+  const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
+  if (!summary && !input.selfEvolution)
+    return null
+  return {
+    version: 'organic-memory-stage-replay-v1',
+    producedAt: now(),
+    stages: [
+      {
+        stage: 'candidate-ranking',
+        summary: sanitizeBriefText(summary || 'Browser fallback ranked the strongest remembered continuity line.', 220),
+        latencyMs: 0,
+        budgetClass: 'realtime-reply',
+        outputs: [input.recollectionForeground?.mode ?? 'none'],
+        diagnostics: [input.recollectionForeground?.surfaceSummary ?? ''],
+      },
+      {
+        stage: 'surface-planning',
+        summary: sanitizeBriefText(input.recollectionSpeechPlan?.styleNote || 'Browser fallback shaped recollection into the visible surface.', 220),
+        latencyMs: 0,
+        budgetClass: 'realtime-reply',
+        outputs: [input.recollectionSpeechPlan?.surfaceMode ?? 'none'],
+        diagnostics: [input.recollectionSpeechPlan?.rationale ?? ''],
+      },
+      {
+        stage: 'self-evolution-integration',
+        summary: sanitizeBriefText(input.selfEvolution?.summary ?? 'Browser fallback synthesized local learning pressure.', 220),
+        latencyMs: 0,
+        budgetClass: 'realtime-reply',
+        outputs: [input.selfEvolution?.nextLearningAction ?? 'hold'],
+        diagnostics: [input.selfEvolution?.nextLearningReason ?? ''],
+      },
+    ],
+  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryStageReplay']>
+}
+
+function buildBrowserMemoryResolutionLedger(input: {
+  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+  recollectionPlan: AlicizationOrganicMemorySnapshot['recollectionPlan']
+  recollectionSpeechPlan: AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']
+}) {
+  const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
+  if (!summary)
+    return null
+  return {
+    version: 'memory-resolution-ledger-v1',
+    producedAt: now(),
+    dominantClusterId: 'browser-fallback:primary',
+    dominantClusterSummary: sanitizeBriefText(summary, 220),
+    competingClusterId: null,
+    competingClusterSummary: null,
+    candidates: [{
+      id: 'browser-fallback:primary',
+      summary: sanitizeBriefText(summary, 220),
+      score: input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? 0.5,
+      status: 'selected',
+      reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
+    }],
+    selectedCandidates: [{
+      id: 'browser-fallback:primary',
+      summary: sanitizeBriefText(summary, 220),
+      score: input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? 0.5,
+      status: 'selected',
+      reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
+    }],
+    rejectedCandidates: [],
+    finalSurfacePolicy: input.recollectionSpeechPlan?.surfaceMode ?? null,
+    shouldStayInward: input.recollectionSpeechPlan?.shouldSurface === false || input.recollectionSpeechPlan?.placement === 'internal-only',
+    shouldDelayUntilAfterPayoff: input.recollectionSpeechPlan?.placement === 'after-payoff',
+    stableCoreOnly: input.recollectionForeground?.surfaceSummary?.includes('surface=inward') ?? false,
+    finalRationale: sanitizeBriefText(input.recollectionSpeechPlan?.rationale ?? input.recollectionPlan?.rationale ?? summary, 220) || null,
+  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryResolutionLedger']>
+}
+
 function inferBrowserDigestScenario(snapshot: AlicizationSensoryCacheSnapshot, recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']) {
   const foregroundTitle = sanitizeText(snapshot.sample.foregroundWindow?.title ?? '', '')
   const foregroundApp = sanitizeText(snapshot.sample.foregroundWindow?.appName ?? '', '')
@@ -2612,6 +2706,30 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     recollectionForeground,
     knowledgeEvidence,
   })
+  const memoryStageReplay = buildBrowserMemoryStageReplay({
+    recollectionForeground,
+    recollectionPlan,
+    recollectionSpeechPlan,
+    selfEvolution,
+  })
+  const memoryResolutionLedger = buildBrowserMemoryResolutionLedger({
+    recollectionForeground,
+    recollectionPlan,
+    recollectionSpeechPlan,
+  })
+  const learningExecutionState = buildBrowserLearningExecutionState(selfEvolution)
+  const derivedMindStateBundle = buildDerivedMindStateBundle({
+    source: 'browser-fallback',
+    producedAt: now(),
+    hostPersonModel,
+    personStateProjection: null,
+    knowledgeEvidence,
+    selfEvolution,
+    recollectionIntent: recollectionIntent as unknown as Record<string, unknown> | null,
+    recollectionPlan,
+    recollectionSpeechPlan,
+    memoryDeliberation: null,
+  })
   return {
     hostAttitude: soul.frontmatter.host_attitude,
     coreIncarnation: soul.frontmatter.core_incarnation,
@@ -2633,6 +2751,10 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     recollectionForeground,
     knowledgeEvidence,
     selfEvolution,
+    derivedMindStateBundle,
+    memoryStageReplay,
+    memoryResolutionLedger,
+    learningExecutionState,
     lastDreamedAt: organicMemory.lastDreamedAt,
   }
 }
@@ -2989,6 +3111,15 @@ function buildBrowserMindTurnTraceEvents(input: {
       screenReferenceMode: typeof governance?.screenReferenceMode === 'string' ? governance.screenReferenceMode : null,
       format: typeof structured.format === 'string' ? structured.format : null,
       digitalLifeSpine,
+      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
+        ? structured.derivedMindStateBundle
+        : null,
+      memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
+        ? structured.memoryStageReplay
+        : null,
+      memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
+        ? structured.memoryResolutionLedger
+        : null,
       participation,
     },
     createdAt: input.record.createdAt,
@@ -3006,6 +3137,15 @@ function buildBrowserMindTurnTraceEvents(input: {
       replyExcerpt: sanitizeBriefText(String(structured.reply ?? input.record.assistantText ?? ''), 240) || null,
       assistantExcerpt: sanitizeBriefText(input.record.assistantText, 240) || null,
       digitalLifeSpine,
+      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
+        ? structured.derivedMindStateBundle
+        : null,
+      memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
+        ? structured.memoryStageReplay
+        : null,
+      memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
+        ? structured.memoryResolutionLedger
+        : null,
     },
     createdAt: input.record.createdAt,
   }]
@@ -3025,6 +3165,15 @@ function buildBrowserMindTurnTraceEvents(input: {
           ? structured.proactive
           : null,
         digitalLifeSpine,
+        derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
+          ? structured.derivedMindStateBundle
+          : null,
+        memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
+          ? structured.memoryStageReplay
+          : null,
+        memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
+          ? structured.memoryResolutionLedger
+          : null,
       },
       createdAt: input.record.createdAt,
     })
@@ -3728,6 +3877,22 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         createdAt: currentTs,
       }
       turns.push(record)
+      await writeConversationTurns(cardId, turns)
+      const localOrganicMemorySnapshot = await buildBrowserOrganicMemorySnapshot(cardId)
+      record.structured = record.structured
+        ? {
+            ...record.structured,
+            derivedMindStateBundle: (record.structured as Record<string, unknown>).derivedMindStateBundle ?? localOrganicMemorySnapshot.derivedMindStateBundle ?? null,
+            memoryStageReplay: (record.structured as Record<string, unknown>).memoryStageReplay ?? localOrganicMemorySnapshot.memoryStageReplay ?? null,
+            memoryResolutionLedger: (record.structured as Record<string, unknown>).memoryResolutionLedger ?? localOrganicMemorySnapshot.memoryResolutionLedger ?? null,
+            learningExecutionState: (record.structured as Record<string, unknown>).learningExecutionState ?? localOrganicMemorySnapshot.learningExecutionState ?? null,
+          }
+        : {
+            derivedMindStateBundle: localOrganicMemorySnapshot.derivedMindStateBundle ?? null,
+            memoryStageReplay: localOrganicMemorySnapshot.memoryStageReplay ?? null,
+            memoryResolutionLedger: localOrganicMemorySnapshot.memoryResolutionLedger ?? null,
+            learningExecutionState: localOrganicMemorySnapshot.learningExecutionState ?? null,
+          }
       await writeConversationTurns(cardId, turns)
 
       if (record.origin === 'user-turn' && record.userText)

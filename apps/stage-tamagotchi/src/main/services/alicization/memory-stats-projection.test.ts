@@ -60,6 +60,14 @@ describe('memory stats projection', () => {
         cacheMissCount: 1,
         prewarmHitCount: 2,
         prewarmMissCount: 2,
+        organicStageTelemetry: {
+          'search-prelude': { latencyMs: 5, sampleCount: 2 },
+          'candidate-generation': { latencyMs: 9, sampleCount: 1 },
+        },
+        organicStageBudgetCounts: {
+          'search-prelude': { 'realtime-reply': 2 },
+          'candidate-generation': { 'deep-recall-reply': 1 },
+        },
         recallHitRate: 0.8,
         recallMissRate: 0.2,
         wrongThreadRate: 0.1,
@@ -91,6 +99,14 @@ describe('memory stats projection', () => {
       cacheHitRatio: 0.75,
       prewarmHitRatio: 0.5,
       budgetClassCounts: {},
+      organicStageTelemetry: {
+        'search-prelude': { latencyMs: 5, sampleCount: 2 },
+        'candidate-generation': { latencyMs: 9, sampleCount: 1 },
+      },
+      organicStageBudgetCounts: {
+        'search-prelude': { 'realtime-reply': 2 },
+        'candidate-generation': { 'deep-recall-reply': 1 },
+      },
       hotKeyHitRatio: 0,
       hotKeyCoverage: 0,
       hotKeyCandidates: [],

@@ -173,4 +173,49 @@ describe('memory fact retrieval', () => {
 
     expect(ranked[0]?.fact.id).toBe('fact-stable')
   })
+
+  it('uses explicit memory domains to prefer procedure facts for task-like queries', () => {
+    const nowTs = Date.UTC(2026, 3, 27, 12, 0, 0)
+    const ranked = rankAlicizationMemoryFacts({
+      query: 'patch verify runtime seam',
+      limit: 5,
+      currentTs: nowTs,
+      facts: [
+        {
+          id: 'fact-procedure',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'patch verify runtime seam before branching',
+          confidence: 0.78,
+          source: 'async-llm',
+          dedupeKey: 'assistant|procedure|patch verify runtime seam before branching',
+          createdAt: nowTs,
+          updatedAt: nowTs,
+          lastAccessAt: null,
+          accessCount: 1,
+          memoryDomain: 'procedure',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+        {
+          id: 'fact-relationship',
+          subject: 'relationship',
+          predicate: 'prefers',
+          object: 'more room before closeness',
+          confidence: 0.82,
+          source: 'async-llm',
+          dedupeKey: 'relationship|prefers|more room before closeness',
+          createdAt: nowTs,
+          updatedAt: nowTs,
+          lastAccessAt: null,
+          accessCount: 1,
+          memoryDomain: 'relationship',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+      ],
+    })
+
+    expect(ranked[0]?.fact.id).toBe('fact-procedure')
+  })
 })

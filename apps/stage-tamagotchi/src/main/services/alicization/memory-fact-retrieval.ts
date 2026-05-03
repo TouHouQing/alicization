@@ -1,5 +1,10 @@
 import type { AlicizationMemoryFact } from '../../../shared/eventa'
 
+import {
+  getMemoryDomainPolicy,
+  inferMemoryDomainFromFact,
+  scoreMemoryDomainAffinity,
+} from './memory-domain-model'
 import { deriveFactMemoryTier, scoreMemoryTierReachability } from './memory-tiering'
 
 const dayMs = 24 * 60 * 60 * 1000
@@ -17,6 +22,8 @@ function tokenizeMemoryFactText(text: string) {
 function scoreKnowledgeLifecycle(input: { fact: AlicizationMemoryFact }) {
   const stage = input.fact.knowledgeStage ?? 'working-understanding'
   const validation = input.fact.validationStatus ?? 'unverified'
+  const domain = input.fact.memoryDomain ?? inferMemoryDomainFromFact(input.fact)
+  const domainPolicy = getMemoryDomainPolicy(domain)
 
   let score = 0
   if (stage === 'ephemeral-observation')
@@ -31,12 +38,12 @@ function scoreKnowledgeLifecycle(input: { fact: AlicizationMemoryFact }) {
   if (validation === 'provisional')
     score += 0.03
   else if (validation === 'validated')
-    score += 0.09
+    score += domainPolicy.validationBoost
   else if (validation === 'superseded')
     score -= 0.22
 
   score += Math.min(0.08, (input.fact.validationCount ?? 0) * 0.02)
-  score -= Math.min(0.08, (input.fact.contradictionCount ?? 0) * 0.03)
+  score -= Math.min(0.12, (input.fact.contradictionCount ?? 0) * domainPolicy.contradictionPenalty)
 
   if ((input.fact.supersedes?.length ?? 0) > 0)
     score += 0.04
@@ -76,6 +83,10 @@ export function scoreAlicizationMemoryFact(input: {
   const lifecycleBoost = scoreKnowledgeLifecycle({
     fact: input.fact,
   })
+  const domainBoost = scoreMemoryDomainAffinity({
+    query: [...input.queryTokens].join(' '),
+    fact: input.fact,
+  })
   const tierReachabilityBoost = scoreMemoryTierReachability({
     tier: memoryTier,
     vagueQuery,
@@ -86,6 +97,7 @@ export function scoreAlicizationMemoryFact(input: {
   return (lexicalScore * 0.5 + input.fact.confidence * 0.4 + accessBoost * 0.1) * decay
     + coldReachabilityBoost
     + lifecycleBoost
+    + domainBoost
     + tierReachabilityBoost
 }
 

@@ -14,6 +14,11 @@ import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-ex
 import type { AlicizationResponseCharter } from './response-charter'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import {
+  readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readMemoryDeliberationFromDerivedMindStateBundle,
+  readPersonStateProjectionFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
 import {
@@ -234,13 +239,20 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
-  const personStateProjection = runtimeSurface?.memory.personStateProjection ?? null
+  const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
+  const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? runtimeSurface?.memory.personStateProjection
+    ?? null
   const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
-    deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
+    deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
+      ?? runtimeSurface?.memory.memoryDeliberation
+      ?? null,
     speech: recollectionSpeechPlan,
     recollectionIntent: null,
-    knowledgeEvidence: runtimeSurface?.memory.knowledgeEvidence ?? null,
+    knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
+      ?? runtimeSurface?.memory.knowledgeEvidence
+      ?? null,
   })
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({

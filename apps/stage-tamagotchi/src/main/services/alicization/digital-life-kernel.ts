@@ -1,4 +1,5 @@
 import type {
+  AlicizationDerivedMindStateBundle,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryDeliberation,
   AlicizationRecollectionPlan,
@@ -6,6 +7,8 @@ import type {
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
+import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
 import type {
   AlicizationPersonStateProjection,
@@ -107,6 +110,9 @@ export interface AlicizationDigitalLifeRuntimeSurface {
       contradictionHeavyFactCount: number
     } | null
     selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+    memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+    memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
@@ -383,6 +389,7 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       personStateProjection,
       knowledgeEvidence: null,
       selfEvolution: null,
+      derivedMindStateBundle: null,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,

@@ -17,6 +17,7 @@ import type {
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
+  AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
   AlicizationDigitalLifeEnvelope as SharedAlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
@@ -39,6 +40,8 @@ import type {
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
   AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
+  AlicizationMemoryResolutionLedger as SharedAlicizationMemoryResolutionLedger,
+  AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
   AlicizationMemoryStats as SharedAlicizationMemoryStats,
   AlicizationPersonStateUpdateRecord as SharedAlicizationPersonStateUpdateRecord,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
@@ -49,6 +52,7 @@ import type {
   AlicizationReplayMemoryQualityRecord as SharedAlicizationReplayMemoryQualityRecord,
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
+  AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
@@ -304,6 +308,25 @@ export interface AlicizationOrganicMemorySnapshot {
     summary: string
     surfaceSummary: string | null
     confidence: number
+  } | null
+  knowledgeEvidence?: {
+    validationCount: number
+    contradictionCount: number
+    stronglyValidatedProcedureCount: number
+    contradictionHeavyFactCount: number
+  } | null
+  selfEvolution?: SharedAlicizationSelfEvolutionKernelSnapshot | null
+  derivedMindStateBundle?: SharedAlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: SharedAlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: SharedAlicizationMemoryResolutionLedger | null
+  learningExecutionState?: {
+    nextLearningAction: string | null
+    shouldRecord: boolean
+    shouldReflect: boolean
+    shouldVerify: boolean
+    shouldRevise: boolean
+    shouldInternalize: boolean
+    activeLearningFocuses: string[]
   } | null
   lastDreamedAt: number | null
 }

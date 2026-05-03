@@ -84,6 +84,7 @@ import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
+import { buildDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -177,6 +178,10 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<OrganicMemoryPromptContext>
+  scheduleOrganicLearningAction?: (input: {
+    context: OrganicMemoryPromptContext
+    turnId?: string | null
+  }) => Promise<unknown>
   prewarmOrganicMemoryAccessibility?: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
@@ -996,6 +1001,20 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       memoryDeliberation: deliberation,
       knowledgeEvidence: input.context.knowledgeEvidence ?? surface.memory.knowledgeEvidence ?? null,
       selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
+      memoryStageReplay: input.context.memoryStageReplay ?? surface.memory.memoryStageReplay ?? null,
+      memoryResolutionLedger: input.context.memoryResolutionLedger ?? surface.memory.memoryResolutionLedger ?? null,
+      derivedMindStateBundle: buildDerivedMindStateBundle({
+        source: 'main-runtime',
+        producedAt: input.now,
+        hostPersonModel: input.context.hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+        personStateProjection: (input.context.personStateProjection ?? surface.memory.personStateProjection ?? null) as unknown as Record<string, unknown> | null,
+        knowledgeEvidence: input.context.knowledgeEvidence ?? surface.memory.knowledgeEvidence ?? null,
+        selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
+        recollectionIntent: input.context.recollectionIntent as unknown as Record<string, unknown> | null,
+        recollectionPlan: input.context.recollectionPlan ?? surface.memory.recollectionPlan ?? null,
+        recollectionSpeechPlan: input.context.recollectionSpeechPlan ?? surface.memory.recollectionSpeechPlan ?? null,
+        memoryDeliberation: deliberation as unknown as Record<string, unknown> | null,
+      }),
     },
     cognition: {
       ...surface.cognition,
@@ -1239,6 +1258,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
       suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
     })
+    if (options.scheduleOrganicLearningAction) {
+      await agentTurn.trackPhase('organic-learning-scheduler', async () => {
+        await options.scheduleOrganicLearningAction?.({
+          context: organicPromptContext,
+          turnId: payload.turnId,
+        })
+      }, {
+        personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+      })
+    }
     const executionReplyObligation: AlicizationMainChatExecutionReplyObligation | null = deriveMainChatExecutionReplyObligation({
       messages: payload.messages as Message[],
       callbackContext: executionCallbackContext,

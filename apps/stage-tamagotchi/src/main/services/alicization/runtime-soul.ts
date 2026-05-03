@@ -24,10 +24,13 @@ import type {
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
 } from '../../../shared/eventa'
+import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
+import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { AlicizationSelfEvolutionKernelSnapshot } from '../../../shared/eventa'
+import type { AlicizationDerivedMindStateBundle } from '../../../shared/eventa'
 import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
 
 import { createHash } from 'node:crypto'
@@ -229,6 +232,9 @@ export interface OrganicMemoryPromptContext {
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
 }
 
 export interface ContextualConversationTurn {

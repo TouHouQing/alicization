@@ -33,6 +33,11 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   prewarmHitCount?: number
   prewarmMissCount?: number
   budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  organicStageTelemetry?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', {
+    latencyMs: number | null
+    sampleCount: number
+  }>>
+  organicStageBudgetCounts?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>>>
   hotKeyStats?: Array<{
     key: string
     candidateCount: number
@@ -172,6 +177,8 @@ export function buildAlicizationMemoryStatsProjection(input: {
         return total <= 0 ? 0 : Number((hits / total).toFixed(2))
       })(),
       budgetClassCounts: input.retrievalTelemetry.budgetClassCounts ?? {},
+      organicStageTelemetry: input.retrievalTelemetry.organicStageTelemetry ?? {},
+      organicStageBudgetCounts: input.retrievalTelemetry.organicStageBudgetCounts ?? {},
       hotKeyHitRatio: (() => {
         const rows = input.retrievalTelemetry.hotKeyStats ?? []
         const hits = rows.reduce((sum, item) => sum + Math.max(0, Number(item.hitCount ?? 0)), 0)

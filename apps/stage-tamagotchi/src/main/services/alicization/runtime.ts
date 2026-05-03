@@ -207,6 +207,8 @@ import {
 } from './runtime-chat-prompt-blocks'
 import { createAlicizationChatStreamRuntime } from './runtime-chat-stream'
 import { createAlicizationDeliveryReminderRuntime } from './runtime-delivery-reminders'
+import { createAlicizationLearningActionScheduler } from './learning-action-scheduler'
+import { normalizeAlicizationDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 import { createAlicizationDreamRuntime } from './runtime-dream'
 import {
   buildAlicizationChatStreamEmbodimentMeta,
@@ -821,6 +823,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMemoryCandidateGenerationLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordCandidateGenerationLatency(latencyMs),
       recordMemoryPlannerLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordPlannerLatency(latencyMs),
       recordMemorySpeechPlanLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordSpeechPlanLatency(latencyMs),
+      recordOrganicMemoryStageLatency: async input => await memoryRetrievalTelemetryRuntime.recordOrganicStageLatency(input),
+      recordOrganicMemoryStageBudget: async input => await memoryRetrievalTelemetryRuntime.recordOrganicStageBudget(input),
     },
     memoryReconsolidation: {
       sanitizeMindGovernanceDecisionTraceId,
@@ -847,6 +851,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext,
   } = memoryRuntime
+  const learningActionScheduler = createAlicizationLearningActionScheduler({
+    now: () => Date.now(),
+    insertScheduledTask: input => alicizationDb.insertScheduledTask(input),
+    claimDueScheduledTasks: (nowMs, limit) => alicizationDb.claimDueScheduledTasks(nowMs, limit),
+    completeScheduledTask: (taskId, firedTurnId, completedAt) => alicizationDb.completeScheduledTask(taskId, firedTurnId, completedAt),
+    failScheduledTask: (taskId, error, completedAt) => alicizationDb.failScheduledTask(taskId, error, completedAt),
+    appendAuditLog,
+    randomUUID,
+    getActiveCardId: () => activeCardId,
+  })
   const sessionContinuityBuildersRuntime = createAlicizationSessionContinuityBuildersRuntime({
     sanitizeText,
     sanitizeBriefText,
@@ -1164,6 +1178,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveExecutionCapabilitiesForPrompt,
     prewarmOrganicMemoryAccessibility: async input => await memoryRuntime.prewarmAccessibilityLine(input),
     resolveOrganicMemoryPromptContext,
+    scheduleOrganicLearningAction: async input => await learningActionScheduler.scheduleLearningTask(input),
     resolveSessionContinuitySignals: async ({ cardId }) => await resolveAgentSessionContinuitySignals(cardId),
     resolveTaskPlanningCapabilities,
     scheduleReminderTask,
@@ -2792,6 +2807,23 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       let persistedDialogueState: AlicizationVisualPresenceStateSnapshot | null = null
       let visualPresenceState: AlicizationVisualPresenceStateSnapshot | null = null
       await alicizationDb.appendConversationTurn(normalizedPayload, { signal })
+      const structured = normalizedPayload.structured && typeof normalizedPayload.structured === 'object'
+        ? normalizedPayload.structured as Record<string, unknown>
+        : null
+      const derivedBundleForLearning = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
+      if (derivedBundleForLearning?.selfEvolution && normalizedPayload.origin === 'user-turn') {
+        await learningActionScheduler.scheduleLearningTask({
+          context: {
+            hostAttitude: '',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            selfEvolution: derivedBundleForLearning.selfEvolution,
+          },
+          turnId: normalizedPayload.turnId ?? null,
+        }).catch(() => {})
+      }
       if (normalizedPayload.origin === 'user-turn' && sanitizeText(normalizedPayload.assistantText).length > 0) {
         try {
           visualPresenceState = await ensureVisualPresenceState(activeCardId)
@@ -5012,6 +5044,25 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return pending
   }
 
+  const processDueLearningActionsForCurrentCard = async (trigger: 'timer' | 'force') => {
+    const result = await learningActionScheduler.processDueLearningTasks()
+    if (result.claimed > 0 || result.completed > 0 || result.failed > 0) {
+      await appendAuditLog({
+        level: 'notice',
+        category: 'alicization.learning',
+        action: 'alicization.learning.scheduler.tick',
+        message: 'Processed due learning action tasks.',
+        payload: {
+          trigger,
+          claimed: result.claimed,
+          completed: result.completed,
+          failed: result.failed,
+        },
+      })
+    }
+    return result
+  }
+
   const { runSubconsciousTickForCurrentCard } = createAlicizationSubconsciousTickRuntime({
     getActiveCardId: () => activeCardId,
     getSoulSnapshot: () => soulLifecycleState.soulSnapshot,
@@ -5024,6 +5075,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     openAgentTurn: (input: any) => agentRuntime.openTurn(input),
     buildMainGatewayAgentTurnId,
     processDueRemindersForCurrentCard,
+    processDueLearningActionsForCurrentCard,
     settleExpiredPendingProactiveOutcomes,
     getSensorySnapshot: () => sensoryBus.getSnapshot(),
     ensurePerceptionState,

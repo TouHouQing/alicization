@@ -128,6 +128,22 @@ const dbStub = {
   countSubconsciousFragments: vi.fn().mockResolvedValue(0),
   appendRelationshipDynamics: vi.fn().mockResolvedValue(undefined),
   getLatestRelationshipDynamics: vi.fn().mockResolvedValue(null),
+  summarizePersonStateEvolution: vi.fn().mockResolvedValue({
+    trustShift: 0,
+    closenessShift: 0,
+    repairShift: 0,
+    autonomyShift: 0,
+    burdenShift: 0,
+    executionTrustShift: 0,
+    relationshipDoctrineShift: 0,
+    latestDoctrine: null,
+    latestBurdenLine: null,
+    latestTrustMeaning: null,
+    latestDominantRung: null,
+    recentSummaries: [],
+    explanation: [],
+    updatedAt: null,
+  }),
   searchEpisodicEvents: vi.fn().mockResolvedValue([]),
   insertScheduledTask: vi.fn().mockImplementation(async (input: { taskId: string, triggerAt: number, message: string, sourceTurnId?: string }) => ({
     id: `row:${input.taskId}`,
@@ -290,6 +306,23 @@ function resetDbStubMocks() {
   dbStub.appendRelationshipDynamics.mockResolvedValue(undefined)
   dbStub.getLatestRelationshipDynamics.mockReset()
   dbStub.getLatestRelationshipDynamics.mockResolvedValue(null)
+  dbStub.summarizePersonStateEvolution.mockReset()
+  dbStub.summarizePersonStateEvolution.mockResolvedValue({
+    trustShift: 0,
+    closenessShift: 0,
+    repairShift: 0,
+    autonomyShift: 0,
+    burdenShift: 0,
+    executionTrustShift: 0,
+    relationshipDoctrineShift: 0,
+    latestDoctrine: null,
+    latestBurdenLine: null,
+    latestTrustMeaning: null,
+    latestDominantRung: null,
+    recentSummaries: [],
+    explanation: [],
+    updatedAt: null,
+  })
   dbStub.searchEpisodicEvents.mockReset()
   dbStub.searchEpisodicEvents.mockResolvedValue([])
   dbStub.insertScheduledTask.mockReset()
@@ -2490,7 +2523,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     expect(dbStub.listConversationTurnsSince).not.toBeCalled()
-    expect(dbStub.listMindTurnEvents).not.toBeCalled()
+    expect(dbStub.listMindTurnEvents).toBeCalled()
     expect(result).toEqual(expect.objectContaining({
       packId: 'backlog-humanlike-memory-v1',
       turnCount: 1,

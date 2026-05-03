@@ -1,3 +1,40 @@
+export type AlicizationOrganicMemoryRuntimeStage
+  = 'search-prelude'
+    | 'candidate-generation'
+    | 'candidate-ranking'
+    | 'recollection-planning'
+    | 'surface-planning'
+    | 'self-evolution-integration'
+    | 'prompt-blocks'
+
+export type AlicizationMemoryRetrievalBudgetClass
+  = 'realtime-reply'
+    | 'deep-recall-reply'
+    | 'proactive-generation'
+    | 'nightly-benchmark'
+    | 'diagnosis-replay'
+
+export interface AlicizationOrganicMemoryRuntimeStageTelemetry {
+  latencyMs: number | null
+  sampleCount: number
+}
+
+export interface AlicizationOrganicMemoryRuntimeStageReplaySnapshot {
+  stage: AlicizationOrganicMemoryRuntimeStage
+  summary: string
+  latencyMs: number | null
+  budgetClass: AlicizationMemoryRetrievalBudgetClass | null
+  inputs?: string[]
+  outputs?: string[]
+  diagnostics?: string[]
+}
+
+export interface AlicizationOrganicMemoryStageReplay {
+  version: 'organic-memory-stage-replay-v1'
+  producedAt: number
+  stages: AlicizationOrganicMemoryRuntimeStageReplaySnapshot[]
+}
+
 export interface AlicizationMemoryTierCounts {
   hot: number
   warm: number
@@ -46,7 +83,9 @@ export interface AlicizationMemoryRetrievalHealth {
   speechPlanLatencyMs?: number | null
   cacheHitRatio?: number
   prewarmHitRatio?: number
-  budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  budgetClassCounts?: Partial<Record<AlicizationMemoryRetrievalBudgetClass, number>>
+  organicStageTelemetry?: Partial<Record<AlicizationOrganicMemoryRuntimeStage, AlicizationOrganicMemoryRuntimeStageTelemetry>>
+  organicStageBudgetCounts?: Partial<Record<AlicizationOrganicMemoryRuntimeStage, Partial<Record<AlicizationMemoryRetrievalBudgetClass, number>>>>
   hotKeyHitRatio?: number
   hotKeyCoverage?: number
   hotKeyCandidates?: string[]

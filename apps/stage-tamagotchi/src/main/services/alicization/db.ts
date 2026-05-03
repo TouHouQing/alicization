@@ -22,6 +22,7 @@ import type {
   AlicizationListExecutorSessionsInput,
   AlicizationListTaskThreadsInput,
   AlicizationMemoryFact,
+  AlicizationMemoryDomain,
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
   AlicizationMemoryMigrationResult,
@@ -58,6 +59,7 @@ import { join } from 'node:path'
 import sqlite3 from 'sqlite3'
 
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
+import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
 import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
 import { rankAlicizationEpisodicEvents } from './memory-episodic-retrieval'
 import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
@@ -111,6 +113,7 @@ interface DbMemoryFactRow {
   access_count: number
   knowledge_stage: AlicizationKnowledgeAssimilationStage | null
   validation_status: AlicizationKnowledgeValidationStatus | null
+  memory_domain: AlicizationMemoryDomain | null
   validation_count: number
   contradiction_count: number
   source_label: string | null
@@ -140,6 +143,7 @@ interface PreparedMemoryFactWrite {
   updatedAt: number
   knowledgeStage: AlicizationKnowledgeAssimilationStage
   validationStatus: AlicizationKnowledgeValidationStatus
+  memoryDomain: AlicizationMemoryDomain
   validationCount: number
   contradictionCount: number
   sourceLabel: string | null
@@ -656,6 +660,13 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     accessCount: Math.max(0, Math.floor(row.access_count)),
     knowledgeStage: normalizeKnowledgeStage(row.knowledge_stage),
     validationStatus: normalizeValidationStatus(row.validation_status),
+    memoryDomain: row.memory_domain
+      ? normalizeMemoryDomain(row.memory_domain)
+      : inferMemoryDomainFromFact({
+          subject: row.subject,
+          predicate: row.predicate,
+          object: row.object,
+        }),
     validationCount: Math.max(0, Math.floor(row.validation_count ?? 0)),
     contradictionCount: Math.max(0, Math.floor(row.contradiction_count ?? 0)),
     sourceLabel: typeof row.source_label === 'string' && row.source_label.trim()
@@ -1319,6 +1330,7 @@ export async function setupAlicizationDb(
         access_count INTEGER NOT NULL DEFAULT 0,
         knowledge_stage TEXT,
         validation_status TEXT,
+        memory_domain TEXT,
         validation_count INTEGER NOT NULL DEFAULT 0,
         contradiction_count INTEGER NOT NULL DEFAULT 0,
         source_label TEXT,
@@ -1328,6 +1340,7 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN knowledge_stage TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN validation_status TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN memory_domain TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN validation_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN contradiction_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN source_label TEXT').catch(() => {})
@@ -1570,6 +1583,7 @@ export async function setupAlicizationDb(
         access_count INTEGER NOT NULL DEFAULT 0,
         knowledge_stage TEXT,
         validation_status TEXT,
+        memory_domain TEXT,
         validation_count INTEGER NOT NULL DEFAULT 0,
         contradiction_count INTEGER NOT NULL DEFAULT 0,
         source_label TEXT,
@@ -1580,6 +1594,7 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN knowledge_stage TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN validation_status TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN memory_domain TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN validation_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN contradiction_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN source_label TEXT').catch(() => {})
@@ -1889,12 +1904,13 @@ export async function setupAlicizationDb(
               access_count,
               knowledge_stage,
               validation_status,
+              memory_domain,
               validation_count,
               contradiction_count,
               source_label,
               conflicts_with_json,
               supersedes_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -1909,6 +1925,7 @@ export async function setupAlicizationDb(
               access_count = MAX(memory_facts.access_count, excluded.access_count),
               knowledge_stage = excluded.knowledge_stage,
               validation_status = excluded.validation_status,
+              memory_domain = excluded.memory_domain,
               validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
               contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
               source_label = excluded.source_label,
@@ -1929,6 +1946,7 @@ export async function setupAlicizationDb(
               Math.max(0, Math.floor(row.access_count)),
               normalizeKnowledgeStage(row.knowledge_stage),
               normalizeValidationStatus(row.validation_status),
+              normalizeMemoryDomain((row as any).memory_domain),
               Math.max(0, Math.floor(Number(row.validation_count ?? 0))),
               Math.max(0, Math.floor(Number(row.contradiction_count ?? 0))),
               row.source_label?.trim() || null,
@@ -2251,23 +2269,25 @@ export async function setupAlicizationDb(
           created_at,
           updated_at,
           last_access_at,
-          access_count,
-          knowledge_stage,
-          validation_status,
-          validation_count,
-          contradiction_count,
+	          access_count,
+	          knowledge_stage,
+	          validation_status,
+	          memory_domain,
+	          validation_count,
+	          contradiction_count,
           source_label,
           conflicts_with_json,
           supersedes_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(dedupe_key)
         DO UPDATE SET
           confidence = MAX(memory_facts.confidence, excluded.confidence),
-          source = excluded.source,
-          updated_at = excluded.updated_at,
-          knowledge_stage = excluded.knowledge_stage,
-          validation_status = excluded.validation_status,
-          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+	          source = excluded.source,
+	          updated_at = excluded.updated_at,
+	          knowledge_stage = excluded.knowledge_stage,
+	          validation_status = excluded.validation_status,
+	          memory_domain = excluded.memory_domain,
+	          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
           contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
           source_label = excluded.source_label,
           conflicts_with_json = excluded.conflicts_with_json,
@@ -2287,6 +2307,7 @@ export async function setupAlicizationDb(
           0,
           fact.knowledgeStage,
           fact.validationStatus,
+          fact.memoryDomain,
           fact.validationCount,
           fact.contradictionCount,
           fact.sourceLabel,
@@ -3510,6 +3531,13 @@ export async function setupAlicizationDb(
           updatedAt: now(),
           knowledgeStage: normalizeKnowledgeStage(fact.knowledgeStage),
           validationStatus: normalizeValidationStatus(fact.validationStatus),
+          memoryDomain: fact.memoryDomain
+            ? normalizeMemoryDomain(fact.memoryDomain)
+            : inferMemoryDomainFromFact({
+                subject,
+                predicate,
+                object,
+              }),
           validationCount: Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
           contradictionCount: Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
           sourceLabel: typeof fact.sourceLabel === 'string' && fact.sourceLabel.trim()
@@ -4085,12 +4113,13 @@ export async function setupAlicizationDb(
           access_count,
           knowledge_stage,
           validation_status,
+          memory_domain,
           validation_count,
           contradiction_count,
           source_label,
           conflicts_with_json,
           supersedes_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -4098,6 +4127,7 @@ export async function setupAlicizationDb(
           updated_at = excluded.updated_at,
           knowledge_stage = excluded.knowledge_stage,
           validation_status = excluded.validation_status,
+          memory_domain = excluded.memory_domain,
           validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
           contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
           source_label = excluded.source_label,
@@ -4115,10 +4145,11 @@ export async function setupAlicizationDb(
               fact.createdAt,
               fact.updatedAt,
               fact.lastAccessAt,
-              Math.max(0, Math.floor(fact.accessCount)),
-              normalizeKnowledgeStage(fact.knowledgeStage),
-              normalizeValidationStatus(fact.validationStatus),
-              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
+	              Math.max(0, Math.floor(fact.accessCount)),
+	              normalizeKnowledgeStage(fact.knowledgeStage),
+	              normalizeValidationStatus(fact.validationStatus),
+	              normalizeMemoryDomain((fact as any).memoryDomain),
+	              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
               Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
               fact.sourceLabel?.trim() || null,
               JSON.stringify(fact.conflictsWith ?? []),
@@ -4149,15 +4180,16 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count,
-              knowledge_stage,
-              validation_status,
-              validation_count,
-              contradiction_count,
+	              access_count,
+	              knowledge_stage,
+	              validation_status,
+	              memory_domain,
+	              validation_count,
+	              contradiction_count,
               source_label,
               conflicts_with_json,
               supersedes_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -4169,10 +4201,11 @@ export async function setupAlicizationDb(
                 WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
                 ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
               END,
-              access_count = MAX(memory_facts.access_count, excluded.access_count),
-              knowledge_stage = excluded.knowledge_stage,
-              validation_status = excluded.validation_status,
-              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+	              access_count = MAX(memory_facts.access_count, excluded.access_count),
+	              knowledge_stage = excluded.knowledge_stage,
+	              validation_status = excluded.validation_status,
+	              memory_domain = excluded.memory_domain,
+	              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
               contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
               source_label = excluded.source_label,
               conflicts_with_json = excluded.conflicts_with_json,
@@ -4189,10 +4222,11 @@ export async function setupAlicizationDb(
               item.createdAt,
               item.updatedAt,
               item.lastAccessAt,
-              Math.max(0, Math.floor(item.accessCount)),
-              normalizeKnowledgeStage(item.knowledgeStage),
-              normalizeValidationStatus(item.validationStatus),
-              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
+	              Math.max(0, Math.floor(item.accessCount)),
+	              normalizeKnowledgeStage(item.knowledgeStage),
+	              normalizeValidationStatus(item.validationStatus),
+	              normalizeMemoryDomain((item as any).memoryDomain),
+	              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
               Math.max(0, Math.floor(Number(item.contradictionCount ?? 0))),
               item.sourceLabel?.trim() || null,
               JSON.stringify(item.conflictsWith ?? []),

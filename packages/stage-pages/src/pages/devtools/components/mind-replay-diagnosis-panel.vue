@@ -394,6 +394,23 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                   {{ category }}
                 </span>
               </div>
+              <div
+                v-if="turn.resolutionLedgerSummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+              >
+                <div>
+                  dominant={{ turn.resolutionLedgerSummary.dominantClusterSummary || 'n/a' }}
+                </div>
+                <div>
+                  competing={{ turn.resolutionLedgerSummary.competingClusterSummary || 'n/a' }}
+                </div>
+                <div>
+                  surface={{ turn.resolutionLedgerSummary.finalSurfacePolicy || 'n/a' }} · inward={{ turn.resolutionLedgerSummary.shouldStayInward ? 'yes' : 'no' }} · afterPayoff={{ turn.resolutionLedgerSummary.shouldDelayUntilAfterPayoff ? 'yes' : 'no' }}
+                </div>
+                <div>
+                  rejected={{ turn.resolutionLedgerSummary.rejectedCandidateCount }}
+                </div>
+              </div>
             </button>
           </div>
         </section>

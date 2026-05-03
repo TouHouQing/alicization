@@ -577,5 +577,8 @@ describe('runtime-governance', () => {
       matchedCueKinds: expect.arrayContaining(['procedure']),
       replyExcerpt: expect.stringContaining('patch 再 verify'),
     }))
+    expect(events.find(event => event.kind === 'governance-normalized')?.payload).toEqual(expect.objectContaining({
+      memoryStageReplay: null,
+    }))
   })
 })

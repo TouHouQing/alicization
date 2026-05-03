@@ -15,6 +15,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     openAgentTurn,
     buildMainGatewayAgentTurnId,
     processDueRemindersForCurrentCard,
+    processDueLearningActionsForCurrentCard,
     settleExpiredPendingProactiveOutcomes,
     getSensorySnapshot,
     ensurePerceptionState,
@@ -102,6 +103,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       turnId: buildMainGatewayAgentTurnId('subconscious-tick', trigger, activeCardId, now),
     })
     const reminderResult = await processDueRemindersForCurrentCard(trigger, backgroundAgentTurn)
+    const learningResult = await processDueLearningActionsForCurrentCard(trigger)
     proactiveLoopState = await settleExpiredPendingProactiveOutcomes(activeCardId, now, `subconscious-tick:${trigger}`)
     const elapsedMinutes = Math.max(1 / 6, (now - state.lastTickAt) / 60_000)
     const sensorySnapshot = getSensorySnapshot()
@@ -132,7 +134,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       ...state,
       boredom: clampNeed(state.boredom + elapsedMinutes * ((cpuUsage >= 70 || interruptionContext.fullscreenLikely) ? 2.2 : 1.2)),
       loneliness: clampNeed(state.loneliness + elapsedMinutes * (idleLikely ? 2.4 : 0.8)),
-      fatigue: clampNeed(state.fatigue + elapsedMinutes * 0.6 + reminderResult.completed * 1.2),
+      fatigue: clampNeed(state.fatigue + elapsedMinutes * 0.6 + reminderResult.completed * 1.2 + learningResult.completed * 0.4),
       lastTickAt: now,
       lastInteractionAt: state.lastInteractionAt,
       updatedAt: now,

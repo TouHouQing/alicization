@@ -2396,6 +2396,15 @@ export function buildMindTurnTraceEvents(input: {
       fallbackPatternId: input.governedTurn.fallbackPatternId ?? 'none',
       reasons: input.governedTurn.reasons,
       digitalLifeSpine: persistedDigitalLifeSpine,
+      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
+        ? structured.derivedMindStateBundle
+        : null,
+      memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
+        ? structured.memoryStageReplay
+        : null,
+      memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
+        ? structured.memoryResolutionLedger
+        : null,
       participation,
     },
     createdAt: input.createdAt,
@@ -2447,6 +2456,15 @@ export function buildMindTurnTraceEvents(input: {
       replyExcerpt: excerptGovernedReply(readStringValue(structured.reply).trim()),
       assistantExcerpt: excerptGovernedReply(readStringValue(input.payload.assistantText).trim()),
       digitalLifeSpine: persistedDigitalLifeSpine,
+      derivedMindStateBundle: structured.derivedMindStateBundle && typeof structured.derivedMindStateBundle === 'object'
+        ? structured.derivedMindStateBundle
+        : null,
+      memoryStageReplay: structured.memoryStageReplay && typeof structured.memoryStageReplay === 'object'
+        ? structured.memoryStageReplay
+        : null,
+      memoryResolutionLedger: structured.memoryResolutionLedger && typeof structured.memoryResolutionLedger === 'object'
+        ? structured.memoryResolutionLedger
+        : null,
     },
     createdAt: input.createdAt,
   })
@@ -2487,6 +2505,18 @@ export function buildMindTurnTraceEvents(input: {
         embodimentPostureHint: input.dialoguePayload.structured.embodiment?.postureHint ?? null,
         speechTimelineSegments: input.dialoguePayload.structured.speechTimeline?.segments.length ?? 0,
         digitalLifeSpine: dialogueDigitalLifeSpine,
+        derivedMindStateBundle: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle
+          && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.derivedMindStateBundle === 'object'
+          ? ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).derivedMindStateBundle
+          : null,
+        memoryStageReplay: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryStageReplay
+          && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryStageReplay === 'object'
+          ? ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).memoryStageReplay
+          : null,
+        memoryResolutionLedger: ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryResolutionLedger
+          && typeof ((input.dialoguePayload.structured as unknown) as Record<string, unknown>)?.memoryResolutionLedger === 'object'
+          ? ((input.dialoguePayload.structured as unknown) as Record<string, unknown>).memoryResolutionLedger
+          : null,
         createdAt: input.dialoguePayload.createdAt,
       },
       createdAt: input.dialoguePayload.createdAt,

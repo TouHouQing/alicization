@@ -54,6 +54,24 @@ describe('memory retrieval telemetry', () => {
         'nightly-benchmark': 0,
         'diagnosis-replay': 0,
       },
+      organicStageTelemetry: {
+        'search-prelude': { latencyMs: null, sampleCount: 0 },
+        'candidate-generation': { latencyMs: null, sampleCount: 0 },
+        'candidate-ranking': { latencyMs: null, sampleCount: 0 },
+        'recollection-planning': { latencyMs: null, sampleCount: 0 },
+        'surface-planning': { latencyMs: null, sampleCount: 0 },
+        'self-evolution-integration': { latencyMs: null, sampleCount: 0 },
+        'prompt-blocks': { latencyMs: null, sampleCount: 0 },
+      },
+      organicStageBudgetCounts: {
+        'search-prelude': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'candidate-generation': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'candidate-ranking': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'recollection-planning': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'surface-planning': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'self-evolution-integration': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'prompt-blocks': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+      },
       hotKeyStats: [],
       recallHitRate: 0.8,
       recallMissRate: 0.2,
@@ -85,6 +103,8 @@ describe('memory retrieval telemetry', () => {
       prewarmHitCount: 0,
       prewarmMissCount: 0,
       budgetClassCounts: {},
+      organicStageTelemetry: {},
+      organicStageBudgetCounts: {},
       hotKeyStats: [],
       recallHitRate: 0,
       recallMissRate: 0,
@@ -122,6 +142,14 @@ describe('memory retrieval telemetry', () => {
     await runtime.recordCandidateGenerationLatency(11)
     await runtime.recordPlannerLatency(13)
     await runtime.recordSpeechPlanLatency(17)
+    await runtime.recordOrganicStageLatency({
+      stage: 'candidate-ranking',
+      latencyMs: 19,
+    })
+    await runtime.recordOrganicStageBudget({
+      stage: 'candidate-ranking',
+      budgetClass: 'deep-recall-reply',
+    })
     await runtime.recordCacheAccess(true)
     await runtime.recordCacheAccess(false)
     await runtime.recordPrewarmAccess(true)
@@ -163,6 +191,24 @@ describe('memory retrieval telemetry', () => {
         'proactive-generation': 0,
         'nightly-benchmark': 0,
         'diagnosis-replay': 0,
+      },
+      organicStageTelemetry: {
+        'search-prelude': { latencyMs: 0, sampleCount: 0 },
+        'candidate-generation': { latencyMs: 0, sampleCount: 0 },
+        'candidate-ranking': { latencyMs: 19, sampleCount: 1 },
+        'recollection-planning': { latencyMs: 0, sampleCount: 0 },
+        'surface-planning': { latencyMs: 0, sampleCount: 0 },
+        'self-evolution-integration': { latencyMs: 0, sampleCount: 0 },
+        'prompt-blocks': { latencyMs: 0, sampleCount: 0 },
+      },
+      organicStageBudgetCounts: {
+        'search-prelude': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'candidate-generation': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'candidate-ranking': { 'realtime-reply': 0, 'deep-recall-reply': 1, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'recollection-planning': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'surface-planning': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'self-evolution-integration': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
+        'prompt-blocks': { 'realtime-reply': 0, 'deep-recall-reply': 0, 'proactive-generation': 0, 'nightly-benchmark': 0, 'diagnosis-replay': 0 },
       },
       hotKeyStats: [],
       recallHitRate: 0.8,

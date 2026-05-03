@@ -172,6 +172,22 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     ].filter(Boolean).join('\n')
   }
 
+  function buildDerivedMindStateBundleSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+    const bundle = surface?.memory.derivedMindStateBundle ?? null
+    if (!bundle)
+      return ''
+    return [
+      '[ALICIZATION_DERIVED_MIND_STATE_BUNDLE]',
+      `source=${bundle.source}`,
+      `produced_at=${bundle.producedAt}`,
+      bundle.summary ? `summary=${bundle.summary}` : '',
+      bundle.dialogueRhythm?.activeClosenessContext ? `rhythm_context=${bundle.dialogueRhythm.activeClosenessContext}` : '',
+      bundle.dialogueRhythm?.activeClosenessRung ? `rhythm_rung=${bundle.dialogueRhythm.activeClosenessRung}` : '',
+      bundle.dialogueRhythm?.relationshipDoctrine ? `rhythm_doctrine=${bundle.dialogueRhythm.relationshipDoctrine}` : '',
+      'Treat this bundle as the single high-level derived mind state for this turn. Do not invent a second competing interpretation.',
+    ].filter(Boolean).join('\n')
+  }
+
   function buildScreenSemanticUserContent(input: {
     imageDataUrl: string
     foregroundWindow?: {
@@ -454,6 +470,9 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         : []),
       ...(buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
         ? [{ role: 'system', content: buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
+        : []),
+      ...(buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
+        ? [{ role: 'system', content: buildDerivedMindStateBundleSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
         : []),
       ...((generateOptions.extraSystemBlocks ?? [])
         .map(block => sanitizeMultilineText(block))

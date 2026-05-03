@@ -53,6 +53,7 @@ import type {
   AlicizationKnowledgeAssimilationCorrection as SharedAlicizationKnowledgeAssimilationCorrection,
   AlicizationKnowledgeValidationStatus as SharedAlicizationKnowledgeValidationStatus,
   AlicizationMemoryArchiveRecord as SharedAlicizationMemoryArchiveRecord,
+  AlicizationMemoryDomain as SharedAlicizationMemoryDomain,
   AlicizationMemoryFact as SharedAlicizationMemoryFact,
   AlicizationMemoryFactInput as SharedAlicizationMemoryFactInput,
   AlicizationMemoryReflectionInput as SharedAlicizationMemoryReflectionInput,
@@ -94,6 +95,7 @@ import type {
   AlicizationPersonStateEvolutionShift as SharedAlicizationPersonStateEvolutionShift,
   AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
   AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
+  AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
@@ -547,6 +549,7 @@ export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonMode
 export type AlicizationMemoryFact = SharedAlicizationMemoryFact
 export type AlicizationMemoryArchiveRecord = SharedAlicizationMemoryArchiveRecord
 export type AlicizationMemoryFactInput = SharedAlicizationMemoryFactInput
+export type AlicizationMemoryDomain = SharedAlicizationMemoryDomain
 
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 export type AlicizationMemoryReflectionSourceKind = SharedAlicizationMemoryReflectionSourceKind
@@ -668,6 +671,7 @@ export interface AlicizationOrganicMemorySnapshot {
     contradictionHeavyFactCount: number
   } | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   lastDreamedAt: number | null
 }
 
@@ -729,6 +733,7 @@ export type AlicizationPersonStateEvolutionShift = SharedAlicizationPersonStateE
 export type AlicizationPersonStateEvolutionEntryInput = SharedAlicizationPersonStateEvolutionEntryInput
 export type AlicizationPersonStateEvolutionEntryRecord = SharedAlicizationPersonStateEvolutionEntryRecord
 export type AlicizationPersonStateEvolutionSummary = SharedAlicizationPersonStateEvolutionSummary
+export type AlicizationDerivedMindStateBundle = SharedAlicizationDerivedMindStateBundle
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord

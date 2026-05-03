@@ -12,6 +12,11 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import type { CharacterPerformanceCapabilitiesManifest } from '../../../shared/eventa'
 
+import {
+  readHostPersonModelFromDerivedMindStateBundle,
+  readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readPersonStateProjectionFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { createAlicizationExecutionDeliveryRuntime, hasAlicizationExecutionDeliveryRetainedState } from './execution-delivery-runtime'
@@ -367,6 +372,9 @@ export function createAlicizationRuntimeExecutionDelivery(
     cardId: string
   }) => {
     const runtimeSurface = input.agentTurn?.getSessionSnapshot().digitalLifeSpine?.runtimeSurface ?? null
+    const bundleHost = readHostPersonModelFromDerivedMindStateBundle(runtimeSurface?.memory.derivedMindStateBundle ?? null)
+    if (bundleHost)
+      return bundleHost
     if (runtimeSurface?.memory.hostPersonModel)
       return runtimeSurface.memory.hostPersonModel
     return await options.buildHostPersonModel({
@@ -383,7 +391,9 @@ export function createAlicizationRuntimeExecutionDelivery(
         const state = await options.ensureVisualPresenceState(input.cardId).catch(() => null)
         return state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null
       })()
-    return runtimeSurface?.memory.knowledgeEvidence ?? null
+    return readKnowledgeEvidenceFromDerivedMindStateBundle(runtimeSurface?.memory.derivedMindStateBundle ?? null)
+      ?? runtimeSurface?.memory.knowledgeEvidence
+      ?? null
   }
 
   const resolveExecutionPersonStateProjectionForRuntime = async (input: {
@@ -397,6 +407,9 @@ export function createAlicizationRuntimeExecutionDelivery(
         return state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null
       })()
 
+    const bundleProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(runtimeSurface?.memory.derivedMindStateBundle ?? null)
+    if (bundleProjection)
+      return bundleProjection as AlicizationPersonStateProjection
     if (runtimeSurface?.memory.personStateProjection)
       return runtimeSurface.memory.personStateProjection
 

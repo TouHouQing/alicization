@@ -1,162 +1,74 @@
 import type {
   AlicizationEpisodicEventRecord,
-  AlicizationHostPersonModelSnapshot,
-  AlicizationMemoryStats,
   AlicizationMemoryRecollectionMode,
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
-  CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
+import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
+import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type {
+  CreateAlicizationOrganicMemoryPromptRuntimeOptions,
+  MemoryClusterProbe,
+  MemoryClusterState,
+  MemoryDeliberationSnapshot,
+  RecollectionIntentSnapshot,
+  RecollectionPlanSnapshot,
+} from './runtime-organic-memory-prompt-types'
 
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
-import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
-import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
-import { formatMemoryProvenanceLabel } from './humanlike-memory'
 import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
-import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
+import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
+import { resolveOrganicMemoryRecollectionPlanningStage } from './memory-recollection-planning'
 import { planAlicizationRecall } from './recall-planner'
-import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
 import {
   type AlicizationRelationshipLineCandidate,
   resolveMemorySearchPrelude,
   runReconstructionAmbiguityRetrievalPass,
   retrieveMemorySearchCandidates,
 } from './memory-search-retrieval-operators'
+import type { AlicizationOrganicMemoryRuntimeStage } from './memory-retrieval-telemetry'
+import { buildOrganicMemorySystemBlocks as buildOrganicMemoryPromptBlocks } from './runtime-organic-memory-prompt-blocks'
+import { deriveSceneTriggeredRecollectionIntent, sanitizeOrganicMemoryText } from './runtime-organic-memory-search-prelude'
+import {
+  buildPerformanceManifestSystemBlocks as buildPerformanceManifestBlocks,
+  buildProactiveRecallSeed as buildOrganicMemoryProactiveRecallSeed,
+  tuneOrganicMemoryPromptContextForExecutiveTurn as tuneExecutiveOrganicMemoryPromptContext,
+} from './runtime-organic-memory-surface-planning'
+import { buildOrganicMemoryEvolutionState } from './runtime-organic-memory-self-evolution-integration'
 
-export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
-  normalizeOrganicRecallText: (raw: string) => string
-  selectPromptActiveThoughts: (input: {
-    activeThoughts: OrganicMemoryPromptContext['activeThoughts']
-    recallSeed: string
-    recalledFragments: OrganicMemoryPromptContext['recalledFragments']
-  }) => OrganicMemoryPromptContext['activeThoughts']
-  getOrganicMemorySnapshot: () => Promise<{
-    hostAttitude: string
-    coreIncarnation: string
-    activeThoughts: OrganicMemoryPromptContext['activeThoughts']
-  }>
-  getLatestRelationshipDynamics: () => Promise<OrganicMemoryPromptContext['relationshipDynamics']>
-  retrieveMemoryFacts: (recallSeed: string, limit: number) => Promise<OrganicMemoryPromptContext['retrievedFacts']>
-  recallSubconsciousFragmentsWithGovernor: (input: {
-    text: string
-    recalledFragmentCap?: number
-    recalledFragmentSourceBudget?: AlicizationRecallGovernorSnapshot['recalledFragmentSourceBudget']
-  }) => Promise<OrganicMemoryPromptContext['recalledFragments']>
-  recallEpisodicEventsWithGovernor: (input: {
-    recallSeed: string
-    sessionId?: string | null
-    turnId?: string | null
-    recallGovernor?: AlicizationRecallGovernorSnapshot | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-  }) => Promise<AlicizationEpisodicEventRecord[]>
-  buildHostPersonModel: (input?: {
-    now?: number
-  }) => Promise<AlicizationHostPersonModelSnapshot | null>
-  getMemoryStats?: () => Promise<AlicizationMemoryStats | null>
-  getMemoryTuningAdvice?: () => Promise<AlicizationMemoryTuningAdvice | null>
-  getPersonStateEvolutionSummary?: () => Promise<AlicizationPersonStateEvolutionSummary | null>
-  recallConversationHistory: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-  }) => Promise<Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
-    createdAt: number
-  }>>
-  recallMemoryConsolidations: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-  }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
-  planRecollectionIntent?: (input: {
-    recallSeed: string
-    heuristicIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
-    recallGovernor?: AlicizationRecallGovernorSnapshot | null
-    hostAttitude: string
-    activeThoughts: OrganicMemoryPromptContext['activeThoughts']
-    hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-    relationshipDynamics?: OrganicMemoryPromptContext['relationshipDynamics']
-  }) => Promise<OrganicMemoryPromptContext['recollectionIntent'] | null>
-  planMemoryRecollection?: (input: {
-    recallSeed: string
-    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
-    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
-    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
-    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
-    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
-  }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>
-  planRecollectionSpeech?: (input: {
-    recallSeed: string
-    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
-    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
-    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
-    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
-    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
-    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
-  }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>
-  planMemoryDeliberation?: (input: {
-    recallSeed: string
-    recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
-    recollectionPlan: NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null
-    recollectionSpeechPlan: NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null
-    consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
-    recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
-    proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
-    recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
-  }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>
-  isPersonaResidueMemoryText: (text: string) => boolean
-  recordMemoryCandidateGenerationLatency?: (latencyMs: number) => Promise<void>
-  recordMemoryPlannerLatency?: (latencyMs: number) => Promise<void>
-  recordMemorySpeechPlanLatency?: (latencyMs: number) => Promise<void>
-}
+export type { CreateAlicizationOrganicMemoryPromptRuntimeOptions } from './runtime-organic-memory-prompt-types'
 
-type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
-type RecollectionPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
-type MemoryDeliberationSnapshot = NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
-
-type MemoryClusterProbe = {
-  id: string
-  kind: 'consolidation' | 'window' | 'procedure' | 'episode' | 'conversation'
-  clusterKey: string
-  clusterSummary: string
-  text: string
-}
-
-type MemoryClusterState = {
-  dominantClusterKey: string | null
-  dominantSummary: string | null
-  dominantScore: number
-  runnerUpClusterKey: string | null
-  runnerUpSummary: string | null
-  runnerUpScore: number
-  strongDominant: boolean
-  ambiguous: boolean
-  clusterScoreByKey: Map<string, number>
-  competingVariants: Array<{
-    id: string
+function buildOrganicMemoryStageReplaySnapshot(input: {
+  producedAt: number
+  stages: Array<{
+    stage: AlicizationOrganicMemoryRuntimeStage
     summary: string
-    reason: string
+    latencyMs: number | null
+    budgetClass: AlicizationMemoryRetrievalBudgetClass | null
+    inputs?: string[]
+    outputs?: string[]
+    diagnostics?: string[]
   }>
-}
-
-function sanitizeOrganicMemoryText(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
+}): AlicizationOrganicMemoryStageReplay {
+  return {
+    version: 'organic-memory-stage-replay-v1',
+    producedAt: input.producedAt,
+    stages: input.stages.map(stage => ({
+      stage: stage.stage,
+      summary: sanitizeOrganicMemoryText(stage.summary, 220),
+      latencyMs: stage.latencyMs == null ? null : Math.max(0, stage.latencyMs),
+      budgetClass: stage.budgetClass,
+      inputs: (stage.inputs ?? []).map(item => sanitizeOrganicMemoryText(item, 180)).filter(Boolean).slice(0, 8),
+      outputs: (stage.outputs ?? []).map(item => sanitizeOrganicMemoryText(item, 180)).filter(Boolean).slice(0, 8),
+      diagnostics: (stage.diagnostics ?? []).map(item => sanitizeOrganicMemoryText(item, 200)).filter(Boolean).slice(0, 8),
+    })),
+  }
 }
 
 function rankByBenchmarkTuningBias<T>(input: {
@@ -265,23 +177,49 @@ function deriveMemoryFollowUpAffordance(input: {
   } satisfies NonNullable<MemoryDeliberationSnapshot['followUpAffordance']>
 }
 
-function deriveKnowledgeEvidence(input: {
-  retrievedFacts: OrganicMemoryPromptContext['retrievedFacts']
-  proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+function buildMemoryResolutionLedger(input: {
+  producedAt: number
+  clusterState: MemoryClusterState
+  finalMemoryDeliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null
+  finalRecollectionPlan: OrganicMemoryPromptContext['recollectionPlan'] | null
 }) {
-  const validationCount = input.retrievedFacts.reduce((sum, fact) => sum + Math.max(0, fact.validationCount ?? 0), 0)
-  const contradictionCount = input.retrievedFacts.reduce((sum, fact) => sum + Math.max(0, fact.contradictionCount ?? 0), 0)
-  const stronglyValidatedProcedureCount = input.retrievedFacts.filter(fact =>
-    fact.predicate.toLowerCase().includes('procedure')
-    && ((fact.validationCount ?? 0) >= 2 || fact.knowledgeStage === 'internalized-long-horizon-knowledge'),
-  ).length + input.proceduralMemories.filter(item => item.confidence >= 0.84).length
-  const contradictionHeavyFactCount = input.retrievedFacts.filter(fact => (fact.contradictionCount ?? 0) >= 2).length
+  const candidates: AlicizationMemoryResolutionLedger['candidates'] = [
+    ...(input.clusterState.dominantClusterKey
+      ? [{
+          id: `cluster:${input.clusterState.dominantClusterKey}`,
+          summary: input.clusterState.dominantSummary ?? '',
+          score: input.clusterState.dominantScore,
+          status: 'selected' as const,
+          reason: input.finalMemoryDeliberation?.whyNow ?? input.finalRecollectionPlan?.rationale ?? null,
+        }]
+      : []),
+    ...input.clusterState.competingVariants.map(item => ({
+      id: item.id,
+      summary: item.summary,
+      score: input.clusterState.runnerUpClusterKey && item.id === `cluster:${input.clusterState.runnerUpClusterKey}`
+        ? input.clusterState.runnerUpScore
+        : null,
+      status: 'rejected' as const,
+      reason: item.reason,
+    })),
+  ]
+
   return {
-    validationCount,
-    contradictionCount,
-    stronglyValidatedProcedureCount,
-    contradictionHeavyFactCount,
-  }
+    version: 'memory-resolution-ledger-v1',
+    producedAt: input.producedAt,
+    dominantClusterId: input.clusterState.dominantClusterKey ? `cluster:${input.clusterState.dominantClusterKey}` : null,
+    dominantClusterSummary: input.clusterState.dominantSummary ?? null,
+    competingClusterId: input.clusterState.runnerUpClusterKey ? `cluster:${input.clusterState.runnerUpClusterKey}` : null,
+    competingClusterSummary: input.clusterState.runnerUpSummary ?? null,
+    candidates,
+    selectedCandidates: candidates.filter(item => item.status === 'selected'),
+    rejectedCandidates: candidates.filter(item => item.status === 'rejected'),
+    finalSurfacePolicy: input.finalMemoryDeliberation?.surfacePolicy ?? null,
+    shouldStayInward: input.finalMemoryDeliberation?.surfacePolicy === 'internal-only',
+    shouldDelayUntilAfterPayoff: input.finalMemoryDeliberation?.followUpAffordance?.preferredTiming === 'after-payoff',
+    stableCoreOnly: (input.finalMemoryDeliberation?.unsafeDetails?.length ?? 0) > 0 || (input.finalMemoryDeliberation?.stableCore?.length ?? 0) > 0,
+    finalRationale: input.finalMemoryDeliberation?.whyNow ?? input.finalRecollectionPlan?.rationale ?? null,
+  } satisfies AlicizationMemoryResolutionLedger
 }
 
 export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlicizationOrganicMemoryPromptRuntimeOptions) {
@@ -307,6 +245,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recordMemoryCandidateGenerationLatency,
     recordMemoryPlannerLatency,
     recordMemorySpeechPlanLatency,
+    recordOrganicMemoryStageLatency,
+    recordOrganicMemoryStageBudget,
   } = options
 
   function countRecallTermOverlap(base: string, candidate: string) {
@@ -331,6 +271,20 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         overlap += 1
     }
     return overlap / candidateTerms.size
+  }
+
+  function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptContext) {
+    const startedAt = Date.now()
+    const blocks = buildOrganicMemoryPromptBlocks(context)
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'prompt-blocks',
+      budgetClass: 'realtime-reply',
+    }).catch(() => {})
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'prompt-blocks',
+      latencyMs: Date.now() - startedAt,
+    }).catch(() => {})
+    return blocks
   }
 
   function deriveAffectiveEmbodiedCarry(input: {
@@ -1778,689 +1732,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     }
   }
 
-  function deriveSceneTriggeredRecollectionIntent(input: {
-    recallSeed: string
-    recalledEpisodes: AlicizationEpisodicEventRecord[]
-  }): OrganicMemoryPromptContext['recollectionIntent'] | null {
-    const lead = input.recalledEpisodes[0] ?? null
-    if (!lead)
-      return null
-
-    const familiarity = Math.max(lead.sceneAttachment ?? 0, Math.min(1, (lead.recallCount ?? 0) / 4))
-    const provenance = lead.latestReconsolidation?.provenance ?? lead.provenance
-    if (familiarity < 0.44 && provenance !== 'remembered' && provenance !== 'observed')
-      return null
-
-    const leadText = [
-      lead.threadAnchor,
-      lead.whereSummary,
-      lead.whatHappened,
-      lead.relationshipMeaning,
-      lead.lesson,
-      ...(lead.tags ?? []),
-      ...(lead.emotionTags ?? []),
-    ].filter(Boolean).join(' ').toLowerCase()
-    const relationshipTriggered = /relationship|bond|closeness|space|boundary|repair|tone|回应|关系|靠近|空间|边界|修复/u.test(leadText)
-    const procedureTriggered = /runtime|procedure|patch|verify|task|execution|workflow|步骤|执行|修复/u.test(leadText)
-
-    return {
-      mode: relationshipTriggered
-        ? 'relationship-history'
-        : procedureTriggered
-          ? 'experience-pattern'
-          : 'autobiographical-history',
-      temporalFocus: 'experience-matched',
-      searchEpisodes: true,
-      searchConversations: false,
-      searchProceduralExperience: procedureTriggered,
-      queryHints: uniqueList([
-        lead.threadAnchor,
-        lead.relationshipMeaning,
-        lead.lesson,
-        ...(lead.tags ?? []),
-      ], 6),
-      rationale: sanitizePromptText(
-        relationshipTriggered
-          ? 'The current scene naturally tugs on a familiar relationship pattern even without an explicit retrospective question.'
-          : procedureTriggered
-            ? 'The current scene naturally tugs on a familiar way of handling this same kind of task.'
-            : 'The current scene naturally tugs on a familiar remembered pattern.',
-        220,
-      ),
-      confidence: clamp01(0.42 + familiarity * 0.32 + (provenance === 'remembered' || provenance === 'observed' ? 0.12 : 0)),
-      recollectionAgenda: {
-        whyRecallNow: relationshipTriggered
-          ? 'The current scene feels like an earlier relationship phase, so bond continuity is worth recalling.'
-          : procedureTriggered
-            ? 'The current scene feels like an earlier task pattern, so remembered procedure continuity is worth recalling.'
-            : 'The current scene feels familiar enough to open a remembered autobiographical lane.',
-        goalSimilarity: clamp01(procedureTriggered ? 0.52 + familiarity * 0.28 : familiarity * 0.3),
-        relationshipNeed: clamp01(relationshipTriggered ? 0.48 + familiarity * 0.24 : familiarity * 0.18),
-        affectivePull: clamp01(familiarity * 0.34 + ((lead.emotionTags ?? []).length > 0 ? 0.12 : 0)),
-        sceneFamiliarity: clamp01(familiarity),
-        candidateTimeScopes: [
-          {
-            scope: 'experience-matched',
-            weight: clamp01(0.46 + familiarity * 0.22),
-            rationale: 'The scene matches a remembered pattern more than a fixed timestamp.',
-          },
-          {
-            scope: 'recent-or-mid',
-            weight: clamp01(0.28 + familiarity * 0.16),
-            rationale: 'Start from a plausible remembered period before expanding farther out.',
-          },
-        ],
-        candidateEraFacets: [
-          {
-            facet: relationshipTriggered ? 'relationship-era' : procedureTriggered ? 'task-era' : 'self-era',
-            weight: clamp01(0.54 + familiarity * 0.2),
-            rationale: 'The scene is pulling toward this remembered kind of period first.',
-          },
-          {
-            facet: 'window',
-            weight: clamp01(0.26 + familiarity * 0.14),
-            rationale: 'A period window can safely anchor the recall before exact detail.',
-          },
-        ],
-        candidateProcedureLines: uniqueList([
-          lead.threadAnchor,
-          lead.lesson,
-          lead.relationshipMeaning,
-          ...(lead.tags ?? []),
-        ], 4),
-        uncertaintyTolerance: provenance === 'remembered' || provenance === 'observed' ? 'medium' : 'low',
-      },
-    }
-  }
-
-  function buildProactiveRecallSeed(input: {
-    foregroundWindow?: {
-      appName?: string
-      processName?: string
-      title?: string
-    }
-    phantomSeed?: string
-  }) {
-    return [
-      normalizeOrganicRecallText(input.foregroundWindow?.appName ?? ''),
-      normalizeOrganicRecallText(input.foregroundWindow?.processName ?? ''),
-      normalizeOrganicRecallText(input.foregroundWindow?.title ?? ''),
-      normalizeOrganicRecallText(input.phantomSeed ?? ''),
-    ].filter(Boolean).join(' | ')
-  }
-
-  function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptContext) {
-    const blocks: string[] = []
-    const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
-      deliberation: context.memoryDeliberation ?? null,
-      speech: context.recollectionSpeechPlan ?? null,
-      recollectionIntent: context.recollectionIntent ?? null,
-      knowledgeEvidence: context.knowledgeEvidence ?? null,
-    })
-    if (context.hostAttitude) {
-      blocks.push([
-        '[ALICIZATION_HOST_ATTITUDE]',
-        `当前关系态度：${context.hostAttitude}`,
-      ].join('\n'))
-    }
-
-    if (context.coreIncarnation) {
-      blocks.push([
-        '[ALICIZATION_CORE_INCARNATION]',
-        '这是你当前的摇光心意。它是你理解宿主、理解自己、理解关系的灵魂基底。',
-        context.coreIncarnation,
-      ].join('\n'))
-    }
-
-    if (context.retrievedFacts.length > 0) {
-      blocks.push([
-        '[ALICIZATION_FACT_LEDGER]',
-        'These semantic memory facts are durable carry-over context, not proof of the current scene.',
-        'If you reuse them, present them as memory, continuity, or previously learned truth rather than fresh observation.',
-        ...context.retrievedFacts.map((fact) => {
-          return `- ${fact.subject} ${fact.predicate} ${fact.object} | tier=${fact.memoryTier ?? 'warm'} | confidence=${fact.confidence.toFixed(2)} | source=${fact.source} | provenance=${formatMemoryProvenanceLabel(fact.provenance ?? 'remembered')}`
-        }),
-      ].join('\n'))
-    }
-
-    if (context.activeThoughts.length > 0) {
-      blocks.push([
-        '[ALICIZATION_ACTIVE_THOUGHTS]',
-        'These are background continuity residues. Reuse them only when they truly match the current living focus.',
-        'They are unresolved threads, not speech-style instructions.',
-        '以下是你最近仍在持续关注的活跃思绪：',
-        ...context.activeThoughts.map(item => `- ${item.text}`),
-      ].join('\n'))
-    }
-
-    if (context.recalledFragments.length > 0) {
-      const autobiographicalEpisodes = context.recalledFragments.filter(item => item.sourceKind === 'autobiographical-episode')
-      const otherFragments = context.recalledFragments.filter(item => item.sourceKind !== 'autobiographical-episode')
-      if (autobiographicalEpisodes.length > 0) {
-        blocks.push([
-          '[ALICIZATION_AUTOBIOGRAPHICAL_EPISODES]',
-          'These are remembered autobiographical episodes: things Alicization went through that changed how she understands herself or the bond.',
-          'Reuse them as lived history or self continuity, never as fresh scene proof.',
-          ...autobiographicalEpisodes.map(item => `[自传回想：${JSON.stringify({
-            sourceKind: item.sourceKind,
-            text: item.text,
-            provenance: formatMemoryProvenanceLabel(item.provenance ?? 'remembered'),
-          })}]`),
-        ].join('\n'))
-      }
-
-      if (otherFragments.length > 0) {
-        blocks.push([
-          '[ALICIZATION_ASSOCIATIVE_RECALL]',
-          'These recalled fragments are secondary to the present scene and must never override fresh grounding.',
-          ...otherFragments.map(item => `[触景生情：你隐约回想起了过去的某件事 -> ${JSON.stringify({
-            sourceKind: item.sourceKind,
-            text: item.text,
-            provenance: formatMemoryProvenanceLabel(item.provenance ?? 'remembered'),
-          })}]`),
-        ].join('\n'))
-      }
-    }
-
-    if ((context.recalledEpisodes ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_EVENT_GRAPH_RECALL]',
-        'These are structured autobiographical events, not loose fragments. Treat them as lived history with explicit provenance.',
-        'Observed/remembered events may support continuity. Dreamt/inferred/reconstructed events must be labeled as such if surfaced.',
-        ...(context.recalledEpisodes ?? []).map((event) => {
-          const provenance = event.latestReconsolidation?.provenance ?? event.provenance
-          return `- when=${new Date(event.occurredAt).toISOString()} | where=${event.whereSummary ?? 'unspecified'} | with=${event.withWhom.join(', ') || 'host'} | tier=${event.memoryTier ?? 'warm'} | what=${event.whatHappened} | felt=${event.felt ?? 'n/a'} | changed=${event.whatChanged ?? 'n/a'} | source=${event.sourceKind} | provenance=${formatMemoryProvenanceLabel(provenance)} | confidence=${event.confidence.toFixed(2)}`
-        }),
-      ].join('\n'))
-    }
-
-    if ((context.recalledConversationHistory ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_DEEP_CONVERSATION_RECALL]',
-        'These are older conversation excerpts reconstructed from long-range history search.',
-        'Use them when the host explicitly asks what we talked about before. Present them as recalled conversation history, not perfect verbatim certainty.',
-        ...(context.recalledConversationHistory ?? []).map((item) => {
-          return `- when=${new Date(item.createdAt).toISOString()} | session=${item.sessionId} | provenance=reconstructed | host=${item.userText || 'n/a'} | me=${item.assistantText || 'n/a'}`
-        }),
-      ].join('\n'))
-    }
-
-    if ((context.consolidatedMemories ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_CONSOLIDATED_MEMORY]',
-        'These are consolidated autobiographical summaries distilled from repeated events over time.',
-        'Prefer starting from one of these summaries before unpacking raw memory pieces.',
-        ...(context.consolidatedMemories ?? []).map((item) => {
-          return `- kind=${item.kind} | facet=${item.facet ?? 'none'} | period=${item.periodKey} | tier=${item.memoryTier ?? 'warm'} | confidence=${item.confidence.toFixed(2)} | provenance=${item.dominantProvenance} | summary=${item.summary} | lesson=${item.lesson ?? 'none'} | cues=${item.cues.join(' ; ')}`
-        }),
-      ].join('\n'))
-    }
-
-    if ((context.recollectedWindows ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_RECOLLECTED_PERIODS]',
-        'These are the memory periods the mind is currently drifting toward before speaking.',
-        'Think from the recalled period first, then pull details from its cues, instead of listing unrelated fragments.',
-        ...(context.recollectedWindows ?? []).map((window) => {
-          return `- period=${window.label} | when=${new Date(window.startedAt).toISOString()}..${new Date(window.endedAt).toISOString()} | confidence=${window.confidence.toFixed(2)} | provenance=${window.dominantProvenance} | summary=${window.summary} | cues=${window.cues.join(' ; ')}`
-        }),
-      ].join('\n'))
-    }
-
-    if ((context.recollectionNarratives ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_RECOLLECTION_NARRATIVES]',
-        'These are gist-first recall surfaces. Start from one of them before unpacking details, like a human first remembering the period and only then the fragments.',
-        ...(context.recollectionNarratives ?? []).map((item) => {
-          return `- mode=${item.mode} | certainty=${item.certainty} | confidence=${item.confidence.toFixed(2)} | cues=${item.supportCues.join(' ; ')}`
-        }),
-      ].join('\n'))
-    }
-
-    if (context.recollectionPlan) {
-      blocks.push([
-        '[ALICIZATION_RECOLLECTION_PLAN]',
-        'This is the mind-selected recollection foreground for the current turn.',
-        `certainty=${context.recollectionPlan.certainty}`,
-        `confidence=${context.recollectionPlan.confidence.toFixed(2)}`,
-        `rationale=${context.recollectionPlan.rationale}`,
-        (context.recollectionPlan.selectedRelationshipLines?.length ?? 0) > 0
-          ? `selected_relationship_lines=${(context.recollectionPlan.selectedRelationshipLines ?? []).join(' | ')}`
-          : '',
-        context.recollectionPlan.searchTrace
-          ? `search_first_hop=${context.recollectionPlan.searchTrace.firstHop.focus}:${context.recollectionPlan.searchTrace.firstHop.summary}`
-          : '',
-        context.recollectionPlan.searchTrace
-          ? `search_second_hop=${context.recollectionPlan.searchTrace.secondHop.action}:${context.recollectionPlan.searchTrace.secondHop.evidenceGap}:${context.recollectionPlan.searchTrace.secondHop.summary}`
-          : '',
-        context.recollectionPlan.searchTrace
-          ? `search_third_hop=${context.recollectionPlan.searchTrace.thirdHop.ambiguityPosture}:${context.recollectionPlan.searchTrace.thirdHop.summary}`
-          : '',
-      ].join('\n'))
-    }
-
-    if (context.recollectionSpeechPlan) {
-      const speechControls = deliberationKernel?.speechControls ?? deriveRecollectionSurfaceControls(context.recollectionSpeechPlan)
-      blocks.push([
-        '[ALICIZATION_RECOLLECTION_SPEECH_PLAN]',
-        'This block governs how recollection should shape the visible reply.',
-        'It is not a fixed template and must not be copied verbatim. Internalize the control state, then answer naturally.',
-        `should_surface=${context.recollectionSpeechPlan.shouldSurface ? 'yes' : 'no'}`,
-        `surface_mode=${context.recollectionSpeechPlan.surfaceMode}`,
-        `placement=${context.recollectionSpeechPlan.placement}`,
-        `certainty=${context.recollectionSpeechPlan.certainty}`,
-        `confidence=${context.recollectionSpeechPlan.confidence.toFixed(2)}`,
-        speechControls ? `visibility=${speechControls.visibility}` : '',
-        speechControls ? `continuity_role=${speechControls.continuityRole}` : '',
-        speechControls ? `template_boundary=${speechControls.templateBoundary}` : '',
-        context.recollectionSpeechPlan.shouldSurface
-          ? 'If recollection is surfaced, keep it brief and let it serve the current payoff rather than replacing it.'
-          : 'Let recollection stay as inward pressure unless surfacing it is truly needed for the current answer.',
-      ].filter(Boolean).join('\n'))
-    }
-
-    if (context.memoryDeliberation) {
-      blocks.push([
-        '[ALICIZATION_MEMORY_DELIBERATION]',
-        'This is the final internal memory decision for the current turn. It outranks heuristic recall cues and candidate recollection plans.',
-        'Internalize it as mind-state, not as a visible template.',
-        `should_recall=${deliberationKernel?.shouldRecall ? 'yes' : 'no'}`,
-        `surface_policy=${deliberationKernel?.surfacePolicy ?? context.memoryDeliberation.surfacePolicy}`,
-        `confidence=${context.memoryDeliberation.confidence.toFixed(2)}`,
-        `why_now=${deliberationKernel?.rationale ?? context.memoryDeliberation.whyNow}`,
-        deliberationKernel?.whyWithheld
-          ? `why_withheld=${deliberationKernel.whyWithheld}`
-          : '',
-        deliberationKernel?.followUpAffordance?.summary
-          ? `follow_up_affordance=${deliberationKernel.followUpAffordance.summary}`
-          : '',
-        deliberationKernel?.followUpAffordance?.whyNow
-          ? `follow_up_why_now=${deliberationKernel.followUpAffordance.whyNow}`
-          : '',
-        deliberationKernel?.followUpAffordance?.intrusionRisk
-          ? `follow_up_intrusion_risk=${deliberationKernel.followUpAffordance.intrusionRisk}`
-          : '',
-        deliberationKernel?.followUpAffordance?.payoffDependency
-          ? `follow_up_payoff_dependency=${deliberationKernel.followUpAffordance.payoffDependency}`
-          : '',
-        deliberationKernel?.followUpAffordance?.preferredTiming
-          ? `follow_up_preferred_timing=${deliberationKernel.followUpAffordance.preferredTiming}`
-          : '',
-        context.memoryDeliberation.ambiguityPosture
-          ? `ambiguity_posture=${context.memoryDeliberation.ambiguityPosture}`
-          : '',
-        context.memoryDeliberation.conflictSeverity && context.memoryDeliberation.conflictSeverity !== 'none'
-          ? `conflict_severity=${context.memoryDeliberation.conflictSeverity}`
-          : '',
-        (context.memoryDeliberation.conflictVariants?.length ?? 0) > 0
-          ? `conflict_variants=${(context.memoryDeliberation.conflictVariants ?? []).map(item => `${item.provenance}:${item.summary}`).join(' | ')}`
-          : '',
-        (deliberationKernel?.stableCore.length ?? 0) > 0
-          ? `stable_core=${(deliberationKernel?.stableCore ?? []).join(' | ')}`
-          : '',
-        (deliberationKernel?.unsafeDetails.length ?? 0) > 0
-          ? `unsafe_details=${(deliberationKernel?.unsafeDetails ?? []).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedEras.length > 0
-          ? `selected_eras=${context.memoryDeliberation.selectedEras.map(item => `${item.facet}:${item.summary}`).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedPeriods.length > 0
-          ? `selected_periods=${context.memoryDeliberation.selectedPeriods.map(item => `${item.kind}:${item.summary}`).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedEpisodes.length > 0
-          ? `selected_episodes=${context.memoryDeliberation.selectedEpisodes.map(item => `${item.provenance}:${item.summary}`).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedProcedures.length > 0
-          ? `selected_procedures=${context.memoryDeliberation.selectedProcedures.map(item => `${item.label}:${item.approach}`).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedBundles.length > 0
-          ? `selected_bundles=${context.memoryDeliberation.selectedBundles.map(item => `${item.id}:${item.summary}`).join(' | ')}`
-          : '',
-        context.memoryDeliberation.selectedChains.length > 0
-          ? `selected_chains=${context.memoryDeliberation.selectedChains.map(item => `${item.kind}:${item.summary}`).join(' | ')}`
-          : '',
-        deliberationKernel?.selectedRelationshipSummary
-          ? `selected_relationship_lines=${deliberationKernel.selectedRelationshipSummary}`
-          : '',
-        context.memoryDeliberation.searchTrace
-          ? `search_first_hop=${context.memoryDeliberation.searchTrace.firstHop.focus}:${context.memoryDeliberation.searchTrace.firstHop.summary}`
-          : '',
-        context.memoryDeliberation.searchTrace
-          ? `search_second_hop=${context.memoryDeliberation.searchTrace.secondHop.action}:${context.memoryDeliberation.searchTrace.secondHop.evidenceGap}:${context.memoryDeliberation.searchTrace.secondHop.summary}`
-          : '',
-        context.memoryDeliberation.searchTrace
-          ? `search_third_hop=${context.memoryDeliberation.searchTrace.thirdHop.ambiguityPosture}:${context.memoryDeliberation.searchTrace.thirdHop.summary}`
-          : '',
-      ].filter(Boolean).join('\n'))
-    }
-
-    if ((context.proceduralMemories ?? []).length > 0) {
-      blocks.push([
-        '[ALICIZATION_PROCEDURAL_MEMORY]',
-        'These are remembered ways Alicization has handled similar tasks or situations before.',
-        'Reuse them as past approach memory, not as a claim that the current task is already solved.',
-        ...(context.proceduralMemories ?? []).map((item) => {
-          return `- label=${item.label} | confidence=${item.confidence.toFixed(2)} | approach=${item.approach} | pitfalls=${item.pitfalls.join(' ; ') || 'none'} | cues=${item.cues.join(' ; ')}`
-        }),
-      ].join('\n'))
-    }
-
-    if (context.hostPersonModel) {
-      blocks.push([
-        '[ALICIZATION_HOST_PERSON_MODEL]',
-        'This is the long-horizon host model derived from repeated autobiographical episodes.',
-        'Use it as relational memory, not as proof of the current moment.',
-        context.hostPersonModel.summary
-          ? `summary=${context.hostPersonModel.summary}`
-          : '',
-        `trust_ladder=${context.hostPersonModel.trustLadder.stage} (${context.hostPersonModel.trustLadder.score.toFixed(2)})`,
-        context.hostPersonModel.routines.length > 0
-          ? `routines=${context.hostPersonModel.routines.join(' ; ')}`
-          : '',
-        context.hostPersonModel.sensitivities.length > 0
-          ? `sensitivities=${context.hostPersonModel.sensitivities.join(' ; ')}`
-          : '',
-        context.hostPersonModel.repairTriggers.length > 0
-          ? `repair_triggers=${context.hostPersonModel.repairTriggers.join(' ; ')}`
-          : '',
-        context.hostPersonModel.preferredClosenessByContext.length > 0
-          ? `preferred_closeness=${context.hostPersonModel.preferredClosenessByContext.map(item => `${item.context}:${item.preference} (${item.confidence.toFixed(2)})`).join(' | ')}`
-          : '',
-        context.hostPersonModel.recurrentBurdens.length > 0
-          ? `recurrent_burdens=${context.hostPersonModel.recurrentBurdens.join(' ; ')}`
-          : '',
-      ].filter(Boolean).join('\n'))
-    }
-
-    if (context.personStateProjection) {
-      blocks.push([
-        '[ALICIZATION_PERSON_STATE_PROJECTION]',
-        'This is the single current person-state authority for distance, timing, and opening posture.',
-        'Let recollection selection and surface timing stay inside this projection instead of inventing a second relationship stance.',
-        `summary=${context.personStateProjection.summary}`,
-        `regime=${context.personStateProjection.personalityContinuityState.currentRegime}`,
-        `trust_stage=${context.personStateProjection.personalityContinuityState.trustStage}`,
-        `closeness_ladder=${context.personStateProjection.activeClosenessContext}/${context.personStateProjection.activeClosenessRung}`,
-        context.personStateProjection.relationshipPosture
-          ? `relationship_posture=${context.personStateProjection.relationshipPosture}`
-          : '',
-        context.personStateProjection.openingGuidance
-          ? `opening_guidance=${context.personStateProjection.openingGuidance}`
-          : '',
-        context.personStateProjection.preferenceText
-          ? `preference=${context.personStateProjection.preferenceText}`
-          : '',
-        context.personStateProjection.sensitivityText
-          ? `sensitivity=${context.personStateProjection.sensitivityText}`
-          : '',
-        context.personStateProjection.repairTriggerText
-          ? `repair_trigger=${context.personStateProjection.repairTriggerText}`
-          : '',
-        context.personStateProjection.burdenText
-          ? `burden=${context.personStateProjection.burdenText}`
-          : '',
-        context.personStateProjection.trustRationale
-          ? `trust_rationale=${context.personStateProjection.trustRationale}`
-          : '',
-      ].filter(Boolean).join('\n'))
-    }
-
-    if (context.selfEvolution) {
-      blocks.push([
-        '[ALICIZATION_SELF_EVOLUTION]',
-        'This is the current long-horizon self-evolution kernel synthesized from reflection, durable memory, and relationship growth.',
-        'Use it as live inner trajectory and learning pressure, not as a canned speech template.',
-        context.selfEvolution.summary
-          ? `summary=${context.selfEvolution.summary}`
-          : '',
-        context.selfEvolution.dominantTrajectory
-          ? `dominant_trajectory=${context.selfEvolution.dominantTrajectory}`
-          : '',
-        context.selfEvolution.relationshipDoctrine
-          ? `relationship_doctrine=${context.selfEvolution.relationshipDoctrine}`
-          : '',
-        context.selfEvolution.latestInflection
-          ? `latest_inflection=${context.selfEvolution.latestInflection}`
-          : '',
-        context.selfEvolution.burdenLine
-          ? `burden_line=${context.selfEvolution.burdenLine}`
-          : '',
-        context.selfEvolution.trustMeaning
-          ? `trust_meaning=${context.selfEvolution.trustMeaning}`
-          : '',
-        `evolution_momentum=${context.selfEvolution.evolutionMomentum.toFixed(2)}`,
-        `learning_readiness=${context.selfEvolution.learningReadiness.toFixed(2)}`,
-        `contradiction_pressure=${context.selfEvolution.contradictionPressure.toFixed(2)}`,
-        `revision_pressure=${context.selfEvolution.revisionPressure.toFixed(2)}`,
-        `autobiographical_stability=${context.selfEvolution.autobiographicalStability.toFixed(2)}`,
-        `next_learning_action=${context.selfEvolution.nextLearningAction}`,
-        context.selfEvolution.nextLearningReason
-          ? `next_learning_reason=${context.selfEvolution.nextLearningReason}`
-          : '',
-        context.selfEvolution.shouldRecord ? 'should_record=yes' : 'should_record=no',
-        context.selfEvolution.shouldReflect ? 'should_reflect=yes' : 'should_reflect=no',
-        context.selfEvolution.shouldVerify ? 'should_verify=yes' : 'should_verify=no',
-        context.selfEvolution.shouldRevise ? 'should_revise=yes' : 'should_revise=no',
-        context.selfEvolution.shouldInternalize ? 'should_internalize=yes' : 'should_internalize=no',
-        context.selfEvolution.activeLearningFocuses.length > 0
-          ? `active_learning_focuses=${context.selfEvolution.activeLearningFocuses.join(' | ')}`
-          : '',
-        context.selfEvolution.sourceSignals.length > 0
-          ? `source_signals=${context.selfEvolution.sourceSignals.join(' | ')}`
-          : '',
-      ].filter(Boolean).join('\n'))
-    }
-
-    const recallProvenances = Array.from(new Set([
-      ...context.retrievedFacts.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
-      ...context.recalledFragments.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
-      ...(context.recalledEpisodes ?? []).map(item => formatMemoryProvenanceLabel(item.latestReconsolidation?.provenance ?? item.provenance)),
-    ]))
-    if (context.recollectionIntent) {
-      const recollectionAgenda = context.recollectionIntent.recollectionAgenda ?? null
-      const blocksIntent = [
-        '[ALICIZATION_MEMORY_RECOLLECTION_INTENT]',
-        'Memory should enter because the mind decided this turn needs recollection, not because of a fixed date template.',
-        `mode=${context.recollectionIntent.mode}`,
-        `temporal_focus=${context.recollectionIntent.temporalFocus}`,
-        `confidence=${context.recollectionIntent.confidence.toFixed(2)}`,
-        `rationale=${context.recollectionIntent.rationale}`,
-        context.recollectionIntent.queryHints.length > 0
-          ? `query_hints=${context.recollectionIntent.queryHints.join(' | ')}`
-          : '',
-      ]
-      blocks.push(blocksIntent.filter(Boolean).join('\n'))
-      if (recollectionAgenda) {
-        blocks.push([
-          '[ALICIZATION_RECOLLECTION_AGENDA]',
-          'This is the mind-level recall agenda. Treat candidate time scopes and era facets as search priorities, not as rigid rules.',
-          `why_recall_now=${recollectionAgenda.whyRecallNow}`,
-          `goal_similarity=${recollectionAgenda.goalSimilarity.toFixed(2)}`,
-          `relationship_need=${recollectionAgenda.relationshipNeed.toFixed(2)}`,
-          `affective_pull=${recollectionAgenda.affectivePull.toFixed(2)}`,
-          `scene_familiarity=${recollectionAgenda.sceneFamiliarity.toFixed(2)}`,
-          `uncertainty_tolerance=${recollectionAgenda.uncertaintyTolerance}`,
-          recollectionAgenda.candidateTimeScopes.length > 0
-            ? `candidate_time_scopes=${recollectionAgenda.candidateTimeScopes.map(item => `${item.scope}:${item.weight.toFixed(2)}`).join(' | ')}`
-            : '',
-          recollectionAgenda.candidateEraFacets.length > 0
-            ? `candidate_era_facets=${recollectionAgenda.candidateEraFacets.map(item => `${item.facet}:${item.weight.toFixed(2)}`).join(' | ')}`
-            : '',
-          recollectionAgenda.candidateProcedureLines.length > 0
-            ? `candidate_procedure_lines=${recollectionAgenda.candidateProcedureLines.join(' | ')}`
-            : '',
-        ].filter(Boolean).join('\n'))
-      }
-    }
-    if (recallProvenances.length > 0) {
-      blocks.push([
-        '[ALICIZATION_MEMORY_PROVENANCE]',
-        'Every recalled item carries provenance and reply wording must respect it.',
-        'observed = something Alicization actually went through or directly witnessed.',
-        'remembered = durable continuity memory from earlier real interaction.',
-        'dreamt = dream-only material; never present it as real-world proof.',
-        'inferred = learned pattern or abstraction, not direct scene evidence.',
-        'reconstructed = partial or interference-prone recall; surface with uncertainty if used.',
-        `active_provenances=${recallProvenances.join(', ')}`,
-      ].join('\n'))
-    }
-
-    if (context.relationshipDynamics) {
-      const relationshipDynamics = context.relationshipDynamics
-      const signedDelta = (value: number) => {
-        const normalized = Number.isFinite(value) ? value : 0
-        return `${normalized >= 0 ? '+' : ''}${normalized.toFixed(2)}`
-      }
-      blocks.push([
-        '[ALICIZATION_RELATIONSHIP_DYNAMICS]',
-        '这是你最近一次关系动态代谢快照，优先用于保持关系连续性，不可覆盖当前轮次事实边界。',
-        `当前关系态势：${relationshipDynamics.hostAttitude}`,
-        relationshipDynamics.previousHostAttitude
-          ? `上一关系态势：${relationshipDynamics.previousHostAttitude}`
-          : '上一关系态势：无',
-        `人格漂移：obedience ${signedDelta(relationshipDynamics.obedienceDelta)}, liveliness ${signedDelta(relationshipDynamics.livelinessDelta)}, sensibility ${signedDelta(relationshipDynamics.sensibilityDelta)}`,
-        `来源：${relationshipDynamics.source}`,
-      ].join('\n'))
-    }
-
-    return blocks
-  }
-
-  function tuneOrganicMemoryPromptContextForExecutiveTurn(input: {
-    context: OrganicMemoryPromptContext
-    suppressAssociativeRecall: boolean
-    personaKernelMode: 'full' | 'backgrounded' | 'muted'
-    recallGovernor?: AlicizationRecallGovernorSnapshot | null
-  }) {
-    const allowActiveThoughts = input.recallGovernor?.allowActiveThoughts !== false
-    const allowRecalledFragments = input.recallGovernor?.allowRecalledFragments === true
-      && !input.suppressAssociativeRecall
-
-    if (
-      allowActiveThoughts
-      && allowRecalledFragments
-      && input.personaKernelMode === 'full'
-      && !input.suppressAssociativeRecall
-    ) {
-      return input.context
-    }
-
-    return {
-      ...input.context,
-      retrievedFacts: input.context.retrievedFacts.slice(
-        0,
-        input.personaKernelMode === 'muted'
-          ? 2
-          : input.personaKernelMode === 'backgrounded'
-            ? 3
-            : Math.max(1, input.context.retrievedFacts.length),
-      ),
-      activeThoughts: allowActiveThoughts
-        ? input.personaKernelMode === 'muted'
-          ? input.context.activeThoughts.slice(0, 2)
-          : input.context.activeThoughts
-        : [],
-      recalledFragments: allowRecalledFragments
-        ? input.context.recalledFragments.slice(
-            0,
-            input.personaKernelMode === 'backgrounded'
-              ? Math.max(1, Math.min(2, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))))
-              : Math.max(1, Math.floor(Number(input.recallGovernor?.recalledFragmentCap ?? 2))),
-          )
-        : [],
-      recalledEpisodes: allowRecalledFragments
-        ? (input.context.recalledEpisodes ?? []).slice(
-            0,
-            input.personaKernelMode === 'muted'
-              ? 1
-              : input.personaKernelMode === 'backgrounded'
-                ? 2
-              : 3,
-          )
-        : [],
-      recollectedWindows: allowRecalledFragments
-        ? (input.context.recollectedWindows ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-        : [],
-      consolidatedMemories: allowRecalledFragments
-        ? (input.context.consolidatedMemories ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-        : [],
-      recollectionNarratives: allowRecalledFragments
-        ? (input.context.recollectionNarratives ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-        : [],
-      recollectionPlan: allowRecalledFragments ? input.context.recollectionPlan ?? null : null,
-      recollectionSpeechPlan: allowRecalledFragments ? input.context.recollectionSpeechPlan ?? null : null,
-      memoryDeliberation: allowRecalledFragments ? input.context.memoryDeliberation ?? null : null,
-      proceduralMemories: allowRecalledFragments
-        ? (input.context.proceduralMemories ?? []).slice(0, input.personaKernelMode === 'muted' ? 1 : 2)
-        : [],
-    } satisfies OrganicMemoryPromptContext
-  }
-
-  function buildPerformanceManifestSystemBlocks(manifest: CharacterPerformanceCapabilitiesManifest | null) {
-    if (!manifest)
-      return []
-
-    const blocks = [
-      '[ALICIZATION_VESSEL_CAPABILITIES]',
-      `Current renderer: ${manifest.renderer}.`,
-      'Use baseEmotion only from the supported list below.',
-      'Use facialCue/actionCue only when the corresponding key is explicitly listed. If unsupported or unnecessary, keep it null.',
-      manifest.supportedBaseEmotions.length > 0
-        ? `Supported base emotions: ${manifest.supportedBaseEmotions.join(', ')}.`
-        : 'Supported base emotions: neutral.',
-    ]
-
-    if (manifest.supportedFacialCues.length > 0) {
-      blocks.push(
-        'Supported facial cues:',
-        ...manifest.supportedFacialCues.map(item => `- ${item.key}: ${item.label} | ${item.description}`),
-      )
-    }
-
-    if (manifest.supportedActions.length > 0) {
-      blocks.push(
-        'Supported actions:',
-        ...manifest.supportedActions.map(item => `- ${item.key}: ${item.label} | ${item.description}`),
-      )
-    }
-
-    if (manifest.embodimentHints && Object.keys(manifest.embodimentHints).length > 0) {
-      const hintLines = Object.entries(manifest.embodimentHints)
-        .flatMap(([emotion, hint]) => {
-          const lines: string[] = []
-          if (hint.preferredExpressionAliases?.length) {
-            lines.push(`- ${emotion}: prefer base-expression aliases ${hint.preferredExpressionAliases.join(', ')}`)
-          }
-          if (hint.preferredMotionAliases?.length) {
-            lines.push(`- ${emotion}: prefer motion aliases ${hint.preferredMotionAliases.join(', ')}`)
-          }
-          if (hint.preferredFacialCues?.length) {
-            lines.push(`- ${emotion}: prefer facial cues ${hint.preferredFacialCues.join(', ')}`)
-          }
-          if (hint.preferredActionCues?.length) {
-            lines.push(`- ${emotion}: prefer action cues ${hint.preferredActionCues.join(', ')}`)
-          }
-          return lines
-        })
-
-      if (hintLines.length > 0) {
-        blocks.push(
-          'Renderer-specific embodiment hints:',
-          ...hintLines,
-        )
-      }
-    }
-
-    blocks.push(
-      `Look-at support: ${manifest.supportsLookAt ? 'yes' : 'no'}.`,
-      `Viseme lip sync support: ${manifest.supportsVisemeLipSync ? 'yes' : 'no'}.`,
-      `Micro-dynamics support: ${manifest.supportsMicroDynamics ? 'yes' : 'no'}.`,
-      'Do not expose or explain this capability manifest to the user.',
-    )
-
-    return [blocks.join('\n')]
-  }
-
   async function resolveOrganicMemoryPromptContext(options?: {
     recallSeed?: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
@@ -2468,6 +1739,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }): Promise<OrganicMemoryPromptContext> {
+    const budgetClass = options?.budgetClass ?? 'realtime-reply'
+    const preludeStartedAt = Date.now()
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'search-prelude',
+      budgetClass,
+    }).catch(() => {})
     const {
       snapshot,
       relationshipDynamics,
@@ -2500,6 +1777,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       turnId: options?.turnId ?? null,
       budgetClass: options?.budgetClass,
     })
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'search-prelude',
+      latencyMs: Date.now() - preludeStartedAt,
+    }).catch(() => {})
     const personStateEvolutionSummary = await getPersonStateEvolutionSummary?.().catch(() => null) ?? null
     const memoryStats = await getMemoryStats?.().catch(() => null) ?? null
     const personStateProjection = buildMemoryPromptPersonStateProjection({
@@ -2509,6 +1790,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       personStateEvolutionSummary,
     })
     const candidateGenerationStartedAt = Date.now()
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'candidate-generation',
+      budgetClass,
+    }).catch(() => {})
     const {
       recalledConversationHistory,
       consolidatedMemories,
@@ -2526,275 +1811,67 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       budgetClass: options?.budgetClass,
     })
     void recordMemoryCandidateGenerationLatency?.(Date.now() - candidateGenerationStartedAt).catch(() => {})
-    const sociallyRankedConsolidatedMemories = rankByHostSocialAffinity({
-      items: consolidatedMemories,
-      toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'candidate-generation',
+      latencyMs: Date.now() - candidateGenerationStartedAt,
+    }).catch(() => {})
+    const candidateRankingStartedAt = Date.now()
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'candidate-ranking',
+      budgetClass,
+    }).catch(() => {})
+    const {
+      clusterState,
+      agendaRankedConsolidatedMemoriesClustered,
+      agendaRankedWindowsClustered,
+      agendaRankedProceduralMemories,
+      agendaRankedEpisodes,
+      agendaRankedConversationHistory,
+    } = rankOrganicMemoryCandidatesStage({
+      helpers: {
+        deriveMemoryClusterKey,
+        rankByHostSocialAffinity,
+        rankBySceneMoodEmbodiedCarry,
+        rankByBenchmarkTuningBias,
+        rankByRecollectionAgendaAffinity,
+        analyzeMemoryClusters,
+        rankByClusterDominance,
+      },
       recallSeed,
-      recollectionIntent: activeRecollectionIntent,
+      activeRecollectionIntent,
       hostPersonModel,
       personStateProjection,
       coreIncarnation: snapshot.coreIncarnation,
-    })
-    const carryRankedConsolidatedMemories = rankBySceneMoodEmbodiedCarry({
-      items: sociallyRankedConsolidatedMemories,
-      toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
+      memoryTuningAdvice,
       recallGovernor: options?.recallGovernor ?? null,
+      consolidatedMemories,
+      recollectedWindows,
+      proceduralMemories,
+      recalledEpisodes,
+      recalledConversationHistory,
     })
-    const agendaRankedConsolidatedMemories = rankByBenchmarkTuningBias({
-      items: rankByRecollectionAgendaAffinity({
-        items: carryRankedConsolidatedMemories,
-        recollectionIntent: activeRecollectionIntent,
-        toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
-        getFacet: item => item.facet ?? 'phase',
-        getAgeDays: item => Math.max(0, (Date.now() - item.periodEndedAt) / (24 * 60 * 60 * 1000)),
-      }),
-      tuningAdvice: memoryTuningAdvice,
-      mode: 'consolidation',
-      toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
-      getProvenance: item => item.dominantProvenance,
-    })
-    const sociallyRankedWindows = rankByHostSocialAffinity({
-      items: recollectedWindows,
-      toText: item => [item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'candidate-ranking',
+      latencyMs: Date.now() - candidateRankingStartedAt,
+    }).catch(() => {})
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'recollection-planning',
+      budgetClass,
+    }).catch(() => {})
+    const recollectionPlanningStartedAt = Date.now()
+    const {
+      recollectionPlan,
+      plannedConsolidatedMemories,
+      plannedWindows,
+      plannedProceduralMemories,
+      plannedEpisodes,
+      plannedConversationHistory,
+      recollectionNarratives,
+      recollectionSpeechPlan,
+      rawMemoryDeliberation,
+    } = await resolveOrganicMemoryRecollectionPlanningStage({
       recallSeed,
-      recollectionIntent: activeRecollectionIntent,
-      hostPersonModel,
-      personStateProjection,
-      coreIncarnation: snapshot.coreIncarnation,
-    })
-    const carryRankedWindows = rankBySceneMoodEmbodiedCarry({
-      items: sociallyRankedWindows,
-      toText: item => [item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      getSceneWeight: item => item.confidence,
-      recallGovernor: options?.recallGovernor ?? null,
-    })
-    const agendaRankedWindows = rankByBenchmarkTuningBias({
-      items: rankByRecollectionAgendaAffinity({
-        items: carryRankedWindows,
-        recollectionIntent: activeRecollectionIntent,
-        toText: item => [item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-        getFacet: () => 'window',
-        getAgeDays: item => Math.max(0, (Date.now() - item.endedAt) / (24 * 60 * 60 * 1000)),
-      }),
-      tuningAdvice: memoryTuningAdvice,
-      mode: 'window',
-      toText: item => [item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      getProvenance: item => item.dominantProvenance,
-    })
-    const sociallyRankedProceduralMemories = rankByHostSocialAffinity({
-      items: proceduralMemories,
-      toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      recallSeed,
-      recollectionIntent: activeRecollectionIntent,
-      hostPersonModel,
-      personStateProjection,
-      coreIncarnation: snapshot.coreIncarnation,
-    })
-    const carryRankedProceduralMemories = rankBySceneMoodEmbodiedCarry({
-      items: sociallyRankedProceduralMemories,
-      toText: item => [
-        item.label,
-        item.approach,
-        item.situation ?? '',
-        ...(item.steps ?? []),
-        ...(item.failurePoints ?? []),
-        ...(item.repairMoves ?? []),
-        item.result ?? '',
-        ...(item.cues ?? []),
-      ].filter(Boolean).join(' '),
-      recallGovernor: options?.recallGovernor ?? null,
-    })
-    const agendaRankedProceduralMemoriesBase = rankByBenchmarkTuningBias({
-      items: rankByRecollectionAgendaAffinity({
-        items: carryRankedProceduralMemories,
-        recollectionIntent: activeRecollectionIntent,
-        toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-      }),
-      tuningAdvice: memoryTuningAdvice,
-      mode: 'procedure',
-      toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-    })
-    const sociallyRankedEpisodes = rankByHostSocialAffinity({
-      items: recalledEpisodes,
-      toText: item => [
-        item.threadAnchor,
-        item.whereSummary,
-        item.whatHappened,
-        item.relationshipMeaning,
-        item.lesson,
-        ...(item.tags ?? []),
-      ].filter(Boolean).join(' '),
-      recallSeed,
-      recollectionIntent: activeRecollectionIntent,
-      hostPersonModel,
-      personStateProjection,
-      coreIncarnation: snapshot.coreIncarnation,
-    })
-    const carryRankedEpisodes = rankBySceneMoodEmbodiedCarry({
-      items: sociallyRankedEpisodes,
-      toText: item => [
-        item.threadAnchor,
-        item.whereSummary,
-        item.whatHappened,
-        item.felt,
-        item.relationshipMeaning,
-        item.lesson,
-        ...(item.tags ?? []),
-      ].filter(Boolean).join(' '),
-      getSceneWeight: item => item.sceneAttachment,
-      recallGovernor: options?.recallGovernor ?? null,
-    })
-    const agendaRankedEpisodesBase = rankByBenchmarkTuningBias({
-      items: rankByRecollectionAgendaAffinity({
-        items: carryRankedEpisodes,
-        recollectionIntent: activeRecollectionIntent,
-        toText: item => [
-          item.threadAnchor,
-          item.whereSummary,
-          item.whatHappened,
-          item.relationshipMeaning,
-          item.lesson,
-          ...(item.tags ?? []),
-        ].filter(Boolean).join(' '),
-        getAgeDays: item => Math.max(0, (Date.now() - item.occurredAt) / (24 * 60 * 60 * 1000)),
-      }),
-      tuningAdvice: memoryTuningAdvice,
-      mode: 'episode',
-      toText: item => [
-        item.threadAnchor,
-        item.whereSummary,
-        item.whatHappened,
-        item.relationshipMeaning,
-        item.lesson,
-        ...(item.tags ?? []),
-      ].filter(Boolean).join(' '),
-      getProvenance: item => item.latestReconsolidation?.provenance ?? item.provenance,
-    })
-    const carryRankedConversationHistory = rankBySceneMoodEmbodiedCarry({
-      items: recalledConversationHistory,
-      toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      recallGovernor: options?.recallGovernor ?? null,
-    })
-    const agendaRankedConversationHistoryBase = rankByBenchmarkTuningBias({
-      items: rankByRecollectionAgendaAffinity({
-        items: carryRankedConversationHistory,
-        recollectionIntent: activeRecollectionIntent,
-        toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-        getAgeDays: item => Math.max(0, (Date.now() - item.createdAt) / (24 * 60 * 60 * 1000)),
-      }),
-      tuningAdvice: memoryTuningAdvice,
-      mode: 'conversation',
-      toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      getProvenance: item => item.provenance,
-    })
-    const clusterState = analyzeMemoryClusters({
-      probes: [
-        ...agendaRankedConsolidatedMemories.slice(0, 4).map(item => ({
-          id: item.id,
-          kind: 'consolidation' as const,
-          clusterKey: deriveMemoryClusterKey([item.periodKey, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-          clusterSummary: item.summary,
-          text: [item.periodKey, item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
-        })),
-        ...agendaRankedWindows.slice(0, 4).map(item => ({
-          id: item.id,
-          kind: 'window' as const,
-          clusterKey: deriveMemoryClusterKey([item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-          clusterSummary: item.summary,
-          text: [item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-        })),
-        ...agendaRankedProceduralMemoriesBase.slice(0, 4).map(item => ({
-          id: item.id,
-          kind: 'procedure' as const,
-          clusterKey: deriveMemoryClusterKey([item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' ')),
-          clusterSummary: item.traceSummary ?? item.approach,
-          text: [
-            item.label,
-            item.approach,
-            item.situation ?? '',
-            ...(item.steps ?? []),
-            ...(item.failurePoints ?? []),
-            ...(item.repairMoves ?? []),
-            item.result ?? '',
-            ...(item.cues ?? []),
-          ].filter(Boolean).join(' '),
-        })),
-        ...agendaRankedEpisodesBase.slice(0, 4).map(item => ({
-          id: item.id,
-          kind: 'episode' as const,
-          clusterKey: deriveMemoryClusterKey([item.threadAnchor, item.sourceSummary, ...(item.tags ?? [])].filter(Boolean).join(' ')),
-          clusterSummary: item.whatHappened,
-          text: [
-            item.threadAnchor,
-            item.whereSummary,
-            item.whatHappened,
-            item.relationshipMeaning,
-            item.lesson,
-            item.sourceSummary,
-            ...(item.tags ?? []),
-          ].filter(Boolean).join(' '),
-        })),
-        ...agendaRankedConversationHistoryBase.slice(0, 4).map(item => ({
-          id: item.turnId ?? `${item.sessionId}:${item.createdAt}`,
-          kind: 'conversation' as const,
-          clusterKey: deriveMemoryClusterKey([item.userText, item.assistantText].filter(Boolean).join(' ')),
-          clusterSummary: [item.userText, item.assistantText].filter(Boolean).join(' | '),
-          text: [item.userText, item.assistantText].filter(Boolean).join(' '),
-        })),
-      ].filter(item => item.clusterKey),
-      recallSeed,
-      recollectionIntent: activeRecollectionIntent,
-      hostPersonModel,
-      personStateProjection,
-      coreIncarnation: snapshot.coreIncarnation,
-      recallGovernor: options?.recallGovernor ?? null,
-    })
-    const agendaRankedConsolidatedMemoriesClustered = rankByClusterDominance({
-      items: agendaRankedConsolidatedMemories,
-      clusterState,
-      toClusterText: item => [item.periodKey, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-    })
-    const agendaRankedWindowsClustered = rankByClusterDominance({
-      items: agendaRankedWindows,
-      clusterState,
-      toClusterText: item => [item.label, item.summary, ...(item.cues ?? [])].filter(Boolean).join(' '),
-    })
-    const agendaRankedProceduralMemories = rankByClusterDominance({
-      items: agendaRankedProceduralMemoriesBase,
-      clusterState,
-      toClusterText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
-    })
-    const agendaRankedEpisodes = rankByClusterDominance({
-      items: agendaRankedEpisodesBase,
-      clusterState,
-      toClusterText: item => [item.threadAnchor, item.sourceSummary, ...(item.tags ?? [])].filter(Boolean).join(' '),
-    })
-    const agendaRankedConversationHistory = rankByClusterDominance({
-      items: agendaRankedConversationHistoryBase,
-      clusterState,
-      toClusterText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-    })
-    const plannerStartedAt = Date.now()
-    const rawRecollectionPlan = activeRecollectionIntent && planMemoryRecollection && (
-      agendaRankedConsolidatedMemoriesClustered.length > 0
-      || agendaRankedWindowsClustered.length > 0
-      || agendaRankedProceduralMemories.length > 0
-      || agendaRankedEpisodes.length > 0
-      || agendaRankedConversationHistory.length > 0
-    )
-      ? await planMemoryRecollection({
-          recallSeed,
-          recollectionIntent: activeRecollectionIntent,
-          consolidatedMemories: agendaRankedConsolidatedMemoriesClustered,
-          recollectedWindows: agendaRankedWindowsClustered,
-          proceduralMemories: agendaRankedProceduralMemories,
-          recalledEpisodes: agendaRankedEpisodes,
-          recalledConversationHistory: agendaRankedConversationHistory,
-        }).catch(() => null)
-      : null
-    const recollectionPlan = resolveRecollectionPlanSearch({
-      recollectionIntent: activeRecollectionIntent,
-      recollectionPlan: rawRecollectionPlan,
+      activeRecollectionIntent,
       relationshipLineCandidates,
       consolidatedMemories: agendaRankedConsolidatedMemoriesClustered,
       recollectedWindows: agendaRankedWindowsClustered,
@@ -2802,95 +1879,42 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledEpisodes: agendaRankedEpisodes,
       recalledConversationHistory: agendaRankedConversationHistory,
       clusterState,
+      planMemoryRecollection,
+      planRecollectionSpeech,
+      planMemoryDeliberation,
+      resolveRecollectionPlanSearch,
+      recordMemoryPlannerLatency,
+      recordMemorySpeechPlanLatency,
     })
-
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'recollection-planning',
+      latencyMs: Date.now() - recollectionPlanningStartedAt,
+    }).catch(() => {})
     const selectedConsolidationIds = new Set(recollectionPlan?.selectedConsolidationIds ?? [])
     const selectedWindowIds = new Set(recollectionPlan?.selectedWindowIds ?? [])
     const selectedProceduralIds = new Set(recollectionPlan?.selectedProceduralIds ?? [])
     const selectedEpisodeIds = new Set(recollectionPlan?.selectedEpisodeIds ?? [])
     const selectedConversationTurnIds = new Set(recollectionPlan?.selectedConversationTurnIds ?? [])
-
-    const plannedConsolidatedMemories = selectedConsolidationIds.size > 0
-      ? consolidatedMemories.filter(item => selectedConsolidationIds.has(item.id))
-      : consolidatedMemories
-    const plannedWindows = selectedWindowIds.size > 0
-      ? recollectedWindows.filter(item => selectedWindowIds.has(item.id))
-      : recollectedWindows
-    const plannedProceduralMemories = selectedProceduralIds.size > 0
-      ? proceduralMemories.filter(item => selectedProceduralIds.has(item.id))
-      : proceduralMemories
-    const plannedEpisodes = selectedEpisodeIds.size > 0
-      ? recalledEpisodes.filter(item => selectedEpisodeIds.has(item.id))
-      : recalledEpisodes
-    const plannedConversationHistory = selectedConversationTurnIds.size > 0
-      ? recalledConversationHistory.filter(item => item.turnId && selectedConversationTurnIds.has(item.turnId))
-      : recalledConversationHistory
-
-    const recollectionNarratives = buildMemoryRecollectionNarratives({
-      intent: activeRecollectionIntent,
-      recollectedWindows: plannedWindows,
-    })
-    void recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
-    const speechPlanStartedAt = Date.now()
-    const recollectionSpeechPlan = activeRecollectionIntent && planRecollectionSpeech && (
-      plannedConsolidatedMemories.length > 0
-      || plannedWindows.length > 0
-      || plannedProceduralMemories.length > 0
-      || plannedEpisodes.length > 0
-      || plannedConversationHistory.length > 0
-      || Boolean(recollectionPlan)
-    )
-      ? await planRecollectionSpeech({
-          recallSeed,
-          recollectionIntent: activeRecollectionIntent,
-          recollectionPlan,
-          consolidatedMemories: plannedConsolidatedMemories,
-          recollectedWindows: plannedWindows,
-          proceduralMemories: plannedProceduralMemories,
-          recalledEpisodes: plannedEpisodes,
-          recalledConversationHistory: plannedConversationHistory,
-        }).catch(() => null)
-      : null
-    void recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
-    const rawMemoryDeliberation = activeRecollectionIntent && planMemoryDeliberation && (
-      agendaRankedConsolidatedMemoriesClustered.length > 0
-      || agendaRankedWindowsClustered.length > 0
-      || agendaRankedProceduralMemories.length > 0
-      || agendaRankedEpisodes.length > 0
-      || agendaRankedConversationHistory.length > 0
-      || Boolean(recollectionPlan)
-    )
-      ? await planMemoryDeliberation({
-          recallSeed,
-          recollectionIntent: activeRecollectionIntent,
-          recollectionPlan,
-          recollectionSpeechPlan,
-          consolidatedMemories: agendaRankedConsolidatedMemoriesClustered,
-          recollectedWindows: agendaRankedWindowsClustered,
-          proceduralMemories: agendaRankedProceduralMemories,
-          recalledEpisodes: agendaRankedEpisodes,
-          recalledConversationHistory: agendaRankedConversationHistory,
-        }).catch(() => null)
-      : null
     const initialReconstructionPass = runReconstructionAmbiguityRetrievalPass({
       episodes: agendaRankedEpisodes,
       recalledConversationHistory: agendaRankedConversationHistory,
       competingVariants: clusterState.competingVariants,
     })
-    const knowledgeEvidence = deriveKnowledgeEvidence({
+    const {
+      knowledgeEvidence,
+      selfEvolution,
+    } = buildOrganicMemoryEvolutionState({
+      producedAt: Date.now(),
       retrievedFacts,
       proceduralMemories: agendaRankedProceduralMemories,
-    })
-    const selfEvolution = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary,
       hostPersonModel,
-      knowledgeEvidence,
-      reflectionSummary: personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
-      reflectionLesson: personStateEvolutionSummary?.explanation?.[0] ?? null,
-      reflectionTargetScope: personStateEvolutionSummary?.latestDoctrine ? 'relationship' : null,
-      reflectionPressure: memoryStats?.retrievalHealth?.memorySurfaceViolationRate ?? 0,
-      autobiographicalLatestInflection: personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
-      autobiographicalStability: 0.5,
+      memoryStats,
+      recollectionIntent,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      personStateProjection,
     })
     const recallPlannerDecision = planAlicizationRecall({
       recollectionIntent: activeRecollectionIntent,
@@ -3045,7 +2069,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
         })
       : deliberatedConversationHistoryRaw
+    const surfacePlanningStartedAt = Date.now()
     const effectiveRecollectionSpeechPlan = applyMemoryTuningAdviceToSpeechPlan({
+      // NOTICE: Surface planning remains mind-authored; telemetry only measures this shaping pass.
       speechPlan: applyMemoryDeliberationToSpeechPlan({
         deliberation: plannerMemoryDeliberation,
         speechPlan: recollectionSpeechPlan,
@@ -3053,6 +2079,14 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       memoryDeliberation: plannerMemoryDeliberation,
       tuningAdvice: memoryTuningAdvice,
     })
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'surface-planning',
+      budgetClass,
+    }).catch(() => {})
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'surface-planning',
+      latencyMs: Date.now() - surfacePlanningStartedAt,
+    }).catch(() => {})
     const activeRecollectionIntentMode = activeRecollectionIntent?.mode
     const plannedNarrativeMode: NonNullable<OrganicMemoryPromptContext['recollectionNarratives']>[number]['mode'] = activeRecollectionIntentMode && activeRecollectionIntentMode !== 'none'
       ? activeRecollectionIntentMode
@@ -3307,6 +2341,127 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recalledFragments,
         })
 
+    const selfEvolutionStartedAt = Date.now()
+    void recordOrganicMemoryStageBudget?.({
+      stage: 'self-evolution-integration',
+      budgetClass,
+    }).catch(() => {})
+    const { derivedMindStateBundle } = buildOrganicMemoryEvolutionState({
+      producedAt: Date.now(),
+      retrievedFacts,
+      proceduralMemories: deliberatedProceduralMemories,
+      personStateEvolutionSummary,
+      hostPersonModel,
+      memoryStats,
+      recollectionIntent,
+      recollectionPlan: finalRecollectionPlan,
+      recollectionSpeechPlan: effectiveRecollectionSpeechPlan,
+      memoryDeliberation: resolvedMemoryDeliberation,
+      personStateProjection,
+    })
+    void recordOrganicMemoryStageLatency?.({
+      stage: 'self-evolution-integration',
+      latencyMs: Date.now() - selfEvolutionStartedAt,
+    }).catch(() => {})
+    const memoryStageReplay = buildOrganicMemoryStageReplaySnapshot({
+      producedAt: Date.now(),
+      stages: [
+        {
+          stage: 'search-prelude',
+          summary: 'Resolved recall seed, relationship dynamics, host model, and heuristic recollection intent.',
+          latencyMs: Date.now() - preludeStartedAt,
+          budgetClass,
+          inputs: [options?.recallSeed ?? '', options?.turnId ?? '', options?.sessionId ?? ''],
+          outputs: [recallSeed, activeRecollectionIntent?.mode ?? 'none', hostPersonModel?.trustLadder.stage ?? 'no-host-model'],
+          diagnostics: [recollectionIntent?.rationale ?? '', activeRecollectionIntent?.rationale ?? ''],
+        },
+        {
+          stage: 'candidate-generation',
+          summary: 'Collected raw memory candidates across conversation, consolidation, window, procedure, and episode surfaces.',
+          latencyMs: Date.now() - candidateGenerationStartedAt,
+          budgetClass,
+          inputs: [recallSeed, activeRecollectionIntent?.temporalFocus ?? 'none'],
+          outputs: [
+            `conversations=${recalledConversationHistory.length}`,
+            `consolidations=${consolidatedMemories.length}`,
+            `windows=${recollectedWindows.length}`,
+            `procedures=${proceduralMemories.length}`,
+            `episodes=${recalledEpisodes.length}`,
+          ],
+          diagnostics: [activeRecollectionIntent?.recollectionAgenda?.whyRecallNow ?? ''],
+        },
+        {
+          stage: 'candidate-ranking',
+          summary: 'Ranked candidates against social affinity, recollection agenda, carry cues, and dominant cluster competition.',
+          latencyMs: Date.now() - candidateRankingStartedAt,
+          budgetClass,
+          inputs: [activeRecollectionIntent?.mode ?? 'none', clusterState.dominantSummary ?? ''],
+          outputs: [
+            `cluster=${clusterState.dominantClusterKey ?? 'none'}`,
+            `top-consolidation=${agendaRankedConsolidatedMemoriesClustered[0]?.id ?? 'none'}`,
+            `top-procedure=${agendaRankedProceduralMemories[0]?.id ?? 'none'}`,
+            `top-episode=${agendaRankedEpisodes[0]?.id ?? 'none'}`,
+          ],
+          diagnostics: [
+            clusterState.ambiguous ? 'cluster-ambiguous' : 'cluster-stable',
+            clusterState.runnerUpSummary ?? '',
+          ],
+        },
+        {
+          stage: 'recollection-planning',
+          summary: 'Planned recollection foreground, speech candidate, and raw memory deliberation for the current turn.',
+          latencyMs: Date.now() - recollectionPlanningStartedAt,
+          budgetClass,
+          inputs: [activeRecollectionIntent?.mode ?? 'none', clusterState.dominantSummary ?? ''],
+          outputs: [
+            `plan=${recollectionPlan?.opening ? 'yes' : 'no'}`,
+            `speech=${recollectionSpeechPlan?.surfaceMode ?? 'none'}`,
+            `deliberation=${rawMemoryDeliberation?.surfacePolicy ?? 'none'}`,
+          ],
+          diagnostics: [
+            recollectionPlan?.rationale ?? '',
+            recollectionSpeechPlan?.rationale ?? '',
+            rawMemoryDeliberation?.whyNow ?? '',
+          ],
+        },
+        {
+          stage: 'surface-planning',
+          summary: 'Merged planner deliberation with tuning advice into final speech-facing recollection surface controls.',
+          latencyMs: Date.now() - surfacePlanningStartedAt,
+          budgetClass,
+          inputs: [plannerMemoryDeliberation?.surfacePolicy ?? 'none', recollectionSpeechPlan?.surfaceMode ?? 'none'],
+          outputs: [
+            `surface=${effectiveRecollectionSpeechPlan?.surfaceMode ?? 'none'}`,
+            `placement=${effectiveRecollectionSpeechPlan?.placement ?? 'none'}`,
+            `shouldSurface=${effectiveRecollectionSpeechPlan?.shouldSurface ? 'yes' : 'no'}`,
+          ],
+          diagnostics: [memoryTuningAdvice?.notes?.[0] ?? '', plannerMemoryDeliberation?.whyNow ?? ''],
+        },
+        {
+          stage: 'self-evolution-integration',
+          summary: 'Synthesized knowledge evidence, self-evolution kernel, and final derived mind-state bundle.',
+          latencyMs: Date.now() - selfEvolutionStartedAt,
+          budgetClass,
+          inputs: [
+            `facts=${retrievedFacts.length}`,
+            `procedures=${deliberatedProceduralMemories.length}`,
+            hostPersonModel?.trustLadder.stage ?? 'no-host-model',
+          ],
+          outputs: [
+            `validations=${knowledgeEvidence.validationCount}`,
+            `contradictions=${knowledgeEvidence.contradictionCount}`,
+            selfEvolution?.nextLearningAction ?? 'hold',
+          ],
+          diagnostics: [selfEvolution?.summary ?? '', derivedMindStateBundle.summary ?? ''],
+        },
+      ],
+    })
+    const memoryResolutionLedger = buildMemoryResolutionLedger({
+      producedAt: Date.now(),
+      clusterState,
+      finalMemoryDeliberation: resolvedMemoryDeliberation,
+      finalRecollectionPlan,
+    })
     return {
       hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
       coreIncarnation: snapshot.coreIncarnation,
@@ -3329,14 +2484,17 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       relationshipDynamics,
       memoryTuningAdvice,
       selfEvolution,
+      derivedMindStateBundle,
+      memoryStageReplay,
+      memoryResolutionLedger,
     }
   }
 
   return {
-    buildProactiveRecallSeed,
+    buildProactiveRecallSeed: (input: Parameters<typeof buildOrganicMemoryProactiveRecallSeed>[0]) => buildOrganicMemoryProactiveRecallSeed(input, normalizeOrganicRecallText),
     buildOrganicMemorySystemBlocks,
-    tuneOrganicMemoryPromptContextForExecutiveTurn,
-    buildPerformanceManifestSystemBlocks,
+    tuneOrganicMemoryPromptContextForExecutiveTurn: tuneExecutiveOrganicMemoryPromptContext,
+    buildPerformanceManifestSystemBlocks: buildPerformanceManifestBlocks,
     resolveOrganicMemoryPromptContext,
   }
 }

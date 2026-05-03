@@ -15,6 +15,15 @@ import type { AlicizationPreparedMainChatPrelude } from './main-chat-session-run
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import {
+  readDialogueRhythmFromDerivedMindStateBundle,
+  readHostPersonModelFromDerivedMindStateBundle,
+  readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readMemoryDeliberationFromDerivedMindStateBundle,
+  readPersonStateProjectionFromDerivedMindStateBundle,
+  readRecollectionPlanFromDerivedMindStateBundle,
+  readRecollectionSpeechPlanFromDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
 
@@ -363,6 +372,7 @@ export interface AlicizationReplayMemoryQuality {
   userText: string
   eraFirst: AlicizationReplayQualityStatus
   bundleCoherence: AlicizationReplayQualityStatus
+  resolutionLedgerQuality: AlicizationReplayQualityStatus
   procedureCarryQuality: AlicizationReplayQualityStatus
   wrongThreadSuppression: AlicizationReplayQualityStatus
   replyMemoryCoherence: AlicizationReplayQualityStatus
@@ -386,6 +396,7 @@ export interface AlicizationReplayMemoryQuality {
 
 export interface AlicizationReplayBenchmarkStandards {
   eraSelectionQuality: 'pass' | 'fail'
+  resolutionLedgerQuality: 'pass' | 'fail'
   procedureCarryQuality: 'pass' | 'fail'
   wrongThreadSuppression: 'pass' | 'fail'
   replyMemoryCoherence: 'pass' | 'fail'
@@ -527,6 +538,7 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
 
 const replayBenchmarkGateThresholds = {
   eraSelectionQuality: 0.75,
+  resolutionLedgerQuality: 0.75,
   procedureCarryQuality: 0.75,
   wrongThreadSuppression: 0.75,
   replyMemoryCoherence: 0.8,
@@ -548,6 +560,7 @@ const replayBenchmarkGateThresholds = {
 
 const replayBenchmarkQualityKeys = {
   eraSelectionQuality: 'eraFirst',
+  resolutionLedgerQuality: 'resolutionLedgerQuality',
   procedureCarryQuality: 'procedureCarryQuality',
   wrongThreadSuppression: 'wrongThreadSuppression',
   replyMemoryCoherence: 'replyMemoryCoherence',
@@ -885,6 +898,7 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
   row: AlicizationReplayBenchmarkSampleConversationTurn
   trace: AlicizationMemoryDecisionTraceRecord
 }): OrganicMemoryPromptContext {
+  const derivedBundle = input.trace.derivedMindStateBundle ?? null
   const recall = asObject(input.trace.recallAttribution)
   const judged = asObject(input.trace.memoryDeliberationJudged)
   const personState = asObject(judged?.personState)
@@ -926,15 +940,19 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
     provenance: normalizeMemoryProvenance(item.provenance),
     reason: readString(item.reason, 220) || null,
   })).filter(item => item.summary)
-  const hostPersonModel = buildTraceDerivedHostPersonModel({
-    trace: input.trace,
-    activeClosenessContext: readString(personState?.activeClosenessContext, 64) || null,
-    activeClosenessRung: readString(personState?.activeClosenessRung, 64) || null,
-    relationshipPosture: readString(personState?.relationshipPosture, 64) || null,
-    openingGuidance: readString(personState?.openingGuidance, 220) || null,
-    currentRegime: readString(personState?.currentRegime, 64) || null,
-    repairPosture: readString(personState?.repairPosture, 64) || null,
-  })
+  const hostPersonModel = readHostPersonModelFromDerivedMindStateBundle(derivedBundle)
+    ?? buildTraceDerivedHostPersonModel({
+      trace: input.trace,
+      activeClosenessContext: readString(personState?.activeClosenessContext, 64) || null,
+      activeClosenessRung: readString(personState?.activeClosenessRung, 64) || null,
+      relationshipPosture: readString(personState?.relationshipPosture, 64) || null,
+      openingGuidance: readString(personState?.openingGuidance, 220) || null,
+      currentRegime: readString(personState?.currentRegime, 64) || null,
+      repairPosture: readString(personState?.repairPosture, 64) || null,
+    })
+  const memoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
+    ? (input.trace as any).memoryResolutionLedger as OrganicMemoryPromptContext['memoryResolutionLedger']
+    : null
 
   return {
     hostAttitude: readString(personState?.openingGuidance, 220)
@@ -1071,13 +1089,15 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
       visibleLine: readString(recall?.visibleLine, 220) || null,
       followUpAffordance,
     },
-    knowledgeEvidence: {
+    knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle) ?? {
       validationCount: Math.max(0, readNumber(recall?.knowledgeValidationCount, 0)),
       contradictionCount: Math.max(0, readNumber(recall?.knowledgeContradictionCount, 0)),
       stronglyValidatedProcedureCount: Math.max(0, readNumber(recall?.stronglyValidatedProcedureCount, 0)),
       contradictionHeavyFactCount: Math.max(0, readNumber(recall?.contradictionHeavyFactCount, 0)),
     },
     hostPersonModel,
+    derivedMindStateBundle: derivedBundle,
+    memoryResolutionLedger,
   }
 }
 
@@ -1245,8 +1265,13 @@ export function evaluateReplayMemoryQuality(input: {
   turnId: string
   userText: string
 }): AlicizationReplayMemoryQuality {
-  const deliberation = input.prepared.organicMemoryContext?.memoryDeliberation ?? null
-  const runtimeSurface = input.prepared.runtimeSurface.digitalLifeRuntimeSurface ?? null
+  const runtimeSurface = input.prepared.runtimeSurface?.digitalLifeRuntimeSurface ?? null
+  const derivedBundle = runtimeSurface?.memory?.derivedMindStateBundle
+    ?? input.prepared.organicMemoryContext?.derivedMindStateBundle
+    ?? null
+  const deliberation = readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? input.prepared.organicMemoryContext?.memoryDeliberation
+    ?? null
   const eraSummary = deliberation?.selectedEras[0]?.summary ?? ''
   const periodSummary = deliberation?.selectedPeriods[0]?.summary ?? ''
   const bundle = deliberation?.selectedBundles[0] ?? null
@@ -1256,7 +1281,9 @@ export function evaluateReplayMemoryQuality(input: {
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
   const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
-  const personState = asObject(input.prepared.organicMemoryContext?.personStateProjection)
+  const personState = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? asObject(input.prepared.organicMemoryContext?.personStateProjection)
+  const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
   const governanceMustDo = input.prepared.governance?.mustDo ?? []
   const speakingFrom = runtimeSurface?.dialogue.replyDeliberation?.speakingFrom ?? ''
   const systemTexts = input.prepared.messages
@@ -1264,34 +1291,45 @@ export function evaluateReplayMemoryQuality(input: {
     .map(message => String(message.content))
   const systemText = systemTexts.join('\n')
   const draftedMemoryLines = [
-    input.prepared.organicMemoryContext?.recollectionPlan?.opening ?? '',
-    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.internalLead ?? '',
-    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.visibleLead ?? '',
-    input.prepared.organicMemoryContext?.recollectionSpeechPlan?.styleNote ?? '',
-    input.prepared.organicMemoryContext?.memoryDeliberation?.inwardLine ?? '',
-    input.prepared.organicMemoryContext?.memoryDeliberation?.visibleLine ?? '',
+    readRecollectionPlanFromDerivedMindStateBundle<any>(derivedBundle)?.opening ?? input.prepared.organicMemoryContext?.recollectionPlan?.opening ?? '',
+    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.internalLead ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.internalLead ?? '',
+    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.visibleLead ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.visibleLead ?? '',
+    readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)?.styleNote ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan?.styleNote ?? '',
+    readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.inwardLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.inwardLine ?? '',
+    readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.visibleLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.visibleLine ?? '',
   ].map(item => normalizeText(item, 220)).filter(Boolean)
   const selectedEpisodes = deliberation?.selectedEpisodes ?? []
   const selectedProcedures = deliberation?.selectedProcedures ?? []
   const selectedPeriods = deliberation?.selectedPeriods ?? []
   const selectedRelationshipLines = deliberation?.selectedRelationshipLines ?? []
-  const speechPlan = input.prepared.organicMemoryContext?.recollectionSpeechPlan ?? null
-  const knowledgeEvidence = input.prepared.organicMemoryContext?.knowledgeEvidence ?? null
-  const selfEvolution = input.prepared.organicMemoryContext?.selfEvolution ?? null
-  const hostPersonModel = input.prepared.organicMemoryContext?.hostPersonModel ?? null
+  const speechPlan = readRecollectionSpeechPlanFromDerivedMindStateBundle<any>(derivedBundle)
+    ?? input.prepared.organicMemoryContext?.recollectionSpeechPlan
+    ?? null
+  const knowledgeEvidence = readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
+    ?? input.prepared.organicMemoryContext?.knowledgeEvidence
+    ?? null
+  const selfEvolution = derivedBundle?.selfEvolution
+    ?? input.prepared.organicMemoryContext?.selfEvolution
+    ?? null
+  const hostPersonModel = readHostPersonModelFromDerivedMindStateBundle(derivedBundle)
+    ?? input.prepared.organicMemoryContext?.hostPersonModel
+    ?? null
+  const resolutionLedger = runtimeSurface?.memory?.memoryResolutionLedger
+    ?? input.prepared.organicMemoryContext?.memoryResolutionLedger
+    ?? null
   const hasProcedureCarry = selectedProcedures.length > 0
-    || (deliberation?.selectedBundles ?? []).some(item => Boolean(item.procedureId))
-    || (deliberation?.selectedChains ?? []).some(item => item.kind === 'task-procedure-relationship-stance')
+    || (deliberation?.selectedBundles ?? []).some((item: { procedureId?: string | null }) => Boolean(item.procedureId))
+    || (deliberation?.selectedChains ?? []).some((item: { kind?: string | null }) => item.kind === 'task-procedure-relationship-stance')
     || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
   const hasConflict = (deliberation?.conflictSeverity ?? 'none') !== 'none'
-  const hasUncertainProvenance = selectedEpisodes.some(item =>
+  const hasUncertainProvenance = selectedEpisodes.some((item: { provenance?: string | null }) =>
     item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'reconstructed')
   const templateLeakDetected = draftedMemoryLines.some(line => (
-    mustDo.some(item => hasTemplatePhraseLeak(item, line))
-    || governanceMustDo.some(item => hasTemplatePhraseLeak(item, line))
-    || systemTexts.some(text => hasTemplatePhraseLeak(text, line))
+    mustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
+    || governanceMustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
+    || systemTexts.some((text: string) => hasTemplatePhraseLeak(text, line))
   ))
-  const hasWrongThreadRisk = (deliberation?.conflictVariants ?? []).some(item => String(item.id ?? '').startsWith('cluster:'))
+  const hasWrongThreadRisk = (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
     || deliberation?.ambiguityPosture === 'ambiguous'
   const procedureApproach = selectedProcedures[0]?.approach ?? ''
   const relationshipLine = selectedRelationshipLines[0] ?? bundle?.relationshipLine ?? chain?.relationshipMeaning ?? ''
@@ -1318,8 +1356,10 @@ export function evaluateReplayMemoryQuality(input: {
       (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
       && (knowledgeEvidence?.validationCount ?? 0) <= 1
     )
-  const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
-  const activeClosenessRung = readString(personState?.activeClosenessRung, 64)
+  const activeClosenessContext = readString(dialogueRhythm?.activeClosenessContext, 64)
+    || readString(personState?.activeClosenessContext, 64)
+  const activeClosenessRung = readString(dialogueRhythm?.activeClosenessRung, 64)
+    || readString(personState?.activeClosenessRung, 64)
   const hasGraphLikeContinuity = selectedEpisodes.length > 1
     || selectedProcedures.length > 0
     || selectedPeriods.length > 0
@@ -1347,16 +1387,17 @@ export function evaluateReplayMemoryQuality(input: {
   const skillInternalizationAvailable = Boolean(
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
     || selfEvolution?.nextLearningAction === 'internalize'
-    || selfEvolution?.activeLearningFocuses.some(item => item.includes('internalize-procedure')),
+    || selfEvolution?.activeLearningFocuses.some((item: string) => item.includes('internalize-procedure')),
   )
   const selfRevisionAvailable = Boolean(
     (knowledgeEvidence?.contradictionCount ?? 0) > 0
     || selfEvolution?.nextLearningAction === 'verify'
     || selfEvolution?.nextLearningAction === 'revise'
-    || selfEvolution?.activeLearningFocuses.some(item => item.includes('resolve-contradictions')),
+    || selfEvolution?.activeLearningFocuses.some((item: string) => item.includes('resolve-contradictions')),
   )
   const repeatedMistakeAvoidanceAvailable = Boolean(
-    selfEvolution?.relationshipDoctrine
+    dialogueRhythm?.relationshipDoctrine
+    || selfEvolution?.relationshipDoctrine
     || selfEvolution?.latestInflection
     || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length,
   )
@@ -1364,9 +1405,10 @@ export function evaluateReplayMemoryQuality(input: {
     || burdenAsk
     || /节律|分寸|距离|warmth|care|repair|关系距离|机械|空泛|太快靠近|忽近忽远/u.test(input.userText)
   const rhythmSignals = [
-    selfEvolution?.relationshipDoctrine ?? '',
+    dialogueRhythm?.relationshipDoctrine ?? '',
     selfEvolution?.latestInflection ?? '',
-    selfEvolution?.burdenLine ?? '',
+    dialogueRhythm?.burdenLine ?? selfEvolution?.burdenLine ?? '',
+    dialogueRhythm?.trustMeaning ?? '',
     relationshipLine,
     answerPosture,
     ...(runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []),
@@ -1396,6 +1438,23 @@ export function evaluateReplayMemoryQuality(input: {
         )
           ? 'pass'
           : 'fail',
+    resolutionLedgerQuality: !deliberation
+      ? 'not-applicable'
+      : resolutionLedger
+          && (
+            !resolutionLedger.finalSurfacePolicy
+            || resolutionLedger.finalSurfacePolicy === deliberation.surfacePolicy
+          )
+          && (
+            !(deliberation.conflictVariants?.length)
+            || (resolutionLedger.rejectedCandidates?.length ?? 0) >= 1
+          )
+          && (
+            !(deliberation.selectedBundles?.length || deliberation.selectedChains?.length || deliberation.selectedProcedures?.length)
+            || (resolutionLedger.selectedCandidates?.length ?? 0) >= 1
+          )
+        ? 'pass'
+        : 'fail',
     procedureCarryQuality: !hasProcedureCarry
       ? 'not-applicable'
       : speakingFrom === 'task-thread'
@@ -1410,7 +1469,7 @@ export function evaluateReplayMemoryQuality(input: {
     wrongThreadSuppression: !hasWrongThreadRisk
       ? 'not-applicable'
       : deliberation?.ambiguityPosture === 'ambiguous'
-          || (deliberation?.conflictVariants ?? []).some(item => String(item.id ?? '').startsWith('cluster:'))
+          || (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
           || systemText.includes('recollection_label_uncertainty=yes')
           || systemText.includes('detail_assertion_budget=guarded')
           || systemText.includes('detail_assertion_budget=minimal')
@@ -1422,7 +1481,7 @@ export function evaluateReplayMemoryQuality(input: {
           && runtimeSurface?.dialogue.replyDeliberation?.whyThisReplyNow?.length
           ? 'pass'
           : 'fail',
-    reconsolidationEffect: selectedEpisodes.some(item => item.reconsolidatedFromTraceId)
+    reconsolidationEffect: selectedEpisodes.some((item: { reconsolidatedFromTraceId?: string | null }) => item.reconsolidatedFromTraceId)
       || (deliberation?.conflictVariants?.length ?? 0) > 0
       ? 'pass'
       : 'not-applicable',
@@ -1584,6 +1643,13 @@ export function evaluateReplayBenchmarkStandards(input: {
     eraSelectionQuality: passesReplayStandard({
       quality: input.quality,
       key: 'eraFirst',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    resolutionLedgerQuality: passesReplayStandard({
+      quality: input.quality,
+      key: 'resolutionLedgerQuality',
       minimumPassingRatio: 0.75,
     })
       ? 'pass'
@@ -1827,6 +1893,16 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
         failingDimensions,
         tracePointer,
         sampledCategories: turn?.sampledCategories ?? null,
+        resolutionLedgerSummary: turn?.organicMemoryContext?.memoryResolutionLedger
+          ? {
+              dominantClusterSummary: turn.organicMemoryContext.memoryResolutionLedger.dominantClusterSummary,
+              competingClusterSummary: turn.organicMemoryContext.memoryResolutionLedger.competingClusterSummary,
+              finalSurfacePolicy: turn.organicMemoryContext.memoryResolutionLedger.finalSurfacePolicy,
+              shouldStayInward: turn.organicMemoryContext.memoryResolutionLedger.shouldStayInward,
+              shouldDelayUntilAfterPayoff: turn.organicMemoryContext.memoryResolutionLedger.shouldDelayUntilAfterPayoff,
+              rejectedCandidateCount: turn.organicMemoryContext.memoryResolutionLedger.rejectedCandidates.length,
+            }
+          : null,
       }
     })
     .filter(Boolean) as AlicizationReplayBenchmarkFailureTurnRecord[]

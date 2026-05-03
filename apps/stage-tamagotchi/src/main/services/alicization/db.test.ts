@@ -186,6 +186,7 @@ const memoryFacts = new Map<string, {
   access_count: number
   knowledge_stage: string | null
   validation_status: string | null
+  memory_domain: string | null
   validation_count: number
   contradiction_count: number
   source_label: string | null
@@ -207,6 +208,7 @@ const memoryArchive = new Map<string, {
   access_count: number
   knowledge_stage: string | null
   validation_status: string | null
+  memory_domain: string | null
   validation_count: number
   contradiction_count: number
   source_label: string | null
@@ -250,6 +252,7 @@ function upsertMemoryFactRow(row: {
   access_count: number
   knowledge_stage: string | null
   validation_status: string | null
+  memory_domain: string | null
   validation_count: number
   contradiction_count: number
   source_label: string | null
@@ -274,6 +277,7 @@ function upsertMemoryFactRow(row: {
   existing.access_count = Math.max(existing.access_count, row.access_count)
   existing.knowledge_stage = row.knowledge_stage
   existing.validation_status = row.validation_status
+  existing.memory_domain = row.memory_domain
   existing.validation_count = Math.max(existing.validation_count, row.validation_count)
   existing.contradiction_count = Math.max(existing.contradiction_count, row.contradiction_count)
   existing.source_label = row.source_label
@@ -300,8 +304,8 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_facts')) {
-      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson]
-        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, number, number, string | null, string | null, string | null]
+      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson]
+        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null]
       upsertMemoryFactRow({
         id,
         subject,
@@ -316,6 +320,7 @@ class FakeSqliteDatabase {
         access_count: accessCount,
         knowledge_stage: knowledgeStage ?? null,
         validation_status: validationStatus ?? null,
+        memory_domain: memoryDomain ?? null,
         validation_count: validationCount ?? 0,
         contradiction_count: contradictionCount ?? 0,
         source_label: sourceLabel ?? null,
@@ -360,8 +365,8 @@ class FakeSqliteDatabase {
       }
     }
     else if (sql.includes('INSERT INTO memory_archive')) {
-      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson, archivedAt]
-        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, number, number, string | null, string | null, string | null, number]
+      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson, archivedAt]
+        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null, number]
       memoryArchive.set(id, {
         id,
         original_id: originalId ?? null,
@@ -377,6 +382,7 @@ class FakeSqliteDatabase {
         access_count: accessCount,
         knowledge_stage: knowledgeStage ?? null,
         validation_status: validationStatus ?? null,
+        memory_domain: memoryDomain ?? null,
         validation_count: validationCount ?? 0,
         contradiction_count: contradictionCount ?? 0,
         source_label: sourceLabel ?? null,
@@ -2512,6 +2518,7 @@ describe('alicization sqlite dao', () => {
         predicate: 'learned',
         object: 'return to the same runtime seam before branching',
         confidence: 0.83,
+        memoryDomain: 'procedure',
         knowledgeStage: 'internalized-long-horizon-knowledge',
         validationStatus: 'validated',
         sourceLabel: 'host-confirmed runtime replay',
@@ -2523,6 +2530,7 @@ describe('alicization sqlite dao', () => {
     const recalled = await db.retrieveMemoryFacts('runtime seam before branching', 5)
 
     expect(recalled[0]).toEqual(expect.objectContaining({
+      memoryDomain: 'procedure',
       knowledgeStage: 'internalized-long-horizon-knowledge',
       validationStatus: 'validated',
       sourceLabel: 'host-confirmed runtime replay',
