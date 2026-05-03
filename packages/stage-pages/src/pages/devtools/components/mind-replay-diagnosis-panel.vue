@@ -2,7 +2,10 @@
 import type {
   AlicizationMindReplayBenchmarkDimensionGroup,
   AlicizationMindReplayBenchmarkTurnDiagnosis,
+  AlicizationMindReplayHumanRatingDimensionRow,
   AlicizationMindReplayMemoryHealthComparisonRow,
+  AlicizationMindReplayRegressionTriageRow,
+  AlicizationMindReplayShipGateRow,
 } from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
 import type { AlicizationRunReplayBenchmarkResult } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
@@ -16,9 +19,12 @@ const props = defineProps<{
   report: AlicizationRunReplayBenchmarkResult | null
   loading: boolean
   supported: boolean
-  packId: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1'
+  packId: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1' | 'growth-humanlike-memory-v1'
   sampleLimit: number
   dimensionGroups: AlicizationMindReplayBenchmarkDimensionGroup[]
+  humanRatingRows: AlicizationMindReplayHumanRatingDimensionRow[]
+  shipGateRows: AlicizationMindReplayShipGateRow[]
+  regressionTriageRows: AlicizationMindReplayRegressionTriageRow[]
   selectedDimension: string
   failingTurns: AlicizationMindReplayBenchmarkTurnDiagnosis[]
   selectedTurnId: string | null
@@ -26,7 +32,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (event: 'update:packId', value: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1'): void
+  (event: 'update:packId', value: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1' | 'growth-humanlike-memory-v1'): void
   (event: 'update:sampleLimit', value: number): void
   (event: 'update:selectedDimension', value: string): void
   (event: 'update:selectedTurnId', value: string | null): void
@@ -67,6 +73,10 @@ const packOptions = computed(() => [
     label: tDiagnosis('packs.default', 'Default'),
     value: 'default-humanlike-memory-v1',
   },
+  {
+    label: tDiagnosis('packs.growth', 'Growth'),
+    value: 'growth-humanlike-memory-v1',
+  },
 ])
 
 const dimensionOptions = computed(() => [
@@ -81,7 +91,7 @@ const dimensionOptions = computed(() => [
 ])
 
 function updatePackId(value: unknown) {
-  if (value === 'sampled-humanlike-memory-v1' || value === 'backlog-humanlike-memory-v1' || value === 'default-humanlike-memory-v1')
+  if (value === 'sampled-humanlike-memory-v1' || value === 'backlog-humanlike-memory-v1' || value === 'default-humanlike-memory-v1' || value === 'growth-humanlike-memory-v1')
     emit('update:packId', value)
 }
 
@@ -177,6 +187,89 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
       :class="['mt-4', 'grid', 'gap-4', 'xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,1fr)]']"
     >
       <div :class="['flex', 'flex-col', 'gap-4']">
+        <section
+          :class="[
+            'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+            'bg-neutral-50/70', 'p-4',
+            'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
+          ]"
+        >
+          <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('human_rating.title', 'Human Rating Rubric') }}
+          </div>
+          <div
+            v-if="humanRatingRows.length === 0"
+            :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']"
+          >
+            {{ tDiagnosis('human_rating.empty', 'No human rating rubric is attached to the latest benchmark report.') }}
+          </div>
+          <div
+            v-else
+            :class="['grid', 'gap-2']"
+          >
+            <div
+              v-for="row in humanRatingRows"
+              :key="row.key"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'border-neutral-200/80',
+                'bg-white/70', 'px-3', 'py-3',
+                'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+              ]"
+            >
+              <div :class="['flex', 'items-center', 'justify-between', 'gap-2']">
+                <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                  {{ row.key }}
+                </div>
+                <div :class="['text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
+                  {{ row.scale }}
+                </div>
+              </div>
+              <div :class="['mt-1', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+                {{ row.label }}
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-neutral-600', 'dark:text-neutral-300']">
+                {{ row.prompt }}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          :class="[
+            'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
+            'bg-neutral-50/70', 'p-4',
+            'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
+          ]"
+        >
+          <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('ship_gate.title', 'Ship Gate') }}
+          </div>
+          <div :class="['grid', 'gap-2']">
+            <div
+              v-for="row in shipGateRows"
+              :key="row.key"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'px-3', 'py-3',
+                ...(row.status === 'pass'
+                  ? ['border-emerald-200/80', 'bg-emerald-50/70', 'dark:border-emerald-900/70', 'dark:bg-emerald-950/20']
+                  : ['border-amber-200/80', 'bg-amber-50/70', 'dark:border-amber-900/70', 'dark:bg-amber-950/20']),
+              ]"
+            >
+              <div :class="['flex', 'items-center', 'justify-between', 'gap-2']">
+                <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                  {{ row.key }}
+                </div>
+                <div :class="['text-[11px]', 'font-medium', row.status === 'pass' ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300']">
+                  {{ row.status }}
+                </div>
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-neutral-600', 'dark:text-neutral-300']">
+                {{ row.detail }}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section
           :class="[
             'rounded-2xl', 'border', 'border-solid', 'border-neutral-200/80',
@@ -313,6 +406,42 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           'dark:border-neutral-800/70', 'dark:bg-neutral-900/40',
         ]"
       >
+        <div :class="['mb-4']">
+          <div :class="['text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
+            {{ tDiagnosis('triage.title', 'Regression Triage') }}
+          </div>
+          <div
+            v-if="regressionTriageRows.length === 0"
+            :class="['mt-2', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']"
+          >
+            {{ tDiagnosis('triage.empty', 'No failing dimensions to route yet.') }}
+          </div>
+          <div
+            v-else
+            :class="['mt-2', 'grid', 'gap-2']"
+          >
+            <div
+              v-for="row in regressionTriageRows"
+              :key="`${row.dimension}:${row.owner}`"
+              :class="[
+                'rounded-xl', 'border', 'border-solid', 'border-neutral-200/80',
+                'bg-white/70', 'px-3', 'py-3',
+                'dark:border-neutral-800/70', 'dark:bg-neutral-950/40',
+              ]"
+            >
+              <div :class="['font-mono', 'text-xs', 'text-neutral-700', 'dark:text-neutral-200']">
+                {{ row.dimension }}
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-neutral-600', 'dark:text-neutral-300']">
+                {{ tDiagnosis('triage.route', 'Route to: {owner}', { owner: row.owner }) }}
+              </div>
+              <div :class="['mt-1', 'text-[11px]', 'text-neutral-500', 'dark:text-neutral-400']">
+                {{ row.firstCheck }}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
           {{ tDiagnosis('health.title', 'Memory Health Before / After') }}
         </div>

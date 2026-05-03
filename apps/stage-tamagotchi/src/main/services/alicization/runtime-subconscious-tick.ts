@@ -446,6 +446,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         context: layeredContext,
         proactiveState: proactiveLoopState,
         killSwitchSuspended,
+        knowledgeEvidence: committedDigitalLifeSpine.current.runtimeSurface.memory.knowledgeEvidence ?? null,
         perception: perceptionSignals,
         runtimeDigest: proactiveRuntimeSnapshot,
         ...committedDigitalLifeSpine.current.proactivePolicy,
@@ -679,6 +680,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           })
           const organicPromptContext = await resolveOrganicMemoryPromptContext({
             recallSeed: proactiveRecallSeed,
+            budgetClass: 'proactive-generation',
           })
           const sociallyAdjustedDecision = {
             ...decision,

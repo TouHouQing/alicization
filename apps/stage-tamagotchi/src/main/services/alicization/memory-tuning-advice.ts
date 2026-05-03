@@ -113,6 +113,14 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.surfaceAdjustments.specificityClampBias += 0.08
     advice.notes.push('Surface restraint failed, so ambiguous recollection should stay inward more aggressively.')
   }
+  if (failingKeys.includes('knowledgeCorrectionDiscipline')) {
+    advice.surfaceAdjustments.inwardCarryBias += 0.18
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.1
+    advice.surfaceAdjustments.provenanceLabelBias += 0.08
+    advice.surfaceAdjustments.specificityClampBias += 0.1
+    advice.retrievalAdjustments.wrongThreadPenalty += 0.08
+    advice.notes.push('Knowledge correction discipline failed, so contradiction-heavy memory should stay compressed and better labeled.')
+  }
   if (failingKeys.includes('relationshipRepairAdaptation')) {
     advice.personStateAdjustments.repairWindowBias += 0.16
     advice.personStateAdjustments.closenessCapBias += 0.12

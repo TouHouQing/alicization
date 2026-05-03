@@ -11,6 +11,7 @@ import type {
   AlicizationMemoryRecollectionWindow,
 } from './memory-recollection-windows'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
@@ -92,6 +93,7 @@ export interface AlicizationMemorySearchPreludeAccess {
     sessionId?: string | null
     turnId?: string | null
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<AlicizationEpisodicEventRecord[]>
   buildHostPersonModel: (input?: {
     now?: number
@@ -123,6 +125,7 @@ export interface AlicizationMemorySearchPreludeInput {
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   sessionId?: string | null
   turnId?: string | null
+  budgetClass?: AlicizationMemoryRetrievalBudgetClass
 }
 
 export interface AlicizationMemorySearchPreludeResult {
@@ -186,6 +189,7 @@ export async function resolveMemorySearchPrelude(
         sessionId: input.sessionId ?? null,
         turnId: input.turnId ?? null,
         recallGovernor: input.recallGovernor ?? null,
+        budgetClass: input.budgetClass,
       })
     : []
   const sceneTriggeredRecollectionIntent = !preliminaryActiveRecollectionIntent && recallSeed
@@ -232,6 +236,7 @@ export interface AlicizationMemorySearchCandidateAccess {
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<Array<{
     turnId: string | null
     sessionId: string
@@ -243,6 +248,7 @@ export interface AlicizationMemorySearchCandidateAccess {
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
 }
 
@@ -251,6 +257,7 @@ export interface AlicizationMemorySearchCandidateInput {
   recallSeed: string
   recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
   recalledEpisodes: AlicizationEpisodicEventRecord[]
+  budgetClass?: AlicizationMemoryRetrievalBudgetClass
 }
 
 export interface AlicizationMemorySearchCandidateResult {
@@ -272,6 +279,7 @@ export async function retrieveMemorySearchCandidates(
           query: input.recallSeed,
           limit: input.recollectionIntent?.temporalFocus === 'cross-session' ? 8 : 6,
           recollectionIntent: input.recollectionIntent,
+          budgetClass: input.budgetClass,
         })
       ).map(item => ({
         ...item,
@@ -283,6 +291,7 @@ export async function retrieveMemorySearchCandidates(
         query: input.recallSeed,
         limit: input.recollectionIntent.temporalFocus === 'cross-session' ? 6 : 4,
         recollectionIntent: input.recollectionIntent,
+        budgetClass: input.budgetClass,
       })
     : []
   const recollectedWindows = buildMemoryRecollectionWindows({

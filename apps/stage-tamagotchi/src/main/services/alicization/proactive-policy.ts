@@ -284,6 +284,12 @@ export function evaluateProactivePolicy(input: {
   context: AlicizationProactiveLayeredContext
   proactiveState: AlicizationProactiveLoopState
   killSwitchSuspended: boolean
+  knowledgeEvidence?: {
+    validationCount?: number | null
+    contradictionCount?: number | null
+    stronglyValidatedProcedureCount?: number | null
+    contradictionHeavyFactCount?: number | null
+  } | null
   architecture?: AlicizationDigitalLifeArchitectureSnapshot | null
   perception?: AlicizationProactivePerceptionSignals
   watchMode?: AlicizationVisualWatchMode
@@ -517,6 +523,12 @@ export function evaluateProactivePolicy(input: {
   const continuityDeliberation = input.continuityDeliberation?.kind && input.continuityDeliberation.kind !== 'none'
     ? input.continuityDeliberation
     : null
+  const contradictionPressure = (input.knowledgeEvidence?.contradictionCount ?? 0)
+    + (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 2
+  const validationRelief = (input.knowledgeEvidence?.validationCount ?? 0)
+    + (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0)
+  if (input.knowledgeEvidence)
+    consideredSignals.push('knowledgeEvidence')
   const continuityHoldForLater = Boolean(
     continuityDeliberation
     && (
@@ -807,6 +819,8 @@ export function evaluateProactivePolicy(input: {
       + (thoughtThreadRipe ? 0.1 : 0)
       - (governorWithholdActive ? 0.22 : 0)
       - (repairIntentActive && input.worldModel?.epistemicState.certainty !== 'grounded' ? 0.12 : 0)
+      + Math.min(0.08, validationRelief * 0.02)
+      - Math.min(0.14, contradictionPressure * 0.03)
 
   if (input.watchMode === 'symbiotic-vision')
     baseScore += 0.04
@@ -914,6 +928,8 @@ export function evaluateProactivePolicy(input: {
     + (repairIntentActive && input.worldModel?.epistemicState.certainty !== 'grounded' ? 0.08 : 0)
     - (careIntentActive && (scenario === 'late-night-care' || context.relationship.fatigue >= 55) ? 0.04 : 0)
     - (input.livingWorldState?.openLoops.length ? 0.02 : 0)
+    + Math.min(0.08, contradictionPressure * 0.02)
+    - Math.min(0.05, validationRelief * 0.01)
 
   if (afterglowWindow)
     threshold -= 0.06
@@ -960,11 +976,13 @@ export function evaluateProactivePolicy(input: {
     || activeLoopInitiativeBudget >= 0.74
     || runtimeDialogueReady
     || runtimeControlReady
+  const contradictionHeavyKnowledgeHold = contradictionPressure >= 8 && validationRelief <= 1
   const shouldInterrupt
     = !input.killSwitchSuspended
       && !suppressBusy
       && !cooldownActive
       && !continuityHoldForLater
+      && !contradictionHeavyKnowledgeHold
       && runtimeAwareStyle !== 'silent-observe'
       && activeLoopAllowsSpeaking
       && governorAllowsSpeaking

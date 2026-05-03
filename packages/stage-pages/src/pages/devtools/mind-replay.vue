@@ -24,6 +24,9 @@ const {
   selectedDiagnosisDimension,
   selectedDiagnosisTurnId,
   benchmarkDimensionGroups,
+  benchmarkHumanRatingRows,
+  benchmarkShipGateRows,
+  benchmarkRegressionTriageRows,
   filteredBenchmarkFailingTurns,
   memoryHealthComparisonRows,
   lastError,
@@ -317,6 +320,9 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       :pack-id="selectedBenchmarkPackId"
       :sample-limit="selectedBenchmarkSampleLimit"
       :dimension-groups="benchmarkDimensionGroups"
+      :human-rating-rows="benchmarkHumanRatingRows"
+      :ship-gate-rows="benchmarkShipGateRows"
+      :regression-triage-rows="benchmarkRegressionTriageRows"
       :selected-dimension="selectedDiagnosisDimension"
       :failing-turns="filteredBenchmarkFailingTurns"
       :selected-turn-id="selectedDiagnosisTurnId"

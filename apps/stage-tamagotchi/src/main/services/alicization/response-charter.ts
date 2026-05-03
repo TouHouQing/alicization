@@ -383,6 +383,7 @@ export function buildAlicizationResponseCharter(input: {
     deliberation: runtimeSurface.memory.memoryDeliberation ?? null,
     speech: runtimeSurface.memory.recollectionSpeechPlan ?? null,
     recollectionIntent: null,
+    knowledgeEvidence: runtimeSurface.memory.knowledgeEvidence ?? null,
   })
   const discourseState = runtimeSurface.dialogue.discourseState ?? input.discourseState ?? null
   const mindSynthesis = runtimeSurface.dialogue.mindSynthesis ?? input.mindSynthesis ?? null

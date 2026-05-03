@@ -2059,10 +2059,21 @@ function allowsDeterministicVisibleReplyForDecision(
 }
 
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
-  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
+  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy' | 'reasonCodes'>,
 ) {
   if (decision.strategy === 'local-only')
     return false
+
+  if (
+    decision.lane === 'follow-up'
+    && (
+      decision.reasonCodes.includes('execution-carry-llm-authored')
+      || decision.reasonCodes.includes('prepared-execution-ledger')
+      || decision.reasonCodes.includes('memory-recollection-llm-authored')
+    )
+  ) {
+    return true
+  }
 
   return decision.lane !== 'utility-time'
     && decision.lane !== 'utility-date'

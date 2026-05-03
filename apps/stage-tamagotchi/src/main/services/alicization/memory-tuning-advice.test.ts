@@ -29,11 +29,17 @@ describe('memory-tuning-advice', () => {
             relationshipRepairAdaptation: 'fail',
             closenessLadderDrift: 'pass',
             eventGraphRecallCollapse: 'pass',
+            knowledgeCorrectionDiscipline: 'fail',
+            repeatedMistakeAvoidance: 'pass',
+            hostUnderstandingGrowth: 'pass',
+            skillInternalizationGrowth: 'pass',
+            selfRevisionGrowth: 'pass',
+            dialogueRhythmStability: 'pass',
             templateLeakage: 'fail',
           },
           gate: {
             passed: false,
-            failingKeys: ['procedureCarryQuality', 'wrongThreadSuppression', 'surfaceRestraint', 'relationshipRepairAdaptation', 'templateLeakage'],
+            failingKeys: ['procedureCarryQuality', 'wrongThreadSuppression', 'surfaceRestraint', 'relationshipRepairAdaptation', 'knowledgeCorrectionDiscipline', 'templateLeakage'],
             dimensions: [],
             standards: {
               eraSelectionQuality: 'pass',
@@ -47,6 +53,12 @@ describe('memory-tuning-advice', () => {
               relationshipRepairAdaptation: 'fail',
               closenessLadderDrift: 'pass',
               eventGraphRecallCollapse: 'pass',
+              knowledgeCorrectionDiscipline: 'fail',
+              repeatedMistakeAvoidance: 'pass',
+              hostUnderstandingGrowth: 'pass',
+              skillInternalizationGrowth: 'pass',
+              selfRevisionGrowth: 'pass',
+              dialogueRhythmStability: 'pass',
               templateLeakage: 'fail',
             },
           },
@@ -61,6 +73,8 @@ describe('memory-tuning-advice', () => {
           },
           telemetryPersisted: true,
           failingTurnSet: [],
+          shipGate: [],
+          regressionTriage: [],
           datasetFeedback: {
             backlogKey: 'replay_benchmark_dataset_backlog_v1',
             appendedCount: 1,
@@ -76,11 +90,13 @@ describe('memory-tuning-advice', () => {
       'wrongThreadSuppression',
       'surfaceRestraint',
       'relationshipRepairAdaptation',
+      'knowledgeCorrectionDiscipline',
       'templateLeakage',
     ]))
     expect(advice.retrievalAdjustments.proceduralBoost).toBeGreaterThan(0.1)
     expect(advice.retrievalAdjustments.wrongThreadPenalty).toBeGreaterThan(0.1)
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0.2)
+    expect(advice.surfaceAdjustments.provenanceLabelBias).toBeGreaterThan(0.1)
     expect(advice.personStateAdjustments.repairWindowBias).toBeGreaterThan(0.1)
   })
 

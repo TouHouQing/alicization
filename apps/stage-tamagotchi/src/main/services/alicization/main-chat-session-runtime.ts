@@ -37,6 +37,7 @@ import type {
 } from './main-chat-execution-surface'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
+import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import type {
   MainGatewayResolvedConfig,
@@ -174,12 +175,14 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
     sessionId?: string | null
     turnId?: string | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<OrganicMemoryPromptContext>
   prewarmOrganicMemoryAccessibility?: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
     sessionId?: string | null
     turnId?: string | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<unknown>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
@@ -245,6 +248,7 @@ function applyMemoryDeliberationToGovernance(input: {
     deliberation,
     speech,
     recollectionIntent: input.context.recollectionIntent ?? null,
+    knowledgeEvidence: input.context.knowledgeEvidence ?? null,
   })
   if (!deliberationKernel?.shouldRecall)
     return governance
@@ -704,6 +708,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     deliberation,
     speech,
     recollectionIntent: input.context.recollectionIntent ?? null,
+    knowledgeEvidence: input.context.knowledgeEvidence ?? null,
   })
   if (!surface || !governance || !deliberationKernel?.shouldRecall || !deliberation)
     return surface
@@ -989,6 +994,8 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       recollectionPlan: input.context.recollectionPlan ?? surface.memory.recollectionPlan ?? null,
       recollectionSpeechPlan: input.context.recollectionSpeechPlan ?? surface.memory.recollectionSpeechPlan ?? null,
       memoryDeliberation: deliberation,
+      knowledgeEvidence: input.context.knowledgeEvidence ?? surface.memory.knowledgeEvidence ?? null,
+      selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
     },
     cognition: {
       ...surface.cognition,
@@ -1201,6 +1208,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
+          budgetClass: prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'cross-session'
+            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'distant'
+            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'experience-matched'
+            ? 'deep-recall-reply'
+            : 'realtime-reply',
         })
       }, {
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -1213,6 +1225,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
+          budgetClass: prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'cross-session'
+            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'distant'
+            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'experience-matched'
+            ? 'deep-recall-reply'
+            : 'realtime-reply',
         }),
         suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -1507,7 +1524,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         executionCallbackSystemBlocks: (!dialogueFirstLeanRuntime || Boolean(executionReplyObligation)) && executionCallbackContext.systemBlock
           ? [executionCallbackContext.systemBlock]
           : [],
-        executionLedgerSystemBlocks: (!dialogueFirstLeanRuntime || Boolean(executionReplyObligation)) && executionLedgerContext.systemBlock
+        executionLedgerSystemBlocks: executionLedgerContext.systemBlock
           ? [executionLedgerContext.systemBlock]
           : [],
         executionReplyObligationSystemBlock: executionReplyObligation

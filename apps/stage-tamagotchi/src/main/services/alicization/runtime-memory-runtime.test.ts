@@ -27,9 +27,43 @@ describe('runtime memory runtime', () => {
         replaceActiveThoughts: async () => {},
         setMetaValue: async () => {},
         searchSubconsciousFragments: async () => [],
-        listRecentEpisodicEvents: async () => [],
+        listRecentEpisodicEvents: async () => [{
+          id: 'event-1',
+          cardId: 'card-1',
+          decisionTraceId: 'trace-1',
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          sourceKind: 'reply',
+          provenance: 'remembered',
+          occurredAt: 10,
+          whereSummary: 'focused work',
+          withWhom: ['host'],
+          threadAnchor: 'runtime seam',
+          whatHappened: 'repair before closeness landed better',
+          felt: null,
+          emotionTags: [],
+          whatChanged: 'The host opened more when the reply stayed grounded.',
+          relationshipMeaning: 'Repair before closeness keeps trust stable.',
+          lesson: 'Repair before closeness.',
+          sourceSummary: 'runtime seam',
+          confidence: 0.82,
+          salience: 0.76,
+          sceneAttachment: 0.5,
+          consolidationPriority: 0.6,
+          relationshipShift: null,
+          derivedFrom: [],
+          tags: [],
+          createdAt: 10,
+          updatedAt: 10,
+          lastRecalledAt: null,
+          recallCount: 0,
+          reconsolidationCount: 0,
+          latestReconsolidation: null,
+        } as any],
         listMemoryConsolidations: async () => [],
-        getLatestRelationshipDynamics: async () => null,
+        getLatestRelationshipDynamics: async () => ({
+          hostAttitude: 'warm',
+        } as any),
         listRelationshipOutcomes: async () => [],
         listPersonaReinforcementEvents: async () => [],
         summarizePersonStateEvolution: async () => ({
@@ -39,14 +73,14 @@ describe('runtime memory runtime', () => {
           autonomyShift: 0,
           burdenShift: 0,
           executionTrustShift: 0,
-          relationshipDoctrineShift: 0,
-          latestDoctrine: null,
-          latestBurdenLine: null,
-          latestTrustMeaning: null,
-          latestDominantRung: null,
-          recentSummaries: [],
-          explanation: [],
-          updatedAt: null,
+          relationshipDoctrineShift: 0.08,
+          latestDoctrine: 'Repair before closeness.',
+          latestBurdenLine: 'Do not crowd the host when focused.',
+          latestTrustMeaning: 'Trust rises when the reply stays grounded.',
+          latestDominantRung: 'space-first',
+          recentSummaries: ['Repair before closeness.'],
+          explanation: ['Repair before closeness.'],
+          updatedAt: 10,
         }),
         readMindHead: async () => null,
         searchEpisodicEvents,
@@ -94,9 +128,14 @@ describe('runtime memory runtime', () => {
     })
 
     expect(context.hostAttitude).toBe('warm')
+    expect(context.selfEvolution).toEqual(expect.objectContaining({
+      version: 'self-evolution-kernel-v1',
+      activeLearningFocuses: expect.any(Array),
+    }))
     expect(runtime.organicMemoryAccessRuntime).toBeTruthy()
     expect(runtime.memorySearchRuntime).toBeTruthy()
     expect(runtime.memoryReconsolidationRuntime).toBeTruthy()
+    expect(runtime.knowledgeAssimilationRuntime).toBeTruthy()
     expect(listMindTurnEvents).toHaveBeenCalledWith({
       decisionTraceId: 'trace-1',
       limit: 24,

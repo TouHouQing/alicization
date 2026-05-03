@@ -240,6 +240,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
     speech: recollectionSpeechPlan,
     recollectionIntent: null,
+    knowledgeEvidence: runtimeSurface?.memory.knowledgeEvidence ?? null,
   })
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({

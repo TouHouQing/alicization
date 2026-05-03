@@ -131,6 +131,47 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
 }
 
 export function createAlicizationMainGatewayOneShotRuntime(options: CreateAlicizationMainGatewayOneShotRuntimeOptions) {
+  function buildKnowledgeEvidenceSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+    const knowledgeEvidence = surface?.memory.knowledgeEvidence ?? null
+    if (!knowledgeEvidence)
+      return ''
+    return [
+      '[ALICIZATION_KNOWLEDGE_EVIDENCE]',
+      `validation_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.validationCount ?? 0)))}`,
+      `contradiction_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionCount ?? 0)))}`,
+      `strongly_validated_procedure_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.stronglyValidatedProcedureCount ?? 0)))}`,
+      `contradiction_heavy_fact_count=${Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionHeavyFactCount ?? 0)))}`,
+      'Treat higher contradiction pressure as a cue to keep remembered detail compressed, approximate, or latent.',
+      'Treat stronger validated procedure count as a cue that remembered procedure carry is safer than brittle remembered wording.',
+    ].join('\n')
+  }
+
+  function buildSelfEvolutionSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
+    const selfEvolution = surface?.memory.selfEvolution ?? null
+    if (!selfEvolution)
+      return ''
+    return [
+      '[ALICIZATION_SELF_EVOLUTION]',
+      selfEvolution.summary ? `summary=${selfEvolution.summary}` : '',
+      selfEvolution.dominantTrajectory ? `dominant_trajectory=${selfEvolution.dominantTrajectory}` : '',
+      selfEvolution.relationshipDoctrine ? `relationship_doctrine=${selfEvolution.relationshipDoctrine}` : '',
+      selfEvolution.latestInflection ? `latest_inflection=${selfEvolution.latestInflection}` : '',
+      selfEvolution.burdenLine ? `burden_line=${selfEvolution.burdenLine}` : '',
+      selfEvolution.trustMeaning ? `trust_meaning=${selfEvolution.trustMeaning}` : '',
+      `evolution_momentum=${selfEvolution.evolutionMomentum.toFixed(2)}`,
+      `learning_readiness=${selfEvolution.learningReadiness.toFixed(2)}`,
+      `contradiction_pressure=${selfEvolution.contradictionPressure.toFixed(2)}`,
+      `revision_pressure=${selfEvolution.revisionPressure.toFixed(2)}`,
+      `autobiographical_stability=${selfEvolution.autobiographicalStability.toFixed(2)}`,
+      `next_learning_action=${selfEvolution.nextLearningAction}`,
+      selfEvolution.nextLearningReason ? `next_learning_reason=${selfEvolution.nextLearningReason}` : '',
+      selfEvolution.activeLearningFocuses.length > 0
+        ? `active_learning_focuses=${selfEvolution.activeLearningFocuses.join(' | ')}`
+        : '',
+      'Let this shape inner trajectory and update pressure, not fixed visible wording.',
+    ].filter(Boolean).join('\n')
+  }
+
   function buildScreenSemanticUserContent(input: {
     imageDataUrl: string
     foregroundWindow?: {
@@ -407,6 +448,12 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         : []),
       ...(oneShotArchitectureSystemBlock
         ? [{ role: 'system', content: oneShotArchitectureSystemBlock } as Message]
+        : []),
+      ...(buildKnowledgeEvidenceSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
+        ? [{ role: 'system', content: buildKnowledgeEvidenceSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
+        : []),
+      ...(buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null)
+        ? [{ role: 'system', content: buildSelfEvolutionSystemBlock(sessionContinuityContext.digitalLifeRuntimeSurface ?? generateOptions.digitalLifeRuntimeSurface ?? null) } as Message]
         : []),
       ...((generateOptions.extraSystemBlocks ?? [])
         .map(block => sanitizeMultilineText(block))

@@ -29,6 +29,9 @@ import type {
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionStatus,
+  AlicizationKnowledgeAssimilationStage,
+  AlicizationKnowledgeValidationStatus,
+  AlicizationKnowledgeAssimilationCorrection,
   AlicizationMemorySource,
   AlicizationMemoryStats,
   AlicizationMindHeadKey,
@@ -106,6 +109,13 @@ interface DbMemoryFactRow {
   updated_at: number
   last_access_at: number | null
   access_count: number
+  knowledge_stage: AlicizationKnowledgeAssimilationStage | null
+  validation_status: AlicizationKnowledgeValidationStatus | null
+  validation_count: number
+  contradiction_count: number
+  source_label: string | null
+  conflicts_with_json: string | null
+  supersedes_json: string | null
 }
 
 interface DbMemoryArchiveRow extends DbMemoryFactRow {
@@ -128,6 +138,13 @@ interface PreparedMemoryFactWrite {
   dedupeKey: string
   createdAt: number
   updatedAt: number
+  knowledgeStage: AlicizationKnowledgeAssimilationStage
+  validationStatus: AlicizationKnowledgeValidationStatus
+  validationCount: number
+  contradictionCount: number
+  sourceLabel: string | null
+  conflictsWithJson: string
+  supersedesJson: string
 }
 
 interface PreparedMemoryConsolidationWrite {
@@ -569,6 +586,61 @@ function buildDedupeKey(subject: string, predicate: string, object: string) {
   return `${subject.trim().toLowerCase()}|${predicate.trim().toLowerCase()}|${object.trim().toLowerCase()}`
 }
 
+function parseStringArray(raw: string | null): string[] {
+  if (!raw)
+    return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed))
+      return []
+    return parsed
+      .map(item => typeof item === 'string' ? item.trim() : '')
+      .filter(Boolean)
+  }
+  catch {
+    return []
+  }
+}
+
+function normalizeStringArray(values: Array<string | null | undefined> | null | undefined, maxItems = 16) {
+  const result: string[] = []
+  for (const raw of values ?? []) {
+    const normalized = typeof raw === 'string' ? raw.trim().slice(0, 120) : ''
+    if (!normalized)
+      continue
+    if (result.includes(normalized))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function normalizeKnowledgeStage(raw: unknown): AlicizationKnowledgeAssimilationStage {
+  if (
+    raw === 'ephemeral-observation'
+    || raw === 'working-understanding'
+    || raw === 'validated-knowledge'
+    || raw === 'internalized-long-horizon-knowledge'
+  ) {
+    return raw
+  }
+  return 'working-understanding'
+}
+
+function normalizeValidationStatus(raw: unknown): AlicizationKnowledgeValidationStatus {
+  if (
+    raw === 'unverified'
+    || raw === 'provisional'
+    || raw === 'validated'
+    || raw === 'superseded'
+  ) {
+    return raw
+  }
+  return 'unverified'
+}
+
 function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
   const mapped: AlicizationMemoryFact = {
     id: row.id,
@@ -582,6 +654,15 @@ function mapFactRow(row: DbMemoryFactRow): AlicizationMemoryFact {
     updatedAt: row.updated_at,
     lastAccessAt: typeof row.last_access_at === 'number' ? row.last_access_at : null,
     accessCount: Math.max(0, Math.floor(row.access_count)),
+    knowledgeStage: normalizeKnowledgeStage(row.knowledge_stage),
+    validationStatus: normalizeValidationStatus(row.validation_status),
+    validationCount: Math.max(0, Math.floor(row.validation_count ?? 0)),
+    contradictionCount: Math.max(0, Math.floor(row.contradiction_count ?? 0)),
+    sourceLabel: typeof row.source_label === 'string' && row.source_label.trim()
+      ? row.source_label.trim()
+      : null,
+    conflictsWith: parseStringArray(row.conflicts_with_json),
+    supersedes: parseStringArray(row.supersedes_json),
     provenance: mapMemorySourceToProvenance(row.source),
   }
   mapped.memoryTier = deriveFactMemoryTier(mapped, now())
@@ -1065,6 +1146,8 @@ export interface AlicizationDbService {
   appendConversationTurn: (input: AlicizationConversationTurnInput, options?: DbWriteOptions) => Promise<void>
   getMemoryStats: () => Promise<AlicizationMemoryStats>
   upsertMemoryFacts: (facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) => Promise<void>
+  applyMemoryFactCorrections: (corrections: AlicizationKnowledgeAssimilationCorrection[]) => Promise<void>
+  listMemoryFacts: () => Promise<AlicizationMemoryFact[]>
   retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
   upsertMemoryReflections: (entries: AlicizationMemoryReflectionInput[]) => Promise<AlicizationMemoryReflectionRecord[]>
   listMemoryReflections: (input: {
@@ -1233,10 +1316,23 @@ export async function setupAlicizationDb(
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         last_access_at INTEGER,
-        access_count INTEGER NOT NULL DEFAULT 0
+        access_count INTEGER NOT NULL DEFAULT 0,
+        knowledge_stage TEXT,
+        validation_status TEXT,
+        validation_count INTEGER NOT NULL DEFAULT 0,
+        contradiction_count INTEGER NOT NULL DEFAULT 0,
+        source_label TEXT,
+        conflicts_with_json TEXT,
+        supersedes_json TEXT
       )
     `)
-
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN knowledge_stage TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN validation_status TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN validation_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN contradiction_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN source_label TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN conflicts_with_json TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_facts ADD COLUMN supersedes_json TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_updated_at ON memory_facts(updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_last_access_at ON memory_facts(last_access_at DESC)')
 
@@ -1472,10 +1568,23 @@ export async function setupAlicizationDb(
         updated_at INTEGER NOT NULL,
         last_access_at INTEGER,
         access_count INTEGER NOT NULL DEFAULT 0,
+        knowledge_stage TEXT,
+        validation_status TEXT,
+        validation_count INTEGER NOT NULL DEFAULT 0,
+        contradiction_count INTEGER NOT NULL DEFAULT 0,
+        source_label TEXT,
+        conflicts_with_json TEXT,
+        supersedes_json TEXT,
         archived_at INTEGER NOT NULL
       )
     `)
-
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN knowledge_stage TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN validation_status TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN validation_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN contradiction_count INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN source_label TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN conflicts_with_json TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_archive ADD COLUMN supersedes_json TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_archive_archived_at ON memory_archive(archived_at DESC)')
 
     await run(database, `
@@ -1777,8 +1886,15 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              access_count,
+              knowledge_stage,
+              validation_status,
+              validation_count,
+              contradiction_count,
+              source_label,
+              conflicts_with_json,
+              supersedes_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -1790,7 +1906,14 @@ export async function setupAlicizationDb(
                 WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
                 ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
               END,
-              access_count = MAX(memory_facts.access_count, excluded.access_count)
+              access_count = MAX(memory_facts.access_count, excluded.access_count),
+              knowledge_stage = excluded.knowledge_stage,
+              validation_status = excluded.validation_status,
+              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+              contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
+              source_label = excluded.source_label,
+              conflicts_with_json = excluded.conflicts_with_json,
+              supersedes_json = excluded.supersedes_json
             `,
             [
               row.original_id?.trim() || row.id || randomUUID(),
@@ -1804,6 +1927,13 @@ export async function setupAlicizationDb(
               row.updated_at,
               row.last_access_at,
               Math.max(0, Math.floor(row.access_count)),
+              normalizeKnowledgeStage(row.knowledge_stage),
+              normalizeValidationStatus(row.validation_status),
+              Math.max(0, Math.floor(Number(row.validation_count ?? 0))),
+              Math.max(0, Math.floor(Number(row.contradiction_count ?? 0))),
+              row.source_label?.trim() || null,
+              JSON.stringify(parseStringArray(row.conflicts_with_json)),
+              JSON.stringify(parseStringArray(row.supersedes_json)),
             ],
           )
         }
@@ -2121,13 +2251,27 @@ export async function setupAlicizationDb(
           created_at,
           updated_at,
           last_access_at,
-          access_count
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          access_count,
+          knowledge_stage,
+          validation_status,
+          validation_count,
+          contradiction_count,
+          source_label,
+          conflicts_with_json,
+          supersedes_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(dedupe_key)
         DO UPDATE SET
           confidence = MAX(memory_facts.confidence, excluded.confidence),
           source = excluded.source,
-          updated_at = excluded.updated_at
+          updated_at = excluded.updated_at,
+          knowledge_stage = excluded.knowledge_stage,
+          validation_status = excluded.validation_status,
+          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+          contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
+          source_label = excluded.source_label,
+          conflicts_with_json = excluded.conflicts_with_json,
+          supersedes_json = excluded.supersedes_json
         `,
         [
           fact.id,
@@ -2141,6 +2285,13 @@ export async function setupAlicizationDb(
           fact.updatedAt,
           null,
           0,
+          fact.knowledgeStage,
+          fact.validationStatus,
+          fact.validationCount,
+          fact.contradictionCount,
+          fact.sourceLabel,
+          fact.conflictsWithJson,
+          fact.supersedesJson,
         ],
       )
     }
@@ -3357,6 +3508,25 @@ export async function setupAlicizationDb(
           dedupeKey: buildDedupeKey(subject, predicate, object),
           createdAt: now(),
           updatedAt: now(),
+          knowledgeStage: normalizeKnowledgeStage(fact.knowledgeStage),
+          validationStatus: normalizeValidationStatus(fact.validationStatus),
+          validationCount: Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
+          contradictionCount: Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
+          sourceLabel: typeof fact.sourceLabel === 'string' && fact.sourceLabel.trim()
+            ? fact.sourceLabel.trim().slice(0, 160)
+            : null,
+          conflictsWithJson: JSON.stringify(
+            (fact.conflictsWith ?? [])
+              .map(item => typeof item === 'string' ? item.trim() : '')
+              .filter(Boolean)
+              .slice(0, 16),
+          ),
+          supersedesJson: JSON.stringify(
+            (fact.supersedes ?? [])
+              .map(item => typeof item === 'string' ? item.trim() : '')
+              .filter(Boolean)
+              .slice(0, 16),
+          ),
         }
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -3421,6 +3591,94 @@ export async function setupAlicizationDb(
     await recordMemorySemanticRetrievalLatency(now() - retrievalStartedAt)
 
     return ranked.map(item => item.fact)
+  }
+
+  async function applyMemoryFactCorrections(corrections: AlicizationKnowledgeAssimilationCorrection[]) {
+    const normalizedCorrections = corrections
+      .map((correction) => {
+        const targetFactId = correction.targetFactId.trim()
+        if (!targetFactId)
+          return null
+        return {
+          targetFactId,
+          nextValidationStatus: normalizeValidationStatus(correction.nextValidationStatus),
+          nextKnowledgeStage: correction.nextKnowledgeStage ? normalizeKnowledgeStage(correction.nextKnowledgeStage) : null,
+          sourceLabel: typeof correction.sourceLabel === 'string' && correction.sourceLabel.trim()
+            ? correction.sourceLabel.trim().slice(0, 160)
+            : null,
+          appendConflictsWith: normalizeStringArray(correction.appendConflictsWith, 16),
+          appendSupersedes: normalizeStringArray(correction.appendSupersedes, 16),
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+    if (normalizedCorrections.length === 0)
+      return
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const correction of normalizedCorrections) {
+          const row = await get<DbMemoryFactRow>(
+            database,
+            'SELECT * FROM memory_facts WHERE id = ?',
+            [correction.targetFactId],
+          )
+          if (!row)
+            continue
+
+          const mergedConflictsWith = JSON.stringify([
+            ...new Set([
+              ...parseStringArray(row.conflicts_with_json),
+              ...correction.appendConflictsWith,
+            ]),
+          ])
+          const mergedSupersedes = JSON.stringify([
+            ...new Set([
+              ...parseStringArray(row.supersedes_json),
+              ...correction.appendSupersedes,
+            ]),
+          ])
+
+          await run(
+            database,
+            `
+            UPDATE memory_facts
+            SET validation_status = ?,
+                knowledge_stage = COALESCE(?, knowledge_stage),
+                source_label = COALESCE(?, source_label),
+                validation_count = CASE
+                  WHEN ? = 'validated' THEN validation_count + 1
+                  ELSE validation_count
+                END,
+                contradiction_count = CASE
+                  WHEN ? = 'superseded' THEN contradiction_count + 1
+                  ELSE contradiction_count
+                END,
+                conflicts_with_json = ?,
+                supersedes_json = ?,
+                updated_at = ?
+            WHERE id = ?
+            `,
+            [
+              correction.nextValidationStatus,
+              correction.nextKnowledgeStage,
+              correction.sourceLabel,
+              correction.nextValidationStatus,
+              correction.nextValidationStatus,
+              mergedConflictsWith,
+              mergedSupersedes,
+              now(),
+              correction.targetFactId,
+            ],
+          )
+        }
+      })
+    })
+  }
+
+  async function listMemoryFacts() {
+    const rows = await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')
+    return rows.map(mapFactRow)
   }
 
 
@@ -3824,13 +4082,27 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          access_count,
+          knowledge_stage,
+          validation_status,
+          validation_count,
+          contradiction_count,
+          source_label,
+          conflicts_with_json,
+          supersedes_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
-              source = excluded.source,
-              updated_at = excluded.updated_at
+          source = excluded.source,
+          updated_at = excluded.updated_at,
+          knowledge_stage = excluded.knowledge_stage,
+          validation_status = excluded.validation_status,
+          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+          contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
+          source_label = excluded.source_label,
+          conflicts_with_json = excluded.conflicts_with_json,
+          supersedes_json = excluded.supersedes_json
             `,
             [
               fact.id || randomUUID(),
@@ -3844,6 +4116,13 @@ export async function setupAlicizationDb(
               fact.updatedAt,
               fact.lastAccessAt,
               Math.max(0, Math.floor(fact.accessCount)),
+              normalizeKnowledgeStage(fact.knowledgeStage),
+              normalizeValidationStatus(fact.validationStatus),
+              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
+              Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
+              fact.sourceLabel?.trim() || null,
+              JSON.stringify(fact.conflictsWith ?? []),
+              JSON.stringify(fact.supersedes ?? []),
             ],
           )
         }
@@ -3870,8 +4149,15 @@ export async function setupAlicizationDb(
               created_at,
               updated_at,
               last_access_at,
-              access_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              access_count,
+              knowledge_stage,
+              validation_status,
+              validation_count,
+              contradiction_count,
+              source_label,
+              conflicts_with_json,
+              supersedes_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
@@ -3883,7 +4169,14 @@ export async function setupAlicizationDb(
                 WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
                 ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
               END,
-              access_count = MAX(memory_facts.access_count, excluded.access_count)
+              access_count = MAX(memory_facts.access_count, excluded.access_count),
+              knowledge_stage = excluded.knowledge_stage,
+              validation_status = excluded.validation_status,
+              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
+              contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
+              source_label = excluded.source_label,
+              conflicts_with_json = excluded.conflicts_with_json,
+              supersedes_json = excluded.supersedes_json
             `,
             [
               item.id || randomUUID(),
@@ -3897,6 +4190,13 @@ export async function setupAlicizationDb(
               item.updatedAt,
               item.lastAccessAt,
               Math.max(0, Math.floor(item.accessCount)),
+              normalizeKnowledgeStage(item.knowledgeStage),
+              normalizeValidationStatus(item.validationStatus),
+              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
+              Math.max(0, Math.floor(Number(item.contradictionCount ?? 0))),
+              item.sourceLabel?.trim() || null,
+              JSON.stringify(item.conflictsWith ?? []),
+              JSON.stringify(item.supersedes ?? []),
             ],
           )
         }
@@ -3945,7 +4245,25 @@ export async function setupAlicizationDb(
           await memoryRetrievalTelemetryRuntime.applyHealthOverrideInline({
             semanticLatencyMs: next.retrievalHealth.semanticLatencyMs,
             graphLatencyMs: next.retrievalHealth.graphLatencyMs,
+            candidateGenerationLatencyMs: next.retrievalHealth.candidateGenerationLatencyMs ?? null,
+            plannerLatencyMs: next.retrievalHealth.plannerLatencyMs ?? null,
+            speechPlanLatencyMs: next.retrievalHealth.speechPlanLatencyMs ?? null,
+            cacheHitRatio: next.retrievalHealth.cacheHitRatio,
+            prewarmHitRatio: next.retrievalHealth.prewarmHitRatio,
+            budgetClassCounts: next.retrievalHealth.budgetClassCounts,
+            hotKeyStats: next.retrievalHealth.hotKeyStats,
+            recallHitRate: next.retrievalHealth.recallHitRate,
+            recallMissRate: next.retrievalHealth.recallMissRate,
+            wrongThreadRate: next.retrievalHealth.wrongThreadRate,
+            reconstructionErrorRate: next.retrievalHealth.reconstructionErrorRate,
+            stableCoreOnlyRate: next.retrievalHealth.stableCoreOnlyRate,
+            memorySurfaceViolationRate: next.retrievalHealth.memorySurfaceViolationRate,
             templateLeakageFailCount: next.retrievalHealth.templateLeakageFailCount,
+            mindParticipation: next.retrievalHealth.mindParticipation,
+            memoryParticipation: next.retrievalHealth.memoryParticipation,
+            personalityParticipation: next.retrievalHealth.personalityParticipation,
+            relationshipParticipation: next.retrievalHealth.relationshipParticipation,
+            continuityParticipation: next.retrievalHealth.continuityParticipation,
           })
         }
       })
@@ -3994,6 +4312,8 @@ export async function setupAlicizationDb(
     appendConversationTurn,
     getMemoryStats,
     upsertMemoryFacts,
+    applyMemoryFactCorrections,
+    listMemoryFacts,
     retrieveMemoryFacts,
     upsertMemoryReflections: memoryRelationshipRuntime.upsertMemoryReflections,
     listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,

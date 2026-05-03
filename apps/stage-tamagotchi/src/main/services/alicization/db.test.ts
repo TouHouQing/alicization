@@ -184,6 +184,13 @@ const memoryFacts = new Map<string, {
   updated_at: number
   last_access_at: number | null
   access_count: number
+  knowledge_stage: string | null
+  validation_status: string | null
+  validation_count: number
+  contradiction_count: number
+  source_label: string | null
+  conflicts_with_json: string | null
+  supersedes_json: string | null
 }>()
 const memoryArchive = new Map<string, {
   id: string
@@ -198,6 +205,13 @@ const memoryArchive = new Map<string, {
   updated_at: number
   last_access_at: number | null
   access_count: number
+  knowledge_stage: string | null
+  validation_status: string | null
+  validation_count: number
+  contradiction_count: number
+  source_label: string | null
+  conflicts_with_json: string | null
+  supersedes_json: string | null
   archived_at: number
 }>()
 const memoryIngestJournal = new Map<string, {
@@ -234,6 +248,13 @@ function upsertMemoryFactRow(row: {
   updated_at: number
   last_access_at: number | null
   access_count: number
+  knowledge_stage: string | null
+  validation_status: string | null
+  validation_count: number
+  contradiction_count: number
+  source_label: string | null
+  conflicts_with_json: string | null
+  supersedes_json: string | null
 }) {
   const existing = [...memoryFacts.values()].find(item => item.dedupe_key === row.dedupe_key)
   if (!existing) {
@@ -251,6 +272,13 @@ function upsertMemoryFactRow(row: {
       ? existing.last_access_at
       : Math.max(existing.last_access_at, row.last_access_at)
   existing.access_count = Math.max(existing.access_count, row.access_count)
+  existing.knowledge_stage = row.knowledge_stage
+  existing.validation_status = row.validation_status
+  existing.validation_count = Math.max(existing.validation_count, row.validation_count)
+  existing.contradiction_count = Math.max(existing.contradiction_count, row.contradiction_count)
+  existing.source_label = row.source_label
+  existing.conflicts_with_json = row.conflicts_with_json
+  existing.supersedes_json = row.supersedes_json
 }
 
 class FakeSqliteDatabase {
@@ -272,8 +300,8 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_facts')) {
-      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount]
-        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number]
+      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson]
+        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, number, number, string | null, string | null, string | null]
       upsertMemoryFactRow({
         id,
         subject,
@@ -286,22 +314,54 @@ class FakeSqliteDatabase {
         updated_at: updatedAt,
         last_access_at: lastAccessAt ?? null,
         access_count: accessCount,
+        knowledge_stage: knowledgeStage ?? null,
+        validation_status: validationStatus ?? null,
+        validation_count: validationCount ?? 0,
+        contradiction_count: contradictionCount ?? 0,
+        source_label: sourceLabel ?? null,
+        conflicts_with_json: conflictsWithJson ?? null,
+        supersedes_json: supersedesJson ?? null,
       })
     }
     else if (sql.includes('UPDATE memory_facts')) {
-      const [accessCount, lastAccessAt, id] = actualParams as [number, number | null, string]
-      const fact = memoryFacts.get(id)
-      if (!fact) {
-        changes = 0
+      if (sql.includes('SET access_count = access_count + 1')) {
+        const [lastAccessAt, id] = actualParams as [number | null, string]
+        const fact = memoryFacts.get(id)
+        if (!fact) {
+          changes = 0
+        }
+        else {
+          fact.access_count += 1
+          fact.last_access_at = lastAccessAt ?? null
+        }
+      }
+      else if (sql.includes('SET validation_status = ?')) {
+        const [validationStatus, knowledgeStage, sourceLabel, conflictsWithJson, supersedesJson, updatedAt, id]
+          = actualParams as [string, string | null, string | null, string, string, number, string]
+        const fact = memoryFacts.get(id)
+        if (!fact) {
+          changes = 0
+        }
+        else {
+          fact.validation_status = validationStatus
+          if (knowledgeStage != null)
+            fact.knowledge_stage = knowledgeStage
+          if (sourceLabel != null)
+            fact.source_label = sourceLabel
+          fact.validation_count += validationStatus === 'validated' ? 1 : 0
+          fact.contradiction_count += validationStatus === 'superseded' ? 1 : 0
+          fact.conflicts_with_json = conflictsWithJson
+          fact.supersedes_json = supersedesJson
+          fact.updated_at = updatedAt
+        }
       }
       else {
-        fact.access_count = accessCount
-        fact.last_access_at = lastAccessAt ?? null
+        changes = 0
       }
     }
     else if (sql.includes('INSERT INTO memory_archive')) {
-      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, archivedAt]
-        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, number]
+      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson, archivedAt]
+        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, number, number, string | null, string | null, string | null, number]
       memoryArchive.set(id, {
         id,
         original_id: originalId ?? null,
@@ -315,6 +375,13 @@ class FakeSqliteDatabase {
         updated_at: updatedAt,
         last_access_at: lastAccessAt ?? null,
         access_count: accessCount,
+        knowledge_stage: knowledgeStage ?? null,
+        validation_status: validationStatus ?? null,
+        validation_count: validationCount ?? 0,
+        contradiction_count: contradictionCount ?? 0,
+        source_label: sourceLabel ?? null,
+        conflicts_with_json: conflictsWithJson ?? null,
+        supersedes_json: supersedesJson ?? null,
         archived_at: archivedAt,
       })
     }
@@ -813,6 +880,12 @@ class FakeSqliteDatabase {
 
     if (sql.includes('COUNT(1) AS total FROM memory_archive')) {
       actualCallback?.(null, { total: memoryArchive.size })
+      return this
+    }
+
+    if (sql.includes('SELECT * FROM memory_facts WHERE id = ?')) {
+      const id = String(actualParams[0] ?? '')
+      actualCallback?.(null, id ? memoryFacts.get(id) : undefined)
       return this
     }
 
@@ -2379,6 +2452,12 @@ describe('alicization sqlite dao', () => {
         graphLatencyMs: beforeOverride.retrievalHealth?.graphLatencyMs ?? null,
         reconstructionFrequency: beforeOverride.retrievalHealth?.reconstructionFrequency ?? 0,
         reconstructedCount: beforeOverride.retrievalHealth?.reconstructedCount ?? 0,
+        recallHitRate: beforeOverride.retrievalHealth?.recallHitRate ?? 0,
+        recallMissRate: beforeOverride.retrievalHealth?.recallMissRate ?? 0,
+        wrongThreadRate: beforeOverride.retrievalHealth?.wrongThreadRate ?? 0,
+        reconstructionErrorRate: beforeOverride.retrievalHealth?.reconstructionErrorRate ?? 0,
+        stableCoreOnlyRate: beforeOverride.retrievalHealth?.stableCoreOnlyRate ?? 0,
+        memorySurfaceViolationRate: beforeOverride.retrievalHealth?.memorySurfaceViolationRate ?? 0,
         templateLeakageFailCount: 3,
       },
     })
@@ -2413,6 +2492,69 @@ describe('alicization sqlite dao', () => {
     expect(first.migrated).toBe(true)
     expect(second.migrated).toBe(false)
     expect(metaState.has('legacy_memory_migrated_v1')).toBe(true)
+
+    await db.close()
+  })
+
+  it('persists knowledge lifecycle fields through memory fact retrieval', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+    memoryFacts.clear()
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertMemoryFacts([
+      {
+        subject: 'assistant',
+        predicate: 'learned',
+        object: 'return to the same runtime seam before branching',
+        confidence: 0.83,
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+        sourceLabel: 'host-confirmed runtime replay',
+        conflictsWith: ['fact-old-runtime-shortcut'],
+        supersedes: ['fact-old-runtime-shortcut'],
+      },
+    ], 'async-llm')
+
+    const recalled = await db.retrieveMemoryFacts('runtime seam before branching', 5)
+
+    expect(recalled[0]).toEqual(expect.objectContaining({
+      knowledgeStage: 'internalized-long-horizon-knowledge',
+      validationStatus: 'validated',
+      sourceLabel: 'host-confirmed runtime replay',
+      conflictsWith: ['fact-old-runtime-shortcut'],
+      supersedes: ['fact-old-runtime-shortcut'],
+    }))
+
+    await db.close()
+  })
+
+  it('applies memory fact corrections and persists validation/contradiction counters', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertMemoryFacts([
+      {
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'report immediately',
+        confidence: 0.78,
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'provisional',
+        validationCount: 1,
+        contradictionCount: 0,
+      },
+    ], 'async-llm')
+
+    const inserted = await db.retrieveMemoryFacts('report immediately', 5)
+    await expect(db.applyMemoryFactCorrections([{
+      targetFactId: inserted[0]!.id,
+      nextValidationStatus: 'superseded',
+      sourceLabel: 'superseded-by:new-procedure',
+      appendConflictsWith: ['assistant|procedure|wait before reporting'],
+    }])).resolves.toBeUndefined()
 
     await db.close()
   })

@@ -4,6 +4,8 @@ import type {
   AlicizationMindTurnEventRecord,
 } from './alicization-transport-contracts'
 
+import { deriveAlicizationMindParticipationFromTrace } from './alicization-mind-participation'
+
 function asObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -95,6 +97,19 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         takeoverAudit: takeoverAudit?.payload ?? null,
         memoryFactsUpserted: memoryFactsUpserted?.payload ?? null,
         personStateUpdated: personStateUpdated?.payload ?? null,
+        participation: deriveAlicizationMindParticipationFromTrace({
+          governance: governance?.payload
+            ? {
+                digitalLifeSpine: asObject(governance.payload.digitalLifeSpine) as AlicizationMemoryDecisionTraceRecord['governance'] extends infer T
+                  ? T extends { digitalLifeSpine?: infer U }
+                    ? U
+                    : never
+                  : never,
+              }
+            : null,
+          dialogueEmitted: dialogueEmitted?.payload ?? null,
+          persistenceWritten: persistenceWritten?.payload ?? null,
+        }),
       } satisfies AlicizationMemoryDecisionTraceRecord
     })
     .sort((left, right) => right.lastUpdatedAt - left.lastUpdatedAt || left.decisionTraceId.localeCompare(right.decisionTraceId))

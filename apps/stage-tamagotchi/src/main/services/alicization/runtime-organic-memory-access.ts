@@ -38,6 +38,7 @@ import {
   buildAlicizationMemoryAccessibilityPlan,
   tuneMemoryConsolidationSearchInput,
 } from './memory-accessibility-runtime'
+import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import {
   applyMemoryTuningAdviceToHostPersonModel,
   parseMemoryTuningAdvice,
@@ -123,6 +124,14 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     userText?: string | null
     assistantText?: string | null
   }>>
+  recordMemoryCacheAccess?: (hit: boolean) => Promise<void>
+  recordMemoryPrewarmAccess?: (hit: boolean) => Promise<void>
+  recordMemoryBudgetClass?: (budgetClass: AlicizationMemoryRetrievalBudgetClass) => Promise<void>
+  recordMemoryHotKeyOutcome?: (input: {
+    key: string
+    hit: boolean
+    won?: boolean
+  }) => Promise<void>
 }
 
 export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlicizationOrganicMemoryAccessRuntimeOptions) {
@@ -154,6 +163,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     sessionId?: string | null
     turnId?: string | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed)
@@ -161,9 +171,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
+      budgetClass: input.budgetClass,
     })
-    if (!plan.prewarmKey)
+    void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
+    if (!plan.prewarmKey) {
+      void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
       return plan
+    }
+    void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
 
     void recallEpisodicEventsWithGovernor({
       recallSeed,
@@ -267,6 +282,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     sessionId?: string | null
     turnId?: string | null
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed || input.recallGovernor?.mode === 'scene')
@@ -274,7 +290,9 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
+      budgetClass: input.budgetClass,
     })
+    void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
       namespace: 'episodic',
       recallSeed,
@@ -283,8 +301,25 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       turnId: input.turnId ?? null,
     })
     const cached = readTransientRecallCache<AlicizationEpisodicEventRecord[]>(cacheKey)
-    if (cached)
+    if (cached) {
+      void options.recordMemoryCacheAccess?.(true).catch(() => {})
+      if (plan.prewarmKey)
+        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
+      void options.recordMemoryHotKeyOutcome?.({
+        key: plan.prewarmKey ?? cacheKey,
+        hit: true,
+        won: true,
+      }).catch(() => {})
       return cached
+    }
+    void options.recordMemoryCacheAccess?.(false).catch(() => {})
+    if (plan.prewarmKey)
+      void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
+    void options.recordMemoryHotKeyOutcome?.({
+      key: plan.prewarmKey ?? cacheKey,
+      hit: false,
+      won: false,
+    }).catch(() => {})
 
     const rows = await options.searchEpisodicEvents({
       recallSeed,
@@ -355,11 +390,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) {
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: input.query,
       recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
+      budgetClass: input.budgetClass,
     })
+    void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
       namespace: 'conversation',
       recallSeed: input.query,
@@ -372,8 +410,25 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       assistantText: string
       createdAt: number
     }>>(cacheKey)
-    if (cached)
+    if (cached) {
+      void options.recordMemoryCacheAccess?.(true).catch(() => {})
+      if (plan.prewarmKey)
+        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
+      void options.recordMemoryHotKeyOutcome?.({
+        key: plan.prewarmKey ?? cacheKey,
+        hit: true,
+        won: true,
+      }).catch(() => {})
       return cached
+    }
+    void options.recordMemoryCacheAccess?.(false).catch(() => {})
+    if (plan.prewarmKey)
+      void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
+    void options.recordMemoryHotKeyOutcome?.({
+      key: plan.prewarmKey ?? cacheKey,
+      hit: false,
+      won: false,
+    }).catch(() => {})
 
     const rows = await options.searchConversationTurnsForRecall({
       query: input.query,
@@ -388,19 +443,39 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) {
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: input.query,
       recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
+      budgetClass: input.budgetClass,
     })
+    void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
       namespace: 'consolidation',
       recallSeed: input.query,
       plan,
     })
     const cached = readTransientRecallCache<AlicizationMemoryConsolidationRecord[]>(cacheKey)
-    if (cached)
+    if (cached) {
+      void options.recordMemoryCacheAccess?.(true).catch(() => {})
+      if (plan.prewarmKey)
+        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
+      void options.recordMemoryHotKeyOutcome?.({
+        key: plan.prewarmKey ?? cacheKey,
+        hit: true,
+        won: true,
+      }).catch(() => {})
       return cached
+    }
+    void options.recordMemoryCacheAccess?.(false).catch(() => {})
+    if (plan.prewarmKey)
+      void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
+    void options.recordMemoryHotKeyOutcome?.({
+      key: plan.prewarmKey ?? cacheKey,
+      hit: false,
+      won: false,
+    }).catch(() => {})
 
     const rows = await options.searchMemoryConsolidations({
       ...tuneMemoryConsolidationSearchInput({

@@ -8,6 +8,7 @@ import type { CardScopeOptions } from './runtime-soul'
 import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 import type { AlicizationDialogueSessionMirror } from './dialogue-session-manager'
+import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 
 import { buildAutobiographicalEpisodesFromPreparedMirror, buildAutobiographicalEpisodesFromSessionMirrorSync } from './autobiographical-episode-sync'
 import { buildAlicizationPersonStateEvolutionEntry } from './person-state-evolution'
@@ -21,6 +22,7 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: CardScopeOptions) => Promise<T>
   errorMessageFrom: (error: unknown) => string | undefined
   ensureMindGovernanceDecisionTraceId: (raw: unknown, now?: number) => string
+  knowledgeAssimilationRuntime: AlicizationKnowledgeAssimilationRuntime
   appendAuditLog: (input: {
     level: 'warning'
     category: string
@@ -71,6 +73,32 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
       payload: Record<string, unknown>
       createdAt: number
     }>) => Promise<unknown>
+    applyMemoryFactCorrections?: (corrections: Array<{
+      targetFactId: string
+      nextValidationStatus: 'unverified' | 'provisional' | 'validated' | 'superseded'
+      nextKnowledgeStage?: 'ephemeral-observation' | 'working-understanding' | 'validated-knowledge' | 'internalized-long-horizon-knowledge' | null
+      sourceLabel?: string | null
+      appendConflictsWith?: string[] | null
+      appendSupersedes?: string[] | null
+    }>) => Promise<unknown>
+    listMemoryFacts?: () => Promise<Array<{
+      id: string
+      subject: string
+      predicate: string
+      object: string
+      confidence: number
+      source: 'rule' | 'async-llm'
+      dedupeKey: string
+      createdAt: number
+      updatedAt: number
+      lastAccessAt: number | null
+      accessCount: number
+      knowledgeStage?: 'ephemeral-observation' | 'working-understanding' | 'validated-knowledge' | 'internalized-long-horizon-knowledge' | null
+      validationStatus?: 'unverified' | 'provisional' | 'validated' | 'superseded' | null
+      sourceLabel?: string | null
+      conflictsWith?: string[] | null
+      supersedes?: string[] | null
+    }>>
   }
 }
 
@@ -97,8 +125,6 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
         await options.alicizationDb.appendPersonaReinforcementEvents(closure.reinforcementEvents)
       if (closure.reflections.length > 0)
         await options.alicizationDb.upsertMemoryReflections(closure.reflections)
-      if (closure.memoryFacts.length > 0)
-        await options.alicizationDb.upsertMemoryFacts(closure.memoryFacts, 'rule')
       const previousPersonStateUpdateSurface = await options.alicizationDb.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null)
       const nextPersonStateUpdateSurface = buildAlicizationPersonStateUpdateSurface({
         closure,
@@ -148,6 +174,19 @@ export function createAlicizationRuntimeMemoryClosure(options: CreateAlicization
           },
           createdAt: personStateUpdateRecord.createdAt,
         }])
+      }
+      if (closure.memoryFacts.length > 0) {
+        const existingFacts = options.alicizationDb.listMemoryFacts
+          ? await options.alicizationDb.listMemoryFacts().catch(() => [])
+          : []
+        const assimilation = options.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed({
+          facts: closure.memoryFacts,
+          source: 'rule',
+          existingFacts,
+        })
+        if (assimilation.corrections.length > 0 && options.alicizationDb.applyMemoryFactCorrections)
+          await options.alicizationDb.applyMemoryFactCorrections(assimilation.corrections)
+        await options.alicizationDb.upsertMemoryFacts(assimilation.facts, 'rule')
       }
     }
 

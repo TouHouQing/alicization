@@ -265,16 +265,34 @@ export function projectAlicizationDigitalLifeSpineDigest(
         }
       : null,
     outcomeLearning: latestReflection || autobiographicalSelf?.latestInflection
+      || surface.memory.selfEvolution
       ? {
-          reflectionTargetScope: null,
+          reflectionTargetScope: surface.memory.selfEvolution?.activeLearningFocuses[0] ?? null,
           reflectionSummary: sanitizeDigitalLifeSpineDigestText(latestReflection?.summary ?? '', 180) || null,
           reflectionLesson: sanitizeDigitalLifeSpineDigestText(latestReflection?.revision ?? '', 220) || null,
-          latestInflection: sanitizeDigitalLifeSpineDigestText(autobiographicalSelf?.latestInflection ?? '', 180) || null,
+          latestInflection: sanitizeDigitalLifeSpineDigestText(
+            surface.memory.selfEvolution?.latestInflection
+            ?? autobiographicalSelf?.latestInflection
+            ?? '',
+            180,
+          ) || null,
           revisionPressure: normalizeDigitalLifeSpineDigestUnit(surface.memory.reflectionLedger?.revisionPressure),
-          autobiographicalStability: normalizeDigitalLifeSpineDigestUnit(autobiographicalSelf?.stability),
+          autobiographicalStability: normalizeDigitalLifeSpineDigestUnit(
+            surface.memory.selfEvolution?.autobiographicalStability
+            ?? autobiographicalSelf?.stability,
+          ),
+          learningReadiness: normalizeDigitalLifeSpineDigestUnit(surface.memory.selfEvolution?.learningReadiness),
+          contradictionPressure: normalizeDigitalLifeSpineDigestUnit(surface.memory.selfEvolution?.contradictionPressure),
+          dominantTrajectory: sanitizeDigitalLifeSpineDigestText(surface.memory.selfEvolution?.dominantTrajectory ?? '', 180) || null,
+          activeLearningFocuses: surface.memory.selfEvolution?.activeLearningFocuses?.slice(0, 4) ?? [],
+          evolutionMomentum: normalizeDigitalLifeSpineDigestUnit(surface.memory.selfEvolution?.evolutionMomentum),
+          nextLearningAction: sanitizeDigitalLifeSpineDigestText(surface.memory.selfEvolution?.nextLearningAction ?? '', 48) || null,
+          nextLearningReason: sanitizeDigitalLifeSpineDigestText(surface.memory.selfEvolution?.nextLearningReason ?? '', 180) || null,
           summary: sanitizeDigitalLifeSpineDigestText(
-            latestReflection?.revision
+            surface.memory.selfEvolution?.summary
+            || latestReflection?.revision
             || latestReflection?.summary
+            || surface.memory.selfEvolution?.latestInflection
             || autobiographicalSelf?.latestInflection
             || '',
             220,

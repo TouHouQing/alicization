@@ -419,10 +419,10 @@ export function buildAlicizationMainChatRuntimeSurface(
     ? ''
     : (input.executionRoutingEnforcementSystemBlock ?? '')
   const effectiveExecutionCallbackSystemBlocks = dialogueFirstLivingPromptMode
-    ? []
+    ? (input.executionReplyObligationSystemBlock ? (input.executionCallbackSystemBlocks ?? []) : [])
     : (input.executionCallbackSystemBlocks ?? [])
   const effectiveExecutionLedgerSystemBlocks = dialogueFirstLivingPromptMode
-    ? []
+    ? (input.executionReplyObligationSystemBlock ? (input.executionLedgerSystemBlocks ?? []) : [])
     : (input.executionLedgerSystemBlocks ?? [])
   const effectivePerformanceManifestSystemBlocks = dialogueFirstLivingPromptMode
     ? []

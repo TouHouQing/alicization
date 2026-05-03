@@ -66,6 +66,12 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     personStateProjection?: AlicizationPersonStateProjection | null
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
     hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+    knowledgeEvidence?: {
+      validationCount?: number | null
+      contradictionCount?: number | null
+      stronglyValidatedProcedureCount?: number | null
+      contradictionHeavyFactCount?: number | null
+    } | null
   }) => {
     reply: string
     source: 'llm' | 'llm-repaired' | 'deterministic'
@@ -89,6 +95,15 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     cardId: string
     goal?: string | null
   }) => Promise<AlicizationPersonStateProjection | null>
+  resolveExecutionKnowledgeEvidence?: (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) => Promise<{
+    validationCount?: number | null
+    contradictionCount?: number | null
+    stronglyValidatedProcedureCount?: number | null
+    contradictionHeavyFactCount?: number | null
+  } | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
@@ -475,6 +490,12 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             goal: pendingDelivery.goal,
           })
         : null
+      const knowledgeEvidence = options.resolveExecutionKnowledgeEvidence
+        ? await options.resolveExecutionKnowledgeEvidence({
+            agentTurn,
+            cardId: options.getActiveCardId(),
+          })
+        : null
       if (deliveryPolicy.mode === 'hold-for-opening') {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
@@ -524,6 +545,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         personStateProjection,
         selfContinuityAuthority,
         hostPersonModel,
+        knowledgeEvidence,
       })
       const deterministicStructured = options.buildExecutionDeliveryDeterministicStructured({
         channel: pendingDelivery.channel,

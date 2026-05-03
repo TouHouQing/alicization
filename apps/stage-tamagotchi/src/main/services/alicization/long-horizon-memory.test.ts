@@ -218,4 +218,75 @@ describe('long horizon memory', () => {
     expect(block).toContain('Remembered boundary:')
     expect(block).toContain('Anchor memories:')
   })
+
+  it('filters superseded facts and favors validated internalized knowledge in durable cues', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 50_000,
+      facts: [
+        {
+          id: 'fact-superseded',
+          subject: 'assistant',
+          predicate: 'learned',
+          object: 'an old brittle runtime shortcut',
+          confidence: 0.92,
+          accessCount: 6,
+          updatedAt: 49_000,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'superseded',
+        },
+        {
+          id: 'fact-durable',
+          subject: 'assistant',
+          predicate: 'learned',
+          object: 'return to the same runtime seam before branching',
+          confidence: 0.82,
+          accessCount: 4,
+          updatedAt: 49_500,
+          knowledgeStage: 'internalized-long-horizon-knowledge',
+          validationStatus: 'validated',
+          supersedes: ['fact-superseded'],
+        },
+      ] as any,
+    })
+
+    expect(snapshot?.anchorFacts.some(cue => cue.factId === 'fact-superseded')).toBe(false)
+    expect(snapshot?.anchorFacts.some(cue => cue.factId === 'fact-durable')).toBe(true)
+    expect(snapshot?.summary).toContain('runtime seam')
+  })
+
+  it('prefers repeatedly validated durable cues over contradiction-heavy ones', () => {
+    const snapshot = buildAlicizationLongHorizonMemory({
+      now: 60_000,
+      facts: [
+        {
+          id: 'fact-stable',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'verify before sounding certain',
+          confidence: 0.82,
+          accessCount: 4,
+          updatedAt: 59_500,
+          validationCount: 3,
+          contradictionCount: 0,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'validated',
+        },
+        {
+          id: 'fact-unstable',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'verify before sounding certain',
+          confidence: 0.84,
+          accessCount: 4,
+          updatedAt: 59_500,
+          validationCount: 1,
+          contradictionCount: 3,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'validated',
+        },
+      ] as any,
+    })
+
+    expect(snapshot?.anchorFacts[0]?.factId).toBe('fact-stable')
+  })
 })

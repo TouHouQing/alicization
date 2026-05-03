@@ -382,6 +382,30 @@ describe('digital life spine', () => {
       rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
       updatedAt: 1_000,
     } as any
+    ;(state as any).selfEvolution = {
+      version: 'self-evolution-kernel-v1',
+      updatedAt: 1_000,
+      evolutionMomentum: 0.71,
+      learningReadiness: 0.68,
+      contradictionPressure: 0.24,
+      revisionPressure: 0.63,
+      autobiographicalStability: 0.8,
+      dominantTrajectory: 'Route memory and dialogue through one spine.',
+      relationshipDoctrine: 'care without crowding',
+      latestInflection: 'Route memory and dialogue through one spine.',
+      burdenLine: 'Do not let flourish outrun payoff.',
+      trustMeaning: 'Trust rises when grounding and warmth stay on one line.',
+      nextLearningAction: 'reflect',
+      nextLearningReason: 'Reflection pressure is high enough that the system should consolidate a lesson before replying from it again.',
+      shouldRecord: false,
+      shouldReflect: true,
+      shouldVerify: false,
+      shouldRevise: false,
+      shouldInternalize: false,
+      activeLearningFocuses: ['reflection:relationship', 'internalize-procedure'],
+      sourceSignals: ['keep one runtime spine'],
+      summary: 'Route memory and dialogue through one spine. | reflection:relationship',
+    }
     state.relationshipModel = {
       climate: 'warm',
       approachVector: 'care',
@@ -460,10 +484,6 @@ describe('digital life spine', () => {
         dominantMode: 'repair-before-fluency',
         requiresGroundingBeforeSurface: true,
       }),
-      outcomeLearning: expect.objectContaining({
-        latestInflection: 'Route memory and dialogue through one spine.',
-        revisionPressure: 0.63,
-      }),
       embodiment: expect.objectContaining({
         privateThought: expect.objectContaining({
           embodiedPresence: 'attentive',
@@ -505,6 +525,10 @@ describe('digital life spine', () => {
         rememberedPlanSummary: 'Remembered open loop: assistant remember return to unresolved runtime threads',
         longHorizonCueCount: 1,
       }),
+    }))
+    expect(digest?.outcomeLearning).toEqual(expect.objectContaining({
+      latestInflection: 'Route memory and dialogue through one spine.',
+      revisionPressure: 0.63,
     }))
   })
 

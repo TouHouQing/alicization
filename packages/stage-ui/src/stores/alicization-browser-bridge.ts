@@ -41,6 +41,7 @@ import type {
 import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationMemoryDecisionTraceRecords,
+  deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
   buildAlicizationNewsSurface,
   buildAlicizationSportsSurface,
@@ -2069,6 +2070,106 @@ function buildBrowserRecollectionSpeechPlan(input: {
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']>
 }
 
+function buildBrowserKnowledgeEvidence(input: {
+  consolidations: BrowserMemoryConsolidationSnapshot[]
+  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+  hostPersonModel: AlicizationHostPersonModelSnapshot | null
+}) {
+  const validationCount = input.consolidations.filter(item => item.confidence >= 0.72).length
+  const contradictionCount = input.hostPersonModel?.sensitivities.some(item => /robotic|template|pressure|boundary|打扰|机械/u.test(item))
+    ? 1
+    : 0
+  const stronglyValidatedProcedureCount = input.consolidations.filter(item => item.kind === 'procedural' && item.confidence >= 0.76).length
+  const contradictionHeavyFactCount = input.recollectionForeground?.surfaceSummary?.includes('surface=inward')
+    ? 1
+    : 0
+  return {
+    validationCount,
+    contradictionCount,
+    stronglyValidatedProcedureCount,
+    contradictionHeavyFactCount,
+  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['knowledgeEvidence']>
+}
+
+function buildBrowserSelfEvolution(input: {
+  hostPersonModel: AlicizationHostPersonModelSnapshot | null
+  recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+  knowledgeEvidence: NonNullable<AlicizationOrganicMemorySnapshot['knowledgeEvidence']>
+}) {
+  const doctrine = sanitizeBriefText(
+    input.hostPersonModel?.repairTriggers[0]
+    || input.hostPersonModel?.preferredClosenessByContext[0]?.preference
+    || '',
+    180,
+  ) || null
+  const burdenLine = sanitizeBriefText(input.hostPersonModel?.recurrentBurdens[0] ?? '', 180) || null
+  const trustMeaning = sanitizeBriefText(input.hostPersonModel?.trustLadder.rationale ?? '', 180) || null
+  const latestInflection = sanitizeBriefText(
+    [
+      doctrine,
+      burdenLine,
+    ].filter(Boolean).join(' | '),
+    180,
+  ) || null
+  if (!latestInflection && !trustMeaning)
+    return null
+
+  const contradictionPressure = clamp01(input.knowledgeEvidence.contradictionCount * 0.22 + input.knowledgeEvidence.contradictionHeavyFactCount * 0.24)
+  const learningReadiness = clamp01(
+    Math.min(1, input.knowledgeEvidence.validationCount * 0.12) * 0.48
+    + Math.min(1, input.knowledgeEvidence.stronglyValidatedProcedureCount * 0.18) * 0.28
+    + contradictionPressure * 0.24,
+  )
+  const nextLearningAction = contradictionPressure >= 0.4
+    ? 'reflect'
+    : input.knowledgeEvidence.stronglyValidatedProcedureCount >= 1
+      ? 'internalize'
+      : 'record'
+  return {
+    version: 'self-evolution-kernel-v1',
+    updatedAt: now(),
+    evolutionMomentum: clamp01(learningReadiness * 0.72),
+    learningReadiness,
+    contradictionPressure,
+    revisionPressure: contradictionPressure >= 0.4 ? 0.44 : 0.22,
+    autobiographicalStability: clamp01(input.hostPersonModel?.trustLadder.score ?? 0.58),
+    dominantTrajectory: latestInflection ?? trustMeaning,
+    relationshipDoctrine: doctrine,
+    latestInflection,
+    burdenLine,
+    trustMeaning,
+    nextLearningAction,
+    nextLearningReason: nextLearningAction === 'reflect'
+      ? 'Browser fallback is carrying a fragile repair/boundary seam and should consolidate it before widening warmth.'
+      : nextLearningAction === 'internalize'
+        ? 'Browser fallback has seen a stable enough procedural carry to keep it as a durable local skill line.'
+        : 'Browser fallback should keep recording this continuity line before promoting it.',
+    shouldRecord: nextLearningAction === 'record',
+    shouldReflect: nextLearningAction === 'reflect',
+    shouldVerify: false,
+    shouldRevise: false,
+    shouldInternalize: nextLearningAction === 'internalize',
+    activeLearningFocuses: [
+      doctrine ? 'relationship-repair-rhythm' : null,
+      burdenLine ? 'burden-sensitive-care' : null,
+      input.knowledgeEvidence.stronglyValidatedProcedureCount >= 1 ? 'internalize-procedure' : null,
+    ].filter(Boolean) as string[],
+    sourceSignals: [
+      doctrine,
+      burdenLine,
+      trustMeaning,
+      input.recollectionForeground?.summary ?? null,
+    ].filter(Boolean) as string[],
+    summary: sanitizeBriefText(
+      [
+        latestInflection,
+        trustMeaning,
+      ].filter(Boolean).join(' | '),
+      220,
+    ),
+  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['selfEvolution']>
+}
+
 function inferBrowserDigestScenario(snapshot: AlicizationSensoryCacheSnapshot, recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']) {
   const foregroundTitle = sanitizeText(snapshot.sample.foregroundWindow?.title ?? '', '')
   const foregroundApp = sanitizeText(snapshot.sample.foregroundWindow?.appName ?? '', '')
@@ -2114,6 +2215,20 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     : 'light-nudge'
   const shouldSpeak = !recollection?.surfaceSummary?.includes('surface=inward')
     && !input.proactiveFeedback.shouldSuppressSpeak
+  const hostPersonModel = input.organicMemorySnapshot.hostPersonModel ?? null
+  const dominantConstraint = hostPersonModel?.preferredClosenessByContext[0]?.preference
+    ?? hostPersonModel?.sensitivities[0]
+    ?? null
+  const dominantBurden = hostPersonModel?.recurrentBurdens[0] ?? null
+  const dominantRepair = hostPersonModel?.repairTriggers[0] ?? null
+  const learnedTrajectory = sanitizeBriefText(
+    [
+      dominantRepair,
+      dominantConstraint,
+      dominantBurden,
+    ].filter(Boolean).join(' | '),
+    180,
+  ) || null
 
   return {
     version: 'digital-life-spine-digest-v1',
@@ -2177,7 +2292,39 @@ function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     autonomy: null,
     motive: null,
     habit: null,
-    outcomeLearning: null,
+    outcomeLearning: hostPersonModel || learnedTrajectory
+      ? {
+          reflectionTargetScope: dominantRepair ? 'relationship' : null,
+          reflectionSummary: dominantRepair ? sanitizeBriefText(dominantRepair, 180) : null,
+          reflectionLesson: dominantConstraint ? sanitizeBriefText(dominantConstraint, 220) : null,
+          latestInflection: learnedTrajectory,
+          revisionPressure: input.proactiveFeedback.shouldSuppressSpeak ? 0.46 : 0.22,
+          autobiographicalStability: clamp01(hostPersonModel?.trustLadder.score ?? 0.58),
+          learningReadiness: dominantRepair || dominantConstraint ? 0.52 : 0.28,
+          contradictionPressure: 0.12,
+          dominantTrajectory: learnedTrajectory,
+          activeLearningFocuses: [
+            dominantRepair ? 'relationship-repair-rhythm' : null,
+            dominantConstraint ? 'boundary-aware-warmth' : null,
+            dominantBurden ? 'burden-sensitive-care' : null,
+          ].filter(Boolean) as string[],
+          evolutionMomentum: input.proactiveFeedback.latestOutcome?.outcome === 'positive' ? 0.44 : 0.24,
+          nextLearningAction: dominantRepair ? 'reflect' : dominantConstraint ? 'record' : 'hold',
+          nextLearningReason: dominantRepair
+            ? 'Browser fallback is carrying a learned repair rhythm that should stay visible before warmth widens.'
+            : dominantConstraint
+              ? 'Browser fallback has enough boundary signal to keep recording and respecting the host cadence.'
+              : null,
+          summary: sanitizeBriefText(
+            [
+              dominantRepair ? `repair=${dominantRepair}` : '',
+              dominantConstraint ? `constraint=${dominantConstraint}` : '',
+              dominantBurden ? `burden=${dominantBurden}` : '',
+            ].filter(Boolean).join(' | '),
+            220,
+          ) || null,
+        }
+      : null,
     embodiment: null,
     memory: {
       summary: sanitizeBriefText(
@@ -2455,6 +2602,16 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
   const recollectionSpeechPlan = buildBrowserRecollectionSpeechPlan({
     recollectionForeground,
   })
+  const knowledgeEvidence = buildBrowserKnowledgeEvidence({
+    consolidations: memoryConsolidations,
+    recollectionForeground,
+    hostPersonModel,
+  })
+  const selfEvolution = buildBrowserSelfEvolution({
+    hostPersonModel,
+    recollectionForeground,
+    knowledgeEvidence,
+  })
   return {
     hostAttitude: soul.frontmatter.host_attitude,
     coreIncarnation: soul.frontmatter.core_incarnation,
@@ -2474,6 +2631,8 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     recollectionPlan,
     recollectionSpeechPlan,
     recollectionForeground,
+    knowledgeEvidence,
+    selfEvolution,
     lastDreamedAt: organicMemory.lastDreamedAt,
   }
 }
@@ -2811,6 +2970,8 @@ function buildBrowserMindTurnTraceEvents(input: {
       : ''
   if (!decisionTraceId)
     return [] as BrowserMindTurnEventRecord[]
+  const digitalLifeSpine = normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine)
+  const participation = deriveAlicizationMindParticipationFromSpine(digitalLifeSpine)
 
   const origin = input.record.origin === 'subconscious-proactive' ? 'subconscious-proactive' : 'user-turn'
   const events: BrowserMindTurnEventRecord[] = [{
@@ -2827,6 +2988,8 @@ function buildBrowserMindTurnTraceEvents(input: {
       answerSubject: typeof governance?.answerSubject === 'string' ? governance.answerSubject : null,
       screenReferenceMode: typeof governance?.screenReferenceMode === 'string' ? governance.screenReferenceMode : null,
       format: typeof structured.format === 'string' ? structured.format : null,
+      digitalLifeSpine,
+      participation,
     },
     createdAt: input.record.createdAt,
   }, {
@@ -2842,6 +3005,7 @@ function buildBrowserMindTurnTraceEvents(input: {
       emotion: typeof structured.emotion === 'string' ? structured.emotion : null,
       replyExcerpt: sanitizeBriefText(String(structured.reply ?? input.record.assistantText ?? ''), 240) || null,
       assistantExcerpt: sanitizeBriefText(input.record.assistantText, 240) || null,
+      digitalLifeSpine,
     },
     createdAt: input.record.createdAt,
   }]
@@ -2860,6 +3024,7 @@ function buildBrowserMindTurnTraceEvents(input: {
         proactive: structured.proactive && typeof structured.proactive === 'object'
           ? structured.proactive
           : null,
+        digitalLifeSpine,
       },
       createdAt: input.record.createdAt,
     })

@@ -4,6 +4,67 @@ import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
 
 export type AlicizationMemorySource = 'rule' | 'async-llm'
+export type AlicizationKnowledgeAssimilationStage
+  = 'ephemeral-observation'
+    | 'working-understanding'
+    | 'validated-knowledge'
+    | 'internalized-long-horizon-knowledge'
+
+export type AlicizationKnowledgeValidationStatus
+  = 'unverified'
+    | 'provisional'
+    | 'validated'
+    | 'superseded'
+
+export interface AlicizationMemoryFact {
+  id: string
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  source: AlicizationMemorySource
+  dedupeKey: string
+  createdAt: number
+  updatedAt: number
+  lastAccessAt: number | null
+  accessCount: number
+  knowledgeStage?: AlicizationKnowledgeAssimilationStage | null
+  validationStatus?: AlicizationKnowledgeValidationStatus | null
+  validationCount?: number | null
+  contradictionCount?: number | null
+  sourceLabel?: string | null
+  conflictsWith?: string[] | null
+  supersedes?: string[] | null
+  provenance?: AlicizationMemoryProvenance | null
+  memoryTier?: AlicizationMemoryTier | null
+}
+
+export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
+  archivedAt: number
+}
+
+export interface AlicizationMemoryFactInput {
+  subject: string
+  predicate: string
+  object: string
+  confidence: number
+  knowledgeStage?: AlicizationKnowledgeAssimilationStage | null
+  validationStatus?: AlicizationKnowledgeValidationStatus | null
+  validationCount?: number | null
+  contradictionCount?: number | null
+  sourceLabel?: string | null
+  conflictsWith?: string[] | null
+  supersedes?: string[] | null
+}
+
+export interface AlicizationKnowledgeAssimilationCorrection {
+  targetFactId: string
+  nextValidationStatus: AlicizationKnowledgeValidationStatus
+  nextKnowledgeStage?: AlicizationKnowledgeAssimilationStage | null
+  sourceLabel?: string | null
+  appendConflictsWith?: string[] | null
+  appendSupersedes?: string[] | null
+}
 
 export type AlicizationSubconsciousFragmentSourceKind
   = | 'active-demotion'
@@ -1166,6 +1227,15 @@ export interface AlicizationMindTurnEventRecord {
   createdAt: number
 }
 
+export interface AlicizationMindParticipationSnapshot {
+  mindParticipation: number
+  memoryParticipation: number
+  personalityParticipation: number
+  relationshipParticipation: number
+  continuityParticipation: number
+  summary: string
+}
+
 export interface AlicizationListMindTurnEventsInput {
   decisionTraceId?: string
   turnId?: string
@@ -1190,6 +1260,7 @@ export type AlicizationReplayBenchmarkPackId =
   | 'default-humanlike-memory-v1'
   | 'sampled-humanlike-memory-v1'
   | 'backlog-humanlike-memory-v1'
+  | 'growth-humanlike-memory-v1'
 export type AlicizationReplayBenchmarkQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
 export interface AlicizationReplayMemoryQualityRecord {
@@ -1209,6 +1280,12 @@ export interface AlicizationReplayMemoryQualityRecord {
   relationshipRepairAdaptation: AlicizationReplayBenchmarkQualityStatus
   closenessLadderDrift: AlicizationReplayBenchmarkQualityStatus
   eventGraphRecallCollapse: AlicizationReplayBenchmarkQualityStatus
+  knowledgeCorrectionDiscipline: AlicizationReplayBenchmarkQualityStatus
+  repeatedMistakeAvoidance: AlicizationReplayBenchmarkQualityStatus
+  hostUnderstandingGrowth: AlicizationReplayBenchmarkQualityStatus
+  skillInternalizationGrowth: AlicizationReplayBenchmarkQualityStatus
+  selfRevisionGrowth: AlicizationReplayBenchmarkQualityStatus
+  dialogueRhythmStability: AlicizationReplayBenchmarkQualityStatus
   templateLeakage: AlicizationReplayBenchmarkQualityStatus
 }
 
@@ -1224,6 +1301,12 @@ export interface AlicizationReplayBenchmarkStandardsRecord {
   relationshipRepairAdaptation: 'pass' | 'fail'
   closenessLadderDrift: 'pass' | 'fail'
   eventGraphRecallCollapse: 'pass' | 'fail'
+  knowledgeCorrectionDiscipline: 'pass' | 'fail'
+  repeatedMistakeAvoidance: 'pass' | 'fail'
+  hostUnderstandingGrowth: 'pass' | 'fail'
+  skillInternalizationGrowth: 'pass' | 'fail'
+  selfRevisionGrowth: 'pass' | 'fail'
+  dialogueRhythmStability: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -1250,7 +1333,32 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     graphLatencyMs: number | null
     reconstructionFrequency: number
     reconstructedCount: number
+    budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+    hotKeyHitRatio?: number
+    hotKeyCoverage?: number
+    hotKeyCandidates?: string[]
+    hotKeyStats?: Array<{
+      key: string
+      candidateCount: number
+      hitCount: number
+      winCount: number
+      missCount: number
+    }>
+    hotKeyActiveCount?: number
+    hotKeyWinCount?: number
+    hotKeyMissCount?: number
+    recallHitRate?: number
+    recallMissRate?: number
+    wrongThreadRate?: number
+    reconstructionErrorRate?: number
+    stableCoreOnlyRate?: number
+    memorySurfaceViolationRate?: number
     templateLeakageFailCount: number
+    mindParticipation?: number
+    memoryParticipation?: number
+    personalityParticipation?: number
+    relationshipParticipation?: number
+    continuityParticipation?: number
   }
 }
 
@@ -1298,6 +1406,18 @@ export interface AlicizationReplayHumanRatingRubric {
   dimensions: AlicizationReplayHumanRatingDimension[]
 }
 
+export interface AlicizationReplayBenchmarkShipGateRow {
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'template-leakage-gate'
+  status: 'pass' | 'fail'
+  detail: string
+}
+
+export interface AlicizationReplayBenchmarkTriageRow {
+  dimension: keyof AlicizationReplayBenchmarkStandardsRecord
+  owner: 'memory retrieval' | 'planner' | 'evolution' | 'contract' | 'visible realization' | 'proactive parity'
+  firstCheck: string
+}
+
 export interface AlicizationRunReplayBenchmarkInput {
   packId?: AlicizationReplayBenchmarkPackId
   persistTelemetry?: boolean
@@ -1315,6 +1435,8 @@ export interface AlicizationRunReplayBenchmarkResult {
   telemetryPersisted: boolean
   failingTurnSet: AlicizationReplayBenchmarkFailureTurnRecord[]
   datasetFeedback: AlicizationReplayBenchmarkDatasetFeedback
+  shipGate: AlicizationReplayBenchmarkShipGateRow[]
+  regressionTriage: AlicizationReplayBenchmarkTriageRow[]
 }
 
 export interface AlicizationMemoryDecisionTraceRecord {
@@ -1346,6 +1468,7 @@ export interface AlicizationMemoryDecisionTraceRecord {
   takeoverAudit?: Record<string, unknown> | null
   memoryFactsUpserted?: Record<string, unknown> | null
   personStateUpdated?: Record<string, unknown> | null
+  participation?: AlicizationMindParticipationSnapshot | null
 }
 
 export type AlicizationDigitalLifeOperatingMode
@@ -1723,6 +1846,31 @@ export interface AlicizationPersonStateEvolutionSummary {
   updatedAt: number | null
 }
 
+export interface AlicizationSelfEvolutionKernelSnapshot {
+  version: 'self-evolution-kernel-v1'
+  updatedAt: number | null
+  evolutionMomentum: number
+  learningReadiness: number
+  contradictionPressure: number
+  revisionPressure: number
+  autobiographicalStability: number
+  dominantTrajectory: string | null
+  relationshipDoctrine: string | null
+  latestInflection: string | null
+  burdenLine: string | null
+  trustMeaning: string | null
+  nextLearningAction: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold'
+  nextLearningReason: string | null
+  shouldRecord: boolean
+  shouldReflect: boolean
+  shouldVerify: boolean
+  shouldRevise: boolean
+  shouldInternalize: boolean
+  activeLearningFocuses: string[]
+  sourceSignals: string[]
+  summary: string
+}
+
 export type AlicizationMindHeadKey
   = | 'autobiographical-self'
     | 'person-state-update-surface'
@@ -1889,6 +2037,13 @@ export interface AlicizationDigitalLifeSpineOutcomeLearningDigest {
   latestInflection: string | null
   revisionPressure: number | null
   autobiographicalStability: number | null
+  learningReadiness?: number | null
+  contradictionPressure?: number | null
+  dominantTrajectory?: string | null
+  activeLearningFocuses?: string[]
+  evolutionMomentum?: number | null
+  nextLearningAction?: string | null
+  nextLearningReason?: string | null
   summary: string | null
 }
 
@@ -2372,6 +2527,19 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           latestInflection: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.latestInflection, 180) || null,
           revisionPressure: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.revisionPressure),
           autobiographicalStability: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.autobiographicalStability),
+          learningReadiness: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.learningReadiness),
+          contradictionPressure: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.contradictionPressure),
+          dominantTrajectory: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.dominantTrajectory, 180) || null,
+          activeLearningFocuses: Array.isArray(outcomeLearningCandidate.activeLearningFocuses)
+            ? outcomeLearningCandidate.activeLearningFocuses
+                .filter((item): item is string => typeof item === 'string')
+                .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 96))
+                .filter(Boolean)
+                .slice(0, 6)
+            : [],
+          evolutionMomentum: normalizeAlicizationDigitalLifeDigestUnit(outcomeLearningCandidate.evolutionMomentum),
+          nextLearningAction: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.nextLearningAction, 48) || null,
+          nextLearningReason: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.nextLearningReason, 180) || null,
           summary: sanitizeAlicizationDigitalLifeDigestText(outcomeLearningCandidate.summary, 220) || null,
         }
       : null,

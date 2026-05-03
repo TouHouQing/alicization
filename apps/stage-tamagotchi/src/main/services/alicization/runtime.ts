@@ -235,6 +235,7 @@ import { createAlicizationRuntimeCardScopeState } from './runtime-card-scope-sta
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createAlicizationRuntimeMemoryClosure } from './runtime-memory-closure'
 import { createAlicizationRuntimeMemoryRuntime } from './runtime-memory-runtime'
+import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
 import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
 import { createAlicizationRuntimeVisualPresenceState } from './runtime-visual-presence-state'
 import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
@@ -608,6 +609,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       deliberation,
       speech: context?.recollectionSpeechPlan ?? null,
       recollectionIntent: context?.recollectionIntent ?? null,
+      knowledgeEvidence: context?.knowledgeEvidence ?? null,
     })
     const personStateProjection = prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection ?? null
     const personalityContinuityState = personStateProjection?.personalityContinuityState
@@ -643,6 +645,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       speechShouldSurface: context?.recollectionSpeechPlan?.shouldSurface ?? null,
       speechSurfaceMode: context?.recollectionSpeechPlan?.surfaceMode ?? null,
       speechPlacement: context?.recollectionSpeechPlan?.placement ?? null,
+      knowledgeValidationCount: context?.knowledgeEvidence?.validationCount ?? 0,
+      knowledgeContradictionCount: context?.knowledgeEvidence?.contradictionCount ?? 0,
+      stronglyValidatedProcedureCount: context?.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0,
+      contradictionHeavyFactCount: context?.knowledgeEvidence?.contradictionHeavyFactCount ?? 0,
       selectedEras: deliberation.selectedEras.map(item => ({
         id: item.id,
         facet: item.facet,
@@ -746,6 +752,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
     listTaskThreads: input => alicizationDb.listTaskThreads(input),
   })
+  const memoryRetrievalTelemetryRuntime = createAlicizationMemoryRetrievalTelemetryRuntime({
+    now: () => Date.now(),
+    key: 'memory_retrieval_telemetry_v1',
+    getMetaValue: async key => await alicizationDb.getMetaValue(key),
+    upsertMeta: async (key, value) => await alicizationDb.setMetaValue(key, value),
+    enqueueWrite: async task => await task(),
+  })
   const executionCallbackRuntime = createAlicizationExecutionCallbackRuntime({
     listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
     listTaskThreads: input => alicizationDb.listTaskThreads(input),
@@ -790,6 +803,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
       searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
       listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
+      recordMemoryCacheAccess: async hit => await memoryRetrievalTelemetryRuntime.recordCacheAccess(hit),
+      recordMemoryPrewarmAccess: async hit => await memoryRetrievalTelemetryRuntime.recordPrewarmAccess(hit),
+      recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
+      recordMemoryHotKeyOutcome: async input => await memoryRetrievalTelemetryRuntime.recordHotKeyOutcome(input),
     },
     organicMemorySearch: {
       normalizeOrganicRecallText,
@@ -801,6 +818,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       planRecollectionSpeech: async input => await generateMemoryRecollectionSpeechPlanWithGateway(input),
       planMemoryDeliberation: async input => await generateMemoryDeliberationWithGateway(input),
       isPersonaResidueMemoryText,
+      recordMemoryCandidateGenerationLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordCandidateGenerationLatency(latencyMs),
+      recordMemoryPlannerLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordPlannerLatency(latencyMs),
+      recordMemorySpeechPlanLatency: async (latencyMs: number) => await memoryRetrievalTelemetryRuntime.recordSpeechPlanLatency(latencyMs),
     },
     memoryReconsolidation: {
       sanitizeMindGovernanceDecisionTraceId,
@@ -875,6 +895,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return normalized || `mind:${Math.max(0, Math.floor(traceNow ?? Date.now())).toString(36)}:${randomUUID().replace(/-/g, '').slice(0, 12)}`
     },
     appendAuditLog,
+    knowledgeAssimilationRuntime: memoryRuntime.knowledgeAssimilationRuntime,
       alicizationDb: {
         appendRelationshipOutcomes: entries => alicizationDb.appendRelationshipOutcomes(entries),
         appendEpisodicEvents: events => alicizationDb.appendEpisodicEvents(events),
@@ -882,6 +903,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         appendPersonStateEvolutionEntries: entries => alicizationDb.appendPersonStateEvolutionEntries(entries),
         upsertMemoryReflections: reflections => alicizationDb.upsertMemoryReflections(reflections),
       upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
+      applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
+      listMemoryFacts: () => alicizationDb.listMemoryFacts(),
       readMindHead: (cardId, key) => alicizationDb.readMindHead(cardId, key),
       upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
       appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
@@ -2716,6 +2739,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return [] as typeof events
       try {
         await alicizationDb.appendMindTurnEvents(events, { signal })
+        const participation = events.find(event => event.kind === 'governance-normalized')?.payload?.participation
+        if (participation && typeof participation === 'object') {
+          await memoryRetrievalTelemetryRuntime.recordParticipation({
+            mindParticipation: Number((participation as any).mindParticipation ?? 0),
+            memoryParticipation: Number((participation as any).memoryParticipation ?? 0),
+            personalityParticipation: Number((participation as any).personalityParticipation ?? 0),
+            relationshipParticipation: Number((participation as any).relationshipParticipation ?? 0),
+            continuityParticipation: Number((participation as any).continuityParticipation ?? 0),
+          }).catch(() => {})
+        }
       }
       catch (error) {
         await appendAuditLog({
@@ -4310,6 +4343,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             recurrentBurdens: hostPersonModel.recurrentBurdens.slice(0, 3),
           })}`
         : '',
+      organicPromptContext.knowledgeEvidence
+        ? `Knowledge evidence JSON: ${JSON.stringify(organicPromptContext.knowledgeEvidence)}`
+        : '',
       personStateProjection.relationshipDoctrine
         ? `Relationship doctrine JSON: ${JSON.stringify({
             doctrine: personStateProjection.relationshipDoctrine,
@@ -4757,6 +4793,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const resolveExecutionHostPersonModelForRuntime
     = runtimeExecutionDelivery.resolveExecutionHostPersonModelForRuntime
 
+  const resolveExecutionKnowledgeEvidenceForRuntime
+    = runtimeExecutionDelivery.resolveExecutionKnowledgeEvidenceForRuntime
+
   const resolveExecutionPersonStateProjectionForRuntime
     = runtimeExecutionDelivery.resolveExecutionPersonStateProjectionForRuntime
 
@@ -4858,6 +4897,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveExecutionResultDeliveryPolicy: resolveExecutionResultDeliveryPolicyForRuntime,
     resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,
     resolveExecutionHostPersonModel: resolveExecutionHostPersonModelForRuntime,
+    resolveExecutionKnowledgeEvidence: resolveExecutionKnowledgeEvidenceForRuntime,
     resolveExecutionPersonStateProjection: resolveExecutionPersonStateProjectionForRuntime,
     persistExecutionDeliveryState: async cardId => await persistExecutionDeliveryState(cardId),
     queueSubconsciousWake,
@@ -5462,6 +5502,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     searchOrganicSubconsciousFragments,
     scheduleReminderTask,
     buildAsyncFactMemoryFragments,
+    knowledgeAssimilationRuntime: memoryRuntime.knowledgeAssimilationRuntime,
     appendAuditLog,
     sanitizeMindGovernanceDecisionTraceId,
     sanitizeText,

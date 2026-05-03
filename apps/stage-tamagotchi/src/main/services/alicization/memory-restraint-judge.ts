@@ -55,6 +55,12 @@ export function buildAlicizationMemoryRestraintJudge(input: {
   shouldRecall: boolean
   shouldStayInward: boolean
   memoryControl: AlicizationMemoryDeliberationLatentControls | null
+  knowledgeEvidence?: {
+    validationCount?: number | null
+    contradictionCount?: number | null
+    stronglyValidatedProcedureCount?: number | null
+    contradictionHeavyFactCount?: number | null
+  } | null
   followUpAffordance: {
     intrusionRisk?: 'low' | 'medium' | 'high'
     payoffDependency?: 'memory-only' | 'requires-current-payoff' | 'can-surface-softly'
@@ -64,6 +70,10 @@ export function buildAlicizationMemoryRestraintJudge(input: {
   const memoryControl = input.memoryControl ?? null
   const unsafeDetails = memoryControl?.unsafeDetails ?? []
   const stableCore = memoryControl?.stableCore ?? []
+  const contradictionPressure = (input.knowledgeEvidence?.contradictionCount ?? 0)
+    + (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 2
+  const validationRelief = (input.knowledgeEvidence?.validationCount ?? 0)
+    + (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0)
   const shouldDelayUntilAfterPayoff = input.followUpAffordance?.payoffDependency === 'requires-current-payoff'
   const provenanceMode = (() => {
     if (!memoryControl)
@@ -83,6 +93,7 @@ export function buildAlicizationMemoryRestraintJudge(input: {
     || memoryControl?.detailAssertionBudget !== 'open'
     || memoryControl?.labelUncertainty === true
     || shouldDelayUntilAfterPayoff
+    || contradictionPressure > validationRelief
   )
   const shouldLabelProvenance = provenanceMode !== 'memory' && provenanceMode !== 'none'
   const shouldLabelHypothesis = input.truthDiscipline?.shouldLabelHypothesis === true
@@ -104,6 +115,8 @@ export function buildAlicizationMemoryRestraintJudge(input: {
         return 'The stable core can shape the answer, but unstable remembered detail should stay inward.'
       return 'The recollection should contour the answer from the inside instead of becoming visible.'
     }
+    if (contradictionPressure > validationRelief + 1)
+      return 'The remembered knowledge is still contradiction-heavy, so recollection should stay compressed until it stabilizes.'
     if (shouldDelayUntilAfterPayoff)
       return 'The recollection should not outrun the live payoff; only the stable core may surface now.'
     if (unsafeDetails.length > 0)

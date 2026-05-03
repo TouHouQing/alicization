@@ -27,6 +27,7 @@ import type {
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type { AlicizationSelfEvolutionKernelSnapshot } from '../../../shared/eventa'
 import type { AlicizationScreenSemanticSummary } from './proactive-screen-semantic'
 
 import { createHash } from 'node:crypto'
@@ -216,11 +217,18 @@ export interface OrganicMemoryPromptContext {
     confidence: number
     cues: string[]
   }>
+  knowledgeEvidence?: {
+    validationCount: number
+    contradictionCount: number
+    stronglyValidatedProcedureCount: number
+    contradictionHeavyFactCount: number
+  } | null
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   personStateProjection?: AlicizationPersonStateProjection | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
 }
 
 export interface ContextualConversationTurn {

@@ -14,6 +14,38 @@ function tokenizeMemoryFactText(text: string) {
   )
 }
 
+function scoreKnowledgeLifecycle(input: { fact: AlicizationMemoryFact }) {
+  const stage = input.fact.knowledgeStage ?? 'working-understanding'
+  const validation = input.fact.validationStatus ?? 'unverified'
+
+  let score = 0
+  if (stage === 'ephemeral-observation')
+    score -= 0.08
+  else if (stage === 'working-understanding')
+    score += 0.02
+  else if (stage === 'validated-knowledge')
+    score += 0.12
+  else if (stage === 'internalized-long-horizon-knowledge')
+    score += 0.18
+
+  if (validation === 'provisional')
+    score += 0.03
+  else if (validation === 'validated')
+    score += 0.09
+  else if (validation === 'superseded')
+    score -= 0.22
+
+  score += Math.min(0.08, (input.fact.validationCount ?? 0) * 0.02)
+  score -= Math.min(0.08, (input.fact.contradictionCount ?? 0) * 0.03)
+
+  if ((input.fact.supersedes?.length ?? 0) > 0)
+    score += 0.04
+  if ((input.fact.conflictsWith?.length ?? 0) > 0)
+    score -= 0.02
+
+  return score
+}
+
 export function scoreAlicizationMemoryFact(input: {
   queryTokens: Set<string>
   fact: AlicizationMemoryFact
@@ -41,6 +73,9 @@ export function scoreAlicizationMemoryFact(input: {
   const coldReachabilityBoost = longTailEligible && vagueQuery
     ? Math.min(0.08, input.fact.confidence * 0.08)
     : 0
+  const lifecycleBoost = scoreKnowledgeLifecycle({
+    fact: input.fact,
+  })
   const tierReachabilityBoost = scoreMemoryTierReachability({
     tier: memoryTier,
     vagueQuery,
@@ -50,6 +85,7 @@ export function scoreAlicizationMemoryFact(input: {
 
   return (lexicalScore * 0.5 + input.fact.confidence * 0.4 + accessBoost * 0.1) * decay
     + coldReachabilityBoost
+    + lifecycleBoost
     + tierReachabilityBoost
 }
 

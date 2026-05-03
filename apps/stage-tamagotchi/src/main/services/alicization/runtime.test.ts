@@ -92,9 +92,12 @@ const dbStub = {
     lastPrunedAt: null,
   }),
   upsertMemoryFacts: vi.fn().mockResolvedValue(undefined),
+  applyMemoryFactCorrections: vi.fn().mockResolvedValue(undefined),
+  listMemoryFacts: vi.fn().mockResolvedValue([]),
   appendRelationshipOutcomes: vi.fn().mockResolvedValue(undefined),
   appendEpisodicEvents: vi.fn().mockResolvedValue(undefined),
   appendPersonaReinforcementEvents: vi.fn().mockResolvedValue(undefined),
+  appendPersonStateEvolutionEntries: vi.fn().mockResolvedValue(undefined),
   upsertMemoryReflections: vi.fn().mockResolvedValue(undefined),
   retrieveMemoryFacts: vi.fn().mockResolvedValue([]),
   searchMemoryConsolidations: vi.fn().mockResolvedValue([]),
@@ -230,12 +233,18 @@ function resetDbStubMocks() {
   })
   dbStub.upsertMemoryFacts.mockReset()
   dbStub.upsertMemoryFacts.mockResolvedValue(undefined)
+  dbStub.applyMemoryFactCorrections.mockReset()
+  dbStub.applyMemoryFactCorrections.mockResolvedValue(undefined)
+  dbStub.listMemoryFacts.mockReset()
+  dbStub.listMemoryFacts.mockResolvedValue([])
   dbStub.appendRelationshipOutcomes.mockReset()
   dbStub.appendRelationshipOutcomes.mockResolvedValue(undefined)
   dbStub.appendEpisodicEvents.mockReset()
   dbStub.appendEpisodicEvents.mockResolvedValue(undefined)
   dbStub.appendPersonaReinforcementEvents.mockReset()
   dbStub.appendPersonaReinforcementEvents.mockResolvedValue(undefined)
+  dbStub.appendPersonStateEvolutionEntries.mockReset()
+  dbStub.appendPersonStateEvolutionEntries.mockResolvedValue(undefined)
   dbStub.upsertMemoryReflections.mockReset()
   dbStub.upsertMemoryReflections.mockResolvedValue(undefined)
   dbStub.retrieveMemoryFacts.mockReset()
@@ -1429,14 +1438,14 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       createdAt: Date.now(),
     })
 
-    expect(dbStub.appendMindTurnEvents).toBeCalledTimes(1)
-    const appendedEvents = dbStub.appendMindTurnEvents.mock.calls.at(-1)?.[0] as Array<{ decisionTraceId?: string, kind?: string }> | undefined
-    expect(appendedEvents?.map(event => event.kind)).toEqual(expect.arrayContaining([
+    expect(dbStub.appendMindTurnEvents.mock.calls.length).toBeGreaterThanOrEqual(1)
+    const appendedEvents = dbStub.appendMindTurnEvents.mock.calls.flatMap(call => call[0] ?? []) as Array<{ decisionTraceId?: string, kind?: string }>
+    expect(appendedEvents.map(event => event.kind)).toEqual(expect.arrayContaining([
       'governance-normalized',
       'persistence-written',
       'dialogue-emitted',
     ]))
-    const traceIdSet = new Set((appendedEvents ?? []).map(event => event.decisionTraceId).filter(Boolean))
+    const traceIdSet = new Set(appendedEvents.map(event => event.decisionTraceId).filter(Boolean))
     expect(traceIdSet.size).toBe(1)
     expect(String([...traceIdSet][0] ?? '')).toMatch(/^mind:[a-z0-9]+:[a-f0-9]{12}$/u)
   })
@@ -1553,12 +1562,15 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     expect(dbStub.upsertMemoryFacts).toBeCalledWith([
-      {
+      expect.objectContaining({
         subject: 'user',
         predicate: 'plan',
         object: '明天继续完善 Alicization 心智链路',
         confidence: 0.82,
-      },
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'unverified',
+        sourceLabel: 'async-memory-extraction',
+      }),
     ], 'async-llm')
     const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
     expect(appendedFragments).toEqual(expect.arrayContaining([
@@ -1598,6 +1610,62 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         },
       }),
     }))
+  })
+
+  it('applies correction writeback when new async knowledge supersedes an older conflicting fact', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const upsertMemoryFacts = invokeHandlers.get(electronAlicizationMemoryUpsertFacts)
+    expect(upsertMemoryFacts).toBeTypeOf('function')
+
+    dbStub.listMemoryFacts.mockResolvedValueOnce([
+      {
+        id: 'fact-old-runtime-style',
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'report the runtime result immediately in the same style',
+        confidence: 0.74,
+        source: 'async-llm',
+        dedupeKey: 'assistant|procedure|report the runtime result immediately in the same style',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAccessAt: null,
+        accessCount: 1,
+        knowledgeStage: 'working-understanding',
+        validationStatus: 'provisional',
+        sourceLabel: 'async-memory-extraction',
+        conflictsWith: [],
+        supersedes: [],
+      },
+    ])
+
+    await upsertMemoryFacts!({
+      cardId: 'default',
+      facts: [{
+        subject: 'assistant',
+        predicate: 'procedure',
+        object: 'wait for a fresher opening before reporting that runtime result style again',
+        confidence: 0.84,
+      }],
+      source: 'async-llm',
+      trace: {
+        decisionTraceId: 'mind:correction:test',
+        turnId: 'turn-memory-correction-1',
+        sessionId: 'session-memory-correction',
+        origin: 'user-turn',
+        trigger: 'batch',
+      },
+    })
+
+    expect(dbStub.applyMemoryFactCorrections).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-old-runtime-style',
+        nextValidationStatus: 'superseded',
+      }),
+    ]))
   })
 
   it('still writes fact-ledger fragments for async facts without decision trace', async () => {

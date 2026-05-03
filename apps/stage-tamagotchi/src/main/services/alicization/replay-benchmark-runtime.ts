@@ -18,6 +18,7 @@ import {
   benchmarkMainChatSessionReplay,
   buildReplayBenchmarkBacklogPack,
   buildReplayBenchmarkFailingTurnSet,
+  buildGrowthHumanlikeMemoryBenchmarkPack,
   buildReplayHumanRatingRubric,
   buildReplayBenchmarkMemoryStatsPatch,
   buildDefaultHumanlikeMemoryBenchmarkPack,
@@ -83,6 +84,7 @@ function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmar
   return raw === 'sampled-humanlike-memory-v1'
     || raw === 'backlog-humanlike-memory-v1'
     || raw === 'default-humanlike-memory-v1'
+    || raw === 'growth-humanlike-memory-v1'
     ? raw
     : 'default-humanlike-memory-v1'
 }
@@ -122,6 +124,12 @@ const replayBenchmarkStandardKeys = [
   'relationshipRepairAdaptation',
   'closenessLadderDrift',
   'eventGraphRecallCollapse',
+  'knowledgeCorrectionDiscipline',
+  'repeatedMistakeAvoidance',
+  'hostUnderstandingGrowth',
+  'skillInternalizationGrowth',
+  'selfRevisionGrowth',
+  'dialogueRhythmStability',
   'templateLeakage',
 ] as const satisfies Array<keyof AlicizationReplayBenchmarkStandardsRecord>
 
@@ -137,6 +145,12 @@ const replayBenchmarkThresholds: Record<keyof AlicizationReplayBenchmarkStandard
   relationshipRepairAdaptation: 0.75,
   closenessLadderDrift: 0.75,
   eventGraphRecallCollapse: 0.75,
+  knowledgeCorrectionDiscipline: 0.75,
+  repeatedMistakeAvoidance: 0.75,
+  hostUnderstandingGrowth: 0.75,
+  skillInternalizationGrowth: 0.75,
+  selfRevisionGrowth: 0.75,
+  dialogueRhythmStability: 0.75,
   templateLeakage: 1,
 }
 
@@ -183,12 +197,100 @@ function buildReplayBenchmarkNoopResult(input: {
     telemetryPatch,
     telemetryPersisted: input.telemetryPersisted,
     failingTurnSet: [] as AlicizationReplayBenchmarkFailureTurnRecord[],
+    shipGate: [
+      { key: 'benchmark-gate', status: 'pass', detail: 'Replay benchmark gate passed.' },
+      { key: 'human-rating-gate', status: 'pass', detail: 'Human rubric dimensions available: 6.' },
+      { key: 'latency-gate', status: 'pass', detail: 'semantic=n/a, graph=n/a' },
+      { key: 'wrong-thread-gate', status: 'pass', detail: 'wrongThreadRate=0' },
+      { key: 'template-leakage-gate', status: 'pass', detail: 'templateLeakageFailCount=0' },
+    ],
+    regressionTriage: [],
     datasetFeedback: {
       ...input.datasetFeedback,
       humanRatingRubric: buildReplayHumanRatingRubric(),
       driftSignals: [],
     },
   } satisfies AlicizationRunReplayBenchmarkResult
+}
+
+function buildReplayBenchmarkShipGate(input: {
+  report: Pick<AlicizationRunReplayBenchmarkResult, 'gate' | 'telemetryPatch' | 'datasetFeedback'>
+}) {
+  const telemetry = input.report.telemetryPatch.retrievalHealth
+  const rubricCount = input.report.datasetFeedback.humanRatingRubric?.dimensions.length ?? 0
+  return [
+    {
+      key: 'benchmark-gate' as const,
+      status: input.report.gate.passed ? 'pass' : 'fail',
+      detail: input.report.gate.passed
+          ? 'Replay benchmark gate passed.'
+        : `Failing dimensions: ${input.report.gate.failingKeys.join(', ') || 'none'}.`,
+    },
+    {
+      key: 'human-rating-gate' as const,
+      status: rubricCount > 0 ? 'pass' : 'fail',
+      detail: rubricCount > 0
+        ? `Human rubric dimensions available: ${rubricCount}.`
+        : 'Human rubric is not available.',
+    },
+    {
+      key: 'latency-gate' as const,
+      status: (telemetry.semanticLatencyMs ?? 0) <= 1_500 && (telemetry.graphLatencyMs ?? 0) <= 1_500 ? 'pass' : 'fail',
+      detail: `semantic=${telemetry.semanticLatencyMs ?? 'n/a'}ms, graph=${telemetry.graphLatencyMs ?? 'n/a'}ms`,
+    },
+    {
+      key: 'wrong-thread-gate' as const,
+      status: (telemetry.wrongThreadRate ?? 0) <= 0.25 ? 'pass' : 'fail',
+      detail: `wrongThreadRate=${telemetry.wrongThreadRate ?? 0}`,
+    },
+    {
+      key: 'template-leakage-gate' as const,
+      status: (telemetry.templateLeakageFailCount ?? 0) <= 0 ? 'pass' : 'fail',
+      detail: `templateLeakageFailCount=${telemetry.templateLeakageFailCount ?? 0}`,
+    },
+  ] satisfies AlicizationRunReplayBenchmarkResult['shipGate']
+}
+
+function buildReplayBenchmarkRegressionTriage(input: {
+  failingKeys: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
+}) {
+  return input.failingKeys.map((dimension) => {
+    let owner: 'memory retrieval' | 'planner' | 'evolution' | 'contract' | 'visible realization' | 'proactive parity' = 'visible realization'
+    let firstCheck = 'Inspect answer shaping and output realization first.'
+    if (['wrongThreadSuppression', 'recentOnlyDrift', 'eventGraphRecallCollapse'].includes(dimension)) {
+      owner = 'memory retrieval'
+      firstCheck = 'Check retrieval ranking, event graph recall, and wrong-thread suppression traces first.'
+    }
+    else if (['procedureCarryQuality', 'temporalScopeFlexibility', 'implicitRecallQuality'].includes(dimension)) {
+      owner = 'planner'
+      firstCheck = 'Check recollection intent, recall planner, and speech placement decisions first.'
+    }
+    else if (['knowledgeCorrectionDiscipline', 'repeatedMistakeAvoidance', 'hostUnderstandingGrowth', 'skillInternalizationGrowth', 'selfRevisionGrowth'].includes(dimension)) {
+      owner = 'evolution'
+      firstCheck = 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.'
+    }
+    else if (dimension === 'surfaceRestraint') {
+      owner = 'contract'
+      firstCheck = 'Check response charter, restraint judge, and truth-discipline contract first.'
+    }
+      else if (['relationshipRepairAdaptation', 'closenessLadderDrift', 'templateLeakage'].includes(dimension)) {
+        owner = 'visible realization'
+        firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
+      }
+      else if (dimension === 'dialogueRhythmStability') {
+        owner = 'visible realization'
+        firstCheck = 'Check relationship distance, warmth cadence, repair timing, and anti-template surface rules first.'
+      }
+      else if (dimension === 'replyMemoryCoherence') {
+        owner = 'proactive parity'
+        firstCheck = 'Check cross-surface parity between main chat, proactive, and callback realization first.'
+      }
+    return {
+      dimension,
+      owner,
+      firstCheck,
+    }
+  })
 }
 
 async function collectTraceRecordsForConversationRows(input: {
@@ -237,6 +339,8 @@ export function createAlicizationReplayBenchmarkRuntime(
     const db = options.getAlicizationDb()
     if (input.packId === 'default-humanlike-memory-v1')
       return buildDefaultHumanlikeMemoryBenchmarkPack()
+    if (input.packId === 'growth-humanlike-memory-v1')
+      return buildGrowthHumanlikeMemoryBenchmarkPack()
 
     if (input.packId === 'backlog-humanlike-memory-v1') {
       return buildReplayBenchmarkBacklogPack({
@@ -426,8 +530,26 @@ export function createAlicizationReplayBenchmarkRuntime(
       }
     }
 
+    const benchmarkTraceRecords = (
+      await Promise.all(
+        turns.map(async (turn) => {
+          const decisionTraceId = turn.tracePointer?.decisionTraceId
+          if (!decisionTraceId)
+            return null
+          const events = await db.listMindTurnEvents({
+            decisionTraceId,
+            limit: 32,
+          })
+          const records = buildAlicizationMemoryDecisionTraceRecords(events)
+          return records.find(item => item.decisionTraceId === decisionTraceId) ?? records[0] ?? null
+        }),
+      )
+    ).filter((item): item is AlicizationMemoryDecisionTraceRecord => Boolean(item))
+
     const telemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
       gate: replay.gate,
+      quality: replay.quality,
+      traces: benchmarkTraceRecords,
     })
 
     if (persistTelemetry) {
@@ -451,6 +573,16 @@ export function createAlicizationReplayBenchmarkRuntime(
       telemetryPatch,
       telemetryPersisted: persistTelemetry,
       failingTurnSet,
+      shipGate: buildReplayBenchmarkShipGate({
+        report: {
+          gate: replay.gate,
+          telemetryPatch,
+          datasetFeedback,
+        },
+      }),
+      regressionTriage: buildReplayBenchmarkRegressionTriage({
+        failingKeys: replay.gate.failingKeys,
+      }),
       datasetFeedback,
     } satisfies AlicizationRunReplayBenchmarkResult
 
@@ -467,6 +599,8 @@ export function createAlicizationReplayBenchmarkRuntime(
           sampledTurnCount: turns.length,
           failingKeys: result.gate.failingKeys,
           failingTurnCount: result.failingTurnSet.length,
+          shipGate: result.shipGate,
+          regressionTriage: result.regressionTriage,
           datasetFeedback: result.datasetFeedback,
           telemetryPatch: result.telemetryPatch,
         },
@@ -508,7 +642,17 @@ export function createAlicizationReplayBenchmarkRuntime(
     const backlogEntries = parseReplayBenchmarkDatasetBacklog(
       await db.getMetaValue(replayBenchmarkDatasetBacklogKey),
     )
-    const results: AlicizationRunReplayBenchmarkResult[] = [sampledResult]
+    const growthResult = await runReplayBenchmark({
+      packId: 'growth-humanlike-memory-v1',
+      sampleLimit: 4,
+      persistTelemetry: input?.persistTelemetry,
+      auditContext: {
+        category: 'alicization.memory-benchmark',
+        action: 'replay-benchmark-nightly-growth-ran',
+        cardId: input?.cardId,
+      },
+    })
+    const results: AlicizationRunReplayBenchmarkResult[] = [sampledResult, growthResult]
     if (backlogEntries.length > 0) {
       const backlogResult = await runReplayBenchmark({
         packId: 'backlog-humanlike-memory-v1',
@@ -528,13 +672,15 @@ export function createAlicizationReplayBenchmarkRuntime(
       ranAt: now,
       dateKey,
       reason: input?.reason ?? 'nightly',
-      packs: results.map(result => ({
-        packId: result.packId,
-        turnCount: result.turnCount,
-        gate: result.gate,
-        failingTurnSet: result.failingTurnSet,
-        datasetFeedback: result.datasetFeedback,
-      })),
+        packs: results.map(result => ({
+          packId: result.packId,
+          turnCount: result.turnCount,
+          gate: result.gate,
+          shipGate: result.shipGate,
+          regressionTriage: result.regressionTriage,
+          failingTurnSet: result.failingTurnSet,
+          datasetFeedback: result.datasetFeedback,
+        })),
     }))
     const tuningAdvice = deriveMemoryTuningAdviceFromReplayBenchmark({
       results,

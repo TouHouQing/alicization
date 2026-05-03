@@ -260,6 +260,7 @@ export function createAlicizationRuntimeExecutionDelivery(
     personStateProjection?: AlicizationPersonStateProjection | null
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
     hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
+    knowledgeEvidence?: OrganicMemoryPromptContext['knowledgeEvidence']
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -274,6 +275,7 @@ export function createAlicizationRuntimeExecutionDelivery(
       summary: sanitizeExecutionLedgerText(input.summary, 220),
       outcome: sanitizeExecutionLedgerText(input.outcome, 240),
       policy: input.deliveryPolicy,
+      knowledgeEvidence: input.knowledgeEvidence ?? null,
       personStateProjection: input.personStateProjection ?? null,
       selfContinuityAuthority: input.selfContinuityAuthority,
       hostPersonModel: input.hostPersonModel ?? null,
@@ -372,6 +374,18 @@ export function createAlicizationRuntimeExecutionDelivery(
     }).catch(() => null)
   }
 
+  const resolveExecutionKnowledgeEvidenceForRuntime = async (input: {
+    agentTurn?: AlicizationAgentTurnRuntime | null
+    cardId: string
+  }) => {
+    const runtimeSurface = input.agentTurn?.getSessionSnapshot().digitalLifeSpine?.runtimeSurface
+      ?? await (async () => {
+        const state = await options.ensureVisualPresenceState(input.cardId).catch(() => null)
+        return state ? buildAlicizationDigitalLifeRuntimeSurface(state) : null
+      })()
+    return runtimeSurface?.memory.knowledgeEvidence ?? null
+  }
+
   const resolveExecutionPersonStateProjectionForRuntime = async (input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -424,6 +438,7 @@ export function createAlicizationRuntimeExecutionDelivery(
     resolveExecutionResultDeliveryPolicyForRuntime,
     resolveExecutionSelfContinuityAuthorityForRuntime,
     resolveExecutionHostPersonModelForRuntime,
+    resolveExecutionKnowledgeEvidenceForRuntime,
     resolveExecutionPersonStateProjectionForRuntime,
   }
 }

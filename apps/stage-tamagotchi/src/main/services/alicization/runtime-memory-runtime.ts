@@ -1,6 +1,8 @@
 import type { CreateAlicizationOrganicMemoryAccessRuntimeOptions } from './runtime-organic-memory-access'
 import type { CreateAlicizationOrganicMemoryPromptRuntimeOptions } from './runtime-organic-memory-prompt'
+import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 
+import { createAlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 import { createAlicizationMemorySearchRuntime } from './memory-search-runtime'
 import { createAlicizationRuntimeMemoryReconsolidation } from './runtime-memory-reconsolidation'
 import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
@@ -15,12 +17,16 @@ type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntime
   | 'planRecollectionSpeech'
   | 'planMemoryDeliberation'
   | 'isPersonaResidueMemoryText'
+  | 'recordMemoryCandidateGenerationLatency'
+  | 'recordMemoryPlannerLatency'
+  | 'recordMemorySpeechPlanLatency'
 >
 
 export interface CreateAlicizationRuntimeMemoryRuntimeOptions {
   organicMemoryAccess: CreateAlicizationOrganicMemoryAccessRuntimeOptions
   organicMemorySearch: RuntimeMemorySearchSetup
   memoryReconsolidation: Parameters<typeof createAlicizationRuntimeMemoryReconsolidation>[0]
+  knowledgeAssimilation?: AlicizationKnowledgeAssimilationRuntime
 }
 
 export function createAlicizationRuntimeMemoryRuntime(
@@ -56,11 +62,14 @@ export function createAlicizationRuntimeMemoryRuntime(
   const memoryReconsolidationRuntime = createAlicizationRuntimeMemoryReconsolidation(
     options.memoryReconsolidation,
   )
+  const knowledgeAssimilationRuntime = options.knowledgeAssimilation
+    ?? createAlicizationKnowledgeAssimilationRuntime()
 
   return {
     organicMemoryAccessRuntime,
     memorySearchRuntime,
     memoryReconsolidationRuntime,
+    knowledgeAssimilationRuntime,
     ...organicMemoryAccessRuntime,
     ...memorySearchRuntime,
     prewarmAccessibilityLine,

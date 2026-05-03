@@ -75,4 +75,102 @@ describe('memory fact retrieval', () => {
 
     expect(ranked[0]?.fact.id).toBe('fact-strong')
   })
+
+  it('prefers validated and internalized knowledge over provisional observations when overlap is similar', () => {
+    const nowTs = Date.UTC(2026, 3, 27, 12, 0, 0)
+    const ranked = rankAlicizationMemoryFacts({
+      query: 'runtime continuity seam',
+      limit: 5,
+      currentTs: nowTs,
+      facts: [
+        {
+          id: 'fact-validated',
+          subject: 'assistant',
+          predicate: 'learned',
+          object: 'runtime continuity seam returns before branching',
+          confidence: 0.78,
+          source: 'async-llm',
+          dedupeKey: 'assistant|learned|runtime continuity seam returns before branching',
+          createdAt: nowTs - 10_000,
+          updatedAt: nowTs - 10_000,
+          lastAccessAt: null,
+          accessCount: 1,
+          knowledgeStage: 'internalized-long-horizon-knowledge',
+          validationStatus: 'validated',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+        {
+          id: 'fact-ephemeral',
+          subject: 'assistant',
+          predicate: 'noticed',
+          object: 'runtime continuity seam returns before branching',
+          confidence: 0.82,
+          source: 'async-llm',
+          dedupeKey: 'assistant|noticed|runtime continuity seam returns before branching',
+          createdAt: nowTs - 10_000,
+          updatedAt: nowTs - 10_000,
+          lastAccessAt: null,
+          accessCount: 1,
+          knowledgeStage: 'ephemeral-observation',
+          validationStatus: 'unverified',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+      ],
+    })
+
+    expect(ranked[0]?.fact.id).toBe('fact-validated')
+  })
+
+  it('penalizes contradiction-heavy facts even when lexical overlap is similar', () => {
+    const nowTs = Date.UTC(2026, 3, 27, 12, 0, 0)
+    const ranked = rankAlicizationMemoryFacts({
+      query: 'verify result before sounding certain',
+      limit: 5,
+      currentTs: nowTs,
+      facts: [
+        {
+          id: 'fact-stable',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'verify result before sounding certain',
+          confidence: 0.8,
+          source: 'async-llm',
+          dedupeKey: 'assistant|procedure|verify result before sounding certain',
+          createdAt: nowTs - 10_000,
+          updatedAt: nowTs - 10_000,
+          lastAccessAt: null,
+          accessCount: 3,
+          validationCount: 3,
+          contradictionCount: 0,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'validated',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+        {
+          id: 'fact-unstable',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'verify result before sounding certain',
+          confidence: 0.82,
+          source: 'async-llm',
+          dedupeKey: 'assistant|procedure|verify result before sounding certain unstable',
+          createdAt: nowTs - 10_000,
+          updatedAt: nowTs - 10_000,
+          lastAccessAt: null,
+          accessCount: 3,
+          validationCount: 1,
+          contradictionCount: 3,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'validated',
+          provenance: 'inferred',
+          memoryTier: 'warm',
+        } as any,
+      ],
+    })
+
+    expect(ranked[0]?.fact.id).toBe('fact-stable')
+  })
 })

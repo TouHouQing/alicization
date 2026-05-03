@@ -22,6 +22,12 @@ describe('replay benchmark runtime', () => {
         graphLatencyMs: null,
         reconstructionFrequency: 0,
         reconstructedCount: 0,
+        recallHitRate: 0,
+        recallMissRate: 0,
+        wrongThreadRate: 0,
+        reconstructionErrorRate: 0,
+        stableCoreOnlyRate: 0,
+        memorySurfaceViolationRate: 0,
         templateLeakageFailCount: 0,
       },
     }))
@@ -222,6 +228,12 @@ describe('replay benchmark runtime', () => {
         graphLatencyMs: null,
         reconstructionFrequency: 0,
         reconstructedCount: 0,
+        recallHitRate: 0,
+        recallMissRate: 0,
+        wrongThreadRate: 0,
+        reconstructionErrorRate: 0,
+        stableCoreOnlyRate: 0,
+        memorySurfaceViolationRate: 0,
         templateLeakageFailCount: 0,
       },
     }))
@@ -251,7 +263,12 @@ describe('replay benchmark runtime', () => {
     })
 
     expect(nightly.ran).toBe(true)
+    expect(nightly.results.map(item => item.packId)).toEqual(expect.arrayContaining([
+      'sampled-humanlike-memory-v1',
+      'growth-humanlike-memory-v1',
+    ]))
     expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('nightly-test')
+    expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('growth-humanlike-memory-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('memory-tuning-advice-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('repairWindowBias')
   })

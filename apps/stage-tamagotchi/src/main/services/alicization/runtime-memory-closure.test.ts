@@ -10,11 +10,24 @@ describe('runtime memory closure', () => {
     const appendPersonStateEvolutionEntries = vi.fn(async () => {})
     const upsertMemoryReflections = vi.fn(async () => {})
     const upsertMemoryFacts = vi.fn(async () => {})
+    const applyMemoryFactCorrections = vi.fn(async () => {})
     const readMindHead = vi.fn(async () => null)
     const upsertMindHead = vi.fn(async () => {})
     const appendMindTurnEvents = vi.fn(async () => {})
+    const listMemoryFacts = vi.fn(async () => [])
     const withCardScope = vi.fn(async (_cardId, task) => await task())
     const appendAuditLog = vi.fn(async () => {})
+    const assimilateMemoryFactsDetailed = vi.fn((input: any) => ({
+      facts: input.facts.map((fact: any) => ({
+        ...fact,
+        knowledgeStage: fact.knowledgeStage ?? 'working-understanding',
+        validationStatus: fact.validationStatus ?? 'unverified',
+        sourceLabel: fact.sourceLabel ?? '',
+        conflictsWith: fact.conflictsWith ?? [],
+        supersedes: fact.supersedes ?? [],
+      })),
+      corrections: [],
+    }))
 
     const runtime = createAlicizationRuntimeMemoryClosure({
       now: () => 5_000,
@@ -23,6 +36,10 @@ describe('runtime memory closure', () => {
       withCardScope,
       errorMessageFrom: error => error instanceof Error ? error.message : String(error),
       ensureMindGovernanceDecisionTraceId: raw => typeof raw === 'string' && raw.trim() ? raw.trim() : 'mind:auto:test',
+      knowledgeAssimilationRuntime: {
+        assimilateMemoryFacts: input => assimilateMemoryFactsDetailed(input).facts,
+        assimilateMemoryFactsDetailed,
+      },
       appendAuditLog,
       alicizationDb: {
         appendRelationshipOutcomes,
@@ -31,6 +48,8 @@ describe('runtime memory closure', () => {
         appendPersonStateEvolutionEntries,
         upsertMemoryReflections,
         upsertMemoryFacts,
+        applyMemoryFactCorrections,
+        listMemoryFacts,
         readMindHead,
         upsertMindHead,
         appendMindTurnEvents,
@@ -79,6 +98,10 @@ describe('runtime memory closure', () => {
 
     expect(appendRelationshipOutcomes).toHaveBeenCalled()
     expect(appendPersonaReinforcementEvents).toHaveBeenCalled()
+    expect(listMemoryFacts).toHaveBeenCalled()
+    expect(assimilateMemoryFactsDetailed).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'rule',
+    }))
     expect(upsertMemoryFacts).toHaveBeenCalledWith(expect.any(Array), 'rule')
     expect(upsertMindHead).toHaveBeenCalledWith(
       'default',
@@ -114,6 +137,20 @@ describe('runtime memory closure', () => {
       withCardScope,
       errorMessageFrom: error => error instanceof Error ? error.message : String(error),
       ensureMindGovernanceDecisionTraceId: raw => typeof raw === 'string' && raw.trim() ? raw.trim() : 'mind:auto:test',
+      knowledgeAssimilationRuntime: {
+        assimilateMemoryFacts: input => input.facts,
+        assimilateMemoryFactsDetailed: input => ({
+          facts: input.facts.map(fact => ({
+            ...fact,
+            knowledgeStage: fact.knowledgeStage ?? 'working-understanding',
+            validationStatus: fact.validationStatus ?? 'unverified',
+            sourceLabel: fact.sourceLabel ?? '',
+            conflictsWith: fact.conflictsWith ?? [],
+            supersedes: fact.supersedes ?? [],
+          })),
+          corrections: [],
+        }),
+      },
       appendAuditLog: async () => {},
       alicizationDb: {
         appendRelationshipOutcomes: async () => {},
@@ -122,6 +159,8 @@ describe('runtime memory closure', () => {
         appendPersonStateEvolutionEntries: async () => {},
         upsertMemoryReflections: async () => {},
         upsertMemoryFacts: async () => {},
+        applyMemoryFactCorrections: async () => {},
+        listMemoryFacts: async () => [],
         readMindHead: async () => null,
         upsertMindHead: async () => {},
         appendMindTurnEvents: async () => {},

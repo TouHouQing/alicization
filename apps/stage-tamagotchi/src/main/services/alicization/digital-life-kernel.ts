@@ -3,6 +3,7 @@ import type {
   AlicizationMemoryDeliberation,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
+  AlicizationSelfEvolutionKernelSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
@@ -99,6 +100,13 @@ export interface AlicizationDigitalLifeRuntimeSurface {
     recollectionPlan?: AlicizationRecollectionPlan | null
     recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
     memoryDeliberation?: AlicizationMemoryDeliberation | null
+    knowledgeEvidence?: {
+      validationCount: number
+      contradictionCount: number
+      stronglyValidatedProcedureCount: number
+      contradictionHeavyFactCount: number
+    } | null
+    selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   }
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'>
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
@@ -373,6 +381,8 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       recallGovernor: state.recallGovernor ?? null,
       personalityContinuityState,
       personStateProjection,
+      knowledgeEvidence: null,
+      selfEvolution: null,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,

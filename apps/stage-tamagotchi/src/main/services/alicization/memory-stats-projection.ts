@@ -25,7 +25,33 @@ interface AlicizationMemoryStatsProjectionConsolidationLike {
 interface AlicizationMemoryRetrievalTelemetryLike {
   semanticLatencyMs: number | null
   graphLatencyMs: number | null
+  candidateGenerationLatencyMs?: number | null
+  plannerLatencyMs?: number | null
+  speechPlanLatencyMs?: number | null
+  cacheHitCount?: number
+  cacheMissCount?: number
+  prewarmHitCount?: number
+  prewarmMissCount?: number
+  budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  hotKeyStats?: Array<{
+    key: string
+    candidateCount: number
+    hitCount: number
+    winCount: number
+    missCount: number
+  }>
+  recallHitRate?: number
+  recallMissRate?: number
+  wrongThreadRate?: number
+  reconstructionErrorRate?: number
+  stableCoreOnlyRate?: number
+  memorySurfaceViolationRate?: number
   templateLeakageFailCount: number
+  mindParticipation?: number
+  memoryParticipation?: number
+  personalityParticipation?: number
+  relationshipParticipation?: number
+  continuityParticipation?: number
 }
 
 function tokenize(text: string) {
@@ -130,9 +156,56 @@ export function buildAlicizationMemoryStatsProjection(input: {
     retrievalHealth: {
       semanticLatencyMs: input.retrievalTelemetry.semanticLatencyMs,
       graphLatencyMs: input.retrievalTelemetry.graphLatencyMs,
+      candidateGenerationLatencyMs: input.retrievalTelemetry.candidateGenerationLatencyMs ?? null,
+      plannerLatencyMs: input.retrievalTelemetry.plannerLatencyMs ?? null,
+      speechPlanLatencyMs: input.retrievalTelemetry.speechPlanLatencyMs ?? null,
+      cacheHitRatio: (() => {
+        const hits = input.retrievalTelemetry.cacheHitCount ?? 0
+        const misses = input.retrievalTelemetry.cacheMissCount ?? 0
+        const total = hits + misses
+        return total <= 0 ? 0 : Number((hits / total).toFixed(2))
+      })(),
+      prewarmHitRatio: (() => {
+        const hits = input.retrievalTelemetry.prewarmHitCount ?? 0
+        const misses = input.retrievalTelemetry.prewarmMissCount ?? 0
+        const total = hits + misses
+        return total <= 0 ? 0 : Number((hits / total).toFixed(2))
+      })(),
+      budgetClassCounts: input.retrievalTelemetry.budgetClassCounts ?? {},
+      hotKeyHitRatio: (() => {
+        const rows = input.retrievalTelemetry.hotKeyStats ?? []
+        const hits = rows.reduce((sum, item) => sum + Math.max(0, Number(item.hitCount ?? 0)), 0)
+        const misses = rows.reduce((sum, item) => sum + Math.max(0, Number(item.missCount ?? 0)), 0)
+        const total = hits + misses
+        return total <= 0 ? 0 : Number((hits / total).toFixed(2))
+      })(),
+      hotKeyCoverage: (() => {
+        const rows = input.retrievalTelemetry.hotKeyStats ?? []
+        const totalCandidates = rows.reduce((sum, item) => sum + Math.max(0, Number(item.candidateCount ?? 0)), 0)
+        if (totalCandidates <= 0)
+          return 0
+        const winningKeys = rows.filter(item => Math.max(0, Number(item.winCount ?? 0)) > 0).length
+        return Number((winningKeys / rows.length).toFixed(2))
+      })(),
+      hotKeyCandidates: (input.retrievalTelemetry.hotKeyStats ?? []).slice(0, 5).map(item => item.key),
+      hotKeyStats: input.retrievalTelemetry.hotKeyStats ?? [],
+      hotKeyActiveCount: (input.retrievalTelemetry.hotKeyStats ?? []).length,
+      hotKeyWinCount: (input.retrievalTelemetry.hotKeyStats ?? []).reduce((sum, item) => sum + Math.max(0, Number(item.winCount ?? 0)), 0),
+      hotKeyMissCount: (input.retrievalTelemetry.hotKeyStats ?? []).reduce((sum, item) => sum + Math.max(0, Number(item.missCount ?? 0)), 0),
       reconstructionFrequency: Number(reconstructionFrequency.toFixed(2)),
       reconstructedCount,
+      recallHitRate: Number((input.retrievalTelemetry.recallHitRate ?? 0).toFixed(2)),
+      recallMissRate: Number((input.retrievalTelemetry.recallMissRate ?? 0).toFixed(2)),
+      wrongThreadRate: Number((input.retrievalTelemetry.wrongThreadRate ?? 0).toFixed(2)),
+      reconstructionErrorRate: Number((input.retrievalTelemetry.reconstructionErrorRate ?? 0).toFixed(2)),
+      stableCoreOnlyRate: Number((input.retrievalTelemetry.stableCoreOnlyRate ?? 0).toFixed(2)),
+      memorySurfaceViolationRate: Number((input.retrievalTelemetry.memorySurfaceViolationRate ?? 0).toFixed(2)),
       templateLeakageFailCount: input.retrievalTelemetry.templateLeakageFailCount,
+      mindParticipation: Number((input.retrievalTelemetry.mindParticipation ?? 0).toFixed(2)),
+      memoryParticipation: Number((input.retrievalTelemetry.memoryParticipation ?? 0).toFixed(2)),
+      personalityParticipation: Number((input.retrievalTelemetry.personalityParticipation ?? 0).toFixed(2)),
+      relationshipParticipation: Number((input.retrievalTelemetry.relationshipParticipation ?? 0).toFixed(2)),
+      continuityParticipation: Number((input.retrievalTelemetry.continuityParticipation ?? 0).toFixed(2)),
     },
     integrity: deriveAlicizationMemoryIntegrity({
       facts: input.facts,

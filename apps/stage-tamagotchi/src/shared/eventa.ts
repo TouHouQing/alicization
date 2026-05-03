@@ -49,6 +49,12 @@ import type {
   AlicizationLongHorizonMemoryCueInfluence as SharedAlicizationLongHorizonMemoryCueInfluence,
   AlicizationLongHorizonMemoryCueSnapshot as SharedAlicizationLongHorizonMemoryCueSnapshot,
   AlicizationLongHorizonMemorySnapshot as SharedAlicizationLongHorizonMemorySnapshot,
+  AlicizationKnowledgeAssimilationStage as SharedAlicizationKnowledgeAssimilationStage,
+  AlicizationKnowledgeAssimilationCorrection as SharedAlicizationKnowledgeAssimilationCorrection,
+  AlicizationKnowledgeValidationStatus as SharedAlicizationKnowledgeValidationStatus,
+  AlicizationMemoryArchiveRecord as SharedAlicizationMemoryArchiveRecord,
+  AlicizationMemoryFact as SharedAlicizationMemoryFact,
+  AlicizationMemoryFactInput as SharedAlicizationMemoryFactInput,
   AlicizationMemoryReflectionInput as SharedAlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord as SharedAlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionSourceKind as SharedAlicizationMemoryReflectionSourceKind,
@@ -88,6 +94,7 @@ import type {
   AlicizationPersonStateEvolutionShift as SharedAlicizationPersonStateEvolutionShift,
   AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
   AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
+  AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
   AlicizationMemoryRecollectionAgendaSnapshot as SharedAlicizationMemoryRecollectionAgendaSnapshot,
@@ -527,6 +534,9 @@ export type AlicizationMemoryStats = SharedAlicizationMemoryStats
 export type AlicizationMemorySource = SharedAlicizationMemorySource
 export type AlicizationMemoryTier = SharedAlicizationMemoryTier
 export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
+export type AlicizationKnowledgeAssimilationStage = SharedAlicizationKnowledgeAssimilationStage
+export type AlicizationKnowledgeAssimilationCorrection = SharedAlicizationKnowledgeAssimilationCorrection
+export type AlicizationKnowledgeValidationStatus = SharedAlicizationKnowledgeValidationStatus
 export type AlicizationDerivedMemoryReference = SharedAlicizationDerivedMemoryReference
 export type AlicizationEpisodicEventSourceKind = SharedAlicizationEpisodicEventSourceKind
 export type AlicizationEpisodicReconsolidationSnapshot = SharedAlicizationEpisodicReconsolidationSnapshot
@@ -534,32 +544,9 @@ export type AlicizationEpisodicEventInput = SharedAlicizationEpisodicEventInput
 export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
 export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
 
-export interface AlicizationMemoryFact {
-  id: string
-  subject: string
-  predicate: string
-  object: string
-  confidence: number
-  source: AlicizationMemorySource
-  dedupeKey: string
-  createdAt: number
-  updatedAt: number
-  lastAccessAt: number | null
-  accessCount: number
-  provenance?: AlicizationMemoryProvenance | null
-  memoryTier?: AlicizationMemoryTier | null
-}
-
-export interface AlicizationMemoryArchiveRecord extends AlicizationMemoryFact {
-  archivedAt: number
-}
-
-export interface AlicizationMemoryFactInput {
-  subject: string
-  predicate: string
-  object: string
-  confidence: number
-}
+export type AlicizationMemoryFact = SharedAlicizationMemoryFact
+export type AlicizationMemoryArchiveRecord = SharedAlicizationMemoryArchiveRecord
+export type AlicizationMemoryFactInput = SharedAlicizationMemoryFactInput
 
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 export type AlicizationMemoryReflectionSourceKind = SharedAlicizationMemoryReflectionSourceKind
@@ -620,6 +607,67 @@ export interface AlicizationOrganicMemorySnapshot {
   activeThoughts: AlicizationActiveThought[]
   subconsciousCount: number
   recentSubconsciousFragments: AlicizationSubconsciousFragment[]
+  recentEpisodicEvents?: AlicizationEpisodicEventRecord[]
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  memoryConsolidations?: Array<{
+    id: string
+    kind: 'procedural' | 'autobiographical'
+    facet?: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
+    periodKey: string
+    periodStartedAt: number
+    periodEndedAt: number
+    summary: string
+    lesson: string | null
+    cues: string[]
+    confidence: number
+    dominantProvenance: AlicizationMemoryProvenance
+  }>
+  recollectionIntent?: {
+    mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
+    searchEpisodes: boolean
+    searchConversations: boolean
+    searchProceduralExperience: boolean
+    queryHints: string[]
+    rationale: string
+    confidence: number
+  } | null
+  recollectionPlan?: {
+    selectedConsolidationIds: string[]
+    selectedWindowIds: string[]
+    selectedProceduralIds: string[]
+    selectedEpisodeIds: string[]
+    selectedConversationTurnIds: string[]
+    opening: string
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    rationale: string
+    confidence: number
+  } | null
+  recollectionSpeechPlan?: {
+    shouldSurface: boolean
+    surfaceMode: 'internal-only' | 'gist-first' | 'answer-anchoring' | 'procedural-carry' | 'relationship-continuity'
+    placement: 'before-payoff' | 'inside-payoff' | 'after-payoff' | 'internal-only'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    internalLead: string
+    visibleLead: string | null
+    styleNote: string
+    rationale: string
+    confidence: number
+  } | null
+  recollectionForeground?: {
+    mode: 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
+    certainty: 'firm' | 'approximate' | 'fragmentary'
+    summary: string
+    surfaceSummary: string | null
+    confidence: number
+  } | null
+  knowledgeEvidence?: {
+    validationCount: number
+    contradictionCount: number
+    stronglyValidatedProcedureCount: number
+    contradictionHeavyFactCount: number
+  } | null
+  selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   lastDreamedAt: number | null
 }
 
@@ -681,6 +729,7 @@ export type AlicizationPersonStateEvolutionShift = SharedAlicizationPersonStateE
 export type AlicizationPersonStateEvolutionEntryInput = SharedAlicizationPersonStateEvolutionEntryInput
 export type AlicizationPersonStateEvolutionEntryRecord = SharedAlicizationPersonStateEvolutionEntryRecord
 export type AlicizationPersonStateEvolutionSummary = SharedAlicizationPersonStateEvolutionSummary
+export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface

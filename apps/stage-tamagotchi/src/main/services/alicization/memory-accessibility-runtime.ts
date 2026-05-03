@@ -2,11 +2,14 @@ import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
 
+import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
+
 export type AlicizationMemoryAccessibilityLayer = 'raw-ledger' | 'summary-layer' | 'hot-index'
 export type AlicizationMemoryExpansionMode = 'summary-first' | 'balanced' | 'deep-thread'
 export type AlicizationMemoryLatencyClass = 'fast' | 'balanced' | 'deep'
 
 export interface AlicizationMemoryAccessibilityPlan {
+  budgetClass: AlicizationMemoryRetrievalBudgetClass
   latencyClass: AlicizationMemoryLatencyClass
   expansionMode: AlicizationMemoryExpansionMode
   preferredLayers: AlicizationMemoryAccessibilityLayer[]
@@ -43,6 +46,7 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
 export function buildAlicizationMemoryAccessibilityPlan(input: {
   recallSeed: string
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  budgetClass?: AlicizationMemoryRetrievalBudgetClass
 }) {
   const seed = normalizeText(input.recallSeed, 240).toLowerCase()
   const governor = input.recallGovernor ?? null
@@ -56,6 +60,12 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   const deepThread = longHorizon || taskMigrationLike || temporalFocus === 'experience-matched'
   const fastDialogue = !deepThread && (mode === 'relationship-history' || mode === 'conversation-history')
 
+  const budgetClass = input.budgetClass
+    ?? (
+      longHorizon || taskMigrationLike
+        ? 'deep-recall-reply'
+        : 'realtime-reply'
+    )
   const latencyClass: AlicizationMemoryLatencyClass = deepThread
     ? 'deep'
     : fastDialogue
@@ -68,6 +78,7 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
       : 'balanced'
 
   return {
+    budgetClass,
     latencyClass,
     expansionMode,
     preferredLayers: expansionMode === 'summary-first'

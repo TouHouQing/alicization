@@ -141,6 +141,25 @@ export interface AlicizationMindReplayMemoryHealthComparisonRow {
   patch: number | null
 }
 
+export interface AlicizationMindReplayHumanRatingDimensionRow {
+  key: string
+  label: string
+  prompt: string
+  scale: string
+}
+
+export interface AlicizationMindReplayShipGateRow {
+  key: string
+  status: 'pass' | 'fail'
+  detail: string
+}
+
+export interface AlicizationMindReplayRegressionTriageRow {
+  dimension: string
+  owner: 'memory retrieval' | 'planner' | 'evolution' | 'contract' | 'visible realization' | 'proactive parity'
+  firstCheck: string
+}
+
 export function deriveMindReplayCoverage(events: AlicizationMindTurnEventRecord[]): AlicizationMindReplayCoverage {
   const eventKindCounts: Partial<Record<AlicizationMindTurnEventKind, number>> = {}
   for (const event of events) {
@@ -229,6 +248,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     { label: 'Sampled', value: 'sampled-humanlike-memory-v1' },
     { label: 'Backlog', value: 'backlog-humanlike-memory-v1' },
     { label: 'Default', value: 'default-humanlike-memory-v1' },
+    { label: 'Growth', value: 'growth-humanlike-memory-v1' },
   ] as const)
   const benchmarkDimensionGroups = computed<AlicizationMindReplayBenchmarkDimensionGroup[]>(() => {
     const dimensions = benchmarkReport.value?.gate.dimensions ?? []
@@ -269,6 +289,116 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     return filteredBenchmarkFailingTurns.value.find(item => item.turnId === selectedDiagnosisTurnId.value) ?? filteredBenchmarkFailingTurns.value[0] ?? null
   })
   const benchmarkDimensionKeySet = computed(() => uniqueStrings(benchmarkDimensionGroups.value.map(item => item.key)))
+  const benchmarkHumanRatingRows = computed<AlicizationMindReplayHumanRatingDimensionRow[]>(() => {
+    const dimensions = benchmarkReport.value?.datasetFeedback.humanRatingRubric?.dimensions ?? []
+    return dimensions.map(item => ({
+      key: item.key,
+      label: item.label,
+      prompt: item.prompt,
+      scale: item.scale,
+    }))
+  })
+  const benchmarkShipGateRows = computed<AlicizationMindReplayShipGateRow[]>(() => {
+    const report = benchmarkReport.value
+    if (!report) {
+      return []
+    }
+    if (Array.isArray((report as any).shipGate) && (report as any).shipGate.length > 0)
+      return (report as any).shipGate as AlicizationMindReplayShipGateRow[]
+    const telemetry = report.telemetryPatch.retrievalHealth
+    return [
+      {
+        key: 'benchmark-gate',
+        status: report.gate.passed ? 'pass' : 'fail',
+        detail: report.gate.passed
+          ? 'Replay benchmark gate passed.'
+          : `Failing dimensions: ${report.gate.failingKeys.join(', ') || 'none'}.`,
+      },
+      {
+        key: 'human-rating-gate',
+        status: benchmarkHumanRatingRows.value.length > 0 ? 'pass' : 'fail',
+        detail: benchmarkHumanRatingRows.value.length > 0
+          ? `Human rubric dimensions available: ${benchmarkHumanRatingRows.value.length}.`
+          : 'Human rubric is not available.',
+      },
+      {
+        key: 'latency-gate',
+        status: (telemetry.semanticLatencyMs ?? 0) <= 1_500 && (telemetry.graphLatencyMs ?? 0) <= 1_500
+          ? 'pass'
+          : 'fail',
+        detail: `semantic=${telemetry.semanticLatencyMs ?? 'n/a'}ms, graph=${telemetry.graphLatencyMs ?? 'n/a'}ms`,
+      },
+      {
+        key: 'wrong-thread-gate',
+        status: (telemetry.wrongThreadRate ?? 0) <= 0.25 ? 'pass' : 'fail',
+        detail: `wrongThreadRate=${telemetry.wrongThreadRate ?? 0}`,
+      },
+      {
+        key: 'template-leakage-gate',
+        status: (telemetry.templateLeakageFailCount ?? 0) <= 0 ? 'pass' : 'fail',
+        detail: `templateLeakageFailCount=${telemetry.templateLeakageFailCount ?? 0}`,
+      },
+    ]
+  })
+  const benchmarkRegressionTriageRows = computed<AlicizationMindReplayRegressionTriageRow[]>(() => {
+    const report = benchmarkReport.value
+    if (Array.isArray((report as any)?.regressionTriage) && (report as any).regressionTriage.length > 0)
+      return (report as any).regressionTriage as AlicizationMindReplayRegressionTriageRow[]
+    const failing = report?.gate.failingKeys ?? []
+    return failing.map((dimension) => {
+      let owner: AlicizationMindReplayRegressionTriageRow['owner'] = 'visible realization'
+      let firstCheck = 'Inspect answer shaping and output realization first.'
+      if ([
+        'wrongThreadSuppression',
+        'recentOnlyDrift',
+        'eventGraphRecallCollapse',
+      ].includes(dimension)) {
+        owner = 'memory retrieval'
+        firstCheck = 'Check retrieval ranking, event graph recall, and wrong-thread suppression traces first.'
+      }
+      else if ([
+        'procedureCarryQuality',
+        'temporalScopeFlexibility',
+        'implicitRecallQuality',
+      ].includes(dimension)) {
+        owner = 'planner'
+        firstCheck = 'Check recollection intent, recall planner, and speech placement decisions first.'
+      }
+      else if ([
+        'knowledgeCorrectionDiscipline',
+        'repeatedMistakeAvoidance',
+        'hostUnderstandingGrowth',
+        'skillInternalizationGrowth',
+        'selfRevisionGrowth',
+      ].includes(dimension)) {
+        owner = 'evolution'
+        firstCheck = 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.'
+      }
+      else if ([
+        'surfaceRestraint',
+      ].includes(dimension)) {
+        owner = 'contract'
+        firstCheck = 'Check response charter, restraint judge, and truth-discipline contract first.'
+      }
+      else if ([
+        'relationshipRepairAdaptation',
+        'closenessLadderDrift',
+        'templateLeakage',
+      ].includes(dimension)) {
+        owner = 'visible realization'
+        firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
+      }
+      else if (dimension === 'replyMemoryCoherence') {
+        owner = 'proactive parity'
+        firstCheck = 'Check cross-surface parity between main chat, proactive, and callback realization first.'
+      }
+      return {
+        dimension,
+        owner,
+        firstCheck,
+      }
+    })
+  })
   const memoryHealthComparisonRows = computed<AlicizationMindReplayMemoryHealthComparisonRow[]>(() => {
     const before = benchmarkStatsBefore.value?.retrievalHealth
     const after = benchmarkStatsAfter.value?.retrievalHealth
@@ -494,6 +624,9 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     filteredBenchmarkFailingTurns,
     selectedBenchmarkTurn,
     benchmarkDimensionKeySet,
+    benchmarkHumanRatingRows,
+    benchmarkShipGateRows,
+    benchmarkRegressionTriageRows,
     memoryHealthComparisonRows,
     replayCoverage,
     replaySummary,

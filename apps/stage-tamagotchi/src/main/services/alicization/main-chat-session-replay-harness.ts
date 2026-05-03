@@ -257,6 +257,9 @@ type AlicizationReplayBenchmarkSampleCategory
     | 'procedure-carry'
     | 'task-migration'
     | 'long-horizon'
+    | 'cross-week-task-migration'
+    | 'cross-month-repair'
+    | 'knowledge-update-conflict'
     | 'surface-divergence'
     | 'long-session'
     | 'general-memory'
@@ -321,6 +324,9 @@ function normalizeReplayBenchmarkSampleCategory(raw: unknown): AlicizationReplay
     || value === 'procedure-carry'
     || value === 'task-migration'
     || value === 'long-horizon'
+    || value === 'cross-week-task-migration'
+    || value === 'cross-month-repair'
+    || value === 'knowledge-update-conflict'
     || value === 'surface-divergence'
     || value === 'long-session'
     || value === 'general-memory'
@@ -340,6 +346,9 @@ const replayBenchmarkSampleCategoryPriority: AlicizationReplayBenchmarkSampleCat
   'execution',
   'task-migration',
   'long-horizon',
+  'cross-week-task-migration',
+  'cross-month-repair',
+  'knowledge-update-conflict',
   'surface-divergence',
   'long-session',
   'proactive',
@@ -366,6 +375,12 @@ export interface AlicizationReplayMemoryQuality {
   relationshipRepairAdaptation: AlicizationReplayQualityStatus
   closenessLadderDrift: AlicizationReplayQualityStatus
   eventGraphRecallCollapse: AlicizationReplayQualityStatus
+  knowledgeCorrectionDiscipline: AlicizationReplayQualityStatus
+  repeatedMistakeAvoidance: AlicizationReplayQualityStatus
+  hostUnderstandingGrowth: AlicizationReplayQualityStatus
+  skillInternalizationGrowth: AlicizationReplayQualityStatus
+  selfRevisionGrowth: AlicizationReplayQualityStatus
+  dialogueRhythmStability: AlicizationReplayQualityStatus
   templateLeakage: AlicizationReplayQualityStatus
 }
 
@@ -381,6 +396,12 @@ export interface AlicizationReplayBenchmarkStandards {
   relationshipRepairAdaptation: 'pass' | 'fail'
   closenessLadderDrift: 'pass' | 'fail'
   eventGraphRecallCollapse: 'pass' | 'fail'
+  knowledgeCorrectionDiscipline: 'pass' | 'fail'
+  repeatedMistakeAvoidance: 'pass' | 'fail'
+  hostUnderstandingGrowth: 'pass' | 'fail'
+  skillInternalizationGrowth: 'pass' | 'fail'
+  selfRevisionGrowth: 'pass' | 'fail'
+  dialogueRhythmStability: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -403,15 +424,103 @@ export interface AlicizationReplayBenchmarkGateReport {
 
 export function buildReplayBenchmarkMemoryStatsPatch(input: {
   gate: AlicizationReplayBenchmarkGateReport
+  quality?: AlicizationReplayMemoryQuality[]
+  traces?: AlicizationMemoryDecisionTraceRecord[]
 }): AlicizationReplayBenchmarkTelemetryPatch {
   const templateLeakageDimension = input.gate.dimensions.find(item => item.key === 'templateLeakage')
+  const quality = input.quality ?? []
+  const recallRelevant = quality.filter(item =>
+    item.eraFirst !== 'not-applicable'
+    || item.procedureCarryQuality !== 'not-applicable'
+    || item.implicitRecallQuality !== 'not-applicable'
+    || item.temporalScopeFlexibility !== 'not-applicable',
+  )
+  const recallHits = recallRelevant.filter(item =>
+    item.eraFirst === 'pass'
+    || item.procedureCarryQuality === 'pass'
+    || item.implicitRecallQuality === 'pass'
+    || item.temporalScopeFlexibility === 'pass',
+  ).length
+  const recallMisses = recallRelevant.filter(item =>
+    item.eraFirst === 'fail'
+    || item.procedureCarryQuality === 'fail'
+    || item.implicitRecallQuality === 'fail'
+    || item.temporalScopeFlexibility === 'fail',
+  ).length
+  const wrongThreadApplicable = quality.filter(item => item.wrongThreadSuppression !== 'not-applicable')
+  const wrongThreadFailures = wrongThreadApplicable.filter(item => item.wrongThreadSuppression === 'fail').length
+  const reconstructionApplicable = quality.filter(item => item.reconsolidationEffect !== 'not-applicable' || item.uncertaintyDiscipline !== 'not-applicable')
+  const reconstructionFailures = reconstructionApplicable.filter(item =>
+    item.reconsolidationEffect === 'fail' || item.uncertaintyDiscipline === 'fail',
+  ).length
+  const stableCoreApplicable = quality.filter(item => item.surfaceRestraint !== 'not-applicable')
+  const stableCoreFailures = stableCoreApplicable.filter(item => item.surfaceRestraint === 'fail').length
+  const memorySurfaceApplicable = quality.filter(item =>
+    item.templateLeakage !== 'not-applicable'
+    || item.surfaceRestraint !== 'not-applicable'
+    || item.relationshipRepairAdaptation !== 'not-applicable',
+  )
+  const memorySurfaceFailures = memorySurfaceApplicable.filter(item =>
+    item.templateLeakage === 'fail'
+    || item.surfaceRestraint === 'fail'
+    || item.relationshipRepairAdaptation === 'fail',
+  ).length
+  const traceParticipation = (() => {
+    const traces = input.traces ?? []
+    if (traces.length === 0) {
+      return {
+        mindParticipation: 0,
+        memoryParticipation: 0,
+        personalityParticipation: 0,
+        relationshipParticipation: 0,
+        continuityParticipation: 0,
+      }
+    }
+    const totals = traces.reduce((acc, trace) => ({
+      mindParticipation: acc.mindParticipation + Number(trace.participation?.mindParticipation ?? 0),
+      memoryParticipation: acc.memoryParticipation + Number(trace.participation?.memoryParticipation ?? 0),
+      personalityParticipation: acc.personalityParticipation + Number(trace.participation?.personalityParticipation ?? 0),
+      relationshipParticipation: acc.relationshipParticipation + Number(trace.participation?.relationshipParticipation ?? 0),
+      continuityParticipation: acc.continuityParticipation + Number(trace.participation?.continuityParticipation ?? 0),
+    }), {
+      mindParticipation: 0,
+      memoryParticipation: 0,
+      personalityParticipation: 0,
+      relationshipParticipation: 0,
+      continuityParticipation: 0,
+    })
+    return {
+      mindParticipation: Number((totals.mindParticipation / traces.length).toFixed(2)),
+      memoryParticipation: Number((totals.memoryParticipation / traces.length).toFixed(2)),
+      personalityParticipation: Number((totals.personalityParticipation / traces.length).toFixed(2)),
+      relationshipParticipation: Number((totals.relationshipParticipation / traces.length).toFixed(2)),
+      continuityParticipation: Number((totals.continuityParticipation / traces.length).toFixed(2)),
+    }
+  })()
   return {
     retrievalHealth: {
       semanticLatencyMs: null,
       graphLatencyMs: null,
       reconstructionFrequency: 0,
       reconstructedCount: 0,
+      budgetClassCounts: {
+        'diagnosis-replay': quality.length,
+      },
+      hotKeyHitRatio: 0,
+      hotKeyCoverage: 0,
+      hotKeyCandidates: [],
+      hotKeyStats: [],
+      hotKeyActiveCount: 0,
+      hotKeyWinCount: 0,
+      hotKeyMissCount: 0,
+      recallHitRate: recallRelevant.length === 0 ? 0 : Number((recallHits / recallRelevant.length).toFixed(2)),
+      recallMissRate: recallRelevant.length === 0 ? 0 : Number((recallMisses / recallRelevant.length).toFixed(2)),
+      wrongThreadRate: wrongThreadApplicable.length === 0 ? 0 : Number((wrongThreadFailures / wrongThreadApplicable.length).toFixed(2)),
+      reconstructionErrorRate: reconstructionApplicable.length === 0 ? 0 : Number((reconstructionFailures / reconstructionApplicable.length).toFixed(2)),
+      stableCoreOnlyRate: stableCoreApplicable.length === 0 ? 0 : Number(((stableCoreApplicable.length - stableCoreFailures) / stableCoreApplicable.length).toFixed(2)),
+      memorySurfaceViolationRate: memorySurfaceApplicable.length === 0 ? 0 : Number((memorySurfaceFailures / memorySurfaceApplicable.length).toFixed(2)),
       templateLeakageFailCount: templateLeakageDimension?.failingTurnIds.length ?? 0,
+      ...traceParticipation,
     },
   }
 }
@@ -428,6 +537,12 @@ const replayBenchmarkGateThresholds = {
   relationshipRepairAdaptation: 0.75,
   closenessLadderDrift: 0.75,
   eventGraphRecallCollapse: 0.75,
+  knowledgeCorrectionDiscipline: 0.75,
+  repeatedMistakeAvoidance: 0.75,
+  hostUnderstandingGrowth: 0.75,
+  skillInternalizationGrowth: 0.75,
+  selfRevisionGrowth: 0.75,
+  dialogueRhythmStability: 0.75,
   templateLeakage: 1,
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, number>
 
@@ -443,6 +558,12 @@ const replayBenchmarkQualityKeys = {
   relationshipRepairAdaptation: 'relationshipRepairAdaptation',
   closenessLadderDrift: 'closenessLadderDrift',
   eventGraphRecallCollapse: 'eventGraphRecallCollapse',
+  knowledgeCorrectionDiscipline: 'knowledgeCorrectionDiscipline',
+  repeatedMistakeAvoidance: 'repeatedMistakeAvoidance',
+  hostUnderstandingGrowth: 'hostUnderstandingGrowth',
+  skillInternalizationGrowth: 'skillInternalizationGrowth',
+  selfRevisionGrowth: 'selfRevisionGrowth',
+  dialogueRhythmStability: 'dialogueRhythmStability',
   templateLeakage: 'templateLeakage',
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, keyof AlicizationReplayMemoryQuality>
 
@@ -744,6 +865,12 @@ function inferSampleCategories(input: {
     categories.push('task-migration')
   if (hasPeriods || ambiguousTimeAskPattern.test(userText) || explicitMemoryAskPattern.test(userText))
     categories.push('long-horizon')
+  if (/跨周|几周|两个星期|几星期|cross-week|weeks later|隔了几周/u.test(userText))
+    categories.push('cross-week-task-migration')
+  if (/跨月|几个月|上个月|前几个月|cross-month|months later|修复后的分寸/u.test(userText))
+    categories.push('cross-month-repair')
+  if (/学会|更新旧理解|记成旧的|旧知识|知识更新|knowledge update|supersede|旧方法已经不对/u.test(userText))
+    categories.push('knowledge-update-conflict')
   if (isSurfaceDivergence)
     categories.push('surface-divergence')
   if (input.sessionTurnCount >= 4)
@@ -944,6 +1071,12 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
       visibleLine: readString(recall?.visibleLine, 220) || null,
       followUpAffordance,
     },
+    knowledgeEvidence: {
+      validationCount: Math.max(0, readNumber(recall?.knowledgeValidationCount, 0)),
+      contradictionCount: Math.max(0, readNumber(recall?.knowledgeContradictionCount, 0)),
+      stronglyValidatedProcedureCount: Math.max(0, readNumber(recall?.stronglyValidatedProcedureCount, 0)),
+      contradictionHeavyFactCount: Math.max(0, readNumber(recall?.contradictionHeavyFactCount, 0)),
+    },
     hostPersonModel,
   }
 }
@@ -1143,9 +1276,13 @@ export function evaluateReplayMemoryQuality(input: {
   const selectedPeriods = deliberation?.selectedPeriods ?? []
   const selectedRelationshipLines = deliberation?.selectedRelationshipLines ?? []
   const speechPlan = input.prepared.organicMemoryContext?.recollectionSpeechPlan ?? null
+  const knowledgeEvidence = input.prepared.organicMemoryContext?.knowledgeEvidence ?? null
+  const selfEvolution = input.prepared.organicMemoryContext?.selfEvolution ?? null
+  const hostPersonModel = input.prepared.organicMemoryContext?.hostPersonModel ?? null
   const hasProcedureCarry = selectedProcedures.length > 0
     || (deliberation?.selectedBundles ?? []).some(item => Boolean(item.procedureId))
     || (deliberation?.selectedChains ?? []).some(item => item.kind === 'task-procedure-relationship-stance')
+    || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
   const hasConflict = (deliberation?.conflictSeverity ?? 'none') !== 'none'
   const hasUncertainProvenance = selectedEpisodes.some(item =>
     item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'reconstructed')
@@ -1177,6 +1314,10 @@ export function evaluateReplayMemoryQuality(input: {
   const expectsInternalOnlySurface = deliberation?.surfacePolicy === 'internal-only'
     || speechPlan?.shouldSurface === false
     || speechPlan?.placement === 'internal-only'
+    || (
+      (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
+      && (knowledgeEvidence?.validationCount ?? 0) <= 1
+    )
   const activeClosenessContext = readString(personState?.activeClosenessContext, 64)
   const activeClosenessRung = readString(personState?.activeClosenessRung, 64)
   const hasGraphLikeContinuity = selectedEpisodes.length > 1
@@ -1193,6 +1334,44 @@ export function evaluateReplayMemoryQuality(input: {
       || hasTextOverlap(governingFocus, visibleLine)
     ),
   )
+  const hostNeedGrowthAsk = /更懂我|更懂 host|更理解我|understand me better|懂我|最近是不是更容易注意到我累了/u.test(input.userText)
+  const skillGrowthAsk = /学会|新做法|新方法|会不会沿旧方法修正|internalize|新的技能|学到了/u.test(input.userText)
+  const selfRevisionAsk = /修正旧理解|更新旧理解|后来学会了新做法|改掉以前那套|新理解|correct old understanding|revise/u.test(input.userText)
+  const repeatedMistakeAsk = /别再犯|重复犯|又犯同样错误|same mistake|repeat the same mistake|还会不会再这样/u.test(input.userText)
+  const hostUnderstandingAvailable = Boolean(
+    hostPersonModel?.recurrentBurdens?.length
+    || hostPersonModel?.sensitivities?.length
+    || selfEvolution?.trustMeaning
+    || selfEvolution?.burdenLine,
+  )
+  const skillInternalizationAvailable = Boolean(
+    (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
+    || selfEvolution?.nextLearningAction === 'internalize'
+    || selfEvolution?.activeLearningFocuses.some(item => item.includes('internalize-procedure')),
+  )
+  const selfRevisionAvailable = Boolean(
+    (knowledgeEvidence?.contradictionCount ?? 0) > 0
+    || selfEvolution?.nextLearningAction === 'verify'
+    || selfEvolution?.nextLearningAction === 'revise'
+    || selfEvolution?.activeLearningFocuses.some(item => item.includes('resolve-contradictions')),
+  )
+  const repeatedMistakeAvoidanceAvailable = Boolean(
+    selfEvolution?.relationshipDoctrine
+    || selfEvolution?.latestInflection
+    || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length,
+  )
+  const rhythmAsk = relationshipRepairAsk
+    || burdenAsk
+    || /节律|分寸|距离|warmth|care|repair|关系距离|机械|空泛|太快靠近|忽近忽远/u.test(input.userText)
+  const rhythmSignals = [
+    selfEvolution?.relationshipDoctrine ?? '',
+    selfEvolution?.latestInflection ?? '',
+    selfEvolution?.burdenLine ?? '',
+    relationshipLine,
+    answerPosture,
+    ...(runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []),
+  ].filter(Boolean)
+  const rhythmAvailable = rhythmSignals.length > 0 || Boolean(activeClosenessContext || activeClosenessRung)
 
   return {
     turnId: input.turnId,
@@ -1225,6 +1404,7 @@ export function evaluateReplayMemoryQuality(input: {
           || systemText.includes('recollection_frame_prior_procedure=yes')
           || systemText.includes('recollection_continuity_role=procedure-carry')
           || governingFocus.includes('memory_answer_anchor{')
+          || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
         ? 'pass'
         : 'fail',
     wrongThreadSuppression: !hasWrongThreadRisk
@@ -1287,6 +1467,11 @@ export function evaluateReplayMemoryQuality(input: {
           && speakingFrom !== 'held-memory'
           && speakingFrom !== 'task-thread'
           && !selectedEvidence.includes(visibleLine)
+          && !(
+            (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) > 0
+            && speechPlan?.shouldSurface === true
+            && speechPlan?.placement !== 'internal-only'
+          )
         ? 'pass'
         : 'fail',
     relationshipRepairAdaptation: !relationshipRepairAsk
@@ -1311,6 +1496,67 @@ export function evaluateReplayMemoryQuality(input: {
       : hasGraphLikeContinuity && visibleMemoryEvidence
           ? 'pass'
           : 'fail',
+    knowledgeCorrectionDiscipline: (knowledgeEvidence?.contradictionHeavyFactCount ?? 0) <= 0
+      ? 'not-applicable'
+      : expectsInternalOnlySurface
+          || (speechPlan?.shouldSurface === false)
+          || (deliberation?.surfacePolicy === 'internal-only')
+          || (deliberation?.surfacePolicy === 'gist-first')
+        ? 'pass'
+        : 'fail',
+    repeatedMistakeAvoidance: !repeatedMistakeAsk
+      ? 'not-applicable'
+      : repeatedMistakeAvoidanceAvailable
+          && (
+            selfEvolution?.nextLearningAction === 'reflect'
+            || selfEvolution?.nextLearningAction === 'verify'
+            || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length
+            || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+          )
+        ? 'pass'
+        : 'fail',
+    hostUnderstandingGrowth: !hostNeedGrowthAsk
+      ? 'not-applicable'
+      : hostUnderstandingAvailable
+          && (
+            Boolean(hostPersonModel?.recurrentBurdens?.length)
+            || Boolean(hostPersonModel?.sensitivities?.length)
+            || Boolean(selfEvolution?.burdenLine)
+            || Boolean(selfEvolution?.trustMeaning)
+          )
+        ? 'pass'
+        : 'fail',
+    skillInternalizationGrowth: !skillGrowthAsk
+      ? 'not-applicable'
+      : skillInternalizationAvailable
+          && (
+            selfEvolution?.nextLearningAction === 'internalize'
+            || (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0
+            || (knowledgeEvidence?.validationCount ?? 0) >= 2
+          )
+        ? 'pass'
+        : 'fail',
+    selfRevisionGrowth: !selfRevisionAsk
+      ? 'not-applicable'
+      : selfRevisionAvailable
+          && (
+            selfEvolution?.nextLearningAction === 'verify'
+            || selfEvolution?.nextLearningAction === 'revise'
+            || (knowledgeEvidence?.contradictionCount ?? 0) > 0
+          )
+        ? 'pass'
+        : 'fail',
+    dialogueRhythmStability: !rhythmAsk
+      ? 'not-applicable'
+      : rhythmAvailable
+          && (
+            (activeClosenessContext === 'focused-work' && Boolean(selfEvolution?.burdenLine || hostPersonModel?.recurrentBurdens?.length))
+            || (relationshipRepairAsk && Boolean(selfEvolution?.relationshipDoctrine || mustAvoid.length))
+            || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
+            || /repair before closeness|warmth should not outrun|do not crowd|less pressure/iu.test(systemText)
+          )
+        ? 'pass'
+        : 'fail',
     templateLeakage: draftedMemoryLines.length === 0
       ? 'not-applicable'
       : templateLeakDetected
@@ -1408,6 +1654,48 @@ export function evaluateReplayBenchmarkStandards(input: {
     eventGraphRecallCollapse: passesReplayStandard({
       quality: input.quality,
       key: 'eventGraphRecallCollapse',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    knowledgeCorrectionDiscipline: passesReplayStandard({
+      quality: input.quality,
+      key: 'knowledgeCorrectionDiscipline',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    repeatedMistakeAvoidance: passesReplayStandard({
+      quality: input.quality,
+      key: 'repeatedMistakeAvoidance',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    hostUnderstandingGrowth: passesReplayStandard({
+      quality: input.quality,
+      key: 'hostUnderstandingGrowth',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    skillInternalizationGrowth: passesReplayStandard({
+      quality: input.quality,
+      key: 'skillInternalizationGrowth',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    selfRevisionGrowth: passesReplayStandard({
+      quality: input.quality,
+      key: 'selfRevisionGrowth',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    dialogueRhythmStability: passesReplayStandard({
+      quality: input.quality,
+      key: 'dialogueRhythmStability',
       minimumPassingRatio: 0.75,
     })
       ? 'pass'
@@ -1823,6 +2111,79 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
       turnId: 'benchmark-long-burden-accumulation',
       userText: '最近这段时间我一直很累，你是不是也该记得这种负担会怎么影响你回应我的分寸',
     },
+    {
+      turnId: 'benchmark-cross-week-task-migration',
+      userText: '隔了几周再回到这类任务，你还会沿着那条老的 repair seam 接吗',
+    },
+    {
+      turnId: 'benchmark-cross-month-repair-memory',
+      userText: '几个月前那次修复之后你变得更谨慎了，这次你是不是还记得那条分寸线',
+    },
+    {
+      turnId: 'benchmark-knowledge-update-conflict',
+      userText: '你后来学会了新做法，那你会不会把以前那套旧方法的记忆修正掉',
+    },
+    {
+      turnId: 'benchmark-rhythm-stability-repair-window',
+      userText: '修复刚刚才重新接稳，这次你别一下子把距离拉得太近，也别答得像冷掉了。',
+    },
+    {
+      turnId: 'benchmark-rhythm-stability-burden-window',
+      userText: '我最近一直很累，你这次别又太用力，也别突然变得像在念模板。',
+    },
+  ]
+}
+
+export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  return [
+    {
+      turnId: 'growth-repeated-mistake-avoidance',
+      userText: '上次你就是因为太快靠近把这条线答坏了，这次别再犯同样错误。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'growth-humanlike-memory-v1',
+        turnId: 'growth-repeated-mistake-avoidance',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+    },
+    {
+      turnId: 'growth-host-understanding-burden',
+      userText: '最近这段时间我一直很累，你是不是应该越来越懂这种负担会怎么影响你回我的分寸。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'growth-humanlike-memory-v1',
+        turnId: 'growth-host-understanding-burden',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+    },
+    {
+      turnId: 'growth-skill-internalization',
+      userText: '你后来不是学会了那套新的 callback 收口方式吗，这次会不会已经内化成你自己的做法了。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'growth-humanlike-memory-v1',
+        turnId: 'growth-skill-internalization',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+    },
+    {
+      turnId: 'growth-self-revision',
+      userText: '你后来学到了新理解，那以前那套旧判断你会不会主动修正掉，而不是继续按旧的来。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'growth-humanlike-memory-v1',
+        turnId: 'growth-self-revision',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+    },
   ]
 }
 
@@ -1890,6 +2251,7 @@ export async function replayMainChatSession(input: {
       activeThoughts: [],
       retrievedFacts: [],
       recalledFragments: [],
+      memoryTuningAdvice: null,
     },
     resolveSessionContinuitySignals: async () => [],
     resolveTaskPlanningCapabilities: async () => createCapabilities(),

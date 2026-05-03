@@ -268,6 +268,10 @@ const failingKeysText = computed(() => gate.value?.failingKeys.join(', ') ?? '')
                 <th :class="['px-2', 'py-1', 'font-medium']">time</th>
                 <th :class="['px-2', 'py-1', 'font-medium']">restraint</th>
                 <th :class="['px-2', 'py-1', 'font-medium']">repair</th>
+                <th :class="['px-2', 'py-1', 'font-medium']">mistake</th>
+                <th :class="['px-2', 'py-1', 'font-medium']">host</th>
+                <th :class="['px-2', 'py-1', 'font-medium']">skill</th>
+                <th :class="['px-2', 'py-1', 'font-medium']">revision</th>
                 <th :class="['px-2', 'py-1', 'font-medium']">template</th>
               </tr>
             </thead>
@@ -286,6 +290,10 @@ const failingKeysText = computed(() => gate.value?.failingKeys.join(', ') ?? '')
                 <td :class="['px-2', 'py-1']">{{ row.temporalScopeFlexibility }}</td>
                 <td :class="['px-2', 'py-1']">{{ row.surfaceRestraint }}</td>
                 <td :class="['px-2', 'py-1']">{{ row.relationshipRepairAdaptation }}</td>
+                <td :class="['px-2', 'py-1']">{{ row.repeatedMistakeAvoidance }}</td>
+                <td :class="['px-2', 'py-1']">{{ row.hostUnderstandingGrowth }}</td>
+                <td :class="['px-2', 'py-1']">{{ row.skillInternalizationGrowth }}</td>
+                <td :class="['px-2', 'py-1']">{{ row.selfRevisionGrowth }}</td>
                 <td :class="['px-2', 'py-1']">{{ row.templateLeakage }}</td>
               </tr>
             </tbody>

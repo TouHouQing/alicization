@@ -112,7 +112,27 @@ function computeFactWeight(fact: AlicizationMemoryFact, now: number) {
   const ageDays = Math.max(0, (now - fact.updatedAt) / (24 * 60 * 60 * 1000))
   const recency = Math.exp(-ageDays / 28)
   const accessBoost = Math.min(0.14, fact.accessCount / 40)
-  return clamp01(fact.confidence * 0.72 + recency * 0.18 + accessBoost)
+  const knowledgeStage = fact.knowledgeStage ?? 'working-understanding'
+  const validationStatus = fact.validationStatus ?? 'unverified'
+  const lifecycleBoost = knowledgeStage === 'internalized-long-horizon-knowledge'
+    ? 0.16
+    : knowledgeStage === 'validated-knowledge'
+      ? 0.1
+      : knowledgeStage === 'working-understanding'
+        ? 0.03
+        : -0.05
+  const validationBoost = validationStatus === 'validated'
+    ? 0.1
+    : validationStatus === 'provisional'
+      ? 0.04
+      : validationStatus === 'superseded'
+        ? -0.24
+      : 0
+  const validationCountBoost = Math.min(0.08, (fact.validationCount ?? 0) * 0.02)
+  const contradictionPenalty = Math.min(0.1, (fact.contradictionCount ?? 0) * 0.04)
+  const correctionBoost = (fact.supersedes?.length ?? 0) > 0 ? 0.05 : 0
+  const conflictPenalty = (fact.conflictsWith?.length ?? 0) > 0 ? 0.03 : 0
+  return clamp01(fact.confidence * 0.72 + recency * 0.18 + accessBoost + lifecycleBoost + validationBoost + validationCountBoost + correctionBoost - conflictPenalty - contradictionPenalty)
 }
 
 function inferCueInfluenceTags(fact: Pick<AlicizationMemoryFact, 'subject' | 'predicate' | 'object'>) {
@@ -173,6 +193,16 @@ function describeCue(fact: Pick<AlicizationMemoryFact, 'subject' | 'predicate' |
   return `Remembered continuity: ${statement}`
 }
 
+function shouldCarryFactIntoLongHorizon(fact: AlicizationMemoryFact) {
+  const stage = fact.knowledgeStage ?? 'working-understanding'
+  const validation = fact.validationStatus ?? 'unverified'
+  if (validation === 'superseded')
+    return false
+  if (stage === 'ephemeral-observation' && validation === 'unverified')
+    return false
+  return true
+}
+
 function mergeAnchorFacts(input: {
   now: number
   currentFacts: AlicizationMemoryFact[]
@@ -181,6 +211,8 @@ function mergeAnchorFacts(input: {
   const merged = new Map<string, AlicizationLongHorizonMemoryCueSnapshot>()
 
   for (const fact of input.currentFacts) {
+    if (!shouldCarryFactIntoLongHorizon(fact))
+      continue
     const influenceTags = inferCueInfluenceTags(fact)
     const cue: AlicizationLongHorizonMemoryCueSnapshot = {
       factId: fact.id,

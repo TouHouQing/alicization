@@ -199,6 +199,151 @@ describe('recall-planner', () => {
     expect(decision.whyNotOthers).toContain('present-facing')
   })
 
+  it('keeps recollection more inward when contradiction-heavy knowledge evidence is active', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam'],
+        rationale: 'A remembered way exists, but it has conflict pressure.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-runtime'],
+        selectedEpisodeIds: ['episode-runtime'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: 'The old runtime seam still comes back.',
+        certainty: 'approximate',
+        rationale: 'A remembered procedure is present.',
+        confidence: 0.8,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring',
+        placement: 'before-payoff',
+        certainty: 'firm',
+        internalLead: 'The old runtime seam still comes back.',
+        visibleLead: 'This feels like the same seam.',
+        styleNote: 'Let it surface.',
+        rationale: 'A remembered procedure is present.',
+        confidence: 0.84,
+      },
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [],
+      consolidatedMemories: [],
+      recollectedWindows: [],
+      proceduralMemories: [{
+        id: 'procedure-runtime',
+        label: 'runtime seam repair',
+        approach: 'Return to the seam before branching.',
+        pitfalls: [],
+        confidence: 0.86,
+        cues: ['runtime seam'],
+      }],
+      recalledEpisodes: [{
+        id: 'episode-runtime',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-runtime',
+        sessionId: 'session-runtime',
+        sourceKind: 'execution-result',
+        provenance: 'observed',
+        occurredAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        whereSummary: 'terminal',
+        withWhom: ['host'],
+        threadAnchor: 'runtime seam',
+        whatHappened: 'We kept repairing the same runtime seam until the flow held.',
+        felt: 'focused',
+        emotionTags: ['focused'],
+        whatChanged: 'A repeatable repair rhythm emerged.',
+        relationshipMeaning: 'Stay on the same seam before branching.',
+        lesson: 'Return to the seam before branching.',
+        sourceSummary: 'runtime seam repair',
+        confidence: 0.83,
+        salience: 0.8,
+        sceneAttachment: 0.6,
+        consolidationPriority: 0.76,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['runtime seam', 'repair rhythm'],
+        createdAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        updatedAt: Date.UTC(2026, 3, 18, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+      recalledConversationHistory: [],
+      knowledgeEvidence: {
+        validationCount: 1,
+        contradictionCount: 4,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 1,
+      },
+    })
+
+    expect(decision.surfaceMode === 'gist-first' || decision.surfaceMode === 'internal-only').toBe(true)
+    expect(decision.confidence).toBeLessThan(0.84)
+  })
+
+  it('raises confidence for strongly validated procedural evidence', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['runtime seam'],
+        rationale: 'The remembered procedure is very stable.',
+        confidence: 0.76,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-runtime'],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: 'The seam repair procedure comes back first.',
+        certainty: 'approximate',
+        rationale: 'The remembered procedure is stable.',
+        confidence: 0.72,
+      },
+      recollectionSpeechCandidate: null,
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [],
+      consolidatedMemories: [],
+      recollectedWindows: [],
+      proceduralMemories: [{
+        id: 'procedure-runtime',
+        label: 'runtime seam repair',
+        approach: 'Return to the seam before branching.',
+        pitfalls: [],
+        confidence: 0.9,
+        cues: ['runtime seam'],
+      }],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      knowledgeEvidence: {
+        validationCount: 5,
+        contradictionCount: 0,
+        stronglyValidatedProcedureCount: 2,
+        contradictionHeavyFactCount: 0,
+      },
+    })
+
+    expect(decision.confidence).toBeGreaterThan(0.72)
+  })
+
   it('falls back to plan-selected periods when the deliberation candidate stays too sparse', () => {
     const decision = planAlicizationRecall({
       recollectionIntent: {
@@ -419,5 +564,133 @@ describe('recall-planner', () => {
     expect(decision.uncertaintyLabel).toBe('fragmentary')
     expect(decision.whyNotOthers).toContain('stable core')
     expect(decision.unsafeDetails).toContain('The exact prior wording is unsafe to quote.')
+  })
+
+  it('suppresses weak explicit recall when reliability pressure is too high', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'conversation-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['a few days ago'],
+        rationale: 'A retrospective cue is present, but reliability is poor.',
+        confidence: 0.62,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['era-old'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-old'],
+        selectedConversationTurnIds: ['turn-old'],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: 'An older exchange is available.',
+        certainty: 'approximate',
+        rationale: 'A previous conversation is present in candidate space.',
+        confidence: 0.66,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring',
+        placement: 'inside-payoff',
+        certainty: 'approximate',
+        internalLead: 'An older line is active.',
+        visibleLead: 'This feels like that old line.',
+        styleNote: 'Surface lightly.',
+        rationale: 'A weak memory could still surface.',
+        confidence: 0.64,
+      },
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [],
+      consolidatedMemories: [],
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0.4,
+        reconstructedCount: 2,
+        recallHitRate: 0.32,
+        recallMissRate: 0.68,
+        wrongThreadRate: 0.74,
+        reconstructionErrorRate: 0.62,
+        stableCoreOnlyRate: 0.2,
+        memorySurfaceViolationRate: 0.71,
+        templateLeakageFailCount: 3,
+      },
+    })
+
+    expect(decision.shouldRecall).toBe(false)
+    expect(decision.recollectionPlan).toBeNull()
+    expect(decision.memoryDeliberation?.surfacePolicy).toBe('internal-only')
+    expect(decision.whyNotOthers).toContain('reliability')
+  })
+
+  it('keeps recall but restrains surfacing and confidence under medium reliability pressure', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'experience-pattern',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: ['same seam'],
+        rationale: 'The seam is still relevant, but reliability is pressured.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['era-runtime'],
+        selectedWindowIds: [],
+        selectedProceduralIds: ['procedure-runtime'],
+        selectedEpisodeIds: ['episode-runtime'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Carry the same seam before branching.'],
+        searchTrace: null,
+        opening: 'The same runtime seam comes back first.',
+        certainty: 'firm',
+        rationale: 'The remembered procedure should organize the current answer.',
+        confidence: 0.81,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring',
+        placement: 'inside-payoff',
+        certainty: 'firm',
+        internalLead: 'The seam is active.',
+        visibleLead: 'This feels like the same seam.',
+        styleNote: 'Let memory contour the answer.',
+        rationale: 'The memory can still shape the turn.',
+        confidence: 0.8,
+      },
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [],
+      consolidatedMemories: [],
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [],
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0.2,
+        reconstructedCount: 1,
+        recallHitRate: 0.58,
+        recallMissRate: 0.42,
+        wrongThreadRate: 0.44,
+        reconstructionErrorRate: 0.38,
+        stableCoreOnlyRate: 0.52,
+        memorySurfaceViolationRate: 0.41,
+        templateLeakageFailCount: 1,
+      },
+    })
+
+    expect(decision.shouldRecall).toBe(true)
+    expect(decision.surfaceMode).toBe('gist-first')
+    expect(decision.followUpTiming).toBe('after-payoff')
+    expect(decision.confidence).toBeLessThan(0.81)
   })
 })

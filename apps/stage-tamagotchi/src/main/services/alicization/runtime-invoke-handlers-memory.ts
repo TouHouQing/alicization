@@ -5,6 +5,7 @@ import type {
   AlicizationMindTurnEventInput,
   AlicizationReminderSchedulePayload,
 } from '../../../shared/eventa'
+import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
 
 import {
   electronAlicizationGetMemoryStats,
@@ -41,6 +42,7 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
     facts: AlicizationMemoryUpsertFactsPayload['facts']
     trace: AlicizationMemoryUpsertFactsPayload['trace'] | null
   }) => string[]
+  knowledgeAssimilationRuntime: AlicizationKnowledgeAssimilationRuntime
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   sanitizeMindGovernanceDecisionTraceId: (raw: unknown) => string
   sanitizeText: (raw: unknown, fallback?: string) => string
@@ -60,6 +62,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     searchOrganicSubconsciousFragments,
     scheduleReminderTask,
     buildAsyncFactMemoryFragments,
+    knowledgeAssimilationRuntime,
     appendAuditLog,
     sanitizeMindGovernanceDecisionTraceId,
     sanitizeText,
@@ -75,13 +78,23 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryRetrieveFacts, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().retrieveMemoryFacts(payload.query, payload.limit)))
   registerInvokeHandler(electronAlicizationMemoryUpsertFacts, async (payload: AlicizationMemoryUpsertFactsPayload) => await withCardScope(payload.cardId, async () => {
     const alicizationDb = getAlicizationDb()
-    await alicizationDb.upsertMemoryFacts(payload.facts, payload.source)
+    const existingFacts = typeof alicizationDb.listMemoryFacts === 'function'
+      ? await alicizationDb.listMemoryFacts().catch(() => [])
+      : []
+    const assimilation = knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed({
+      facts: payload.facts,
+      source: payload.source,
+      existingFacts,
+    })
+    if (assimilation.corrections.length > 0 && typeof alicizationDb.applyMemoryFactCorrections === 'function')
+      await alicizationDb.applyMemoryFactCorrections(assimilation.corrections)
+    await alicizationDb.upsertMemoryFacts(assimilation.facts, payload.source)
 
     if (payload.source !== 'async-llm')
       return
 
     const asyncFactMemoryFragments = buildAsyncFactMemoryFragments({
-      facts: payload.facts,
+      facts: assimilation.facts,
       trace: payload.trace ?? null,
     })
     if (asyncFactMemoryFragments.length > 0) {
@@ -142,7 +155,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
       payload: {
         source: payload.source,
         trigger,
-        factInputCount: payload.facts.length,
+        factInputCount: assimilation.facts.length,
         extractedCount,
         batchSize,
         batchPriority,

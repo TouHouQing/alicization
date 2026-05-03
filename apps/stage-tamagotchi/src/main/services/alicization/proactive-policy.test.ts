@@ -1376,4 +1376,28 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.reasonCodes).toContain('inquiry-open')
     expect(decision.reasonCodes).toContain('relationship-correction-sensitive')
   })
+
+  it('holds back when contradiction-heavy knowledge evidence outweighs validation relief', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      knowledgeEvidence: {
+        validationCount: 0,
+        contradictionCount: 5,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 2,
+      },
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.consideredSignals).toContain('knowledgeEvidence')
+  })
 })

@@ -92,4 +92,51 @@ describe('memory-restraint-judge', () => {
     expect(judge.whyWithheld).toContain('stable remembered core')
     expect(judge.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
   })
+
+  it('tightens surface when contradiction-heavy knowledge evidence outruns validation relief', () => {
+    const judge = buildAlicizationMemoryRestraintJudge({
+      shouldRecall: true,
+      shouldStayInward: false,
+      memoryControl: {
+        memoryPressure: 'medium',
+        certaintyPosture: 'approximate',
+        certaintyFloor: 'approximate',
+        relationshipVector: 'procedural',
+        procedureCarryStrength: 0.78,
+        conflictBurden: 'medium',
+        dominantProvenance: 'remembered',
+        provenancePosture: 'remembered-memory',
+        detailAssertionBudget: 'open',
+        surfacePermission: 'explicit-surface',
+        retrospectiveDepth: 'thread',
+        openingStrategy: 'brief-procedure-carry',
+        answerStrategy: 'procedure-anchor',
+        visibilityDiscipline: 'brief-visible-memory',
+        labelUncertainty: false,
+        frameAsPriorProcedure: true,
+        avoidArchiveDump: true,
+        avoidDateRecital: true,
+        avoidExecutionImpersonation: false,
+        stableCore: ['Return to the same seam before branching.'],
+        unsafeDetails: [],
+      },
+      knowledgeEvidence: {
+        validationCount: 1,
+        contradictionCount: 4,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 1,
+      },
+      followUpAffordance: {
+        intrusionRisk: 'low',
+        payoffDependency: 'can-surface-softly',
+      },
+      truthDiscipline: {
+        shouldLabelHypothesis: false,
+        forbidUnsupportedSpecificity: false,
+      },
+    })
+
+    expect(judge.surfaceMode).toBe('stable-core-only')
+    expect(judge.whyWithheld).toContain('contradiction-heavy')
+  })
 })

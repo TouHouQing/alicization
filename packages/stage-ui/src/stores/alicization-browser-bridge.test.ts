@@ -541,6 +541,14 @@ describe('browser alicization bridge visual presence listeners', () => {
     }))
     expect(snapshot?.recollectionForeground?.summary).toContain('cli patch')
     expect(snapshot?.recollectionForeground?.surfaceSummary).toContain('surface=inward')
+    expect(snapshot?.knowledgeEvidence).toEqual(expect.objectContaining({
+      stronglyValidatedProcedureCount: expect.any(Number),
+      contradictionHeavyFactCount: 1,
+    }))
+    expect(snapshot?.selfEvolution).toEqual(expect.objectContaining({
+      version: 'self-evolution-kernel-v1',
+      nextLearningAction: expect.stringMatching(/record|reflect|internalize/u),
+    }))
 
     const visualPresence = await bridge.getVisualPresenceState?.()
     expect(visualPresence?.privateThought?.thoughtText).toContain('recollection=')
@@ -643,6 +651,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     expect(seenMetaEvents).toHaveLength(1)
     expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSummary).toContain('cli patch')
     expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSurfaceSummary).toContain('surface=inward')
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning).toEqual(expect.objectContaining({
+      latestInflection: expect.any(String),
+      nextLearningAction: expect.any(String),
+    }))
     expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',

@@ -1,5 +1,6 @@
 import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationMemoryRetrievalHealth } from '@proj-alicization/stage-shared'
 
 type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
 type RecollectionPlanSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionPlan']>
@@ -61,8 +62,15 @@ export interface AlicizationRecallPlannerInput {
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  retrievalHealth?: AlicizationMemoryRetrievalHealth | null
   clusterContext?: AlicizationRecallPlannerClusterContext | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
+  knowledgeEvidence?: {
+    validationCount: number
+    contradictionCount: number
+    stronglyValidatedProcedureCount: number
+    contradictionHeavyFactCount: number
+  } | null
 }
 
 function clamp01(value: number) {
@@ -202,6 +210,7 @@ function deriveRelationshipLines(input: {
 function deriveWhyNotOthers(input: {
   shouldRecall: boolean
   surfaceMode: MemoryDeliberationSnapshot['surfacePolicy']
+  reliabilityPressure: number
   clusterContext?: AlicizationRecallPlannerClusterContext | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
   selectedRelationshipLines: string[]
@@ -209,8 +218,12 @@ function deriveWhyNotOthers(input: {
   selectedProcedureIds: string[]
   selectedConversationTurnIds: string[]
 }) {
+  if (!input.shouldRecall && input.reliabilityPressure >= 0.58)
+    return 'Recall reliability is under pressure, so the answer should stay present-facing instead of reopening unstable memory.'
   if (!input.shouldRecall)
     return 'The live payoff should stay present-facing, so remembered candidates remain background-only.'
+  if (input.reliabilityPressure >= 0.58)
+    return 'Recall reliability is under pressure, so the answer should stay with the stable core, keep recollection inward, or defer explicit memory surfacing.'
   if (input.clusterContext?.ambiguous || (input.reconstructionContext?.candidates.length ?? 0) > 0)
     return 'Competing remembered variants remain active, so only the stable core should carry forward and exact detail should stay suppressed.'
   if (input.selectedProcedureIds.length > 0 && input.selectedConversationTurnIds.length === 0)
@@ -220,6 +233,52 @@ function deriveWhyNotOthers(input: {
   if (input.selectedConsolidationIds.length > 0)
     return 'The remembered period carries more stable continuity than lower-level fragments, so the answer should stay anchored there first.'
   return null
+}
+
+function deriveReliabilityPressure(input: {
+  retrievalHealth?: AlicizationMemoryRetrievalHealth | null
+  clusterContext?: AlicizationRecallPlannerClusterContext | null
+  reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
+  knowledgeEvidence?: AlicizationRecallPlannerInput['knowledgeEvidence']
+}) {
+  const retrieval = input.retrievalHealth ?? null
+  const wrongThread = Math.max(0, Math.min(1, retrieval?.wrongThreadRate ?? 0))
+  const recallMiss = Math.max(0, Math.min(1, retrieval?.recallMissRate ?? 0))
+  const reconstructionError = Math.max(0, Math.min(1, retrieval?.reconstructionErrorRate ?? 0))
+  const memorySurfaceViolation = Math.max(0, Math.min(1, retrieval?.memorySurfaceViolationRate ?? 0))
+  const ambiguity = input.clusterContext?.ambiguous ? 0.18 : 0
+  const reconstructionConflict = (input.reconstructionContext?.candidates.length ?? 0) >= 2 ? 0.14 : 0
+  const contradictionPenalty = Math.min(0.16, (input.knowledgeEvidence?.contradictionCount ?? 0) * 0.03)
+    + Math.min(0.1, (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 0.04)
+  const validationRelief = Math.min(0.14, (input.knowledgeEvidence?.validationCount ?? 0) * 0.02)
+    + Math.min(0.08, (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) * 0.04)
+  return clamp01(
+    wrongThread * 0.32
+    + recallMiss * 0.22
+    + reconstructionError * 0.24
+    + memorySurfaceViolation * 0.24
+    + ambiguity
+    + reconstructionConflict,
+  ) + contradictionPenalty - validationRelief
+}
+
+function deriveEvidenceConfidenceAdjustment(input: {
+  knowledgeEvidence?: AlicizationRecallPlannerInput['knowledgeEvidence']
+}) {
+  const validationBoost = Math.min(0.12, (input.knowledgeEvidence?.validationCount ?? 0) * 0.02)
+  const proceduralBoost = Math.min(0.08, (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) * 0.04)
+  const contradictionPenalty = Math.min(0.14, (input.knowledgeEvidence?.contradictionCount ?? 0) * 0.03)
+    + Math.min(0.08, (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 0.04)
+  return validationBoost + proceduralBoost - contradictionPenalty
+}
+
+function deriveEvidenceSurfacePressure(input: {
+  knowledgeEvidence?: AlicizationRecallPlannerInput['knowledgeEvidence']
+}) {
+  return (input.knowledgeEvidence?.contradictionCount ?? 0) * 2
+    + (input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 2
+    - (input.knowledgeEvidence?.validationCount ?? 0)
+    - (input.knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0)
 }
 
 function deriveStableCore(input: {
@@ -298,8 +357,26 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const candidatePlan = input.recollectionPlanCandidate ?? null
   const candidateSpeech = input.recollectionSpeechCandidate ?? null
   const candidateDeliberation = input.memoryDeliberationCandidate ?? null
-  const shouldRecall = candidateDeliberation?.shouldRecall
+  const reliabilityPressure = deriveReliabilityPressure({
+    retrievalHealth: input.retrievalHealth ?? null,
+    clusterContext: input.clusterContext ?? null,
+    reconstructionContext: input.reconstructionContext ?? null,
+    knowledgeEvidence: input.knowledgeEvidence ?? null,
+  })
+  const evidenceConfidenceAdjustment = deriveEvidenceConfidenceAdjustment({
+    knowledgeEvidence: input.knowledgeEvidence ?? null,
+  })
+  const evidenceSurfacePressure = deriveEvidenceSurfacePressure({
+    knowledgeEvidence: input.knowledgeEvidence ?? null,
+  })
+  const baseShouldRecall = candidateDeliberation?.shouldRecall
     ?? Boolean(candidatePlan)
+  const weakRecallCandidate = !candidateDeliberation
+    && (candidatePlan?.confidence ?? 0) < 0.72
+    && (candidateSpeech?.confidence ?? 0) < 0.72
+  const shouldRecall = reliabilityPressure >= 0.64 && weakRecallCandidate
+    ? false
+    : baseShouldRecall
 
   const selectedConsolidationIds = shouldRecall
     ? mergeSelectedIds({
@@ -381,15 +458,31 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     recollectionPlanCandidate: candidatePlan,
     recollectionSpeechCandidate: candidateSpeech,
   })
-  const confidence = clamp01(
+  const baseConfidence = clamp01(
     candidateDeliberation?.confidence
       ?? candidatePlan?.confidence
       ?? candidateSpeech?.confidence
       ?? input.recollectionIntent?.confidence
       ?? 0.68,
   )
+  const confidence = clamp01(
+    reliabilityPressure >= 0.64
+      ? baseConfidence * 0.72 + evidenceConfidenceAdjustment
+      : reliabilityPressure >= 0.4
+        ? baseConfidence * 0.84 + evidenceConfidenceAdjustment
+        : baseConfidence + evidenceConfidenceAdjustment,
+  )
   const surfaceMode: MemoryDeliberationSnapshot['surfacePolicy'] = shouldRecall
-    ? candidateDeliberation?.surfacePolicy
+    ? ((input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
+        && (input.knowledgeEvidence?.validationCount ?? 0) <= 1)
+      ? 'internal-only'
+      : reliabilityPressure >= 0.64
+      ? 'internal-only'
+      : reliabilityPressure >= 0.4 || evidenceSurfacePressure >= 2
+        ? (candidateDeliberation?.surfacePolicy === 'internal-only'
+            ? 'internal-only'
+            : 'gist-first')
+        : candidateDeliberation?.surfacePolicy
       ?? (
           candidateSpeech?.shouldSurface && candidateSpeech.surfaceMode !== 'internal-only'
             ? candidateSpeech.surfaceMode
@@ -428,6 +521,10 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     ?? (
       !shouldRecall
         ? 'internal-only'
+        : reliabilityPressure >= 0.64
+          ? 'next-open-window'
+          : reliabilityPressure >= 0.4
+            ? 'after-payoff'
         : candidateSpeech?.placement === 'after-payoff'
           ? 'after-payoff'
           : candidateSpeech?.placement === 'internal-only' || surfaceMode === 'internal-only'
@@ -440,6 +537,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const whyNotOthers = deriveWhyNotOthers({
     shouldRecall,
     surfaceMode,
+    reliabilityPressure,
     clusterContext: input.clusterContext ?? null,
     reconstructionContext: input.reconstructionContext ?? null,
     selectedRelationshipLines,
@@ -464,7 +562,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     ambiguityPosture,
   })
 
-  const memoryDeliberation: MemoryDeliberationSnapshot | null = candidateDeliberation || recollectionPlan
+  const memoryDeliberation: MemoryDeliberationSnapshot | null = candidateDeliberation || recollectionPlan || candidatePlan || candidateSpeech
     ? {
         shouldRecall,
         selectedEraIds,

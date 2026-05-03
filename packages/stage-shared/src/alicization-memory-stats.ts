@@ -41,9 +41,39 @@ export interface AlicizationMemoryWriteHealth {
 export interface AlicizationMemoryRetrievalHealth {
   semanticLatencyMs: number | null
   graphLatencyMs: number | null
+  candidateGenerationLatencyMs?: number | null
+  plannerLatencyMs?: number | null
+  speechPlanLatencyMs?: number | null
+  cacheHitRatio?: number
+  prewarmHitRatio?: number
+  budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  hotKeyHitRatio?: number
+  hotKeyCoverage?: number
+  hotKeyCandidates?: string[]
+  hotKeyStats?: Array<{
+    key: string
+    candidateCount: number
+    hitCount: number
+    winCount: number
+    missCount: number
+  }>
+  hotKeyActiveCount?: number
+  hotKeyWinCount?: number
+  hotKeyMissCount?: number
   reconstructionFrequency: number
   reconstructedCount: number
+  recallHitRate?: number
+  recallMissRate?: number
+  wrongThreadRate?: number
+  reconstructionErrorRate?: number
+  stableCoreOnlyRate?: number
+  memorySurfaceViolationRate?: number
   templateLeakageFailCount: number
+  mindParticipation?: number
+  memoryParticipation?: number
+  personalityParticipation?: number
+  relationshipParticipation?: number
+  continuityParticipation?: number
 }
 
 export interface AlicizationMemoryStats {

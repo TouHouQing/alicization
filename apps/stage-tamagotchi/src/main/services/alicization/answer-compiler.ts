@@ -742,6 +742,7 @@ export function buildAnswerCompiler(input: {
     deliberation: runtimeSurface?.memory.memoryDeliberation ?? null,
     speech: runtimeSurface?.memory.recollectionSpeechPlan ?? null,
     recollectionIntent: null,
+    knowledgeEvidence: runtimeSurface?.memory.knowledgeEvidence ?? null,
   })
   const personalityContinuityState = explicitPersonalityContinuityState
     ?? personStateProjection?.personalityContinuityState

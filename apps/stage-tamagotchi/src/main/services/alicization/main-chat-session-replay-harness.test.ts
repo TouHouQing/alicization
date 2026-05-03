@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildReplayBenchmarkBacklogPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildGrowthHumanlikeMemoryBenchmarkPack,
   buildReplayBenchmarkFailingTurnSet,
   benchmarkMainChatSessionReplay,
   buildReplayBenchmarkMemoryStatsPatch,
@@ -1215,6 +1216,27 @@ describe('main chat session replay harness', () => {
           createdAt: 80,
         },
         {
+          turnId: 'turn-real-cross-week-migration',
+          sessionId: 'session-real-3',
+          userText: '隔了几周再回到这类任务，你还会沿着那条老的 repair seam 接吗',
+          assistantText: '我会先确认旧 seam 还能不能继续承载这次任务。',
+          createdAt: 75,
+        },
+        {
+          turnId: 'turn-real-cross-month-repair',
+          sessionId: 'session-real-4',
+          userText: '几个月前那次修复之后你变得更谨慎了，这次你是不是还记得那条分寸线',
+          assistantText: '我记得那次之后，修复要先于靠近。',
+          createdAt: 74,
+        },
+        {
+          turnId: 'turn-real-knowledge-update-conflict',
+          sessionId: 'session-real-5',
+          userText: '你后来学会了新做法，那你会不会把以前那套旧方法的记忆修正掉',
+          assistantText: '旧方法还在，但我会先看它是不是已经被新做法替代。',
+          createdAt: 73,
+        },
+        {
           turnId: 'turn-real-session-extra-1',
           sessionId: 'session-real-1',
           userText: 'extra-1',
@@ -1341,6 +1363,153 @@ describe('main chat session replay harness', () => {
               reason: 'Need to suppress the wrong thread lure.',
               provenance: 'reconstructed',
             }],
+          },
+        },
+        {
+          decisionTraceId: 'mind:real:cross-week-migration-1',
+          turnId: 'turn-real-cross-week-migration',
+          sessionId: 'session-real-3',
+          origin: 'user-turn',
+          activeThreadId: 'thread-runtime-week',
+          createdAt: 75,
+          lastUpdatedAt: 76,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'guide-current-knot',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'task-knot',
+            screenReferenceMode: 'helpful',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'procedural-carry',
+            confidence: 0.82,
+            whyNow: 'The current task resembles an older seam after a long interval.',
+            inwardLine: 'The old repair seam is still active after several weeks.',
+            recollectionIntentMode: 'experience-pattern',
+            recollectionIntentTemporalFocus: 'experience-matched',
+            selectedPeriods: [{ id: 'period-week', kind: 'consolidation', summary: 'A task period from several weeks back.' }],
+            selectedProcedures: [{ id: 'procedure-week', label: 'repair seam carry', approach: 'Return to the old seam before branching.' }],
+            selectedEras: [{ id: 'era-week', facet: 'task-era', summary: 'A cross-week task migration era.' }],
+            selectedBundles: [],
+            selectedChains: [],
+            selectedRelationshipLines: [],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            selectedPeriods: [{ id: 'period-week', kind: 'consolidation', summary: 'A task period from several weeks back.' }],
+            selectedProcedures: [{ id: 'procedure-week', label: 'repair seam carry', approach: 'Return to the old seam before branching.' }],
+            selectedEras: [{ id: 'era-week', facet: 'task-era', summary: 'A cross-week task migration era.' }],
+            selectedBundles: [],
+            selectedChains: [],
+            selectedRelationshipLines: [],
+            ambiguityPosture: 'settled',
+            confidence: 0.82,
+            whyNow: 'The old seam still matches this task several weeks later.',
+            personState: {
+              currentRegime: 'focused-work',
+              activeClosenessContext: 'focused-work',
+              activeClosenessRung: 'space-first',
+            },
+          },
+        },
+        {
+          decisionTraceId: 'mind:real:cross-month-repair-1',
+          turnId: 'turn-real-cross-month-repair',
+          sessionId: 'session-real-4',
+          origin: 'user-turn',
+          activeThreadId: 'thread-repair-month',
+          createdAt: 74,
+          lastUpdatedAt: 75,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'stale-anchor',
+            answerSubject: 'relationship',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'internal-only',
+            confidence: 0.79,
+            whyNow: 'A repair line from months ago still governs present distance.',
+            inwardLine: 'Repair still comes before closeness.',
+            recollectionIntentMode: 'relationship-history',
+            recollectionIntentTemporalFocus: 'cross-session',
+            selectedPeriods: [{ id: 'period-month', kind: 'consolidation', summary: 'A months-old repair period.' }],
+            selectedEras: [{ id: 'era-month', facet: 'relationship-era', summary: 'A cross-month repair era.' }],
+            selectedRelationshipLines: ['Repair before closeness.'],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            selectedPeriods: [{ id: 'period-month', kind: 'consolidation', summary: 'A months-old repair period.' }],
+            selectedEras: [{ id: 'era-month', facet: 'relationship-era', summary: 'A cross-month repair era.' }],
+            selectedBundles: [],
+            selectedChains: [],
+            selectedRelationshipLines: ['Repair before closeness.'],
+            ambiguityPosture: 'approximate',
+            confidence: 0.79,
+            whyNow: 'The older repair line still sets the present distance.',
+            personState: {
+              currentRegime: 'repair-window',
+              activeClosenessContext: 'repair-window',
+              activeClosenessRung: 'measured-room',
+            },
+          },
+        },
+        {
+          decisionTraceId: 'mind:real:knowledge-update-1',
+          turnId: 'turn-real-knowledge-update-conflict',
+          sessionId: 'session-real-5',
+          origin: 'user-turn',
+          activeThreadId: 'thread-knowledge-update',
+          createdAt: 73,
+          lastUpdatedAt: 74,
+          eventKinds: ['governance-normalized', 'recall-attribution', 'memory-deliberation-judged', 'memory-wrong-thread-suppressed'],
+          governance: {
+            turnMode: 'answer',
+            truthState: 'remembered',
+            repairState: 'none',
+            answerSubject: 'alicization-self',
+            screenReferenceMode: 'avoid',
+          },
+          recallAttribution: {
+            shouldRecall: true,
+            surfacePolicy: 'gist-first',
+            confidence: 0.74,
+            whyNow: 'Old method memory is being compared against a newer learned method.',
+            inwardLine: 'The old method is still there, but may already have been superseded.',
+            recollectionIntentMode: 'autobiographical-history',
+            recollectionIntentTemporalFocus: 'cross-session',
+            selectedPeriods: [{ id: 'period-knowledge', kind: 'consolidation', summary: 'A knowledge transition period.' }],
+            selectedEras: [{ id: 'era-knowledge', facet: 'self-era', summary: 'A knowledge update era.' }],
+            selectedRelationshipLines: [],
+            selectedBundles: [],
+            selectedChains: [],
+          },
+          memoryDeliberationJudged: {
+            shouldRecall: true,
+            selectedPeriods: [{ id: 'period-knowledge', kind: 'consolidation', summary: 'A knowledge transition period.' }],
+            selectedEras: [{ id: 'era-knowledge', facet: 'self-era', summary: 'A knowledge update era.' }],
+            selectedBundles: [],
+            selectedChains: [],
+            selectedRelationshipLines: [],
+            ambiguityPosture: 'approximate',
+            conflictSeverity: 'medium',
+            confidence: 0.74,
+            whyNow: 'The old understanding is being compared against the newer one.',
+            personState: {
+              currentRegime: 'general',
+              activeClosenessContext: 'general',
+              activeClosenessRung: 'measured-room',
+            },
+          },
+          memoryWrongThreadSuppressed: {
+            conflictVariants: [{ id: 'cluster:old-method', summary: 'The old method may have been superseded.', provenance: 'reconstructed' }],
           },
         },
         {
@@ -1477,19 +1646,25 @@ describe('main chat session replay harness', () => {
           },
         },
       ],
-      limit: 3,
+      limit: 6,
     })
 
     expect(pack.map(item => item.turnId)).toEqual(expect.arrayContaining([
       'turn-real-wrong-thread',
       'turn-real-procedure-carry',
       'turn-real-repair-window',
+      'turn-real-cross-week-migration',
+      'turn-real-cross-month-repair',
+      'turn-real-knowledge-update-conflict',
     ]))
     expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.recollectionSpeechPlan?.placement).toBe('after-payoff')
     expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.memoryDeliberation?.conflictSeverity).toBe('high')
     expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.organicMemoryContext?.hostPersonModel?.preferredClosenessByContext[0]?.context).toBe('repair-window')
     expect(pack.find(item => item.turnId === 'turn-real-procedure-carry')?.organicMemoryContext?.memoryDeliberation?.selectedProcedures[0]?.approach).toContain('Patch first')
     expect(pack.find(item => item.turnId === 'turn-real-repair-window')?.organicMemoryContext?.recollectionSpeechPlan?.shouldSurface).toBe(false)
+    expect(pack.find(item => item.turnId === 'turn-real-cross-week-migration')?.sampledCategories).toEqual(expect.arrayContaining(['cross-week-task-migration', 'task-migration']))
+    expect(pack.find(item => item.turnId === 'turn-real-cross-month-repair')?.sampledCategories).toEqual(expect.arrayContaining(['cross-month-repair', 'repair-arc']))
+    expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.sampledCategories).toEqual(expect.arrayContaining(['knowledge-update-conflict', 'long-horizon']))
   })
 
   it('rebuilds an executable backlog replay pack from dataset backlog entries', () => {
@@ -1782,7 +1957,16 @@ describe('main chat session replay harness', () => {
       'benchmark-multi-repair-arc-history',
       'benchmark-multi-execution-callback-continuity',
       'benchmark-long-burden-accumulation',
+      'benchmark-cross-week-task-migration',
+      'benchmark-cross-month-repair-memory',
+      'benchmark-knowledge-update-conflict',
     ]))
+    expect(buildGrowthHumanlikeMemoryBenchmarkPack().map(item => item.turnId)).toEqual([
+      'growth-repeated-mistake-avoidance',
+      'growth-host-understanding-burden',
+      'growth-skill-internalization',
+      'growth-self-revision',
+    ])
 
     const standards = evaluateReplayBenchmarkStandards({
       quality: [
@@ -1803,6 +1987,12 @@ describe('main chat session replay harness', () => {
           relationshipRepairAdaptation: 'pass',
           closenessLadderDrift: 'pass',
           eventGraphRecallCollapse: 'pass',
+          knowledgeCorrectionDiscipline: 'not-applicable',
+          repeatedMistakeAvoidance: 'pass',
+          hostUnderstandingGrowth: 'pass',
+          skillInternalizationGrowth: 'pass',
+          selfRevisionGrowth: 'pass',
+          dialogueRhythmStability: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -1822,6 +2012,12 @@ describe('main chat session replay harness', () => {
           relationshipRepairAdaptation: 'pass',
           closenessLadderDrift: 'pass',
           eventGraphRecallCollapse: 'pass',
+          knowledgeCorrectionDiscipline: 'not-applicable',
+          repeatedMistakeAvoidance: 'pass',
+          hostUnderstandingGrowth: 'pass',
+          skillInternalizationGrowth: 'pass',
+          selfRevisionGrowth: 'pass',
+          dialogueRhythmStability: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -1845,6 +2041,12 @@ describe('main chat session replay harness', () => {
           relationshipRepairAdaptation: 'pass',
           closenessLadderDrift: 'pass',
           eventGraphRecallCollapse: 'pass',
+          knowledgeCorrectionDiscipline: 'not-applicable',
+          repeatedMistakeAvoidance: 'pass',
+          hostUnderstandingGrowth: 'pass',
+          skillInternalizationGrowth: 'pass',
+          selfRevisionGrowth: 'pass',
+          dialogueRhythmStability: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -1864,6 +2066,12 @@ describe('main chat session replay harness', () => {
           relationshipRepairAdaptation: 'pass',
           closenessLadderDrift: 'pass',
           eventGraphRecallCollapse: 'pass',
+          knowledgeCorrectionDiscipline: 'not-applicable',
+          repeatedMistakeAvoidance: 'pass',
+          hostUnderstandingGrowth: 'pass',
+          skillInternalizationGrowth: 'pass',
+          selfRevisionGrowth: 'pass',
+          dialogueRhythmStability: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -1882,10 +2090,16 @@ describe('main chat session replay harness', () => {
       relationshipRepairAdaptation: 'pass',
       closenessLadderDrift: 'pass',
       eventGraphRecallCollapse: 'pass',
+      knowledgeCorrectionDiscipline: 'fail',
+      repeatedMistakeAvoidance: 'pass',
+      hostUnderstandingGrowth: 'pass',
+      skillInternalizationGrowth: 'pass',
+      selfRevisionGrowth: 'pass',
+      dialogueRhythmStability: 'pass',
       templateLeakage: 'pass',
     })
-    expect(gate.passed).toBe(true)
-    expect(gate.dimensions.every(item => item.status === 'pass')).toBe(true)
+    expect(gate.passed).toBe(false)
+    expect(gate.failingKeys).toContain('knowledgeCorrectionDiscipline')
   })
 
   it('reports failing benchmark gate dimensions with turn ids', () => {
@@ -1905,9 +2119,15 @@ describe('main chat session replay harness', () => {
           temporalScopeFlexibility: 'not-applicable',
           recentOnlyDrift: 'not-applicable',
           surfaceRestraint: 'not-applicable',
+          knowledgeCorrectionDiscipline: 'not-applicable',
           relationshipRepairAdaptation: 'not-applicable',
           closenessLadderDrift: 'not-applicable',
           eventGraphRecallCollapse: 'not-applicable',
+          repeatedMistakeAvoidance: 'not-applicable',
+          hostUnderstandingGrowth: 'not-applicable',
+          skillInternalizationGrowth: 'not-applicable',
+          selfRevisionGrowth: 'not-applicable',
+          dialogueRhythmStability: 'not-applicable',
           templateLeakage: 'fail',
         },
       ],
@@ -1928,7 +2148,28 @@ describe('main chat session replay harness', () => {
         graphLatencyMs: null,
         reconstructionFrequency: 0,
         reconstructedCount: 0,
+        budgetClassCounts: {
+          'diagnosis-replay': 0,
+        },
+        hotKeyHitRatio: 0,
+        hotKeyCoverage: 0,
+        hotKeyCandidates: [],
+        hotKeyStats: [],
+        hotKeyActiveCount: 0,
+        hotKeyWinCount: 0,
+        hotKeyMissCount: 0,
+        recallHitRate: 0,
+        recallMissRate: 0,
+        wrongThreadRate: 0,
+        reconstructionErrorRate: 0,
+        stableCoreOnlyRate: 0,
+        memorySurfaceViolationRate: 0,
         templateLeakageFailCount: 1,
+        mindParticipation: 0,
+        memoryParticipation: 0,
+        personalityParticipation: 0,
+        relationshipParticipation: 0,
+        continuityParticipation: 0,
       },
     })
   })
@@ -2019,5 +2260,199 @@ describe('main chat session replay harness', () => {
     expect(quality.surfaceRestraint).toBe('not-applicable')
     expect(quality.relationshipRepairAdaptation).toBe('not-applicable')
     expect(quality.templateLeakage).toBe('fail')
+  })
+
+  it('scores self-evolution growth dimensions from unified learning signals instead of treating growth as invisible', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-growth-signals',
+      userText: '你后来学到了新理解，也更懂我累的时候的分寸了吧，这次别再犯以前那个错误，而且旧理解你会主动修正掉吧。',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [{
+          role: 'system',
+          content: '[ALICIZATION_SELF_EVOLUTION]\nnext_learning_action=verify\nactive_learning_focuses=resolve-contradictions | internalize-procedure',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          knowledgeEvidence: {
+            validationCount: 3,
+            contradictionCount: 2,
+            stronglyValidatedProcedureCount: 3,
+            contradictionHeavyFactCount: 1,
+          },
+          hostPersonModel: {
+            summary: 'The host is more overloaded lately and needs less pressure.',
+            routines: [],
+            sensitivities: ['Template-like speech breaks the sense of a person.'],
+            repairTriggers: ['Repair the seam before continuing.'],
+            trustLadder: {
+              stage: 'warming',
+              score: 0.72,
+              rationale: 'Trust rises when the reply stays grounded.',
+            },
+            preferredClosenessByContext: [],
+            recurrentBurdens: ['The host has been tired lately.'],
+            narrative: [],
+            updatedAt: 10,
+          },
+          personStateProjection: {
+            activeClosenessContext: 'focused-work',
+            activeClosenessRung: 'space-first',
+          } as any,
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 10,
+            evolutionMomentum: 0.64,
+            learningReadiness: 0.68,
+            contradictionPressure: 0.46,
+            revisionPressure: 0.58,
+            autobiographicalStability: 0.74,
+            dominantTrajectory: 'Warmth should not outrun grounding.',
+            relationshipDoctrine: 'Repair before closeness returns.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            burdenLine: 'The host has been tired lately.',
+            trustMeaning: 'Trust rises when the reply stays grounded.',
+            nextLearningAction: 'verify',
+            nextLearningReason: 'Contradiction pressure is high and a durable fact is contested.',
+            shouldRecord: false,
+            shouldReflect: false,
+            shouldVerify: true,
+            shouldRevise: false,
+            shouldInternalize: false,
+            activeLearningFocuses: ['resolve-contradictions', 'internalize-procedure'],
+            sourceSignals: ['The host has been tired lately.'],
+            summary: 'Warmth should not outrun grounding. | resolve-contradictions',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              selfEvolution: {
+                nextLearningAction: 'verify',
+              },
+            },
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [],
+                openingClaim: '',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: '',
+                mustDo: [],
+              },
+              replyDeliberation: {
+                mustAvoid: ['Do not repeat the earlier rupture pattern.'],
+                whyThisReplyNow: 'Growth signal is live.',
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.repeatedMistakeAvoidance).toBe('pass')
+    expect(quality.hostUnderstandingGrowth).toBe('pass')
+    expect(quality.skillInternalizationGrowth).toBe('pass')
+    expect(quality.selfRevisionGrowth).toBe('pass')
+  })
+
+  it('scores dialogue rhythm stability when repair timing, distance, and warmth stay coherent instead of jumping mechanically', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-rhythm-stability',
+      userText: '修复刚重新接稳，这次别一下子太近，关系距离和 warmth 节律别乱跳，也别冷掉或者变成模板腔。',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [{
+          role: 'system',
+          content: 'repair before closeness | warmth should not outrun grounding | do not crowd the host',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          hostPersonModel: {
+            summary: 'The host needs less pressure when tired.',
+            routines: [],
+            sensitivities: ['Pushy warmth still breaks the spell.'],
+            repairTriggers: ['Repair the seam before warmth widens.'],
+            trustLadder: {
+              stage: 'warming',
+              score: 0.72,
+              rationale: 'Trust rises when the reply stays grounded.',
+            },
+            preferredClosenessByContext: [],
+            recurrentBurdens: ['The host has been tired lately.'],
+            narrative: [],
+            updatedAt: 10,
+          },
+          personStateProjection: {
+            activeClosenessContext: 'focused-work',
+            activeClosenessRung: 'space-first',
+          } as any,
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 10,
+            evolutionMomentum: 0.44,
+            learningReadiness: 0.52,
+            contradictionPressure: 0.12,
+            revisionPressure: 0.38,
+            autobiographicalStability: 0.72,
+            dominantTrajectory: 'Warmth should not outrun grounding.',
+            relationshipDoctrine: 'Repair the seam before warmth widens.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            burdenLine: 'The host has been tired lately.',
+            trustMeaning: 'Trust rises when the reply stays grounded.',
+            nextLearningAction: 'reflect',
+            nextLearningReason: 'Repair rhythm still needs consolidation.',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: false,
+            shouldRevise: false,
+            shouldInternalize: false,
+            activeLearningFocuses: ['relationship-repair-rhythm'],
+            sourceSignals: ['The host has been tired lately.'],
+            summary: 'Warmth should not outrun grounding.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [],
+                openingClaim: '',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: '',
+                mustDo: [],
+              },
+              replyDeliberation: {
+                mustAvoid: ['Do not let warmth outrun the repair line.'],
+                whyThisReplyNow: 'Keep the seam steady before widening warmth.',
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.dialogueRhythmStability).toBe('pass')
   })
 })

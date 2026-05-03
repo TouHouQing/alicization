@@ -281,6 +281,32 @@ function factStatements(facts: AlicizationMemoryFact[]) {
     .filter(Boolean)
 }
 
+function scoreHumanlikeFactDurability(fact: AlicizationMemoryFact) {
+  const stage = fact.knowledgeStage ?? 'working-understanding'
+  const validation = fact.validationStatus ?? 'unverified'
+  let score = fact.confidence
+  if (stage === 'internalized-long-horizon-knowledge')
+    score += 0.3
+  else if (stage === 'validated-knowledge')
+    score += 0.2
+  else if (stage === 'ephemeral-observation')
+    score -= 0.15
+
+  if (validation === 'validated')
+    score += 0.16
+  else if (validation === 'provisional')
+    score += 0.05
+  else if (validation === 'superseded')
+    score -= 0.4
+
+  if ((fact.supersedes?.length ?? 0) > 0)
+    score += 0.06
+  if ((fact.conflictsWith?.length ?? 0) > 0)
+    score -= 0.05
+
+  return score
+}
+
 function relationshipOutcomeStatements(outcomes: AlicizationRelationshipOutcomeRecord[]) {
   return outcomes.flatMap(outcome => uniqueTexts([
     outcome.summary,
@@ -484,10 +510,12 @@ export function buildHostPersonModelSnapshot(input: {
     .slice(0, 18)
   const facts = [...input.facts]
     .sort((left, right) => {
-      if (left.confidence !== right.confidence)
-        return right.confidence - left.confidence
+      const scoreDelta = scoreHumanlikeFactDurability(right) - scoreHumanlikeFactDurability(left)
+      if (scoreDelta !== 0)
+        return scoreDelta
       return right.updatedAt - left.updatedAt
     })
+    .filter(fact => (fact.validationStatus ?? 'unverified') !== 'superseded')
     .slice(0, 12)
   const consolidations = [...(input.consolidations ?? [])]
     .sort((left, right) => {

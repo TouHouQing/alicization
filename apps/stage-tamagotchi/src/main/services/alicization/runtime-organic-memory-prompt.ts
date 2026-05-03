@@ -1,6 +1,7 @@
 import type {
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
+  AlicizationMemoryStats,
   AlicizationMemoryRecollectionMode,
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
@@ -8,6 +9,7 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
+import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
@@ -19,6 +21,7 @@ import { formatMemoryProvenanceLabel } from './humanlike-memory'
 import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 import { planAlicizationRecall } from './recall-planner'
+import { buildAlicizationSelfEvolutionKernel } from './self-evolution-kernel'
 import {
   type AlicizationRelationshipLineCandidate,
   resolveMemorySearchPrelude,
@@ -50,16 +53,19 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     sessionId?: string | null
     turnId?: string | null
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<AlicizationEpisodicEventRecord[]>
   buildHostPersonModel: (input?: {
     now?: number
   }) => Promise<AlicizationHostPersonModelSnapshot | null>
+  getMemoryStats?: () => Promise<AlicizationMemoryStats | null>
   getMemoryTuningAdvice?: () => Promise<AlicizationMemoryTuningAdvice | null>
   getPersonStateEvolutionSummary?: () => Promise<AlicizationPersonStateEvolutionSummary | null>
   recallConversationHistory: (input: {
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<Array<{
     turnId: string | null
     sessionId: string
@@ -71,6 +77,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     query: string
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
   planRecollectionIntent?: (input: {
     recallSeed: string
@@ -112,6 +119,9 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>
   isPersonaResidueMemoryText: (text: string) => boolean
+  recordMemoryCandidateGenerationLatency?: (latencyMs: number) => Promise<void>
+  recordMemoryPlannerLatency?: (latencyMs: number) => Promise<void>
+  recordMemorySpeechPlanLatency?: (latencyMs: number) => Promise<void>
 }
 
 type RecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
@@ -255,6 +265,25 @@ function deriveMemoryFollowUpAffordance(input: {
   } satisfies NonNullable<MemoryDeliberationSnapshot['followUpAffordance']>
 }
 
+function deriveKnowledgeEvidence(input: {
+  retrievedFacts: OrganicMemoryPromptContext['retrievedFacts']
+  proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+}) {
+  const validationCount = input.retrievedFacts.reduce((sum, fact) => sum + Math.max(0, fact.validationCount ?? 0), 0)
+  const contradictionCount = input.retrievedFacts.reduce((sum, fact) => sum + Math.max(0, fact.contradictionCount ?? 0), 0)
+  const stronglyValidatedProcedureCount = input.retrievedFacts.filter(fact =>
+    fact.predicate.toLowerCase().includes('procedure')
+    && ((fact.validationCount ?? 0) >= 2 || fact.knowledgeStage === 'internalized-long-horizon-knowledge'),
+  ).length + input.proceduralMemories.filter(item => item.confidence >= 0.84).length
+  const contradictionHeavyFactCount = input.retrievedFacts.filter(fact => (fact.contradictionCount ?? 0) >= 2).length
+  return {
+    validationCount,
+    contradictionCount,
+    stronglyValidatedProcedureCount,
+    contradictionHeavyFactCount,
+  }
+}
+
 export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlicizationOrganicMemoryPromptRuntimeOptions) {
   const {
     normalizeOrganicRecallText,
@@ -265,6 +294,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    getMemoryStats,
     recallConversationHistory,
     recallMemoryConsolidations,
     getMemoryTuningAdvice,
@@ -274,6 +304,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     planRecollectionSpeech,
     planMemoryDeliberation,
     isPersonaResidueMemoryText,
+    recordMemoryCandidateGenerationLatency,
+    recordMemoryPlannerLatency,
+    recordMemorySpeechPlanLatency,
   } = options
 
   function countRecallTermOverlap(base: string, candidate: string) {
@@ -1862,6 +1895,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       deliberation: context.memoryDeliberation ?? null,
       speech: context.recollectionSpeechPlan ?? null,
       recollectionIntent: context.recollectionIntent ?? null,
+      knowledgeEvidence: context.knowledgeEvidence ?? null,
     })
     if (context.hostAttitude) {
       blocks.push([
@@ -2171,6 +2205,52 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       ].filter(Boolean).join('\n'))
     }
 
+    if (context.selfEvolution) {
+      blocks.push([
+        '[ALICIZATION_SELF_EVOLUTION]',
+        'This is the current long-horizon self-evolution kernel synthesized from reflection, durable memory, and relationship growth.',
+        'Use it as live inner trajectory and learning pressure, not as a canned speech template.',
+        context.selfEvolution.summary
+          ? `summary=${context.selfEvolution.summary}`
+          : '',
+        context.selfEvolution.dominantTrajectory
+          ? `dominant_trajectory=${context.selfEvolution.dominantTrajectory}`
+          : '',
+        context.selfEvolution.relationshipDoctrine
+          ? `relationship_doctrine=${context.selfEvolution.relationshipDoctrine}`
+          : '',
+        context.selfEvolution.latestInflection
+          ? `latest_inflection=${context.selfEvolution.latestInflection}`
+          : '',
+        context.selfEvolution.burdenLine
+          ? `burden_line=${context.selfEvolution.burdenLine}`
+          : '',
+        context.selfEvolution.trustMeaning
+          ? `trust_meaning=${context.selfEvolution.trustMeaning}`
+          : '',
+        `evolution_momentum=${context.selfEvolution.evolutionMomentum.toFixed(2)}`,
+        `learning_readiness=${context.selfEvolution.learningReadiness.toFixed(2)}`,
+        `contradiction_pressure=${context.selfEvolution.contradictionPressure.toFixed(2)}`,
+        `revision_pressure=${context.selfEvolution.revisionPressure.toFixed(2)}`,
+        `autobiographical_stability=${context.selfEvolution.autobiographicalStability.toFixed(2)}`,
+        `next_learning_action=${context.selfEvolution.nextLearningAction}`,
+        context.selfEvolution.nextLearningReason
+          ? `next_learning_reason=${context.selfEvolution.nextLearningReason}`
+          : '',
+        context.selfEvolution.shouldRecord ? 'should_record=yes' : 'should_record=no',
+        context.selfEvolution.shouldReflect ? 'should_reflect=yes' : 'should_reflect=no',
+        context.selfEvolution.shouldVerify ? 'should_verify=yes' : 'should_verify=no',
+        context.selfEvolution.shouldRevise ? 'should_revise=yes' : 'should_revise=no',
+        context.selfEvolution.shouldInternalize ? 'should_internalize=yes' : 'should_internalize=no',
+        context.selfEvolution.activeLearningFocuses.length > 0
+          ? `active_learning_focuses=${context.selfEvolution.activeLearningFocuses.join(' | ')}`
+          : '',
+        context.selfEvolution.sourceSignals.length > 0
+          ? `source_signals=${context.selfEvolution.sourceSignals.join(' | ')}`
+          : '',
+      ].filter(Boolean).join('\n'))
+    }
+
     const recallProvenances = Array.from(new Set([
       ...context.retrievedFacts.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
       ...context.recalledFragments.map(item => formatMemoryProvenanceLabel(item.provenance ?? 'remembered')),
@@ -2386,6 +2466,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     sessionId?: string | null
     turnId?: string | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }): Promise<OrganicMemoryPromptContext> {
     const {
       snapshot,
@@ -2417,14 +2498,17 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recallGovernor: options?.recallGovernor ?? null,
       sessionId: options?.sessionId ?? null,
       turnId: options?.turnId ?? null,
+      budgetClass: options?.budgetClass,
     })
     const personStateEvolutionSummary = await getPersonStateEvolutionSummary?.().catch(() => null) ?? null
+    const memoryStats = await getMemoryStats?.().catch(() => null) ?? null
     const personStateProjection = buildMemoryPromptPersonStateProjection({
       recallSeed,
       recollectionIntent: activeRecollectionIntent,
       hostPersonModel,
       personStateEvolutionSummary,
     })
+    const candidateGenerationStartedAt = Date.now()
     const {
       recalledConversationHistory,
       consolidatedMemories,
@@ -2439,7 +2523,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recallSeed,
       recollectionIntent: activeRecollectionIntent,
       recalledEpisodes,
+      budgetClass: options?.budgetClass,
     })
+    void recordMemoryCandidateGenerationLatency?.(Date.now() - candidateGenerationStartedAt).catch(() => {})
     const sociallyRankedConsolidatedMemories = rankByHostSocialAffinity({
       items: consolidatedMemories,
       toText: item => [item.summary, item.lesson ?? '', ...(item.cues ?? [])].filter(Boolean).join(' '),
@@ -2688,6 +2774,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       clusterState,
       toClusterText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
     })
+    const plannerStartedAt = Date.now()
     const rawRecollectionPlan = activeRecollectionIntent && planMemoryRecollection && (
       agendaRankedConsolidatedMemoriesClustered.length > 0
       || agendaRankedWindowsClustered.length > 0
@@ -2743,6 +2830,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       intent: activeRecollectionIntent,
       recollectedWindows: plannedWindows,
     })
+    void recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
+    const speechPlanStartedAt = Date.now()
     const recollectionSpeechPlan = activeRecollectionIntent && planRecollectionSpeech && (
       plannedConsolidatedMemories.length > 0
       || plannedWindows.length > 0
@@ -2762,6 +2851,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           recalledConversationHistory: plannedConversationHistory,
         }).catch(() => null)
       : null
+    void recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
     const rawMemoryDeliberation = activeRecollectionIntent && planMemoryDeliberation && (
       agendaRankedConsolidatedMemoriesClustered.length > 0
       || agendaRankedWindowsClustered.length > 0
@@ -2787,6 +2877,21 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledConversationHistory: agendaRankedConversationHistory,
       competingVariants: clusterState.competingVariants,
     })
+    const knowledgeEvidence = deriveKnowledgeEvidence({
+      retrievedFacts,
+      proceduralMemories: agendaRankedProceduralMemories,
+    })
+    const selfEvolution = buildAlicizationSelfEvolutionKernel({
+      personStateEvolutionSummary,
+      hostPersonModel,
+      knowledgeEvidence,
+      reflectionSummary: personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
+      reflectionLesson: personStateEvolutionSummary?.explanation?.[0] ?? null,
+      reflectionTargetScope: personStateEvolutionSummary?.latestDoctrine ? 'relationship' : null,
+      reflectionPressure: memoryStats?.retrievalHealth?.memorySurfaceViolationRate ?? 0,
+      autobiographicalLatestInflection: personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
+      autobiographicalStability: 0.5,
+    })
     const recallPlannerDecision = planAlicizationRecall({
       recollectionIntent: activeRecollectionIntent,
       recollectionPlanCandidate: recollectionPlan,
@@ -2798,6 +2903,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       proceduralMemories,
       recalledEpisodes,
       recalledConversationHistory,
+      retrievalHealth: memoryStats?.retrievalHealth ?? null,
+      knowledgeEvidence,
       clusterContext: {
         ambiguous: clusterState.ambiguous,
         dominantSummary: clusterState.dominantSummary,
@@ -3214,12 +3321,14 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recollectionPlan: finalRecollectionPlan,
       recollectionSpeechPlan: effectiveRecollectionSpeechPlan,
       memoryDeliberation: resolvedMemoryDeliberation,
+      knowledgeEvidence,
       proceduralMemories: deliberatedProceduralMemories,
       recollectionIntent,
       hostPersonModel,
       personStateProjection,
       relationshipDynamics,
       memoryTuningAdvice,
+      selfEvolution,
     }
   }
 

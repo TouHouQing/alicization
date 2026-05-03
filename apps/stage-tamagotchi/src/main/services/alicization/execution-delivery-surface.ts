@@ -634,6 +634,12 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
     focusAnchor?: string | null
     answerIntent?: string | null
   } | null
+  knowledgeEvidence?: {
+    validationCount?: number | null
+    contradictionCount?: number | null
+    stronglyValidatedProcedureCount?: number | null
+    contradictionHeavyFactCount?: number | null
+  } | null
   personStateProjection?: AlicizationPersonStateProjection | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
@@ -691,6 +697,14 @@ export function buildAlicizationExecutionPayoffPrompt(input: {
           answerSubject: sanitizeText(input.governance.answerSubject, 64) || null,
           focusAnchor: sanitizeText(input.governance.focusAnchor, 120) || null,
           answerIntent: sanitizeText(input.governance.answerIntent, 160) || null,
+        })}`
+      : '',
+    input.knowledgeEvidence
+      ? `Knowledge evidence JSON: ${JSON.stringify({
+          validationCount: input.knowledgeEvidence.validationCount ?? 0,
+          contradictionCount: input.knowledgeEvidence.contradictionCount ?? 0,
+          stronglyValidatedProcedureCount: input.knowledgeEvidence.stronglyValidatedProcedureCount ?? 0,
+          contradictionHeavyFactCount: input.knowledgeEvidence.contradictionHeavyFactCount ?? 0,
         })}`
       : '',
     input.personStateProjection

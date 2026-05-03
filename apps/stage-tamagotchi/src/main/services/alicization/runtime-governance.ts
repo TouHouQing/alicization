@@ -22,6 +22,7 @@ import type {
 import {
   buildAlicizationDialogueSpeechTimeline,
   buildAlicizationDigitalLifeEnvelope,
+  deriveAlicizationMindParticipationFromSpine,
   buildMindGovernedFallbackSurface,
   formatGovernedMindMessage,
   governedMindFallbackLocale,
@@ -1915,6 +1916,10 @@ export interface AlicizationMindTraceMemorySnapshot {
   speechShouldSurface?: boolean | null
   speechSurfaceMode?: string | null
   speechPlacement?: string | null
+  knowledgeValidationCount?: number | null
+  knowledgeContradictionCount?: number | null
+  stronglyValidatedProcedureCount?: number | null
+  contradictionHeavyFactCount?: number | null
   selectedEras: Array<{
     id: string
     facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | 'window'
@@ -2364,6 +2369,9 @@ export function buildMindTurnTraceEvents(input: {
     ? input.payload.structured as Record<string, unknown>
     : {}
   const persistedDigitalLifeSpine = summarizeMindTurnEventDigitalLifeSpine(structured.digitalLifeSpine)
+  const participation = deriveAlicizationMindParticipationFromSpine(
+    normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
+  )
   const turnId = sanitizeText(input.payload.turnId) || null
   const sessionId = sanitizeText(input.payload.sessionId) || null
   const origin = input.payload.origin === 'subconscious-proactive'
@@ -2388,6 +2396,7 @@ export function buildMindTurnTraceEvents(input: {
       fallbackPatternId: input.governedTurn.fallbackPatternId ?? 'none',
       reasons: input.governedTurn.reasons,
       digitalLifeSpine: persistedDigitalLifeSpine,
+      participation,
     },
     createdAt: input.createdAt,
   }]
