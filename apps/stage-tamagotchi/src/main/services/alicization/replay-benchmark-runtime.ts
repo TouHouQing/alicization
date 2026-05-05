@@ -675,6 +675,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       gate: replay.gate,
       quality: replay.quality,
       traces: benchmarkTraceRecords,
+      goldMetrics: replay.goldMetrics,
     })
     const currentStats = await db.getMemoryStats()
     const telemetryPatch = preferRuntimeGrowthMetrics({

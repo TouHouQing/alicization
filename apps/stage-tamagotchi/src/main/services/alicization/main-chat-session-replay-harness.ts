@@ -240,11 +240,30 @@ function createBasePrelude(input: {
 export interface AlicizationReplayTurn {
   turnId: string
   userText: string
+  expectedMemory?: string
+  categories?: string[]
   organicMemoryContext?: OrganicMemoryPromptContext
   prelude?: AlicizationPreparedMainChatPrelude
   messages?: Message[]
   tracePointer?: AlicizationReplayBenchmarkTracePointer
   sampledCategories?: AlicizationReplayBenchmarkSampleCategory[] | null
+  gold?: AlicizationReplayGoldExpectation
+}
+
+type AlicizationReplayLatencyBudgetClass
+  = 'realtime-reply'
+    | 'deep-recall-reply'
+    | 'proactive-generation'
+    | 'nightly-benchmark'
+    | 'diagnosis-replay'
+
+interface AlicizationReplayGoldExpectation {
+  selectedCandidateIds?: string[]
+  suppressedCandidateIds?: string[]
+  claimValidationStates?: Record<string, string>
+  replyAuthority?: string | null
+  latencyBudgetClass?: AlicizationReplayLatencyBudgetClass
+  latencyBudgetPass?: boolean
 }
 
 interface AlicizationReplayBenchmarkSampleConversationTurn {
@@ -367,6 +386,14 @@ const replayBenchmarkSampleCategoryPriority: AlicizationReplayBenchmarkSampleCat
   'general-memory',
 ]
 
+const replayBenchmarkLatencyBudgetClasses = [
+  'realtime-reply',
+  'deep-recall-reply',
+  'proactive-generation',
+  'nightly-benchmark',
+  'diagnosis-replay',
+] as const
+
 export type AlicizationReplayQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
 export interface AlicizationReplayMemoryQuality {
@@ -455,6 +482,7 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
   gate: AlicizationReplayBenchmarkGateReport
   quality?: AlicizationReplayMemoryQuality[]
   traces?: AlicizationMemoryDecisionTraceRecord[]
+  goldMetrics?: AlicizationReplayGoldMetrics | null
 }): AlicizationReplayBenchmarkTelemetryPatch {
   const templateLeakageDimension = input.gate.dimensions.find(item => item.key === 'templateLeakage')
   const quality = input.quality ?? []
@@ -614,6 +642,17 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
       misinternalizationRate: learningWorldModelValidationCount <= 0 ? 0 : Number((learningWorldModelFalseInternalizationCount / learningWorldModelValidationCount).toFixed(2)),
       relationshipCadenceRegressionRate: rateFor('relationshipDistanceJumpRate'),
       selfModelStaleBeliefRate: suppressionTaggedTraces.length === 0 ? 0 : Number((staleSelfModelSuppressedCount / suppressionTaggedTraces.length).toFixed(2)),
+      ...(input.goldMetrics
+        ? {
+            recallAt1: input.goldMetrics.recallAt1,
+            recallAt3: input.goldMetrics.recallAt3,
+            precisionAt3: input.goldMetrics.precisionAt3,
+            wrongThreadSuppression: input.goldMetrics.wrongThreadSuppression,
+            claimAccuracy: input.goldMetrics.claimAccuracy,
+            replyAuthorityAccuracy: input.goldMetrics.replyAuthorityAccuracy,
+            latencyBudgetPass: input.goldMetrics.latencyBudgetPass,
+          }
+        : {}),
       ...traceParticipation,
     },
   }
@@ -716,6 +755,58 @@ function readObjectArray(raw: unknown) {
   return Array.isArray(raw)
     ? raw.map(asObject).filter(Boolean) as Record<string, unknown>[]
     : []
+}
+
+function readStringRecord(raw: unknown, maxKeys = 24, maxChars = 120) {
+  const candidate = asObject(raw)
+  if (!candidate)
+    return undefined
+  const entries = Object.entries(candidate)
+    .map(([key, value]) => [readString(key, 180), readString(value, maxChars)] as const)
+    .filter(([key, value]) => Boolean(key && value))
+    .slice(0, maxKeys)
+  return entries.length > 0
+    ? Object.fromEntries(entries)
+    : undefined
+}
+
+function readReplayLatencyBudgetClass(raw: unknown): AlicizationReplayLatencyBudgetClass | undefined {
+  const value = readString(raw, 64)
+  return replayBenchmarkLatencyBudgetClasses.includes(value as any)
+    ? value as AlicizationReplayLatencyBudgetClass
+    : undefined
+}
+
+function parseReplayGoldExpectation(raw: unknown): AlicizationReplayGoldExpectation | undefined {
+  const candidate = asObject(raw)
+  if (!candidate)
+    return undefined
+  const selectedCandidateIds = readStringArray(candidate.selectedCandidateIds, 24, 180)
+  const suppressedCandidateIds = readStringArray(candidate.suppressedCandidateIds, 24, 180)
+  const claimValidationStates = readStringRecord(candidate.claimValidationStates)
+  const replyAuthority = readString(candidate.replyAuthority, 120)
+  const latencyBudgetClass = readReplayLatencyBudgetClass(candidate.latencyBudgetClass)
+  const latencyBudgetPass = typeof candidate.latencyBudgetPass === 'boolean'
+    ? candidate.latencyBudgetPass
+    : undefined
+  if (
+    selectedCandidateIds.length === 0
+    && suppressedCandidateIds.length === 0
+    && !claimValidationStates
+    && !replyAuthority
+    && !latencyBudgetClass
+    && latencyBudgetPass == null
+  ) {
+    return undefined
+  }
+  return {
+    selectedCandidateIds: selectedCandidateIds.length > 0 ? selectedCandidateIds : undefined,
+    suppressedCandidateIds: suppressedCandidateIds.length > 0 ? suppressedCandidateIds : undefined,
+    claimValidationStates,
+    replyAuthority: replyAuthority || null,
+    latencyBudgetClass,
+    latencyBudgetPass,
+  }
 }
 
 function normalizeRecollectionSurfaceMode(raw: unknown): NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>['surfacePolicy'] {
@@ -1314,23 +1405,36 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
       break
   }
 
-  return selected.map(candidate => ({
-    turnId: readString(candidate.row.turnId, 160),
-    userText: readString(candidate.row.userText, 240),
-    organicMemoryContext: buildOrganicMemoryPromptContextFromTrace({
+  return selected.map((candidate) => {
+    const organicMemoryContext = buildOrganicMemoryPromptContextFromTrace({
       row: candidate.row,
       trace: candidate.trace,
-    }),
-    tracePointer: {
-      kind: 'decision-trace',
-      packId: 'sampled-humanlike-memory-v1',
+    })
+    return {
+    // NOTICE: sampled replay traces already carry the memory/claim surface that runtime produced,
+    // so we can promote them into replay gold expectations without inventing a second benchmark truth source.
       turnId: readString(candidate.row.turnId, 160),
-      decisionTraceId: readString(candidate.trace.decisionTraceId, 160) || null,
-      sessionId: readString(candidate.trace.sessionId, 160) || null,
-      activeThreadId: readString(candidate.trace.activeThreadId, 160) || null,
-    },
-    sampledCategories: candidate.categories,
-  } satisfies AlicizationReplayTurn))
+      userText: readString(candidate.row.userText, 240),
+      organicMemoryContext,
+      expectedMemory: readString(candidate.row.structuredJson, 240) || undefined,
+      categories: candidate.categories,
+      tracePointer: {
+        kind: 'decision-trace',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: readString(candidate.row.turnId, 160),
+        decisionTraceId: readString(candidate.trace.decisionTraceId, 160) || null,
+        sessionId: readString(candidate.trace.sessionId, 160) || null,
+        activeThreadId: readString(candidate.trace.activeThreadId, 160) || null,
+      },
+      sampledCategories: candidate.categories,
+      gold: buildReplayGoldExpectationFromOrganicMemoryContext(
+        organicMemoryContext,
+        readString(candidate.trace.governance?.screenReferenceMode, 64) === 'avoid'
+          ? 'llm-mind'
+          : null,
+      ),
+    } satisfies AlicizationReplayTurn
+  })
 }
 
 function hasTextOverlap(left: string, right: string) {
@@ -2157,7 +2261,176 @@ function buildReplayBenchmarkParitySummary(turn: AlicizationReplayTurn | undefin
     browserResolutionLedger: mainResolutionLedger,
     mainMemorySituationCandidates,
     browserMemorySituationCandidates: mainMemorySituationCandidates,
+    mainTracePointer: turn?.tracePointer ?? null,
+    browserTracePointer: turn?.tracePointer ?? null,
   })
+}
+
+interface AlicizationReplayGoldMetrics {
+  evaluatedTurnCount: number
+  recallAt1: number
+  recallAt3: number
+  precisionAt3: number
+  wrongThreadSuppression: number
+  claimAccuracy: number
+  replyAuthorityAccuracy: number
+  latencyBudgetPass: boolean
+}
+
+function ratioOrZero(numerator: number, denominator: number) {
+  if (denominator <= 0)
+    return 0
+  return Number((numerator / denominator).toFixed(2))
+}
+
+function uniqueStrings(values: Array<string | null | undefined>, maxItems = 32) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = readString(value, 180)
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized)
+    if (result.length >= maxItems)
+      break
+  }
+  return result
+}
+
+function readPreparedReplyAuthority(prepared: AlicizationPreparedMainChatExecutionResult) {
+  return readString(
+    prepared.mindTurnContract?.expectedVisibleReplyAuthority
+    ?? prepared.replyExecutionPlan?.expectedVisibleReplyAuthority
+    ?? prepared.runtimeSurface.replyExecutionPlan?.expectedVisibleReplyAuthority
+    ?? prepared.runtimeSurface.replyAuthority?.expectedVisibleReplyAuthority
+    ?? prepared.governance?.visibleReplyAuthority,
+    120,
+  ) || null
+}
+
+function readPreparedLatencyBudgetClass(prepared: AlicizationPreparedMainChatExecutionResult) {
+  const derivedBundle = prepared.organicMemoryContext?.derivedMindStateBundle ?? null
+  return readString(derivedBundle?.recallLatencyPolicy?.budgetClass, 64) || null
+}
+
+function buildReplayGoldExpectationFromOrganicMemoryContext(
+  context: OrganicMemoryPromptContext | undefined,
+  replyAuthority?: string | null,
+): AlicizationReplayGoldExpectation | undefined {
+  const selectedCandidateIds = uniqueStrings(context?.memorySituationCandidates?.selected.map(item => item.candidateId) ?? [])
+  const suppressedCandidateIds = uniqueStrings(context?.memorySituationCandidates?.suppressed.map(item => item.candidateId) ?? [])
+  const claimValidationStates = Object.fromEntries(
+    (context?.derivedMindStateBundle?.claimEvidenceGraphs ?? [])
+      .map(graph => [readString(graph.claimId, 180), readString(graph.validationState, 64)])
+      .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
+  )
+  const latencyBudgetClass = readPreparedLatencyBudgetClass({
+    organicMemoryContext: context ?? null,
+  } as AlicizationPreparedMainChatExecutionResult) as AlicizationReplayLatencyBudgetClass | null
+  if (
+    selectedCandidateIds.length === 0
+    && suppressedCandidateIds.length === 0
+    && Object.keys(claimValidationStates).length === 0
+    && !replyAuthority
+    && !latencyBudgetClass
+  ) {
+    return undefined
+  }
+  return {
+    selectedCandidateIds: selectedCandidateIds.length > 0 ? selectedCandidateIds : undefined,
+    suppressedCandidateIds: suppressedCandidateIds.length > 0 ? suppressedCandidateIds : undefined,
+    claimValidationStates: Object.keys(claimValidationStates).length > 0 ? claimValidationStates : undefined,
+    replyAuthority: replyAuthority ?? null,
+    latencyBudgetClass: latencyBudgetClass ?? undefined,
+    latencyBudgetPass: latencyBudgetClass ? true : undefined,
+  }
+}
+
+function evaluateReplayGoldMetrics(input: {
+  turns: AlicizationReplayTurn[]
+  preparedTurns: AlicizationPreparedMainChatExecutionResult[]
+}): AlicizationReplayGoldMetrics | null {
+  const evaluated = input.turns
+    .map((turn, index) => ({ turn, prepared: input.preparedTurns[index] }))
+    .filter(item => item.turn.gold)
+
+  if (evaluated.length === 0)
+    return null
+
+  let recallAt1Hits = 0
+  let recallAt3Hits = 0
+  let precisionMatches = 0
+  let precisionDenominator = 0
+  let wrongThreadHits = 0
+  let wrongThreadDenominator = 0
+  let claimMatches = 0
+  let claimDenominator = 0
+  let replyAuthorityMatches = 0
+  let replyAuthorityDenominator = 0
+  let latencyBudgetMatches = 0
+  let latencyBudgetDenominator = 0
+
+  for (const { turn, prepared } of evaluated) {
+    const gold = turn.gold!
+    const actualSelected = uniqueStrings(prepared.organicMemoryContext?.memorySituationCandidates?.selected.map(item => item.candidateId) ?? [])
+    const actualSuppressed = uniqueStrings(prepared.organicMemoryContext?.memorySituationCandidates?.suppressed.map(item => item.candidateId) ?? [])
+    const actualReplyAuthority = readPreparedReplyAuthority(prepared)
+    const actualLatencyBudgetClass = readPreparedLatencyBudgetClass(prepared)
+    const actualClaimStates = Object.fromEntries(
+      (prepared.organicMemoryContext?.derivedMindStateBundle?.claimEvidenceGraphs ?? [])
+        .map(graph => [readString(graph.claimId, 180), readString(graph.validationState, 64)])
+        .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
+    )
+
+    if ((gold.selectedCandidateIds?.length ?? 0) > 0) {
+      const expectedSelected = gold.selectedCandidateIds ?? []
+      if (actualSelected[0] && expectedSelected.includes(actualSelected[0]))
+        recallAt1Hits += 1
+      if (actualSelected.slice(0, 3).some(item => expectedSelected.includes(item)))
+        recallAt3Hits += 1
+      precisionMatches += actualSelected.slice(0, 3).filter(item => expectedSelected.includes(item)).length
+      precisionDenominator += Math.max(1, Math.min(3, actualSelected.slice(0, 3).length))
+    }
+
+    if ((gold.suppressedCandidateIds?.length ?? 0) > 0) {
+      wrongThreadDenominator += 1
+      if ((gold.suppressedCandidateIds ?? []).every(item => actualSuppressed.includes(item)))
+        wrongThreadHits += 1
+    }
+
+    if (gold.claimValidationStates) {
+      for (const [claimId, expectedState] of Object.entries(gold.claimValidationStates)) {
+        claimDenominator += 1
+        if (actualClaimStates[claimId] === expectedState)
+          claimMatches += 1
+      }
+    }
+
+    if (gold.replyAuthority) {
+      replyAuthorityDenominator += 1
+      if (actualReplyAuthority === gold.replyAuthority)
+        replyAuthorityMatches += 1
+    }
+
+    if (gold.latencyBudgetClass || gold.latencyBudgetPass != null) {
+      latencyBudgetDenominator += 1
+      const budgetMatch = !gold.latencyBudgetClass || actualLatencyBudgetClass === gold.latencyBudgetClass
+      const passMatch = gold.latencyBudgetPass == null || gold.latencyBudgetPass === budgetMatch
+      if (budgetMatch && passMatch)
+        latencyBudgetMatches += 1
+    }
+  }
+
+  const selectedExpectationCount = evaluated.filter(item => (item.turn.gold?.selectedCandidateIds?.length ?? 0) > 0).length
+  return {
+    evaluatedTurnCount: evaluated.length,
+    recallAt1: ratioOrZero(recallAt1Hits, selectedExpectationCount),
+    recallAt3: ratioOrZero(recallAt3Hits, selectedExpectationCount),
+    precisionAt3: ratioOrZero(precisionMatches, precisionDenominator),
+    wrongThreadSuppression: ratioOrZero(wrongThreadHits, wrongThreadDenominator),
+    claimAccuracy: ratioOrZero(claimMatches, claimDenominator),
+    replyAuthorityAccuracy: ratioOrZero(replyAuthorityMatches, replyAuthorityDenominator),
+    latencyBudgetPass: latencyBudgetDenominator <= 0 || latencyBudgetMatches === latencyBudgetDenominator,
+  }
 }
 
 export function buildReplayBenchmarkFailingTurnSet(input: {
@@ -2321,11 +2594,14 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
   const replayTurn: AlicizationReplayTurn = {
     turnId: readString(replayTurnRaw?.turnId, 160) || turnId,
     userText: readString(replayTurnRaw?.userText, 240) || userText,
+    expectedMemory: readString(replayTurnRaw?.expectedMemory, 240) || undefined,
+    categories: readStringArray(replayTurnRaw?.categories, 8, 64),
     organicMemoryContext: asObject(replayTurnRaw?.organicMemoryContext)
       ? replayTurnRaw?.organicMemoryContext as OrganicMemoryPromptContext
       : undefined,
     tracePointer,
     sampledCategories,
+    gold: parseReplayGoldExpectation(replayTurnRaw?.gold),
   }
 
   return {
@@ -2669,11 +2945,16 @@ export async function benchmarkMainChatSessionReplay(input: {
     quality,
     standards,
   })
+  const goldMetrics = evaluateReplayGoldMetrics({
+    turns: input.turns,
+    preparedTurns: turns,
+  })
   return {
     turns,
     quality,
     standards,
     gate,
+    goldMetrics,
   }
 }
 

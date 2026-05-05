@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveAlicizationPreparedVisibleReplyExecution } from './main-chat-visible-reply-execution'
+import {
+  resolveAlicizationPreparedVisibleReplyExecution,
+  resolveAlicizationTimeoutRecoveredVisibleReply,
+} from './main-chat-visible-reply-execution'
 
 describe('main-chat-visible-reply-execution', () => {
   it('prefers mind-turn contract authority over legacy reply execution surfaces', () => {
@@ -108,5 +111,54 @@ describe('main-chat-visible-reply-execution', () => {
     expect(visibleReplyExecution.mode).toBe('provider-stream')
     expect(visibleReplyExecution.actualVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(visibleReplyExecution.providerMindExecuted).toBe(true)
+  })
+
+  it('does not let bare governance local fallback authority escape into normal visible reply execution', () => {
+    const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: {
+        hasVisualGrounding: false,
+        mindTurnContract: null,
+        replyRealization: null,
+        replyExecutionPlan: null,
+        runtimeSurface: {
+          replyAuthority: null,
+          replyExecutionPlan: null,
+        },
+        governance: {
+          visibleReplyAuthority: 'local-deterministic-fallback',
+        },
+      } as any,
+    })
+
+    expect(visibleReplyExecution.expectedVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(visibleReplyExecution.mode).toBe('provider-stream')
+    expect(visibleReplyExecution.providerMindExecuted).toBe(true)
+    expect(visibleReplyExecution.actualVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+  })
+
+  it('preserves explicit timeout recovery local fallback as infra-only visible reply authority', () => {
+    const resolved = resolveAlicizationTimeoutRecoveredVisibleReply({
+      prepared: {
+        hasVisualGrounding: false,
+        mindTurnContract: null,
+        replyRealization: null,
+        replyExecutionPlan: null,
+        runtimeSurface: {
+          replyAuthority: null,
+          replyExecutionPlan: null,
+        },
+        governance: {
+          visibleReplyAuthority: 'local-deterministic-fallback',
+        },
+      } as any,
+      recoveredText: '{"reply":"这轮没把完整回答带出来。你把同一句再发一次，我就继续回。"}',
+      recoveryMode: 'local-fallback',
+    })
+
+    expect(resolved.visibleReplyExecution.mode).toBe('local-fallback')
+    expect(resolved.visibleReplyExecution.expectedVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(resolved.visibleReplyExecution.actualVisibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(resolved.visibleReplyExecution.providerMindExecuted).toBe(false)
+    expect(resolved.visibleReplyExecution.reason).toBe('timeout-recovered-local-fallback')
   })
 })

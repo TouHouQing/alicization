@@ -737,6 +737,91 @@ describe('main chat session replay harness', () => {
     expect(result.gate.failingKeys).toContain('surfaceRestraint')
   })
 
+  it('evaluates gold recall, claim accuracy, reply authority, and latency budget metrics', async () => {
+    const result = await benchmarkMainChatSessionReplay({
+      turns: [
+        {
+          turnId: 'turn-gold-recall',
+          userText: '继续按上次那条线做',
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memorySituationCandidates: {
+              selected: [{
+                candidateId: 'candidate-procedure-seam',
+                situationKind: 'procedure-memory',
+                status: 'selected',
+                statusReason: 'Procedure seam is the strongest current match.',
+                suppressionReasons: [],
+                sourceIds: ['procedure-seam'],
+                confidence: 0.9,
+              }],
+              suppressed: [{
+                candidateId: 'candidate-old-relationship-era',
+                situationKind: 'relationship-memory',
+                status: 'suppressed',
+                statusReason: 'Older relationship era is wrong-thread for this task.',
+                suppressionReasons: ['wrong-thread'],
+                sourceIds: ['relationship-era-old'],
+                confidence: 0.82,
+              }],
+              rejected: [],
+              delayed: [],
+              unresolved: [],
+            } as any,
+            derivedMindStateBundle: {
+              recallLatencyPolicy: {
+                budgetClass: 'deep-recall-reply',
+              },
+              claimEvidenceGraphs: [{
+                claimId: 'claim-procedure-seam',
+                validationState: 'validated',
+              }],
+            } as any,
+          },
+          gold: {
+            selectedCandidateIds: ['candidate-procedure-seam'],
+            suppressedCandidateIds: ['candidate-old-relationship-era'],
+            claimValidationStates: {
+              'claim-procedure-seam': 'validated',
+            },
+            replyAuthority: 'llm-mind',
+            latencyBudgetClass: 'deep-recall-reply',
+            latencyBudgetPass: true,
+          },
+        },
+      ],
+    })
+
+    expect(result.goldMetrics).toEqual(expect.objectContaining({
+      evaluatedTurnCount: 1,
+      recallAt1: 1,
+      recallAt3: 1,
+      precisionAt3: 1,
+      wrongThreadSuppression: 1,
+      claimAccuracy: 1,
+      replyAuthorityAccuracy: 1,
+      latencyBudgetPass: true,
+    }))
+
+    expect(buildReplayBenchmarkMemoryStatsPatch({
+      gate: result.gate,
+      quality: result.quality,
+      goldMetrics: result.goldMetrics,
+    }).retrievalHealth).toEqual(expect.objectContaining({
+      recallAt1: 1,
+      recallAt3: 1,
+      precisionAt3: 1,
+      wrongThreadSuppression: 1,
+      claimAccuracy: 1,
+      replyAuthorityAccuracy: 1,
+      latencyBudgetPass: true,
+    }))
+  })
+
   it('scores implicit recall, restrained surfacing, and repair adaptation on adversarial replay turns', () => {
     const implicitRecall = evaluateReplayMemoryQuality({
       turnId: 'turn-implicit-recall',
@@ -1773,6 +1858,8 @@ describe('main chat session replay harness', () => {
           replayTurn: {
             turnId: 'turn-backlog-1',
             userText: '不是那条线，是另一条',
+            expectedMemory: '不是那条线，是另一条',
+            categories: ['wrong-thread', 'stable-core'],
             tracePointer: {
               kind: 'decision-trace',
               packId: 'sampled-humanlike-memory-v1',
@@ -1782,6 +1869,16 @@ describe('main chat session replay harness', () => {
               activeThreadId: 'thread-backlog-1',
             },
             sampledCategories: ['wrong-thread', 'stable-core'],
+            gold: {
+              selectedCandidateIds: ['candidate-current-repair'],
+              suppressedCandidateIds: ['candidate-old-era'],
+              claimValidationStates: {
+                'claim-repair-window': 'validated',
+              },
+              replyAuthority: 'llm-mind',
+              latencyBudgetClass: 'deep-recall-reply',
+              latencyBudgetPass: true,
+            },
             organicMemoryContext: {
               hostAttitude: '',
               coreIncarnation: '',
@@ -1863,6 +1960,20 @@ describe('main chat session replay harness', () => {
     expect(pack[1]).toEqual(expect.objectContaining({
       turnId: 'turn-backlog-2',
       sampledCategories: expect.arrayContaining(['procedure-carry']),
+    }))
+    expect(pack[0]).toEqual(expect.objectContaining({
+      expectedMemory: '不是那条线，是另一条',
+      categories: expect.arrayContaining(['wrong-thread', 'stable-core']),
+      gold: expect.objectContaining({
+        selectedCandidateIds: ['candidate-current-repair'],
+        suppressedCandidateIds: ['candidate-old-era'],
+        claimValidationStates: {
+          'claim-repair-window': 'validated',
+        },
+        replyAuthority: 'llm-mind',
+        latencyBudgetClass: 'deep-recall-reply',
+        latencyBudgetPass: true,
+      }),
     }))
   })
 
@@ -2333,6 +2444,17 @@ describe('main chat session replay harness', () => {
         personalityParticipation: 0,
         relationshipParticipation: 0,
         continuityParticipation: 0,
+        learningTaskCompletionCount: 0,
+        learningTaskFailureCount: 0,
+        learningTaskReopenedCount: 0,
+        learningWorldModelValidationCount: 0,
+        learningWorldModelFalseInternalizationCount: 0,
+        learningTaskCompletionRate: 0,
+        learningTaskFailureRate: 0,
+        learningTaskReopenRecoveryRate: 0,
+        misinternalizationRate: 0,
+        relationshipCadenceRegressionRate: 0,
+        selfModelStaleBeliefRate: 0,
       },
     })
   })

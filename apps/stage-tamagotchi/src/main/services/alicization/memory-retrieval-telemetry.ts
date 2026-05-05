@@ -32,7 +32,11 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   }>
   recallHitRate: number
   recallMissRate: number
+  recallAt1: number
+  recallAt3: number
+  precisionAt3: number
   wrongThreadRate: number
+  wrongThreadSuppression: number
   suppressionHitRate: number
   wrongThreadPreventedCount: number
   falsePositiveSuppressionRate: number
@@ -42,6 +46,9 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   stableCoreOnlyRate: number
   memorySurfaceViolationRate: number
   templateLeakageFailCount: number
+  claimAccuracy: number
+  replyAuthorityAccuracy: number
+  latencyBudgetPass: boolean | null
   mindParticipation: number
   memoryParticipation: number
   personalityParticipation: number
@@ -92,7 +99,11 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   }>
   recallHitRate?: number
   recallMissRate?: number
+  recallAt1?: number
+  recallAt3?: number
+  precisionAt3?: number
   wrongThreadRate?: number
+  wrongThreadSuppression?: number
   suppressionHitRate?: number
   wrongThreadPreventedCount?: number
   falsePositiveSuppressionRate?: number
@@ -102,6 +113,9 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   stableCoreOnlyRate?: number
   memorySurfaceViolationRate?: number
   templateLeakageFailCount: number
+  claimAccuracy?: number
+  replyAuthorityAccuracy?: number
+  latencyBudgetPass?: boolean | null
   mindParticipation?: number
   memoryParticipation?: number
   personalityParticipation?: number
@@ -214,7 +228,11 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     hotKeyStats: [],
     recallHitRate: 0,
     recallMissRate: 0,
+    recallAt1: 0,
+    recallAt3: 0,
+    precisionAt3: 0,
     wrongThreadRate: 0,
+    wrongThreadSuppression: 0,
     suppressionHitRate: 0,
     wrongThreadPreventedCount: 0,
     falsePositiveSuppressionRate: 0,
@@ -224,6 +242,9 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     stableCoreOnlyRate: 0,
     memorySurfaceViolationRate: 0,
     templateLeakageFailCount: 0,
+    claimAccuracy: 0,
+    replyAuthorityAccuracy: 0,
+    latencyBudgetPass: null,
     mindParticipation: 0,
     memoryParticipation: 0,
     personalityParticipation: 0,
@@ -287,7 +308,11 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     : []
   const recallHitRate = Number(candidate.recallHitRate)
   const recallMissRate = Number(candidate.recallMissRate)
+  const recallAt1 = Number(candidate.recallAt1)
+  const recallAt3 = Number(candidate.recallAt3)
+  const precisionAt3 = Number(candidate.precisionAt3)
   const wrongThreadRate = Number(candidate.wrongThreadRate)
+  const wrongThreadSuppression = Number(candidate.wrongThreadSuppression)
   const suppressionHitRate = Number(candidate.suppressionHitRate)
   const wrongThreadPreventedCount = Number(candidate.wrongThreadPreventedCount)
   const falsePositiveSuppressionRate = Number(candidate.falsePositiveSuppressionRate)
@@ -297,6 +322,11 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const stableCoreOnlyRate = Number(candidate.stableCoreOnlyRate)
   const memorySurfaceViolationRate = Number(candidate.memorySurfaceViolationRate)
   const templateLeakageFailCount = Number(candidate.templateLeakageFailCount)
+  const claimAccuracy = Number(candidate.claimAccuracy)
+  const replyAuthorityAccuracy = Number(candidate.replyAuthorityAccuracy)
+  const latencyBudgetPass = typeof candidate.latencyBudgetPass === 'boolean'
+    ? candidate.latencyBudgetPass
+    : null
   const mindParticipation = Number(candidate.mindParticipation)
   const memoryParticipation = Number(candidate.memoryParticipation)
   const personalityParticipation = Number(candidate.personalityParticipation)
@@ -419,7 +449,11 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       .slice(0, 16),
     recallHitRate: Number.isFinite(recallHitRate) ? Math.max(0, Math.min(1, recallHitRate)) : 0,
     recallMissRate: Number.isFinite(recallMissRate) ? Math.max(0, Math.min(1, recallMissRate)) : 0,
+    recallAt1: Number.isFinite(recallAt1) ? Math.max(0, Math.min(1, recallAt1)) : 0,
+    recallAt3: Number.isFinite(recallAt3) ? Math.max(0, Math.min(1, recallAt3)) : 0,
+    precisionAt3: Number.isFinite(precisionAt3) ? Math.max(0, Math.min(1, precisionAt3)) : 0,
     wrongThreadRate: Number.isFinite(wrongThreadRate) ? Math.max(0, Math.min(1, wrongThreadRate)) : 0,
+    wrongThreadSuppression: Number.isFinite(wrongThreadSuppression) ? Math.max(0, Math.min(1, wrongThreadSuppression)) : 0,
     suppressionHitRate: Number.isFinite(suppressionHitRate) ? Math.max(0, Math.min(1, suppressionHitRate)) : 0,
     wrongThreadPreventedCount: Number.isFinite(wrongThreadPreventedCount) ? Math.max(0, Math.floor(wrongThreadPreventedCount)) : 0,
     falsePositiveSuppressionRate: Number.isFinite(falsePositiveSuppressionRate) ? Math.max(0, Math.min(1, falsePositiveSuppressionRate)) : 0,
@@ -429,6 +463,9 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     stableCoreOnlyRate: Number.isFinite(stableCoreOnlyRate) ? Math.max(0, Math.min(1, stableCoreOnlyRate)) : 0,
     memorySurfaceViolationRate: Number.isFinite(memorySurfaceViolationRate) ? Math.max(0, Math.min(1, memorySurfaceViolationRate)) : 0,
     templateLeakageFailCount: Number.isFinite(templateLeakageFailCount) ? Math.max(0, Math.floor(templateLeakageFailCount)) : 0,
+    claimAccuracy: Number.isFinite(claimAccuracy) ? Math.max(0, Math.min(1, claimAccuracy)) : 0,
+    replyAuthorityAccuracy: Number.isFinite(replyAuthorityAccuracy) ? Math.max(0, Math.min(1, replyAuthorityAccuracy)) : 0,
+    latencyBudgetPass,
     mindParticipation: Number.isFinite(mindParticipation) ? Math.max(0, Math.min(1, mindParticipation)) : 0,
     memoryParticipation: Number.isFinite(memoryParticipation) ? Math.max(0, Math.min(1, memoryParticipation)) : 0,
     personalityParticipation: Number.isFinite(personalityParticipation) ? Math.max(0, Math.min(1, personalityParticipation)) : 0,
@@ -898,9 +935,21 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       recallMissRate: Number.isFinite(next.recallMissRate)
         ? Math.max(0, Math.min(1, Number(next.recallMissRate)))
         : telemetry.recallMissRate,
+      recallAt1: Number.isFinite(next.recallAt1)
+        ? Math.max(0, Math.min(1, Number(next.recallAt1)))
+        : telemetry.recallAt1,
+      recallAt3: Number.isFinite(next.recallAt3)
+        ? Math.max(0, Math.min(1, Number(next.recallAt3)))
+        : telemetry.recallAt3,
+      precisionAt3: Number.isFinite(next.precisionAt3)
+        ? Math.max(0, Math.min(1, Number(next.precisionAt3)))
+        : telemetry.precisionAt3,
       wrongThreadRate: Number.isFinite(next.wrongThreadRate)
         ? Math.max(0, Math.min(1, Number(next.wrongThreadRate)))
         : telemetry.wrongThreadRate,
+      wrongThreadSuppression: Number.isFinite(next.wrongThreadSuppression)
+        ? Math.max(0, Math.min(1, Number(next.wrongThreadSuppression)))
+        : telemetry.wrongThreadSuppression,
       suppressionHitRate: Number.isFinite(next.suppressionHitRate)
         ? Math.max(0, Math.min(1, Number(next.suppressionHitRate)))
         : telemetry.suppressionHitRate,
@@ -928,6 +977,15 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       templateLeakageFailCount: Number.isFinite(next.templateLeakageFailCount)
         ? Math.max(0, Math.floor(Number(next.templateLeakageFailCount)))
         : telemetry.templateLeakageFailCount,
+      claimAccuracy: Number.isFinite(next.claimAccuracy)
+        ? Math.max(0, Math.min(1, Number(next.claimAccuracy)))
+        : telemetry.claimAccuracy,
+      replyAuthorityAccuracy: Number.isFinite(next.replyAuthorityAccuracy)
+        ? Math.max(0, Math.min(1, Number(next.replyAuthorityAccuracy)))
+        : telemetry.replyAuthorityAccuracy,
+      latencyBudgetPass: typeof next.latencyBudgetPass === 'boolean'
+        ? next.latencyBudgetPass
+        : telemetry.latencyBudgetPass,
       budgetClassCounts: next.budgetClassCounts
         ? {
             ...telemetry.budgetClassCounts,

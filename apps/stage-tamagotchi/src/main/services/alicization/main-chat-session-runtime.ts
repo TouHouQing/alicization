@@ -85,6 +85,18 @@ import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memo
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
+import { runOrganicLearningGovernor } from './runtime-learning-governor'
+import { deriveRuntimeReplyAuthorityGovernance } from './runtime-reply-authority'
+import {
+  buildSessionContinuityRecallSeed,
+  buildSessionMirrorRecollectionAfterthoughtSeed,
+  deriveOrganicMemoryBudgetClass,
+  filterMainGatewayToolsForRoutingIntent,
+  sanitizeGuidanceText,
+  sanitizeToolPhaseSegment,
+  mergeGuidanceLine,
+  mergeUniqueRules,
+} from './runtime-turn-composition'
 import { buildDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 export interface AlicizationMainChatPerceptionAugmentation {
@@ -218,36 +230,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
 
 function normalizeSessionPhases(phases: string[]) {
   return [...new Set(phases.map(phase => phase.trim()).filter(Boolean))]
-}
-
-function pushUniqueRule(target: string[], value: string) {
-  const normalized = value.trim()
-  if (!normalized || target.includes(normalized))
-    return
-  target.push(normalized)
-}
-
-function mergeUniqueRules(values: Array<string | null | undefined>, maxItems = 16) {
-  const merged: string[] = []
-  for (const value of values) {
-    if (typeof value !== 'string')
-      continue
-    pushUniqueRule(merged, value)
-    if (merged.length >= maxItems)
-      break
-  }
-  return merged
-}
-
-function sanitizeGuidanceText(raw: unknown, maxChars = 220) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function mergeGuidanceLine(values: Array<string | null | undefined>, maxChars = 320) {
-  const merged = mergeUniqueRules(values, values.length)
-  return sanitizeGuidanceText(merged.join(' '), maxChars) || null
 }
 
 function applyMemoryDeliberationToGovernance(input: {
@@ -1056,83 +1038,6 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
   }
 }
 
-function sanitizeToolPhaseSegment(raw: unknown) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, '-').slice(0, 80)
-}
-
-function normalizeToolName(raw: unknown) {
-  return typeof raw === 'string'
-    ? raw.trim()
-    : ''
-}
-
-function filterMainGatewayToolsForRoutingIntent<T extends { function?: { name?: unknown } }>(
-  tools: T[] | undefined,
-  intent: AlicizationExecutionRoutingIntent | null,
-) {
-  if (!Array.isArray(tools) || tools.length === 0 || !intent)
-    return tools
-
-  const requiredToolNames = new Set(intent.requiredToolNames
-    .map(name => normalizeToolName(name))
-    .filter(Boolean))
-  if (requiredToolNames.size === 0)
-    return tools
-
-  const filtered = tools.filter(entry => requiredToolNames.has(normalizeToolName(entry?.function?.name)))
-  return filtered.length > 0
-    ? filtered
-    : tools
-}
-
-function buildSessionMirrorRecollectionAfterthoughtSeed(mirror: AlicizationDialogueSessionMirror | null) {
-  if (!mirror)
-    return ''
-  if (!mirror.recollectionSummary || !mirror.recollectionSurfaceSummary)
-    return ''
-  if (!mirror.recollectionSurfaceSummary.includes('afterthought=ripe'))
-    return ''
-  return [
-    'mirror_recollection_afterthought:',
-    mirror.recollectionSummary,
-    mirror.recollectionSurfaceSummary,
-  ].filter(Boolean).join(' ')
-}
-
-function buildSessionContinuityRecallSeed(signals: AlicizationAgentSessionContinuityInput[]) {
-  const afterglowSignals = signals
-    .filter((signal) => {
-      const source = typeof signal.metadata?.source === 'string' ? signal.metadata.source : ''
-      return signal.label.startsWith('afterglow:')
-        || source === 'autobiographical-afterglow'
-    })
-    .slice(-2)
-
-  if (afterglowSignals.length === 0)
-    return ''
-
-  return afterglowSignals.map((signal) => {
-    const metadata = signal.metadata ?? {}
-    const threadAnchor = sanitizeGuidanceText(
-      typeof metadata.threadAnchor === 'string' ? metadata.threadAnchor : '',
-      120,
-    )
-    const afterglowTag = sanitizeGuidanceText(
-      typeof metadata.afterglowTag === 'string' ? metadata.afterglowTag : '',
-      64,
-    )
-    return [
-      'continuity_afterglow:',
-      `label=${sanitizeGuidanceText(signal.label, 120)}`,
-      `summary=${sanitizeGuidanceText(signal.summary ?? '', 180)}`,
-      threadAnchor ? `thread=${threadAnchor}` : '',
-      afterglowTag ? `kind=${afterglowTag}` : '',
-    ].filter(Boolean).join(' ')
-  }).join('\n')
-}
-
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
   const getNow = options.getNow ?? Date.now
   const dialogueSessionManager = options.dialogueSessionManager
@@ -1247,17 +1152,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       buildSessionContinuityRecallSeed(sessionContinuitySignals ?? []),
       buildSessionMirrorRecollectionAfterthoughtSeed(previousSessionMirror),
     ].filter(Boolean).join('\n')
+    const organicMemoryBudgetClass = deriveOrganicMemoryBudgetClass(
+      prelude.perceptionAugmentation.recallGovernor,
+    )
     if (options.prewarmOrganicMemoryAccessibility) {
       await agentTurn.trackPhase('organic-memory-prewarm', async () => {
         await options.prewarmOrganicMemoryAccessibility?.({
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'cross-session'
-            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'distant'
-            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'experience-matched'
-            ? 'deep-recall-reply'
-            : 'realtime-reply',
+          budgetClass: organicMemoryBudgetClass,
         })
       }, {
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -1270,11 +1174,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'cross-session'
-            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'distant'
-            || prelude.perceptionAugmentation.recallGovernor?.recollectionIntent?.temporalFocus === 'experience-matched'
-            ? 'deep-recall-reply'
-            : 'realtime-reply',
+          budgetClass: organicMemoryBudgetClass,
         }),
         suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -1284,53 +1184,52 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
       suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
     })
-    if (options.scheduleOrganicLearningAction) {
-      await agentTurn.trackPhase('organic-learning-scheduler', async () => {
-        const [recentMemoryReflections, recentRelationshipOutcomes] = await Promise.all([
-          options.listMemoryReflections?.(payload.cardId, 8).catch(() => []) ?? Promise.resolve([]),
-          options.listRelationshipOutcomes?.(payload.cardId, 8).catch(() => []) ?? Promise.resolve([]),
-        ])
-        await options.scheduleOrganicLearningAction?.({
-          context: {
-            ...organicPromptContext,
-            recentMemoryReflections: recentMemoryReflections as any,
-            recentRelationshipOutcomes: recentRelationshipOutcomes as any,
-          },
-          turnId: payload.turnId,
-        })
-      }, {
-        personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-      })
-    }
+    await runOrganicLearningGovernor({
+      agentTurn,
+      cardId: payload.cardId,
+      turnId: payload.turnId,
+      personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+      organicPromptContext,
+      scheduleOrganicLearningAction: options.scheduleOrganicLearningAction,
+      listMemoryReflections: options.listMemoryReflections,
+      listRelationshipOutcomes: options.listRelationshipOutcomes,
+    })
     const executionReplyObligation: AlicizationMainChatExecutionReplyObligation | null = deriveMainChatExecutionReplyObligation({
       messages: payload.messages as Message[],
       callbackContext: executionCallbackContext,
       ledgerContext: executionLedgerContext,
     })
-    const executionAdjustedMindTurnGovernance = applyMainChatExecutionReplyObligationToGovernance(
-      prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
-      executionReplyObligation,
-    )
-    const effectiveMindTurnGovernance = applyMemoryDeliberationToGovernance({
-      governance: executionAdjustedMindTurnGovernance,
+    const {
+      effectiveMindTurnGovernanceWithRecollection,
+      llmMindAuthorityGovernance,
+    } = deriveRuntimeReplyAuthorityGovernance({
+      now,
+      governance: applyMainChatExecutionReplyObligationToGovernance(
+        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+        executionReplyObligation,
+      ),
       context: organicPromptContext,
+      applyMemoryDeliberationToGovernance,
+      applyHostPersonModelToGovernance,
+      applyRecollectionSurfaceRules: (governance) => {
+        const recollectionSpeechVisibleSurfaceRules = buildRecollectionSpeechVisibleSurfaceRules(
+          organicPromptContext.recollectionSpeechPlan ?? null,
+        )
+        return governance
+          ? {
+              ...governance,
+              mustDo: mergeUniqueRules([
+                ...recollectionSpeechVisibleSurfaceRules.mustDo,
+                ...(governance.mustDo ?? []),
+              ]),
+              mustNotDo: mergeUniqueRules([
+                ...recollectionSpeechVisibleSurfaceRules.mustNotDo,
+                ...(governance.mustNotDo ?? []),
+              ]),
+            }
+          : governance
+      },
     })
-    const recollectionSpeechVisibleSurfaceRules = buildRecollectionSpeechVisibleSurfaceRules(
-      organicPromptContext.recollectionSpeechPlan ?? null,
-    )
-    const effectiveMindTurnGovernanceWithRecollection = effectiveMindTurnGovernance
-      ? {
-          ...effectiveMindTurnGovernance,
-          mustDo: mergeUniqueRules([
-            ...recollectionSpeechVisibleSurfaceRules.mustDo,
-            ...(effectiveMindTurnGovernance.mustDo ?? []),
-          ]),
-          mustNotDo: mergeUniqueRules([
-            ...recollectionSpeechVisibleSurfaceRules.mustNotDo,
-            ...(effectiveMindTurnGovernance.mustNotDo ?? []),
-          ]),
-        }
-      : effectiveMindTurnGovernance
 
     // NOTICE: Execution-routing intents are execution-governed turns. Do not allow
     // renderer payload flags to silently downgrade them into tool-disabled responses.
@@ -1541,17 +1440,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       context: organicPromptContext,
       now,
     })
-    const sociallyShapedGovernance = applyHostPersonModelToGovernance({
-      now,
-      governance: effectiveMindTurnGovernanceWithRecollection,
-      context: organicPromptContext,
-    })
-    const llmMindAuthorityGovernance = sociallyShapedGovernance
-      ? {
-          ...sociallyShapedGovernance,
-          visibleReplyAuthority: 'llm-mind' as const,
-        }
-      : null
     const effectiveDigitalLifeSpine = digitalLifeSpine
       ? {
           ...digitalLifeSpine,

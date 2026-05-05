@@ -334,6 +334,213 @@ describe('learning action executor', () => {
     expect(upsertMemoryFacts).not.toHaveBeenCalled()
   })
 
+  it('downgrades contradictory relationship claims through verified artifact rollback', async () => {
+    const applyMemoryFactCorrections = vi.fn(async () => {})
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const execute = createAlicizationLearningActionExecutor({
+      now: () => 10_000,
+      cardId: 'default',
+      listMemoryFacts: async () => [{
+        id: 'fact-relationship-rollback',
+        subject: 'host',
+        predicate: 'relationship',
+        object: 'wants immediate warmth',
+        confidence: 0.86,
+        source: 'rule',
+        dedupeKey: 'host|relationship|wants immediate warmth',
+        createdAt: 1,
+        updatedAt: 9_900,
+        lastAccessAt: null,
+        accessCount: 2,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+        validationCount: 3,
+        contradictionCount: 4,
+        conflictsWith: [],
+        supersedes: [],
+      } as any],
+      listMemoryReflections: async () => [],
+      listRelationshipOutcomes: async () => [],
+      upsertMemoryReflections: async () => {},
+      applyMemoryFactCorrections,
+      upsertMemoryFacts: async () => {},
+      appendMindTurnEvents,
+      assimilateMemoryFactsDetailed: input => ({
+        facts: input.facts,
+        corrections: [],
+      }),
+    })
+
+    const result = await execute({
+      id: 'row-relationship-rollback',
+      cardId: 'default',
+      taskId: 'learning:relationship:rollback',
+      status: 'running',
+      triggerAt: 1,
+      action: 'verify',
+      message: 'learning-action=verify',
+      payload: {
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-relationship-rollback',
+        sourceSessionId: 'session-1',
+        action: 'verify',
+        reason: 'relationship carry contradicted newer signals',
+        focuses: ['verify-relationship'],
+        dominantTrajectory: 'Relationship claim needs rollback.',
+        sourceSignals: ['Relationship claim needs rollback.'],
+        learningReadiness: 0.8,
+        contradictionPressure: 0.92,
+        revisionPressure: 0.82,
+        autobiographicalStability: 0.72,
+        supportingFactIds: ['fact-relationship-rollback'],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: ['fact-relationship-rollback'],
+      },
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1,
+      updatedAt: 1,
+      claimedAt: 1,
+      startedAt: 1,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: 'turn-1',
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    })
+
+    expect(result.status).toBe('downgraded')
+    expect(result.verifiedArtifact).toEqual(expect.objectContaining({
+      domain: 'relationship',
+      status: 'rollback-required',
+      contradictionFactIds: ['fact-relationship-rollback'],
+    }))
+    expect(applyMemoryFactCorrections).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-relationship-rollback',
+        sourceLabel: expect.stringContaining('artifact-rollback:'),
+      }),
+    ]))
+    expect(appendMindTurnEvents).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          domain: 'relationship',
+          verifiedArtifact: expect.objectContaining({
+            status: 'rollback-required',
+          }),
+        }),
+      }),
+    ]))
+  })
+
+  it('downgrades self-model verification targets back to validated knowledge before re-learning', async () => {
+    const applyMemoryFactCorrections = vi.fn(async () => {})
+    const execute = createAlicizationLearningActionExecutor({
+      now: () => 10_000,
+      cardId: 'default',
+      listMemoryFacts: async () => [{
+        id: 'fact-self-1',
+        subject: 'alicization',
+        predicate: 'self-model',
+        object: 'prefers direct truth over decorative warmth',
+        confidence: 0.9,
+        source: 'rule',
+        dedupeKey: 'alicization|self-model|prefers direct truth over decorative warmth',
+        createdAt: 1,
+        updatedAt: 9_900,
+        lastAccessAt: null,
+        accessCount: 3,
+        memoryDomain: 'self-model',
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+        validationCount: 4,
+        contradictionCount: 0,
+        conflictsWith: [],
+        supersedes: [],
+      } as any],
+      listMemoryReflections: async () => [],
+      listRelationshipOutcomes: async () => [],
+      upsertMemoryReflections: async () => {},
+      applyMemoryFactCorrections,
+      upsertMemoryFacts: async () => {},
+      assimilateMemoryFactsDetailed: input => ({
+        facts: input.facts,
+        corrections: [],
+      }),
+    })
+
+    const result = await execute({
+      id: 'row-self-model-downgrade',
+      cardId: 'default',
+      taskId: 'learning:self-model:verify',
+      status: 'running',
+      triggerAt: 1,
+      action: 'verify',
+      message: 'learning-action=verify',
+      payload: {
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-self-model-downgrade',
+        sourceSessionId: 'session-1',
+        action: 'verify',
+        reason: 'self-model line needs re-check before staying internalized',
+        focuses: ['verify-self-model'],
+        dominantTrajectory: 'Self model needs a careful downgrade before relearning.',
+        sourceSignals: ['Self model needs a careful downgrade before relearning.'],
+        learningReadiness: 0.78,
+        contradictionPressure: 0.3,
+        revisionPressure: 0.48,
+        autobiographicalStability: 0.82,
+        supportingFactIds: ['fact-self-1'],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: ['fact-self-1'],
+      },
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1,
+      updatedAt: 1,
+      claimedAt: 1,
+      startedAt: 1,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: 'turn-1',
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    })
+
+    expect(result.status).toBe('completed')
+    expect(result.verifiedArtifact).toEqual(expect.objectContaining({
+      domain: 'self-model',
+      verifier: expect.objectContaining({
+        kind: 'self-model-verifier',
+      }),
+    }))
+    expect(applyMemoryFactCorrections).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-self-1',
+        nextValidationStatus: 'provisional',
+        nextKnowledgeStage: 'validated-knowledge',
+        sourceLabel: 'learning-verify-self-model',
+      }),
+    ]))
+  })
+
   it('rolls back contradictory world-model claims through verified artifact downgrade', async () => {
     const applyMemoryFactCorrections = vi.fn(async () => {})
     const appendMindTurnEvents = vi.fn(async () => {})

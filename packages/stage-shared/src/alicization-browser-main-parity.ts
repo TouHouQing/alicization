@@ -4,6 +4,7 @@ import type {
   AlicizationLearningExecutionStateSnapshot,
   AlicizationRecallLatencyPolicySnapshot,
 } from './alicization-transport-contracts'
+import type { AlicizationLearningArtifactLedgerRecord } from './alicization-learning-artifact-ledger'
 import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import type { AlicizationMemorySituationCandidateSet } from './alicization-memory-situation-candidate'
 
@@ -137,26 +138,77 @@ function normalizeResolutionLedger(state: AlicizationMemoryResolutionLedger | nu
 function normalizeSituationCandidates(state: AlicizationMemorySituationCandidateSet | null | undefined) {
   if (!state)
     return null
-  const top = state.candidates.slice(0, 5)
-  return {
-    selected: normalizeStringList(state.selected.map(item => `${item.candidateId}:${item.statusReason ?? 'none'}`)),
-    rejected: normalizeStringList(state.rejected.slice(0, 5).map(item => `${item.candidateId}:${item.suppressionReasons.join(';') || item.statusReason || 'none'}`)),
-    suppressed: normalizeStringList(state.suppressed.slice(0, 5).map(item => `${item.candidateId}:${item.suppressionReasons.join(';') || item.statusReason || 'none'}`)),
-    delayed: normalizeStringList(state.delayed.slice(0, 5).map(item => `${item.candidateId}:${item.statusReason ?? 'none'}`)),
-    unresolved: normalizeStringList(state.unresolved.slice(0, 5).map(item => `${item.candidateId}:${item.statusReason ?? 'none'}`)),
-    topN: normalizeStringList(top.map(item => `${item.status}:${item.candidateId}:${item.situationKind}:${item.confidence.toFixed(2)}`)),
+  const normalized: Record<string, string | null> = {
+    selectedIds: normalizeStringList(state.selected.map(item => item.candidateId)),
+    rejectedIds: normalizeStringList(state.rejected.slice(0, 8).map(item => item.candidateId)),
+    suppressedIds: normalizeStringList(state.suppressed.slice(0, 8).map(item => item.candidateId)),
+    delayedIds: normalizeStringList(state.delayed.slice(0, 8).map(item => item.candidateId)),
+    unresolvedIds: normalizeStringList(state.unresolved.slice(0, 8).map(item => item.candidateId)),
   }
+  for (const item of state.candidates.slice(0, 12).sort((left, right) => left.candidateId.localeCompare(right.candidateId))) {
+    const prefix = `candidate.${item.candidateId}`
+    normalized[`${prefix}.status`] = normalizeScalar(item.status)
+    normalized[`${prefix}.statusReason`] = normalizeScalar(item.statusReason)
+    normalized[`${prefix}.suppressionReasons`] = normalizeStringList(item.suppressionReasons)
+    normalized[`${prefix}.situationKind`] = normalizeScalar(item.situationKind)
+  }
+  return normalized
 }
 
 function normalizeClaimEvidence(bundle: AlicizationDerivedMindStateBundle | null | undefined) {
   const graphs = bundle?.claimEvidenceGraphs ?? []
   if (graphs.length === 0)
     return null
+  const normalized: Record<string, string | null> = {
+    claimIds: normalizeStringList(graphs.slice(0, 12).map(item => item.claimId)),
+  }
+  for (const item of graphs.slice(0, 12).sort((left, right) => left.claimId.localeCompare(right.claimId))) {
+    const prefix = `claim.${item.claimId}`
+    normalized[`${prefix}.validationState`] = normalizeScalar(item.validationState)
+    normalized[`${prefix}.sourceTrust`] = normalizeScalar(item.sourceTrust)
+    normalized[`${prefix}.shouldRevalidate`] = normalizeScalar(item.revalidationPolicy.shouldRevalidate)
+    normalized[`${prefix}.revalidationReasons`] = normalizeStringList(item.revalidationPolicy.reasonTags)
+    normalized[`${prefix}.internalizationStage`] = normalizeScalar(
+      item.internalizationDecision.mayInternalize
+        ? 'internalize'
+        : item.internalizationDecision.mayValidateOnly
+          ? 'validate-only'
+          : 'blocked',
+    )
+  }
+  return normalized
+}
+
+function normalizeLearningArtifacts(records: AlicizationLearningArtifactLedgerRecord[] | null | undefined) {
+  if (!records || records.length === 0)
+    return null
+  const normalized: Record<string, string | null> = {
+    artifactIds: normalizeStringList(records.slice(0, 12).map(item => item.artifactId ?? item.taskId)),
+  }
+  for (const record of records.slice(0, 12).sort((left, right) => (left.artifactId ?? left.taskId).localeCompare(right.artifactId ?? right.taskId))) {
+    const artifact = record.verifiedArtifact
+    const key = record.artifactId ?? record.taskId
+    const prefix = `artifact.${key}`
+    normalized[`${prefix}.taskId`] = normalizeScalar(record.taskId)
+    normalized[`${prefix}.claimId`] = normalizeScalar(record.claimId)
+    normalized[`${prefix}.status`] = normalizeScalar(artifact?.status)
+    normalized[`${prefix}.internalizationStage`] = normalizeScalar(artifact?.internalizationStage)
+    normalized[`${prefix}.verificationBasis`] = normalizeStringList(record.verificationBasis)
+  }
+  return normalized
+}
+
+function normalizeTracePointer(state: {
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+} | null | undefined) {
+  if (!state)
+    return null
   return {
-    graphIds: normalizeStringList(graphs.slice(0, 6).map(item => item.claimId)),
-    states: normalizeStringList(graphs.slice(0, 6).map(item => `${item.domain}:${item.validationState}:${item.sourceTrust.toFixed(2)}`)),
-    revalidation: normalizeStringList(graphs.slice(0, 6).map(item => `${item.claimId}:${item.revalidationPolicy.shouldRevalidate ? 'revalidate' : 'stable'}:${item.revalidationPolicy.reasonTags.join(';') || 'none'}`)),
-    internalization: normalizeStringList(graphs.slice(0, 6).map(item => `${item.claimId}:${item.internalizationDecision.mayInternalize ? 'internalize' : item.internalizationDecision.mayValidateOnly ? 'validate-only' : 'blocked'}:${item.internalizationDecision.blockedReasons.join(';') || 'none'}`)),
+    decisionTraceId: normalizeScalar(state.decisionTraceId),
+    turnId: normalizeScalar(state.turnId),
+    sessionId: normalizeScalar(state.sessionId),
   }
 }
 
@@ -210,6 +262,18 @@ export function deriveAlicizationBrowserMainParitySummary(input: {
   browserResolutionLedger?: AlicizationMemoryResolutionLedger | null
   mainMemorySituationCandidates?: AlicizationMemorySituationCandidateSet | null
   browserMemorySituationCandidates?: AlicizationMemorySituationCandidateSet | null
+  mainLearningArtifacts?: AlicizationLearningArtifactLedgerRecord[] | null
+  browserLearningArtifacts?: AlicizationLearningArtifactLedgerRecord[] | null
+  mainTracePointer?: {
+    decisionTraceId?: string | null
+    turnId?: string | null
+    sessionId?: string | null
+  } | null
+  browserTracePointer?: {
+    decisionTraceId?: string | null
+    turnId?: string | null
+    sessionId?: string | null
+  } | null
 }) {
   const comparedFields: string[] = []
   const divergentFields: AlicizationBrowserMainParitySummary['divergentFields'] = []
@@ -275,6 +339,22 @@ export function deriveAlicizationBrowserMainParitySummary(input: {
     fieldPrefix: 'learningCausalChain',
     mainState: normalizeLearningCausalChain(input.mainBundle?.learningExecutionState ?? null),
     browserState: normalizeLearningCausalChain(input.browserBundle?.learningExecutionState ?? null),
+    comparedFields,
+    divergentFields,
+  })
+  pushDiff({
+    layer: 'learning-causal-chain',
+    fieldPrefix: 'learningArtifacts',
+    mainState: normalizeLearningArtifacts(input.mainLearningArtifacts ?? null),
+    browserState: normalizeLearningArtifacts(input.browserLearningArtifacts ?? null),
+    comparedFields,
+    divergentFields,
+  })
+  pushDiff({
+    layer: 'learning-causal-chain',
+    fieldPrefix: 'tracePointer',
+    mainState: normalizeTracePointer(input.mainTracePointer ?? null),
+    browserState: normalizeTracePointer(input.browserTracePointer ?? null),
     comparedFields,
     divergentFields,
   })

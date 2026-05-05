@@ -83,7 +83,7 @@ Phase 12 要把当前已经存在的记忆、心智、学习、回复模块收�
 
 evidence: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-visible-reply-execution.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-visible-reply-execution.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.test.ts apps/stage-tamagotchi/src/main/services/alicization/mind-turn-contract-invariants.test.ts`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
 
-- [ ] 增加 authority regression
+- [x] 增加 authority regression
 
 覆盖：
 
@@ -91,6 +91,8 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime
 - governance 试图用 `governed-repair-fallback`
 - mind-turn contract 缺失时仍不能落到普通 local fallback
 - timeout transport failure 仍可标记为 infra-only local fallback
+
+evidence: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-visible-reply-execution.test.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.test.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-timeout-fallback.test.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-visible-reply-execution.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-timeout-fallback.test.ts`
 
 ## Wave 2：Memory Situation Suppression Reducer
 
@@ -151,18 +153,20 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-claim-ev
 
 - [x] `learning-domain-verifiers.ts`
 - [x] `learning-artifact-store.ts`
-- [ ] `learning-task-effects.ts`
-- [ ] `learning-executor-orchestrator.ts`
+- [x] `learning-task-effects.ts`
+- [x] `learning-executor-orchestrator.ts`
 
 evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-domain-verifiers.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-domain-verifiers.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.test.ts`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
 
-- [ ] 保留 executor 行为回归
+- [x] 保留 executor 行为回归
 
 现有 `learning-action-executor.test.ts` 必须继续通过，并新增 world-model revalidation、relationship rollback、self-model downgrade 测试。
 
+evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-task-effects.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-executor-orchestrator.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-domain-verifiers.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.test.ts`
+
 ## Wave 5：Typed Browser/Main Parity
 
-- [ ] typed artifact parity
+- [x] typed artifact parity
 
 比较稳定字段：
 
@@ -171,13 +175,15 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-domain-v
 - verified artifact id / status / internalizationStage
 - decisionTraceId / turnId / sessionId
 
-- [ ] parity fixture 升级
+- [x] parity fixture 升级
 
 现有 summary parity 保留为 UI 摘要，但测试必须断言 typed diff。
 
+evidence: `packages/stage-shared/src/alicization-browser-main-parity.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.ts`, tests: `pnpm exec vitest run packages/stage-shared/src/alicization-browser-main-parity.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts -t "parity|browser|failing turn"`
+
 ## Wave 6：Recall/Accuracy Gold Harness
 
-- [ ] 新增 recall gold cases
+- [x] 新增 recall gold cases
 
 每个 case 包含：
 
@@ -188,7 +194,7 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-domain-v
 - expected claim validation states
 - expected reply authority
 
-- [ ] 输出 recall metrics
+- [x] 输出 recall metrics
 
 至少输出：
 
@@ -199,20 +205,24 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-domain-v
 - `claimAccuracy`
 - `latencyBudgetPass`
 
+evidence: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.ts`, `apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.ts`, `apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.ts`, `packages/stage-shared/src/alicization-transport-contracts.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
+
 ## Wave 7：Runtime Size / Boundary Refactor
 
-- [ ] runtime prompt/memory/learning/persistence 分层
+- [x] runtime prompt/memory/learning/persistence 分层
 
 优先切出：
 
-- `runtime-turn-composition.ts`
-- `runtime-memory-governor.ts`
-- `runtime-learning-governor.ts`
-- `runtime-reply-authority.ts`
+- [x] `runtime-turn-composition.ts`
+- [x] `runtime-memory-governor.ts`
+- [x] `runtime-learning-governor.ts`
+- [x] `runtime-reply-authority.ts`
 
-- [ ] 保留 card-scope consistency
+- [x] 保留 card-scope consistency
 
 任何 runtime chat lifecycle handler 在 touching card data/state 前必须继续处于 `withCardScope(cardId, ...)`。
+
+evidence: `apps/stage-tamagotchi/src/main/services/alicization/runtime-turn-composition.ts`, `apps/stage-tamagotchi/src/main/services/alicization/runtime-memory-governor.ts`, `apps/stage-tamagotchi/src/main/services/alicization/runtime-learning-governor.ts`, `apps/stage-tamagotchi/src/main/services/alicization/runtime-reply-authority.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime-turn-composition.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-reply-authority.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-learning-governor.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts`, `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-direct-start.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-memory-closure.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-dialogue-delivery.test.ts`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
 
 ## 当前执行记录
 

@@ -1458,6 +1458,13 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     misinternalizationRate?: number
     relationshipCadenceRegressionRate?: number
     selfModelStaleBeliefRate?: number
+    recallAt1?: number
+    recallAt3?: number
+    precisionAt3?: number
+    wrongThreadSuppression?: number
+    claimAccuracy?: number
+    replyAuthorityAccuracy?: number
+    latencyBudgetPass?: boolean
   }
 }
 

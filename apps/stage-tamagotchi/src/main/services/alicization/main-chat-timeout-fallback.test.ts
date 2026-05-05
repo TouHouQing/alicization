@@ -181,6 +181,31 @@ describe('main chat timeout fallback', () => {
     expect(payload.governance.screenReferenceMode).toBe('avoid')
   })
 
+  it('keeps timeout fallback explicitly marked as infra-only local authority instead of normal reply authority', () => {
+    const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
+      turnId: 'turn-timeout-authority',
+      actionKind: 'answer',
+      messages: [
+        { role: 'user', content: '把这句接下去，不要再模板化。' },
+      ] as Message[],
+    })
+
+    const payload = JSON.parse(reply) as {
+      reply: string
+      visibleReplyAuthority: string
+      governance?: {
+        answerSubject?: string
+        screenReferenceMode?: string
+      }
+    }
+
+    expect(payload.visibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(payload.reply).toContain('再发一次')
+    expect(payload.reply).not.toContain('模板化')
+    expect(payload.reply).not.toContain('接住')
+    expect(payload.governance?.screenReferenceMode).toBe('avoid')
+  })
+
   it('returns an execution-oriented continuity fallback for execution turns', () => {
     const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
       turnId: 'turn-exec',

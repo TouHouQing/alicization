@@ -550,4 +550,182 @@ describe('replay benchmark runtime', () => {
     expect(result.telemetryPatch.retrievalHealth.relationshipCadenceRegressionRate).toBe(0.11)
     expect(result.telemetryPatch.retrievalHealth.selfModelStaleBeliefRate).toBe(0.09)
   })
+
+  it('persists replay gold retrieval metrics into the telemetry patch for sampled runtime turns', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-gold-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-runtime-gold-1',
+        userText: '继续按之前那条 seam 做',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-runtime-gold-1',
+          decisionTraceId: 'mind:runtime:gold:1',
+          sessionId: 'session-runtime-gold-1',
+          activeThreadId: 'thread-runtime-gold-1',
+        },
+        replayTurn: {
+          turnId: 'turn-runtime-gold-1',
+          userText: '继续按之前那条 seam 做',
+          expectedMemory: '继续按之前那条 seam 做',
+          categories: ['procedure-carry'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-runtime-gold-1',
+            decisionTraceId: 'mind:runtime:gold:1',
+            sessionId: 'session-runtime-gold-1',
+            activeThreadId: 'thread-runtime-gold-1',
+          },
+          gold: {
+            selectedCandidateIds: ['candidate-procedure-seam'],
+            suppressedCandidateIds: ['candidate-old-era'],
+            claimValidationStates: {
+              'claim-procedure-seam': 'validated',
+            },
+            replyAuthority: 'llm-mind',
+            latencyBudgetClass: 'deep-recall-reply',
+            latencyBudgetPass: true,
+          },
+          organicMemoryContext: {
+            hostAttitude: 'warm',
+            coreIncarnation: '',
+            activeThoughts: [],
+            retrievedFacts: [],
+            recalledFragments: [],
+            memorySituationCandidates: {
+              candidates: [
+                {
+                  candidateId: 'candidate-procedure-seam',
+                  situationKind: 'procedure-memory',
+                  status: 'selected',
+                  statusReason: 'Procedure seam remains the strongest current match.',
+                  suppressionReasons: [],
+                  sourceIds: ['procedure-seam'],
+                  confidence: 0.92,
+                },
+                {
+                  candidateId: 'candidate-old-era',
+                  situationKind: 'relationship-memory',
+                  status: 'suppressed',
+                  statusReason: 'Older era is wrong-thread for this task carry.',
+                  suppressionReasons: ['wrong-thread'],
+                  sourceIds: ['era-old'],
+                  confidence: 0.8,
+                },
+              ],
+              selected: [{
+                candidateId: 'candidate-procedure-seam',
+                situationKind: 'procedure-memory',
+                status: 'selected',
+                statusReason: 'Procedure seam remains the strongest current match.',
+                suppressionReasons: [],
+                sourceIds: ['procedure-seam'],
+                confidence: 0.92,
+              }],
+              suppressed: [{
+                candidateId: 'candidate-old-era',
+                situationKind: 'relationship-memory',
+                status: 'suppressed',
+                statusReason: 'Older era is wrong-thread for this task carry.',
+                suppressionReasons: ['wrong-thread'],
+                sourceIds: ['era-old'],
+                confidence: 0.8,
+              }],
+              rejected: [],
+              delayed: [],
+              unresolved: [],
+            },
+            derivedMindStateBundle: {
+              claimEvidenceGraphs: [{
+                version: 'claim-evidence-graph-v1',
+                producedAt: 1,
+                claimId: 'claim-procedure-seam',
+                claim: 'procedure seam remains the strongest current match',
+                domain: 'procedure',
+                supportingEvidence: [],
+                contradictingEvidence: [],
+                supersededBy: [],
+                currentBelief: 'procedure seam remains the strongest current match',
+                validationState: 'validated',
+                sourceTrust: 0.92,
+                lastRevalidatedAt: 1,
+                revalidationPolicy: {
+                  shouldRevalidate: false,
+                  nextRevalidationAt: null,
+                  expiredSourceIds: [],
+                  reasonTags: [],
+                },
+                internalizationDecision: {
+                  mayInternalize: false,
+                  mayValidateOnly: true,
+                  blockedReasons: [],
+                },
+              }],
+              recallLatencyPolicy: {
+                budgetClass: 'deep-recall-reply',
+              },
+            },
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {
+            semanticLatencyMs: null,
+            graphLatencyMs: null,
+            reconstructionFrequency: 0,
+            reconstructedCount: 0,
+            recallHitRate: 0,
+            recallMissRate: 0,
+            wrongThreadRate: 0,
+            suppressionHitRate: 0,
+            wrongThreadPreventedCount: 0,
+            falsePositiveSuppressionRate: 0,
+            reconstructionErrorRate: 0,
+            stableCoreOnlyRate: 0,
+            memorySurfaceViolationRate: 0,
+            templateLeakageFailCount: 0,
+          },
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.telemetryPatch.retrievalHealth).toEqual(expect.objectContaining({
+      recallAt1: 1,
+      recallAt3: 1,
+      precisionAt3: 1,
+      wrongThreadSuppression: 1,
+      claimAccuracy: 1,
+      replyAuthorityAccuracy: 1,
+      latencyBudgetPass: true,
+    }))
+  })
 })
