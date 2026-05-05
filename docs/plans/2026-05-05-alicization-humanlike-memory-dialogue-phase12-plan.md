@@ -145,14 +145,16 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-claim-ev
 
 ## Wave 4：Learning Executor Split
 
-- [ ] 拆出 domain verifiers
+- [x] 拆出 domain verifiers
 
 目标文件：
 
-- `learning-domain-verifiers.ts`
-- `learning-artifact-store.ts`
-- `learning-task-effects.ts`
-- `learning-executor-orchestrator.ts`
+- [x] `learning-domain-verifiers.ts`
+- [x] `learning-artifact-store.ts`
+- [ ] `learning-task-effects.ts`
+- [ ] `learning-executor-orchestrator.ts`
+
+evidence: `apps/stage-tamagotchi/src/main/services/alicization/learning-domain-verifiers.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.ts`, `apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-domain-verifiers.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.test.ts`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
 
 - [ ] 保留 executor 行为回归
 
