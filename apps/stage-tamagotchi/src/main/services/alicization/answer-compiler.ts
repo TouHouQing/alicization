@@ -21,6 +21,7 @@ import {
   buildAlicizationScreenSurfaceCue,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
+  readLearningExecutionStateFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
@@ -748,6 +749,9 @@ export function buildAnswerCompiler(input: {
   const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
     ?? runtimeSurface?.memory.personStateProjection
     ?? null
+  const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
+    ?? runtimeSurface?.memory.learningExecutionState
+    ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
       ?? runtimeSurface?.memory.memoryDeliberation
@@ -759,6 +763,7 @@ export function buildAnswerCompiler(input: {
     knowledgeEvidence: readKnowledgeEvidenceFromDerivedMindStateBundle(derivedBundle)
       ?? runtimeSurface?.memory.knowledgeEvidence
       ?? null,
+    tuningAdvice: runtimeSurface?.memory.memoryTuningAdvice ?? null,
   })
   const personalityContinuityState = explicitPersonalityContinuityState
     ?? personStateProjection?.personalityContinuityState
@@ -841,6 +846,14 @@ export function buildAnswerCompiler(input: {
     growthProfile,
     personalityContinuityState,
   })
+  const learningAdjustedOpeningDirective = learningExecutionState?.nextLearningAction === 'verify'
+    ? `${openingDirective} Keep certainty behind current verification pressure.`
+    : learningExecutionState?.nextLearningAction === 'revise'
+      ? `${openingDirective} Treat the older continuity line as under revision.`
+      : learningExecutionState?.nextLearningAction === 'internalize'
+        ? `${openingDirective} Stay aligned with the stabilizing learned procedure.`
+        : openingDirective
+  const learningTuningAdvice = runtimeSurface?.memory.memoryTuningAdvice ?? null
   const openingClaim = resolveOpeningClaim({
     discourseState,
     conversationState,
@@ -954,7 +967,7 @@ export function buildAnswerCompiler(input: {
 
   const mustDo = uniqueList([
     'Let the compiled answer spine outrank persona routines, residue, and decorative helpfulness.',
-    openingDirective,
+    learningAdjustedOpeningDirective,
     mindSynthesis.openingIntent,
     isFreshlyGroundedSceneTurn({
       discourseState,
@@ -998,6 +1011,24 @@ export function buildAnswerCompiler(input: {
     activeClosenessContext === 'open-companionship'
       ? 'If warmth comes forward, let it stay lived-in and bounded rather than theatrical.'
       : null,
+    learningExecutionState?.nextLearningAction === 'verify'
+      ? 'Keep visible certainty behind the current verification pass.'
+      : null,
+    learningExecutionState?.nextLearningAction === 'revise'
+      ? 'Treat the older continuity line as actively revisable instead of settled.'
+      : null,
+    learningExecutionState?.nextLearningAction === 'internalize'
+      ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
+      : null,
+    (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
+      ? 'When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.'
+      : null,
+    (learningTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1
+      ? 'Keep technical specificity clamped unless the current turn grounds it directly.'
+      : null,
+    (learningTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12
+      ? 'Keep warmth capped so learned confidence does not outrun the host’s current need for room.'
+      : null,
     ...(memoryDeliberationKernel?.restraint.mustDo ?? []),
   ], 8)
 
@@ -1034,6 +1065,24 @@ export function buildAnswerCompiler(input: {
     activeClosenessContext === 'execution-callback'
       ? 'Do not widen a bounded callback into generic companionship tone.'
       : null,
+    learningExecutionState?.nextLearningAction === 'verify'
+      ? 'Do not let fluency or warmth outrun what is still being verified.'
+      : null,
+    learningExecutionState?.nextLearningAction === 'revise'
+      ? 'Do not rest visible certainty on continuity the system is actively revising.'
+      : null,
+    learningExecutionState?.nextLearningAction === 'internalize'
+      ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
+      : null,
+    (learningTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1
+      ? 'Do not let learned continuity silently impersonate current grounded fact.'
+      : null,
+    (learningTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1
+      ? 'Do not let learned confidence spill into unsupported technical specificity.'
+      : null,
+    (learningTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12
+      ? 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.'
+      : null,
     activeClosenessContext === 'repair-window'
       ? 'Do not write as if warmth is already restored before the repair line has visibly landed.'
       : null,
@@ -1059,7 +1108,7 @@ export function buildAnswerCompiler(input: {
     relationshipPosture,
     activeClosenessContext,
     activeClosenessRung,
-    openingDirective,
+    openingDirective: learningAdjustedOpeningDirective,
     openingClaim,
     supportingReality,
     uncertaintyBoundary,

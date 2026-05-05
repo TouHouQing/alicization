@@ -88,6 +88,21 @@ describe('alicization memory decision trace', () => {
         },
         createdAt: 121,
       } as any,
+      {
+        id: 'evt-3',
+        decisionTraceId: 'mind:test:abc123def456',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'system',
+        kind: 'learning-executed',
+        payload: {
+          taskId: 'learning:verify:1',
+          action: 'verify',
+          domain: 'relationship',
+          resultSummary: 'Verification reopened relationship target.',
+        },
+        createdAt: 122,
+      } as any,
     ])
 
     expect(records).toHaveLength(1)
@@ -108,6 +123,10 @@ describe('alicization memory decision trace', () => {
         }),
       ]),
       finalSurfacePolicy: 'procedural-carry',
+    }))
+    expect(records[0]?.learningExecuted).toEqual(expect.objectContaining({
+      action: 'verify',
+      domain: 'relationship',
     }))
   })
 })

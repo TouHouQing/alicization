@@ -17,6 +17,17 @@ export type AlicizationMemoryRetrievalBudgetClass
 export interface AlicizationOrganicMemoryRuntimeStageTelemetry {
   latencyMs: number | null
   sampleCount: number
+  p50LatencyMs?: number | null
+  p95LatencyMs?: number | null
+}
+
+export interface AlicizationMemoryBudgetLatencyTelemetry {
+  sampleCount: number
+  p50LatencyMs: number | null
+  p95LatencyMs: number | null
+  maxLatencyMs: number | null
+  gateStatus: 'unknown' | 'pass' | 'warn' | 'fail'
+  targetP95Ms: number
 }
 
 export interface AlicizationOrganicMemoryRuntimeStageReplaySnapshot {
@@ -84,6 +95,7 @@ export interface AlicizationMemoryRetrievalHealth {
   cacheHitRatio?: number
   prewarmHitRatio?: number
   budgetClassCounts?: Partial<Record<AlicizationMemoryRetrievalBudgetClass, number>>
+  budgetLatencyTelemetry?: Partial<Record<AlicizationMemoryRetrievalBudgetClass, AlicizationMemoryBudgetLatencyTelemetry>>
   organicStageTelemetry?: Partial<Record<AlicizationOrganicMemoryRuntimeStage, AlicizationOrganicMemoryRuntimeStageTelemetry>>
   organicStageBudgetCounts?: Partial<Record<AlicizationOrganicMemoryRuntimeStage, Partial<Record<AlicizationMemoryRetrievalBudgetClass, number>>>>
   hotKeyHitRatio?: number
@@ -104,6 +116,11 @@ export interface AlicizationMemoryRetrievalHealth {
   recallHitRate?: number
   recallMissRate?: number
   wrongThreadRate?: number
+  suppressionHitRate?: number
+  wrongThreadPreventedCount?: number
+  falsePositiveSuppressionRate?: number
+  staleSelfModelVetoRate?: number
+  relationshipEraConfusionRate?: number
   reconstructionErrorRate?: number
   stableCoreOnlyRate?: number
   memorySurfaceViolationRate?: number
@@ -113,6 +130,22 @@ export interface AlicizationMemoryRetrievalHealth {
   personalityParticipation?: number
   relationshipParticipation?: number
   continuityParticipation?: number
+  learningTaskCompletionCount?: number
+  learningTaskFailureCount?: number
+  learningTaskBlockedCount?: number
+  learningTaskReopenedCount?: number
+  learningTaskDowngradedCount?: number
+  learningTaskCancelledCount?: number
+  learningRelationshipReviseCount?: number
+  learningSelfModelReviseCount?: number
+  learningWorldModelValidationCount?: number
+  learningWorldModelFalseInternalizationCount?: number
+  learningTaskCompletionRate?: number
+  learningTaskFailureRate?: number
+  learningTaskReopenRecoveryRate?: number
+  misinternalizationRate?: number
+  relationshipCadenceRegressionRate?: number
+  selfModelStaleBeliefRate?: number
 }
 
 export interface AlicizationMemoryStats {

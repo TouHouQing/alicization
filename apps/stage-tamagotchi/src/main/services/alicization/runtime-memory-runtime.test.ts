@@ -65,6 +65,7 @@ describe('runtime memory runtime', () => {
           hostAttitude: 'warm',
         } as any),
         listRelationshipOutcomes: async () => [],
+        listMemoryReflections: async () => [],
         listPersonaReinforcementEvents: async () => [],
         summarizePersonStateEvolution: async () => ({
           trustShift: 0,
@@ -137,6 +138,7 @@ describe('runtime memory runtime', () => {
       source: 'main-runtime',
       knowledgeEvidence: expect.any(Object),
       selfEvolution: expect.any(Object),
+      learningExecutionState: null,
     }))
     expect(runtime.organicMemoryAccessRuntime).toBeTruthy()
     expect(runtime.memorySearchRuntime).toBeTruthy()
@@ -172,6 +174,7 @@ describe('runtime memory runtime', () => {
         listMemoryConsolidations: async () => [],
         getLatestRelationshipDynamics: async () => null,
         listRelationshipOutcomes: async () => [],
+        listMemoryReflections: async () => [],
         listPersonaReinforcementEvents: async () => [],
         summarizePersonStateEvolution: async () => ({
           trustShift: 0,

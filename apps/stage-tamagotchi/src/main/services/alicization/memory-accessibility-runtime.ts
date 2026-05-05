@@ -3,6 +3,12 @@ import type {
 } from '../../../shared/eventa'
 
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
+import {
+  deriveAlicizationRecallLatencyPolicy,
+} from '@proj-alicization/stage-shared'
+import type {
+  AlicizationRecallLatencyPolicyInput,
+} from '@proj-alicization/stage-shared'
 
 export type AlicizationMemoryAccessibilityLayer = 'raw-ledger' | 'summary-layer' | 'hot-index'
 export type AlicizationMemoryExpansionMode = 'summary-first' | 'balanced' | 'deep-thread'
@@ -20,6 +26,7 @@ export interface AlicizationMemoryAccessibilityPlan {
   benchmarkSampleLimit: number
   cacheTtlMs: number
   prewarmKey: string | null
+  recallLatencyPolicy: ReturnType<typeof deriveAlicizationRecallLatencyPolicy>
 }
 
 function normalizeText(raw: unknown, maxChars = 220) {
@@ -47,6 +54,7 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   recallSeed: string
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
+  latencyPolicy?: Partial<AlicizationRecallLatencyPolicyInput>
 }) {
   const seed = normalizeText(input.recallSeed, 240).toLowerCase()
   const governor = input.recallGovernor ?? null
@@ -60,22 +68,38 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   const deepThread = longHorizon || taskMigrationLike || temporalFocus === 'experience-matched'
   const fastDialogue = !deepThread && (mode === 'relationship-history' || mode === 'conversation-history')
 
-  const budgetClass = input.budgetClass
-    ?? (
-      longHorizon || taskMigrationLike
-        ? 'deep-recall-reply'
-        : 'realtime-reply'
-    )
-  const latencyClass: AlicizationMemoryLatencyClass = deepThread
+  const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
+    recallSeed: input.recallSeed,
+    recollectionIntent: governor?.recollectionIntent ?? null,
+    budgetClass: input.budgetClass ?? null,
+    ...input.latencyPolicy,
+  })
+  const budgetClass = recallLatencyPolicy.budgetClass
+  const latencyClass: AlicizationMemoryLatencyClass = recallLatencyPolicy.shouldAvoidDeepExpansion
+    ? 'balanced'
+    : recallLatencyPolicy.latencyClass === 'deep'
+      || (deepThread && recallLatencyPolicy.recallAction === 'deep-recall')
     ? 'deep'
-    : fastDialogue
+    : recallLatencyPolicy.latencyClass === 'fast' || fastDialogue
       ? 'fast'
       : 'balanced'
-  const expansionMode: AlicizationMemoryExpansionMode = deepThread
+  const expansionMode: AlicizationMemoryExpansionMode = recallLatencyPolicy.shouldAvoidDeepExpansion
+    ? 'summary-first'
+    : deepThread
     ? 'deep-thread'
     : fastDialogue
       ? 'summary-first'
       : 'balanced'
+  const prewarmKey = uniqueList([
+    recallLatencyPolicy.hotPathKey,
+    governor?.threadAnchors?.[0] ?? null,
+    governor?.relationshipAnchors?.[0] ?? null,
+    governor?.recollectionIntent?.queryHints?.[0] ?? null,
+    seed,
+    highAffinityThread ? 'thread' : null,
+    relationshipCarry ? 'relationship' : null,
+    affectCarry ? 'affect' : null,
+  ], 6).join('|') || null
 
   return {
     budgetClass,
@@ -92,15 +116,8 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
     graphExpansionLimit: latencyClass === 'fast' ? 120 : latencyClass === 'balanced' ? 240 : 480,
     benchmarkSampleLimit: latencyClass === 'fast' ? 6 : latencyClass === 'balanced' ? 12 : 20,
     cacheTtlMs: latencyClass === 'fast' ? 20_000 : latencyClass === 'balanced' ? 45_000 : 90_000,
-    prewarmKey: uniqueList([
-      governor?.threadAnchors?.[0] ?? null,
-      governor?.relationshipAnchors?.[0] ?? null,
-      governor?.recollectionIntent?.queryHints?.[0] ?? null,
-      seed,
-      highAffinityThread ? 'thread' : null,
-      relationshipCarry ? 'relationship' : null,
-      affectCarry ? 'affect' : null,
-    ], 6).join('|') || null,
+    prewarmKey,
+    recallLatencyPolicy,
   } satisfies AlicizationMemoryAccessibilityPlan
 }
 

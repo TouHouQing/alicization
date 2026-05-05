@@ -474,4 +474,47 @@ describe('digital life kernel', () => {
     expect(policy.privateThought?.thoughtText).toContain('unresolved repair')
     expect(policy.actionEcology).toEqual(surface.agency.actionEcology)
   })
+
+  it('carries derived affective residue from runtime surface into proactive policy snapshot', () => {
+    const state = {
+      ...createDefaultVisualPresenceState(9_000),
+      derivedMindStateBundle: {
+        version: 'derived-mind-state-bundle-v1',
+        source: 'main-runtime',
+        producedAt: 9_000,
+        affectiveResidue: {
+          version: 'affective-residue-memory-v1',
+          updatedAt: 9_000,
+          residues: [],
+          dominantResidueKind: 'repair',
+          afterglowPressure: 0.18,
+          repairPressure: 0.72,
+          burdenPressure: 0.48,
+          trustPressure: 0.42,
+          restProtectivePressure: 0.34,
+          relationshipCadence: {
+            cadenceMode: 'cooldown',
+            distancePosture: 'measured-room',
+            companionshipDensity: 0.22,
+            repairRecovery: 0.58,
+            overreachRisk: 0.42,
+            fatigueGuard: 0.28,
+            afterglowCarry: 0.18,
+            shouldDelayWarmth: true,
+            shouldProtectRest: false,
+            reasonTags: ['residue:repair'],
+            summary: 'Repair should settle before warmth expands.',
+          },
+          sourceSignals: ['repair before closeness'],
+          summary: 'Repair residue dominates.',
+        },
+        summary: 'source=main-runtime | residue=repair',
+      },
+    } as any
+    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    const policy = buildAlicizationDigitalLifeProactivePolicySnapshot(surface)
+
+    expect(surface.memory.affectiveResidue?.dominantResidueKind).toBe('repair')
+    expect(policy.affectiveResidue?.relationshipCadence.shouldDelayWarmth).toBe(true)
+  })
 })

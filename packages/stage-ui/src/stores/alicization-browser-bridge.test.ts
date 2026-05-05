@@ -554,11 +554,36 @@ describe('browser alicization bridge visual presence listeners', () => {
       source: 'browser-fallback',
       knowledgeEvidence: expect.any(Object),
       selfEvolution: expect.any(Object),
+      affectiveResidue: expect.objectContaining({
+        version: 'affective-residue-memory-v1',
+        relationshipCadence: expect.any(Object),
+      }),
+      learningExecutionState: expect.objectContaining({
+        nextLearningAction: expect.any(String),
+      }),
+      recallLatencyPolicy: expect.objectContaining({
+        version: 'recall-latency-policy-v1',
+        budgetClass: 'realtime-reply',
+      }),
+    }))
+    expect(snapshot?.recallLatencyPolicy).toEqual(expect.objectContaining({
+      version: 'recall-latency-policy-v1',
+      budgetClass: 'realtime-reply',
+      shouldUseHotCache: expect.any(Boolean),
+    }))
+    expect(snapshot?.affectiveResidue).toEqual(expect.objectContaining({
+      version: 'affective-residue-memory-v1',
+      relationshipCadence: expect.objectContaining({
+        cadenceMode: expect.any(String),
+      }),
     }))
     expect(snapshot?.memoryStageReplay).toEqual(expect.objectContaining({
       version: 'organic-memory-stage-replay-v1',
       stages: expect.any(Array),
     }))
+    expect(snapshot?.memoryStageReplay?.stages.some(stage =>
+      (stage.diagnostics ?? []).some(item => item.includes('recall-action=') || item.includes('recall_action=')),
+    )).toBe(true)
     expect(snapshot?.memoryResolutionLedger).toEqual(expect.objectContaining({
       version: 'memory-resolution-ledger-v1',
       selectedCandidates: expect.any(Array),

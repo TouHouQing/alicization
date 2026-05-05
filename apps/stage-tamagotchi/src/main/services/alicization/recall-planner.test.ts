@@ -693,4 +693,233 @@ describe('recall-planner', () => {
     expect(decision.followUpTiming).toBe('after-payoff')
     expect(decision.confidence).toBeLessThan(0.81)
   })
+
+  it('vetoes stale self-model surfacing when an older reconstructed self-story is still being revised', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'autobiographical-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['old self story'],
+        rationale: 'The host is asking whether an older self line is still being revised.',
+        confidence: 0.78,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['self-era-old'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-self-old'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: 'The older self-story still comes back first.',
+        certainty: 'approximate',
+        rationale: 'The older self-story is still active in candidate space.',
+        confidence: 0.76,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'answer-anchoring',
+        placement: 'inside-payoff',
+        certainty: 'firm',
+        internalLead: 'The older self-story still presses on the newer line.',
+        visibleLead: 'This still feels like the older self line.',
+        styleNote: 'Let it surface briefly.',
+        rationale: 'The older self line is present.',
+        confidence: 0.78,
+      },
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [],
+      consolidatedMemories: [{
+        id: 'self-era-old',
+        kind: 'autobiographical',
+        facet: 'self-era',
+        periodKey: 'self-era-old',
+        periodStartedAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        periodEndedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+        summary: 'An older self-era still shadows the newer identity line.',
+        lesson: 'Do not let the older self-story surface as settled identity.',
+        cues: ['old self story', 'identity revision'],
+        confidence: 0.74,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-self-old'],
+        updatedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+      }],
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'episode-self-old',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-self-old',
+        sessionId: 'session-self-old',
+        sourceKind: 'reflection',
+        provenance: 'reconstructed',
+        occurredAt: Date.UTC(2026, 3, 22, 8, 30, 0),
+        whereSummary: 'inner continuity',
+        withWhom: ['host'],
+        threadAnchor: 'self revision',
+        whatHappened: 'The older self-story still wants to explain the moment.',
+        felt: 'guarded',
+        emotionTags: ['revision'],
+        whatChanged: 'The newer self line still needs room to stabilize.',
+        relationshipMeaning: null,
+        lesson: 'Do not let the older self-story surface as settled identity.',
+        sourceSummary: 'self revision residue',
+        confidence: 0.64,
+        salience: 0.68,
+        sceneAttachment: 0.14,
+        consolidationPriority: 0.7,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['older self-story', 'identity revision'],
+        createdAt: Date.UTC(2026, 3, 22, 8, 30, 0),
+        updatedAt: Date.UTC(2026, 3, 22, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+      recalledConversationHistory: [],
+    })
+
+    expect(decision.surfaceMode).toBe('internal-only')
+    expect(decision.followUpTiming).toBe('next-open-window')
+    expect(decision.whyNotOthers).toContain('older self-story is still being revised')
+    expect(decision.suppressionReasons).toContain('stale-self-model')
+    expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
+    expect(decision.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
+    expect(decision.memoryDeliberation?.unsafeDetails).toEqual(expect.arrayContaining([
+      expect.stringContaining('older self-story surface as settled identity'),
+    ]))
+  })
+
+  it('vetoes competing relationship eras when a reconstructed bond line is too easy to confuse', () => {
+    const decision = planAlicizationRecall({
+      recollectionIntent: {
+        mode: 'relationship-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: true,
+        searchConversations: true,
+        searchProceduralExperience: false,
+        queryHints: ['not that repair', 'another relationship phase'],
+        rationale: 'The host is pushing back that this is not the same repair phase.',
+        confidence: 0.8,
+      },
+      recollectionPlanCandidate: {
+        selectedConsolidationIds: ['relationship-era-old'],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: ['episode-relationship-old'],
+        selectedConversationTurnIds: ['turn-relationship-old'],
+        selectedRelationshipLines: ['Leave more room before warmth.', 'Stay near, but not with that old distance.'],
+        searchTrace: null,
+        opening: 'The old relationship seam still comes back first.',
+        certainty: 'approximate',
+        rationale: 'An older repair arc is active, but the host is signaling this is not the same phase.',
+        confidence: 0.77,
+      },
+      recollectionSpeechCandidate: {
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity',
+        placement: 'inside-payoff',
+        certainty: 'firm',
+        internalLead: 'The old bond line is active, but not safely enough to surface.',
+        visibleLead: 'This feels like the same repair line again.',
+        styleNote: 'Let relationship continuity open the answer.',
+        rationale: 'The remembered relationship line is present.',
+        confidence: 0.79,
+      },
+      memoryDeliberationCandidate: null,
+      relationshipLineCandidates: [
+        { sourceId: 'episode-relationship-old', line: 'Leave more room before warmth.', confidence: 0.8 },
+        { sourceId: 'relationship-era-old', line: 'Stay near, but not with that old distance.', confidence: 0.78 },
+      ] as any,
+      consolidatedMemories: [{
+        id: 'relationship-era-old',
+        kind: 'autobiographical',
+        facet: 'relationship-era',
+        periodKey: 'relationship-era-old',
+        periodStartedAt: Date.UTC(2026, 3, 24, 8, 0, 0),
+        periodEndedAt: Date.UTC(2026, 3, 24, 9, 0, 0),
+        summary: 'An older repair phase kept more distance than the current bond line wants.',
+        lesson: 'Do not flatten different repair phases into one relationship line.',
+        cues: ['not that repair', 'another relationship phase'],
+        confidence: 0.76,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-relationship-old'],
+        updatedAt: Date.UTC(2026, 3, 24, 9, 0, 0),
+      }],
+      recollectedWindows: [],
+      proceduralMemories: [],
+      recalledEpisodes: [{
+        id: 'episode-relationship-old',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-relationship-old',
+        sessionId: 'session-relationship-old',
+        sourceKind: 'dialogue-feedback',
+        provenance: 'reconstructed',
+        occurredAt: Date.UTC(2026, 3, 24, 8, 30, 0),
+        whereSummary: 'repair window',
+        withWhom: ['host'],
+        threadAnchor: 'relationship repair',
+        whatHappened: 'The older repair phase still wants to explain this bond line.',
+        felt: 'careful',
+        emotionTags: ['repair'],
+        whatChanged: 'The host is signaling this is a different relationship phase now.',
+        relationshipMeaning: 'Leave more room before warmth.',
+        lesson: 'Do not flatten different repair phases into one relationship line.',
+        sourceSummary: 'relationship repair residue',
+        confidence: 0.66,
+        salience: 0.7,
+        sceneAttachment: 0.18,
+        consolidationPriority: 0.72,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['wrong repair phase', 'relationship era confusion'],
+        createdAt: Date.UTC(2026, 3, 24, 8, 30, 0),
+        updatedAt: Date.UTC(2026, 3, 24, 8, 30, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+      recalledConversationHistory: [{
+        turnId: 'turn-relationship-old',
+        sessionId: 'session-relationship-old',
+        userText: '不是那次修复后的关系距离',
+        assistantText: '那次关系距离更远一些。',
+        createdAt: Date.UTC(2026, 3, 24, 8, 35, 0),
+      }] as any,
+    })
+
+    expect(decision.surfaceMode).toBe('internal-only')
+    expect(decision.followUpTiming).toBe('next-open-window')
+    expect(decision.whyNotOthers).toContain('Competing relationship eras')
+    expect(decision.suppressionReasons).toContain('relationship-era-confusion')
+    expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:relationship-era-confusion',
+      }),
+    ]))
+    expect(decision.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:relationship-era-confusion',
+      }),
+    ]))
+    expect(decision.memoryDeliberation?.unsafeDetails).toEqual(expect.arrayContaining([
+      expect.stringContaining('competing relationship eras'),
+    ]))
+  })
 })

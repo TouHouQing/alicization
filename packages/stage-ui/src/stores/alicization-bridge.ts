@@ -17,7 +17,9 @@ import type {
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload as SharedAlicizationDialogueStructuredPayload,
+  AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
+  AlicizationRecallLatencyPolicySnapshot as SharedAlicizationRecallLatencyPolicySnapshot,
   AlicizationDigitalLifeEnvelope as SharedAlicizationDigitalLifeEnvelope,
   AlicizationDigitalLifeSpineDigest as SharedAlicizationDigitalLifeSpineDigest,
   AlicizationDispatchTaskThreadInput as SharedAlicizationDispatchTaskThreadInput,
@@ -39,6 +41,7 @@ import type {
   AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
   AlicizationListTaskThreadsInput as SharedAlicizationListTaskThreadsInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
+  AlicizationLearningExecutionStateSnapshot as SharedAlicizationLearningExecutionStateSnapshot,
   AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
   AlicizationMemoryResolutionLedger as SharedAlicizationMemoryResolutionLedger,
   AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
@@ -188,6 +191,7 @@ export type AlicizationMemoryProvenance = SharedAlicizationMemoryProvenance
 export type AlicizationMemoryUpsertTrace = SharedAlicizationMemoryUpsertTrace
 export type AlicizationEpisodicEventRecord = SharedAlicizationEpisodicEventRecord
 export type AlicizationHostPersonModelSnapshot = SharedAlicizationHostPersonModelSnapshot
+export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 
@@ -316,18 +320,12 @@ export interface AlicizationOrganicMemorySnapshot {
     contradictionHeavyFactCount: number
   } | null
   selfEvolution?: SharedAlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: SharedAlicizationAffectiveResidueMemorySnapshot | null
+  recallLatencyPolicy?: SharedAlicizationRecallLatencyPolicySnapshot | null
   derivedMindStateBundle?: SharedAlicizationDerivedMindStateBundle | null
   memoryStageReplay?: SharedAlicizationOrganicMemoryStageReplay | null
   memoryResolutionLedger?: SharedAlicizationMemoryResolutionLedger | null
-  learningExecutionState?: {
-    nextLearningAction: string | null
-    shouldRecord: boolean
-    shouldReflect: boolean
-    shouldVerify: boolean
-    shouldRevise: boolean
-    shouldInternalize: boolean
-    activeLearningFocuses: string[]
-  } | null
+  learningExecutionState?: SharedAlicizationLearningExecutionStateSnapshot | null
   lastDreamedAt: number | null
 }
 
@@ -1748,6 +1746,7 @@ export interface AlicizationVisualPresenceStateSnapshot {
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  learningExecutionState?: SharedAlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {

@@ -2,6 +2,12 @@ import type { AlicizationDerivedMemoryReference, AlicizationMemoryProvenance } f
 
 import type sqlite3 from 'sqlite3'
 
+import type {
+  AlicizationMemorySituationCandidate,
+  AlicizationMemorySituationCandidateSet,
+  AlicizationMemorySituationKind,
+} from '@proj-alicization/stage-shared'
+
 import { scoreSemanticRecall } from './memory-semantic-retrieval'
 
 export type AlicizationEventGraphNodeKind
@@ -222,6 +228,18 @@ function edgeKindWeight(kind: AlicizationEventGraphEdgeKind) {
     default:
       return 0.2
   }
+}
+
+function inferSituationKindFromNodeKinds(nodeKinds: Set<AlicizationEventGraphNodeKind>): AlicizationMemorySituationKind {
+  if (nodeKinds.has('repair-arc'))
+    return 'repair-arc'
+  if (nodeKinds.has('task-thread'))
+    return 'task-thread'
+  if (nodeKinds.has('relationship-meaning'))
+    return 'relationship-arc'
+  if (nodeKinds.has('scene'))
+    return 'episodic-scene'
+  return 'mixed'
 }
 
 function mapDerivedReferenceToNode(input: {
@@ -819,7 +837,168 @@ export function createAlicizationMemoryEventGraphRuntime(
     return boostByEventId
   }
 
+  async function collapseEventGraphSituationCandidates(input: {
+    cardId: string
+    eventIds: string[]
+    queryTexts: string[]
+    selectedEventId?: string | null
+    maxCandidates?: number
+  }): Promise<AlicizationMemorySituationCandidateSet> {
+    const neighborhood = await listEventGraphNeighborhood({
+      eventIds: input.eventIds,
+      limit: Math.max(400, input.eventIds.length * 24),
+    })
+    const nodeById = new Map(neighborhood.nodes.map(node => [node.nodeId, node] as const))
+    const eventNodeIds = new Set(input.eventIds.map(buildEventNodeId))
+    const adjacency = new Map<string, Set<string>>()
+    const addAdjacent = (left: string, right: string) => {
+      if (!adjacency.has(left))
+        adjacency.set(left, new Set())
+      adjacency.get(left)!.add(right)
+    }
+    for (const edge of neighborhood.edges) {
+      addAdjacent(edge.sourceNodeId, edge.targetNodeId)
+      addAdjacent(edge.targetNodeId, edge.sourceNodeId)
+    }
+
+    const visited = new Set<string>()
+    const clusters: string[][] = []
+    for (const eventNodeId of eventNodeIds) {
+      if (visited.has(eventNodeId))
+        continue
+      const queue = [eventNodeId]
+      const cluster: string[] = []
+      visited.add(eventNodeId)
+      while (queue.length > 0) {
+        const current = queue.shift()!
+        const currentNode = nodeById.get(current)
+        if (currentNode?.nodeKind === 'event' && eventNodeIds.has(current))
+          cluster.push(current)
+        for (const neighborId of adjacency.get(current) ?? []) {
+          const neighborNode = nodeById.get(neighborId)
+          if (!neighborNode)
+            continue
+          if (neighborNode.nodeKind === 'person')
+            continue
+          if (neighborNode.nodeKind === 'event' && !eventNodeIds.has(neighborId))
+            continue
+          if (visited.has(neighborId))
+            continue
+          visited.add(neighborId)
+          queue.push(neighborId)
+        }
+      }
+      clusters.push(cluster)
+    }
+
+    const candidates: AlicizationMemorySituationCandidate[] = clusters.map((cluster, index) => {
+      const clusterNodes = cluster
+        .map(nodeId => nodeById.get(nodeId))
+        .filter(Boolean) as AlicizationEventGraphNodeRecord[]
+      const clusterEdges = neighborhood.edges.filter(edge =>
+        cluster.includes(edge.sourceNodeId) || cluster.includes(edge.targetNodeId),
+      )
+      const semanticScore = scoreSemanticRecall({
+        queryTexts: input.queryTexts,
+        candidateTexts: [
+          ...clusterNodes.map(node => node.label),
+          ...clusterNodes.map(node => node.semanticText),
+          ...clusterEdges.map(edge => edge.edgeKind),
+        ],
+      })
+      const nodeKinds = new Set<AlicizationEventGraphNodeKind>(
+        cluster.flatMap((nodeId) => {
+          const linkedKinds = [nodeById.get(nodeId)?.nodeKind].filter(Boolean) as AlicizationEventGraphNodeKind[]
+          for (const edge of clusterEdges) {
+            if (edge.sourceNodeId === nodeId)
+              linkedKinds.push(nodeById.get(edge.targetNodeId)?.nodeKind as AlicizationEventGraphNodeKind)
+            if (edge.targetNodeId === nodeId)
+              linkedKinds.push(nodeById.get(edge.sourceNodeId)?.nodeKind as AlicizationEventGraphNodeKind)
+          }
+          return linkedKinds.filter(Boolean)
+        }),
+      )
+      const eventLabels = clusterNodes.map(node => node.label).filter(Boolean)
+      const taskThreadNode = clusterEdges
+        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .find(node => node?.nodeKind === 'task-thread')
+      const repairArcNode = clusterEdges
+        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .find(node => node?.nodeKind === 'repair-arc')
+      const relationshipNode = clusterEdges
+        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .find(node => node?.nodeKind === 'relationship-meaning')
+      const sceneNode = clusterEdges
+        .flatMap((edge) => [nodeById.get(edge.sourceNodeId), nodeById.get(edge.targetNodeId)])
+        .find(node => node?.nodeKind === 'scene')
+      const selected = input.selectedEventId
+        ? cluster.includes(buildEventNodeId(input.selectedEventId))
+        : index === 0
+      const competingCandidateIds = clusters
+        .filter(other => other !== cluster)
+        .map((_, otherIndex) => `memory-situation:${otherIndex + 1}`)
+        .slice(0, 6)
+
+      return {
+        candidateId: `memory-situation:${index + 1}`,
+        sourceKinds: ['event-graph', 'episodic-event'],
+        situationKind: inferSituationKindFromNodeKinds(nodeKinds),
+        eraKey: sceneNode?.canonicalKey ?? null,
+        relationshipArcKey: relationshipNode?.canonicalKey ?? null,
+        procedureKey: taskThreadNode?.canonicalKey ?? null,
+        selfModelKey: null,
+        worldClaimKeys: [],
+        selectedEvidenceIds: cluster.map(nodeId => nodeId.replace(/^event:/, '')),
+        competingCandidateIds,
+        suppressionReasons: selected ? [] : ['event-graph-competing-cluster'],
+        confidence: options.clamp01(semanticScore + Math.min(0.3, cluster.length * 0.08)),
+        latencyCost: options.clamp01(0.18 + cluster.length * 0.06),
+        status: selected ? 'selected' : 'rejected',
+        statusReason: selected
+          ? 'highest event-graph neighborhood continuity match'
+          : 'competing event-graph neighborhood scored lower for this cue set',
+        summary: uniqueList([
+          repairArcNode?.label,
+          taskThreadNode?.label,
+          relationshipNode?.label,
+          sceneNode?.label,
+          ...eventLabels,
+        ], 3).join(' / ') || `memory situation ${index + 1}`,
+        evidenceSummary: uniqueList([
+          ...clusterEdges.map(edge => edge.edgeKind),
+          ...eventLabels,
+        ], 8).join(' | ') || null,
+      } satisfies AlicizationMemorySituationCandidate
+    })
+      .sort((left, right) => right.confidence - left.confidence)
+      .slice(0, Math.max(1, input.maxCandidates ?? 6))
+      .map((candidate, index, all) => ({
+        ...candidate,
+        status: index === 0 ? 'selected' : candidate.status,
+        statusReason: index === 0
+          ? 'highest event-graph neighborhood continuity match'
+          : candidate.statusReason,
+        competingCandidateIds: all
+          .filter(other => other.candidateId !== candidate.candidateId)
+          .map(other => other.candidateId)
+          .slice(0, 6),
+      }))
+
+    return {
+      version: 'memory-situation-candidates-v1',
+      producedAt: Date.now(),
+      queryTexts: uniqueList(input.queryTexts, 8),
+      candidates,
+      selected: candidates.filter(item => item.status === 'selected'),
+      rejected: candidates.filter(item => item.status === 'rejected'),
+      suppressed: candidates.filter(item => item.status === 'suppressed'),
+      delayed: candidates.filter(item => item.status === 'delayed'),
+      unresolved: candidates.filter(item => item.status === 'unresolved'),
+    } satisfies AlicizationMemorySituationCandidateSet
+  }
+
   return {
+    collapseEventGraphSituationCandidates,
     upsertGraphForEpisodicEvents,
     listEventGraphNeighborhood,
     scoreEventGraphNeighborhood,

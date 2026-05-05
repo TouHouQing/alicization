@@ -14,9 +14,13 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   prewarmHitCount: number
   prewarmMissCount: number
   budgetClassCounts: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  budgetLatencyTelemetry: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', AlicizationBudgetLatencyTelemetry>>
+  budgetLatencySamples: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number[]>>
   organicStageTelemetry: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', {
     latencyMs: number | null
     sampleCount: number
+    p50LatencyMs?: number | null
+    p95LatencyMs?: number | null
   }>>
   organicStageBudgetCounts: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>>>
   hotKeyStats: Array<{
@@ -29,6 +33,11 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   recallHitRate: number
   recallMissRate: number
   wrongThreadRate: number
+  suppressionHitRate: number
+  wrongThreadPreventedCount: number
+  falsePositiveSuppressionRate: number
+  staleSelfModelVetoRate: number
+  relationshipEraConfusionRate: number
   reconstructionErrorRate: number
   stableCoreOnlyRate: number
   memorySurfaceViolationRate: number
@@ -38,6 +47,22 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   personalityParticipation: number
   relationshipParticipation: number
   continuityParticipation: number
+  learningTaskCompletionCount: number
+  learningTaskFailureCount: number
+  learningTaskBlockedCount: number
+  learningTaskReopenedCount: number
+  learningTaskDowngradedCount: number
+  learningTaskCancelledCount: number
+  learningRelationshipReviseCount: number
+  learningSelfModelReviseCount: number
+  learningWorldModelValidationCount: number
+  learningWorldModelFalseInternalizationCount: number
+  learningTaskCompletionRate: number
+  learningTaskFailureRate: number
+  learningTaskReopenRecoveryRate: number
+  misinternalizationRate: number
+  relationshipCadenceRegressionRate: number
+  selfModelStaleBeliefRate: number
   lastUpdatedAt: number | null
 }
 
@@ -50,9 +75,12 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   cacheHitRatio?: number
   prewarmHitRatio?: number
   budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+  budgetLatencyTelemetry?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', AlicizationBudgetLatencyTelemetry>>
   organicStageTelemetry?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', {
     latencyMs: number | null
     sampleCount: number
+    p50LatencyMs?: number | null
+    p95LatencyMs?: number | null
   }>>
   organicStageBudgetCounts?: Partial<Record<'search-prelude' | 'candidate-generation' | 'candidate-ranking' | 'recollection-planning' | 'surface-planning' | 'self-evolution-integration' | 'prompt-blocks', Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>>>
   hotKeyStats?: Array<{
@@ -65,6 +93,11 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   recallHitRate?: number
   recallMissRate?: number
   wrongThreadRate?: number
+  suppressionHitRate?: number
+  wrongThreadPreventedCount?: number
+  falsePositiveSuppressionRate?: number
+  staleSelfModelVetoRate?: number
+  relationshipEraConfusionRate?: number
   reconstructionErrorRate?: number
   stableCoreOnlyRate?: number
   memorySurfaceViolationRate?: number
@@ -74,6 +107,22 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   personalityParticipation?: number
   relationshipParticipation?: number
   continuityParticipation?: number
+  learningTaskCompletionCount?: number
+  learningTaskFailureCount?: number
+  learningTaskBlockedCount?: number
+  learningTaskReopenedCount?: number
+  learningTaskDowngradedCount?: number
+  learningTaskCancelledCount?: number
+  learningRelationshipReviseCount?: number
+  learningSelfModelReviseCount?: number
+  learningWorldModelValidationCount?: number
+  learningWorldModelFalseInternalizationCount?: number
+  learningTaskCompletionRate?: number
+  learningTaskFailureRate?: number
+  learningTaskReopenRecoveryRate?: number
+  misinternalizationRate?: number
+  relationshipCadenceRegressionRate?: number
+  selfModelStaleBeliefRate?: number
 }
 
 export type AlicizationMemoryRetrievalBudgetClass
@@ -92,12 +141,53 @@ export type AlicizationOrganicMemoryRuntimeStage
     | 'self-evolution-integration'
     | 'prompt-blocks'
 
+export interface AlicizationBudgetLatencyTelemetry {
+  sampleCount: number
+  p50LatencyMs: number | null
+  p95LatencyMs: number | null
+  maxLatencyMs: number | null
+  gateStatus: 'unknown' | 'pass' | 'warn' | 'fail'
+  targetP95Ms: number
+}
+
 interface CreateAlicizationMemoryRetrievalTelemetryRuntimeOptions {
   now: () => number
   key: string
   getMetaValue: (key: string) => Promise<string | undefined>
   upsertMeta: (key: string, value: string) => Promise<void>
   enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+}
+
+interface AlicizationLearningExecutionTelemetryInput {
+  status: 'completed' | 'failed' | 'blocked' | 'reopened' | 'downgraded' | 'cancelled'
+  domain?: 'procedure' | 'relationship' | 'self-model' | 'world-model' | null
+  internalizedAsValidatedOnly?: boolean
+}
+
+const memoryRetrievalBudgetClasses = [
+  'realtime-reply',
+  'deep-recall-reply',
+  'proactive-generation',
+  'nightly-benchmark',
+  'diagnosis-replay',
+] as const satisfies AlicizationMemoryRetrievalBudgetClass[]
+
+const organicMemoryRuntimeStages = [
+  'search-prelude',
+  'candidate-generation',
+  'candidate-ranking',
+  'recollection-planning',
+  'surface-planning',
+  'self-evolution-integration',
+  'prompt-blocks',
+] as const satisfies AlicizationOrganicMemoryRuntimeStage[]
+
+const budgetLatencyP95TargetsMs: Record<AlicizationMemoryRetrievalBudgetClass, number> = {
+  'realtime-reply': 900,
+  'deep-recall-reply': 2200,
+  'proactive-generation': 750,
+  'nightly-benchmark': 5000,
+  'diagnosis-replay': 3600,
 }
 
 export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryRetrievalTelemetrySnapshot {
@@ -117,12 +207,19 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     prewarmHitCount: 0,
     prewarmMissCount: 0,
     budgetClassCounts: {},
+    budgetLatencyTelemetry: {},
+    budgetLatencySamples: {},
     organicStageTelemetry: {},
     organicStageBudgetCounts: {},
     hotKeyStats: [],
     recallHitRate: 0,
     recallMissRate: 0,
     wrongThreadRate: 0,
+    suppressionHitRate: 0,
+    wrongThreadPreventedCount: 0,
+    falsePositiveSuppressionRate: 0,
+    staleSelfModelVetoRate: 0,
+    relationshipEraConfusionRate: 0,
     reconstructionErrorRate: 0,
     stableCoreOnlyRate: 0,
     memorySurfaceViolationRate: 0,
@@ -132,6 +229,22 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     personalityParticipation: 0,
     relationshipParticipation: 0,
     continuityParticipation: 0,
+    learningTaskCompletionCount: 0,
+    learningTaskFailureCount: 0,
+    learningTaskBlockedCount: 0,
+    learningTaskReopenedCount: 0,
+    learningTaskDowngradedCount: 0,
+    learningTaskCancelledCount: 0,
+    learningRelationshipReviseCount: 0,
+    learningSelfModelReviseCount: 0,
+    learningWorldModelValidationCount: 0,
+    learningWorldModelFalseInternalizationCount: 0,
+    learningTaskCompletionRate: 0,
+    learningTaskFailureRate: 0,
+    learningTaskReopenRecoveryRate: 0,
+    misinternalizationRate: 0,
+    relationshipCadenceRegressionRate: 0,
+    selfModelStaleBeliefRate: 0,
     lastUpdatedAt: null,
   }
 }
@@ -157,6 +270,12 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const budgetClassCounts = candidate.budgetClassCounts && typeof candidate.budgetClassCounts === 'object'
     ? candidate.budgetClassCounts as Record<string, unknown>
     : {}
+  const budgetLatencySamples = candidate.budgetLatencySamples && typeof candidate.budgetLatencySamples === 'object'
+    ? candidate.budgetLatencySamples as Record<string, unknown>
+    : {}
+  const budgetLatencyTelemetry = candidate.budgetLatencyTelemetry && typeof candidate.budgetLatencyTelemetry === 'object'
+    ? candidate.budgetLatencyTelemetry as Record<string, unknown>
+    : {}
   const organicStageTelemetry = candidate.organicStageTelemetry && typeof candidate.organicStageTelemetry === 'object'
     ? candidate.organicStageTelemetry as Record<string, unknown>
     : {}
@@ -169,6 +288,11 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const recallHitRate = Number(candidate.recallHitRate)
   const recallMissRate = Number(candidate.recallMissRate)
   const wrongThreadRate = Number(candidate.wrongThreadRate)
+  const suppressionHitRate = Number(candidate.suppressionHitRate)
+  const wrongThreadPreventedCount = Number(candidate.wrongThreadPreventedCount)
+  const falsePositiveSuppressionRate = Number(candidate.falsePositiveSuppressionRate)
+  const staleSelfModelVetoRate = Number(candidate.staleSelfModelVetoRate)
+  const relationshipEraConfusionRate = Number(candidate.relationshipEraConfusionRate)
   const reconstructionErrorRate = Number(candidate.reconstructionErrorRate)
   const stableCoreOnlyRate = Number(candidate.stableCoreOnlyRate)
   const memorySurfaceViolationRate = Number(candidate.memorySurfaceViolationRate)
@@ -178,6 +302,22 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const personalityParticipation = Number(candidate.personalityParticipation)
   const relationshipParticipation = Number(candidate.relationshipParticipation)
   const continuityParticipation = Number(candidate.continuityParticipation)
+  const learningTaskCompletionCount = Number(candidate.learningTaskCompletionCount)
+  const learningTaskFailureCount = Number(candidate.learningTaskFailureCount)
+  const learningTaskBlockedCount = Number(candidate.learningTaskBlockedCount)
+  const learningTaskReopenedCount = Number(candidate.learningTaskReopenedCount)
+  const learningTaskDowngradedCount = Number(candidate.learningTaskDowngradedCount)
+  const learningTaskCancelledCount = Number(candidate.learningTaskCancelledCount)
+  const learningRelationshipReviseCount = Number(candidate.learningRelationshipReviseCount)
+  const learningSelfModelReviseCount = Number(candidate.learningSelfModelReviseCount)
+  const learningWorldModelValidationCount = Number(candidate.learningWorldModelValidationCount)
+  const learningWorldModelFalseInternalizationCount = Number(candidate.learningWorldModelFalseInternalizationCount)
+  const learningTaskCompletionRate = Number(candidate.learningTaskCompletionRate)
+  const learningTaskFailureRate = Number(candidate.learningTaskFailureRate)
+  const learningTaskReopenRecoveryRate = Number(candidate.learningTaskReopenRecoveryRate)
+  const misinternalizationRate = Number(candidate.misinternalizationRate)
+  const relationshipCadenceRegressionRate = Number(candidate.relationshipCadenceRegressionRate)
+  const selfModelStaleBeliefRate = Number(candidate.selfModelStaleBeliefRate)
   const lastUpdatedAt = Number(candidate.lastUpdatedAt)
   return {
     semanticLatencyMs: Number.isFinite(semanticLatencyMs) ? Math.max(0, semanticLatencyMs) : null,
@@ -201,34 +341,55 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       'nightly-benchmark': Number.isFinite(Number(budgetClassCounts['nightly-benchmark'])) ? Math.max(0, Math.floor(Number(budgetClassCounts['nightly-benchmark']))) : 0,
       'diagnosis-replay': Number.isFinite(Number(budgetClassCounts['diagnosis-replay'])) ? Math.max(0, Math.floor(Number(budgetClassCounts['diagnosis-replay']))) : 0,
     },
+    budgetLatencySamples: Object.fromEntries(
+      memoryRetrievalBudgetClasses.map((budgetClass) => {
+        const samples = Array.isArray(budgetLatencySamples[budgetClass])
+          ? budgetLatencySamples[budgetClass]
+            .map(item => Number(item))
+            .filter(item => Number.isFinite(item) && item >= 0)
+          : []
+        return [budgetClass, trimLatencySamples(samples)]
+      }),
+    ),
+    budgetLatencyTelemetry: Object.fromEntries(
+      memoryRetrievalBudgetClasses.map((budgetClass) => {
+        const samples = Array.isArray(budgetLatencySamples[budgetClass])
+          ? trimLatencySamples(budgetLatencySamples[budgetClass].map(item => Number(item)))
+          : []
+        const explicit = budgetLatencyTelemetry[budgetClass] && typeof budgetLatencyTelemetry[budgetClass] === 'object'
+          ? budgetLatencyTelemetry[budgetClass] as Record<string, unknown>
+          : null
+        if (samples.length > 0)
+          return [budgetClass, deriveBudgetLatencyTelemetry({ budgetClass, samples })]
+        const p50LatencyMs = nullableNonNegativeNumber(explicit?.p50LatencyMs)
+        const p95LatencyMs = nullableNonNegativeNumber(explicit?.p95LatencyMs)
+        const maxLatencyMs = nullableNonNegativeNumber(explicit?.maxLatencyMs)
+        return [budgetClass, {
+          sampleCount: Number.isFinite(Number(explicit?.sampleCount)) ? Math.max(0, Math.floor(Number(explicit?.sampleCount))) : 0,
+          p50LatencyMs,
+          p95LatencyMs,
+          maxLatencyMs,
+          gateStatus: explicit?.gateStatus === 'pass' || explicit?.gateStatus === 'warn' || explicit?.gateStatus === 'fail' || explicit?.gateStatus === 'unknown'
+            ? explicit.gateStatus
+            : 'unknown',
+          targetP95Ms: Number.isFinite(Number(explicit?.targetP95Ms)) ? Math.max(1, Number(explicit?.targetP95Ms)) : budgetLatencyP95TargetsMs[budgetClass],
+        } satisfies AlicizationBudgetLatencyTelemetry]
+      }),
+    ),
     organicStageTelemetry: Object.fromEntries(
-      [
-        'search-prelude',
-        'candidate-generation',
-        'candidate-ranking',
-        'recollection-planning',
-        'surface-planning',
-        'self-evolution-integration',
-        'prompt-blocks',
-      ].map((stage) => {
+      organicMemoryRuntimeStages.map((stage) => {
         const entry = organicStageTelemetry[stage]
         const candidate = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}
         return [stage, {
-          latencyMs: Number.isFinite(Number(candidate.latencyMs)) ? Math.max(0, Number(candidate.latencyMs)) : null,
+          latencyMs: nullableNonNegativeNumber(candidate.latencyMs),
           sampleCount: Number.isFinite(Number(candidate.sampleCount)) ? Math.max(0, Math.floor(Number(candidate.sampleCount))) : 0,
+          p50LatencyMs: nullableNonNegativeNumber(candidate.p50LatencyMs),
+          p95LatencyMs: nullableNonNegativeNumber(candidate.p95LatencyMs),
         }]
       }),
     ),
     organicStageBudgetCounts: Object.fromEntries(
-      [
-        'search-prelude',
-        'candidate-generation',
-        'candidate-ranking',
-        'recollection-planning',
-        'surface-planning',
-        'self-evolution-integration',
-        'prompt-blocks',
-      ].map((stage) => {
+      organicMemoryRuntimeStages.map((stage) => {
         const entry = organicStageBudgetCounts[stage]
         const candidate = entry && typeof entry === 'object' ? entry as Record<string, unknown> : {}
         return [stage, {
@@ -259,6 +420,11 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     recallHitRate: Number.isFinite(recallHitRate) ? Math.max(0, Math.min(1, recallHitRate)) : 0,
     recallMissRate: Number.isFinite(recallMissRate) ? Math.max(0, Math.min(1, recallMissRate)) : 0,
     wrongThreadRate: Number.isFinite(wrongThreadRate) ? Math.max(0, Math.min(1, wrongThreadRate)) : 0,
+    suppressionHitRate: Number.isFinite(suppressionHitRate) ? Math.max(0, Math.min(1, suppressionHitRate)) : 0,
+    wrongThreadPreventedCount: Number.isFinite(wrongThreadPreventedCount) ? Math.max(0, Math.floor(wrongThreadPreventedCount)) : 0,
+    falsePositiveSuppressionRate: Number.isFinite(falsePositiveSuppressionRate) ? Math.max(0, Math.min(1, falsePositiveSuppressionRate)) : 0,
+    staleSelfModelVetoRate: Number.isFinite(staleSelfModelVetoRate) ? Math.max(0, Math.min(1, staleSelfModelVetoRate)) : 0,
+    relationshipEraConfusionRate: Number.isFinite(relationshipEraConfusionRate) ? Math.max(0, Math.min(1, relationshipEraConfusionRate)) : 0,
     reconstructionErrorRate: Number.isFinite(reconstructionErrorRate) ? Math.max(0, Math.min(1, reconstructionErrorRate)) : 0,
     stableCoreOnlyRate: Number.isFinite(stableCoreOnlyRate) ? Math.max(0, Math.min(1, stableCoreOnlyRate)) : 0,
     memorySurfaceViolationRate: Number.isFinite(memorySurfaceViolationRate) ? Math.max(0, Math.min(1, memorySurfaceViolationRate)) : 0,
@@ -268,6 +434,22 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     personalityParticipation: Number.isFinite(personalityParticipation) ? Math.max(0, Math.min(1, personalityParticipation)) : 0,
     relationshipParticipation: Number.isFinite(relationshipParticipation) ? Math.max(0, Math.min(1, relationshipParticipation)) : 0,
     continuityParticipation: Number.isFinite(continuityParticipation) ? Math.max(0, Math.min(1, continuityParticipation)) : 0,
+    learningTaskCompletionCount: Number.isFinite(learningTaskCompletionCount) ? Math.max(0, Math.floor(learningTaskCompletionCount)) : 0,
+    learningTaskFailureCount: Number.isFinite(learningTaskFailureCount) ? Math.max(0, Math.floor(learningTaskFailureCount)) : 0,
+    learningTaskBlockedCount: Number.isFinite(learningTaskBlockedCount) ? Math.max(0, Math.floor(learningTaskBlockedCount)) : 0,
+    learningTaskReopenedCount: Number.isFinite(learningTaskReopenedCount) ? Math.max(0, Math.floor(learningTaskReopenedCount)) : 0,
+    learningTaskDowngradedCount: Number.isFinite(learningTaskDowngradedCount) ? Math.max(0, Math.floor(learningTaskDowngradedCount)) : 0,
+    learningTaskCancelledCount: Number.isFinite(learningTaskCancelledCount) ? Math.max(0, Math.floor(learningTaskCancelledCount)) : 0,
+    learningRelationshipReviseCount: Number.isFinite(learningRelationshipReviseCount) ? Math.max(0, Math.floor(learningRelationshipReviseCount)) : 0,
+    learningSelfModelReviseCount: Number.isFinite(learningSelfModelReviseCount) ? Math.max(0, Math.floor(learningSelfModelReviseCount)) : 0,
+    learningWorldModelValidationCount: Number.isFinite(learningWorldModelValidationCount) ? Math.max(0, Math.floor(learningWorldModelValidationCount)) : 0,
+    learningWorldModelFalseInternalizationCount: Number.isFinite(learningWorldModelFalseInternalizationCount) ? Math.max(0, Math.floor(learningWorldModelFalseInternalizationCount)) : 0,
+    learningTaskCompletionRate: Number.isFinite(learningTaskCompletionRate) ? Math.max(0, Math.min(1, learningTaskCompletionRate)) : 0,
+    learningTaskFailureRate: Number.isFinite(learningTaskFailureRate) ? Math.max(0, Math.min(1, learningTaskFailureRate)) : 0,
+    learningTaskReopenRecoveryRate: Number.isFinite(learningTaskReopenRecoveryRate) ? Math.max(0, Math.min(1, learningTaskReopenRecoveryRate)) : 0,
+    misinternalizationRate: Number.isFinite(misinternalizationRate) ? Math.max(0, Math.min(1, misinternalizationRate)) : 0,
+    relationshipCadenceRegressionRate: Number.isFinite(relationshipCadenceRegressionRate) ? Math.max(0, Math.min(1, relationshipCadenceRegressionRate)) : 0,
+    selfModelStaleBeliefRate: Number.isFinite(selfModelStaleBeliefRate) ? Math.max(0, Math.min(1, selfModelStaleBeliefRate)) : 0,
     lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? Math.max(0, Math.floor(lastUpdatedAt)) : null,
   }
 }
@@ -280,8 +462,52 @@ export function blendAlicizationMemoryTelemetryLatency(previous: number | null, 
   return (previous * carryWeight + normalizedSample) / (carryWeight + 1)
 }
 
+function nullableNonNegativeNumber(raw: unknown) {
+  if (raw == null || raw === '')
+    return null
+  const value = Number(raw)
+  return Number.isFinite(value) ? Math.max(0, value) : null
+}
+
 function averageUnit(previous: number, sample: number) {
   return Math.max(0, Math.min(1, Number(((previous + sample) / 2).toFixed(2))))
+}
+
+function trimLatencySamples(samples: number[], maxItems = 64) {
+  return samples
+    .filter(item => Number.isFinite(item) && item >= 0)
+    .slice(-maxItems)
+}
+
+function percentileLatency(samples: number[], percentile: number) {
+  const sorted = [...samples].sort((left, right) => left - right)
+  if (sorted.length === 0)
+    return null
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(percentile * sorted.length) - 1))
+  return sorted[index] ?? null
+}
+
+function deriveBudgetLatencyTelemetry(input: {
+  budgetClass: AlicizationMemoryRetrievalBudgetClass
+  samples: number[]
+}): AlicizationBudgetLatencyTelemetry {
+  const samples = trimLatencySamples(input.samples)
+  const p95LatencyMs = percentileLatency(samples, 0.95)
+  const targetP95Ms = budgetLatencyP95TargetsMs[input.budgetClass]
+  return {
+    sampleCount: samples.length,
+    p50LatencyMs: percentileLatency(samples, 0.5),
+    p95LatencyMs,
+    maxLatencyMs: samples.length > 0 ? Math.max(...samples) : null,
+    gateStatus: !p95LatencyMs
+      ? 'unknown'
+      : p95LatencyMs <= targetP95Ms
+        ? 'pass'
+        : p95LatencyMs <= targetP95Ms * 1.18
+          ? 'warn'
+          : 'fail',
+    targetP95Ms,
+  }
 }
 
 function updateHotKeyStats(input: {
@@ -476,8 +702,26 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         latencyMs: null,
         sampleCount: 0,
       }
+      const stageBudgetCounts = telemetry.organicStageBudgetCounts[inputValue.stage] ?? {}
+      const budgetClass = [...memoryRetrievalBudgetClasses]
+        .sort((left, right) => (stageBudgetCounts[right] ?? 0) - (stageBudgetCounts[left] ?? 0))[0] ?? 'realtime-reply'
+      const budgetSamples = trimLatencySamples([
+        ...(telemetry.budgetLatencySamples[budgetClass] ?? []),
+        inputValue.latencyMs,
+      ])
       await writeTelemetry({
         ...telemetry,
+        budgetLatencySamples: {
+          ...telemetry.budgetLatencySamples,
+          [budgetClass]: budgetSamples,
+        },
+        budgetLatencyTelemetry: {
+          ...telemetry.budgetLatencyTelemetry,
+          [budgetClass]: deriveBudgetLatencyTelemetry({
+            budgetClass,
+            samples: budgetSamples,
+          }),
+        },
         organicStageTelemetry: {
           ...telemetry.organicStageTelemetry,
           [inputValue.stage]: {
@@ -487,6 +731,14 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
               inputValue.latencyMs,
             ),
             sampleCount: currentStage.sampleCount + 1,
+            p50LatencyMs: deriveBudgetLatencyTelemetry({
+              budgetClass,
+              samples: budgetSamples,
+            }).p50LatencyMs,
+            p95LatencyMs: deriveBudgetLatencyTelemetry({
+              budgetClass,
+              samples: budgetSamples,
+            }).p95LatencyMs,
           },
         },
         lastUpdatedAt: currentTs,
@@ -559,6 +811,52 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
     })
   }
 
+  const recordLearningExecution = async (inputValue: AlicizationLearningExecutionTelemetryInput) => {
+    const currentTs = input.now()
+    await input.enqueueWrite(async () => {
+      const telemetry = await getTelemetry()
+      const learningTaskCompletionCount = telemetry.learningTaskCompletionCount + (inputValue.status === 'completed' ? 1 : 0)
+      const learningTaskFailureCount = telemetry.learningTaskFailureCount + (inputValue.status === 'failed' ? 1 : 0)
+      const learningTaskBlockedCount = telemetry.learningTaskBlockedCount + (inputValue.status === 'blocked' ? 1 : 0)
+      const learningTaskReopenedCount = telemetry.learningTaskReopenedCount + (inputValue.status === 'reopened' ? 1 : 0)
+      const learningTaskDowngradedCount = telemetry.learningTaskDowngradedCount + (inputValue.status === 'downgraded' ? 1 : 0)
+      const learningTaskCancelledCount = telemetry.learningTaskCancelledCount + (inputValue.status === 'cancelled' ? 1 : 0)
+      const learningWorldModelValidationCount = telemetry.learningWorldModelValidationCount + (
+        inputValue.status === 'completed' && inputValue.domain === 'world-model' ? 1 : 0
+      )
+      const learningWorldModelFalseInternalizationCount = telemetry.learningWorldModelFalseInternalizationCount + (
+        inputValue.status === 'completed' && inputValue.domain === 'world-model' && inputValue.internalizedAsValidatedOnly === false ? 1 : 0
+      )
+      const learningAttemptCount = learningTaskCompletionCount
+        + learningTaskFailureCount
+        + learningTaskBlockedCount
+        + learningTaskDowngradedCount
+        + learningTaskCancelledCount
+      await writeTelemetry({
+        ...telemetry,
+        learningTaskCompletionCount,
+        learningTaskFailureCount,
+        learningTaskBlockedCount,
+        learningTaskReopenedCount,
+        learningTaskDowngradedCount,
+        learningTaskCancelledCount,
+        learningRelationshipReviseCount: telemetry.learningRelationshipReviseCount + (
+          inputValue.status === 'completed' && inputValue.domain === 'relationship' ? 1 : 0
+        ),
+        learningSelfModelReviseCount: telemetry.learningSelfModelReviseCount + (
+          inputValue.status === 'completed' && inputValue.domain === 'self-model' ? 1 : 0
+        ),
+        learningWorldModelValidationCount,
+        learningWorldModelFalseInternalizationCount,
+        learningTaskCompletionRate: learningAttemptCount <= 0 ? 0 : Number((learningTaskCompletionCount / learningAttemptCount).toFixed(2)),
+        learningTaskFailureRate: learningAttemptCount <= 0 ? 0 : Number((learningTaskFailureCount / learningAttemptCount).toFixed(2)),
+        learningTaskReopenRecoveryRate: learningTaskReopenedCount <= 0 ? 0 : Number((Math.min(learningTaskCompletionCount, learningTaskReopenedCount) / learningTaskReopenedCount).toFixed(2)),
+        misinternalizationRate: learningWorldModelValidationCount <= 0 ? 0 : Number((learningWorldModelFalseInternalizationCount / learningWorldModelValidationCount).toFixed(2)),
+        lastUpdatedAt: currentTs,
+      })
+    })
+  }
+
   const applyHealthOverrideInline = async (next: AlicizationMemoryRetrievalHealthOverride) => {
     const telemetry = await getTelemetry()
     await writeTelemetry({
@@ -603,6 +901,21 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       wrongThreadRate: Number.isFinite(next.wrongThreadRate)
         ? Math.max(0, Math.min(1, Number(next.wrongThreadRate)))
         : telemetry.wrongThreadRate,
+      suppressionHitRate: Number.isFinite(next.suppressionHitRate)
+        ? Math.max(0, Math.min(1, Number(next.suppressionHitRate)))
+        : telemetry.suppressionHitRate,
+      wrongThreadPreventedCount: Number.isFinite(next.wrongThreadPreventedCount)
+        ? Math.max(0, Math.floor(Number(next.wrongThreadPreventedCount)))
+        : telemetry.wrongThreadPreventedCount,
+      falsePositiveSuppressionRate: Number.isFinite(next.falsePositiveSuppressionRate)
+        ? Math.max(0, Math.min(1, Number(next.falsePositiveSuppressionRate)))
+        : telemetry.falsePositiveSuppressionRate,
+      staleSelfModelVetoRate: Number.isFinite(next.staleSelfModelVetoRate)
+        ? Math.max(0, Math.min(1, Number(next.staleSelfModelVetoRate)))
+        : telemetry.staleSelfModelVetoRate,
+      relationshipEraConfusionRate: Number.isFinite(next.relationshipEraConfusionRate)
+        ? Math.max(0, Math.min(1, Number(next.relationshipEraConfusionRate)))
+        : telemetry.relationshipEraConfusionRate,
       reconstructionErrorRate: Number.isFinite(next.reconstructionErrorRate)
         ? Math.max(0, Math.min(1, Number(next.reconstructionErrorRate)))
         : telemetry.reconstructionErrorRate,
@@ -621,6 +934,13 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
             ...next.budgetClassCounts,
           }
         : telemetry.budgetClassCounts,
+      budgetLatencyTelemetry: next.budgetLatencyTelemetry
+        ? {
+            ...telemetry.budgetLatencyTelemetry,
+            ...next.budgetLatencyTelemetry,
+          }
+        : telemetry.budgetLatencyTelemetry,
+      budgetLatencySamples: telemetry.budgetLatencySamples,
       organicStageTelemetry: next.organicStageTelemetry
         ? {
             ...telemetry.organicStageTelemetry,
@@ -651,6 +971,54 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       continuityParticipation: Number.isFinite(next.continuityParticipation)
         ? Math.max(0, Math.min(1, Number(next.continuityParticipation)))
         : telemetry.continuityParticipation,
+      learningTaskCompletionCount: Number.isFinite(next.learningTaskCompletionCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskCompletionCount)))
+        : telemetry.learningTaskCompletionCount,
+      learningTaskFailureCount: Number.isFinite(next.learningTaskFailureCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskFailureCount)))
+        : telemetry.learningTaskFailureCount,
+      learningTaskBlockedCount: Number.isFinite(next.learningTaskBlockedCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskBlockedCount)))
+        : telemetry.learningTaskBlockedCount,
+      learningTaskReopenedCount: Number.isFinite(next.learningTaskReopenedCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskReopenedCount)))
+        : telemetry.learningTaskReopenedCount,
+      learningTaskDowngradedCount: Number.isFinite(next.learningTaskDowngradedCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskDowngradedCount)))
+        : telemetry.learningTaskDowngradedCount,
+      learningTaskCancelledCount: Number.isFinite(next.learningTaskCancelledCount)
+        ? Math.max(0, Math.floor(Number(next.learningTaskCancelledCount)))
+        : telemetry.learningTaskCancelledCount,
+      learningRelationshipReviseCount: Number.isFinite(next.learningRelationshipReviseCount)
+        ? Math.max(0, Math.floor(Number(next.learningRelationshipReviseCount)))
+        : telemetry.learningRelationshipReviseCount,
+      learningSelfModelReviseCount: Number.isFinite(next.learningSelfModelReviseCount)
+        ? Math.max(0, Math.floor(Number(next.learningSelfModelReviseCount)))
+        : telemetry.learningSelfModelReviseCount,
+      learningWorldModelValidationCount: Number.isFinite(next.learningWorldModelValidationCount)
+        ? Math.max(0, Math.floor(Number(next.learningWorldModelValidationCount)))
+        : telemetry.learningWorldModelValidationCount,
+      learningWorldModelFalseInternalizationCount: Number.isFinite(next.learningWorldModelFalseInternalizationCount)
+        ? Math.max(0, Math.floor(Number(next.learningWorldModelFalseInternalizationCount)))
+        : telemetry.learningWorldModelFalseInternalizationCount,
+      learningTaskCompletionRate: Number.isFinite(next.learningTaskCompletionRate)
+        ? Math.max(0, Math.min(1, Number(next.learningTaskCompletionRate)))
+        : telemetry.learningTaskCompletionRate,
+      learningTaskFailureRate: Number.isFinite(next.learningTaskFailureRate)
+        ? Math.max(0, Math.min(1, Number(next.learningTaskFailureRate)))
+        : telemetry.learningTaskFailureRate,
+      learningTaskReopenRecoveryRate: Number.isFinite(next.learningTaskReopenRecoveryRate)
+        ? Math.max(0, Math.min(1, Number(next.learningTaskReopenRecoveryRate)))
+        : telemetry.learningTaskReopenRecoveryRate,
+      misinternalizationRate: Number.isFinite(next.misinternalizationRate)
+        ? Math.max(0, Math.min(1, Number(next.misinternalizationRate)))
+        : telemetry.misinternalizationRate,
+      relationshipCadenceRegressionRate: Number.isFinite(next.relationshipCadenceRegressionRate)
+        ? Math.max(0, Math.min(1, Number(next.relationshipCadenceRegressionRate)))
+        : telemetry.relationshipCadenceRegressionRate,
+      selfModelStaleBeliefRate: Number.isFinite(next.selfModelStaleBeliefRate)
+        ? Math.max(0, Math.min(1, Number(next.selfModelStaleBeliefRate)))
+        : telemetry.selfModelStaleBeliefRate,
       lastUpdatedAt: input.now(),
     })
   }
@@ -676,6 +1044,7 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
     recordOrganicStageBudget,
     recordHotKeyOutcome,
     recordParticipation,
+    recordLearningExecution,
     applyHealthOverride,
     applyHealthOverrideInline,
   }

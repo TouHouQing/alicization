@@ -48,15 +48,37 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   recallHitRate?: number
   recallMissRate?: number
   wrongThreadRate?: number
+  suppressionHitRate?: number
+  wrongThreadPreventedCount?: number
+  falsePositiveSuppressionRate?: number
+  staleSelfModelVetoRate?: number
+  relationshipEraConfusionRate?: number
   reconstructionErrorRate?: number
   stableCoreOnlyRate?: number
   memorySurfaceViolationRate?: number
+  relationshipDistanceJumpRate?: number
   templateLeakageFailCount: number
   mindParticipation?: number
   memoryParticipation?: number
   personalityParticipation?: number
   relationshipParticipation?: number
   continuityParticipation?: number
+  learningTaskCompletionCount?: number
+  learningTaskFailureCount?: number
+  learningTaskBlockedCount?: number
+  learningTaskReopenedCount?: number
+  learningTaskDowngradedCount?: number
+  learningTaskCancelledCount?: number
+  learningRelationshipReviseCount?: number
+  learningSelfModelReviseCount?: number
+  learningWorldModelValidationCount?: number
+  learningWorldModelFalseInternalizationCount?: number
+  learningTaskCompletionRate?: number
+  learningTaskFailureRate?: number
+  learningTaskReopenRecoveryRate?: number
+  misinternalizationRate?: number
+  relationshipCadenceRegressionRate?: number
+  selfModelStaleBeliefRate?: number
 }
 
 function tokenize(text: string) {
@@ -133,6 +155,23 @@ export function buildAlicizationMemoryStatsProjection(input: {
     ? 0
     : reconsolidatedCount / input.episodicEvents.length
   const active = input.facts.length + input.episodicEvents.length + input.consolidations.length
+  const learningTerminalCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskCompletionCount ?? 0))
+    + Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskFailureCount ?? 0))
+    + Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskCancelledCount ?? 0))
+  const learningAttemptCount = learningTerminalCount
+    + Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskBlockedCount ?? 0))
+    + Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskDowngradedCount ?? 0))
+  const learningReopenCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskReopenedCount ?? 0))
+  const learningCompletionCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskCompletionCount ?? 0))
+  const learningFailureCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskFailureCount ?? 0))
+  const learningWorldValidationCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningWorldModelValidationCount ?? 0))
+  const learningWorldFalseInternalizationCount = Math.max(0, Math.floor(input.retrievalTelemetry.learningWorldModelFalseInternalizationCount ?? 0))
+  const relationshipCadenceRegressionRate = input.retrievalTelemetry.relationshipCadenceRegressionRate
+    ?? input.retrievalTelemetry.relationshipDistanceJumpRate
+    ?? 0
+  const selfModelStaleBeliefRate = input.retrievalTelemetry.selfModelStaleBeliefRate
+    ?? input.retrievalTelemetry.staleSelfModelVetoRate
+    ?? 0
 
   return {
     total: active,
@@ -204,6 +243,11 @@ export function buildAlicizationMemoryStatsProjection(input: {
       recallHitRate: Number((input.retrievalTelemetry.recallHitRate ?? 0).toFixed(2)),
       recallMissRate: Number((input.retrievalTelemetry.recallMissRate ?? 0).toFixed(2)),
       wrongThreadRate: Number((input.retrievalTelemetry.wrongThreadRate ?? 0).toFixed(2)),
+      suppressionHitRate: Number((input.retrievalTelemetry.suppressionHitRate ?? 0).toFixed(2)),
+      wrongThreadPreventedCount: Math.max(0, Math.floor(input.retrievalTelemetry.wrongThreadPreventedCount ?? 0)),
+      falsePositiveSuppressionRate: Number((input.retrievalTelemetry.falsePositiveSuppressionRate ?? 0).toFixed(2)),
+      staleSelfModelVetoRate: Number((input.retrievalTelemetry.staleSelfModelVetoRate ?? 0).toFixed(2)),
+      relationshipEraConfusionRate: Number((input.retrievalTelemetry.relationshipEraConfusionRate ?? 0).toFixed(2)),
       reconstructionErrorRate: Number((input.retrievalTelemetry.reconstructionErrorRate ?? 0).toFixed(2)),
       stableCoreOnlyRate: Number((input.retrievalTelemetry.stableCoreOnlyRate ?? 0).toFixed(2)),
       memorySurfaceViolationRate: Number((input.retrievalTelemetry.memorySurfaceViolationRate ?? 0).toFixed(2)),
@@ -213,6 +257,22 @@ export function buildAlicizationMemoryStatsProjection(input: {
       personalityParticipation: Number((input.retrievalTelemetry.personalityParticipation ?? 0).toFixed(2)),
       relationshipParticipation: Number((input.retrievalTelemetry.relationshipParticipation ?? 0).toFixed(2)),
       continuityParticipation: Number((input.retrievalTelemetry.continuityParticipation ?? 0).toFixed(2)),
+      learningTaskCompletionCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskCompletionCount ?? 0)),
+      learningTaskFailureCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskFailureCount ?? 0)),
+      learningTaskBlockedCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskBlockedCount ?? 0)),
+      learningTaskReopenedCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskReopenedCount ?? 0)),
+      learningTaskDowngradedCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskDowngradedCount ?? 0)),
+      learningTaskCancelledCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningTaskCancelledCount ?? 0)),
+      learningRelationshipReviseCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningRelationshipReviseCount ?? 0)),
+      learningSelfModelReviseCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningSelfModelReviseCount ?? 0)),
+      learningWorldModelValidationCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningWorldModelValidationCount ?? 0)),
+      learningWorldModelFalseInternalizationCount: Math.max(0, Math.floor(input.retrievalTelemetry.learningWorldModelFalseInternalizationCount ?? 0)),
+      learningTaskCompletionRate: Number((learningAttemptCount <= 0 ? 0 : learningCompletionCount / learningAttemptCount).toFixed(2)),
+      learningTaskFailureRate: Number((learningAttemptCount <= 0 ? 0 : learningFailureCount / learningAttemptCount).toFixed(2)),
+      learningTaskReopenRecoveryRate: Number((learningReopenCount <= 0 ? 0 : Math.min(learningCompletionCount, learningReopenCount) / learningReopenCount).toFixed(2)),
+      misinternalizationRate: Number((learningWorldValidationCount <= 0 ? 0 : learningWorldFalseInternalizationCount / learningWorldValidationCount).toFixed(2)),
+      relationshipCadenceRegressionRate: Number((relationshipCadenceRegressionRate ?? 0).toFixed(2)),
+      selfModelStaleBeliefRate: Number((selfModelStaleBeliefRate ?? 0).toFixed(2)),
     },
     integrity: deriveAlicizationMemoryIntegrity({
       facts: input.facts,

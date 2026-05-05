@@ -11,6 +11,8 @@ type RuntimeMemorySearchSetup = Pick<CreateAlicizationOrganicMemoryPromptRuntime
   | 'normalizeOrganicRecallText'
   | 'selectPromptActiveThoughts'
   | 'getLatestRelationshipDynamics'
+  | 'listRelationshipOutcomes'
+  | 'listMemoryReflections'
   | 'retrieveMemoryFacts'
   | 'planRecollectionIntent'
   | 'planMemoryRecollection'
@@ -43,6 +45,7 @@ export function createAlicizationRuntimeMemoryRuntime(
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
     getMemoryTuningAdvice,
+    listRecentMemoryReflections,
     recallConversationHistory,
     recallMemoryConsolidations,
     prewarmAccessibilityLine,
@@ -56,6 +59,12 @@ export function createAlicizationRuntimeMemoryRuntime(
       recallEpisodicEventsWithGovernor,
       buildHostPersonModel,
       getMemoryTuningAdvice,
+      listMemoryReflections: async input => listRecentMemoryReflections(input.cardId ?? options.organicMemoryAccess.getActiveCardId(), input.limit),
+      listRelationshipOutcomes: async input => options.organicMemoryAccess.listRelationshipOutcomes({
+        cardId: input.cardId ?? options.organicMemoryAccess.getActiveCardId(),
+        limit: input.limit,
+        turnId: input.turnId,
+      }),
       recallConversationHistory,
       recallMemoryConsolidations,
     },

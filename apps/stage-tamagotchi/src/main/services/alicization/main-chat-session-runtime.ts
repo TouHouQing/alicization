@@ -81,6 +81,7 @@ import {
   buildMemoryOpeningStrategyTag,
 } from './memory-deliberation-latent-controls'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildAlicizationAffectiveResidueMemory } from './affective-residue-memory'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
@@ -182,6 +183,16 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     context: OrganicMemoryPromptContext
     turnId?: string | null
   }) => Promise<unknown>
+  listMemoryReflections?: (cardId: string, limit?: number) => Promise<Array<{
+    id: string
+    summary: string
+    lesson: string
+    status: 'pending' | 'confirmed' | 'denied' | 'superseded'
+  }>>
+  listRelationshipOutcomes?: (cardId: string, limit?: number) => Promise<Array<{
+    id: string
+    summary: string
+  }>>
   prewarmOrganicMemoryAccessibility?: (input: {
     recallSeed: string
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
@@ -254,6 +265,7 @@ function applyMemoryDeliberationToGovernance(input: {
     speech,
     recollectionIntent: input.context.recollectionIntent ?? null,
     knowledgeEvidence: input.context.knowledgeEvidence ?? null,
+    tuningAdvice: input.context.memoryTuningAdvice ?? null,
   })
   if (!deliberationKernel?.shouldRecall)
     return governance
@@ -714,6 +726,7 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
     speech,
     recollectionIntent: input.context.recollectionIntent ?? null,
     knowledgeEvidence: input.context.knowledgeEvidence ?? null,
+    tuningAdvice: input.context.memoryTuningAdvice ?? null,
   })
   if (!surface || !governance || !deliberationKernel?.shouldRecall || !deliberation)
     return surface
@@ -1001,8 +1014,10 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
       memoryDeliberation: deliberation,
       knowledgeEvidence: input.context.knowledgeEvidence ?? surface.memory.knowledgeEvidence ?? null,
       selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
+      learningExecutionState: input.context.learningExecutionState ?? surface.memory.learningExecutionState ?? null,
       memoryStageReplay: input.context.memoryStageReplay ?? surface.memory.memoryStageReplay ?? null,
       memoryResolutionLedger: input.context.memoryResolutionLedger ?? surface.memory.memoryResolutionLedger ?? null,
+      affectiveResidue: input.context.affectiveResidue ?? surface.memory.affectiveResidue ?? surface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
       derivedMindStateBundle: buildDerivedMindStateBundle({
         source: 'main-runtime',
         producedAt: input.now,
@@ -1010,6 +1025,17 @@ function applyMemoryDeliberationToDigitalLifeRuntimeSurface(input: {
         personStateProjection: (input.context.personStateProjection ?? surface.memory.personStateProjection ?? null) as unknown as Record<string, unknown> | null,
         knowledgeEvidence: input.context.knowledgeEvidence ?? surface.memory.knowledgeEvidence ?? null,
         selfEvolution: input.context.selfEvolution ?? surface.memory.selfEvolution ?? null,
+        affectiveResidue: input.context.affectiveResidue ?? buildAlicizationAffectiveResidueMemory({
+          now: input.now,
+          recentRelationshipOutcomes: input.context.recentRelationshipOutcomes ?? [],
+          recentMemoryReflections: input.context.recentMemoryReflections ?? [],
+          personStateEvolutionSummary: null,
+          personalityContinuityState: input.context.personStateProjection?.personalityContinuityState ?? surface.memory.personalityContinuityState ?? null,
+          hostPersonModel: input.context.hostPersonModel ?? surface.memory.hostPersonModel ?? null,
+          relationshipDynamics: input.context.relationshipDynamics ?? null,
+        }),
+        learningExecutionState: input.context.learningExecutionState ?? surface.memory.learningExecutionState ?? null,
+        recallLatencyPolicy: input.context.recallLatencyPolicy ?? surface.memory.derivedMindStateBundle?.recallLatencyPolicy ?? null,
         recollectionIntent: input.context.recollectionIntent as unknown as Record<string, unknown> | null,
         recollectionPlan: input.context.recollectionPlan ?? surface.memory.recollectionPlan ?? null,
         recollectionSpeechPlan: input.context.recollectionSpeechPlan ?? surface.memory.recollectionSpeechPlan ?? null,
@@ -1260,8 +1286,16 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     if (options.scheduleOrganicLearningAction) {
       await agentTurn.trackPhase('organic-learning-scheduler', async () => {
+        const [recentMemoryReflections, recentRelationshipOutcomes] = await Promise.all([
+          options.listMemoryReflections?.(payload.cardId, 8).catch(() => []) ?? Promise.resolve([]),
+          options.listRelationshipOutcomes?.(payload.cardId, 8).catch(() => []) ?? Promise.resolve([]),
+        ])
         await options.scheduleOrganicLearningAction?.({
-          context: organicPromptContext,
+          context: {
+            ...organicPromptContext,
+            recentMemoryReflections: recentMemoryReflections as any,
+            recentRelationshipOutcomes: recentRelationshipOutcomes as any,
+          },
           turnId: payload.turnId,
         })
       }, {

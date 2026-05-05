@@ -1,4 +1,5 @@
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 
 import type {
   AlicizationMemoryDeliberationLatentControls,
@@ -62,11 +63,36 @@ function joinSummaries(values: Array<string | null | undefined>, maxItems = 2) {
   return items.join(' | ') || null
 }
 
+function isSelfModelRevisionContext(input: {
+  deliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null | undefined
+  recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null | undefined
+}) {
+  const deliberation = input.deliberation ?? null
+  if (!deliberation)
+    return false
+  if (input.recollectionIntent?.mode === 'autobiographical-history')
+    return true
+  if (deliberation.selectedEras.some(item => item.facet === 'self-era'))
+    return true
+
+  const selfCueText = [
+    deliberation.whyNow,
+    ...(deliberation.stableCore ?? []),
+    ...(deliberation.unsafeDetails ?? []),
+    ...deliberation.selectedBundles.map(item => item.summary),
+    ...deliberation.selectedChains.map(item => item.summary),
+    ...deliberation.selectedRelationshipLines,
+  ].filter(Boolean).join(' ')
+
+  return /self-story|self line|identity|autobiographical|self model|my pattern|my habit|who i am|older self|newer self|自我|身份|习惯|性格|叙事|我会|我总是/u.test(selfCueText)
+}
+
 export function buildAlicizationMemoryDeliberationKernel(input: {
   deliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null | undefined
   speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null | undefined
   recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null | undefined
   knowledgeEvidence?: OrganicMemoryPromptContext['knowledgeEvidence']
+  tuningAdvice?: AlicizationMemoryTuningAdvice | null
 }) {
   const deliberation = input.deliberation ?? null
   const speech = input.speech ?? null
@@ -103,6 +129,43 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
   const memoryControlSummary = memoryControl
     ? summarizeMemoryDeliberationLatentControls(memoryControl)
     : null
+  const tuningAdvice = input.tuningAdvice ?? null
+  const selfModelRevisionContext = isSelfModelRevisionContext({
+    deliberation,
+    recollectionIntent: input.recollectionIntent ?? null,
+  })
+  const tuningForRelationalRevision = Boolean(
+    tuningAdvice
+    && tuningAdvice.focusDimensions.includes('learningRevisionDiscipline')
+    && memoryControl?.relationshipVector === 'relational'
+    && (memoryControl?.certaintyFloor === 'approximate' || memoryControl?.certaintyFloor === 'fragmentary' || memoryControl?.conflictBurden === 'medium' || memoryControl?.conflictBurden === 'high'),
+  )
+  const tuningForSelfModelRevision = Boolean(
+    tuningAdvice
+    && tuningAdvice.focusDimensions.includes('learningRevisionDiscipline')
+    && selfModelRevisionContext
+    && (memoryControl?.certaintyFloor === 'approximate' || memoryControl?.certaintyFloor === 'fragmentary' || memoryControl?.conflictBurden === 'medium' || memoryControl?.conflictBurden === 'high'),
+  )
+  const tuningForRevision = tuningForRelationalRevision || tuningForSelfModelRevision
+  const tuningForWorldValidation = Boolean(
+    tuningAdvice
+    && tuningAdvice.focusDimensions.includes('worldModelValidationDiscipline')
+    && (memoryControl?.provenancePosture === 'inferred-pattern' || memoryControl?.provenancePosture === 'reconstructed-memory' || memoryControl?.provenancePosture === 'mixed-memory'),
+  )
+  const tuningForRelationshipEraConfusion = Boolean(
+    tuningAdvice
+    && (tuningAdvice.relationshipEraConfusionRate ?? 0) >= 0.2
+    && input.recollectionIntent?.mode === 'relationship-history'
+    && (
+      memoryControl?.relationshipVector === 'relational'
+      || (deliberation?.conflictVariants ?? []).some(item => String(item.id ?? '').includes('relationship-era-confusion'))
+    ),
+  )
+  const tuningForElevatedSelfModelVeto = Boolean(
+    tuningAdvice
+    && (tuningAdvice.staleSelfModelVetoRate ?? 0) >= 0.2
+    && selfModelRevisionContext,
+  )
 
   const inwardCarryRule = memoryControl
     ? `memory_latent_controls=${memoryControlSummary}`
@@ -114,23 +177,103 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
 
   const restraint = buildAlicizationMemoryRestraintJudge({
     shouldRecall,
-    shouldStayInward,
+    shouldStayInward: shouldStayInward || tuningForRevision || tuningForRelationshipEraConfusion || tuningForElevatedSelfModelVeto,
     memoryControl,
     knowledgeEvidence: input.knowledgeEvidence ?? null,
     followUpAffordance: deliberation?.followUpAffordance ?? null,
   })
+  const tunedWhyWithheld = tuningForRelationalRevision
+    ? 'Learning revision discipline is still active, so relationship continuity should stay inward until the host has more room.'
+    : tuningForSelfModelRevision
+      ? 'Learning revision discipline is still active, so the older self-story should stay inward until the newer self line stabilizes.'
+    : tuningForRelationshipEraConfusion
+      ? 'Relationship-era confusion is still elevated, so competing repair phases should stay inward until the present bond line is clearer.'
+    : tuningForElevatedSelfModelVeto
+      ? 'Self-model veto pressure is still elevated, so older self-story continuity should stay inward until the newer line is more stable.'
+    : tuningForWorldValidation && !restraint.whyWithheld
+      ? 'World-model validation discipline is still active, so reconstructed or inferred knowledge should stay tightly labeled and compressed.'
+      : restraint.whyWithheld
+  const tunedFollowUpAffordance = deliberation?.followUpAffordance
+    ? {
+        ...deliberation.followUpAffordance,
+        intrusionRisk: tuningForRevision
+          ? 'high' as const
+          : tuningForRelationshipEraConfusion
+            ? 'high' as const
+            : tuningForElevatedSelfModelVeto
+              ? 'high' as const
+          : tuningForWorldValidation && deliberation.followUpAffordance.intrusionRisk === 'low'
+            ? 'medium' as const
+            : deliberation.followUpAffordance.intrusionRisk,
+        preferredTiming: tuningForRevision
+          ? (
+              (memoryControl?.certaintyFloor === 'fragmentary' || memoryControl?.conflictBurden === 'high')
+                ? 'internal-only' as const
+                : 'next-open-window' as const
+            )
+          : tuningForRelationshipEraConfusion
+            ? 'next-open-window' as const
+            : tuningForElevatedSelfModelVeto
+              ? 'next-open-window' as const
+          : tuningForWorldValidation
+              && deliberation.followUpAffordance.preferredTiming === 'same-turn-if-invited'
+            ? 'after-payoff' as const
+            : deliberation.followUpAffordance.preferredTiming,
+      }
+    : null
+  const tunedRestraint = {
+    ...restraint,
+    shouldStayInward: restraint.shouldStayInward || tuningForRevision || tuningForRelationshipEraConfusion || tuningForElevatedSelfModelVeto,
+    whyWithheld: tunedWhyWithheld,
+    mustDo: [
+      ...restraint.mustDo,
+      ...(tuningForRelationalRevision
+        ? ['If the relationship line is still being revised, keep it inward until the host has more room for it.']
+        : []),
+      ...(tuningForSelfModelRevision
+        ? ['If the older self-story is still being revised, keep it inward until the newer self line stabilizes.']
+        : []),
+      ...(tuningForRelationshipEraConfusion
+        ? ['If competing relationship eras are still easy to confuse, keep the recalled bond line inward until the present repair context is clearer.']
+        : []),
+      ...(tuningForElevatedSelfModelVeto
+        ? ['If older self-story veto pressure stays elevated, keep autobiographical continuity inward until the newer self line is more stable.']
+        : []),
+      ...(tuningForWorldValidation
+        ? ['If world knowledge becomes visible, keep provenance and uncertainty explicit before specificity, and avoid same-turn overreach.']
+        : []),
+    ],
+    mustNotDo: [
+      ...restraint.mustNotDo,
+      ...(tuningForRelationalRevision
+        ? ['Do not let revision-prone relationship continuity surface as if it were already settled.']
+        : []),
+      ...(tuningForSelfModelRevision
+        ? ['Do not let a revision-prone self-story surface as if Alicization had already fully stabilized it.']
+        : []),
+      ...(tuningForRelationshipEraConfusion
+        ? ['Do not let competing relationship phases surface as if they belonged to the same bond line.']
+        : []),
+      ...(tuningForElevatedSelfModelVeto
+        ? ['Do not let elevated stale-self continuity pressure leak older autobiographical identity into the current answer as if it were settled.']
+        : []),
+      ...(tuningForWorldValidation
+        ? ['Do not let reconstructed or inferred world knowledge surface with unsupported specificity.']
+        : []),
+    ],
+  }
 
   return {
     shouldRecall,
     surfacePolicy,
-    shouldStayInward,
+    shouldStayInward: shouldStayInward || tuningForRevision || tuningForRelationshipEraConfusion || tuningForElevatedSelfModelVeto,
     rationale: sanitizeText(
       deliberation?.whyNow
         || speech?.rationale
         || '',
       220,
     ) || null,
-    whyWithheld: restraint.whyWithheld,
+    whyWithheld: tunedWhyWithheld,
     selectedChainSummary: joinSummaries((deliberation?.selectedChains ?? []).map(item => item.summary)),
     selectedChainStance: joinSummaries((deliberation?.selectedChains ?? []).map(item => item.currentStance)),
     selectedChainPosture: joinSummaries((deliberation?.selectedChains ?? []).map(item => item.answerPosture)),
@@ -145,8 +288,8 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
     memoryControlSummary,
     inwardCarryRule,
     inwardCarryBoundary: memoryControl ? buildMemoryLatentBoundaryTag(memoryControl) : null,
-    followUpAffordance: deliberation?.followUpAffordance ?? null,
-    restraint,
+    followUpAffordance: tunedFollowUpAffordance,
+    restraint: tunedRestraint,
     stableCore: memoryControl?.stableCore ?? deliberation?.stableCore ?? [],
     unsafeDetails: memoryControl?.unsafeDetails ?? deliberation?.unsafeDetails ?? [],
   } satisfies AlicizationMemoryDeliberationKernel

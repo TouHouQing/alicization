@@ -1,6 +1,7 @@
 import type {
   AlicizationActionEcologySnapshot,
   AlicizationAutonomySnapshot,
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationInitiativeSnapshot,
   AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
@@ -48,6 +49,7 @@ export interface AlicizationProactiveCadenceSignal {
   cadencePressure: number
   openingMomentum: number
   initiativeTrust: number
+  residueDominance: string | null
   reasonTags: string[]
 }
 
@@ -64,6 +66,7 @@ export function progressProactiveCadenceState(input: {
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
   actionEcology?: AlicizationActionEcologySnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }) {
   const busy = hostBusy(input.context, input.worldModel ?? null)
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime ?? null)
@@ -73,6 +76,8 @@ export function progressProactiveCadenceState(input: {
     ? Math.max(0, (input.now - input.state.lastProactiveTurnAt) / 60_000)
     : Number.POSITIVE_INFINITY
   const rhythmState = input.personalityContinuityState?.rhythmState ?? null
+  const affectiveResidue = input.affectiveResidue ?? null
+  const cadenceMemory = affectiveResidue?.relationshipCadence ?? null
   const targetMomentum = clamp01(
     (busy ? 0 : 0.18)
     + (minutesSinceLastUserTurn >= 4 && minutesSinceLastUserTurn <= 45 ? 0.16 : minutesSinceLastUserTurn > 45 ? 0.08 : 0)
@@ -91,9 +96,12 @@ export function progressProactiveCadenceState(input: {
     + (input.context.relationship.boredom >= 72 ? 0.08 : 0)
     + (rhythmState?.cadenceMode === 'ready-return' ? 0.08 : rhythmState?.cadenceMode === 'warm-hold' ? 0.04 : 0)
     + (rhythmState?.memoryResonance ?? 0) * 0.08
+    + (cadenceMemory?.afterglowCarry ?? 0) * 0.06
     - (input.state.globalCooldownUntil > input.now ? 0.18 : 0)
     - (busy ? 0.34 : 0)
     - (rhythmState?.restMode === 'rest-protective' ? 0.16 : rhythmState?.restMode === 'low-pressure' ? 0.06 : 0)
+    - (cadenceMemory?.fatigueGuard ?? 0) * 0.12
+    - (cadenceMemory?.overreachRisk ?? 0) * 0.12
     - (input.actionEcology?.mode === 'repair-before-speaking' ? 0.16 : 0)
     - (input.actionEcology?.mode === 'return-later' ? 0.12 : 0)
     - (recentProactiveGapMinutes < 6 ? 0.18 : recentProactiveGapMinutes < 12 ? 0.08 : 0),
@@ -103,6 +111,7 @@ export function progressProactiveCadenceState(input: {
     + 0.01
     + (rhythmState?.cadenceMode === 'ready-return' ? 0.02 : 0)
     + (rhythmState?.memoryResonance ?? 0) * 0.02
+    + ((affectiveResidue?.trustPressure ?? 0) * 0.03)
     - (rhythmState?.restMode === 'rest-protective' ? 0.03 : 0),
   )
   const openingMomentum = clamp01(
@@ -129,10 +138,13 @@ export function deriveProactiveCadenceSignal(input: {
   thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null
   actionEcology?: AlicizationActionEcologySnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }) {
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime ?? null)
   const thoughtThread = foregroundThoughtThread(input.thoughtThreads ?? null)
   const rhythmState = input.personalityContinuityState?.rhythmState ?? null
+  const affectiveResidue = input.affectiveResidue ?? null
+  const cadenceMemory = affectiveResidue?.relationshipCadence ?? null
   const cadencePressure = clamp01(
     input.state.openingMomentum * 0.58
     + input.state.initiativeTrust * 0.18
@@ -146,9 +158,13 @@ export function deriveProactiveCadenceSignal(input: {
     + (thoughtThread?.status === 'ripe' ? 0.08 : 0)
     + (rhythmState?.cadenceMode === 'ready-return' ? 0.06 : rhythmState?.cadenceMode === 'warm-hold' ? 0.03 : 0)
     + (rhythmState?.memoryResonance ?? 0) * 0.08
+    + ((affectiveResidue?.trustPressure ?? 0) * 0.08)
+    + ((cadenceMemory?.companionshipDensity ?? 0) * 0.06)
     - (input.context.system.inputActivity === 'active' ? 0.16 : 0)
     - (input.context.system.fullscreenLikely ? 0.14 : 0),
   ) - (rhythmState?.restMode === 'rest-protective' ? 0.12 : rhythmState?.restMode === 'low-pressure' ? 0.04 : 0)
+    - ((cadenceMemory?.fatigueGuard ?? 0) * 0.12)
+    - ((cadenceMemory?.overreachRisk ?? 0) * 0.1)
 
   const normalizedCadencePressure = clamp01(
     cadencePressure,
@@ -158,10 +174,16 @@ export function deriveProactiveCadenceSignal(input: {
     cadencePressure: normalizedCadencePressure,
     openingMomentum: input.state.openingMomentum,
     initiativeTrust: input.state.initiativeTrust,
+    residueDominance: affectiveResidue?.dominantResidueKind ?? null,
     reasonTags: [
       `cadence-pressure:${normalizedCadencePressure.toFixed(2)}`,
       `opening-momentum:${input.state.openingMomentum.toFixed(2)}`,
       `initiative-trust:${input.state.initiativeTrust.toFixed(2)}`,
+      ...(affectiveResidue?.dominantResidueKind
+        ? [`residue:${affectiveResidue.dominantResidueKind}`]
+        : []),
+      ...(cadenceMemory?.shouldDelayWarmth ? ['residue-delay-warmth'] : []),
+      ...(cadenceMemory?.shouldProtectRest ? ['residue-protect-rest'] : []),
       ...(rhythmState
         ? [
             `rhythm-cadence:${rhythmState.cadenceMode}`,

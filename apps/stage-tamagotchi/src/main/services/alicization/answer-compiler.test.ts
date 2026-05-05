@@ -1470,4 +1470,121 @@ describe('buildAnswerCompiler', () => {
     expect(compiler?.memoryWhyWithheld).toContain('too intrusive')
     expect(compiler?.mustDo).toContain('If recollection is pressing forward too hard, keep recollection inward until the host has room for it.')
   })
+
+  it('lets learning verification state constrain the compiled answer spine', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(95_000),
+      discourseState: {
+        ...repairDiscourse,
+        currentTurnSubject: 'task-knot',
+        screenReferenceMode: 'required' as any,
+        currentTurnSummary: 'Answer directly but stay behind verification pressure.',
+        owedAction: 'repair-truth' as any,
+        relationMove: 'guide',
+      },
+      mindSynthesis: {
+        ...repairMind,
+        answerSubject: 'task-knot',
+        relationMove: 'guide',
+        speechObligation: 'repair-truth' as any,
+        openingIntent: 'Answer directly, but do not outrun what is still being checked.',
+        truthBoundary: 'This understanding is still under verification.',
+        interiorSummary: 'Verification pressure is still governing the line.',
+      },
+    })
+    runtimeSurface.memory.learningExecutionState = {
+      currentTaskId: 'learning-task-verify',
+      currentStatus: 'running',
+      currentAttemptCount: 0,
+      currentMaxAttempts: 3,
+      currentNextRetryAt: null,
+      currentBlockedReason: null,
+      currentFailureKind: null,
+      nextLearningAction: 'verify',
+      shouldRecord: false,
+      shouldReflect: false,
+      shouldVerify: true,
+      shouldRevise: false,
+      shouldInternalize: false,
+      activeLearningFocuses: ['resolve-contradictions'],
+      queuedTaskCount: 1,
+      runningTaskCount: 1,
+      blockedTaskCount: 0,
+      recentTaskIds: ['learning-task-verify'],
+      lastCompletedTaskId: null,
+      lastCompletedAction: null,
+      lastCompletedSummary: null,
+      lastFailureTaskId: null,
+      lastFailureKind: null,
+      lastFailureReason: null,
+      lastFailureNextRetryAt: null,
+      updatedAt: 95_000,
+    }
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 95_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: runtimeSurface.memory.learningExecutionState,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      dialogueRhythm: null,
+      summary: 'learning=verify',
+    }
+
+    const compiler = buildAnswerCompiler({
+      now: 95_000,
+      runtimeSurface,
+    })
+
+    expect(compiler?.openingDirective).toContain('Keep certainty behind current verification pressure.')
+    expect(compiler?.mustDo).toContain('Keep visible certainty behind the current verification pass.')
+    expect(compiler?.mustNotDo).toContain('Do not let fluency or warmth outrun what is still being verified.')
+  })
+
+  it('threads learning tuning advice into compiled provenance and closeness discipline', () => {
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface({
+      ...createDefaultVisualPresenceState(96_000),
+      discourseState: repairDiscourse,
+      mindSynthesis: repairMind,
+    })
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 96_000,
+      sourceReportAt: 96_000,
+      focusDimensions: ['learningRevisionDiscipline', 'domainInternalizationDiscipline'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0.16,
+        specificityClampBias: 0.18,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Learning revision discipline failed.'],
+    }
+
+    const compiler = buildAnswerCompiler({
+      now: 96_000,
+      runtimeSurface,
+    })
+
+    expect(compiler?.mustDo).toContain('When memory or learned carry enters the answer, bias toward explicit provenance instead of seamless certainty.')
+    expect(compiler?.mustDo.some(item => item.includes('explicit provenance') || item.includes('current verification pass'))).toBe(true)
+    expect(compiler?.mustNotDo).toContain('Do not let learned confidence spill into unsupported technical specificity.')
+  })
 })

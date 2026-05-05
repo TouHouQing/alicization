@@ -35,12 +35,20 @@ describe('memory-tuning-advice', () => {
             hostUnderstandingGrowth: 'pass',
             skillInternalizationGrowth: 'pass',
             selfRevisionGrowth: 'pass',
+            learningRevisionDiscipline: 'fail',
+            domainInternalizationDiscipline: 'fail',
+            worldModelValidationDiscipline: 'fail',
             dialogueRhythmStability: 'pass',
+            emptyCareRate: 'pass',
+            repairMechanicalRate: 'pass',
+            warmthTemplateRisk: 'pass',
+            relationshipDistanceJumpRate: 'pass',
+            afterglowFalseCarryRate: 'pass',
             templateLeakage: 'fail',
           },
           gate: {
             passed: false,
-            failingKeys: ['procedureCarryQuality', 'wrongThreadSuppression', 'surfaceRestraint', 'relationshipRepairAdaptation', 'knowledgeCorrectionDiscipline', 'templateLeakage'],
+            failingKeys: ['procedureCarryQuality', 'wrongThreadSuppression', 'surfaceRestraint', 'relationshipRepairAdaptation', 'knowledgeCorrectionDiscipline', 'templateLeakage', 'learningRevisionDiscipline', 'domainInternalizationDiscipline', 'worldModelValidationDiscipline'],
             dimensions: [],
             standards: {
               eraSelectionQuality: 'pass',
@@ -60,7 +68,15 @@ describe('memory-tuning-advice', () => {
               hostUnderstandingGrowth: 'pass',
               skillInternalizationGrowth: 'pass',
               selfRevisionGrowth: 'pass',
+              learningRevisionDiscipline: 'fail',
+              domainInternalizationDiscipline: 'fail',
+              worldModelValidationDiscipline: 'fail',
               dialogueRhythmStability: 'pass',
+              emptyCareRate: 'pass',
+              repairMechanicalRate: 'pass',
+              warmthTemplateRisk: 'pass',
+              relationshipDistanceJumpRate: 'pass',
+              afterglowFalseCarryRate: 'pass',
               templateLeakage: 'fail',
             },
           },
@@ -70,6 +86,8 @@ describe('memory-tuning-advice', () => {
               graphLatencyMs: null,
               reconstructionFrequency: 0,
               reconstructedCount: 0,
+              staleSelfModelVetoRate: 0.3,
+              relationshipEraConfusionRate: 0.4,
               templateLeakageFailCount: 2,
             },
           },
@@ -100,6 +118,16 @@ describe('memory-tuning-advice', () => {
     expect(advice.surfaceAdjustments.inwardCarryBias).toBeGreaterThan(0.2)
     expect(advice.surfaceAdjustments.provenanceLabelBias).toBeGreaterThan(0.1)
     expect(advice.personStateAdjustments.repairWindowBias).toBeGreaterThan(0.1)
+    expect(advice.personStateAdjustments.closenessCapBias).toBeGreaterThan(0.1)
+    expect(advice.notes).toEqual(expect.arrayContaining([
+      expect.stringContaining('Stale self-model vetoes stayed elevated'),
+      expect.stringContaining('Relationship-era confusion vetoes stayed elevated'),
+    ]))
+    expect(advice.focusDimensions).toEqual(expect.arrayContaining([
+      'learningRevisionDiscipline',
+      'domainInternalizationDiscipline',
+    ]))
+    expect(advice.surfaceAdjustments.specificityClampBias).toBeGreaterThan(0.1)
   })
 
   it('applies tuning advice to host person model and recollection speech plan', () => {

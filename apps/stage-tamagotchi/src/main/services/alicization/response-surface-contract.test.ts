@@ -269,6 +269,91 @@ describe('response-surface-contract', () => {
     expect(result.contract.mustNotDo).toContain('Do not imply the task re-ran in this exact turn unless new tool output appears now.')
   })
 
+  it('turns learning verification state into contract-level certainty discipline', () => {
+    const state = createDefaultVisualPresenceState(90_000)
+    state.learningExecutionState = {
+      currentTaskId: 'learning-task-verify',
+      currentStatus: 'running',
+      currentAttemptCount: 0,
+      currentMaxAttempts: 3,
+      currentNextRetryAt: null,
+      currentBlockedReason: null,
+      currentFailureKind: null,
+      nextLearningAction: 'verify',
+      shouldRecord: false,
+      shouldReflect: false,
+      shouldVerify: true,
+      shouldRevise: false,
+      shouldInternalize: false,
+      activeLearningFocuses: ['resolve-contradictions'],
+      queuedTaskCount: 1,
+      runningTaskCount: 1,
+      blockedTaskCount: 0,
+      recentTaskIds: ['learning-task-verify'],
+      lastCompletedTaskId: null,
+      lastCompletedAction: null,
+      lastCompletedSummary: null,
+      lastFailureTaskId: null,
+      lastFailureKind: null,
+      lastFailureReason: null,
+      lastFailureNextRetryAt: null,
+      updatedAt: 90_000,
+    }
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 90_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: state.learningExecutionState,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      dialogueRhythm: null,
+      summary: 'learning=verify',
+    }
+
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'uncertain',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 2,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer directly, but stay behind current verification pressure.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'uncertain',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        activeLearningAction: 'verify',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface,
+    })
+
+    expect(result.contract.mustDo).toContain('Keep visible certainty behind the current verification pass.')
+    expect(result.contract.mustNotDo).toContain('Do not let fluency or warmth outrun what is still being verified.')
+  })
+
   it('prefers runtime surface answer-governance cues over conflicting raw inputs', () => {
     const runtimeBackedState = {
       ...createDefaultVisualPresenceState(80_000),

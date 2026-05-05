@@ -39,7 +39,15 @@ import type {
   AlicizationExecutorSessionStatus as SharedAlicizationExecutorSessionStatus,
   AlicizationExecutorSessionUpsertInput as SharedAlicizationExecutorSessionUpsertInput,
   AlicizationHostPersonModelSnapshot as SharedAlicizationHostPersonModelSnapshot,
+  AlicizationLearningAction as SharedAlicizationLearningAction,
+  AlicizationLearningExecutionStateSnapshot as SharedAlicizationLearningExecutionStateSnapshot,
+  AlicizationLearningTaskFailureKind as SharedAlicizationLearningTaskFailureKind,
+  AlicizationLearningTaskPayload as SharedAlicizationLearningTaskPayload,
+  AlicizationLearningTaskRecord as SharedAlicizationLearningTaskRecord,
+  AlicizationLearningTaskStatus as SharedAlicizationLearningTaskStatus,
   AlicizationListChannelCapabilityManifestsInput as SharedAlicizationListChannelCapabilityManifestsInput,
+  AlicizationMemoryResolutionLedger as SharedAlicizationMemoryResolutionLedger,
+  AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
   AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
@@ -96,6 +104,11 @@ import type {
   AlicizationPersonStateEvolutionShiftKind as SharedAlicizationPersonStateEvolutionShiftKind,
   AlicizationPersonStateEvolutionSummary as SharedAlicizationPersonStateEvolutionSummary,
   AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
+  AlicizationRecallLatencyPolicySnapshot as SharedAlicizationRecallLatencyPolicySnapshot,
+  AlicizationAffectiveResidueEntrySnapshot as SharedAlicizationAffectiveResidueEntrySnapshot,
+  AlicizationAffectiveResidueKind as SharedAlicizationAffectiveResidueKind,
+  AlicizationAffectiveResidueMemorySnapshot as SharedAlicizationAffectiveResidueMemorySnapshot,
+  AlicizationRelationshipCadenceMemorySnapshot as SharedAlicizationRelationshipCadenceMemorySnapshot,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationPersonStateUpdateSourceTrailEntry as SharedAlicizationPersonStateUpdateSourceTrailEntry,
   AlicizationPersonStateUpdateSurface as SharedAlicizationPersonStateUpdateSurface,
@@ -557,6 +570,14 @@ export type AlicizationMemoryReflectionTargetScope = SharedAlicizationMemoryRefl
 export type AlicizationMemoryReflectionStatus = SharedAlicizationMemoryReflectionStatus
 export type AlicizationMemoryReflectionInput = SharedAlicizationMemoryReflectionInput
 export type AlicizationMemoryReflectionRecord = SharedAlicizationMemoryReflectionRecord
+export type AlicizationLearningAction = SharedAlicizationLearningAction
+export type AlicizationLearningTaskStatus = SharedAlicizationLearningTaskStatus
+export type AlicizationLearningTaskFailureKind = SharedAlicizationLearningTaskFailureKind
+export type AlicizationLearningTaskPayload = SharedAlicizationLearningTaskPayload
+export type AlicizationLearningTaskRecord = SharedAlicizationLearningTaskRecord
+export type AlicizationLearningExecutionStateSnapshot = SharedAlicizationLearningExecutionStateSnapshot
+export type AlicizationMemoryResolutionLedger = SharedAlicizationMemoryResolutionLedger
+export type AlicizationOrganicMemoryStageReplay = SharedAlicizationOrganicMemoryStageReplay
 export type AlicizationRelationshipOutcomeSourceKind = SharedAlicizationRelationshipOutcomeSourceKind
 export type AlicizationRelationshipOutcomeInput = SharedAlicizationRelationshipOutcomeInput
 export type AlicizationRelationshipOutcomeRecord = SharedAlicizationRelationshipOutcomeRecord
@@ -672,6 +693,9 @@ export interface AlicizationOrganicMemorySnapshot {
   } | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
+  memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   lastDreamedAt: number | null
 }
 
@@ -734,6 +758,11 @@ export type AlicizationPersonStateEvolutionEntryInput = SharedAlicizationPersonS
 export type AlicizationPersonStateEvolutionEntryRecord = SharedAlicizationPersonStateEvolutionEntryRecord
 export type AlicizationPersonStateEvolutionSummary = SharedAlicizationPersonStateEvolutionSummary
 export type AlicizationDerivedMindStateBundle = SharedAlicizationDerivedMindStateBundle
+export type AlicizationRecallLatencyPolicySnapshot = SharedAlicizationRecallLatencyPolicySnapshot
+export type AlicizationAffectiveResidueKind = SharedAlicizationAffectiveResidueKind
+export type AlicizationAffectiveResidueEntrySnapshot = SharedAlicizationAffectiveResidueEntrySnapshot
+export type AlicizationRelationshipCadenceMemorySnapshot = SharedAlicizationRelationshipCadenceMemorySnapshot
+export type AlicizationAffectiveResidueMemorySnapshot = SharedAlicizationAffectiveResidueMemorySnapshot
 export type AlicizationSelfEvolutionKernelSnapshot = SharedAlicizationSelfEvolutionKernelSnapshot
 export type AlicizationPersonStateUpdateSourceTrailEntry = SharedAlicizationPersonStateUpdateSourceTrailEntry
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
@@ -924,6 +953,9 @@ export type AlicizationProactiveReasonCode
     | 'continuity-after-payoff'
     | 'continuity-next-open-window'
     | 'continuity-execution-callback'
+    | 'relationship-cadence-residue'
+    | 'relationship-residue-delay-warmth'
+    | 'relationship-residue-protect-rest'
 
 export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
@@ -2171,7 +2203,7 @@ export interface AlicizationAnswerCompilerSnapshot {
   turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
   responseMode: AlicizationCompiledResponseMode
   replyRealizationMode?: AlicizationReplyRealizationMode | null
-  expectedVisibleReplyAuthority?: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback' | null
+  expectedVisibleReplyAuthority?: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback' | null
   recommendedAct: AlicizationAnswerAct
   evidenceMode: AlicizationAnswerEvidenceMode
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
@@ -2209,7 +2241,7 @@ export interface AlicizationMindTurnContractSnapshot {
   responseMode: AlicizationCompiledResponseMode
   evidenceMode: AlicizationAnswerEvidenceMode | null
   openingStyle: AlicizationAnswerCompilerSnapshot['openingStyle']
-  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
   replyRealizationMode: AlicizationReplyRealizationMode
   personaKernelMode: AlicizationAnswerCompilerSnapshot['personaKernelMode']
   activeClosenessContext: AlicizationAnswerCompilerSnapshot['activeClosenessContext']
@@ -2748,6 +2780,7 @@ export interface AlicizationVisualPresenceStateSnapshot {
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   answerPlanner?: AlicizationAnswerPlannerSnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {

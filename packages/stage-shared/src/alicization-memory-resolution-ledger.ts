@@ -26,6 +26,7 @@ export interface AlicizationMemoryResolutionLedger {
   shouldStayInward: boolean
   shouldDelayUntilAfterPayoff: boolean
   stableCoreOnly: boolean
+  suppressionTags: string[]
   finalRationale: string | null
 }
 
@@ -77,6 +78,9 @@ export function normalizeAlicizationMemoryResolutionLedger(raw: unknown): Aliciz
     shouldStayInward: candidate.shouldStayInward === true,
     shouldDelayUntilAfterPayoff: candidate.shouldDelayUntilAfterPayoff === true,
     stableCoreOnly: candidate.stableCoreOnly === true,
+    suppressionTags: Array.isArray(candidate.suppressionTags)
+      ? candidate.suppressionTags.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 8)
+      : [],
     finalRationale: sanitizeText(candidate.finalRationale, 240) || null,
   }
 }

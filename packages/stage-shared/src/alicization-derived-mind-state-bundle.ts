@@ -1,10 +1,14 @@
 import type {
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
   AlicizationHostPersonModelSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
+  AlicizationRecallLatencyPolicySnapshot,
   AlicizationSelfEvolutionKernelSnapshot,
 } from './alicization-transport-contracts'
+import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
@@ -15,19 +19,22 @@ function sanitizeText(raw: unknown, maxChars = 220) {
 function buildDialogueRhythm(input: {
   personStateProjection?: Record<string, unknown> | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }) {
   const projection = input.personStateProjection ?? null
   const selfEvolution = input.selfEvolution ?? null
-  if (!projection && !selfEvolution)
+  const affectiveResidue = input.affectiveResidue ?? null
+  if (!projection && !selfEvolution && !affectiveResidue)
     return null
   return {
     activeClosenessContext: sanitizeText(projection?.activeClosenessContext, 64) || null,
     activeClosenessRung: sanitizeText(projection?.activeClosenessRung, 64) || null,
     relationshipDoctrine: selfEvolution?.relationshipDoctrine ?? null,
-    burdenLine: selfEvolution?.burdenLine ?? null,
-    trustMeaning: selfEvolution?.trustMeaning ?? null,
+    burdenLine: selfEvolution?.burdenLine ?? affectiveResidue?.residues.find(item => item.kind === 'burden')?.summary ?? null,
+    trustMeaning: selfEvolution?.trustMeaning ?? affectiveResidue?.residues.find(item => item.kind === 'trust')?.summary ?? null,
     stabilitySignal: sanitizeText(
       selfEvolution?.latestInflection
+      ?? affectiveResidue?.relationshipCadence.summary
       ?? projection?.openingGuidance
       ?? projection?.trustRationale
       ?? '',
@@ -40,6 +47,9 @@ function summarizeBundle(input: {
   source: AlicizationDerivedMindStateBundle['source']
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
+  recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   recollectionPlan?: AlicizationRecollectionPlan | null
   recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
   memoryDeliberation?: Record<string, unknown> | null
@@ -47,8 +57,11 @@ function summarizeBundle(input: {
   return [
     `source=${input.source}`,
     input.selfEvolution?.dominantTrajectory ? `trajectory=${sanitizeText(input.selfEvolution.dominantTrajectory, 120)}` : '',
+    input.affectiveResidue?.dominantResidueKind ? `residue=${input.affectiveResidue.dominantResidueKind}` : '',
+    input.learningExecutionState?.nextLearningAction ? `learning=${sanitizeText(input.learningExecutionState.nextLearningAction, 64)}` : '',
+    input.recallLatencyPolicy?.recallAction ? `recall=${input.recallLatencyPolicy.recallAction}` : '',
     input.hostPersonModel?.trustLadder.stage ? `trust=${input.hostPersonModel.trustLadder.stage}` : '',
-    input.recollectionPlan?.opening ? `recollection=${sanitizeText(input.recollectionPlan.opening, 120)}` : '',
+    input.recollectionPlan?.opening ? `recollection_center=${sanitizeText(input.recollectionPlan.opening, 120)}` : '',
     input.recollectionSpeechPlan?.surfaceMode ? `surface=${input.recollectionSpeechPlan.surfaceMode}` : '',
     sanitizeText(input.memoryDeliberation?.surfacePolicy, 96)
       ? `deliberation=${sanitizeText(input.memoryDeliberation?.surfacePolicy, 96)}`
@@ -67,7 +80,11 @@ export function buildDerivedMindStateBundle(input: {
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
   } | null
+  claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
+  recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   recollectionIntent?: Record<string, unknown> | null
   recollectionPlan?: AlicizationRecollectionPlan | null
   recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
@@ -80,7 +97,11 @@ export function buildDerivedMindStateBundle(input: {
     hostPersonModel: input.hostPersonModel ?? null,
     personStateProjection: input.personStateProjection ?? null,
     knowledgeEvidence: input.knowledgeEvidence ?? null,
+    claimEvidenceGraphs: input.claimEvidenceGraphs ?? null,
     selfEvolution: input.selfEvolution ?? null,
+    affectiveResidue: input.affectiveResidue ?? null,
+    learningExecutionState: input.learningExecutionState ?? null,
+    recallLatencyPolicy: input.recallLatencyPolicy ?? null,
     recollectionIntent: input.recollectionIntent ?? null,
     recollectionPlan: input.recollectionPlan as unknown as Record<string, unknown> | null,
     recollectionSpeechPlan: input.recollectionSpeechPlan as unknown as Record<string, unknown> | null,
@@ -88,11 +109,15 @@ export function buildDerivedMindStateBundle(input: {
     dialogueRhythm: buildDialogueRhythm({
       personStateProjection: input.personStateProjection ?? null,
       selfEvolution: input.selfEvolution ?? null,
+      affectiveResidue: input.affectiveResidue ?? null,
     }),
     summary: summarizeBundle({
       source: input.source,
       hostPersonModel: input.hostPersonModel ?? null,
       selfEvolution: input.selfEvolution ?? null,
+      affectiveResidue: input.affectiveResidue ?? null,
+      learningExecutionState: input.learningExecutionState ?? null,
+      recallLatencyPolicy: input.recallLatencyPolicy ?? null,
       recollectionPlan: input.recollectionPlan ?? null,
       recollectionSpeechPlan: input.recollectionSpeechPlan ?? null,
       memoryDeliberation: input.memoryDeliberation ?? null,

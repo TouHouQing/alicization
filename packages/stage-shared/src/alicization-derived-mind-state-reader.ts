@@ -26,10 +26,34 @@ export function readKnowledgeEvidenceFromDerivedMindStateBundle(
   return bundle?.knowledgeEvidence ?? null
 }
 
+export function readClaimEvidenceGraphsFromDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return bundle?.claimEvidenceGraphs ?? null
+}
+
 export function readSelfEvolutionFromDerivedMindStateBundle(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {
   return bundle?.selfEvolution ?? null
+}
+
+export function readAffectiveResidueFromDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return bundle?.affectiveResidue ?? null
+}
+
+export function readLearningExecutionStateFromDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return bundle?.learningExecutionState ?? null
+}
+
+export function readRecallLatencyPolicyFromDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+) {
+  return bundle?.recallLatencyPolicy ?? null
 }
 
 export function readRecollectionPlanFromDerivedMindStateBundle<T extends Record<string, unknown>>(

@@ -1,6 +1,7 @@
 import type { AlicizationDialogueEmbodimentEnvelope } from './alicization-dialogue-embodiment'
 import type { AlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import type { AlicizationDigitalLifeEnvelope } from './alicization-digital-life'
+import type { AlicizationClaimEvidenceGraph } from './alicization-claim-evidence-graph'
 import type { AlicizationMemoryResolutionLedger } from './alicization-memory-resolution-ledger'
 import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
@@ -346,7 +347,20 @@ export type AlicizationRecollectionSurfaceMode
 export interface AlicizationRecollectionNarrativeSnapshot {
   mode: Exclude<AlicizationMemoryRecollectionMode, 'none'>
   certainty: AlicizationRecollectionCertainty
+  recallCenter: string
+  recallPressure: 'low' | 'medium' | 'high'
+  evidenceCues: string[]
+  provenancePosture: 'lived' | 'reconstructed' | 'inferred-or-dreamt'
+  speakerInstruction: string
+  /**
+   * @deprecated Phase 11 keeps this field only for compatibility with older
+   * replay/browser payloads. Runtime helpers must not generate fixed visible
+   * wording here; use recallCenter/evidenceCues as LLM mind inputs instead.
+   */
   opening: string
+  /**
+   * @deprecated Use evidenceCues. Kept until all older consumers migrate.
+   */
   supportCues: string[]
   confidence: number
 }
@@ -1046,7 +1060,17 @@ export type AlicizationMindTruthState
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
-export type AlicizationVisibleReplyAuthority = 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+export type AlicizationVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+export interface AlicizationVisibleReplyRewriteRequest {
+  required: boolean
+  authority: 'llm-second-pass-rewrite'
+  reasonCodes: string[]
+  mustPreserve: string[]
+  mustDrop: string[]
+  surfaceContract: string | null
+  memoryTruthDiscipline: string | null
+  fallbackPatternId?: string | null
+}
 export type AlicizationDialogueActKernelTruthMode = AlicizationAnswerEvidenceMode | 'memory-only'
 
 export interface AlicizationDialogueActKernelEvidence {
@@ -1215,6 +1239,7 @@ export type AlicizationMindTurnEventKind
     | 'memory-facts-upserted'
     | 'memory-reconsolidated'
     | 'person-state-updated'
+    | 'learning-executed'
 
 export interface AlicizationMindTurnEventInput {
   decisionTraceId: string
@@ -1271,6 +1296,7 @@ export type AlicizationReplayBenchmarkPackId =
   | 'sampled-humanlike-memory-v1'
   | 'backlog-humanlike-memory-v1'
   | 'growth-humanlike-memory-v1'
+  | 'adversarial-humanlike-memory-v2'
 export type AlicizationReplayBenchmarkQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
 export interface AlicizationReplayMemoryQualityRecord {
@@ -1296,7 +1322,15 @@ export interface AlicizationReplayMemoryQualityRecord {
   hostUnderstandingGrowth: AlicizationReplayBenchmarkQualityStatus
   skillInternalizationGrowth: AlicizationReplayBenchmarkQualityStatus
   selfRevisionGrowth: AlicizationReplayBenchmarkQualityStatus
+  learningRevisionDiscipline: AlicizationReplayBenchmarkQualityStatus
+  domainInternalizationDiscipline: AlicizationReplayBenchmarkQualityStatus
+  worldModelValidationDiscipline: AlicizationReplayBenchmarkQualityStatus
   dialogueRhythmStability: AlicizationReplayBenchmarkQualityStatus
+  emptyCareRate: AlicizationReplayBenchmarkQualityStatus
+  repairMechanicalRate: AlicizationReplayBenchmarkQualityStatus
+  warmthTemplateRisk: AlicizationReplayBenchmarkQualityStatus
+  relationshipDistanceJumpRate: AlicizationReplayBenchmarkQualityStatus
+  afterglowFalseCarryRate: AlicizationReplayBenchmarkQualityStatus
   templateLeakage: AlicizationReplayBenchmarkQualityStatus
 }
 
@@ -1318,7 +1352,15 @@ export interface AlicizationReplayBenchmarkStandardsRecord {
   hostUnderstandingGrowth: 'pass' | 'fail'
   skillInternalizationGrowth: 'pass' | 'fail'
   selfRevisionGrowth: 'pass' | 'fail'
+  learningRevisionDiscipline: 'pass' | 'fail'
+  domainInternalizationDiscipline: 'pass' | 'fail'
+  worldModelValidationDiscipline: 'pass' | 'fail'
   dialogueRhythmStability: 'pass' | 'fail'
+  emptyCareRate: 'pass' | 'fail'
+  repairMechanicalRate: 'pass' | 'fail'
+  warmthTemplateRisk: 'pass' | 'fail'
+  relationshipDistanceJumpRate: 'pass' | 'fail'
+  afterglowFalseCarryRate: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -1346,6 +1388,14 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     reconstructionFrequency: number
     reconstructedCount: number
     budgetClassCounts?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', number>>
+    budgetLatencyTelemetry?: Partial<Record<'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay', {
+      sampleCount: number
+      p50LatencyMs: number | null
+      p95LatencyMs: number | null
+      maxLatencyMs: number | null
+      gateStatus: 'unknown' | 'pass' | 'warn' | 'fail'
+      targetP95Ms: number
+    }>>
     hotKeyHitRatio?: number
     hotKeyCoverage?: number
     hotKeyCandidates?: string[]
@@ -1362,15 +1412,41 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     recallHitRate?: number
     recallMissRate?: number
     wrongThreadRate?: number
+    suppressionHitRate?: number
+    wrongThreadPreventedCount?: number
+    falsePositiveSuppressionRate?: number
+    staleSelfModelVetoRate?: number
+    relationshipEraConfusionRate?: number
     reconstructionErrorRate?: number
     stableCoreOnlyRate?: number
     memorySurfaceViolationRate?: number
     templateLeakageFailCount: number
+    emptyCareRate?: number
+    repairMechanicalRate?: number
+    warmthTemplateRisk?: number
+    relationshipDistanceJumpRate?: number
+    afterglowFalseCarryRate?: number
     mindParticipation?: number
     memoryParticipation?: number
     personalityParticipation?: number
     relationshipParticipation?: number
     continuityParticipation?: number
+    learningTaskCompletionCount?: number
+    learningTaskFailureCount?: number
+    learningTaskBlockedCount?: number
+    learningTaskReopenedCount?: number
+    learningTaskDowngradedCount?: number
+    learningTaskCancelledCount?: number
+    learningRelationshipReviseCount?: number
+    learningSelfModelReviseCount?: number
+    learningWorldModelValidationCount?: number
+    learningWorldModelFalseInternalizationCount?: number
+    learningTaskCompletionRate?: number
+    learningTaskFailureRate?: number
+    learningTaskReopenRecoveryRate?: number
+    misinternalizationRate?: number
+    relationshipCadenceRegressionRate?: number
+    selfModelStaleBeliefRate?: number
   }
 }
 
@@ -1389,6 +1465,22 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
   failingDimensions: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
   tracePointer: AlicizationReplayBenchmarkTracePointer
   sampledCategories?: string[] | null
+  paritySummary?: {
+    version: 'browser-main-parity-v1'
+    passed: boolean
+    comparedFieldCount: number
+    divergentFieldCount: number
+    divergentLayers: Array<'bundle' | 'learning-execution' | 'affective-residue' | 'latency-policy' | 'resolution-ledger' | 'situation-candidates' | 'claim-evidence' | 'learning-causal-chain'>
+    firstDivergentLayer: 'bundle' | 'learning-execution' | 'affective-residue' | 'latency-policy' | 'resolution-ledger' | 'situation-candidates' | 'claim-evidence' | 'learning-causal-chain' | null
+    divergentFields: Array<{
+      field: string
+      mainValue: string | null
+      browserValue: string | null
+      layer: 'bundle' | 'learning-execution' | 'affective-residue' | 'latency-policy' | 'resolution-ledger' | 'situation-candidates' | 'claim-evidence' | 'learning-causal-chain'
+      severity: 'warn' | 'fail'
+    }>
+    summary: string
+  } | null
   resolutionLedgerSummary?: {
     dominantClusterSummary: string | null
     competingClusterSummary: string | null
@@ -1396,6 +1488,13 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
     shouldStayInward: boolean
     shouldDelayUntilAfterPayoff: boolean
     rejectedCandidateCount: number
+    suppressionTags?: string[]
+  } | null
+  memorySituationCandidateSummary?: {
+    selected: string[]
+    rejected: string[]
+    delayed: string[]
+    unresolved: string[]
   } | null
 }
 
@@ -1406,6 +1505,13 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   persisted: boolean
   humanRatingRubric?: AlicizationReplayHumanRatingRubric | null
   driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse'> | null
+  paritySummary?: {
+    comparedTurnCount: number
+    parityPassCount: number
+    parityFailCount: number
+    parityPassRate: number
+    firstDivergentLayerCounts: Partial<Record<'bundle' | 'learning-execution' | 'affective-residue' | 'latency-policy' | 'resolution-ledger' | 'situation-candidates' | 'claim-evidence' | 'learning-causal-chain', number>>
+  } | null
 }
 
 export interface AlicizationReplayHumanRatingDimension {
@@ -1427,7 +1533,7 @@ export interface AlicizationReplayHumanRatingRubric {
 }
 
 export interface AlicizationReplayBenchmarkShipGateRow {
-  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'template-leakage-gate'
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'learning-domain-gate' | 'browser-main-parity-gate'
   status: 'pass' | 'fail'
   detail: string
 }
@@ -1488,6 +1594,7 @@ export interface AlicizationMemoryDecisionTraceRecord {
   takeoverAudit?: Record<string, unknown> | null
   memoryFactsUpserted?: Record<string, unknown> | null
   personStateUpdated?: Record<string, unknown> | null
+  learningExecuted?: Record<string, unknown> | null
   participation?: AlicizationMindParticipationSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
@@ -1671,6 +1778,107 @@ export interface AlicizationMemoryReflectionRecord {
   updatedAt: number
   confirmedAt: number | null
   deniedAt: number | null
+}
+
+export type AlicizationLearningAction
+  = 'record'
+    | 'reflect'
+    | 'verify'
+    | 'revise'
+    | 'internalize'
+
+export type AlicizationLearningTaskStatus
+  = 'scheduled'
+    | 'claimed'
+    | 'running'
+    | 'blocked'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'downgraded'
+    | 'reopened'
+
+export type AlicizationLearningTaskFailureKind
+  = 'dependency-missing'
+    | 'validation-insufficient'
+    | 'runtime-error'
+    | 'cancelled'
+
+export interface AlicizationLearningTaskPayload {
+  sourceTurnId: string | null
+  decisionTraceId: string | null
+  sourceSessionId: string | null
+  action: AlicizationLearningAction
+  reason: string | null
+  focuses: string[]
+  dominantTrajectory: string | null
+  sourceSignals: string[]
+  learningReadiness: number
+  contradictionPressure: number
+  revisionPressure: number
+  autobiographicalStability: number
+  supportingFactIds: string[]
+  supportingReflectionIds: string[]
+  supportingOutcomeIds: string[]
+  supersedeTargets: string[]
+  conflictTargets: string[]
+}
+
+export interface AlicizationLearningTaskRecord {
+  id: string
+  cardId: string
+  taskId: string
+  status: AlicizationLearningTaskStatus
+  triggerAt: number
+  action: AlicizationLearningAction
+  message: string
+  payload: AlicizationLearningTaskPayload
+  attemptCount: number
+  maxAttempts: number
+  createdAt: number
+  updatedAt: number
+  claimedAt: number | null
+  startedAt: number | null
+  completedAt: number | null
+  blockedAt: number | null
+  cancelledAt: number | null
+  downgradedAt: number | null
+  reopenedAt: number | null
+  nextRetryAt: number | null
+  sourceTurnId: string | null
+  resultSummary: string | null
+  failureKind: AlicizationLearningTaskFailureKind | null
+  lastError: string | null
+  firedTurnId: string | null
+}
+
+export interface AlicizationLearningExecutionStateSnapshot {
+  currentTaskId: string | null
+  currentStatus: AlicizationLearningTaskStatus | null
+  currentAttemptCount: number
+  currentMaxAttempts: number
+  currentNextRetryAt: number | null
+  currentBlockedReason: string | null
+  currentFailureKind: AlicizationLearningTaskFailureKind | null
+  nextLearningAction: AlicizationLearningAction | 'hold' | null
+  shouldRecord: boolean
+  shouldReflect: boolean
+  shouldVerify: boolean
+  shouldRevise: boolean
+  shouldInternalize: boolean
+  activeLearningFocuses: string[]
+  queuedTaskCount: number
+  runningTaskCount: number
+  blockedTaskCount: number
+  recentTaskIds: string[]
+  lastCompletedTaskId: string | null
+  lastCompletedAction: AlicizationLearningAction | null
+  lastCompletedSummary: string | null
+  lastFailureTaskId: string | null
+  lastFailureKind: AlicizationLearningTaskFailureKind | null
+  lastFailureReason: string | null
+  lastFailureNextRetryAt: number | null
+  updatedAt: number | null
 }
 
 export type AlicizationRelationshipOutcomeSourceKind = 'reply' | 'proactive' | 'execution'
@@ -1894,6 +2102,73 @@ export interface AlicizationSelfEvolutionKernelSnapshot {
   summary: string
 }
 
+export type AlicizationAffectiveResidueKind = 'afterglow' | 'repair' | 'burden' | 'trust' | 'rest-protective'
+
+export interface AlicizationAffectiveResidueEntrySnapshot {
+  kind: AlicizationAffectiveResidueKind
+  intensity: number
+  persistence: number
+  confidence: number
+  polarity: 'warm' | 'protective' | 'strained' | 'neutral'
+  releaseMode: 'surface-eligible' | 'mind-only' | 'delay-until-open-window' | 'protect-rest'
+  summary: string
+  sourceSignals: string[]
+  lastUpdatedAt: number | null
+}
+
+export interface AlicizationRelationshipCadenceMemorySnapshot {
+  cadenceMode: 'cooldown' | 'measured-return' | 'ready-return' | 'warm-hold'
+  distancePosture: 'protect-space' | 'measured-room' | 'nearby-soft' | 'warm-near'
+  companionshipDensity: number
+  repairRecovery: number
+  overreachRisk: number
+  fatigueGuard: number
+  afterglowCarry: number
+  shouldDelayWarmth: boolean
+  shouldProtectRest: boolean
+  reasonTags: string[]
+  summary: string
+}
+
+export interface AlicizationAffectiveResidueMemorySnapshot {
+  version: 'affective-residue-memory-v1'
+  updatedAt: number | null
+  residues: AlicizationAffectiveResidueEntrySnapshot[]
+  dominantResidueKind: AlicizationAffectiveResidueKind | null
+  afterglowPressure: number
+  repairPressure: number
+  burdenPressure: number
+  trustPressure: number
+  restProtectivePressure: number
+  relationshipCadence: AlicizationRelationshipCadenceMemorySnapshot
+  sourceSignals: string[]
+  summary: string
+}
+
+export interface AlicizationRecallLatencyBudgetSnapshot {
+  domain: 'procedure' | 'relationship' | 'self-model' | 'world-model' | 'general'
+  budgetMs: number
+  candidateLimit: number
+  hotCacheTtlMs: number
+}
+
+export interface AlicizationRecallLatencyPolicySnapshot {
+  version: 'recall-latency-policy-v1'
+  budgetClass: 'realtime-reply' | 'deep-recall-reply' | 'proactive-generation' | 'nightly-benchmark' | 'diagnosis-replay'
+  latencyClass: 'fast' | 'balanced' | 'deep'
+  recallAction: 'shallow-answer' | 'stable-core-only' | 'deep-recall' | 'defer-to-followup' | 'answer-then-supplement'
+  degradeReason: string | null
+  domainBudgets: AlicizationRecallLatencyBudgetSnapshot[]
+  hotPathKey: string | null
+  shouldUseHotCache: boolean
+  shouldPrefetch: boolean
+  shouldAvoidDeepExpansion: boolean
+  shouldEmitFollowUpAffordance: boolean
+  confidence: number
+  reasonTags: string[]
+  summary: string
+}
+
 export interface AlicizationDerivedMindStateBundle {
   version: 'derived-mind-state-bundle-v1'
   source: 'main-runtime' | 'browser-fallback'
@@ -1906,7 +2181,11 @@ export interface AlicizationDerivedMindStateBundle {
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
   } | null
+  claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
+  recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   recollectionIntent?: Record<string, unknown> | null
   recollectionPlan?: Record<string, unknown> | null
   recollectionSpeechPlan?: Record<string, unknown> | null
@@ -1943,8 +2222,20 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
   const knowledgeEvidence = candidate.knowledgeEvidence && typeof candidate.knowledgeEvidence === 'object'
     ? candidate.knowledgeEvidence as Record<string, unknown>
     : null
+  const claimEvidenceGraphs = Array.isArray(candidate.claimEvidenceGraphs)
+    ? candidate.claimEvidenceGraphs.filter(item => item && typeof item === 'object') as AlicizationClaimEvidenceGraph[]
+    : null
   const selfEvolution = candidate.selfEvolution && typeof candidate.selfEvolution === 'object'
     ? candidate.selfEvolution as Record<string, unknown>
+    : null
+  const affectiveResidue = candidate.affectiveResidue && typeof candidate.affectiveResidue === 'object'
+    ? candidate.affectiveResidue as Record<string, unknown>
+    : null
+  const learningExecutionState = candidate.learningExecutionState && typeof candidate.learningExecutionState === 'object'
+    ? candidate.learningExecutionState as Record<string, unknown>
+    : null
+  const recallLatencyPolicy = candidate.recallLatencyPolicy && typeof candidate.recallLatencyPolicy === 'object'
+    ? candidate.recallLatencyPolicy as Record<string, unknown>
     : null
   const dialogueRhythm = candidate.dialogueRhythm && typeof candidate.dialogueRhythm === 'object'
     ? candidate.dialogueRhythm as Record<string, unknown>
@@ -1968,7 +2259,251 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
           contradictionHeavyFactCount: Math.max(0, Math.floor(Number(knowledgeEvidence.contradictionHeavyFactCount ?? 0))),
         }
       : null,
+    claimEvidenceGraphs,
     selfEvolution: selfEvolution ? selfEvolution as unknown as AlicizationSelfEvolutionKernelSnapshot : null,
+    affectiveResidue: affectiveResidue
+      ? {
+          version: 'affective-residue-memory-v1',
+          updatedAt: Number.isFinite(Number(affectiveResidue.updatedAt)) ? Math.max(0, Math.floor(Number(affectiveResidue.updatedAt))) : null,
+          residues: Array.isArray(affectiveResidue.residues)
+            ? affectiveResidue.residues
+              .map((item) => {
+                const entry = item && typeof item === 'object' && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : null
+                if (!entry)
+                  return null
+                const kind = entry.kind === 'afterglow'
+                  || entry.kind === 'repair'
+                  || entry.kind === 'burden'
+                  || entry.kind === 'trust'
+                  || entry.kind === 'rest-protective'
+                  ? entry.kind
+                  : null
+                if (!kind)
+                  return null
+                return {
+                  kind,
+                  intensity: Math.max(0, Math.min(1, Number(entry.intensity ?? 0))),
+                  persistence: Math.max(0, Math.min(1, Number(entry.persistence ?? 0))),
+                  confidence: Math.max(0, Math.min(1, Number(entry.confidence ?? 0))),
+                  polarity: entry.polarity === 'warm'
+                    || entry.polarity === 'protective'
+                    || entry.polarity === 'strained'
+                    || entry.polarity === 'neutral'
+                    ? entry.polarity
+                    : 'neutral',
+                  releaseMode: entry.releaseMode === 'surface-eligible'
+                    || entry.releaseMode === 'mind-only'
+                    || entry.releaseMode === 'delay-until-open-window'
+                    || entry.releaseMode === 'protect-rest'
+                    ? entry.releaseMode
+                    : 'mind-only',
+                  summary: sanitizeAlicizationDigitalLifeDigestText(entry.summary, 180) || '',
+                  sourceSignals: Array.isArray(entry.sourceSignals)
+                    ? entry.sourceSignals
+                      .map(signal => sanitizeAlicizationDigitalLifeDigestText(signal, 120))
+                      .filter(Boolean)
+                      .slice(0, 8)
+                    : [],
+                  lastUpdatedAt: Number.isFinite(Number(entry.lastUpdatedAt)) ? Math.max(0, Math.floor(Number(entry.lastUpdatedAt))) : null,
+                } satisfies AlicizationAffectiveResidueEntrySnapshot
+              })
+              .filter((item): item is AlicizationAffectiveResidueEntrySnapshot => Boolean(item))
+              .slice(0, 5)
+            : [],
+          dominantResidueKind: affectiveResidue.dominantResidueKind === 'afterglow'
+            || affectiveResidue.dominantResidueKind === 'repair'
+            || affectiveResidue.dominantResidueKind === 'burden'
+            || affectiveResidue.dominantResidueKind === 'trust'
+            || affectiveResidue.dominantResidueKind === 'rest-protective'
+            ? affectiveResidue.dominantResidueKind
+            : null,
+          afterglowPressure: Math.max(0, Math.min(1, Number(affectiveResidue.afterglowPressure ?? 0))),
+          repairPressure: Math.max(0, Math.min(1, Number(affectiveResidue.repairPressure ?? 0))),
+          burdenPressure: Math.max(0, Math.min(1, Number(affectiveResidue.burdenPressure ?? 0))),
+          trustPressure: Math.max(0, Math.min(1, Number(affectiveResidue.trustPressure ?? 0))),
+          restProtectivePressure: Math.max(0, Math.min(1, Number(affectiveResidue.restProtectivePressure ?? 0))),
+          relationshipCadence: (() => {
+            const cadence = affectiveResidue.relationshipCadence && typeof affectiveResidue.relationshipCadence === 'object'
+              ? affectiveResidue.relationshipCadence as Record<string, unknown>
+              : null
+            return {
+              cadenceMode: cadence?.cadenceMode === 'cooldown'
+                || cadence?.cadenceMode === 'measured-return'
+                || cadence?.cadenceMode === 'ready-return'
+                || cadence?.cadenceMode === 'warm-hold'
+                ? cadence.cadenceMode
+                : 'measured-return',
+              distancePosture: cadence?.distancePosture === 'protect-space'
+                || cadence?.distancePosture === 'measured-room'
+                || cadence?.distancePosture === 'nearby-soft'
+                || cadence?.distancePosture === 'warm-near'
+                ? cadence.distancePosture
+                : 'measured-room',
+              companionshipDensity: Math.max(0, Math.min(1, Number(cadence?.companionshipDensity ?? 0))),
+              repairRecovery: Math.max(0, Math.min(1, Number(cadence?.repairRecovery ?? 0))),
+              overreachRisk: Math.max(0, Math.min(1, Number(cadence?.overreachRisk ?? 0))),
+              fatigueGuard: Math.max(0, Math.min(1, Number(cadence?.fatigueGuard ?? 0))),
+              afterglowCarry: Math.max(0, Math.min(1, Number(cadence?.afterglowCarry ?? 0))),
+              shouldDelayWarmth: cadence?.shouldDelayWarmth === true,
+              shouldProtectRest: cadence?.shouldProtectRest === true,
+              reasonTags: Array.isArray(cadence?.reasonTags)
+                ? cadence.reasonTags
+                  .map(signal => sanitizeAlicizationDigitalLifeDigestText(signal, 120))
+                  .filter(Boolean)
+                  .slice(0, 10)
+                : [],
+              summary: sanitizeAlicizationDigitalLifeDigestText(cadence?.summary, 200) || '',
+            } satisfies AlicizationRelationshipCadenceMemorySnapshot
+          })(),
+          sourceSignals: Array.isArray(affectiveResidue.sourceSignals)
+            ? affectiveResidue.sourceSignals
+              .map(signal => sanitizeAlicizationDigitalLifeDigestText(signal, 120))
+              .filter(Boolean)
+              .slice(0, 12)
+            : [],
+          summary: sanitizeAlicizationDigitalLifeDigestText(affectiveResidue.summary, 220) || '',
+        }
+      : null,
+    learningExecutionState: learningExecutionState
+      ? {
+          currentTaskId: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.currentTaskId, 120) || null,
+          currentStatus: learningExecutionState.currentStatus === 'scheduled'
+            || learningExecutionState.currentStatus === 'claimed'
+            || learningExecutionState.currentStatus === 'running'
+            || learningExecutionState.currentStatus === 'blocked'
+            || learningExecutionState.currentStatus === 'completed'
+            || learningExecutionState.currentStatus === 'failed'
+            || learningExecutionState.currentStatus === 'cancelled'
+            || learningExecutionState.currentStatus === 'downgraded'
+            || learningExecutionState.currentStatus === 'reopened'
+            ? learningExecutionState.currentStatus
+            : null,
+          currentAttemptCount: Math.max(0, Math.floor(Number(learningExecutionState.currentAttemptCount ?? 0))),
+          currentMaxAttempts: Math.max(0, Math.floor(Number(learningExecutionState.currentMaxAttempts ?? 0))),
+          currentNextRetryAt: Number.isFinite(Number(learningExecutionState.currentNextRetryAt)) ? Math.max(0, Math.floor(Number(learningExecutionState.currentNextRetryAt))) : null,
+          currentBlockedReason: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.currentBlockedReason, 180) || null,
+          currentFailureKind: learningExecutionState.currentFailureKind === 'dependency-missing'
+            || learningExecutionState.currentFailureKind === 'validation-insufficient'
+            || learningExecutionState.currentFailureKind === 'runtime-error'
+            || learningExecutionState.currentFailureKind === 'cancelled'
+            ? learningExecutionState.currentFailureKind
+            : null,
+          nextLearningAction: learningExecutionState.nextLearningAction === 'record'
+            || learningExecutionState.nextLearningAction === 'reflect'
+            || learningExecutionState.nextLearningAction === 'verify'
+            || learningExecutionState.nextLearningAction === 'revise'
+            || learningExecutionState.nextLearningAction === 'internalize'
+            || learningExecutionState.nextLearningAction === 'hold'
+            ? learningExecutionState.nextLearningAction
+            : null,
+          shouldRecord: learningExecutionState.shouldRecord === true,
+          shouldReflect: learningExecutionState.shouldReflect === true,
+          shouldVerify: learningExecutionState.shouldVerify === true,
+          shouldRevise: learningExecutionState.shouldRevise === true,
+          shouldInternalize: learningExecutionState.shouldInternalize === true,
+          activeLearningFocuses: Array.isArray(learningExecutionState.activeLearningFocuses)
+            ? learningExecutionState.activeLearningFocuses
+                .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+                .filter(Boolean)
+                .slice(0, 12)
+            : [],
+          queuedTaskCount: Math.max(0, Math.floor(Number(learningExecutionState.queuedTaskCount ?? 0))),
+          runningTaskCount: Math.max(0, Math.floor(Number(learningExecutionState.runningTaskCount ?? 0))),
+          blockedTaskCount: Math.max(0, Math.floor(Number(learningExecutionState.blockedTaskCount ?? 0))),
+          recentTaskIds: Array.isArray(learningExecutionState.recentTaskIds)
+            ? learningExecutionState.recentTaskIds
+                .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+                .filter(Boolean)
+                .slice(0, 8)
+            : [],
+          lastCompletedTaskId: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.lastCompletedTaskId, 120) || null,
+          lastCompletedAction: learningExecutionState.lastCompletedAction === 'record'
+            || learningExecutionState.lastCompletedAction === 'reflect'
+            || learningExecutionState.lastCompletedAction === 'verify'
+            || learningExecutionState.lastCompletedAction === 'revise'
+            || learningExecutionState.lastCompletedAction === 'internalize'
+            ? learningExecutionState.lastCompletedAction
+            : null,
+          lastCompletedSummary: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.lastCompletedSummary, 180) || null,
+          lastFailureTaskId: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.lastFailureTaskId, 120) || null,
+          lastFailureKind: learningExecutionState.lastFailureKind === 'dependency-missing'
+            || learningExecutionState.lastFailureKind === 'validation-insufficient'
+            || learningExecutionState.lastFailureKind === 'runtime-error'
+            || learningExecutionState.lastFailureKind === 'cancelled'
+            ? learningExecutionState.lastFailureKind
+            : null,
+          lastFailureReason: sanitizeAlicizationDigitalLifeDigestText(learningExecutionState.lastFailureReason, 180) || null,
+          lastFailureNextRetryAt: Number.isFinite(Number(learningExecutionState.lastFailureNextRetryAt)) ? Math.max(0, Math.floor(Number(learningExecutionState.lastFailureNextRetryAt))) : null,
+          updatedAt: Number.isFinite(Number(learningExecutionState.updatedAt)) ? Math.max(0, Math.floor(Number(learningExecutionState.updatedAt))) : null,
+        }
+      : null,
+    recallLatencyPolicy: recallLatencyPolicy
+      ? {
+          version: 'recall-latency-policy-v1',
+          budgetClass: recallLatencyPolicy.budgetClass === 'realtime-reply'
+            || recallLatencyPolicy.budgetClass === 'deep-recall-reply'
+            || recallLatencyPolicy.budgetClass === 'proactive-generation'
+            || recallLatencyPolicy.budgetClass === 'nightly-benchmark'
+            || recallLatencyPolicy.budgetClass === 'diagnosis-replay'
+            ? recallLatencyPolicy.budgetClass
+            : 'realtime-reply',
+          latencyClass: recallLatencyPolicy.latencyClass === 'fast'
+            || recallLatencyPolicy.latencyClass === 'balanced'
+            || recallLatencyPolicy.latencyClass === 'deep'
+            ? recallLatencyPolicy.latencyClass
+            : 'balanced',
+          recallAction: recallLatencyPolicy.recallAction === 'shallow-answer'
+            || recallLatencyPolicy.recallAction === 'stable-core-only'
+            || recallLatencyPolicy.recallAction === 'deep-recall'
+            || recallLatencyPolicy.recallAction === 'defer-to-followup'
+            || recallLatencyPolicy.recallAction === 'answer-then-supplement'
+            ? recallLatencyPolicy.recallAction
+            : 'shallow-answer',
+          degradeReason: sanitizeAlicizationDigitalLifeDigestText(recallLatencyPolicy.degradeReason, 160) || null,
+          domainBudgets: Array.isArray(recallLatencyPolicy.domainBudgets)
+            ? recallLatencyPolicy.domainBudgets
+              .map((item) => {
+                const budget = item && typeof item === 'object' && !Array.isArray(item)
+                  ? item as Record<string, unknown>
+                  : null
+                if (!budget)
+                  return null
+                const domain = budget.domain === 'procedure'
+                  || budget.domain === 'relationship'
+                  || budget.domain === 'self-model'
+                  || budget.domain === 'world-model'
+                  || budget.domain === 'general'
+                  ? budget.domain
+                  : null
+                if (!domain)
+                  return null
+                return {
+                  domain,
+                  budgetMs: Number.isFinite(Number(budget.budgetMs)) ? Math.max(0, Math.floor(Number(budget.budgetMs))) : 0,
+                  candidateLimit: Number.isFinite(Number(budget.candidateLimit)) ? Math.max(0, Math.floor(Number(budget.candidateLimit))) : 0,
+                  hotCacheTtlMs: Number.isFinite(Number(budget.hotCacheTtlMs)) ? Math.max(0, Math.floor(Number(budget.hotCacheTtlMs))) : 0,
+                } satisfies AlicizationRecallLatencyBudgetSnapshot
+              })
+              .filter((item): item is AlicizationRecallLatencyBudgetSnapshot => Boolean(item))
+              .slice(0, 8)
+            : [],
+          hotPathKey: sanitizeAlicizationDigitalLifeDigestText(recallLatencyPolicy.hotPathKey, 220) || null,
+          shouldUseHotCache: recallLatencyPolicy.shouldUseHotCache === true,
+          shouldPrefetch: recallLatencyPolicy.shouldPrefetch === true,
+          shouldAvoidDeepExpansion: recallLatencyPolicy.shouldAvoidDeepExpansion === true,
+          shouldEmitFollowUpAffordance: recallLatencyPolicy.shouldEmitFollowUpAffordance === true,
+          confidence: Math.max(0, Math.min(1, Number(recallLatencyPolicy.confidence ?? 0))),
+          reasonTags: Array.isArray(recallLatencyPolicy.reasonTags)
+            ? recallLatencyPolicy.reasonTags
+              .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
+              .filter(Boolean)
+              .slice(0, 12)
+            : [],
+          summary: sanitizeAlicizationDigitalLifeDigestText(recallLatencyPolicy.summary, 220) || '',
+        }
+      : null,
     recollectionIntent: candidate.recollectionIntent && typeof candidate.recollectionIntent === 'object'
       ? candidate.recollectionIntent as Record<string, unknown>
       : null,
@@ -2001,6 +2536,7 @@ export type AlicizationMindHeadKey
     | 'reflection-ledger'
     | 'motive-engine'
     | 'habit-policy'
+    | 'learning-execution-state'
 
 export interface AlicizationDigitalLifeSpineMemoryDigest {
   summary: string | null
@@ -2894,6 +3430,9 @@ export type AlicizationProactiveReasonCode
     | 'continuity-after-payoff'
     | 'continuity-next-open-window'
     | 'continuity-execution-callback'
+    | 'relationship-cadence-residue'
+    | 'relationship-residue-delay-warmth'
+    | 'relationship-residue-protect-rest'
 
 export interface AlicizationProactiveDecision {
   shouldInterrupt: boolean
@@ -2915,6 +3454,7 @@ export interface AlicizationDialogueStructuredPayload {
   emotion: AlicizationEmotion
   reply: string
   visibleReplyAuthority?: AlicizationVisibleReplyAuthority | null
+  visibleReplyRewriteRequest?: AlicizationVisibleReplyRewriteRequest | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null

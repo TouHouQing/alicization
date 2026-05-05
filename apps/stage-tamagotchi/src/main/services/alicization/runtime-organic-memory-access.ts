@@ -2,10 +2,12 @@ import type {
   AlicizationActiveThought,
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationPersonStateEvolutionSummary,
   AlicizationRecallGovernorSnapshot,
+  AlicizationMemoryReflectionRecord,
   AlicizationRelationshipOutcomeRecord,
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
@@ -65,6 +67,12 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     limit?: number
     turnId?: string
   }) => Promise<AlicizationRelationshipOutcomeRecord[]>
+  listMemoryReflections: (input: {
+    cardId: string
+    limit?: number
+    turnId?: string
+    status?: 'pending' | 'confirmed' | 'denied' | 'superseded'
+  }) => Promise<AlicizationMemoryReflectionRecord[]>
   listPersonaReinforcementEvents: (input: {
     cardId: string
     limit?: number
@@ -124,6 +132,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     userText?: string | null
     assistantText?: string | null
   }>>
+  getLatestLearningExecutionState?: (cardId: string) => Promise<AlicizationLearningExecutionStateSnapshot | null>
   recordMemoryCacheAccess?: (hit: boolean) => Promise<void>
   recordMemoryPrewarmAccess?: (hit: boolean) => Promise<void>
   recordMemoryBudgetClass?: (budgetClass: AlicizationMemoryRetrievalBudgetClass) => Promise<void>
@@ -201,11 +210,13 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
 
   async function getOrganicMemorySnapshot() {
     const currentSoul = options.getSoulSnapshot() ?? await options.bootstrap()
-    const [rawActiveThoughts, subconsciousCount, rawRecentSubconsciousFragments, rawLastDreamedAt] = await Promise.all([
+    const activeCardId = options.getActiveCardId()
+    const [rawActiveThoughts, subconsciousCount, rawRecentSubconsciousFragments, rawLastDreamedAt, learningExecutionState] = await Promise.all([
       options.listActiveThoughts().catch(() => []),
       options.countSubconsciousFragments().catch(() => 0),
       options.listRecentSubconsciousFragments(8).catch(() => []),
       options.getMetaValue(alicizationDreamLastRunMetaKey).catch(() => undefined),
+      options.getLatestLearningExecutionState?.(activeCardId).catch(() => null) ?? Promise.resolve(null),
     ])
     const parsedLastDreamedAt = Number.parseInt(String(rawLastDreamedAt ?? ''), 10)
     const activeThoughts = filterOrganicMemoryEntries(rawActiveThoughts)
@@ -221,6 +232,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       activeThoughts,
       subconsciousCount,
       recentSubconsciousFragments,
+      learningExecutionState,
       lastDreamedAt: Number.isFinite(parsedLastDreamedAt) ? Math.max(0, parsedLastDreamedAt) : null,
     } satisfies AlicizationOrganicMemorySnapshot
   }
@@ -381,6 +393,13 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     })
   }
 
+  async function listRecentMemoryReflections(cardId: string, limit = 8) {
+    return await options.listMemoryReflections({
+      cardId,
+      limit,
+    }).catch(() => [])
+  }
+
   async function getMemoryTuningAdvice(): Promise<AlicizationMemoryTuningAdvice | null> {
     const raw = await options.getMetaValue(replayBenchmarkTuningAdviceMetaKey).catch(() => undefined)
     return parseMemoryTuningAdvice(raw)
@@ -511,6 +530,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallSubconsciousFragmentsWithGovernor,
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
+    listRecentMemoryReflections,
     getMemoryTuningAdvice,
     recallConversationHistory,
     recallMemoryConsolidations,

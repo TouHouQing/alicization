@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 
 describe('memory recollection narratives', () => {
-  it('turns recollected windows into gist-first humanlike recall surfaces', () => {
+  it('turns recollected windows into structured recall pressure without fixed visible wording', () => {
     const narratives = buildMemoryRecollectionNarratives({
       intent: {
         mode: 'conversation-history',
@@ -28,8 +28,13 @@ describe('memory recollection narratives', () => {
     })
 
     expect(narratives).toHaveLength(1)
-    expect(narratives[0]?.opening).toContain('What I first remember us circling around is')
+    expect(narratives[0]?.recallCenter).toBe('we were aligning proactive closure and runtime continuity')
+    expect(narratives[0]?.opening).toBe(narratives[0]?.recallCenter)
+    expect(narratives[0]?.opening).not.toContain('What I first remember us circling around is')
+    expect(narratives[0]?.speakerInstruction).toContain('not as a copied opening line')
     expect(narratives[0]?.certainty).toBe('fragmentary')
-    expect(narratives[0]?.supportCues).toContain('runtime continuity')
+    expect(narratives[0]?.evidenceCues).toContain('runtime continuity')
+    expect(narratives[0]?.supportCues).toEqual(narratives[0]?.evidenceCues)
+    expect(narratives[0]?.provenancePosture).toBe('reconstructed')
   })
 })

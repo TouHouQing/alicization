@@ -89,6 +89,62 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return result
 }
 
+function describeFollowUpTiming(raw: string | null | undefined) {
+  switch (raw) {
+    case 'next-open-window':
+      return 'the next open window'
+    case 'after-payoff':
+      return 'after the current payoff'
+    case 'same-turn-if-invited':
+      return 'an invited same-turn opening'
+    case 'internal-only':
+      return 'a strictly inward lane'
+    default:
+      return null
+  }
+}
+
+function buildMindReplayDiagnosisSummary(input: {
+  failingDimensions: string[]
+  learningEvidenceSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['learningEvidenceSummary']
+  replyMemoryCoherenceSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['replyMemoryCoherenceSummary']
+  resolutionLedgerSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['resolutionLedgerSummary']
+}) {
+  if (input.resolutionLedgerSummary?.suppressionTags?.includes('self-model-stale') && input.replyMemoryCoherenceSummary?.whyWithheld) {
+    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
+    return `Older self-model continuity was vetoed${timing ? ` until ${timing}` : ''} because the newer self line still needed room: ${input.replyMemoryCoherenceSummary.whyWithheld}`
+  }
+  if (input.resolutionLedgerSummary?.suppressionTags?.includes('self-model-stale')) {
+    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary?.followUpPreferredTiming)
+    return `Older self-model continuity was vetoed${timing ? ` until ${timing}` : ''} because the newer self line still needed room.`
+  }
+  if (input.resolutionLedgerSummary?.suppressionTags?.includes('relationship-era-confusion') && input.replyMemoryCoherenceSummary?.whyWithheld) {
+    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
+    return `Competing relationship eras were vetoed${timing ? ` until ${timing}` : ''} because the recalled bond line was still too easy to confuse: ${input.replyMemoryCoherenceSummary.whyWithheld}`
+  }
+  if (input.resolutionLedgerSummary?.suppressionTags?.includes('relationship-era-confusion')) {
+    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary?.followUpPreferredTiming)
+    return `Competing relationship eras were vetoed${timing ? ` until ${timing}` : ''} because the recalled bond line was still too easy to confuse.`
+  }
+  if (input.learningEvidenceSummary?.domain === 'relationship' && input.replyMemoryCoherenceSummary?.whyWithheld) {
+    return `Relationship learning is still revising this line, so the memory stayed inward: ${input.replyMemoryCoherenceSummary.whyWithheld}`
+  }
+  if (input.learningEvidenceSummary?.domain === 'self-model' && input.replyMemoryCoherenceSummary?.whyWithheld) {
+    const timing = describeFollowUpTiming(input.replyMemoryCoherenceSummary.followUpPreferredTiming)
+    return `Self-model learning is still revising how Alicization understands herself here, so the older self-story stayed compressed${timing ? ` until ${timing}` : ''}: ${input.replyMemoryCoherenceSummary.whyWithheld}`
+  }
+  if (input.learningEvidenceSummary?.domain === 'world-model' && input.replyMemoryCoherenceSummary?.followUpPreferredTiming) {
+    return `World-model knowledge stayed validation-first, so follow-up timing moved to ${input.replyMemoryCoherenceSummary.followUpPreferredTiming}.`
+  }
+  if (input.replyMemoryCoherenceSummary?.whyWithheld)
+    return input.replyMemoryCoherenceSummary.whyWithheld
+  if (input.resolutionLedgerSummary?.shouldDelayUntilAfterPayoff)
+    return 'Memory stayed behind the current payoff because competing or unstable details still needed to wait.'
+  if (input.failingDimensions.length > 0)
+    return `Failing dimensions: ${input.failingDimensions.join(', ')}.`
+  return null
+}
+
 export interface AlicizationMindReplayCoverage {
   requiredComplete: boolean
   hasGovernanceNormalized: boolean
@@ -132,6 +188,37 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
   decisionTraceId: string | null
   sessionId: string | null
   activeThreadId: string | null
+  diagnosisSummary: string | null
+  learningEvidenceSummary: {
+    action: string | null
+    domain: string | null
+    resultSummary: string | null
+    focuses: string[]
+  } | null
+  learningExecutionStateSummary: {
+    currentTaskId: string | null
+    currentStatus: string | null
+    currentAttemptCount: number
+    currentMaxAttempts: number
+    currentNextRetryAt: number | null
+    currentBlockedReason: string | null
+    currentFailureKind: string | null
+    nextLearningAction: string | null
+    activeLearningFocuses: string[]
+    queuedTaskCount: number
+    runningTaskCount: number
+    blockedTaskCount: number
+    lastCompletedSummary: string | null
+    lastFailureReason: string | null
+    lastFailureNextRetryAt: number | null
+  } | null
+  replyMemoryCoherenceSummary: {
+    coherenceState: string | null
+    whyWithheld: string | null
+    followUpSummary: string | null
+    followUpPreferredTiming: string | null
+    followUpIntrusionRisk: string | null
+  } | null
   resolutionLedgerSummary: {
     dominantClusterSummary: string | null
     competingClusterSummary: string | null
@@ -139,6 +226,28 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
     shouldStayInward: boolean
     shouldDelayUntilAfterPayoff: boolean
     rejectedCandidateCount: number
+    suppressionTags: string[]
+  } | null
+  memorySituationCandidateSummary: {
+    selected: string[]
+    rejected: string[]
+    delayed: string[]
+    unresolved: string[]
+  } | null
+  paritySummary: {
+    passed: boolean
+    comparedFieldCount: number
+    divergentFieldCount: number
+    divergentLayers: string[]
+    firstDivergentLayer: string | null
+    summary: string
+    divergentFields: Array<{
+      field: string
+      mainValue: string | null
+      browserValue: string | null
+      layer: string
+      severity: string
+    }>
   } | null
 }
 
@@ -272,8 +381,93 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   })
   const benchmarkFailingTurns = computed<AlicizationMindReplayBenchmarkTurnDiagnosis[]>(() => {
     const failingTurns = benchmarkReport.value?.failingTurnSet ?? []
+    const traceByDecisionTraceId = new Map(
+      traceRecords.value
+        .filter(item => item.decisionTraceId)
+        .map(item => [item.decisionTraceId, item] as const),
+    )
     return failingTurns.map((item) => {
       const tracePointer = item.tracePointer
+      const trace = tracePointer.decisionTraceId
+        ? traceByDecisionTraceId.get(tracePointer.decisionTraceId) ?? null
+        : null
+      const learningEvidenceSummary = (() => {
+        const payload = trace?.learningExecuted && typeof trace.learningExecuted === 'object'
+          ? trace.learningExecuted as Record<string, unknown>
+          : null
+        if (!payload)
+          return null
+        return {
+          action: pickString(payload.action) || null,
+          domain: pickString(payload.domain) || null,
+          resultSummary: pickString(payload.resultSummary) || null,
+          focuses: Array.isArray(payload.focuses)
+            ? payload.focuses.map(item => pickString(item)).filter(Boolean)
+            : [],
+        }
+      })()
+      const replyMemoryCoherenceSummary = (() => {
+        const payload = trace?.replyMemoryCoherence && typeof trace.replyMemoryCoherence === 'object'
+          ? trace.replyMemoryCoherence as Record<string, unknown>
+          : null
+        if (!payload)
+          return null
+        return {
+          coherenceState: pickString(payload.coherenceState) || null,
+          whyWithheld: pickString(payload.whyWithheld) || null,
+          followUpSummary: pickString(payload.followUpSummary) || null,
+          followUpPreferredTiming: pickString(payload.followUpPreferredTiming) || null,
+          followUpIntrusionRisk: pickString(payload.followUpIntrusionRisk) || null,
+        }
+      })()
+      const learningExecutionStateSummary = (() => {
+        const state = trace?.derivedMindStateBundle?.learningExecutionState ?? null
+        if (!state)
+          return null
+        return {
+          currentTaskId: state.currentTaskId,
+          currentStatus: state.currentStatus,
+          currentAttemptCount: state.currentAttemptCount,
+          currentMaxAttempts: state.currentMaxAttempts,
+          currentNextRetryAt: state.currentNextRetryAt,
+          currentBlockedReason: state.currentBlockedReason,
+          currentFailureKind: state.currentFailureKind,
+          nextLearningAction: state.nextLearningAction,
+          activeLearningFocuses: [...state.activeLearningFocuses],
+          queuedTaskCount: state.queuedTaskCount,
+          runningTaskCount: state.runningTaskCount,
+          blockedTaskCount: state.blockedTaskCount,
+          lastCompletedSummary: state.lastCompletedSummary,
+          lastFailureReason: state.lastFailureReason,
+          lastFailureNextRetryAt: state.lastFailureNextRetryAt,
+        }
+      })()
+      const resolutionLedgerSummary = item.resolutionLedgerSummary ?? null
+      const memorySituationCandidateSummary = item.memorySituationCandidateSummary
+        ? {
+            selected: [...item.memorySituationCandidateSummary.selected],
+            rejected: [...item.memorySituationCandidateSummary.rejected],
+            delayed: [...item.memorySituationCandidateSummary.delayed],
+            unresolved: [...item.memorySituationCandidateSummary.unresolved],
+          }
+        : null
+      const paritySummary = item.paritySummary
+        ? {
+            passed: item.paritySummary.passed,
+            comparedFieldCount: item.paritySummary.comparedFieldCount,
+            divergentFieldCount: item.paritySummary.divergentFieldCount,
+            divergentLayers: [...item.paritySummary.divergentLayers],
+            firstDivergentLayer: item.paritySummary.firstDivergentLayer,
+            summary: item.paritySummary.summary,
+            divergentFields: item.paritySummary.divergentFields.map(field => ({
+              field: field.field,
+              mainValue: field.mainValue,
+              browserValue: field.browserValue,
+              layer: field.layer,
+              severity: field.severity,
+            })),
+          }
+        : null
       return {
         turnId: item.turnId,
         userText: item.userText,
@@ -283,7 +477,18 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         decisionTraceId: tracePointer.decisionTraceId ?? null,
         sessionId: tracePointer.sessionId ?? null,
         activeThreadId: tracePointer.activeThreadId ?? null,
-        resolutionLedgerSummary: item.resolutionLedgerSummary ?? null,
+        diagnosisSummary: buildMindReplayDiagnosisSummary({
+          failingDimensions: [...item.failingDimensions],
+          learningEvidenceSummary,
+          replyMemoryCoherenceSummary,
+          resolutionLedgerSummary,
+        }),
+        learningEvidenceSummary,
+        learningExecutionStateSummary,
+        replyMemoryCoherenceSummary,
+        resolutionLedgerSummary,
+        memorySituationCandidateSummary,
+        paritySummary,
       }
     })
   })
@@ -349,6 +554,23 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       },
     ]
   })
+  const benchmarkParityRows = computed(() => {
+    const parity = benchmarkReport.value?.datasetFeedback.paritySummary ?? null
+    if (!parity)
+      return []
+    return [
+      {
+        key: 'browser_main_parity_fixture_pass_rate',
+        value: parity.parityPassRate,
+        detail: `${parity.parityPassCount}/${parity.comparedTurnCount} fixture turns passed`,
+      },
+      ...Object.entries(parity.firstDivergentLayerCounts ?? {}).map(([layer, count]) => ({
+        key: `parity_divergence:${layer}`,
+        value: Number(count),
+        detail: `${count} turn(s) diverged first at ${layer}`,
+      })),
+    ]
+  })
   const benchmarkRegressionTriageRows = computed<AlicizationMindReplayRegressionTriageRow[]>(() => {
     const report = benchmarkReport.value
     if (Array.isArray((report as any)?.regressionTriage) && (report as any).regressionTriage.length > 0)
@@ -379,6 +601,9 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         'hostUnderstandingGrowth',
         'skillInternalizationGrowth',
         'selfRevisionGrowth',
+        'learningRevisionDiscipline',
+        'domainInternalizationDiscipline',
+        'worldModelValidationDiscipline',
       ].includes(dimension)) {
         owner = 'evolution'
         firstCheck = 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.'
@@ -442,6 +667,78 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         before: pickNumber(before?.graphLatencyMs),
         after: pickNumber(after?.graphLatencyMs),
         patch: pickNumber(patch?.graphLatencyMs),
+      },
+      {
+        key: 'learningTaskCompletionCount',
+        before: pickNumber(before?.learningTaskCompletionCount),
+        after: pickNumber(after?.learningTaskCompletionCount),
+        patch: pickNumber(patch?.learningTaskCompletionCount),
+      },
+      {
+        key: 'learningTaskFailureCount',
+        before: pickNumber(before?.learningTaskFailureCount),
+        after: pickNumber(after?.learningTaskFailureCount),
+        patch: pickNumber(patch?.learningTaskFailureCount),
+      },
+      {
+        key: 'learningRelationshipReviseCount',
+        before: pickNumber(before?.learningRelationshipReviseCount),
+        after: pickNumber(after?.learningRelationshipReviseCount),
+        patch: pickNumber(patch?.learningRelationshipReviseCount),
+      },
+      {
+        key: 'learningSelfModelReviseCount',
+        before: pickNumber(before?.learningSelfModelReviseCount),
+        after: pickNumber(after?.learningSelfModelReviseCount),
+        patch: pickNumber(patch?.learningSelfModelReviseCount),
+      },
+      {
+        key: 'learningWorldModelValidationCount',
+        before: pickNumber(before?.learningWorldModelValidationCount),
+        after: pickNumber(after?.learningWorldModelValidationCount),
+        patch: pickNumber(patch?.learningWorldModelValidationCount),
+      },
+      {
+        key: 'learningWorldModelFalseInternalizationCount',
+        before: pickNumber(before?.learningWorldModelFalseInternalizationCount),
+        after: pickNumber(after?.learningWorldModelFalseInternalizationCount),
+        patch: pickNumber(patch?.learningWorldModelFalseInternalizationCount),
+      },
+      {
+        key: 'learningTaskCompletionRate',
+        before: pickNumber(before?.learningTaskCompletionRate),
+        after: pickNumber(after?.learningTaskCompletionRate),
+        patch: pickNumber(patch?.learningTaskCompletionRate),
+      },
+      {
+        key: 'learningTaskFailureRate',
+        before: pickNumber(before?.learningTaskFailureRate),
+        after: pickNumber(after?.learningTaskFailureRate),
+        patch: pickNumber(patch?.learningTaskFailureRate),
+      },
+      {
+        key: 'learningTaskReopenRecoveryRate',
+        before: pickNumber(before?.learningTaskReopenRecoveryRate),
+        after: pickNumber(after?.learningTaskReopenRecoveryRate),
+        patch: pickNumber(patch?.learningTaskReopenRecoveryRate),
+      },
+      {
+        key: 'misinternalizationRate',
+        before: pickNumber(before?.misinternalizationRate),
+        after: pickNumber(after?.misinternalizationRate),
+        patch: pickNumber(patch?.misinternalizationRate),
+      },
+      {
+        key: 'relationshipCadenceRegressionRate',
+        before: pickNumber(before?.relationshipCadenceRegressionRate),
+        after: pickNumber(after?.relationshipCadenceRegressionRate),
+        patch: pickNumber(patch?.relationshipCadenceRegressionRate),
+      },
+      {
+        key: 'selfModelStaleBeliefRate',
+        before: pickNumber(before?.selfModelStaleBeliefRate),
+        after: pickNumber(after?.selfModelStaleBeliefRate),
+        patch: pickNumber(patch?.selfModelStaleBeliefRate),
       },
     ]
   })
@@ -635,6 +932,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     benchmarkDimensionKeySet,
     benchmarkHumanRatingRows,
     benchmarkShipGateRows,
+    benchmarkParityRows,
     benchmarkRegressionTriageRows,
     memoryHealthComparisonRows,
     replayCoverage,

@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/eventa'
 
 import {
+  buildAlicizationDomainNativeMemoryView,
   getMemoryDomainPolicy,
   inferMemoryDomainFromFact,
   normalizeMemoryDomain,
@@ -139,6 +140,27 @@ function deriveWorkingKnowledgeStage(input: {
         object: input.fact.object,
       })
   const domainPolicy = getMemoryDomainPolicy(domain)
+  const nativeView = buildAlicizationDomainNativeMemoryView({
+    id: input.existing?.id ?? 'candidate',
+    subject: input.fact.subject,
+    predicate: input.fact.predicate,
+    object: input.fact.object,
+    confidence: input.fact.confidence,
+    source: input.source,
+    dedupeKey: buildDedupeKey(input.fact),
+    createdAt: input.existing?.createdAt ?? 0,
+    updatedAt: input.existing?.updatedAt ?? 0,
+    lastAccessAt: input.existing?.lastAccessAt ?? null,
+    accessCount: input.existing?.accessCount ?? 0,
+    knowledgeStage: input.fact.knowledgeStage ?? input.existing?.knowledgeStage ?? null,
+    validationStatus: input.fact.validationStatus ?? input.existing?.validationStatus ?? null,
+    memoryDomain: domain,
+    validationCount: input.existing?.validationCount ?? input.fact.validationCount ?? 0,
+    contradictionCount: input.existing?.contradictionCount ?? input.fact.contradictionCount ?? 0,
+    sourceLabel: input.fact.sourceLabel ?? input.existing?.sourceLabel ?? null,
+    conflictsWith: input.fact.conflictsWith ?? input.existing?.conflictsWith ?? [],
+    supersedes: input.fact.supersedes ?? input.existing?.supersedes ?? [],
+  })
   if (input.fact.knowledgeStage)
     return input.fact.knowledgeStage
   if (input.existing?.knowledgeStage === 'internalized-long-horizon-knowledge')
@@ -148,8 +170,16 @@ function deriveWorkingKnowledgeStage(input: {
     && input.fact.confidence >= 0.8
     && isBoundaryLike(input.fact.predicate)
   const requiresStricterInternalization = domain === 'relationship' || domain === 'self-model'
+  const domainNativeInternalizationReady = domain === 'procedure'
+    ? nativeView.domain === 'procedure' && nativeView.reusableStepScore >= 0.78 && nativeView.verificationNeed <= 0.18
+    : domain === 'relationship'
+      ? nativeView.domain === 'relationship' && nativeView.boundaryContinuity >= 0.84 && nativeView.repairArcPressure <= 0.18
+      : domain === 'self-model'
+        ? nativeView.domain === 'self-model' && nativeView.narrativeStability >= 0.84 && nativeView.staleBeliefRisk <= 0.16
+        : false
   if (
     evidence >= domainPolicy.internalizationThreshold
+    && domainNativeInternalizationReady
     && (!requiresStricterInternalization || input.support.repeatedValidationPressure >= 4)
     && (isBoundaryLike(input.fact.predicate) || input.support.priorValidated || input.support.repeatedAccessPressure >= 5)
   ) {

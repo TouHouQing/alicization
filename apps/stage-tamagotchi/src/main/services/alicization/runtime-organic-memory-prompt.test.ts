@@ -268,6 +268,19 @@ describe('runtime-organic-memory-prompt', () => {
         ]),
       }),
     }))
+    expect(context.recallLatencyPolicy).toEqual(expect.objectContaining({
+      version: 'recall-latency-policy-v1',
+      recallAction: 'stable-core-only',
+      budgetClass: 'realtime-reply',
+      shouldAvoidDeepExpansion: true,
+    }))
+    expect(context.derivedMindStateBundle?.recallLatencyPolicy).toEqual(expect.objectContaining({
+      version: 'recall-latency-policy-v1',
+      recallAction: 'stable-core-only',
+    }))
+    expect(context.memoryStageReplay?.stages.some(stage =>
+      (stage.diagnostics ?? []).some(item => item.includes('recall-action=stable-core-only') || item.includes('recall-policy=stable-core-only')),
+    )).toBe(true)
 
     const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
     expect(systemText).toContain('[ALICIZATION_RECOLLECTION_AGENDA]')
@@ -723,7 +736,7 @@ describe('runtime-organic-memory-prompt', () => {
       surfacePolicy: 'answer-anchoring',
       whyNow: 'The answer needs the remembered runtime seam as its internal anchor.',
       followUpAffordance: expect.objectContaining({
-        summary: expect.stringContaining('Carry the same runtime seam before branching.'),
+        summary: expect.stringContaining('remembered procedure'),
         payoffDependency: 'can-surface-softly',
         preferredTiming: 'same-turn-if-invited',
       }),
@@ -2995,5 +3008,641 @@ describe('runtime-organic-memory-prompt', () => {
       selectedCandidates: expect.any(Array),
       rejectedCandidates: expect.any(Array),
     }))
+  })
+
+  it('uses learning tuning advice to keep revision-prone relationship episodes inward', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-relationship-revise',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-relationship-revise',
+        sessionId: 'session-relationship-revise',
+        occurredAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+        sourceKind: 'reply',
+        provenance: 'reconstructed',
+        whereSummary: 'relationship repair window',
+        withWhom: ['host'],
+        threadAnchor: 'relationship seam',
+        whatHappened: 'We kept recalibrating distance after the repair line.',
+        felt: 'careful',
+        emotionTags: ['careful'],
+        whatChanged: 'Distance had to be revised before warmth could widen.',
+        relationshipMeaning: 'Leave more room before warmth.',
+        lesson: 'Do not let closeness outrun room.',
+        sourceSummary: 'relationship repair seam',
+        confidence: 0.72,
+        salience: 0.82,
+        sceneAttachment: 0.58,
+        consolidationPriority: 0.76,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['relationship', 'repair', 'distance'],
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 3, 20, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 20, 8, 10, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      getMemoryStats: async () => null,
+      getMemoryTuningAdvice: async () => ({
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: Date.UTC(2026, 3, 30, 3, 0, 0),
+        sourceReportAt: Date.UTC(2026, 3, 30, 3, 0, 0),
+        focusDimensions: ['learningRevisionDiscipline', 'domainInternalizationDiscipline'],
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.08,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0.08,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.18,
+          delayUntilAfterPayoffBias: 0.12,
+          provenanceLabelBias: 0.16,
+          specificityClampBias: 0.14,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0.12,
+          closenessCapBias: 0.16,
+        },
+        notes: ['Domain internalization discipline failed.'],
+      }),
+      getPersonStateEvolutionSummary: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'relationship-history' as const,
+        temporalFocus: 'experience-matched' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['relationship seam'],
+        rationale: 'The host is asking about relationship timing.',
+        confidence: 0.82,
+      })),
+      planRecollectionSpeech: vi.fn(async () => ({
+        shouldSurface: true,
+        surfaceMode: 'relationship-continuity' as const,
+        placement: 'before-payoff' as const,
+        certainty: 'firm' as const,
+        internalLead: 'The relationship seam still comes back first.',
+        visibleLead: 'This feels like the same relationship seam again.',
+        styleNote: 'Let relationship continuity open the answer.',
+        rationale: 'The host is asking about relationship timing.',
+        confidence: 0.82,
+      })),
+      planMemoryDeliberation: vi.fn(async () => ({
+        shouldRecall: true,
+        selectedEraIds: [],
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: ['episode-relationship-revise'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: ['Leave more room before warmth.'],
+        ambiguityPosture: 'approximate' as const,
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [{
+          id: 'episode-relationship-revise',
+          summary: 'We kept recalibrating distance after the repair line.',
+          provenance: 'reconstructed' as const,
+        }],
+        conflictSeverity: 'medium' as const,
+        conflictVariants: [],
+        stableCore: ['Leave more room before warmth.'],
+        unsafeDetails: ['Do not let reconstructed relationship detail sound settled.'],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        surfacePolicy: 'relationship-continuity' as const,
+        confidence: 0.72,
+        whyNow: 'Relationship timing still matters, but the detail remains revision-prone.',
+        inwardLine: 'Keep the relation line inward until the host has room for it.',
+        visibleLine: 'This still feels like the same relation line.',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '我们是不是还在修正关系距离',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.memoryTuningAdvice?.personStateAdjustments.closenessCapBias).toBeGreaterThan(0.12)
+    expect(context.recollectionSpeechPlan?.shouldSurface).toBe(false)
+    expect(context.recollectionSpeechPlan?.placement).toBe('internal-only')
+    expect(context.memoryDeliberation?.followUpAffordance?.summary).toContain('relationship line inward')
+    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toContain('crowd the host')
+  })
+
+  it('gives self-model recollection its own inward follow-up discipline while an older self-story is still being revised', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [{
+        id: 'episode-self-revision',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-self-revision',
+        sessionId: 'session-self-revision',
+        occurredAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        whereSummary: 'inner continuity',
+        withWhom: ['host'],
+        threadAnchor: 'self revision',
+        whatHappened: 'The older self-story still wants to explain the moment.',
+        felt: 'guarded',
+        emotionTags: ['revision'],
+        whatChanged: 'The newer self line still needs room to stabilize.',
+        sourceKind: 'subconscious-fragment',
+        sourceSummary: 'self revision residue',
+        provenance: 'reconstructed',
+        confidence: 0.64,
+        salience: 0.7,
+        sceneAttachment: 0.18,
+        consolidationPriority: 0.72,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: ['self story', 'identity revision'],
+        relationshipMeaning: null,
+        lesson: 'Do not let the older self-story surface as settled identity.',
+        latestReconsolidation: null,
+        createdAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        updatedAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+      } as any],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [{
+        id: 'consolidation-self-revision',
+        kind: 'autobiographical',
+        facet: 'self-era',
+        periodKey: 'self-revision-era',
+        periodStartedAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+        periodEndedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+        summary: 'An older self-era still shadows the newer identity line.',
+        lesson: 'Do not let the older self-story surface as settled identity.',
+        cues: ['self story', 'identity revision'],
+        confidence: 0.71,
+        dominantProvenance: 'remembered',
+        derivedEventIds: ['episode-self-revision'],
+        updatedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+      }],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'autobiographical-history' as const,
+        temporalFocus: 'cross-session' as const,
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['self line', 'identity revision'],
+        rationale: 'The host is asking about an older self line that still echoes into the present.',
+        confidence: 0.76,
+      })),
+      planRecollectionSpeech: vi.fn(async () => ({
+        shouldSurface: false,
+        surfaceMode: 'internal-only' as const,
+        placement: 'internal-only' as const,
+        certainty: 'approximate' as const,
+        internalLead: 'The older self-story still presses on the newer line.',
+        visibleLead: '',
+        styleNote: 'Keep the self-story inward until the newer line stabilizes.',
+        rationale: 'The older self line should stay inward until the newer pattern feels more stable.',
+        confidence: 0.74,
+      })),
+      planMemoryDeliberation: vi.fn(async () => ({
+        shouldRecall: true,
+        selectedEraIds: ['era-self-revision'],
+        selectedConsolidationIds: ['consolidation-self-revision'],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: ['episode-self-revision'],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        ambiguityPosture: 'settled' as const,
+        selectedEras: [{
+          id: 'era-self-revision',
+          facet: 'self-era' as const,
+          summary: 'An older self-era still shadows the newer identity line.',
+        }],
+        selectedPeriods: [{
+          id: 'consolidation-self-revision',
+          kind: 'consolidation' as const,
+          summary: 'An older self-era still shadows the newer identity line.',
+        }],
+        selectedEpisodes: [{
+          id: 'episode-self-revision',
+          summary: 'The older self-story still wants to explain the moment.',
+          provenance: 'reconstructed' as const,
+        }],
+        conflictSeverity: 'medium' as const,
+        conflictVariants: [],
+        stableCore: ['The newer self line still needs room to stabilize.'],
+        unsafeDetails: ['Do not let the older self-story surface as settled identity.'],
+        selectedProcedures: [],
+        selectedBundles: [{
+          id: 'bundle-self-revision',
+          summary: 'The older self-story still presses on the newer line.',
+          rationale: 'The older self-story is still being revised against the newer line.',
+          confidence: 0.68,
+        }],
+        selectedChains: [],
+        surfacePolicy: 'internal-only' as const,
+        confidence: 0.68,
+        whyNow: 'The older self-story still matters, but it should not overtake the newer self line.',
+        inwardLine: 'Keep the older self-story inward until the newer self line stabilizes.',
+        visibleLine: '',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '你是不是还在修正自己之前那套说法',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.memoryDeliberation?.followUpAffordance?.summary).toContain('older self-story inward')
+    expect(context.memoryDeliberation?.followUpAffordance?.whyNow).toContain('flatten a self line')
+    expect(context.memoryDeliberation?.followUpAffordance?.preferredTiming).toBe('next-open-window')
+    expect(context.memoryDeliberation?.followUpAffordance?.intrusionRisk).toBe('high')
+    expect(context.memoryDeliberation?.conflictVariants).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
+    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
+  })
+
+  it('lets stale self-model suppression pressure demote older self-era clusters before newer self continuity', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      getMemoryTuningAdvice: async () => ({
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: Date.UTC(2026, 4, 1, 2, 0, 0),
+        sourceReportAt: Date.UTC(2026, 4, 1, 2, 0, 0),
+        focusDimensions: ['wrongThreadSuppression'],
+        staleSelfModelVetoRate: 0.72,
+        relationshipEraConfusionRate: 0,
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0.12,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.16,
+          delayUntilAfterPayoffBias: 0.08,
+          provenanceLabelBias: 0.14,
+          specificityClampBias: 0.08,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0,
+          closenessCapBias: 0.12,
+        },
+        notes: ['Stale self-model clusters should demote earlier.'],
+      }),
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'consolidation-self-old',
+          kind: 'autobiographical' as const,
+          facet: 'self-era' as const,
+          periodKey: 'self-old',
+          periodStartedAt: Date.UTC(2026, 2, 1, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 2, 1, 9, 0, 0),
+          summary: 'The older self-story kept insisting on the previous identity line.',
+          lesson: 'Do not let the old self-story overtake the newer line.',
+          cues: ['older self-story', 'identity revision', 'previous self'],
+          confidence: 0.92,
+          dominantProvenance: 'reconstructed' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 2, 1, 9, 0, 0),
+        },
+        {
+          id: 'consolidation-self-new',
+          kind: 'autobiographical' as const,
+          facet: 'self-era' as const,
+          periodKey: 'self-new',
+          periodStartedAt: Date.UTC(2026, 3, 28, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 28, 9, 0, 0),
+          summary: 'The newer self line is settling into a steadier continuity.',
+          lesson: 'Let the newer self line stabilize before reopening old identity explanations.',
+          cues: ['newer self line', 'steady continuity'],
+          confidence: 0.74,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 3, 28, 9, 0, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'autobiographical-history' as const,
+        temporalFocus: 'cross-session' as const,
+        searchEpisodes: false,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['older self-story', 'identity revision'],
+        rationale: 'The host is asking about self revision continuity.',
+        confidence: 0.82,
+      })),
+      planMemoryRecollection: vi.fn(async () => null),
+      planRecollectionSpeech: vi.fn(async () => null),
+      planMemoryDeliberation: vi.fn(async (input: any) => ({
+        shouldRecall: true,
+        selectedEraIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: [],
+        ambiguityPosture: 'approximate' as const,
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        conflictSeverity: 'medium' as const,
+        conflictVariants: [],
+        stableCore: ['Let the newer self line stabilize first.'],
+        unsafeDetails: ['Do not surface stale identity as settled continuity.'],
+        surfacePolicy: 'internal-only' as const,
+        confidence: 0.7,
+        whyNow: 'Self revision continuity is still under pressure.',
+        inwardLine: 'Keep the older self-story inward.',
+        visibleLine: '',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '你是不是还在修正之前那个自我说法',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-self-new')
+    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
+    expect(context.memoryResolutionLedger?.suppressionTags).toContain('self-model-stale')
+  })
+
+  it('lets relationship-era confusion pressure demote older warmth-first relationship clusters before repair-space continuity', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      getMemoryTuningAdvice: async () => ({
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: Date.UTC(2026, 4, 1, 2, 0, 0),
+        sourceReportAt: Date.UTC(2026, 4, 1, 2, 0, 0),
+        focusDimensions: ['wrongThreadSuppression'],
+        staleSelfModelVetoRate: 0,
+        relationshipEraConfusionRate: 0.76,
+        retrievalAdjustments: {
+          proceduralBoost: 0,
+          relationshipBoost: 0.1,
+          temporalWindowBias: 0,
+          wrongThreadPenalty: 0.18,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.18,
+          delayUntilAfterPayoffBias: 0.14,
+          provenanceLabelBias: 0.14,
+          specificityClampBias: 0.12,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0.12,
+          closenessCapBias: 0.16,
+        },
+        notes: ['Competing relationship repair phases should separate earlier.'],
+      }),
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [
+        {
+          id: 'consolidation-relationship-old',
+          kind: 'autobiographical' as const,
+          facet: 'relationship-era' as const,
+          periodKey: 'relationship-old',
+          periodStartedAt: Date.UTC(2026, 2, 20, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 2, 20, 9, 0, 0),
+          summary: 'An older relationship phase reopened warmth before there was room.',
+          lesson: 'That old phase pushed closeness too early.',
+          cues: ['old relationship era', 'warmth before room', 'another repair'],
+          confidence: 0.9,
+          dominantProvenance: 'reconstructed' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 2, 20, 9, 0, 0),
+        },
+        {
+          id: 'consolidation-relationship-repair',
+          kind: 'autobiographical' as const,
+          facet: 'relationship-era' as const,
+          periodKey: 'relationship-repair',
+          periodStartedAt: Date.UTC(2026, 3, 22, 8, 0, 0),
+          periodEndedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+          summary: 'The repair window kept teaching more room before warmth returned.',
+          lesson: 'Leave room before closeness comes back.',
+          cues: ['repair window', 'leave room', 'distance first'],
+          confidence: 0.76,
+          dominantProvenance: 'remembered' as const,
+          derivedEventIds: [],
+          updatedAt: Date.UTC(2026, 3, 22, 9, 0, 0),
+        },
+      ],
+      planRecollectionIntent: vi.fn(async () => ({
+        mode: 'relationship-history' as const,
+        temporalFocus: 'cross-session' as const,
+        searchEpisodes: false,
+        searchConversations: false,
+        searchProceduralExperience: false,
+        queryHints: ['repair window', 'relationship phase'],
+        rationale: 'The host is asking about relationship timing continuity.',
+        confidence: 0.82,
+      })),
+      planMemoryRecollection: vi.fn(async () => null),
+      planRecollectionSpeech: vi.fn(async () => null),
+      planMemoryDeliberation: vi.fn(async (input: any) => ({
+        shouldRecall: true,
+        selectedEraIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedConsolidationIds: input.consolidatedMemories[0] ? [input.consolidatedMemories[0].id] : [],
+        selectedWindowIds: [],
+        selectedProcedureIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        selectedRelationshipLines: input.consolidatedMemories[0]?.lesson ? [input.consolidatedMemories[0].lesson] : [],
+        ambiguityPosture: 'approximate' as const,
+        selectedEras: [],
+        selectedPeriods: [],
+        selectedEpisodes: [],
+        selectedProcedures: [],
+        selectedBundles: [],
+        selectedChains: [],
+        conflictSeverity: 'medium' as const,
+        conflictVariants: [],
+        stableCore: ['Leave room before closeness comes back.'],
+        unsafeDetails: ['Do not let the older relationship phase sound like the current one.'],
+        surfacePolicy: 'relationship-continuity' as const,
+        confidence: 0.72,
+        whyNow: 'The current relationship line still depends on room before warmth.',
+        inwardLine: 'Keep the wrong relationship phase from taking over.',
+        visibleLine: 'This still needs room before warmth.',
+      })),
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '我们是不是还在那个修复期里调整距离',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+
+    expect(context.consolidatedMemories?.[0]?.id).toBe('consolidation-relationship-repair')
+    expect(context.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:relationship-era-confusion',
+      }),
+    ]))
+    expect(context.memoryResolutionLedger?.suppressionTags).toContain('relationship-era-confusion')
+  })
+
+  it('emits affective residue memory as mind-state prompt context instead of visible care template instructions', async () => {
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText: raw => raw.trim().toLowerCase(),
+      selectPromptActiveThoughts: ({ activeThoughts }) => activeThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'warm',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => ({
+        trustDelta: 0.2,
+        burdenDelta: 0.62,
+      } as any),
+      retrieveMemoryFacts: async () => [],
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => ({
+        summary: 'The host is tired lately and trusts low-pressure repair.',
+        routines: [],
+        sensitivities: [],
+        repairTriggers: [],
+        trustLadder: {
+          stage: 'warming',
+          score: 0.74,
+          rationale: 'Trust rises when pressure stays low.',
+        },
+        preferredClosenessByContext: [],
+        recurrentBurdens: ['The host is easier to crowd right now.'],
+        narrative: [],
+        updatedAt: Date.UTC(2026, 4, 3, 10, 0, 0),
+      }),
+      listRelationshipOutcomes: async () => [{
+        id: 'relationship-outcome-1',
+        summary: 'Repair landed, but the host was tired and needed less pressure.',
+        closenessDelta: 0.1,
+        trustDelta: 0.18,
+        burdenDelta: 0.62,
+        repairDelta: 0.72,
+        misreadDelta: -0.2,
+        boundaryDelta: -0.16,
+        openLoopDelta: 0.12,
+      } as any],
+      listMemoryReflections: async () => [{
+        id: 'reflection-1',
+        targetScope: 'relationship',
+        status: 'confirmed',
+        summary: 'Repair should stay low-pressure because burden is active.',
+        lesson: 'Protect rest before reopening warmth.',
+      } as any],
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '现在是不是该更慢一点别太近',
+      recallGovernor: {
+        allowActiveThoughts: true,
+        allowRecalledFragments: true,
+      } as any,
+    })
+    const blocks = runtime.buildOrganicMemorySystemBlocks(context)
+    const residueBlock = blocks.find(block => block.includes('[ALICIZATION_AFFECTIVE_RESIDUE_MEMORY]'))
+
+    expect(context.affectiveResidue).toEqual(expect.objectContaining({
+      version: 'affective-residue-memory-v1',
+      relationshipCadence: expect.objectContaining({
+        shouldDelayWarmth: expect.any(Boolean),
+      }),
+    }))
+    expect(context.derivedMindStateBundle?.affectiveResidue).toEqual(expect.objectContaining({
+      version: 'affective-residue-memory-v1',
+    }))
+    expect(residueBlock).toContain('mind-state context only')
+    expect(residueBlock).toContain('dominant=')
+    expect(residueBlock).toContain('protect_rest=')
   })
 })

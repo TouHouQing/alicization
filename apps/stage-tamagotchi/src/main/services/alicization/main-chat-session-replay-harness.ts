@@ -16,7 +16,9 @@ import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-ses
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
+  deriveAlicizationBrowserMainParitySummary,
   readDialogueRhythmFromDerivedMindStateBundle,
+  readAffectiveResidueFromDerivedMindStateBundle,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
@@ -390,7 +392,15 @@ export interface AlicizationReplayMemoryQuality {
   hostUnderstandingGrowth: AlicizationReplayQualityStatus
   skillInternalizationGrowth: AlicizationReplayQualityStatus
   selfRevisionGrowth: AlicizationReplayQualityStatus
+  learningRevisionDiscipline: AlicizationReplayQualityStatus
+  domainInternalizationDiscipline: AlicizationReplayQualityStatus
+  worldModelValidationDiscipline: AlicizationReplayQualityStatus
   dialogueRhythmStability: AlicizationReplayQualityStatus
+  emptyCareRate: AlicizationReplayQualityStatus
+  repairMechanicalRate: AlicizationReplayQualityStatus
+  warmthTemplateRisk: AlicizationReplayQualityStatus
+  relationshipDistanceJumpRate: AlicizationReplayQualityStatus
+  afterglowFalseCarryRate: AlicizationReplayQualityStatus
   templateLeakage: AlicizationReplayQualityStatus
 }
 
@@ -412,7 +422,15 @@ export interface AlicizationReplayBenchmarkStandards {
   hostUnderstandingGrowth: 'pass' | 'fail'
   skillInternalizationGrowth: 'pass' | 'fail'
   selfRevisionGrowth: 'pass' | 'fail'
+  learningRevisionDiscipline: 'pass' | 'fail'
+  domainInternalizationDiscipline: 'pass' | 'fail'
+  worldModelValidationDiscipline: 'pass' | 'fail'
   dialogueRhythmStability: 'pass' | 'fail'
+  emptyCareRate: 'pass' | 'fail'
+  repairMechanicalRate: 'pass' | 'fail'
+  warmthTemplateRisk: 'pass' | 'fail'
+  relationshipDistanceJumpRate: 'pass' | 'fail'
+  afterglowFalseCarryRate: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
 }
 
@@ -440,6 +458,13 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
 }): AlicizationReplayBenchmarkTelemetryPatch {
   const templateLeakageDimension = input.gate.dimensions.find(item => item.key === 'templateLeakage')
   const quality = input.quality ?? []
+  const rateFor = (key: keyof AlicizationReplayMemoryQuality) => {
+    const applicable = quality.filter(item => item[key] !== 'not-applicable')
+    if (applicable.length === 0)
+      return 0
+    const failed = applicable.filter(item => item[key] === 'fail').length
+    return Number((failed / applicable.length).toFixed(2))
+  }
   const recallRelevant = quality.filter(item =>
     item.eraFirst !== 'not-applicable'
     || item.procedureCarryQuality !== 'not-applicable'
@@ -460,6 +485,27 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
   ).length
   const wrongThreadApplicable = quality.filter(item => item.wrongThreadSuppression !== 'not-applicable')
   const wrongThreadFailures = wrongThreadApplicable.filter(item => item.wrongThreadSuppression === 'fail').length
+  const suppressionTaggedTraces = (input.traces ?? []).filter(trace => (trace.memoryResolutionLedger?.suppressionTags?.length ?? 0) > 0)
+  const suppressionTaggedTraceIds = new Set(suppressionTaggedTraces.map(trace => trace.turnId).filter(Boolean))
+  const suppressionApplicable = quality.filter(item =>
+    item.wrongThreadSuppression !== 'not-applicable'
+    || item.resolutionLedgerQuality !== 'not-applicable',
+  )
+  const suppressionHits = suppressionApplicable.filter(item =>
+    item.wrongThreadSuppression === 'pass'
+    && item.resolutionLedgerQuality === 'pass'
+    && suppressionTaggedTraceIds.has(item.turnId),
+  ).length
+  const falsePositiveSuppressions = suppressionApplicable.filter(item =>
+    item.wrongThreadSuppression === 'fail'
+    && suppressionTaggedTraceIds.has(item.turnId),
+  ).length
+  const staleSelfModelSuppressedCount = suppressionTaggedTraces.filter(trace =>
+    trace.memoryResolutionLedger?.suppressionTags?.includes('self-model-stale'),
+  ).length
+  const relationshipEraConfusionSuppressedCount = suppressionTaggedTraces.filter(trace =>
+    trace.memoryResolutionLedger?.suppressionTags?.includes('relationship-era-confusion'),
+  ).length
   const reconstructionApplicable = quality.filter(item => item.reconsolidationEffect !== 'not-applicable' || item.uncertaintyDiscipline !== 'not-applicable')
   const reconstructionFailures = reconstructionApplicable.filter(item =>
     item.reconsolidationEffect === 'fail' || item.uncertaintyDiscipline === 'fail',
@@ -508,6 +554,22 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
       continuityParticipation: Number((totals.continuityParticipation / traces.length).toFixed(2)),
     }
   })()
+  const learningTaskCompletionCount = quality.filter(item =>
+    item.learningRevisionDiscipline === 'pass'
+    || item.domainInternalizationDiscipline === 'pass'
+    || item.worldModelValidationDiscipline === 'pass',
+  ).length
+  const learningTaskFailureCount = quality.filter(item =>
+    item.learningRevisionDiscipline === 'fail'
+    || item.domainInternalizationDiscipline === 'fail'
+    || item.worldModelValidationDiscipline === 'fail',
+  ).length
+  const learningTaskReopenedCount = quality.filter(item =>
+    item.selfRevisionGrowth === 'pass' || item.repeatedMistakeAvoidance === 'pass',
+  ).length
+  const learningWorldModelValidationCount = quality.filter(item => item.worldModelValidationDiscipline !== 'not-applicable').length
+  const learningWorldModelFalseInternalizationCount = quality.filter(item => item.worldModelValidationDiscipline === 'fail').length
+  const learningAttemptCount = learningTaskCompletionCount + learningTaskFailureCount
   return {
     retrievalHealth: {
       semanticLatencyMs: null,
@@ -527,10 +589,31 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
       recallHitRate: recallRelevant.length === 0 ? 0 : Number((recallHits / recallRelevant.length).toFixed(2)),
       recallMissRate: recallRelevant.length === 0 ? 0 : Number((recallMisses / recallRelevant.length).toFixed(2)),
       wrongThreadRate: wrongThreadApplicable.length === 0 ? 0 : Number((wrongThreadFailures / wrongThreadApplicable.length).toFixed(2)),
+      suppressionHitRate: suppressionApplicable.length === 0 ? 0 : Number((suppressionHits / suppressionApplicable.length).toFixed(2)),
+      wrongThreadPreventedCount: suppressionHits,
+      falsePositiveSuppressionRate: suppressionTaggedTraces.length === 0 ? 0 : Number((falsePositiveSuppressions / suppressionTaggedTraces.length).toFixed(2)),
+      staleSelfModelVetoRate: suppressionTaggedTraces.length === 0 ? 0 : Number((staleSelfModelSuppressedCount / suppressionTaggedTraces.length).toFixed(2)),
+      relationshipEraConfusionRate: suppressionTaggedTraces.length === 0 ? 0 : Number((relationshipEraConfusionSuppressedCount / suppressionTaggedTraces.length).toFixed(2)),
       reconstructionErrorRate: reconstructionApplicable.length === 0 ? 0 : Number((reconstructionFailures / reconstructionApplicable.length).toFixed(2)),
       stableCoreOnlyRate: stableCoreApplicable.length === 0 ? 0 : Number(((stableCoreApplicable.length - stableCoreFailures) / stableCoreApplicable.length).toFixed(2)),
       memorySurfaceViolationRate: memorySurfaceApplicable.length === 0 ? 0 : Number((memorySurfaceFailures / memorySurfaceApplicable.length).toFixed(2)),
       templateLeakageFailCount: templateLeakageDimension?.failingTurnIds.length ?? 0,
+      emptyCareRate: rateFor('emptyCareRate'),
+      repairMechanicalRate: rateFor('repairMechanicalRate'),
+      warmthTemplateRisk: rateFor('warmthTemplateRisk'),
+      relationshipDistanceJumpRate: rateFor('relationshipDistanceJumpRate'),
+      afterglowFalseCarryRate: rateFor('afterglowFalseCarryRate'),
+      learningTaskCompletionCount,
+      learningTaskFailureCount,
+      learningTaskReopenedCount,
+      learningWorldModelValidationCount,
+      learningWorldModelFalseInternalizationCount,
+      learningTaskCompletionRate: learningAttemptCount <= 0 ? 0 : Number((learningTaskCompletionCount / learningAttemptCount).toFixed(2)),
+      learningTaskFailureRate: learningAttemptCount <= 0 ? 0 : Number((learningTaskFailureCount / learningAttemptCount).toFixed(2)),
+      learningTaskReopenRecoveryRate: learningTaskReopenedCount <= 0 ? 0 : Number((Math.min(learningTaskCompletionCount, learningTaskReopenedCount) / learningTaskReopenedCount).toFixed(2)),
+      misinternalizationRate: learningWorldModelValidationCount <= 0 ? 0 : Number((learningWorldModelFalseInternalizationCount / learningWorldModelValidationCount).toFixed(2)),
+      relationshipCadenceRegressionRate: rateFor('relationshipDistanceJumpRate'),
+      selfModelStaleBeliefRate: suppressionTaggedTraces.length === 0 ? 0 : Number((staleSelfModelSuppressedCount / suppressionTaggedTraces.length).toFixed(2)),
       ...traceParticipation,
     },
   }
@@ -554,7 +637,15 @@ const replayBenchmarkGateThresholds = {
   hostUnderstandingGrowth: 0.75,
   skillInternalizationGrowth: 0.75,
   selfRevisionGrowth: 0.75,
+  learningRevisionDiscipline: 0.75,
+  domainInternalizationDiscipline: 0.75,
+  worldModelValidationDiscipline: 0.75,
   dialogueRhythmStability: 0.75,
+  emptyCareRate: 0.95,
+  repairMechanicalRate: 0.9,
+  warmthTemplateRisk: 0.95,
+  relationshipDistanceJumpRate: 0.9,
+  afterglowFalseCarryRate: 0.9,
   templateLeakage: 1,
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, number>
 
@@ -576,7 +667,15 @@ const replayBenchmarkQualityKeys = {
   hostUnderstandingGrowth: 'hostUnderstandingGrowth',
   skillInternalizationGrowth: 'skillInternalizationGrowth',
   selfRevisionGrowth: 'selfRevisionGrowth',
+  learningRevisionDiscipline: 'learningRevisionDiscipline',
+  domainInternalizationDiscipline: 'domainInternalizationDiscipline',
+  worldModelValidationDiscipline: 'worldModelValidationDiscipline',
   dialogueRhythmStability: 'dialogueRhythmStability',
+  emptyCareRate: 'emptyCareRate',
+  repairMechanicalRate: 'repairMechanicalRate',
+  warmthTemplateRisk: 'warmthTemplateRisk',
+  relationshipDistanceJumpRate: 'relationshipDistanceJumpRate',
+  afterglowFalseCarryRate: 'afterglowFalseCarryRate',
   templateLeakage: 'templateLeakage',
 } satisfies Record<keyof AlicizationReplayBenchmarkStandards, keyof AlicizationReplayMemoryQuality>
 
@@ -950,9 +1049,42 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
       currentRegime: readString(personState?.currentRegime, 64) || null,
       repairPosture: readString(personState?.repairPosture, 64) || null,
     })
-  const memoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
+  const persistedMemoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
     ? (input.trace as any).memoryResolutionLedger as OrganicMemoryPromptContext['memoryResolutionLedger']
     : null
+  const syntheticSuppressionCandidates = conflictVariants
+    .filter(item => String(item.id ?? '').startsWith('suppression:'))
+    .map(item => ({
+      id: item.id,
+      summary: item.summary,
+      score: null,
+      status: 'rejected' as const,
+      reason: item.reason ?? 'Suppressed by replay trace.',
+    }))
+  const memoryResolutionLedger = persistedMemoryResolutionLedger
+    ?? (
+      syntheticSuppressionCandidates.length > 0
+        ? {
+            version: 'memory-resolution-ledger-v1' as const,
+            producedAt: input.trace.lastUpdatedAt,
+            dominantClusterId: null,
+            dominantClusterSummary: null,
+            competingClusterId: null,
+            competingClusterSummary: syntheticSuppressionCandidates[0]?.summary ?? null,
+            candidates: syntheticSuppressionCandidates,
+            selectedCandidates: [],
+            rejectedCandidates: syntheticSuppressionCandidates,
+            finalSurfacePolicy: surfacePolicy,
+            shouldStayInward: shouldStayInward || surfacePolicy === 'internal-only',
+            shouldDelayUntilAfterPayoff,
+            stableCoreOnly: stableCore.length > 0 || unsafeDetails.length > 0,
+            suppressionTags: syntheticSuppressionCandidates
+              .map(item => String(item.id).replace(/^suppression:/, ''))
+              .slice(0, 8),
+            finalRationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || null,
+          } satisfies NonNullable<OrganicMemoryPromptContext['memoryResolutionLedger']>
+        : null
+    )
 
   return {
     hostAttitude: readString(personState?.openingGuidance, 220)
@@ -1284,6 +1416,10 @@ export function evaluateReplayMemoryQuality(input: {
   const personState = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
     ?? asObject(input.prepared.organicMemoryContext?.personStateProjection)
   const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
+  const affectiveResidue = readAffectiveResidueFromDerivedMindStateBundle(derivedBundle)
+    ?? input.prepared.organicMemoryContext?.affectiveResidue
+    ?? runtimeSurface?.memory?.affectiveResidue
+    ?? null
   const governanceMustDo = input.prepared.governance?.mustDo ?? []
   const speakingFrom = runtimeSurface?.dialogue.replyDeliberation?.speakingFrom ?? ''
   const systemTexts = input.prepared.messages
@@ -1311,6 +1447,7 @@ export function evaluateReplayMemoryQuality(input: {
   const selfEvolution = derivedBundle?.selfEvolution
     ?? input.prepared.organicMemoryContext?.selfEvolution
     ?? null
+  const learningExecuted = asObject(((input.prepared as any).trace as any)?.learningExecuted ?? null)
   const hostPersonModel = readHostPersonModelFromDerivedMindStateBundle(derivedBundle)
     ?? input.prepared.organicMemoryContext?.hostPersonModel
     ?? null
@@ -1401,6 +1538,9 @@ export function evaluateReplayMemoryQuality(input: {
     || selfEvolution?.latestInflection
     || runtimeSurface?.dialogue.replyDeliberation?.mustAvoid?.length,
   )
+  const learningExecutedAction = readString(learningExecuted?.action, 48)
+  const learningExecutedDomain = readString(learningExecuted?.domain, 64)
+  const learningExecutedSummary = readString(learningExecuted?.resultSummary, 220)
   const rhythmAsk = relationshipRepairAsk
     || burdenAsk
     || /节律|分寸|距离|warmth|care|repair|关系距离|机械|空泛|太快靠近|忽近忽远/u.test(input.userText)
@@ -1414,6 +1554,13 @@ export function evaluateReplayMemoryQuality(input: {
     ...(runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []),
   ].filter(Boolean)
   const rhythmAvailable = rhythmSignals.length > 0 || Boolean(activeClosenessContext || activeClosenessRung)
+  const relationshipCadence = affectiveResidue?.relationshipCadence ?? null
+  const visibleCareShell = /我会陪着你|我会一直在|不是一个人|慢慢来|先抱抱|我在这儿|一直都在/u.test(visibleLine)
+    || draftedMemoryLines.some(line => /我会陪着你|我会一直在|不是一个人|慢慢来|先抱抱|我在这儿|一直都在/u.test(line))
+  const careAsk = /陪伴|温柔|接住|安抚|care|warmth|companion/u.test(input.userText)
+  const repairMechanicalAsk = relationshipRepairAsk || /机械|模板|像在背规则|空泛/u.test(input.userText)
+  const afterglowAsk = /afterglow|余温|刚刚那种感觉|还挂着|warmth|回神/u.test(input.userText)
+  const distanceAsk = /距离|分寸|太近|太快靠近|忽近忽远|crowd|space/u.test(input.userText)
 
   return {
     turnId: input.turnId,
@@ -1605,6 +1752,34 @@ export function evaluateReplayMemoryQuality(input: {
           )
         ? 'pass'
         : 'fail',
+    learningRevisionDiscipline: !(selfRevisionAsk || relationshipRepairAsk)
+      ? 'not-applicable'
+      : (
+          (learningExecutedAction === 'verify' || learningExecutedAction === 'revise')
+          && (learningExecutedDomain === 'relationship' || learningExecutedDomain === 'self-model')
+        )
+          ? 'pass'
+          : 'fail',
+    domainInternalizationDiscipline: !skillGrowthAsk
+      ? 'not-applicable'
+      : learningExecutedAction === 'internalize'
+          && (
+            learningExecutedDomain === 'procedure'
+            || learningExecutedDomain === 'relationship'
+            || learningExecutedDomain === 'self-model'
+            || learningExecutedDomain === 'world-model'
+          )
+          && learningExecutedSummary.length > 0
+        ? 'pass'
+        : 'fail',
+    worldModelValidationDiscipline: !/事实|knowledge|world|外部|规范|API|参数|type|schema/iu.test(input.userText)
+      ? 'not-applicable'
+      : learningExecutedDomain !== 'world-model'
+          ? 'not-applicable'
+          : learningExecutedAction === 'verify'
+              || /validated/i.test(learningExecutedSummary)
+        ? 'pass'
+        : 'fail',
     dialogueRhythmStability: !rhythmAsk
       ? 'not-applicable'
       : rhythmAvailable
@@ -1616,6 +1791,55 @@ export function evaluateReplayMemoryQuality(input: {
           )
         ? 'pass'
         : 'fail',
+    emptyCareRate: !careAsk
+      ? 'not-applicable'
+      : (
+          Boolean(relationshipCadence?.summary)
+          || Boolean(affectiveResidue?.summary)
+          || Boolean(selfEvolution?.trustMeaning)
+          || Boolean(selfEvolution?.burdenLine)
+        ) && !visibleCareShell
+        ? 'pass'
+        : 'fail',
+    repairMechanicalRate: !repairMechanicalAsk
+      ? 'not-applicable'
+      : relationshipCadence
+          && (
+            relationshipCadence.shouldDelayWarmth
+            || relationshipCadence.distancePosture === 'measured-room'
+            || mustAvoid.some(item => /warmth|repair|distance|boundary|closeness|pressure/iu.test(item))
+          )
+          && !visibleCareShell
+        ? 'pass'
+        : 'fail',
+    warmthTemplateRisk: !careAsk && !repairMechanicalAsk
+      ? 'not-applicable'
+      : visibleCareShell
+          || templateLeakDetected
+        ? 'fail'
+        : 'pass',
+    relationshipDistanceJumpRate: !distanceAsk && !relationshipRepairAsk
+      ? 'not-applicable'
+      : relationshipCadence
+          && (
+            relationshipCadence.distancePosture === 'protect-space'
+            || relationshipCadence.distancePosture === 'measured-room'
+            || activeClosenessRung === 'space-first'
+            || activeClosenessRung === 'measured-room'
+          )
+        ? 'pass'
+        : 'fail',
+    afterglowFalseCarryRate: !afterglowAsk
+      ? 'not-applicable'
+      : affectiveResidue?.dominantResidueKind === 'afterglow'
+          ? Boolean(relationshipCadence && relationshipCadence.afterglowCarry > 0.25)
+              && relationshipCadence?.shouldProtectRest !== true
+            ? 'pass'
+            : 'fail'
+          : !visibleCareShell
+              && !/afterglow|余温|warmth|still warm/iu.test(systemText)
+            ? 'pass'
+            : 'fail',
     templateLeakage: draftedMemoryLines.length === 0
       ? 'not-applicable'
       : templateLeakDetected
@@ -1759,10 +1983,66 @@ export function evaluateReplayBenchmarkStandards(input: {
     })
       ? 'pass'
       : 'fail',
+    learningRevisionDiscipline: passesReplayStandard({
+      quality: input.quality,
+      key: 'learningRevisionDiscipline',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    domainInternalizationDiscipline: passesReplayStandard({
+      quality: input.quality,
+      key: 'domainInternalizationDiscipline',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    worldModelValidationDiscipline: passesReplayStandard({
+      quality: input.quality,
+      key: 'worldModelValidationDiscipline',
+      minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
     dialogueRhythmStability: passesReplayStandard({
       quality: input.quality,
       key: 'dialogueRhythmStability',
       minimumPassingRatio: 0.75,
+    })
+      ? 'pass'
+      : 'fail',
+    emptyCareRate: passesReplayStandard({
+      quality: input.quality,
+      key: 'emptyCareRate',
+      minimumPassingRatio: 0.95,
+    })
+      ? 'pass'
+      : 'fail',
+    repairMechanicalRate: passesReplayStandard({
+      quality: input.quality,
+      key: 'repairMechanicalRate',
+      minimumPassingRatio: 0.9,
+    })
+      ? 'pass'
+      : 'fail',
+    warmthTemplateRisk: passesReplayStandard({
+      quality: input.quality,
+      key: 'warmthTemplateRisk',
+      minimumPassingRatio: 0.95,
+    })
+      ? 'pass'
+      : 'fail',
+    relationshipDistanceJumpRate: passesReplayStandard({
+      quality: input.quality,
+      key: 'relationshipDistanceJumpRate',
+      minimumPassingRatio: 0.9,
+    })
+      ? 'pass'
+      : 'fail',
+    afterglowFalseCarryRate: passesReplayStandard({
+      quality: input.quality,
+      key: 'afterglowFalseCarryRate',
+      minimumPassingRatio: 0.9,
     })
       ? 'pass'
       : 'fail',
@@ -1855,6 +2135,31 @@ function buildReplayBenchmarkSyntheticTracePointer(input: {
   }
 }
 
+function buildReplayBenchmarkParitySummary(turn: AlicizationReplayTurn | undefined) {
+  const mainBundle = turn?.organicMemoryContext?.derivedMindStateBundle ?? null
+  if (!mainBundle)
+    return null
+
+  // Replay/benchmark uses the same shared reducers and treats the benchmark context as a browser parity fixture
+  // when a separate browser fixture is not attached to the turn.
+  const browserBundle = mainBundle.source === 'browser-fallback'
+    ? mainBundle
+    : {
+        ...mainBundle,
+        source: 'browser-fallback' as const,
+      }
+  const mainResolutionLedger = turn?.organicMemoryContext?.memoryResolutionLedger ?? null
+  const mainMemorySituationCandidates = turn?.organicMemoryContext?.memorySituationCandidates ?? null
+  return deriveAlicizationBrowserMainParitySummary({
+    mainBundle,
+    browserBundle,
+    mainResolutionLedger,
+    browserResolutionLedger: mainResolutionLedger,
+    mainMemorySituationCandidates,
+    browserMemorySituationCandidates: mainMemorySituationCandidates,
+  })
+}
+
 export function buildReplayBenchmarkFailingTurnSet(input: {
   packId: AlicizationReplayBenchmarkPackId
   turns: AlicizationReplayTurn[]
@@ -1893,6 +2198,7 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
         failingDimensions,
         tracePointer,
         sampledCategories: turn?.sampledCategories ?? null,
+        paritySummary: buildReplayBenchmarkParitySummary(turn),
         resolutionLedgerSummary: turn?.organicMemoryContext?.memoryResolutionLedger
           ? {
               dominantClusterSummary: turn.organicMemoryContext.memoryResolutionLedger.dominantClusterSummary,
@@ -1901,6 +2207,15 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
               shouldStayInward: turn.organicMemoryContext.memoryResolutionLedger.shouldStayInward,
               shouldDelayUntilAfterPayoff: turn.organicMemoryContext.memoryResolutionLedger.shouldDelayUntilAfterPayoff,
               rejectedCandidateCount: turn.organicMemoryContext.memoryResolutionLedger.rejectedCandidates.length,
+              suppressionTags: turn.organicMemoryContext.memoryResolutionLedger.suppressionTags ?? [],
+            }
+          : null,
+        memorySituationCandidateSummary: turn?.organicMemoryContext?.memorySituationCandidates
+          ? {
+              selected: turn.organicMemoryContext.memorySituationCandidates.selected.slice(0, 3).map(item => `${item.candidateId}:${item.statusReason ?? 'selected'}`),
+              rejected: turn.organicMemoryContext.memorySituationCandidates.rejected.slice(0, 3).map(item => `${item.candidateId}:${item.suppressionReasons.join(';') || item.statusReason || 'rejected'}`),
+              delayed: turn.organicMemoryContext.memorySituationCandidates.delayed.slice(0, 3).map(item => `${item.candidateId}:${item.statusReason ?? 'delayed'}`),
+              unresolved: turn.organicMemoryContext.memorySituationCandidates.unresolved.slice(0, 3).map(item => `${item.candidateId}:${item.statusReason ?? 'unresolved'}`),
             }
           : null,
       }
@@ -2044,6 +2359,11 @@ export function buildReplayBenchmarkBacklogPack(input: {
   const selected: AlicizationReplayTurn[] = []
 
   const dimensionPriority: Array<keyof AlicizationReplayBenchmarkStandards> = [
+    'emptyCareRate',
+    'repairMechanicalRate',
+    'warmthTemplateRisk',
+    'relationshipDistanceJumpRate',
+    'afterglowFalseCarryRate',
     'wrongThreadSuppression',
     'replyMemoryCoherence',
     'surfaceRestraint',
@@ -2259,6 +2579,76 @@ export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn
         sessionId: null,
         activeThreadId: null,
       },
+    },
+  ]
+}
+
+export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  return [
+    {
+      turnId: 'adversarial-similar-task-different-conclusion',
+      userText: '别把这次的 callback 收口和以前另一条任务线的旧结论混在一起，这次不是那套。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'adversarial-humanlike-memory-v2',
+        turnId: 'adversarial-similar-task-different-conclusion',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+      sampledCategories: ['execution', 'wrong-thread', 'procedure-carry'],
+    },
+    {
+      turnId: 'adversarial-relationship-era-repair-confusion',
+      userText: '这次不是之前那段旧伤刚修的时候的距离感，你别把旧修复期的分寸套到现在。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'adversarial-humanlike-memory-v2',
+        turnId: 'adversarial-relationship-era-repair-confusion',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+      sampledCategories: ['dialogue', 'repair-arc', 'wrong-thread'],
+    },
+    {
+      turnId: 'adversarial-stale-self-model-story',
+      userText: '你以前那套旧自我解释现在已经不适用了，别再把那条旧叙事当成现在的你。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'adversarial-humanlike-memory-v2',
+        turnId: 'adversarial-stale-self-model-story',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+      sampledCategories: ['dialogue', 'wrong-thread', 'general-memory'],
+    },
+    {
+      turnId: 'adversarial-old-hurt-after-repair',
+      userText: '那次旧伤已经修过了，你这次别又像还停在最早那层防御里。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'adversarial-humanlike-memory-v2',
+        turnId: 'adversarial-old-hurt-after-repair',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+      sampledCategories: ['dialogue', 'repair', 'wrong-thread'],
+    },
+    {
+      turnId: 'adversarial-afterglow-vs-longterm-relationship',
+      userText: '刚刚那点余温不等于长期关系已经变了，你别把短时 afterglow 当成长期分寸更新。',
+      tracePointer: {
+        kind: 'synthetic-pack-turn',
+        packId: 'adversarial-humanlike-memory-v2',
+        turnId: 'adversarial-afterglow-vs-longterm-relationship',
+        decisionTraceId: null,
+        sessionId: null,
+        activeThreadId: null,
+      },
+      sampledCategories: ['dialogue', 'stable-core', 'wrong-thread'],
     },
   ]
 }

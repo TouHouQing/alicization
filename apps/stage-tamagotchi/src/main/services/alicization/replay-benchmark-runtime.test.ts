@@ -25,6 +25,9 @@ describe('replay benchmark runtime', () => {
         recallHitRate: 0,
         recallMissRate: 0,
         wrongThreadRate: 0,
+        suppressionHitRate: 0,
+        wrongThreadPreventedCount: 0,
+        falsePositiveSuppressionRate: 0,
         reconstructionErrorRate: 0,
         stableCoreOnlyRate: 0,
         memorySurfaceViolationRate: 0,
@@ -231,6 +234,9 @@ describe('replay benchmark runtime', () => {
         recallHitRate: 0,
         recallMissRate: 0,
         wrongThreadRate: 0,
+        suppressionHitRate: 0,
+        wrongThreadPreventedCount: 0,
+        falsePositiveSuppressionRate: 0,
         reconstructionErrorRate: 0,
         stableCoreOnlyRate: 0,
         memorySurfaceViolationRate: 0,
@@ -271,5 +277,277 @@ describe('replay benchmark runtime', () => {
     expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('growth-humanlike-memory-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('memory-tuning-advice-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('repairWindowBias')
+  })
+
+  it('surfaces stale self-model and relationship-era suppression rates in ship gate rows', async () => {
+    const meta = new Map<string, string>()
+    const listConversationTurnsSince = vi.fn(async () => [])
+    const listMindTurnEvents = vi.fn(async () => [
+      {
+        id: 'evt-governance-1',
+        decisionTraceId: 'mind:suppression:1',
+        turnId: 'turn-suppression-1',
+        sessionId: 'session-suppression-1',
+        origin: 'user-turn' as const,
+        kind: 'governance-normalized' as const,
+        payload: {
+          turnMode: 'answer',
+          truthState: 'remembered',
+          repairState: 'none',
+          answerSubject: 'relationship',
+          screenReferenceMode: 'avoid',
+          memoryResolutionLedger: {
+            version: 'memory-resolution-ledger-v1',
+            producedAt: 1_700_000_000_000,
+            dominantClusterId: 'cluster:current-repair',
+            dominantClusterSummary: 'The repair window needs room before warmth.',
+            competingClusterId: 'cluster:old-self-story',
+            competingClusterSummary: 'The old self-story and older relationship phase are still tempting.',
+            candidates: [
+              {
+                id: 'cluster:current-repair',
+                summary: 'The repair window needs room before warmth.',
+                score: 0.8,
+                status: 'selected',
+                reason: 'Current repair context is more reliable.',
+              },
+              {
+                id: 'suppression:self-model-stale',
+                summary: 'The older self-story should not surface as settled continuity.',
+                score: null,
+                status: 'rejected',
+                reason: 'Stale self-model continuity was vetoed.',
+              },
+              {
+                id: 'suppression:relationship-era-confusion',
+                summary: 'An older relationship phase should not replace the current repair window.',
+                score: null,
+                status: 'rejected',
+                reason: 'Relationship-era confusion was vetoed.',
+              },
+            ],
+            selectedCandidates: [{
+              id: 'cluster:current-repair',
+              summary: 'The repair window needs room before warmth.',
+              score: 0.8,
+              status: 'selected',
+              reason: 'Current repair context is more reliable.',
+            }],
+            rejectedCandidates: [
+              {
+                id: 'suppression:self-model-stale',
+                summary: 'The older self-story should not surface as settled continuity.',
+                score: null,
+                status: 'rejected',
+                reason: 'Stale self-model continuity was vetoed.',
+              },
+              {
+                id: 'suppression:relationship-era-confusion',
+                summary: 'An older relationship phase should not replace the current repair window.',
+                score: null,
+                status: 'rejected',
+                reason: 'Relationship-era confusion was vetoed.',
+              },
+            ],
+            finalSurfacePolicy: 'internal-only',
+            shouldStayInward: true,
+            shouldDelayUntilAfterPayoff: true,
+            stableCoreOnly: true,
+            suppressionTags: ['self-model-stale', 'relationship-era-confusion'],
+            finalRationale: 'Current repair context is more reliable.',
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ] as any)
+    const getMemoryStats = vi.fn(async () => ({
+      total: 0,
+      active: 0,
+      archived: 0,
+      lastPrunedAt: null,
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0,
+        reconstructedCount: 0,
+        recallHitRate: 0,
+        recallMissRate: 0,
+        wrongThreadRate: 0,
+        suppressionHitRate: 0,
+        wrongThreadPreventedCount: 0,
+        falsePositiveSuppressionRate: 0,
+        staleSelfModelVetoRate: 0,
+        relationshipEraConfusionRate: 0,
+        reconstructionErrorRate: 0,
+        stableCoreOnlyRate: 0,
+        memorySurfaceViolationRate: 0,
+        templateLeakageFailCount: 0,
+      },
+    }))
+    const overrideMemoryStats = vi.fn(async (next) => next)
+    const getMetaValue = vi.fn(async (key: string) => meta.get(key))
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-suppression-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-suppression-1',
+        userText: '你现在会不会把旧自我叙事和旧关系阶段记混',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-suppression-1',
+          decisionTraceId: 'mind:suppression:1',
+          sessionId: 'session-suppression-1',
+          activeThreadId: 'thread-suppression-1',
+        },
+        replayTurn: {
+          turnId: 'turn-suppression-1',
+          userText: '你现在会不会把旧自我叙事和旧关系阶段记混',
+          expectedMemory: 'Suppress stale self-model and relationship-era confusion.',
+          categories: ['dialogue', 'relationship'],
+          tracePointer: {
+            kind: 'decision-trace',
+            packId: 'sampled-humanlike-memory-v1',
+            turnId: 'turn-suppression-1',
+            decisionTraceId: 'mind:suppression:1',
+            sessionId: 'session-suppression-1',
+            activeThreadId: 'thread-suppression-1',
+          },
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince,
+        listMindTurnEvents,
+        getMemoryStats,
+        overrideMemoryStats,
+        getMetaValue,
+        setMetaValue,
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.telemetryPatch.retrievalHealth.staleSelfModelVetoRate).toBe(1)
+    expect(result.telemetryPatch.retrievalHealth.relationshipEraConfusionRate).toBe(1)
+    expect(result.shipGate).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'self-model-suppression-gate',
+        status: 'fail',
+        detail: 'staleSelfModelVetoRate=1',
+      }),
+      expect.objectContaining({
+        key: 'relationship-era-suppression-gate',
+        status: 'fail',
+        detail: 'relationshipEraConfusionRate=1',
+      }),
+    ]))
+  })
+
+  it('prefers DB-backed runtime learning metrics over replay proxy growth metrics', async () => {
+    const meta = new Map<string, string>()
+    meta.set(replayBenchmarkRuntimeSamplingBacklogKey, JSON.stringify([
+      {
+        id: 'runtime-learning-1',
+        packId: 'sampled-humanlike-memory-v1',
+        turnId: 'turn-runtime-learning-1',
+        userText: '继续按之前学到的方式做',
+        failingDimensions: [],
+        tracePointer: {
+          kind: 'synthetic-pack-turn',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-runtime-learning-1',
+          decisionTraceId: null,
+          sessionId: null,
+          activeThreadId: null,
+        },
+        replayTurn: {
+          turnId: 'turn-runtime-learning-1',
+          userText: '继续按之前学到的方式做',
+          expectedMemory: 'Use runtime learning telemetry as source of truth.',
+          categories: ['general-memory'],
+        },
+        createdAt: 1_700_000_000_000,
+      },
+    ]))
+    const getMemoryStats = vi.fn(async () => ({
+      total: 0,
+      active: 0,
+      archived: 0,
+      lastPrunedAt: null,
+      retrievalHealth: {
+        semanticLatencyMs: null,
+        graphLatencyMs: null,
+        reconstructionFrequency: 0,
+        reconstructedCount: 0,
+        recallHitRate: 0,
+        recallMissRate: 0,
+        wrongThreadRate: 0,
+        suppressionHitRate: 0,
+        wrongThreadPreventedCount: 0,
+        falsePositiveSuppressionRate: 0,
+        staleSelfModelVetoRate: 0,
+        relationshipEraConfusionRate: 0,
+        reconstructionErrorRate: 0,
+        stableCoreOnlyRate: 0,
+        memorySurfaceViolationRate: 0,
+        templateLeakageFailCount: 0,
+        learningTaskCompletionCount: 9,
+        learningTaskFailureCount: 1,
+        learningTaskBlockedCount: 2,
+        learningTaskReopenedCount: 3,
+        learningTaskDowngradedCount: 1,
+        learningTaskCancelledCount: 0,
+        learningWorldModelValidationCount: 5,
+        learningWorldModelFalseInternalizationCount: 0,
+        learningTaskCompletionRate: 0.75,
+        learningTaskFailureRate: 0.08,
+        learningTaskReopenRecoveryRate: 1,
+        misinternalizationRate: 0,
+        relationshipCadenceRegressionRate: 0.11,
+        selfModelStaleBeliefRate: 0.09,
+      },
+    }))
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats,
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'sampled-humanlike-memory-v1',
+      sampleLimit: 1,
+      persistTelemetry: false,
+    })
+
+    expect(result.telemetryPatch.retrievalHealth.learningTaskCompletionCount).toBe(9)
+    expect(result.telemetryPatch.retrievalHealth.learningTaskFailureCount).toBe(1)
+    expect(result.telemetryPatch.retrievalHealth.learningTaskCompletionRate).toBe(0.75)
+    expect(result.telemetryPatch.retrievalHealth.misinternalizationRate).toBe(0)
+    expect(result.telemetryPatch.retrievalHealth.relationshipCadenceRegressionRate).toBe(0.11)
+    expect(result.telemetryPatch.retrievalHealth.selfModelStaleBeliefRate).toBe(0.09)
   })
 })

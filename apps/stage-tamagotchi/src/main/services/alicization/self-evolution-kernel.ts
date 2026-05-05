@@ -62,6 +62,10 @@ function deriveNextLearningAction(input: {
     relationshipFactCount?: number
     selfModelFactCount?: number
     worldModelFactCount?: number
+    procedureViewStrength?: number
+    relationshipViewStrength?: number
+    selfModelViewStrength?: number
+    worldModelViewStrength?: number
   } | null
   sourceSignals: string[]
 }) {
@@ -120,6 +124,10 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     relationshipFactCount?: number
     selfModelFactCount?: number
     worldModelFactCount?: number
+    procedureViewStrength?: number
+    relationshipViewStrength?: number
+    selfModelViewStrength?: number
+    worldModelViewStrength?: number
   } | null
   reflectionSummary?: string | null
   reflectionLesson?: string | null
@@ -135,6 +143,9 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const relationshipCount = knowledgeEvidence?.relationshipFactCount ?? 0
   const selfModelCount = knowledgeEvidence?.selfModelFactCount ?? 0
   const worldModelCount = knowledgeEvidence?.worldModelFactCount ?? 0
+  const relationshipViewStrength = clamp01(knowledgeEvidence?.relationshipViewStrength ?? 0)
+  const selfModelViewStrength = clamp01(knowledgeEvidence?.selfModelViewStrength ?? 0)
+  const worldModelViewStrength = clamp01(knowledgeEvidence?.worldModelViewStrength ?? 0)
 
   const relationshipDoctrine = sanitizeText(
     evolution?.latestDoctrine
@@ -196,9 +207,9 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     input.reflectionTargetScope ? `reflection:${input.reflectionTargetScope}` : null,
     contradictionPressure >= 0.42 ? 'resolve-contradictions' : null,
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0 ? 'internalize-procedure' : null,
-    relationshipCount > 0 ? 'internalize-relationship' : null,
-    selfModelCount > 0 ? 'internalize-self-model' : null,
-    worldModelCount > 0 ? 'internalize-world-model' : null,
+    relationshipCount > 0 && relationshipViewStrength >= 0.58 ? 'internalize-relationship' : null,
+    selfModelCount > 0 && selfModelViewStrength >= 0.54 ? 'internalize-self-model' : null,
+    worldModelCount > 0 && worldModelViewStrength >= 0.56 ? 'internalize-world-model' : null,
     relationshipDoctrine ? `relationship:${relationshipDoctrine}` : null,
     burdenLine ? `burden:${burdenLine}` : null,
     trustMeaning ? `trust:${trustMeaning}` : null,

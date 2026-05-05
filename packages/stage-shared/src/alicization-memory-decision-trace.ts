@@ -74,6 +74,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
       const takeoverAudit = byKind('takeover-audit')
       const memoryFactsUpserted = byKind('memory-facts-upserted')
       const personStateUpdated = byKind('person-state-updated')
+      const learningExecuted = byKind('learning-executed')
       const activeThreadId = extractActiveThreadId(governance?.payload)
         || extractActiveThreadId(persistenceWritten?.payload)
         || extractActiveThreadId(dialogueEmitted?.payload)
@@ -126,6 +127,7 @@ export function buildAlicizationMemoryDecisionTraceRecords(
         takeoverAudit: takeoverAudit?.payload ?? null,
         memoryFactsUpserted: memoryFactsUpserted?.payload ?? null,
         personStateUpdated: personStateUpdated?.payload ?? null,
+        learningExecuted: learningExecuted?.payload ?? null,
         participation: deriveAlicizationMindParticipationFromTrace({
           governance: governance?.payload
             ? {

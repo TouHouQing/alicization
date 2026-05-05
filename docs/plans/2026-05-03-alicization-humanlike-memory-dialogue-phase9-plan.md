@@ -2,9 +2,9 @@
 
 更新日期：2026-05-03
 
-> 本文件从现在开始是唯一活跃开发计划。
-> `2026-05-02-alicization-humanlike-memory-dialogue-phase8-plan.md` 视为已完成参考，不再继续追加任务。
-> 后续每次落地代码，只更新本文件并勾选对应条目。
+> 当前唯一活跃开发计划已切换到 `2026-05-03-alicization-humanlike-memory-dialogue-phase10-plan.md`。
+> 本文件保留为 Phase 9 结构基线与完成记录，不再继续追加任务。
+> 后续 Phase 10 及之后的代码落地、回归、勾选，只更新新的主计划文件。
 
 ## 目标
 

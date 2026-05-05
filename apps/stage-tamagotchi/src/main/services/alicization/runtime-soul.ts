@@ -14,8 +14,11 @@ import type {
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryFact,
   AlicizationMemoryDeliberation,
+  AlicizationLearningExecutionStateSnapshot,
+  AlicizationMemoryReflectionRecord,
   AlicizationMemoryRecollectionIntentSnapshot,
   AlicizationPersonalityState,
+  AlicizationRelationshipOutcomeRecord,
   AlicizationRecollectionNarrativeSnapshot,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
@@ -23,9 +26,13 @@ import type {
   AlicizationSoulSnapshot,
   AlicizationSubconsciousFragment,
   AlicizationSubconsciousNeedsState,
+  AlicizationAffectiveResidueMemorySnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
+import type { AlicizationClaimEvidenceGraph } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
+import type { AlicizationMemorySituationCandidateSet } from '@proj-alicization/stage-shared'
+import type { AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
@@ -168,10 +175,14 @@ export interface PreparedMainChatExecution {
 }
 
 export interface OrganicMemoryPromptContext {
+  decisionTraceId?: string | null
+  sessionId?: string | null
   hostAttitude: string
   coreIncarnation: string
   activeThoughts: AlicizationActiveThought[]
   retrievedFacts: AlicizationMemoryFact[]
+  recentMemoryReflections?: AlicizationMemoryReflectionRecord[]
+  recentRelationshipOutcomes?: AlicizationRelationshipOutcomeRecord[]
   recalledFragments: AlicizationSubconsciousFragment[]
   recalledEpisodes?: AlicizationEpisodicEventRecord[]
   recalledConversationHistory?: Array<{
@@ -226,15 +237,20 @@ export interface OrganicMemoryPromptContext {
     stronglyValidatedProcedureCount: number
     contradictionHeavyFactCount: number
   } | null
+  claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   personStateProjection?: AlicizationPersonStateProjection | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  recallLatencyPolicy?: AlicizationRecallLatencyPolicySnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+  learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
   memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
+  memorySituationCandidates?: AlicizationMemorySituationCandidateSet | null
 }
 
 export interface ContextualConversationTurn {

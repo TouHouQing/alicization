@@ -41,6 +41,16 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
   getMemoryStats?: () => Promise<AlicizationMemoryStats | null>
   getMemoryTuningAdvice?: () => Promise<AlicizationMemoryTuningAdvice | null>
   getPersonStateEvolutionSummary?: () => Promise<AlicizationPersonStateEvolutionSummary | null>
+  listRelationshipOutcomes?: (input: {
+    cardId?: string
+    limit?: number
+    turnId?: string
+  }) => Promise<OrganicMemoryPromptContext['recentRelationshipOutcomes']>
+  listMemoryReflections?: (input: {
+    cardId?: string
+    limit?: number
+    turnId?: string
+  }) => Promise<OrganicMemoryPromptContext['recentMemoryReflections']>
   recallConversationHistory: (input: {
     query: string
     limit?: number

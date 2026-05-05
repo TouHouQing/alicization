@@ -238,4 +238,42 @@ describe('knowledge assimilation runtime', () => {
       }),
     ]))
   })
+
+  it('keeps world-model facts validated-only until source validation is strong enough', () => {
+    const runtime = createAlicizationKnowledgeAssimilationRuntime()
+    const result = runtime.assimilateMemoryFactsDetailed({
+      source: 'async-llm',
+      existingFacts: [{
+        id: 'fact-world',
+        subject: 'TypeScript',
+        predicate: 'fact',
+        object: 'AlicizationBridge.streamChat preserves meta events',
+        confidence: 0.88,
+        source: 'async-llm',
+        dedupeKey: 'typescript|fact|alicizationbridge.streamchat preserves meta events',
+        createdAt: 1,
+        updatedAt: 10,
+        lastAccessAt: 11,
+        accessCount: 8,
+        validationCount: 4,
+        contradictionCount: 0,
+        memoryDomain: 'world-model',
+        knowledgeStage: 'validated-knowledge',
+        validationStatus: 'validated',
+      }],
+      facts: [{
+        subject: 'TypeScript',
+        predicate: 'fact',
+        object: 'AlicizationBridge.streamChat preserves meta events',
+        confidence: 0.88,
+        memoryDomain: 'world-model',
+      }],
+    })
+
+    expect(result.facts[0]).toEqual(expect.objectContaining({
+      memoryDomain: 'world-model',
+      knowledgeStage: 'validated-knowledge',
+      validationStatus: 'validated',
+    }))
+  })
 })

@@ -1,4 +1,5 @@
 import type {
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationDerivedMindStateBundle,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryDeliberation,
@@ -10,6 +11,7 @@ import type {
 import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 import type { AlicizationDigitalLifeArchitectureSnapshot } from './digital-life-architecture'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
@@ -103,6 +105,7 @@ export interface AlicizationDigitalLifeRuntimeSurface {
     recollectionPlan?: AlicizationRecollectionPlan | null
     recollectionSpeechPlan?: AlicizationRecollectionSpeechPlan | null
     memoryDeliberation?: AlicizationMemoryDeliberation | null
+    memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
     knowledgeEvidence?: {
       validationCount: number
       contradictionCount: number
@@ -110,6 +113,8 @@ export interface AlicizationDigitalLifeRuntimeSurface {
       contradictionHeavyFactCount: number
     } | null
     selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
+    learningExecutionState?: AlicizationVisualPresenceStateSnapshot['learningExecutionState'] | null
+    affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
     memoryStageReplay?: AlicizationOrganicMemoryStageReplay | null
     memoryResolutionLedger?: AlicizationMemoryResolutionLedger | null
@@ -160,6 +165,7 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   autonomy: AlicizationDigitalLifeRuntimeSurface['agency']['autonomy']
   durabilityPulse: AlicizationDigitalLifeRuntimeSurface['perception']['durabilityPulse']
   personalityContinuityState: AlicizationDigitalLifeRuntimeSurface['memory']['personalityContinuityState']
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
 }
 
@@ -336,6 +342,11 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
     mindEcology: provisionalMindEcology,
   })
   const personalityContinuityState = personStateProjection.personalityContinuityState
+  const stateWithBundle = state as AlicizationVisualPresenceStateSnapshot & {
+    derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
+  }
+  const derivedMindStateBundle = stateWithBundle.derivedMindStateBundle ?? null
+  const affectiveResidue = derivedMindStateBundle?.affectiveResidue ?? null
   return {
     version: 'digital-life-runtime-surface-v1',
     perception: {
@@ -389,7 +400,8 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
       personStateProjection,
       knowledgeEvidence: null,
       selfEvolution: null,
-      derivedMindStateBundle: null,
+      affectiveResidue,
+      derivedMindStateBundle,
     },
     dialogue: {
       discourseState: state.discourseState ?? null,
@@ -540,6 +552,7 @@ export function buildAlicizationDigitalLifeProactivePolicySnapshot(
     autonomy: surface.agency.autonomy ?? null,
     durabilityPulse: surface.perception.durabilityPulse,
     personalityContinuityState: surface.memory.personalityContinuityState ?? null,
+    affectiveResidue: surface.memory.affectiveResidue ?? surface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
     continuityDeliberation: deriveAlicizationContinuityDeliberationFromSurface(surface),
   }
 }

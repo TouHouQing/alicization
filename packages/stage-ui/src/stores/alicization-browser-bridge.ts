@@ -40,8 +40,11 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
+  buildAlicizationBrowserAffectiveResidueMemory,
   buildAlicizationMemoryDecisionTraceRecords,
   buildDerivedMindStateBundle,
+  deriveAlicizationLearningExecutionProjection,
+  deriveAlicizationRecallLatencyPolicy,
   deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
   buildAlicizationNewsSurface,
@@ -2171,25 +2174,12 @@ function buildBrowserSelfEvolution(input: {
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['selfEvolution']>
 }
 
-function buildBrowserLearningExecutionState(selfEvolution: AlicizationOrganicMemorySnapshot['selfEvolution']) {
-  if (!selfEvolution)
-    return null
-  return {
-    nextLearningAction: selfEvolution.nextLearningAction,
-    shouldRecord: selfEvolution.shouldRecord,
-    shouldReflect: selfEvolution.shouldReflect,
-    shouldVerify: selfEvolution.shouldVerify,
-    shouldRevise: selfEvolution.shouldRevise,
-    shouldInternalize: selfEvolution.shouldInternalize,
-    activeLearningFocuses: [...selfEvolution.activeLearningFocuses],
-  } satisfies NonNullable<AlicizationOrganicMemorySnapshot['learningExecutionState']>
-}
-
 function buildBrowserMemoryStageReplay(input: {
   recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
   recollectionPlan: AlicizationOrganicMemorySnapshot['recollectionPlan']
   recollectionSpeechPlan: AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']
   selfEvolution: AlicizationOrganicMemorySnapshot['selfEvolution']
+  recallLatencyPolicy?: AlicizationOrganicMemorySnapshot['recallLatencyPolicy']
 }) {
   const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
   if (!summary && !input.selfEvolution)
@@ -2204,7 +2194,7 @@ function buildBrowserMemoryStageReplay(input: {
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.recollectionForeground?.mode ?? 'none'],
-        diagnostics: [input.recollectionForeground?.surfaceSummary ?? ''],
+        diagnostics: [input.recollectionForeground?.surfaceSummary ?? '', `recall-action=${input.recallLatencyPolicy?.recallAction ?? 'shallow-answer'}`],
       },
       {
         stage: 'surface-planning',
@@ -2212,7 +2202,7 @@ function buildBrowserMemoryStageReplay(input: {
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.recollectionSpeechPlan?.surfaceMode ?? 'none'],
-        diagnostics: [input.recollectionSpeechPlan?.rationale ?? ''],
+        diagnostics: [input.recollectionSpeechPlan?.rationale ?? '', input.recallLatencyPolicy?.summary ?? ''],
       },
       {
         stage: 'self-evolution-integration',
@@ -2706,18 +2696,45 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     recollectionForeground,
     knowledgeEvidence,
   })
+  const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
+    recallSeed: [
+      recollectionForeground?.summary ?? '',
+      ...memoryConsolidations.slice(0, 3).flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
+    ].filter(Boolean).join(' | '),
+    recollectionIntent,
+    budgetClass: 'realtime-reply',
+    contradictionCount: knowledgeEvidence.contradictionCount,
+    contradictionHeavyFactCount: knowledgeEvidence.contradictionHeavyFactCount,
+    validationCount: knowledgeEvidence.validationCount,
+    stronglyValidatedProcedureCount: knowledgeEvidence.stronglyValidatedProcedureCount,
+    shouldRecall: Boolean(recollectionForeground),
+    finalSurfacePolicy: recollectionSpeechPlan?.surfaceMode ?? null,
+    stableCoreCount: recollectionForeground?.surfaceSummary?.includes('surface=inward') ? 1 : 0,
+    unsafeDetailCount: knowledgeEvidence.contradictionHeavyFactCount,
+  })
   const memoryStageReplay = buildBrowserMemoryStageReplay({
     recollectionForeground,
     recollectionPlan,
     recollectionSpeechPlan,
     selfEvolution,
+    recallLatencyPolicy,
   })
   const memoryResolutionLedger = buildBrowserMemoryResolutionLedger({
     recollectionForeground,
     recollectionPlan,
     recollectionSpeechPlan,
   })
-  const learningExecutionState = buildBrowserLearningExecutionState(selfEvolution)
+  const learningExecutionState = deriveAlicizationLearningExecutionProjection({
+    selfEvolution,
+    projectionMode: 'browser-local-scheduled',
+  })
+  const affectiveResidue = buildAlicizationBrowserAffectiveResidueMemory({
+    now: now(),
+    hostPersonModel,
+    recollectionForeground,
+    recentEpisodicEvents,
+    selfEvolution,
+  })
   const derivedMindStateBundle = buildDerivedMindStateBundle({
     source: 'browser-fallback',
     producedAt: now(),
@@ -2725,6 +2742,9 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     personStateProjection: null,
     knowledgeEvidence,
     selfEvolution,
+    affectiveResidue,
+    learningExecutionState,
+    recallLatencyPolicy,
     recollectionIntent: recollectionIntent as unknown as Record<string, unknown> | null,
     recollectionPlan,
     recollectionSpeechPlan,
@@ -2751,6 +2771,8 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
     recollectionForeground,
     knowledgeEvidence,
     selfEvolution,
+    affectiveResidue,
+    recallLatencyPolicy,
     derivedMindStateBundle,
     memoryStageReplay,
     memoryResolutionLedger,

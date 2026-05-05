@@ -32,6 +32,11 @@ export interface AlicizationMainChatStreamMetaController {
   getLastReply: () => string
 }
 
+interface AlicizationStructuredVisibleReplyRewriteInput {
+  fullText: string
+  visibleReplyExecution: AlicizationVisibleReplyExecution
+}
+
 interface RunAlicizationMainChatStreamOptions {
   payload: AlicizationChatStartPayload
   prepared: AlicizationPreparedMainChatExecutionResult
@@ -68,6 +73,7 @@ interface RunAlicizationMainChatStreamOptions {
     summary: ReturnType<typeof parseReminderToolResultForDebug>
   }) => Promise<void> | void
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void>
+  rewriteStructuredVisibleReply?: (input: AlicizationStructuredVisibleReplyRewriteInput) => Promise<AlicizationStructuredVisibleReplyRewriteInput | null> | AlicizationStructuredVisibleReplyRewriteInput | null
   streamTextImpl?: StreamTextInvoker
 }
 
@@ -105,24 +111,31 @@ export async function runAlicizationMainChatStream(
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
     })
-    if (visualOneShot.fullText && input.isRunActive()) {
-      input.incrementChunkStats(visualOneShot.fullText)
-      input.streamMeta.emit(visualOneShot.fullText)
+    const initialVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: input.prepared,
+      mode: 'provider-one-shot',
+      providerMindExecuted: true,
+      reason: 'visual-grounding-one-shot',
+    })
+    const shapedVisualOneShot = await input.rewriteStructuredVisibleReply?.({
+      fullText: visualOneShot.fullText || '',
+      visibleReplyExecution: initialVisibleReplyExecution,
+    }) ?? null
+    const visualFullText = shapedVisualOneShot?.fullText ?? visualOneShot.fullText ?? ''
+    const visualReplyExecution = shapedVisualOneShot?.visibleReplyExecution ?? initialVisibleReplyExecution
+    if (visualFullText && input.isRunActive()) {
+      input.incrementChunkStats(visualFullText)
+      input.streamMeta.emit(visualFullText)
       input.emitChunk({
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
-        text: visualOneShot.fullText,
+        text: visualFullText,
       })
     }
     return {
       finishReason: visualOneShot.finishReason || 'stop',
-      fullText: visualOneShot.fullText || '',
-      visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-        prepared: input.prepared,
-        mode: 'provider-one-shot',
-        providerMindExecuted: true,
-        reason: 'visual-grounding-one-shot',
-      }),
+      fullText: visualFullText,
+      visibleReplyExecution: visualReplyExecution,
     }
   }
 
@@ -135,6 +148,7 @@ export async function runAlicizationMainChatStream(
   let sawProgressEvent = false
   let sawAnyEvent = false
   let firstEventGraceApplied = false
+  const shouldDelayStructuredRelease = Boolean(input.rewriteStructuredVisibleReply)
   const firstEventGraceTimeoutMs = Math.max(
     1_000,
     Math.min(12_000, Math.floor(input.firstEventTimeoutMs * 0.2)),
@@ -292,7 +306,7 @@ export async function runAlicizationMainChatStream(
                 bufferedChars: fullText.length,
               })
             }
-            if (flushStructuredVisibleReply() && !releasedStructuredReply) {
+            if (!shouldDelayStructuredRelease && flushStructuredVisibleReply() && !releasedStructuredReply) {
               releasedStructuredReply = true
               appendStreamDebugLine('chat-stream.structured-prelude-released', {
                 elapsedMs: Date.now() - startedAt,
@@ -356,7 +370,7 @@ export async function runAlicizationMainChatStream(
         if (event?.type === 'finish') {
           if (!input.isRunActive())
             return
-          if (bufferingStructuredPrelude && flushStructuredVisibleReply() && !releasedStructuredReply) {
+          if (!shouldDelayStructuredRelease && bufferingStructuredPrelude && flushStructuredVisibleReply() && !releasedStructuredReply) {
             releasedStructuredReply = true
             appendStreamDebugLine('chat-stream.structured-prelude-released', {
               elapsedMs: Date.now() - startedAt,
@@ -426,14 +440,34 @@ export async function runAlicizationMainChatStream(
     throw createAbortError('chat-first-event-timeout')
   }
 
+  let visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+    prepared: input.prepared,
+    mode: 'provider-stream',
+    providerMindExecuted: true,
+    reason: 'provider-stream',
+  })
+  if (bufferingStructuredPrelude && shouldDelayStructuredRelease) {
+    const shaped = await input.rewriteStructuredVisibleReply?.({
+      fullText,
+      visibleReplyExecution,
+    }) ?? null
+    if (shaped) {
+      fullText = shaped.fullText
+      visibleReplyExecution = shaped.visibleReplyExecution
+    }
+    if (flushStructuredVisibleReply() && !releasedStructuredReply) {
+      releasedStructuredReply = true
+      appendStreamDebugLine('chat-stream.structured-prelude-released', {
+        elapsedMs: Date.now() - startedAt,
+        visibleChars: visibleText.length,
+        afterRewrite: Boolean(shaped),
+      })
+    }
+  }
+
   return {
     finishReason,
     fullText,
-    visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-      prepared: input.prepared,
-      mode: 'provider-stream',
-      providerMindExecuted: true,
-      reason: 'provider-stream',
-    }),
+    visibleReplyExecution,
   }
 }

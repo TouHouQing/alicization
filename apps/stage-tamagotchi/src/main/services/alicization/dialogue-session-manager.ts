@@ -340,6 +340,7 @@ function summarizeRecollectionForeground(context: OrganicMemoryPromptContext | n
     deliberation?.inwardLine
     ?? plan?.opening
     ?? speech?.internalLead
+    ?? narrative?.recallCenter
     ?? narrative?.opening
     ?? '',
   180,

@@ -17,6 +17,7 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
+import { rankFactsByLearningTuning } from './learning-tuned-fact-ranking'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -77,6 +78,7 @@ export interface AlicizationMemorySearchSnapshot {
   hostAttitude: string
   coreIncarnation: string
   activeThoughts: OrganicMemoryPromptContext['activeThoughts']
+  learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
 }
 
 export interface AlicizationMemorySearchPreludeAccess {
@@ -154,7 +156,10 @@ export async function resolveMemorySearchPrelude(
   const recallSeed = input.recallGovernor?.recallSeed || input.recallSeed || ''
   const heuristicRecollectionIntent = input.recallGovernor?.recollectionIntent ?? null
   const retrievedFacts = recallSeed
-    ? await input.access.retrieveMemoryFacts(recallSeed, 4)
+    ? rankFactsByLearningTuning({
+        facts: await input.access.retrieveMemoryFacts(recallSeed, 4),
+        tuningAdvice: memoryTuningAdvice,
+      })
     : []
   const allowRecalledFragments = input.recallGovernor
     ? input.recallGovernor.allowRecalledFragments === true

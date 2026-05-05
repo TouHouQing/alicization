@@ -7,6 +7,7 @@ import type {
   AlicizationDialogueActKernelSnapshot,
   AlicizationDiscourseStateSnapshot,
   AlicizationInquiryPlanSnapshot,
+  AlicizationLearningExecutionStateSnapshot,
   AlicizationMindSynthesisSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
@@ -26,6 +27,7 @@ import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architec
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildEpistemicSurfacePosture } from './epistemic-surface'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { readLearningExecutionStateFromDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 
 export type AlicizationResponseEpistemicMode
   = | 'grounded-live'
@@ -58,6 +60,7 @@ export interface AlicizationResponseCharter {
   digitalLifeSummary?: string | null
   activeClosenessContext?: AlicizationPersonStateProjection['activeClosenessContext'] | null
   activeClosenessRung?: AlicizationPersonStateProjection['activeClosenessRung'] | null
+  activeLearningAction?: AlicizationLearningExecutionStateSnapshot['nextLearningAction'] | null
   relationshipPosture: 'restrained' | 'warm' | 'tender'
   reasons: string[]
   mustDo: string[]
@@ -378,12 +381,18 @@ export function buildAlicizationResponseCharter(input: {
   const reflectionLedger = runtimeSurface.memory.reflectionLedger ?? null
   const executiveCycle = runtimeSurface.memory.executiveCycle ?? null
   const recallGovernor = runtimeSurface.memory.recallGovernor ?? null
+  const derivedBundle = runtimeSurface.memory.derivedMindStateBundle ?? null
   const personStateProjection = runtimeSurface.memory.personStateProjection ?? null
+  const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
+    ?? runtimeSurface.memory.learningExecutionState
+    ?? null
+  const memoryTuningAdvice = runtimeSurface.memory.memoryTuningAdvice ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: runtimeSurface.memory.memoryDeliberation ?? null,
     speech: runtimeSurface.memory.recollectionSpeechPlan ?? null,
     recollectionIntent: null,
     knowledgeEvidence: runtimeSurface.memory.knowledgeEvidence ?? null,
+    tuningAdvice: memoryTuningAdvice,
   })
   const discourseState = runtimeSurface.dialogue.discourseState ?? input.discourseState ?? null
   const mindSynthesis = runtimeSurface.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
@@ -454,6 +463,7 @@ export function buildAlicizationResponseCharter(input: {
       digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
       activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
       activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
+      activeLearningAction: learningExecutionState?.nextLearningAction ?? null,
       relationshipPosture: mergeRelationshipPosture({
         projected: personStateProjection?.relationshipPosture ?? null,
         computed: answerCompiler.relationshipPosture,
@@ -479,6 +489,9 @@ export function buildAlicizationResponseCharter(input: {
         ...answerCompiler.supportingReality,
         mindSynthesis?.interiorSummary,
         discourseState?.currentTurnSummary,
+        learningExecutionState?.nextLearningAction
+          ? `Learning stance: ${learningExecutionState.nextLearningAction}.`
+          : null,
       ], 4),
       mustDo: uniqueList([
         personStateProjection
@@ -496,6 +509,15 @@ export function buildAlicizationResponseCharter(input: {
         currentConsciousFrame?.truthDiscipline === 'dialogue-first'
           ? 'Let the living dialogue subject outrank screen context in the opening answer.'
           : null,
+        learningExecutionState?.nextLearningAction === 'verify'
+          ? 'Keep visible certainty behind the current verification pass.'
+          : null,
+        learningExecutionState?.nextLearningAction === 'revise'
+          ? 'Treat the older continuity line as actively revisable instead of settled.'
+          : null,
+        learningExecutionState?.nextLearningAction === 'internalize'
+          ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
+          : null,
         ...(dialogueActKernel?.mustSay ?? []),
         ...answerCompiler.mustDo,
       ], 8),
@@ -511,6 +533,15 @@ export function buildAlicizationResponseCharter(input: {
           : null,
         currentConsciousFrame?.shouldSelfRevise
           ? 'Do not defend a previous read once the current turn is pulling toward revision.'
+          : null,
+        learningExecutionState?.nextLearningAction === 'verify'
+          ? 'Do not let fluency or warmth outrun what is still being verified.'
+          : null,
+        learningExecutionState?.nextLearningAction === 'revise'
+          ? 'Do not rest visible certainty on continuity the system is actively revising.'
+          : null,
+        learningExecutionState?.nextLearningAction === 'internalize'
+          ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
           : null,
         ...(dialogueActKernel?.mustAvoid ?? []),
         ...answerCompiler.mustNotDo,
@@ -575,6 +606,8 @@ export function buildAlicizationResponseCharter(input: {
   pushUnique(reasons, memoryDeliberationKernel?.rationale ?? '')
   pushUnique(reasons, memoryDeliberationKernel?.selectedChainSummary ?? '')
   pushUnique(reasons, memoryDeliberationKernel?.selectedBundleSummary ?? '')
+  pushUnique(reasons, learningExecutionState?.nextLearningAction ? `Learning stance: ${learningExecutionState.nextLearningAction}.` : '')
+  pushUnique(reasons, memoryTuningAdvice?.notes[0] ?? '')
 
   const mustDo: string[] = [
     'Answer from the current living focus before relationship performance or old dialogue residue.',
@@ -681,6 +714,30 @@ export function buildAlicizationResponseCharter(input: {
     if (personStateProjection.activeClosenessRung === 'space-first')
       pushUnique(mustNotDo, 'Do not let warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
   }
+  if (learningExecutionState?.nextLearningAction === 'verify') {
+    pushUnique(mustDo, 'Keep visible certainty behind the current verification pass.')
+    pushUnique(mustNotDo, 'Do not let fluency or warmth outrun what is still being verified.')
+  }
+  if (learningExecutionState?.nextLearningAction === 'revise') {
+    pushUnique(mustDo, 'Treat the older continuity line as actively revisable instead of settled.')
+    pushUnique(mustNotDo, 'Do not rest visible certainty on continuity the system is actively revising.')
+  }
+  if (learningExecutionState?.nextLearningAction === 'internalize') {
+    pushUnique(mustDo, 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.')
+    pushUnique(mustNotDo, 'Do not fall back to older unstable procedures while a stronger one is being internalized.')
+  }
+  if ((memoryTuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0) >= 0.1) {
+    pushUnique(mustDo, 'Bias toward explicit provenance when learned continuity enters the visible answer.')
+    pushUnique(mustNotDo, 'Do not let learned continuity silently impersonate current grounded fact.')
+  }
+  if ((memoryTuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.1) {
+    pushUnique(mustDo, 'Clamp technical specificity harder when learned confidence outruns current grounding.')
+    pushUnique(mustNotDo, 'Do not let learned confidence spill into unsupported technical specificity.')
+  }
+  if ((memoryTuningAdvice?.personStateAdjustments.closenessCapBias ?? 0) >= 0.12) {
+    pushUnique(mustDo, 'Keep closeness capped so learned familiarity does not outrun the host’s current room.')
+    pushUnique(mustNotDo, 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
+  }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
     mustNotDo.push('Do not let the urge to speak outrun the host’s actual turn.')
   }
@@ -742,6 +799,7 @@ export function buildAlicizationResponseCharter(input: {
     digitalLifeSummary: sanitizeText(digitalLifeArchitecture?.summary ?? '', 220) || null,
     activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
     activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
+    activeLearningAction: learningExecutionState?.nextLearningAction ?? null,
     relationshipPosture: mergeRelationshipPosture({
       projected: personStateProjection?.relationshipPosture ?? null,
       computed: relationshipPosture,

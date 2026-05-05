@@ -179,6 +179,9 @@ describe('self evolution kernel', () => {
         relationshipFactCount: 2,
         selfModelFactCount: 1,
         worldModelFactCount: 1,
+        relationshipViewStrength: 0.72,
+        selfModelViewStrength: 0.68,
+        worldModelViewStrength: 0.64,
       },
       reflectionSummary: 'Several non-procedural lessons are starting to stabilize.',
       reflectionLesson: 'These lessons should stay visible in learning focus.',
@@ -194,5 +197,48 @@ describe('self evolution kernel', () => {
       'internalize-self-model',
       'internalize-world-model',
     ]))
+  })
+
+  it('does not create non-procedural learning focuses from weak domain-native views alone', () => {
+    const kernel = buildAlicizationSelfEvolutionKernel({
+      personStateEvolutionSummary: {
+        trustShift: 0.04,
+        closenessShift: 0.03,
+        repairShift: 0.02,
+        autonomyShift: 0.05,
+        burdenShift: 0,
+        executionTrustShift: 0,
+        relationshipDoctrineShift: 0.03,
+        latestDoctrine: 'Leave more room before closeness.',
+        latestBurdenLine: null,
+        latestTrustMeaning: null,
+        latestDominantRung: null,
+        recentSummaries: ['Relationship timing is not stable yet.'],
+        explanation: ['Relationship timing is not stable yet.'],
+        updatedAt: 160,
+      },
+      knowledgeEvidence: {
+        validationCount: 2,
+        contradictionCount: 0,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 0,
+        relationshipFactCount: 2,
+        selfModelFactCount: 1,
+        worldModelFactCount: 1,
+        relationshipViewStrength: 0.42,
+        selfModelViewStrength: 0.38,
+        worldModelViewStrength: 0.4,
+      },
+      reflectionSummary: 'Several non-procedural lessons exist but are still weak.',
+      reflectionLesson: 'Do not internalize weak domain views yet.',
+      reflectionTargetScope: 'relationship',
+      reflectionPressure: 0.18,
+      autobiographicalLatestInflection: 'Stay cautious.',
+      autobiographicalStability: 0.66,
+    })
+
+    expect(kernel?.activeLearningFocuses).not.toContain('internalize-relationship')
+    expect(kernel?.activeLearningFocuses).not.toContain('internalize-self-model')
+    expect(kernel?.activeLearningFocuses).not.toContain('internalize-world-model')
   })
 })

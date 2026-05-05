@@ -49,6 +49,7 @@ describe('runtime-organic-memory-access', () => {
       listMemoryConsolidations: async () => [],
       getLatestRelationshipDynamics: async () => null,
       listRelationshipOutcomes: async () => [],
+      listMemoryReflections: async () => [],
       listPersonaReinforcementEvents: async () => [],
       summarizePersonStateEvolution: async () => ({
         trustShift: 0,
@@ -121,6 +122,7 @@ describe('runtime-organic-memory-access', () => {
       listMemoryConsolidations: async () => [],
       getLatestRelationshipDynamics: async () => null,
       listRelationshipOutcomes: async () => [],
+      listMemoryReflections: async () => [],
       listPersonaReinforcementEvents: async () => [],
       summarizePersonStateEvolution: async () => ({
         trustShift: 0,

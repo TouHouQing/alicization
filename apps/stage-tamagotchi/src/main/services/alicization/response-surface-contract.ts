@@ -15,6 +15,7 @@ import type { AlicizationResponseCharter } from './response-charter'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
+  readLearningExecutionStateFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
@@ -32,7 +33,7 @@ import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 export interface AlicizationResponseSurfaceContract {
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
   replyRealizationMode?: 'provider-mind-required' | 'fallback-locally-allowed'
-  expectedVisibleReplyAuthority?: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority?: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
   activeClosenessContext?: string | null
   activeClosenessRung?: string | null
   maxParagraphs: number
@@ -243,6 +244,9 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
     ?? runtimeSurface?.memory.personStateProjection
     ?? null
+  const learningExecutionState = readLearningExecutionStateFromDerivedMindStateBundle(derivedBundle)
+    ?? runtimeSurface?.memory.learningExecutionState
+    ?? null
   const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
@@ -439,6 +443,18 @@ export function buildAlicizationResponseSurfaceContract(input: {
   }
   if (activeClosenessContext === 'open-companionship') {
     pushUnique(mustDo, 'If warmth comes forward, let it stay openly near and lived-in instead of turning theatrical or generic.')
+  }
+  if (learningExecutionState?.nextLearningAction === 'verify') {
+    pushUnique(mustDo, 'Keep visible certainty behind the current verification pass.')
+    pushUnique(mustNotDo, 'Do not let fluency or warmth outrun what is still being verified.')
+  }
+  if (learningExecutionState?.nextLearningAction === 'revise') {
+    pushUnique(mustDo, 'Treat the older continuity line as actively revisable instead of settled.')
+    pushUnique(mustNotDo, 'Do not rest visible certainty on continuity the system is actively revising.')
+  }
+  if (learningExecutionState?.nextLearningAction === 'internalize') {
+    pushUnique(mustDo, 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.')
+    pushUnique(mustNotDo, 'Do not fall back to older unstable procedures while a stronger one is being internalized.')
   }
   if (
     brief.turnMode === 'care'

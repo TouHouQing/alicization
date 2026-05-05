@@ -49,6 +49,10 @@ import {
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
 import {
+  buildAlicizationSecondPassTransportFailureReply,
+  rewriteAlicizationVisibleReplySecondPass,
+} from './main-chat-second-pass-rewrite'
+import {
   type AlicizationResolvedVisibleReply,
   buildAlicizationResolvedVisibleReply,
   resolveAlicizationPreparedVisibleReplyExecution,
@@ -421,6 +425,65 @@ export async function runAlicizationMainChatBackground(
       turnId: input.payload.turnId,
       text: reply.visibleText,
     })
+  }
+
+  const rewriteStructuredVisibleReplyIfNeeded = async (rewriteInput: {
+    fullText: string
+    visibleReplyExecution: AlicizationVisibleReplyExecution
+  }) => {
+    if (!prepared)
+      return null
+
+    const latestUserMessage = [...conversationMessages].reverse().find(message => message?.role === 'user')
+    const latestUserText = sanitizeText(latestUserMessage?.content, '')
+    if (!latestUserText)
+      return null
+
+    try {
+      const rewritten = await rewriteAlicizationVisibleReplySecondPass({
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        sessionId: prepared.conversationSessionId,
+        userText: latestUserText,
+        rawFullText: rewriteInput.fullText,
+        prepared,
+        visibleReplyExecution: rewriteInput.visibleReplyExecution,
+        headers: input.headers,
+        provider: async ({ chatConfig, messages, headers, timeoutMs }) => {
+          return await generateAlicizationMainChatNonStreaming({
+            chatConfig,
+            messages,
+            headers,
+            timeoutMs,
+          })
+        },
+        appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+      })
+      if (!rewritten.rewritten)
+        return null
+      return {
+        fullText: rewritten.fullText,
+        visibleReplyExecution: rewritten.visibleReplyExecution,
+      }
+    }
+    catch (error) {
+      await input.appendRuntimeDebugLine('chat-stream.visible-reply-second-pass-failed', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+      const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true }).catch(() => null)
+      if (reachability?.reachable !== false) {
+        throw new AlicizationMindAuthoredReplyRequiredError(
+          `visible-reply-second-pass-required:${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+      return buildAlicizationSecondPassTransportFailureReply({
+        governedStructured: parseJsonObjectFromText(rewriteInput.fullText),
+        previousExecution: rewriteInput.visibleReplyExecution,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   const syncVisibleReplyExecutionFromPreparedPlan = (override?: {
@@ -1033,6 +1096,7 @@ export async function runAlicizationMainChatBackground(
         })
       },
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+      rewriteStructuredVisibleReply: rewriteStructuredVisibleReplyIfNeeded,
     })
     if (streamResult.fullText.trim())
       await suppressInlineExecutionDeliveries()

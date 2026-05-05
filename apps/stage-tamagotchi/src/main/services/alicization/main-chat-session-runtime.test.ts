@@ -606,6 +606,157 @@ describe('main chat session runtime', () => {
     expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(['executor_run_cli'])
   })
 
+  it('passes rich organic memory context into learning scheduling', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const scheduleOrganicLearningAction = vi.fn(async () => undefined)
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }) => [`[CORE:${hostName}]`],
+      buildOrganicMemorySystemBlocks: context => [`[ORGANIC:${context.hostAttitude}]`],
+      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'none' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [{
+          id: 'fact-1',
+          subject: 'assistant',
+          predicate: 'procedure',
+          object: 'verify before sounding certain',
+          confidence: 0.88,
+          source: 'rule',
+          dedupeKey: 'assistant|procedure|verify before sounding certain',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 1,
+          memoryDomain: 'procedure',
+          validationCount: 2,
+          contradictionCount: 0,
+          knowledgeStage: 'validated-knowledge',
+          validationStatus: 'validated',
+          sourceLabel: 'test',
+          conflictsWith: [],
+          supersedes: [],
+        } as any],
+        recalledFragments: [],
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1' as const,
+          updatedAt: 10,
+          evolutionMomentum: 0.5,
+          learningReadiness: 0.72,
+          contradictionPressure: 0.28,
+          revisionPressure: 0.22,
+          autobiographicalStability: 0.78,
+          dominantTrajectory: 'Verification-first is stabilizing.',
+          relationshipDoctrine: null,
+          latestInflection: 'Verification-first is stabilizing.',
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: 'internalize' as const,
+          nextLearningReason: 'Validated procedure carry is durable enough to internalize.',
+          shouldRecord: false,
+          shouldReflect: false,
+          shouldVerify: false,
+          shouldRevise: false,
+          shouldInternalize: true,
+          activeLearningFocuses: ['internalize-procedure'],
+          sourceSignals: ['Verification-first is stabilizing.'],
+          summary: 'Verification-first is stabilizing.',
+        },
+      })),
+      scheduleOrganicLearningAction,
+      listMemoryReflections: vi.fn(async () => [{
+        id: 'reflection-1',
+        summary: 'verify before certainty',
+        lesson: 'keep verification before sounding certain',
+        status: 'confirmed',
+      } as any]),
+      listRelationshipOutcomes: vi.fn(async () => [{
+        id: 'outcome-1',
+        summary: 'repair-first landed better',
+      } as any]),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-learning-rich-context',
+        messages: [{
+          role: 'user',
+          content: '继续，记住你刚才说的验证优先',
+        }],
+        supportsTools: false,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续，记住你刚才说的验证优先',
+        } as Message],
+      }),
+    })
+
+    expect(scheduleOrganicLearningAction).toHaveBeenCalledTimes(1)
+    expect(scheduleOrganicLearningAction).toHaveBeenCalledWith(expect.objectContaining({
+      turnId: 'turn-learning-rich-context',
+      context: expect.objectContaining({
+        retrievedFacts: expect.arrayContaining([
+          expect.objectContaining({ id: 'fact-1' }),
+        ]),
+        recentMemoryReflections: expect.arrayContaining([
+          expect.objectContaining({ id: 'reflection-1' }),
+        ]),
+        recentRelationshipOutcomes: expect.arrayContaining([
+          expect.objectContaining({ id: 'outcome-1' }),
+        ]),
+        selfEvolution: expect.objectContaining({
+          nextLearningAction: 'internalize',
+        }),
+      }),
+    }))
+  })
+
   it('skips tool registry work when the chat payload disables tools', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,

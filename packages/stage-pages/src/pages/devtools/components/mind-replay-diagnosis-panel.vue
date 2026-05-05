@@ -244,6 +244,9 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
           <div :class="['mb-3', 'text-sm', 'font-medium', 'text-neutral-800', 'dark:text-neutral-100']">
             {{ tDiagnosis('ship_gate.title', 'Ship Gate') }}
           </div>
+          <div :class="['mb-3', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            {{ tDiagnosis('ship_gate.learning_hint', 'Learning-domain rows track whether relationship/self/world learning stayed disciplined instead of silently over-internalizing.') }}
+          </div>
           <div :class="['grid', 'gap-2']">
             <div
               v-for="row in shipGateRows"
@@ -395,6 +398,68 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                 </span>
               </div>
               <div
+                v-if="turn.diagnosisSummary"
+                :class="['mt-2', 'rounded-xl', 'border', 'border-dashed', 'border-neutral-200/80', 'bg-neutral-50/70', 'px-3', 'py-2', 'text-[11px]', 'text-neutral-700', 'dark:border-neutral-800/70', 'dark:bg-neutral-950/30', 'dark:text-neutral-200']"
+              >
+                {{ turn.diagnosisSummary }}
+              </div>
+              <div
+                v-if="turn.learningEvidenceSummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+              >
+                <div>
+                  learning={{ turn.learningEvidenceSummary.action || 'n/a' }} · domain={{ turn.learningEvidenceSummary.domain || 'n/a' }}
+                </div>
+                <div>
+                  result={{ turn.learningEvidenceSummary.resultSummary || 'n/a' }}
+                </div>
+                <div v-if="turn.learningEvidenceSummary.focuses.length > 0">
+                  focuses={{ turn.learningEvidenceSummary.focuses.join(' | ') }}
+                </div>
+              </div>
+              <div
+                v-if="turn.learningExecutionStateSummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+              >
+                <div>
+                  learning_state={{ turn.learningExecutionStateSummary.currentStatus || 'n/a' }} · action={{ turn.learningExecutionStateSummary.nextLearningAction || 'n/a' }}
+                </div>
+                <div>
+                  attempts={{ turn.learningExecutionStateSummary.currentAttemptCount }}/{{ turn.learningExecutionStateSummary.currentMaxAttempts }} · queued={{ turn.learningExecutionStateSummary.queuedTaskCount }} · running={{ turn.learningExecutionStateSummary.runningTaskCount }} · blocked={{ turn.learningExecutionStateSummary.blockedTaskCount }}
+                </div>
+                <div v-if="turn.learningExecutionStateSummary.currentFailureKind || turn.learningExecutionStateSummary.currentBlockedReason">
+                  failure={{ turn.learningExecutionStateSummary.currentFailureKind || 'n/a' }} · blocked_reason={{ turn.learningExecutionStateSummary.currentBlockedReason || 'n/a' }}
+                </div>
+                <div v-if="turn.learningExecutionStateSummary.currentNextRetryAt">
+                  next_retry_at={{ turn.learningExecutionStateSummary.currentNextRetryAt }}
+                </div>
+                <div v-if="turn.learningExecutionStateSummary.activeLearningFocuses.length > 0">
+                  active_focuses={{ turn.learningExecutionStateSummary.activeLearningFocuses.join(' | ') }}
+                </div>
+                <div v-if="turn.learningExecutionStateSummary.lastCompletedSummary || turn.learningExecutionStateSummary.lastFailureReason">
+                  last_completed={{ turn.learningExecutionStateSummary.lastCompletedSummary || 'n/a' }} · last_failure={{ turn.learningExecutionStateSummary.lastFailureReason || 'n/a' }}
+                </div>
+              </div>
+              <div
+                v-if="turn.replyMemoryCoherenceSummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+              >
+                <div>
+                  coherence={{ turn.replyMemoryCoherenceSummary.coherenceState || 'n/a' }}
+                </div>
+                <div v-if="turn.replyMemoryCoherenceSummary.whyWithheld">
+                  why_withheld={{ turn.replyMemoryCoherenceSummary.whyWithheld }}
+                </div>
+                <div v-if="turn.replyMemoryCoherenceSummary.followUpSummary">
+                  follow_up={{ turn.replyMemoryCoherenceSummary.followUpSummary }}
+                </div>
+                <div
+                  v-if="turn.replyMemoryCoherenceSummary.followUpPreferredTiming || turn.replyMemoryCoherenceSummary.followUpIntrusionRisk"
+                >
+                  timing={{ turn.replyMemoryCoherenceSummary.followUpPreferredTiming || 'n/a' }} · intrusion={{ turn.replyMemoryCoherenceSummary.followUpIntrusionRisk || 'n/a' }}
+                </div>
+              </div>
+              <div
                 v-if="turn.resolutionLedgerSummary"
                 :class="['mt-2', 'grid', 'gap-1.5', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
               >
@@ -409,6 +474,44 @@ function turnTraceLabel(turn: AlicizationMindReplayBenchmarkTurnDiagnosis) {
                 </div>
                 <div>
                   rejected={{ turn.resolutionLedgerSummary.rejectedCandidateCount }}
+                </div>
+              </div>
+              <div
+                v-if="turn.memorySituationCandidateSummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'rounded-xl', 'border', 'border-dashed', 'border-sky-200/80', 'px-3', 'py-2', 'text-[11px]', 'text-neutral-600', 'dark:border-sky-900/70', 'dark:text-neutral-300']"
+              >
+                <div :class="['font-medium', 'text-neutral-700', 'dark:text-neutral-200']">
+                  memory_situation_candidates
+                </div>
+                <div>
+                  selected={{ turn.memorySituationCandidateSummary.selected.join(' | ') || 'n/a' }}
+                </div>
+                <div>
+                  rejected={{ turn.memorySituationCandidateSummary.rejected.join(' | ') || 'n/a' }}
+                </div>
+                <div>
+                  delayed={{ turn.memorySituationCandidateSummary.delayed.join(' | ') || 'n/a' }} · unresolved={{ turn.memorySituationCandidateSummary.unresolved.join(' | ') || 'n/a' }}
+                </div>
+              </div>
+              <div
+                v-if="turn.paritySummary"
+                :class="['mt-2', 'grid', 'gap-1.5', 'rounded-xl', 'border', 'border-dashed', turn.paritySummary.passed ? 'border-emerald-200/80 dark:border-emerald-900/70' : 'border-amber-200/80 dark:border-amber-900/70', 'px-3', 'py-2', 'text-[11px]', 'text-neutral-600', 'dark:text-neutral-300']"
+              >
+                <div>
+                  parity={{ turn.paritySummary.passed ? 'pass' : 'fail' }} · compared={{ turn.paritySummary.comparedFieldCount }} · divergent={{ turn.paritySummary.divergentFieldCount }}
+                </div>
+                <div v-if="turn.paritySummary.firstDivergentLayer">
+                  first_divergent_layer={{ turn.paritySummary.firstDivergentLayer }} · layers={{ turn.paritySummary.divergentLayers.join(' | ') || 'n/a' }}
+                </div>
+                <div>
+                  {{ turn.paritySummary.summary }}
+                </div>
+                <div
+                  v-for="field in turn.paritySummary.divergentFields.slice(0, 4)"
+                  :key="`${turn.turnId}:${field.field}`"
+                  :class="['font-mono']"
+                >
+                  {{ field.field }}: main={{ field.mainValue || 'n/a' }} / browser={{ field.browserValue || 'n/a' }}
                 </div>
               </div>
             </button>

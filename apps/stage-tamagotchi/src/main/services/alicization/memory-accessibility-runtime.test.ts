@@ -30,6 +30,41 @@ describe('memory-accessibility-runtime', () => {
     expect(plan.episodicLimit).toBeGreaterThan(5)
     expect(plan.preferredLayers[0]).toBe('hot-index')
     expect(plan.prewarmKey).toContain('runtime seam')
+    expect(plan.recallLatencyPolicy).toEqual(expect.objectContaining({
+      version: 'recall-latency-policy-v1',
+      recallAction: 'deep-recall',
+      shouldPrefetch: true,
+    }))
+  })
+
+  it('uses latency policy to guard stable core when wrong-thread risk is high', () => {
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: '你之前是不是也是这样',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'relationship-history',
+          temporalFocus: 'cross-session',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: false,
+          queryHints: ['之前'],
+          rationale: 'Relationship history may be relevant but risky.',
+          confidence: 0.58,
+        },
+      } as any,
+      latencyPolicy: {
+        wrongThreadRate: 0.55,
+        clusterAmbiguous: true,
+        stableCoreCount: 2,
+        unsafeDetailCount: 2,
+        shouldRecall: true,
+        finalSurfacePolicy: 'internal-only',
+      },
+    })
+
+    expect(plan.recallLatencyPolicy.recallAction).toBe('stable-core-only')
+    expect(plan.recallLatencyPolicy.shouldAvoidDeepExpansion).toBe(true)
+    expect(plan.conversationLimit).toBeLessThanOrEqual(6)
   })
 
   it('builds a summary-first plan for lighter dialogue recall', () => {

@@ -61,13 +61,13 @@ export interface AlicizationMainChatTraceSurface {
 
 export interface AlicizationMainChatReplyAuthoritySurface {
   replyRealizationMode: 'provider-mind-required' | 'fallback-locally-allowed'
-  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
   whyProviderMindRequired: string | null
 }
 
 export interface AlicizationMainChatReplyExecutionPlanSurface {
   preferredMode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
-  expectedVisibleReplyAuthority: 'llm-mind' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
   reason: string | null
 }
 

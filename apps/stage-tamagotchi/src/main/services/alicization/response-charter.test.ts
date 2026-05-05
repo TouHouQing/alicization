@@ -693,4 +693,105 @@ describe('response-charter', () => {
     expect(charter.mustDo).not.toContain('raw conflict')
     expect(charter.mustNotDo).not.toContain('raw conflict')
   })
+
+  it('turns learning verification state into visible response discipline', () => {
+    const state = createState({
+      learningExecutionState: {
+        currentTaskId: 'learning-task-1',
+        currentStatus: 'running',
+        currentAttemptCount: 0,
+        currentMaxAttempts: 3,
+        currentNextRetryAt: null,
+        currentBlockedReason: null,
+        currentFailureKind: null,
+        nextLearningAction: 'verify',
+        shouldRecord: false,
+        shouldReflect: false,
+        shouldVerify: true,
+        shouldRevise: false,
+        shouldInternalize: false,
+        activeLearningFocuses: ['resolve-contradictions'],
+        queuedTaskCount: 1,
+        runningTaskCount: 1,
+        blockedTaskCount: 0,
+        recentTaskIds: ['learning-task-1'],
+        lastCompletedTaskId: null,
+        lastCompletedAction: null,
+        lastCompletedSummary: null,
+        lastFailureTaskId: null,
+        lastFailureKind: null,
+        lastFailureReason: null,
+        lastFailureNextRetryAt: null,
+        updatedAt: 1_700_000_000_000,
+      },
+    })
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.derivedMindStateBundle = {
+      version: 'derived-mind-state-bundle-v1',
+      source: 'main-runtime',
+      producedAt: 1_700_000_000_000,
+      hostPersonModel: null,
+      personStateProjection: null,
+      knowledgeEvidence: null,
+      selfEvolution: null,
+      learningExecutionState: state.learningExecutionState,
+      recollectionIntent: null,
+      recollectionPlan: null,
+      recollectionSpeechPlan: null,
+      memoryDeliberation: null,
+      dialogueRhythm: null,
+      summary: 'learning=verify',
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.activeLearningAction).toBe('verify')
+    expect(charter.mustDo).toContain('Keep visible certainty behind the current verification pass.')
+    expect(charter.mustNotDo).toContain('Do not let fluency or warmth outrun what is still being verified.')
+  })
+
+  it('threads learning tuning advice into charter-level provenance and closeness discipline', () => {
+    const state = createState()
+    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
+    runtimeSurface.memory.memoryTuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1_700_000_000_000,
+      sourceReportAt: 1_700_000_000_000,
+      focusDimensions: ['learningRevisionDiscipline', 'domainInternalizationDiscipline'],
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0.16,
+        specificityClampBias: 0.18,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0.14,
+      },
+      notes: ['Learning revision discipline failed.'],
+    }
+
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state,
+      runtimeSurface,
+      inspectionRequested: false,
+    })
+
+    expect(charter.mustDo).toContain('Bias toward explicit provenance when learned continuity enters the visible answer.')
+    expect(charter.mustNotDo).toContain('Do not let learned confidence spill into unsupported technical specificity.')
+    expect(charter.mustNotDo).toContain('Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
+  })
 })

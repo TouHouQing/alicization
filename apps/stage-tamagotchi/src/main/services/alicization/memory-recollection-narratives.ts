@@ -6,7 +6,18 @@ type AlicizationMemoryRecollectionWindow = NonNullable<OrganicMemoryPromptContex
 export interface AlicizationMemoryRecollectionNarrative {
   mode: 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
   certainty: 'firm' | 'approximate' | 'fragmentary'
+  recallCenter: string
+  recallPressure: 'low' | 'medium' | 'high'
+  evidenceCues: string[]
+  provenancePosture: 'lived' | 'reconstructed' | 'inferred-or-dreamt'
+  speakerInstruction: string
+  /**
+   * @deprecated Compatibility only. Do not treat as visible wording.
+   */
   opening: string
+  /**
+   * @deprecated Use evidenceCues.
+   */
   supportCues: string[]
   confidence: number
 }
@@ -48,17 +59,36 @@ function certaintyFromWindow(window: AlicizationMemoryRecollectionWindow): Alici
   return 'firm'
 }
 
-function buildOpening(intent: AlicizationMemoryRecollectionIntentSnapshot, window: AlicizationMemoryRecollectionWindow) {
-  const summary = sanitizeText(window.summary || window.label, 180)
-  if (intent.mode === 'relationship-history')
-    return `What comes back first in our bond history is ${summary}.`
-  if (intent.mode === 'autobiographical-history')
-    return `What comes back first in my own continuity is ${summary}.`
-  if (intent.mode === 'conversation-history')
-    return `What I first remember us circling around is ${summary}.`
-  if (intent.mode === 'execution-procedure')
-    return `The way I remember handling this kind of thing is ${summary}.`
-  return `The experience pattern that comes back first is ${summary}.`
+function recallPressureFromWindow(input: {
+  intent: AlicizationMemoryRecollectionIntentSnapshot
+  window: AlicizationMemoryRecollectionWindow
+}): AlicizationMemoryRecollectionNarrative['recallPressure'] {
+  const confidence = clamp01((input.window.confidence * 0.72) + (input.intent.confidence * 0.28))
+  if (confidence >= 0.78 && input.window.dominantProvenance !== 'reconstructed')
+    return 'high'
+  if (confidence >= 0.58)
+    return 'medium'
+  return 'low'
+}
+
+function provenancePostureFromWindow(window: AlicizationMemoryRecollectionWindow): AlicizationMemoryRecollectionNarrative['provenancePosture'] {
+  if (window.dominantProvenance === 'observed' || window.dominantProvenance === 'remembered')
+    return 'lived'
+  if (window.dominantProvenance === 'reconstructed')
+    return 'reconstructed'
+  return 'inferred-or-dreamt'
+}
+
+function speakerInstructionForMode(mode: AlicizationMemoryRecollectionIntentSnapshot['mode']) {
+  if (mode === 'relationship-history')
+    return 'Let the relationship era shape stance only after the current answer has room for it.'
+  if (mode === 'autobiographical-history')
+    return 'Let self-continuity shape the answer without reciting a fixed memory opener.'
+  if (mode === 'conversation-history')
+    return 'Use the remembered conversation as context, not as a copied opening line.'
+  if (mode === 'execution-procedure')
+    return 'Use the remembered procedure to guide the payoff, not to announce a memory template.'
+  return 'Use the experience pattern as inward context and let the LLM author the visible wording.'
 }
 
 export function buildMemoryRecollectionNarratives(input: {
@@ -71,13 +101,22 @@ export function buildMemoryRecollectionNarratives(input: {
     return []
 
   return windows
-    .map((window) => ({
-      mode: intent.mode as AlicizationNarrativeMode,
-      certainty: certaintyFromWindow(window),
-      opening: buildOpening(intent, window),
-      supportCues: uniqueList(window.cues, 4),
-      confidence: clamp01((window.confidence * 0.72) + (intent.confidence * 0.28)),
-    }) satisfies AlicizationMemoryRecollectionNarrative)
+    .map((window) => {
+      const recallCenter = sanitizeText(window.summary || window.label, 180)
+      const evidenceCues = uniqueList(window.cues, 4)
+      return {
+        mode: intent.mode as AlicizationNarrativeMode,
+        certainty: certaintyFromWindow(window),
+        recallCenter,
+        recallPressure: recallPressureFromWindow({ intent, window }),
+        evidenceCues,
+        provenancePosture: provenancePostureFromWindow(window),
+        speakerInstruction: speakerInstructionForMode(intent.mode),
+        opening: recallCenter,
+        supportCues: evidenceCues,
+        confidence: clamp01((window.confidence * 0.72) + (intent.confidence * 0.28)),
+      } satisfies AlicizationMemoryRecollectionNarrative
+    })
     .sort((left, right) => right.confidence - left.confidence)
     .slice(0, 3)
 }

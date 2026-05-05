@@ -47,6 +47,8 @@ export interface AlicizationRecallPlannerDecision {
   uncertaintyLabel: RecollectionPlanSnapshot['certainty']
   ambiguityPosture: NonNullable<MemoryDeliberationSnapshot['ambiguityPosture']>
   followUpTiming: NonNullable<NonNullable<MemoryDeliberationSnapshot['followUpAffordance']>['preferredTiming']> | null
+  suppressionReasons: string[]
+  suppressionConflictVariants: NonNullable<MemoryDeliberationSnapshot['conflictVariants']>
   recollectionPlan: RecollectionPlanSnapshot | null
   memoryDeliberation: MemoryDeliberationSnapshot | null
 }
@@ -211,6 +213,7 @@ function deriveWhyNotOthers(input: {
   shouldRecall: boolean
   surfaceMode: MemoryDeliberationSnapshot['surfacePolicy']
   reliabilityPressure: number
+  suppressionReasons?: string[] | null
   clusterContext?: AlicizationRecallPlannerClusterContext | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
   selectedRelationshipLines: string[]
@@ -218,6 +221,10 @@ function deriveWhyNotOthers(input: {
   selectedProcedureIds: string[]
   selectedConversationTurnIds: string[]
 }) {
+  if (input.suppressionReasons?.includes('stale-self-model'))
+    return 'The older self-story is still being revised, so stale self-model continuity should stay inward until the newer line stabilizes.'
+  if (input.suppressionReasons?.includes('relationship-era-confusion'))
+    return 'Competing relationship eras are still too easy to confuse, so the recalled bond line should stay inward until the present repair context is clearer.'
   if (!input.shouldRecall && input.reliabilityPressure >= 0.58)
     return 'Recall reliability is under pressure, so the answer should stay present-facing instead of reopening unstable memory.'
   if (!input.shouldRecall)
@@ -307,6 +314,117 @@ function deriveUnsafeDetails(input: {
     ...(input.reconstructionContext?.unsafeDetails ?? []),
     ...(input.clusterContext?.competingVariants ?? []).flatMap(item => [item.summary, item.reason]),
   ], 6)
+}
+
+function deriveSuppressionReasons(input: {
+  recollectionIntent: RecollectionIntentSnapshot | null
+  recollectionPlanCandidate: RecollectionPlanSnapshot | null
+  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
+  selectedConsolidationIds: string[]
+  selectedEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+  consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+  selectedRelationshipLines: string[]
+}) {
+  const reasons: string[] = []
+  const selfModelTurn = input.recollectionIntent?.mode === 'autobiographical-history'
+    || input.consolidatedMemories.some(item =>
+      input.selectedConsolidationIds.includes(item.id) && item.facet === 'self-era')
+  if (selfModelTurn) {
+    const selfTexts = [
+      input.recollectionPlanCandidate?.rationale,
+      input.memoryDeliberationCandidate?.whyNow,
+      ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.lesson ?? '']),
+      ...input.consolidatedMemories
+        .filter(item => input.selectedConsolidationIds.includes(item.id))
+        .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
+      ...(input.memoryDeliberationCandidate?.stableCore ?? []),
+      ...(input.memoryDeliberationCandidate?.unsafeDetails ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+
+    const reconstructedSelfEpisode = input.selectedEpisodes.some((item) => {
+      const provenance = item.latestReconsolidation?.provenance ?? item.provenance
+      return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
+    })
+    const staleSelfCue = /older self|old self|older self-story|old self-story|newer self|identity revision|revise|stale identity|自我|旧理解|旧叙事|修正|新自我|身份/u.test(selfTexts)
+    const shouldSuppressStaleSelfModel = reconstructedSelfEpisode && staleSelfCue
+
+    if (shouldSuppressStaleSelfModel)
+      reasons.push('stale-self-model')
+  }
+
+  const relationshipTurn = input.recollectionIntent?.mode === 'relationship-history'
+    || input.consolidatedMemories.some(item =>
+      input.selectedConsolidationIds.includes(item.id) && item.facet === 'relationship-era')
+  if (relationshipTurn) {
+    const relationshipTexts = [
+      input.recollectionPlanCandidate?.rationale,
+      input.memoryDeliberationCandidate?.whyNow,
+      ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.relationshipMeaning ?? '', item.lesson ?? '']),
+      ...input.consolidatedMemories
+        .filter(item => input.selectedConsolidationIds.includes(item.id))
+        .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
+      ...input.selectedRelationshipLines,
+      ...(input.memoryDeliberationCandidate?.stableCore ?? []),
+      ...(input.memoryDeliberationCandidate?.unsafeDetails ?? []),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const reconstructedRelationshipEpisode = input.selectedEpisodes.some((item) => {
+      const provenance = item.latestReconsolidation?.provenance ?? item.provenance
+      return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
+    })
+    const relationshipConfusionCue = /different repair|wrong one|not that time|another repair|same wound different phase|relationship era|repair arc|boundary|distance|不是那次|记错|另一条关系线|关系阶段|修复期|边界|距离/u.test(relationshipTexts)
+    const competingRelationshipLineCount = uniqueList(input.selectedRelationshipLines, 4).length >= 2
+    if (reconstructedRelationshipEpisode && (relationshipConfusionCue || competingRelationshipLineCount))
+      reasons.push('relationship-era-confusion')
+  }
+
+  return reasons
+}
+
+function deriveSuppressionConflictVariants(input: {
+  suppressionReasons: string[]
+  recollectionIntent: RecollectionIntentSnapshot | null
+  recollectionPlanCandidate: RecollectionPlanSnapshot | null
+  memoryDeliberationCandidate: MemoryDeliberationSnapshot | null
+  selectedConsolidationIds: string[]
+  consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+}) {
+  const variants: NonNullable<MemoryDeliberationSnapshot['conflictVariants']> = []
+  if (input.suppressionReasons.includes('stale-self-model')) {
+    const selfEra = input.consolidatedMemories.find(item =>
+      input.selectedConsolidationIds.includes(item.id) && item.facet === 'self-era')
+    const summary = selfEra?.summary
+      ?? input.memoryDeliberationCandidate?.whyNow
+      ?? input.recollectionPlanCandidate?.rationale
+      ?? 'Older self-story remained active while the newer self line was still being revised.'
+    variants.push({
+      id: 'suppression:self-model-stale',
+      summary,
+      provenance: 'reconstructed',
+      reason: 'Older self-story remained revision-prone, so stale self-model continuity was vetoed before visible surfacing.',
+    })
+  }
+
+  if (input.suppressionReasons.includes('relationship-era-confusion')) {
+    const relationshipEra = input.consolidatedMemories.find(item =>
+      input.selectedConsolidationIds.includes(item.id) && item.facet === 'relationship-era')
+    const summary = relationshipEra?.summary
+      ?? input.memoryDeliberationCandidate?.whyNow
+      ?? input.recollectionPlanCandidate?.rationale
+      ?? 'Competing relationship eras remained too easy to confuse.'
+    variants.push({
+      id: 'suppression:relationship-era-confusion',
+      summary,
+      provenance: 'reconstructed',
+      reason: 'Competing relationship eras remained too easy to confuse, so the recalled bond line was vetoed before visible surfacing.',
+    })
+  }
+  return variants
 }
 
 function buildNormalizedRecollectionPlan(input: {
@@ -445,6 +563,23 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         selectedEpisodeIds: selectedEpisodeIdSet,
       })
     : []
+  const suppressionReasons = deriveSuppressionReasons({
+    recollectionIntent: input.recollectionIntent,
+    recollectionPlanCandidate: candidatePlan,
+    memoryDeliberationCandidate: candidateDeliberation,
+    selectedConsolidationIds,
+    selectedEpisodes,
+    consolidatedMemories: input.consolidatedMemories,
+    selectedRelationshipLines,
+  })
+  const suppressionConflictVariants = deriveSuppressionConflictVariants({
+    suppressionReasons,
+    recollectionIntent: input.recollectionIntent,
+    recollectionPlanCandidate: candidatePlan,
+    memoryDeliberationCandidate: candidateDeliberation,
+    selectedConsolidationIds,
+    consolidatedMemories: input.consolidatedMemories,
+  })
   const ambiguityPosture = deriveAmbiguityPosture({
     recollectionPlanCandidate: candidatePlan,
     recollectionSpeechCandidate: candidateSpeech,
@@ -473,9 +608,11 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         : baseConfidence + evidenceConfidenceAdjustment,
   )
   const surfaceMode: MemoryDeliberationSnapshot['surfacePolicy'] = shouldRecall
-    ? ((input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
+      ? ((input.knowledgeEvidence?.contradictionHeavyFactCount ?? 0) >= 1
         && (input.knowledgeEvidence?.validationCount ?? 0) <= 1)
       ? 'internal-only'
+      : suppressionReasons.includes('stale-self-model') || suppressionReasons.includes('relationship-era-confusion')
+        ? 'internal-only'
       : reliabilityPressure >= 0.64
       ? 'internal-only'
       : reliabilityPressure >= 0.4 || evidenceSurfacePressure >= 2
@@ -521,6 +658,8 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     ?? (
       !shouldRecall
         ? 'internal-only'
+        : suppressionReasons.includes('stale-self-model') || suppressionReasons.includes('relationship-era-confusion')
+          ? 'next-open-window'
         : reliabilityPressure >= 0.64
           ? 'next-open-window'
           : reliabilityPressure >= 0.4
@@ -538,6 +677,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     shouldRecall,
     surfaceMode,
     reliabilityPressure,
+    suppressionReasons,
     clusterContext: input.clusterContext ?? null,
     reconstructionContext: input.reconstructionContext ?? null,
     selectedRelationshipLines,
@@ -577,10 +717,27 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         selectedEras: candidateDeliberation?.selectedEras ?? [],
         selectedPeriods: candidateDeliberation?.selectedPeriods ?? [],
         selectedEpisodes: candidateDeliberation?.selectedEpisodes ?? [],
-        conflictSeverity: candidateDeliberation?.conflictSeverity,
-        conflictVariants: candidateDeliberation?.conflictVariants,
+        conflictSeverity: suppressionConflictVariants.length > 0
+          ? (
+              candidateDeliberation?.conflictSeverity && candidateDeliberation.conflictSeverity !== 'none'
+                ? candidateDeliberation.conflictSeverity
+                : 'medium'
+            )
+          : candidateDeliberation?.conflictSeverity,
+        conflictVariants: [
+          ...(candidateDeliberation?.conflictVariants ?? []),
+          ...suppressionConflictVariants,
+        ],
         stableCore,
-        unsafeDetails,
+        unsafeDetails: [
+          ...unsafeDetails,
+          ...(suppressionReasons.includes('stale-self-model')
+            ? ['Do not let the older self-story surface as settled identity before the newer self line stabilizes.']
+            : []),
+          ...(suppressionReasons.includes('relationship-era-confusion')
+            ? ['Do not let competing relationship eras surface as if they belonged to the same repair phase.']
+            : []),
+        ],
         selectedProcedures: candidateDeliberation?.selectedProcedures ?? [],
         selectedBundles: candidateDeliberation?.selectedBundles ?? [],
         selectedChains: candidateDeliberation?.selectedChains ?? [],
@@ -614,6 +771,8 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     uncertaintyLabel: certainty,
     ambiguityPosture,
     followUpTiming,
+    suppressionReasons,
+    suppressionConflictVariants,
     recollectionPlan,
     memoryDeliberation,
   }

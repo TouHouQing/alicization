@@ -23,6 +23,7 @@ import {
   buildReplayBenchmarkMemoryStatsPatch,
   buildDefaultHumanlikeMemoryBenchmarkPack,
   buildSampledHumanlikeMemoryBenchmarkPack,
+  buildAdversarialHumanlikeMemoryBenchmarkPack,
   mergeReplayBenchmarkDatasetBacklog,
 } from './main-chat-session-replay-harness'
 import {
@@ -85,6 +86,7 @@ function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmar
     || raw === 'backlog-humanlike-memory-v1'
     || raw === 'default-humanlike-memory-v1'
     || raw === 'growth-humanlike-memory-v1'
+    || raw === 'adversarial-humanlike-memory-v2'
     ? raw
     : 'default-humanlike-memory-v1'
 }
@@ -129,7 +131,15 @@ const replayBenchmarkStandardKeys = [
   'hostUnderstandingGrowth',
   'skillInternalizationGrowth',
   'selfRevisionGrowth',
+  'learningRevisionDiscipline',
+  'domainInternalizationDiscipline',
+  'worldModelValidationDiscipline',
   'dialogueRhythmStability',
+  'emptyCareRate',
+  'repairMechanicalRate',
+  'warmthTemplateRisk',
+  'relationshipDistanceJumpRate',
+  'afterglowFalseCarryRate',
   'templateLeakage',
 ] as const satisfies Array<keyof AlicizationReplayBenchmarkStandardsRecord>
 
@@ -151,7 +161,15 @@ const replayBenchmarkThresholds: Record<keyof AlicizationReplayBenchmarkStandard
   hostUnderstandingGrowth: 0.75,
   skillInternalizationGrowth: 0.75,
   selfRevisionGrowth: 0.75,
+  learningRevisionDiscipline: 0.75,
+  domainInternalizationDiscipline: 0.75,
+  worldModelValidationDiscipline: 0.75,
   dialogueRhythmStability: 0.75,
+  emptyCareRate: 0.95,
+  repairMechanicalRate: 0.9,
+  warmthTemplateRisk: 0.95,
+  relationshipDistanceJumpRate: 0.9,
+  afterglowFalseCarryRate: 0.9,
   templateLeakage: 1,
 }
 
@@ -185,6 +203,11 @@ function buildReplayBenchmarkNoopResult(input: {
       graphLatencyMs: null,
       reconstructionFrequency: 0,
       reconstructedCount: 0,
+      suppressionHitRate: 0,
+      wrongThreadPreventedCount: 0,
+      falsePositiveSuppressionRate: 0,
+      staleSelfModelVetoRate: 0,
+      relationshipEraConfusionRate: 0,
       templateLeakageFailCount: 0,
     },
   }
@@ -203,6 +226,8 @@ function buildReplayBenchmarkNoopResult(input: {
       { key: 'human-rating-gate', status: 'pass', detail: 'Human rubric dimensions available: 6.' },
       { key: 'latency-gate', status: 'pass', detail: 'semantic=n/a, graph=n/a' },
       { key: 'wrong-thread-gate', status: 'pass', detail: 'wrongThreadRate=0' },
+      { key: 'self-model-suppression-gate', status: 'pass', detail: 'staleSelfModelVetoRate=0' },
+      { key: 'relationship-era-suppression-gate', status: 'pass', detail: 'relationshipEraConfusionRate=0' },
       { key: 'template-leakage-gate', status: 'pass', detail: 'templateLeakageFailCount=0' },
     ],
     regressionTriage: [],
@@ -219,6 +244,7 @@ function buildReplayBenchmarkShipGate(input: {
 }) {
   const telemetry = input.report.telemetryPatch.retrievalHealth
   const rubricCount = input.report.datasetFeedback.humanRatingRubric?.dimensions.length ?? 0
+  const paritySummary = input.report.datasetFeedback.paritySummary ?? null
   return [
     {
       key: 'benchmark-gate' as const,
@@ -245,11 +271,90 @@ function buildReplayBenchmarkShipGate(input: {
       detail: `wrongThreadRate=${telemetry.wrongThreadRate ?? 0}`,
     },
     {
+      key: 'self-model-suppression-gate' as const,
+      status: (telemetry.staleSelfModelVetoRate ?? 0) <= 0.35 ? 'pass' : 'fail',
+      detail: `staleSelfModelVetoRate=${telemetry.staleSelfModelVetoRate ?? 0}`,
+    },
+    {
+      key: 'relationship-era-suppression-gate' as const,
+      status: (telemetry.relationshipEraConfusionRate ?? 0) <= 0.35 ? 'pass' : 'fail',
+      detail: `relationshipEraConfusionRate=${telemetry.relationshipEraConfusionRate ?? 0}`,
+    },
+    {
       key: 'template-leakage-gate' as const,
       status: (telemetry.templateLeakageFailCount ?? 0) <= 0 ? 'pass' : 'fail',
       detail: `templateLeakageFailCount=${telemetry.templateLeakageFailCount ?? 0}`,
     },
+    {
+      key: 'learning-domain-gate' as const,
+      status: (telemetry.learningTaskCompletionRate ?? 1) >= 0.85
+        && (telemetry.learningTaskFailureRate ?? 0) <= 0.15
+        && (telemetry.learningTaskReopenRecoveryRate ?? 1) >= 0.7
+        && (telemetry.misinternalizationRate ?? 0) <= 0
+        && (telemetry.relationshipCadenceRegressionRate ?? 0) <= 0.1
+        && (telemetry.selfModelStaleBeliefRate ?? 0) <= 0.35
+        ? 'pass'
+        : 'fail',
+      detail: `learningCompletionRate=${telemetry.learningTaskCompletionRate ?? 'n/a'}, failureRate=${telemetry.learningTaskFailureRate ?? 'n/a'}, reopenRecovery=${telemetry.learningTaskReopenRecoveryRate ?? 'n/a'}, misinternalization=${telemetry.misinternalizationRate ?? 'n/a'}, cadenceRegression=${telemetry.relationshipCadenceRegressionRate ?? 'n/a'}, selfModelStaleBelief=${telemetry.selfModelStaleBeliefRate ?? 'n/a'}`,
+    },
+    {
+      key: 'browser-main-parity-gate' as const,
+      status: !paritySummary || paritySummary.parityPassRate >= 1 ? 'pass' : 'fail',
+      detail: paritySummary
+        ? `browserMainParity=${paritySummary.parityPassRate} (${paritySummary.parityPassCount}/${paritySummary.comparedTurnCount})`
+        : 'browserMainParity=n/a',
+    },
   ] satisfies AlicizationRunReplayBenchmarkResult['shipGate']
+}
+
+function runtimeMetricNumber(raw: unknown) {
+  return typeof raw === 'number' && Number.isFinite(raw)
+    ? raw
+    : null
+}
+
+function preferRuntimeGrowthMetrics(input: {
+  replayPatch: AlicizationReplayBenchmarkTelemetryPatch
+  currentStats: Awaited<ReturnType<ReplayBenchmarkDbAccess['getMemoryStats']>> | null
+}) {
+  const runtimeHealth = input.currentStats?.retrievalHealth ?? null
+  if (!runtimeHealth)
+    return input.replayPatch
+  const runtimeLearningSampleCount = [
+    'learningTaskCompletionCount',
+    'learningTaskFailureCount',
+    'learningTaskBlockedCount',
+    'learningTaskReopenedCount',
+    'learningTaskDowngradedCount',
+    'learningTaskCancelledCount',
+    'learningWorldModelValidationCount',
+    'learningWorldModelFalseInternalizationCount',
+  ].reduce((sum, key) => sum + Math.max(0, Number(runtimeHealth[key] ?? 0)), 0)
+  if (runtimeLearningSampleCount <= 0)
+    return input.replayPatch
+
+  return {
+    ...input.replayPatch,
+    retrievalHealth: {
+      ...input.replayPatch.retrievalHealth,
+      learningTaskCompletionCount: runtimeMetricNumber(runtimeHealth.learningTaskCompletionCount) ?? input.replayPatch.retrievalHealth.learningTaskCompletionCount,
+      learningTaskFailureCount: runtimeMetricNumber(runtimeHealth.learningTaskFailureCount) ?? input.replayPatch.retrievalHealth.learningTaskFailureCount,
+      learningTaskBlockedCount: runtimeMetricNumber(runtimeHealth.learningTaskBlockedCount) ?? input.replayPatch.retrievalHealth.learningTaskBlockedCount,
+      learningTaskReopenedCount: runtimeMetricNumber(runtimeHealth.learningTaskReopenedCount) ?? input.replayPatch.retrievalHealth.learningTaskReopenedCount,
+      learningTaskDowngradedCount: runtimeMetricNumber(runtimeHealth.learningTaskDowngradedCount) ?? input.replayPatch.retrievalHealth.learningTaskDowngradedCount,
+      learningTaskCancelledCount: runtimeMetricNumber(runtimeHealth.learningTaskCancelledCount) ?? input.replayPatch.retrievalHealth.learningTaskCancelledCount,
+      learningRelationshipReviseCount: runtimeMetricNumber(runtimeHealth.learningRelationshipReviseCount) ?? input.replayPatch.retrievalHealth.learningRelationshipReviseCount,
+      learningSelfModelReviseCount: runtimeMetricNumber(runtimeHealth.learningSelfModelReviseCount) ?? input.replayPatch.retrievalHealth.learningSelfModelReviseCount,
+      learningWorldModelValidationCount: runtimeMetricNumber(runtimeHealth.learningWorldModelValidationCount) ?? input.replayPatch.retrievalHealth.learningWorldModelValidationCount,
+      learningWorldModelFalseInternalizationCount: runtimeMetricNumber(runtimeHealth.learningWorldModelFalseInternalizationCount) ?? input.replayPatch.retrievalHealth.learningWorldModelFalseInternalizationCount,
+      learningTaskCompletionRate: runtimeMetricNumber(runtimeHealth.learningTaskCompletionRate) ?? input.replayPatch.retrievalHealth.learningTaskCompletionRate,
+      learningTaskFailureRate: runtimeMetricNumber(runtimeHealth.learningTaskFailureRate) ?? input.replayPatch.retrievalHealth.learningTaskFailureRate,
+      learningTaskReopenRecoveryRate: runtimeMetricNumber(runtimeHealth.learningTaskReopenRecoveryRate) ?? input.replayPatch.retrievalHealth.learningTaskReopenRecoveryRate,
+      misinternalizationRate: runtimeMetricNumber(runtimeHealth.misinternalizationRate) ?? input.replayPatch.retrievalHealth.misinternalizationRate,
+      relationshipCadenceRegressionRate: runtimeMetricNumber(runtimeHealth.relationshipCadenceRegressionRate) ?? input.replayPatch.retrievalHealth.relationshipCadenceRegressionRate,
+      selfModelStaleBeliefRate: runtimeMetricNumber(runtimeHealth.selfModelStaleBeliefRate) ?? input.replayPatch.retrievalHealth.selfModelStaleBeliefRate,
+    },
+  } satisfies AlicizationReplayBenchmarkTelemetryPatch
 }
 
 function buildReplayBenchmarkRegressionTriage(input: {
@@ -266,7 +371,7 @@ function buildReplayBenchmarkRegressionTriage(input: {
       owner = 'planner'
       firstCheck = 'Check recollection intent, recall planner, and speech placement decisions first.'
     }
-    else if (['knowledgeCorrectionDiscipline', 'repeatedMistakeAvoidance', 'hostUnderstandingGrowth', 'skillInternalizationGrowth', 'selfRevisionGrowth'].includes(dimension)) {
+    else if (['knowledgeCorrectionDiscipline', 'repeatedMistakeAvoidance', 'hostUnderstandingGrowth', 'skillInternalizationGrowth', 'selfRevisionGrowth', 'learningRevisionDiscipline', 'domainInternalizationDiscipline', 'worldModelValidationDiscipline'].includes(dimension)) {
       owner = 'evolution'
       firstCheck = 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.'
     }
@@ -278,9 +383,9 @@ function buildReplayBenchmarkRegressionTriage(input: {
         owner = 'visible realization'
         firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
       }
-      else if (dimension === 'dialogueRhythmStability') {
+      else if (['dialogueRhythmStability', 'emptyCareRate', 'repairMechanicalRate', 'warmthTemplateRisk', 'relationshipDistanceJumpRate', 'afterglowFalseCarryRate'].includes(dimension)) {
         owner = 'visible realization'
-        firstCheck = 'Check relationship distance, warmth cadence, repair timing, and anti-template surface rules first.'
+        firstCheck = 'Check affective residue, relationship cadence, repair timing, and anti-template care leakage traces first.'
       }
       else if (dimension === 'replyMemoryCoherence') {
         owner = 'proactive parity'
@@ -342,6 +447,8 @@ export function createAlicizationReplayBenchmarkRuntime(
       return buildDefaultHumanlikeMemoryBenchmarkPack()
     if (input.packId === 'growth-humanlike-memory-v1')
       return buildGrowthHumanlikeMemoryBenchmarkPack()
+    if (input.packId === 'adversarial-humanlike-memory-v2')
+      return buildAdversarialHumanlikeMemoryBenchmarkPack()
 
     if (input.packId === 'backlog-humanlike-memory-v1') {
       return buildReplayBenchmarkBacklogPack({
@@ -491,6 +598,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       persisted: false,
       humanRatingRubric: buildReplayHumanRatingRubric(),
       driftSignals: [],
+      paritySummary: null,
     }
 
     if (turns.length === 0) {
@@ -511,6 +619,22 @@ export function createAlicizationReplayBenchmarkRuntime(
       quality: replay.quality,
       gate: replay.gate,
     })
+    const paritySummaries = failingTurnSet
+      .map(turn => turn.paritySummary)
+      .filter((item): item is NonNullable<AlicizationReplayBenchmarkFailureTurnRecord['paritySummary']> => Boolean(item))
+    datasetFeedback.paritySummary = paritySummaries.length > 0
+      ? {
+          comparedTurnCount: paritySummaries.length,
+          parityPassCount: paritySummaries.filter(item => item.passed).length,
+          parityFailCount: paritySummaries.filter(item => !item.passed).length,
+          parityPassRate: Number((paritySummaries.filter(item => item.passed).length / paritySummaries.length).toFixed(2)),
+          firstDivergentLayerCounts: paritySummaries.reduce<NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['paritySummary']>['firstDivergentLayerCounts']>((acc, item) => {
+            if (item.firstDivergentLayer)
+              acc[item.firstDivergentLayer] = (acc[item.firstDivergentLayer] ?? 0) + 1
+            return acc
+          }, {}),
+        }
+      : null
 
     if (packId !== 'backlog-humanlike-memory-v1') {
       const nextDatasetBacklog = mergeReplayBenchmarkDatasetBacklog({
@@ -547,14 +671,18 @@ export function createAlicizationReplayBenchmarkRuntime(
       )
     ).filter((item): item is AlicizationMemoryDecisionTraceRecord => Boolean(item))
 
-    const telemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
+    const replayTelemetryPatch = buildReplayBenchmarkMemoryStatsPatch({
       gate: replay.gate,
       quality: replay.quality,
       traces: benchmarkTraceRecords,
     })
+    const currentStats = await db.getMemoryStats()
+    const telemetryPatch = preferRuntimeGrowthMetrics({
+      replayPatch: replayTelemetryPatch,
+      currentStats,
+    })
 
     if (persistTelemetry) {
-      const currentStats = await db.getMemoryStats()
       await db.overrideMemoryStats({
         ...currentStats,
         retrievalHealth: {

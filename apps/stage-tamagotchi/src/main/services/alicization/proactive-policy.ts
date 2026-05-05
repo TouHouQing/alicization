@@ -1,6 +1,7 @@
 import type {
   AlicizationActionEcologySnapshot,
   AlicizationAutonomySnapshot,
+  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationBeliefLedgerSnapshot,
   AlicizationBeliefRevisionSnapshot,
   AlicizationCommitmentLedgerSnapshot,
@@ -317,6 +318,7 @@ export function evaluateProactivePolicy(input: {
   runtimeDigest?: AlicizationRuntimeSnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
+  affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
   const contextScenario = inferScenarioFromContext({
@@ -444,6 +446,8 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('personalityContinuity.regime', 'personalityContinuity.rhythm')
   if (input.continuityDeliberation)
     consideredSignals.push('continuityDeliberation.kind', 'continuityDeliberation.timing', 'continuityDeliberation.intrusion')
+  if (input.affectiveResidue)
+    consideredSignals.push('affectiveResidue.dominant', 'affectiveResidue.cadence', 'affectiveResidue.restProtection')
   const cadence = deriveProactiveCadenceSignal({
     state: proactiveState,
     context,
@@ -455,6 +459,7 @@ export function evaluateProactivePolicy(input: {
     thoughtThreads: input.thoughtThreads ?? null,
     actionEcology: input.actionEcology ?? null,
     personalityContinuityState: input.personalityContinuityState ?? null,
+    affectiveResidue: input.affectiveResidue ?? null,
   })
   consideredSignals.push('proactiveCadence.openingMomentum', 'proactiveCadence.initiativeTrust', 'proactiveCadence.cadencePressure')
   const ignoredSignals = [
@@ -893,6 +898,8 @@ export function evaluateProactivePolicy(input: {
     baseScore += 0.04
   if (cadence.initiativeTrust >= 0.58)
     baseScore += 0.03
+  baseScore -= (input.affectiveResidue?.relationshipCadence.overreachRisk ?? 0) * 0.08
+  baseScore -= (input.affectiveResidue?.relationshipCadence.fatigueGuard ?? 0) * 0.08
 
   let threshold = buildBaseThreshold(scenario)
     + feedbackBias
@@ -962,6 +969,8 @@ export function evaluateProactivePolicy(input: {
   }
   threshold -= cadence.cadencePressure * 0.08
   threshold -= Math.max(0, cadence.initiativeTrust - 0.5) * 0.06
+  threshold += (input.affectiveResidue?.relationshipCadence.shouldDelayWarmth ? 0.06 : 0)
+  threshold += (input.affectiveResidue?.relationshipCadence.shouldProtectRest ? 0.06 : 0)
 
   const initiativeReady = autonomy
     ? autonomy.shouldSpeak === true
@@ -1004,6 +1013,9 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'cadence-opening-ready', cadence.openingMomentum >= 0.56)
   pushReason(reasonCodes, 'cadence-initiative-trust', cadence.initiativeTrust >= 0.58)
   pushReason(reasonCodes, 'cadence-pressure-rising', cadence.cadencePressure >= 0.52)
+  pushReason(reasonCodes, 'relationship-cadence-residue', Boolean(input.affectiveResidue?.dominantResidueKind))
+  pushReason(reasonCodes, 'relationship-residue-delay-warmth', input.affectiveResidue?.relationshipCadence.shouldDelayWarmth === true)
+  pushReason(reasonCodes, 'relationship-residue-protect-rest', input.affectiveResidue?.relationshipCadence.shouldProtectRest === true)
   pushReason(reasonCodes, 'high-loneliness', context.relationship.loneliness >= 90)
   pushReason(reasonCodes, 'high-boredom', context.relationship.boredom >= 90)
   pushReason(reasonCodes, 'user-idle', context.system.inputActivity === 'idle')

@@ -1,8 +1,10 @@
 import type { AlicizationMemoryFact } from '../../../shared/eventa'
 
 import {
+  buildAlicizationDomainNativeMemoryView,
   getMemoryDomainPolicy,
   inferMemoryDomainFromFact,
+  scoreDomainNativeMemoryViewForQuery,
   scoreMemoryDomainAffinity,
 } from './memory-domain-model'
 import { deriveFactMemoryTier, scoreMemoryTierReachability } from './memory-tiering'
@@ -87,6 +89,10 @@ export function scoreAlicizationMemoryFact(input: {
     query: [...input.queryTokens].join(' '),
     fact: input.fact,
   })
+  const domainNativeBoost = scoreDomainNativeMemoryViewForQuery({
+    query: [...input.queryTokens].join(' '),
+    view: buildAlicizationDomainNativeMemoryView(input.fact),
+  })
   const tierReachabilityBoost = scoreMemoryTierReachability({
     tier: memoryTier,
     vagueQuery,
@@ -98,6 +104,7 @@ export function scoreAlicizationMemoryFact(input: {
     + coldReachabilityBoost
     + lifecycleBoost
     + domainBoost
+    + domainNativeBoost
     + tierReachabilityBoost
 }
 

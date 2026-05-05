@@ -17,6 +17,12 @@ import type {
   AlicizationExecutorSessionRecord,
   AlicizationExecutorSessionStatus,
   AlicizationExecutorSessionUpsertInput,
+  AlicizationLearningAction,
+  AlicizationLearningExecutionStateSnapshot,
+  AlicizationLearningTaskFailureKind,
+  AlicizationLearningTaskPayload,
+  AlicizationLearningTaskRecord,
+  AlicizationLearningTaskStatus,
   AlicizationListChannelCapabilityManifestsInput,
   AlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput,
@@ -407,6 +413,34 @@ interface DbScheduledTaskRow {
   source_turn_id: string | null
   fired_turn_id: string | null
   last_error: string | null
+}
+
+interface DbLearningTaskRow {
+  id: string
+  card_id: string
+  task_id: string
+  status: AlicizationLearningTaskStatus
+  trigger_at: number
+  action: AlicizationLearningAction
+  message: string
+  payload_json: string
+  attempt_count: number
+  max_attempts: number
+  created_at: number
+  updated_at: number
+  claimed_at: number | null
+  started_at: number | null
+  completed_at: number | null
+  blocked_at: number | null
+  cancelled_at: number | null
+  downgraded_at: number | null
+  reopened_at: number | null
+  next_retry_at: number | null
+  source_turn_id: string | null
+  result_summary: string | null
+  failure_kind: AlicizationLearningTaskFailureKind | null
+  last_error: string | null
+  fired_turn_id: string | null
 }
 
 interface DbWriteOptions {
@@ -945,6 +979,84 @@ function mapScheduledTaskRow(row: DbScheduledTaskRow): AlicizationScheduledTaskR
   }
 }
 
+function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
+  try {
+    const candidate = JSON.parse(raw) as Partial<AlicizationLearningTaskPayload> | null
+    return {
+      sourceTurnId: typeof candidate?.sourceTurnId === 'string' && candidate.sourceTurnId.trim() ? candidate.sourceTurnId.trim() : null,
+      decisionTraceId: typeof candidate?.decisionTraceId === 'string' && candidate.decisionTraceId.trim() ? candidate.decisionTraceId.trim() : null,
+      sourceSessionId: typeof candidate?.sourceSessionId === 'string' && candidate.sourceSessionId.trim() ? candidate.sourceSessionId.trim() : null,
+      action: candidate?.action === 'record' || candidate?.action === 'reflect' || candidate?.action === 'verify' || candidate?.action === 'revise' || candidate?.action === 'internalize'
+        ? candidate.action
+        : 'record',
+      reason: typeof candidate?.reason === 'string' && candidate.reason.trim() ? candidate.reason.trim().slice(0, 280) : null,
+      focuses: Array.isArray(candidate?.focuses) ? candidate.focuses.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
+      dominantTrajectory: typeof candidate?.dominantTrajectory === 'string' && candidate.dominantTrajectory.trim() ? candidate.dominantTrajectory.trim().slice(0, 220) : null,
+      sourceSignals: Array.isArray(candidate?.sourceSignals) ? candidate.sourceSignals.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 12) : [],
+      learningReadiness: Number.isFinite(Number(candidate?.learningReadiness)) ? Math.max(0, Math.min(1, Number(candidate?.learningReadiness))) : 0,
+      contradictionPressure: Number.isFinite(Number(candidate?.contradictionPressure)) ? Math.max(0, Math.min(1, Number(candidate?.contradictionPressure))) : 0,
+      revisionPressure: Number.isFinite(Number(candidate?.revisionPressure)) ? Math.max(0, Math.min(1, Number(candidate?.revisionPressure))) : 0,
+      autobiographicalStability: Number.isFinite(Number(candidate?.autobiographicalStability)) ? Math.max(0, Math.min(1, Number(candidate?.autobiographicalStability))) : 0,
+      supportingFactIds: Array.isArray(candidate?.supportingFactIds) ? candidate.supportingFactIds.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 24) : [],
+      supportingReflectionIds: Array.isArray(candidate?.supportingReflectionIds) ? candidate.supportingReflectionIds.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 24) : [],
+      supportingOutcomeIds: Array.isArray(candidate?.supportingOutcomeIds) ? candidate.supportingOutcomeIds.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 24) : [],
+      supersedeTargets: Array.isArray(candidate?.supersedeTargets) ? candidate.supersedeTargets.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 24) : [],
+      conflictTargets: Array.isArray(candidate?.conflictTargets) ? candidate.conflictTargets.filter(item => typeof item === 'string').map(item => item.trim()).filter(Boolean).slice(0, 24) : [],
+    }
+  }
+  catch {
+    return {
+      sourceTurnId: null,
+      decisionTraceId: null,
+      sourceSessionId: null,
+      action: 'record',
+      reason: null,
+      focuses: [],
+      dominantTrajectory: null,
+      sourceSignals: [],
+      learningReadiness: 0,
+      contradictionPressure: 0,
+      revisionPressure: 0,
+      autobiographicalStability: 0,
+      supportingFactIds: [],
+      supportingReflectionIds: [],
+      supportingOutcomeIds: [],
+      supersedeTargets: [],
+      conflictTargets: [],
+    }
+  }
+}
+
+function mapLearningTaskRow(row: DbLearningTaskRow): AlicizationLearningTaskRecord {
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    taskId: row.task_id,
+    status: row.status,
+    triggerAt: row.trigger_at,
+    action: row.action,
+    message: row.message,
+    payload: parseLearningTaskPayload(row.payload_json),
+    attemptCount: Math.max(0, row.attempt_count),
+    maxAttempts: Math.max(1, row.max_attempts),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    claimedAt: row.claimed_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
+    blockedAt: row.blocked_at,
+    cancelledAt: row.cancelled_at,
+    downgradedAt: row.downgraded_at,
+    reopenedAt: row.reopened_at,
+    nextRetryAt: row.next_retry_at,
+    sourceTurnId: row.source_turn_id,
+    resultSummary: row.result_summary,
+    failureKind: row.failure_kind,
+    lastError: row.last_error,
+    firedTurnId: row.fired_turn_id,
+  }
+}
+
 function createAbortError(reason?: unknown) {
   if (reason instanceof DOMException && reason.name === 'AbortError')
     return reason
@@ -1244,6 +1356,48 @@ export interface AlicizationDbService {
   completeScheduledTask: (taskId: string, firedTurnId: string, completedAt?: number) => Promise<void>
   failScheduledTask: (taskId: string, error: string, completedAt?: number) => Promise<void>
   listPendingScheduledTasks: (limit?: number) => Promise<AlicizationScheduledTaskRecord[]>
+  insertLearningTask: (input: {
+    cardId: string
+    taskId: string
+    triggerAt: number
+    action: AlicizationLearningAction
+    message: string
+    payload: AlicizationLearningTaskPayload
+    maxAttempts?: number
+  }) => Promise<AlicizationLearningTaskRecord>
+  claimDueLearningTasks: (cardId: string, nowMs: number, limit: number) => Promise<AlicizationLearningTaskRecord[]>
+  startLearningTask: (taskId: string, startedAt?: number) => Promise<void>
+  blockLearningTask: (taskId: string, input: {
+    reason: string
+    resultSummary?: string | null
+    failureKind?: AlicizationLearningTaskFailureKind | null
+    nextRetryAt?: number | null
+  }, updatedAt?: number) => Promise<void>
+  completeLearningTask: (taskId: string, input: {
+    firedTurnId?: string | null
+    resultSummary?: string | null
+  }, completedAt?: number) => Promise<void>
+  failLearningTask: (taskId: string, input: {
+    error: string
+    failureKind: AlicizationLearningTaskFailureKind
+    nextRetryAt?: number | null
+  }, updatedAt?: number) => Promise<void>
+  reopenLearningTask: (taskId: string, input?: {
+    reason?: string | null
+    triggerAt?: number | null
+  }, updatedAt?: number) => Promise<void>
+  downgradeLearningTask: (taskId: string, input?: {
+    reason?: string | null
+  }, updatedAt?: number) => Promise<void>
+  cancelLearningTask: (taskId: string, input?: {
+    reason?: string | null
+  }, updatedAt?: number) => Promise<void>
+  listLearningTasks: (input: {
+    cardId: string
+    limit?: number
+    statuses?: AlicizationLearningTaskStatus[]
+  }) => Promise<AlicizationLearningTaskRecord[]>
+  getLatestLearningExecutionState: (cardId: string) => Promise<AlicizationLearningExecutionStateSnapshot | null>
   getJournalMode: () => Promise<string>
 }
 
@@ -1796,6 +1950,39 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_status_trigger_at ON scheduled_tasks(status, trigger_at)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_task_id ON scheduled_tasks(task_id)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS learning_tasks (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        task_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        trigger_at INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        message TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER NOT NULL DEFAULT 3,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        claimed_at INTEGER,
+        started_at INTEGER,
+        completed_at INTEGER,
+        blocked_at INTEGER,
+        cancelled_at INTEGER,
+        downgraded_at INTEGER,
+        reopened_at INTEGER,
+        next_retry_at INTEGER,
+        source_turn_id TEXT,
+        result_summary TEXT,
+        failure_kind TEXT,
+        last_error TEXT,
+        fired_turn_id TEXT
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_learning_tasks_card_status_trigger_at ON learning_tasks(card_id, status, trigger_at)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_learning_tasks_card_updated_at ON learning_tasks(card_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_learning_tasks_task_id ON learning_tasks(task_id)')
   }
 
   async function upsertMeta(key: string, value: string) {
@@ -3314,6 +3501,7 @@ export async function setupAlicizationDb(
       await run(database, 'DELETE FROM executor_sessions')
       await run(database, 'DELETE FROM executor_events')
       await run(database, 'DELETE FROM scheduled_tasks')
+      await run(database, 'DELETE FROM learning_tasks')
       await run(database, 'DELETE FROM alicization_meta WHERE key LIKE ?', ['mind-head:%'])
     }))
   }
@@ -3505,6 +3693,412 @@ export async function setupAlicizationDb(
       [safeLimit],
     )
     return rows.map(mapScheduledTaskRow)
+  }
+
+  async function insertLearningTask(input: {
+    cardId: string
+    taskId: string
+    triggerAt: number
+    action: AlicizationLearningAction
+    message: string
+    payload: AlicizationLearningTaskPayload
+    maxAttempts?: number
+  }) {
+    const cardId = input.cardId.trim()
+    const taskId = input.taskId.trim()
+    const triggerAt = Math.max(0, Math.floor(input.triggerAt))
+    const message = input.message.trim()
+    if (!cardId)
+      throw new Error('cardId is required')
+    if (!taskId)
+      throw new Error('taskId is required')
+    if (!message)
+      throw new Error('message is required')
+
+    const id = randomUUID()
+    const createdAt = now()
+    const updatedAt = createdAt
+    const maxAttempts = Math.max(1, Math.min(8, Math.floor(input.maxAttempts ?? 3)))
+    const payloadJson = JSON.stringify(input.payload)
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT INTO learning_tasks (
+          id,
+          card_id,
+          task_id,
+          status,
+          trigger_at,
+          action,
+          message,
+          payload_json,
+          attempt_count,
+          max_attempts,
+          created_at,
+          updated_at,
+          source_turn_id
+        ) VALUES (?, ?, ?, 'scheduled', ?, ?, ?, ?, 0, ?, ?, ?, ?)
+        `,
+        [
+          id,
+          cardId,
+          taskId,
+          triggerAt,
+          input.action,
+          message,
+          payloadJson,
+          maxAttempts,
+          createdAt,
+          updatedAt,
+          input.payload.sourceTurnId,
+        ],
+      )
+    })
+
+    return {
+      id,
+      cardId,
+      taskId,
+      status: 'scheduled',
+      triggerAt,
+      action: input.action,
+      message,
+      payload: parseLearningTaskPayload(payloadJson),
+      attemptCount: 0,
+      maxAttempts,
+      createdAt,
+      updatedAt,
+      claimedAt: null,
+      startedAt: null,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: input.payload.sourceTurnId,
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    } satisfies AlicizationLearningTaskRecord
+  }
+
+  async function claimDueLearningTasks(cardIdRaw: string, nowMs: number, limit: number) {
+    const cardId = cardIdRaw.trim()
+    if (!cardId)
+      throw new Error('cardId is required')
+    const safeNow = Number.isFinite(nowMs) ? Math.floor(nowMs) : now()
+    const safeLimit = Math.max(1, Math.min(64, Math.floor(limit)))
+    return await enqueueWrite(async () => await runInTransaction(database, async () => {
+      const dueRows = await all<DbLearningTaskRow>(
+        database,
+        `
+        SELECT *
+        FROM learning_tasks
+        WHERE card_id = ?
+          AND status IN ('scheduled', 'reopened')
+          AND trigger_at <= ?
+        ORDER BY trigger_at ASC
+        LIMIT ?
+        `,
+        [cardId, safeNow, safeLimit],
+      )
+      const claimed: AlicizationLearningTaskRecord[] = []
+      for (const row of dueRows) {
+        const claimedAt = now()
+        const result = await run(
+          database,
+          `
+          UPDATE learning_tasks
+          SET status = 'claimed',
+              claimed_at = ?,
+              updated_at = ?,
+              last_error = NULL,
+              failure_kind = NULL
+          WHERE id = ?
+            AND status IN ('scheduled', 'reopened')
+          `,
+          [claimedAt, claimedAt, row.id],
+        ) as SqliteStatementResult
+        if (result.changes < 1)
+          continue
+        claimed.push(mapLearningTaskRow({
+          ...row,
+          status: 'claimed',
+          claimed_at: claimedAt,
+          updated_at: claimedAt,
+          last_error: null,
+          failure_kind: null,
+        }))
+      }
+      return claimed
+    }))
+  }
+
+  async function startLearningTask(taskIdRaw: string, startedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const startedAt = Number.isFinite(startedAtRaw) ? Math.max(0, Math.floor(Number(startedAtRaw))) : now()
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'running',
+            started_at = ?,
+            updated_at = ?,
+            attempt_count = attempt_count + 1
+        WHERE task_id = ?
+          AND status = 'claimed'
+        `,
+        [startedAt, startedAt, taskId],
+      )
+    })
+  }
+
+  async function blockLearningTask(taskIdRaw: string, input: {
+    reason: string
+    resultSummary?: string | null
+    failureKind?: AlicizationLearningTaskFailureKind | null
+    nextRetryAt?: number | null
+  }, updatedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
+    const reason = input.reason.trim() || 'blocked'
+    const resultSummary = input.resultSummary?.trim() || null
+    const nextRetryAt = Number.isFinite(input.nextRetryAt) ? Math.max(0, Math.floor(Number(input.nextRetryAt))) : null
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'blocked',
+            blocked_at = ?,
+            updated_at = ?,
+            next_retry_at = ?,
+            failure_kind = ?,
+            last_error = ?,
+            result_summary = ?
+        WHERE task_id = ?
+        `,
+        [updatedAt, updatedAt, nextRetryAt, input.failureKind ?? null, reason, resultSummary, taskId],
+      )
+    })
+  }
+
+  async function completeLearningTask(taskIdRaw: string, input: {
+    firedTurnId?: string | null
+    resultSummary?: string | null
+  }, completedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const completedAt = Number.isFinite(completedAtRaw) ? Math.max(0, Math.floor(Number(completedAtRaw))) : now()
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'completed',
+            completed_at = ?,
+            updated_at = ?,
+            fired_turn_id = ?,
+            result_summary = ?,
+            last_error = NULL,
+            failure_kind = NULL,
+            next_retry_at = NULL
+        WHERE task_id = ?
+        `,
+        [completedAt, completedAt, input.firedTurnId?.trim() || null, input.resultSummary?.trim() || null, taskId],
+      )
+    })
+  }
+
+  async function failLearningTask(taskIdRaw: string, input: {
+    error: string
+    failureKind: AlicizationLearningTaskFailureKind
+    nextRetryAt?: number | null
+  }, updatedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
+    const error = input.error.trim() || 'unknown learning execution failure'
+    const nextRetryAt = Number.isFinite(input.nextRetryAt) ? Math.max(0, Math.floor(Number(input.nextRetryAt))) : null
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'failed',
+            completed_at = ?,
+            updated_at = ?,
+            next_retry_at = ?,
+            failure_kind = ?,
+            last_error = ?
+        WHERE task_id = ?
+        `,
+        [updatedAt, updatedAt, nextRetryAt, input.failureKind, error, taskId],
+      )
+    })
+  }
+
+  async function reopenLearningTask(taskIdRaw: string, input?: {
+    reason?: string | null
+    triggerAt?: number | null
+  }, updatedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
+    const triggerAt = Number.isFinite(input?.triggerAt) ? Math.max(0, Math.floor(Number(input?.triggerAt))) : updatedAt
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'reopened',
+            reopened_at = ?,
+            updated_at = ?,
+            trigger_at = ?,
+            claimed_at = NULL,
+            started_at = NULL,
+            completed_at = NULL,
+            blocked_at = NULL,
+            last_error = ?,
+            failure_kind = NULL
+        WHERE task_id = ?
+        `,
+        [updatedAt, updatedAt, triggerAt, input?.reason?.trim() || null, taskId],
+      )
+    })
+  }
+
+  async function downgradeLearningTask(taskIdRaw: string, input?: {
+    reason?: string | null
+  }, updatedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'downgraded',
+            downgraded_at = ?,
+            updated_at = ?,
+            last_error = ?
+        WHERE task_id = ?
+        `,
+        [updatedAt, updatedAt, input?.reason?.trim() || null, taskId],
+      )
+    })
+  }
+
+  async function cancelLearningTask(taskIdRaw: string, input?: {
+    reason?: string | null
+  }, updatedAtRaw?: number) {
+    const taskId = taskIdRaw.trim()
+    if (!taskId)
+      throw new Error('taskId is required')
+    const updatedAt = Number.isFinite(updatedAtRaw) ? Math.max(0, Math.floor(Number(updatedAtRaw))) : now()
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        UPDATE learning_tasks
+        SET status = 'cancelled',
+            cancelled_at = ?,
+            updated_at = ?,
+            last_error = ?
+        WHERE task_id = ?
+        `,
+        [updatedAt, updatedAt, input?.reason?.trim() || null, taskId],
+      )
+    })
+  }
+
+  async function listLearningTasks(input: {
+    cardId: string
+    limit?: number
+    statuses?: AlicizationLearningTaskStatus[]
+  }) {
+    const cardId = input.cardId.trim()
+    if (!cardId)
+      throw new Error('cardId is required')
+    const safeLimit = Math.max(1, Math.min(128, Math.floor(input.limit ?? 24)))
+    const statuses = (input.statuses ?? []).filter(Boolean)
+    const where = ['card_id = ?']
+    const params: unknown[] = [cardId]
+    if (statuses.length > 0) {
+      where.push(`status IN (${statuses.map(() => '?').join(', ')})`)
+      params.push(...statuses)
+    }
+    params.push(safeLimit)
+    const rows = await all<DbLearningTaskRow>(
+      database,
+      `
+      SELECT *
+      FROM learning_tasks
+      WHERE ${where.join(' AND ')}
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT ?
+      `,
+      params,
+    )
+    return rows.map(mapLearningTaskRow)
+  }
+
+  async function getLatestLearningExecutionState(cardIdRaw: string) {
+    const cardId = cardIdRaw.trim()
+    if (!cardId)
+      throw new Error('cardId is required')
+    const tasks = await listLearningTasks({
+      cardId,
+      limit: 12,
+    }).catch(() => [])
+    if (tasks.length === 0)
+      return null
+
+    const current = tasks.find(task => task.status === 'running' || task.status === 'claimed' || task.status === 'blocked' || task.status === 'scheduled' || task.status === 'reopened') ?? tasks[0]
+    const lastCompleted = tasks.find(task => task.status === 'completed') ?? null
+    const lastFailure = tasks.find(task => task.status === 'failed' || task.status === 'blocked' || task.status === 'downgraded') ?? null
+    const action = current?.action ?? null
+    return {
+      currentTaskId: current?.taskId ?? null,
+      currentStatus: current?.status ?? null,
+      currentAttemptCount: current?.attemptCount ?? 0,
+      currentMaxAttempts: current?.maxAttempts ?? 0,
+      currentNextRetryAt: current?.nextRetryAt ?? null,
+      currentBlockedReason: current?.status === 'blocked' ? current.lastError : null,
+      currentFailureKind: current?.failureKind ?? null,
+      nextLearningAction: action ?? null,
+      shouldRecord: action === 'record',
+      shouldReflect: action === 'reflect',
+      shouldVerify: action === 'verify',
+      shouldRevise: action === 'revise',
+      shouldInternalize: action === 'internalize',
+      activeLearningFocuses: current?.payload.focuses ?? [],
+      queuedTaskCount: tasks.filter(task => task.status === 'scheduled' || task.status === 'reopened' || task.status === 'claimed').length,
+      runningTaskCount: tasks.filter(task => task.status === 'running').length,
+      blockedTaskCount: tasks.filter(task => task.status === 'blocked').length,
+      recentTaskIds: tasks.map(task => task.taskId).slice(0, 6),
+      lastCompletedTaskId: lastCompleted?.taskId ?? null,
+      lastCompletedAction: lastCompleted?.action ?? null,
+      lastCompletedSummary: lastCompleted?.resultSummary ?? null,
+      lastFailureTaskId: lastFailure?.taskId ?? null,
+      lastFailureKind: lastFailure?.failureKind ?? null,
+      lastFailureReason: lastFailure?.lastError ?? null,
+      lastFailureNextRetryAt: lastFailure?.nextRetryAt ?? null,
+      updatedAt: current?.updatedAt ?? lastCompleted?.updatedAt ?? lastFailure?.updatedAt ?? null,
+    } satisfies AlicizationLearningExecutionStateSnapshot
   }
 
   async function upsertMemoryFacts(facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) {
@@ -4285,6 +4879,7 @@ export async function setupAlicizationDb(
             cacheHitRatio: next.retrievalHealth.cacheHitRatio,
             prewarmHitRatio: next.retrievalHealth.prewarmHitRatio,
             budgetClassCounts: next.retrievalHealth.budgetClassCounts,
+            budgetLatencyTelemetry: next.retrievalHealth.budgetLatencyTelemetry,
             hotKeyStats: next.retrievalHealth.hotKeyStats,
             recallHitRate: next.retrievalHealth.recallHitRate,
             recallMissRate: next.retrievalHealth.recallMissRate,
@@ -4384,6 +4979,17 @@ export async function setupAlicizationDb(
     completeScheduledTask,
     failScheduledTask,
     listPendingScheduledTasks,
+    insertLearningTask,
+    claimDueLearningTasks,
+    startLearningTask,
+    blockLearningTask,
+    completeLearningTask,
+    failLearningTask,
+    reopenLearningTask,
+    downgradeLearningTask,
+    cancelLearningTask,
+    listLearningTasks,
+    getLatestLearningExecutionState,
     getJournalMode,
   }
 }

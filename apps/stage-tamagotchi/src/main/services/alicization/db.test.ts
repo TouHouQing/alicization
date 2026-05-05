@@ -172,6 +172,33 @@ const scheduledTasks = new Map<string, {
   fired_turn_id: string | null
   last_error: string | null
 }>()
+const learningTasks = new Map<string, {
+  id: string
+  card_id: string
+  task_id: string
+  status: string
+  trigger_at: number
+  action: string
+  message: string
+  payload_json: string
+  attempt_count: number
+  max_attempts: number
+  created_at: number
+  updated_at: number
+  claimed_at: number | null
+  started_at: number | null
+  completed_at: number | null
+  blocked_at: number | null
+  cancelled_at: number | null
+  downgraded_at: number | null
+  reopened_at: number | null
+  next_retry_at: number | null
+  source_turn_id: string | null
+  result_summary: string | null
+  failure_kind: string | null
+  last_error: string | null
+  fired_turn_id: string | null
+}>()
 const memoryFacts = new Map<string, {
   id: string
   subject: string
@@ -732,6 +759,37 @@ class FakeSqliteDatabase {
         last_error: null,
       })
     }
+    else if (sql.includes('INSERT INTO learning_tasks')) {
+      const [id, cardId, taskId, triggerAt, action, message, payloadJson, maxAttempts, createdAt, updatedAt, sourceTurnId]
+        = actualParams as [string, string, string, number, string, string, string, number, number, number, string | null]
+      learningTasks.set(taskId, {
+        id,
+        card_id: cardId,
+        task_id: taskId,
+        status: 'scheduled',
+        trigger_at: triggerAt,
+        action,
+        message,
+        payload_json: payloadJson,
+        attempt_count: 0,
+        max_attempts: maxAttempts,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        claimed_at: null,
+        started_at: null,
+        completed_at: null,
+        blocked_at: null,
+        cancelled_at: null,
+        downgraded_at: null,
+        reopened_at: null,
+        next_retry_at: null,
+        source_turn_id: sourceTurnId ?? null,
+        result_summary: null,
+        failure_kind: null,
+        last_error: null,
+        fired_turn_id: null,
+      })
+    }
     else if (sql.includes('UPDATE scheduled_tasks') && sql.includes('status = \'running\'')) {
       const [claimedAt, id] = actualParams as [number, string]
       const task = [...scheduledTasks.values()].find(item => item.id === id && item.status === 'pending')
@@ -787,6 +845,129 @@ class FakeSqliteDatabase {
     }
     else if (sql.includes('DELETE FROM scheduled_tasks')) {
       scheduledTasks.clear()
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'claimed\'')) {
+      const [claimedAt, updatedAt, id] = actualParams as [number, number, string]
+      const task = [...learningTasks.values()].find(item => item.id === id && (item.status === 'scheduled' || item.status === 'reopened'))
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'claimed'
+        task.claimed_at = claimedAt
+        task.updated_at = updatedAt
+        task.last_error = null
+        task.failure_kind = null
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'running\'')) {
+      const [startedAt, updatedAt, taskId] = actualParams as [number, number, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'running'
+        task.started_at = startedAt
+        task.updated_at = updatedAt
+        task.attempt_count += 1
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'completed\'')) {
+      const [completedAt, updatedAt, firedTurnId, resultSummary, taskId] = actualParams as [number, number, string | null, string | null, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'completed'
+        task.completed_at = completedAt
+        task.updated_at = updatedAt
+        task.fired_turn_id = firedTurnId ?? null
+        task.result_summary = resultSummary ?? null
+        task.last_error = null
+        task.failure_kind = null
+        task.next_retry_at = null
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'blocked\'')) {
+      const [blockedAt, updatedAt, nextRetryAt, failureKind, lastError, resultSummary, taskId] = actualParams as [number, number, number | null, string | null, string, string | null, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'blocked'
+        task.blocked_at = blockedAt
+        task.updated_at = updatedAt
+        task.next_retry_at = nextRetryAt ?? null
+        task.failure_kind = failureKind ?? null
+        task.last_error = lastError
+        task.result_summary = resultSummary ?? null
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'failed\'')) {
+      const [completedAt, updatedAt, nextRetryAt, failureKind, lastError, taskId] = actualParams as [number, number, number | null, string, string, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'failed'
+        task.completed_at = completedAt
+        task.updated_at = updatedAt
+        task.next_retry_at = nextRetryAt ?? null
+        task.failure_kind = failureKind
+        task.last_error = lastError
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'reopened\'')) {
+      const [reopenedAt, updatedAt, triggerAt, lastError, taskId] = actualParams as [number, number, number, string | null, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'reopened'
+        task.reopened_at = reopenedAt
+        task.updated_at = updatedAt
+        task.trigger_at = triggerAt
+        task.claimed_at = null
+        task.started_at = null
+        task.completed_at = null
+        task.blocked_at = null
+        task.last_error = lastError ?? null
+        task.failure_kind = null
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'downgraded\'')) {
+      const [downgradedAt, updatedAt, lastError, taskId] = actualParams as [number, number, string | null, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'downgraded'
+        task.downgraded_at = downgradedAt
+        task.updated_at = updatedAt
+        task.last_error = lastError ?? null
+      }
+    }
+    else if (sql.includes('UPDATE learning_tasks') && sql.includes('status = \'cancelled\'')) {
+      const [cancelledAt, updatedAt, lastError, taskId] = actualParams as [number, number, string | null, string]
+      const task = learningTasks.get(taskId)
+      if (!task) {
+        changes = 0
+      }
+      else {
+        task.status = 'cancelled'
+        task.cancelled_at = cancelledAt
+        task.updated_at = updatedAt
+        task.last_error = lastError ?? null
+      }
+    }
+    else if (sql.includes('DELETE FROM learning_tasks')) {
+      learningTasks.clear()
     }
     else if (sql.includes('DELETE FROM memory_archive')) {
       if (sql.includes('archived_at < ?')) {
@@ -965,6 +1146,27 @@ class FakeSqliteDatabase {
       const rows = [...scheduledTasks.values()]
         .filter(item => item.status === 'pending')
         .sort((a, b) => a.trigger_at - b.trigger_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM learning_tasks') && _sql.includes(`status IN ('scheduled', 'reopened')`) && _sql.includes('trigger_at <= ?')) {
+      const [cardId, nowMs, limit] = actualParams as [string, number, number]
+      const rows = [...learningTasks.values()]
+        .filter(item => item.card_id === cardId && (item.status === 'scheduled' || item.status === 'reopened') && item.trigger_at <= nowMs)
+        .sort((a, b) => a.trigger_at - b.trigger_at)
+        .slice(0, limit)
+      actualCallback?.(null, rows)
+      return this
+    }
+    if (_sql.includes('FROM learning_tasks') && _sql.includes('ORDER BY updated_at DESC')) {
+      const cardId = String(actualParams[0] ?? '')
+      const limit = Number(actualParams.at(-1) ?? 24)
+      const statusParams = actualParams.slice(1, -1).map(item => String(item))
+      const rows = [...learningTasks.values()]
+        .filter(item => item.card_id === cardId)
+        .filter(item => statusParams.length === 0 || statusParams.includes(item.status))
+        .sort((a, b) => (b.updated_at - a.updated_at) || (b.created_at - a.created_at))
         .slice(0, limit)
       actualCallback?.(null, rows)
       return this
@@ -2937,6 +3139,68 @@ describe('alicization sqlite dao', () => {
     const pending = await db.listPendingScheduledTasks(10)
     expect(pending.map(item => item.taskId)).toContain('task-requeue-1')
     expect(scheduledTasks.get('task-requeue-1')?.status).toBe('pending')
+    await db.close()
+  })
+
+  it('runs learning task lifecycle and projects latest execution state', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    learningTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const nowMs = Date.now()
+    await db.insertLearningTask({
+      cardId: 'default',
+      taskId: 'learning-task-1',
+      triggerAt: nowMs - 1_000,
+      action: 'verify',
+      message: 'learning-action=verify',
+      payload: {
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        sourceSessionId: 'session-1',
+        action: 'verify',
+        reason: 'verify contradiction',
+        focuses: ['resolve-contradictions'],
+        dominantTrajectory: 'Need to verify',
+        sourceSignals: ['Need to verify'],
+        learningReadiness: 0.7,
+        contradictionPressure: 0.6,
+        revisionPressure: 0.4,
+        autobiographicalStability: 0.8,
+        supportingFactIds: ['fact-1'],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: ['fact-1'],
+      },
+    })
+
+    const claimed = await db.claimDueLearningTasks('default', nowMs, 10)
+    expect(claimed).toHaveLength(1)
+    expect(claimed[0]?.status).toBe('claimed')
+
+    await db.startLearningTask('learning-task-1', nowMs)
+    await db.completeLearningTask('learning-task-1', {
+      firedTurnId: 'learning-fired-turn',
+      resultSummary: 'verification finished',
+    }, nowMs + 1_000)
+
+    expect(learningTasks.get('learning-task-1')?.status).toBe('completed')
+
+    const state = await db.getLatestLearningExecutionState('default')
+    expect(state).toEqual(expect.objectContaining({
+      currentTaskId: 'learning-task-1',
+      currentStatus: 'completed',
+      nextLearningAction: 'verify',
+      shouldVerify: true,
+      lastCompletedTaskId: 'learning-task-1',
+      lastCompletedSummary: 'verification finished',
+    }))
     await db.close()
   })
 })

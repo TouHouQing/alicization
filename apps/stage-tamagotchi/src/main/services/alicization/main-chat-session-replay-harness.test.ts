@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildReplayBenchmarkBacklogPack,
+  buildAdversarialHumanlikeMemoryBenchmarkPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
   buildReplayBenchmarkFailingTurnSet,
@@ -1331,6 +1332,7 @@ describe('main chat session replay harness', () => {
             shouldStayInward: false,
             shouldDelayUntilAfterPayoff: true,
             stableCoreOnly: true,
+            suppressionTags: [],
             finalRationale: 'Keep the stable runtime seam and suppress the competing branch.',
           },
           governance: {
@@ -1574,7 +1576,15 @@ describe('main chat session replay harness', () => {
             },
           },
           memoryWrongThreadSuppressed: {
-            conflictVariants: [{ id: 'cluster:old-method', summary: 'The old method may have been superseded.', provenance: 'reconstructed' }],
+            conflictVariants: [
+              { id: 'cluster:old-method', summary: 'The old method may have been superseded.', provenance: 'reconstructed' },
+              {
+                id: 'suppression:self-model-stale',
+                summary: 'A knowledge update era where the older self-story should not surface as settled continuity.',
+                provenance: 'reconstructed',
+                reason: 'Older self-story remained revision-prone, so stale self-model continuity was vetoed before visible surfacing.',
+              },
+            ],
           },
         },
         {
@@ -1729,11 +1739,17 @@ describe('main chat session replay harness', () => {
       version: 'memory-resolution-ledger-v1',
       rejectedCandidates: expect.any(Array),
     }))
+    expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.organicMemoryContext?.memoryDeliberation?.selectedEras[0]?.facet).toBe('self-era')
     expect(pack.find(item => item.turnId === 'turn-real-procedure-carry')?.organicMemoryContext?.memoryDeliberation?.selectedProcedures[0]?.approach).toContain('Patch first')
     expect(pack.find(item => item.turnId === 'turn-real-repair-window')?.organicMemoryContext?.recollectionSpeechPlan?.shouldSurface).toBe(false)
     expect(pack.find(item => item.turnId === 'turn-real-cross-week-migration')?.sampledCategories).toEqual(expect.arrayContaining(['cross-week-task-migration', 'task-migration']))
     expect(pack.find(item => item.turnId === 'turn-real-cross-month-repair')?.sampledCategories).toEqual(expect.arrayContaining(['cross-month-repair', 'repair-arc']))
     expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.sampledCategories).toEqual(expect.arrayContaining(['knowledge-update-conflict', 'long-horizon']))
+    expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.organicMemoryContext?.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'suppression:self-model-stale',
+      }),
+    ]))
   })
 
   it('rebuilds an executable backlog replay pack from dataset backlog entries', () => {
@@ -2036,6 +2052,14 @@ describe('main chat session replay harness', () => {
       'growth-skill-internalization',
       'growth-self-revision',
     ])
+    expect(buildAdversarialHumanlikeMemoryBenchmarkPack().map(item => item.turnId)).toEqual([
+      'adversarial-similar-task-different-conclusion',
+      'adversarial-relationship-era-repair-confusion',
+      'adversarial-stale-self-model-story',
+      'adversarial-old-hurt-after-repair',
+      'adversarial-afterglow-vs-longterm-relationship',
+    ])
+    expect(buildAdversarialHumanlikeMemoryBenchmarkPack().every(item => item.tracePointer?.packId === 'adversarial-humanlike-memory-v2')).toBe(true)
 
     const standards = evaluateReplayBenchmarkStandards({
       quality: [
@@ -2062,7 +2086,15 @@ describe('main chat session replay harness', () => {
           hostUnderstandingGrowth: 'pass',
           skillInternalizationGrowth: 'pass',
           selfRevisionGrowth: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
           dialogueRhythmStability: 'pass',
+          emptyCareRate: 'pass',
+          repairMechanicalRate: 'pass',
+          warmthTemplateRisk: 'pass',
+          relationshipDistanceJumpRate: 'pass',
+          afterglowFalseCarryRate: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -2088,7 +2120,15 @@ describe('main chat session replay harness', () => {
           hostUnderstandingGrowth: 'pass',
           skillInternalizationGrowth: 'pass',
           selfRevisionGrowth: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
           dialogueRhythmStability: 'pass',
+          emptyCareRate: 'pass',
+          repairMechanicalRate: 'pass',
+          warmthTemplateRisk: 'pass',
+          relationshipDistanceJumpRate: 'pass',
+          afterglowFalseCarryRate: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -2118,7 +2158,15 @@ describe('main chat session replay harness', () => {
           hostUnderstandingGrowth: 'pass',
           skillInternalizationGrowth: 'pass',
           selfRevisionGrowth: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
           dialogueRhythmStability: 'pass',
+          emptyCareRate: 'pass',
+          repairMechanicalRate: 'pass',
+          warmthTemplateRisk: 'pass',
+          relationshipDistanceJumpRate: 'pass',
+          afterglowFalseCarryRate: 'pass',
           templateLeakage: 'pass',
         },
         {
@@ -2144,7 +2192,15 @@ describe('main chat session replay harness', () => {
           hostUnderstandingGrowth: 'pass',
           skillInternalizationGrowth: 'pass',
           selfRevisionGrowth: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
           dialogueRhythmStability: 'pass',
+          emptyCareRate: 'pass',
+          repairMechanicalRate: 'pass',
+          warmthTemplateRisk: 'pass',
+          relationshipDistanceJumpRate: 'pass',
+          afterglowFalseCarryRate: 'pass',
           templateLeakage: 'pass',
         },
       ],
@@ -2169,7 +2225,15 @@ describe('main chat session replay harness', () => {
       hostUnderstandingGrowth: 'pass',
       skillInternalizationGrowth: 'pass',
       selfRevisionGrowth: 'pass',
+      learningRevisionDiscipline: 'pass',
+      domainInternalizationDiscipline: 'pass',
+      worldModelValidationDiscipline: 'pass',
       dialogueRhythmStability: 'pass',
+      emptyCareRate: 'pass',
+      repairMechanicalRate: 'pass',
+      warmthTemplateRisk: 'pass',
+      relationshipDistanceJumpRate: 'pass',
+      afterglowFalseCarryRate: 'pass',
       templateLeakage: 'pass',
     })
     expect(gate.passed).toBe(false)
@@ -2202,7 +2266,15 @@ describe('main chat session replay harness', () => {
           hostUnderstandingGrowth: 'not-applicable',
           skillInternalizationGrowth: 'not-applicable',
           selfRevisionGrowth: 'not-applicable',
+          learningRevisionDiscipline: 'not-applicable',
+          domainInternalizationDiscipline: 'not-applicable',
+          worldModelValidationDiscipline: 'not-applicable',
           dialogueRhythmStability: 'not-applicable',
+          emptyCareRate: 'not-applicable',
+          repairMechanicalRate: 'not-applicable',
+          warmthTemplateRisk: 'not-applicable',
+          relationshipDistanceJumpRate: 'not-applicable',
+          afterglowFalseCarryRate: 'not-applicable',
           templateLeakage: 'fail',
         },
       ],
@@ -2242,10 +2314,20 @@ describe('main chat session replay harness', () => {
         recallHitRate: 0,
         recallMissRate: 0,
         wrongThreadRate: 0,
+        suppressionHitRate: 0,
+        wrongThreadPreventedCount: 0,
+        falsePositiveSuppressionRate: 0,
+        staleSelfModelVetoRate: 0,
+        relationshipEraConfusionRate: 0,
         reconstructionErrorRate: 0,
         stableCoreOnlyRate: 0,
         memorySurfaceViolationRate: 0,
         templateLeakageFailCount: 1,
+        emptyCareRate: 0,
+        repairMechanicalRate: 0,
+        warmthTemplateRisk: 0,
+        relationshipDistanceJumpRate: 0,
+        afterglowFalseCarryRate: 0,
         mindParticipation: 0,
         memoryParticipation: 0,
         personalityParticipation: 0,
@@ -2514,6 +2596,48 @@ describe('main chat session replay harness', () => {
     expect(quality.selfRevisionGrowth).toBe('pass')
   })
 
+  it('scores per-turn learning evidence discipline from learning-executed trace payloads', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-learning-evidence',
+      userText: '你是不是已经在修正旧理解，并且把新的关系分寸和 world knowledge 分开处理了？',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [],
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: null,
+        } as any,
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          derivedMindStateBundle: {
+            version: 'derived-mind-state-bundle-v1',
+            source: 'main-runtime',
+            producedAt: 1,
+            summary: 'learning bundle',
+          } as any,
+        } as any,
+        trace: {
+          learningExecuted: {
+            taskId: 'learning:relationship:verify',
+            action: 'verify',
+            domain: 'relationship',
+            resultSummary: 'Verification reopened relationship target.',
+            focuses: ['resolve-contradictions'],
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.learningRevisionDiscipline).toBe('pass')
+    expect(quality.domainInternalizationDiscipline).toBe('not-applicable')
+    expect(quality.worldModelValidationDiscipline).toBe('not-applicable')
+  })
+
   it('scores dialogue rhythm stability when repair timing, distance, and warmth stay coherent instead of jumping mechanically', () => {
     const quality = evaluateReplayMemoryQuality({
       turnId: 'turn-rhythm-stability',
@@ -2664,5 +2788,166 @@ describe('main chat session replay harness', () => {
     })
 
     expect(quality.dialogueRhythmStability).toBe('pass')
+  })
+
+  it('scores affective residue and relationship cadence dimensions without rewarding visible care templates', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-affective-residue-benchmark',
+      userText: '别一下子太近，也别用空泛安抚，刚刚那种余温和修复节律先慢一点。',
+      prepared: {
+        governance: {
+          mustDo: [],
+        },
+        messages: [{
+          role: 'system',
+          content: 'repair before closeness | warmth should not outrun grounding | do not crowd the host',
+        }],
+        organicMemoryContext: {
+          hostAttitude: 'warm',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          affectiveResidue: {
+            version: 'affective-residue-memory-v1',
+            updatedAt: 10,
+            residues: [],
+            dominantResidueKind: 'afterglow',
+            afterglowPressure: 0.58,
+            repairPressure: 0.62,
+            burdenPressure: 0.52,
+            trustPressure: 0.44,
+            restProtectivePressure: 0.22,
+            relationshipCadence: {
+              cadenceMode: 'cooldown',
+              distancePosture: 'measured-room',
+              companionshipDensity: 0.2,
+              repairRecovery: 0.54,
+              overreachRisk: 0.42,
+              fatigueGuard: 0.22,
+              afterglowCarry: 0.42,
+              shouldDelayWarmth: true,
+              shouldProtectRest: false,
+              reasonTags: ['residue:afterglow'],
+              summary: 'Afterglow is present, but repair should still lead timing.',
+            },
+            sourceSignals: ['repair before closeness'],
+            summary: 'Afterglow residue is present, but timing should stay measured.',
+          },
+          derivedMindStateBundle: {
+            version: 'derived-mind-state-bundle-v1',
+            source: 'main-runtime',
+            producedAt: 10,
+            affectiveResidue: {
+              version: 'affective-residue-memory-v1',
+              updatedAt: 10,
+              residues: [],
+              dominantResidueKind: 'afterglow',
+              afterglowPressure: 0.58,
+              repairPressure: 0.62,
+              burdenPressure: 0.52,
+              trustPressure: 0.44,
+              restProtectivePressure: 0.22,
+              relationshipCadence: {
+                cadenceMode: 'cooldown',
+                distancePosture: 'measured-room',
+                companionshipDensity: 0.2,
+                repairRecovery: 0.54,
+                overreachRisk: 0.42,
+                fatigueGuard: 0.22,
+                afterglowCarry: 0.42,
+                shouldDelayWarmth: true,
+                shouldProtectRest: false,
+                reasonTags: ['residue:afterglow'],
+                summary: 'Afterglow is present, but repair should still lead timing.',
+              },
+              sourceSignals: ['repair before closeness'],
+              summary: 'Afterglow residue is present, but timing should stay measured.',
+            },
+            summary: 'source=main-runtime | residue=afterglow',
+          } as any,
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 10,
+            evolutionMomentum: 0.42,
+            learningReadiness: 0.5,
+            contradictionPressure: 0.08,
+            revisionPressure: 0.26,
+            autobiographicalStability: 0.76,
+            dominantTrajectory: 'Warmth should not outrun grounding.',
+            relationshipDoctrine: 'Repair the seam before warmth widens.',
+            latestInflection: 'Warmth should not outrun grounding.',
+            burdenLine: 'The host is easier to crowd right now.',
+            trustMeaning: 'Trust rises when pressure stays low.',
+            nextLearningAction: 'reflect',
+            nextLearningReason: 'Keep consolidating repair rhythm.',
+            shouldRecord: false,
+            shouldReflect: true,
+            shouldVerify: false,
+            shouldRevise: false,
+            shouldInternalize: false,
+            activeLearningFocuses: ['relationship-repair-rhythm'],
+            sourceSignals: ['repair before closeness'],
+            summary: 'Warmth should not outrun grounding.',
+          },
+        } as any,
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            memory: {
+              affectiveResidue: {
+                version: 'affective-residue-memory-v1',
+                updatedAt: 10,
+                residues: [],
+                dominantResidueKind: 'afterglow',
+                afterglowPressure: 0.58,
+                repairPressure: 0.62,
+                burdenPressure: 0.52,
+                trustPressure: 0.44,
+                restProtectivePressure: 0.22,
+                relationshipCadence: {
+                  cadenceMode: 'cooldown',
+                  distancePosture: 'measured-room',
+                  companionshipDensity: 0.2,
+                  repairRecovery: 0.54,
+                  overreachRisk: 0.42,
+                  fatigueGuard: 0.22,
+                  afterglowCarry: 0.42,
+                  shouldDelayWarmth: true,
+                  shouldProtectRest: false,
+                  reasonTags: ['residue:afterglow'],
+                  summary: 'Afterglow is present, but repair should still lead timing.',
+                },
+                sourceSignals: ['repair before closeness'],
+                summary: 'Afterglow residue is present, but timing should stay measured.',
+              },
+            },
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [],
+                openingClaim: '',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: '',
+                mustDo: [],
+              },
+              replyDeliberation: {
+                mustAvoid: ['Do not let warmth outrun the repair line.'],
+                whyThisReplyNow: 'Keep the repair seam steady before widening warmth.',
+              },
+              currentConsciousFrame: {
+                shouldWithholdSpecificity: true,
+              },
+            },
+          },
+        } as any,
+      } as any,
+    })
+
+    expect(quality.emptyCareRate).toBe('pass')
+    expect(quality.repairMechanicalRate).toBe('pass')
+    expect(quality.warmthTemplateRisk).toBe('pass')
+    expect(quality.relationshipDistanceJumpRate).toBe('pass')
+    expect(quality.afterglowFalseCarryRate).toBe('pass')
   })
 })

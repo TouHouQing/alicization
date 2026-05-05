@@ -355,6 +355,12 @@ describe('alicization mind replay store', () => {
           reconstructionFrequency: 0,
           reconstructedCount: 0,
           templateLeakageFailCount: 2,
+          learningTaskCompletionCount: 4,
+          learningTaskFailureCount: 1,
+          learningRelationshipReviseCount: 2,
+          learningSelfModelReviseCount: 1,
+          learningWorldModelValidationCount: 1,
+          learningWorldModelFalseInternalizationCount: 0,
         },
       },
       telemetryPersisted: true,
@@ -423,6 +429,12 @@ describe('alicization mind replay store', () => {
       after: 2,
       patch: 2,
     }))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'learningTaskCompletionCount')).toEqual(expect.objectContaining({
+      patch: 4,
+    }))
+    expect(store.memoryHealthComparisonRows.find(item => item.key === 'learningRelationshipReviseCount')).toEqual(expect.objectContaining({
+      patch: 2,
+    }))
   })
 
   it('filters failing turns by dimension and drills down through decision trace id', async () => {
@@ -460,11 +472,23 @@ describe('alicization mind replay store', () => {
         eventKinds: ['governance-normalized', 'persistence-written'],
         governance: null,
         recallAttribution: null,
-        replyMemoryCoherence: null,
+        learningExecuted: {
+          action: 'verify',
+          domain: 'relationship',
+          resultSummary: 'Verification reopened relationship target.',
+          focuses: ['resolve-contradictions'],
+        },
         persistenceWritten: null,
         dialogueEmitted: null,
         takeoverAudit: null,
         memoryFactsUpserted: null,
+        replyMemoryCoherence: {
+          coherenceState: 'inward-only',
+          whyWithheld: 'Relationship continuity should stay inward until the host has room.',
+          followUpSummary: 'Keep the relation line inward until the host has room for it.',
+          followUpPreferredTiming: 'next-open-window',
+          followUpIntrusionRisk: 'high',
+        },
       },
     ])
     const runReplayBenchmark = vi.fn().mockResolvedValue({
@@ -481,6 +505,9 @@ describe('alicization mind replay store', () => {
         temporalScopeFlexibility: 'pass',
         surfaceRestraint: 'pass',
         relationshipRepairAdaptation: 'pass',
+        learningRevisionDiscipline: 'pass',
+        domainInternalizationDiscipline: 'pass',
+        worldModelValidationDiscipline: 'pass',
         templateLeakage: 'pass',
       },
       gate: {
@@ -504,6 +531,9 @@ describe('alicization mind replay store', () => {
           temporalScopeFlexibility: 'pass',
           surfaceRestraint: 'pass',
           relationshipRepairAdaptation: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
           templateLeakage: 'pass',
         },
       },
@@ -557,12 +587,31 @@ describe('alicization mind replay store', () => {
 
     expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
       turnId: 'turn-failing-1',
+      learningEvidenceSummary: null,
+      replyMemoryCoherenceSummary: null,
       resolutionLedgerSummary: expect.objectContaining({
         dominantClusterSummary: 'Runtime seam cluster',
         rejectedCandidateCount: 1,
       }),
     }))
     await store.drillDownBenchmarkTurn('turn-failing-1')
+    expect(store.traceRecords[0]).toEqual(expect.objectContaining({
+      learningExecuted: expect.objectContaining({
+        action: 'verify',
+        domain: 'relationship',
+      }),
+      replyMemoryCoherence: expect.objectContaining({
+        coherenceState: 'inward-only',
+      }),
+    }))
+    expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
+      replyMemoryCoherenceSummary: expect.objectContaining({
+        coherenceState: 'inward-only',
+        followUpPreferredTiming: 'next-open-window',
+        followUpIntrusionRisk: 'high',
+      }),
+      diagnosisSummary: expect.stringContaining('Relationship learning is still revising this line'),
+    }))
     expect(listMindTurnEvents).toBeCalledWith({
       decisionTraceId: 'mind:failing:1',
       turnId: undefined,
@@ -573,5 +622,346 @@ describe('alicization mind replay store', () => {
         decisionTraceId: 'mind:failing:1',
       }),
     ]))
+  })
+
+  it('uses self-model specific natural-language diagnosis when learning evidence says the self story is still under revision', async () => {
+    const listMindTurnEvents = vi.fn().mockResolvedValue([])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([
+      {
+        decisionTraceId: 'mind:self-model:1',
+        turnId: 'turn-self-model-1',
+        sessionId: 'session-self-model-1',
+        origin: 'user-turn',
+        activeThreadId: 'thread-self-model-1',
+        createdAt: 100,
+        lastUpdatedAt: 140,
+        eventKinds: ['learning-executed', 'reply-memory-coherence'],
+        governance: null,
+        recallAttribution: null,
+        persistenceWritten: null,
+        dialogueEmitted: null,
+        takeoverAudit: null,
+        memoryFactsUpserted: null,
+        learningExecuted: {
+          action: 'revise',
+          domain: 'self-model',
+          resultSummary: 'Revision updated a stale self narrative.',
+          focuses: ['internalize-self-model'],
+        },
+        replyMemoryCoherence: {
+          coherenceState: 'inward-only',
+          whyWithheld: 'The older self-story is still being revised and should not surface as settled continuity yet.',
+          followUpSummary: 'Keep the self line inward until the newer pattern stabilizes.',
+          followUpPreferredTiming: 'next-open-window',
+          followUpIntrusionRisk: 'high',
+        },
+      },
+    ] as any)
+    const runReplayBenchmark = vi.fn().mockResolvedValue({
+      packId: 'sampled-humanlike-memory-v1',
+      ranAt: 123,
+      turnCount: 1,
+      quality: [],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'pass',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        learningRevisionDiscipline: 'fail',
+        domainInternalizationDiscipline: 'pass',
+        worldModelValidationDiscipline: 'pass',
+        templateLeakage: 'pass',
+      },
+      gate: {
+        passed: false,
+        failingKeys: ['learningRevisionDiscipline'],
+        dimensions: [{
+          key: 'learningRevisionDiscipline',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-self-model-1'],
+        }],
+        standards: {
+          eraSelectionQuality: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'pass',
+          replyMemoryCoherence: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          learningRevisionDiscipline: 'fail',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
+          templateLeakage: 'pass',
+        },
+      },
+      telemetryPatch: {
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
+      },
+      telemetryPersisted: true,
+      failingTurnSet: [{
+        turnId: 'turn-self-model-1',
+        userText: '你是不是还在修正自己之前那套说法',
+        failingDimensions: ['learningRevisionDiscipline'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-self-model-1',
+          decisionTraceId: 'mind:self-model:1',
+          sessionId: 'session-self-model-1',
+          activeThreadId: 'thread-self-model-1',
+        },
+        sampledCategories: ['dialogue'],
+      }],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 1,
+        totalCount: 1,
+        persisted: true,
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      runReplayBenchmark,
+      listMindTurnEvents,
+      listMemoryDecisionTraces,
+    }))
+    const store = useAlicizationMindReplayStore()
+    await store.runReplayBenchmark()
+    await store.drillDownBenchmarkTurn('turn-self-model-1')
+
+    expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
+      diagnosisSummary: expect.stringContaining('Self-model learning is still revising'),
+      replyMemoryCoherenceSummary: expect.objectContaining({
+        followUpPreferredTiming: 'next-open-window',
+      }),
+    }))
+    expect(store.selectedBenchmarkTurn?.diagnosisSummary).toContain('next open window')
+  })
+
+  it('prefers explicit suppression-tag diagnosis when stale self-model continuity was vetoed in the resolution ledger', async () => {
+    const listMindTurnEvents = vi.fn().mockResolvedValue([])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([])
+    const runReplayBenchmark = vi.fn().mockResolvedValue({
+      packId: 'sampled-humanlike-memory-v1',
+      ranAt: 123,
+      turnCount: 1,
+      quality: [],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'fail',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        learningRevisionDiscipline: 'pass',
+        domainInternalizationDiscipline: 'pass',
+        worldModelValidationDiscipline: 'pass',
+        templateLeakage: 'pass',
+      },
+      gate: {
+        passed: false,
+        failingKeys: ['wrongThreadSuppression'],
+        dimensions: [{
+          key: 'wrongThreadSuppression',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-self-suppressed-1'],
+        }],
+        standards: {
+          eraSelectionQuality: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'fail',
+          replyMemoryCoherence: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
+          templateLeakage: 'pass',
+        },
+      },
+      telemetryPatch: {
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
+      },
+      telemetryPersisted: true,
+      failingTurnSet: [{
+        turnId: 'turn-self-suppressed-1',
+        userText: '你是不是还在修正以前那套自我理解',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-self-suppressed-1',
+          decisionTraceId: 'mind:self-suppressed:1',
+          sessionId: 'session-self-suppressed-1',
+          activeThreadId: 'thread-self-suppressed-1',
+        },
+        sampledCategories: ['dialogue'],
+        resolutionLedgerSummary: {
+          dominantClusterSummary: null,
+          competingClusterSummary: 'Older self-story remained active.',
+          finalSurfacePolicy: 'internal-only',
+          shouldStayInward: true,
+          shouldDelayUntilAfterPayoff: false,
+          rejectedCandidateCount: 1,
+          suppressionTags: ['self-model-stale'],
+        },
+      }],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 1,
+        totalCount: 1,
+        persisted: true,
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      runReplayBenchmark,
+      listMindTurnEvents,
+      listMemoryDecisionTraces,
+    }))
+    const store = useAlicizationMindReplayStore()
+    await store.runReplayBenchmark()
+
+    expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
+      diagnosisSummary: expect.stringContaining('Older self-model continuity was vetoed'),
+      resolutionLedgerSummary: expect.objectContaining({
+        suppressionTags: ['self-model-stale'],
+      }),
+    }))
+  })
+
+  it('prefers explicit suppression-tag diagnosis when competing relationship eras were vetoed in the resolution ledger', async () => {
+    const listMindTurnEvents = vi.fn().mockResolvedValue([])
+    const listMemoryDecisionTraces = vi.fn().mockResolvedValue([])
+    const runReplayBenchmark = vi.fn().mockResolvedValue({
+      packId: 'sampled-humanlike-memory-v1',
+      ranAt: 123,
+      turnCount: 1,
+      quality: [],
+      standards: {
+        eraSelectionQuality: 'pass',
+        procedureCarryQuality: 'pass',
+        wrongThreadSuppression: 'fail',
+        replyMemoryCoherence: 'pass',
+        implicitRecallQuality: 'pass',
+        temporalScopeFlexibility: 'pass',
+        surfaceRestraint: 'pass',
+        relationshipRepairAdaptation: 'pass',
+        learningRevisionDiscipline: 'pass',
+        domainInternalizationDiscipline: 'pass',
+        worldModelValidationDiscipline: 'pass',
+        templateLeakage: 'pass',
+      },
+      gate: {
+        passed: false,
+        failingKeys: ['wrongThreadSuppression'],
+        dimensions: [{
+          key: 'wrongThreadSuppression',
+          status: 'fail',
+          applicableCount: 1,
+          passedCount: 0,
+          minimumPassingRatio: 0.75,
+          passedRatio: 0,
+          failingTurnIds: ['turn-relationship-suppressed-1'],
+        }],
+        standards: {
+          eraSelectionQuality: 'pass',
+          procedureCarryQuality: 'pass',
+          wrongThreadSuppression: 'fail',
+          replyMemoryCoherence: 'pass',
+          implicitRecallQuality: 'pass',
+          temporalScopeFlexibility: 'pass',
+          surfaceRestraint: 'pass',
+          relationshipRepairAdaptation: 'pass',
+          learningRevisionDiscipline: 'pass',
+          domainInternalizationDiscipline: 'pass',
+          worldModelValidationDiscipline: 'pass',
+          templateLeakage: 'pass',
+        },
+      },
+      telemetryPatch: {
+        retrievalHealth: {
+          semanticLatencyMs: null,
+          graphLatencyMs: null,
+          reconstructionFrequency: 0,
+          reconstructedCount: 0,
+          templateLeakageFailCount: 0,
+        },
+      },
+      telemetryPersisted: true,
+      failingTurnSet: [{
+        turnId: 'turn-relationship-suppressed-1',
+        userText: '不是那次修复后的关系距离',
+        failingDimensions: ['wrongThreadSuppression'],
+        tracePointer: {
+          kind: 'decision-trace',
+          packId: 'sampled-humanlike-memory-v1',
+          turnId: 'turn-relationship-suppressed-1',
+          decisionTraceId: 'mind:relationship-suppressed:1',
+          sessionId: 'session-relationship-suppressed-1',
+          activeThreadId: 'thread-relationship-suppressed-1',
+        },
+        sampledCategories: ['dialogue'],
+        resolutionLedgerSummary: {
+          dominantClusterSummary: null,
+          competingClusterSummary: 'An older repair phase remained too easy to confuse.',
+          finalSurfacePolicy: 'internal-only',
+          shouldStayInward: true,
+          shouldDelayUntilAfterPayoff: false,
+          rejectedCandidateCount: 1,
+          suppressionTags: ['relationship-era-confusion'],
+        },
+      }],
+      datasetFeedback: {
+        backlogKey: 'replay_benchmark_dataset_backlog_v1',
+        appendedCount: 1,
+        totalCount: 1,
+        persisted: true,
+      },
+    })
+
+    setAlicizationBridge(createAlicizationBridgeStub({
+      runReplayBenchmark,
+      listMindTurnEvents,
+      listMemoryDecisionTraces,
+    }))
+    const store = useAlicizationMindReplayStore()
+    await store.runReplayBenchmark()
+
+    expect(store.selectedBenchmarkTurn).toEqual(expect.objectContaining({
+      diagnosisSummary: expect.stringContaining('Competing relationship eras were vetoed'),
+      resolutionLedgerSummary: expect.objectContaining({
+        suppressionTags: ['relationship-era-confusion'],
+      }),
+    }))
   })
 })

@@ -11,6 +11,7 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
     speech: context.recollectionSpeechPlan ?? null,
     recollectionIntent: context.recollectionIntent ?? null,
     knowledgeEvidence: context.knowledgeEvidence ?? null,
+    tuningAdvice: context.memoryTuningAdvice ?? null,
   })
   if (context.hostAttitude) {
     blocks.push([
@@ -34,6 +35,28 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
       'If you reuse them, present them as memory, continuity, or previously learned truth rather than fresh observation.',
       ...context.retrievedFacts.map((fact) => {
         return `- ${fact.subject} ${fact.predicate} ${fact.object} | tier=${fact.memoryTier ?? 'warm'} | confidence=${fact.confidence.toFixed(2)} | source=${fact.source} | provenance=${formatMemoryProvenanceLabel(fact.provenance ?? 'remembered')}`
+      }),
+    ].join('\n'))
+  }
+
+  if ((context.claimEvidenceGraphs ?? []).length > 0) {
+    blocks.push([
+      '[ALICIZATION_CLAIM_EVIDENCE_GRAPH]',
+      'These claim graphs describe current belief, support, contradiction, supersession, and revalidation pressure.',
+      'Use them as truth discipline for memory and learning. Do not turn them into visible templates.',
+      ...(context.claimEvidenceGraphs ?? []).slice(0, 6).map((graph) => {
+        return `- claim=${graph.claim} | domain=${graph.domain} | state=${graph.validationState} | trust=${graph.sourceTrust.toFixed(2)} | support=${graph.supportingEvidence.map(item => `${item.sourceKind}:${item.sourceId}:${item.validationState}`).join(',') || 'none'} | contradict=${graph.contradictingEvidence.map(item => `${item.sourceKind}:${item.sourceId}:${item.validationState}`).join(',') || 'none'} | superseded_by=${graph.supersededBy.join(',') || 'none'} | current_belief=${graph.currentBelief ?? 'none'} | revalidate=${graph.revalidationPolicy.shouldRevalidate ? 'yes' : 'no'} | blocked=${graph.internalizationDecision.blockedReasons.join(';') || 'none'}`
+      }),
+    ].join('\n'))
+  }
+
+  if ((context.memorySituationCandidates?.candidates ?? []).length > 0) {
+    blocks.push([
+      '[ALICIZATION_MEMORY_SITUATION_CANDIDATES]',
+      'These are cross-source memory situation candidates competing for the current recall slot.',
+      'Prefer selected candidates as the current remembered situation. Treat rejected/suppressed candidates as wrong-thread risks, not visible content.',
+      ...(context.memorySituationCandidates?.candidates ?? []).slice(0, 8).map((candidate) => {
+        return `- status=${candidate.status} | kind=${candidate.situationKind} | confidence=${candidate.confidence.toFixed(2)} | latency=${candidate.latencyCost.toFixed(2)} | evidence=${candidate.selectedEvidenceIds.join(',') || 'none'} | competing=${candidate.competingCandidateIds.join(',') || 'none'} | suppress=${candidate.suppressionReasons.join(';') || 'none'} | summary=${candidate.summary} | reason=${candidate.statusReason ?? 'none'}`
       }),
     ].join('\n'))
   }
@@ -125,9 +148,10 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
   if ((context.recollectionNarratives ?? []).length > 0) {
     blocks.push([
       '[ALICIZATION_RECOLLECTION_NARRATIVES]',
-      'These are gist-first recall surfaces. Start from one of them before unpacking details, like a human first remembering the period and only then the fragments.',
+      'These are structured recall pressures, not visible wording candidates.',
+      'Do not copy any field verbatim as an opener. Let the LLM mind author the visible phrasing from the current answer obligation.',
       ...(context.recollectionNarratives ?? []).map((item) => {
-        return `- mode=${item.mode} | certainty=${item.certainty} | confidence=${item.confidence.toFixed(2)} | cues=${item.supportCues.join(' ; ')}`
+        return `- mode=${item.mode} | center=${item.recallCenter || item.opening} | pressure=${item.recallPressure ?? 'medium'} | certainty=${item.certainty} | provenance_posture=${item.provenancePosture ?? 'reconstructed'} | confidence=${item.confidence.toFixed(2)} | evidence_cues=${(item.evidenceCues ?? item.supportCues).join(' ; ')} | instruction=${item.speakerInstruction ?? 'Use as inward context, not a template.'}`
       }),
     ].join('\n'))
   }
@@ -316,6 +340,31 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
         : '',
       context.personStateProjection.trustRationale
         ? `trust_rationale=${context.personStateProjection.trustRationale}`
+        : '',
+    ].filter(Boolean).join('\n'))
+  }
+
+  if (context.affectiveResidue) {
+    blocks.push([
+      '[ALICIZATION_AFFECTIVE_RESIDUE_MEMORY]',
+      'This is long-horizon affective residue memory for timing, distance, repair, burden, trust, and rest protection.',
+      'It is mind-state context only. Do not copy it as a visible care template or fixed opener.',
+      `dominant=${context.affectiveResidue.dominantResidueKind ?? 'none'}`,
+      `afterglow=${context.affectiveResidue.afterglowPressure.toFixed(2)}`,
+      `repair=${context.affectiveResidue.repairPressure.toFixed(2)}`,
+      `burden=${context.affectiveResidue.burdenPressure.toFixed(2)}`,
+      `trust=${context.affectiveResidue.trustPressure.toFixed(2)}`,
+      `rest_protective=${context.affectiveResidue.restProtectivePressure.toFixed(2)}`,
+      `cadence=${context.affectiveResidue.relationshipCadence.cadenceMode}`,
+      `distance=${context.affectiveResidue.relationshipCadence.distancePosture}`,
+      `companionship_density=${context.affectiveResidue.relationshipCadence.companionshipDensity.toFixed(2)}`,
+      `overreach_risk=${context.affectiveResidue.relationshipCadence.overreachRisk.toFixed(2)}`,
+      `fatigue_guard=${context.affectiveResidue.relationshipCadence.fatigueGuard.toFixed(2)}`,
+      context.affectiveResidue.relationshipCadence.shouldDelayWarmth ? 'delay_warmth=yes' : 'delay_warmth=no',
+      context.affectiveResidue.relationshipCadence.shouldProtectRest ? 'protect_rest=yes' : 'protect_rest=no',
+      context.affectiveResidue.summary ? `summary=${context.affectiveResidue.summary}` : '',
+      context.affectiveResidue.residues.length > 0
+        ? `residues=${context.affectiveResidue.residues.map(item => `${item.kind}:${item.intensity.toFixed(2)}:${item.releaseMode}:${item.summary}`).join(' | ')}`
         : '',
     ].filter(Boolean).join('\n'))
   }

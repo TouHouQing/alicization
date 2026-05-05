@@ -10,6 +10,8 @@ export interface AlicizationMemoryTuningAdvice {
   updatedAt: number
   sourceReportAt: number
   focusDimensions: string[]
+  staleSelfModelVetoRate?: number
+  relationshipEraConfusionRate?: number
   retrievalAdjustments: {
     proceduralBoost: number
     relationshipBoost: number
@@ -66,6 +68,8 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     updatedAt: input.now,
     sourceReportAt: Math.max(...input.results.map(item => item.ranAt), input.now),
     focusDimensions: [],
+    staleSelfModelVetoRate: 0,
+    relationshipEraConfusionRate: 0,
     retrievalAdjustments: {
       proceduralBoost: 0,
       relationshipBoost: 0,
@@ -132,6 +136,49 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
     advice.surfaceAdjustments.inwardCarryBias += 0.04
     advice.notes.push('Reply-memory coherence failed, so memory bundles should stay tighter and more relationship-aware.')
   }
+  if (failingKeys.includes('learningRevisionDiscipline')) {
+    advice.surfaceAdjustments.provenanceLabelBias += 0.08
+    advice.surfaceAdjustments.specificityClampBias += 0.08
+    advice.personStateAdjustments.repairWindowBias += 0.06
+    advice.notes.push('Learning revision discipline failed, so revision-state replies should stay more explicit about uncertainty and less eager to sound settled.')
+  }
+  if (failingKeys.includes('domainInternalizationDiscipline')) {
+    advice.retrievalAdjustments.relationshipBoost += 0.06
+    advice.surfaceAdjustments.inwardCarryBias += 0.08
+    advice.personStateAdjustments.closenessCapBias += 0.08
+    advice.notes.push('Domain internalization discipline failed, so non-procedural learning should stay more bounded before becoming durable carry.')
+  }
+  if (failingKeys.includes('worldModelValidationDiscipline')) {
+    advice.retrievalAdjustments.wrongThreadPenalty += 0.08
+    advice.surfaceAdjustments.provenanceLabelBias += 0.1
+    advice.surfaceAdjustments.specificityClampBias += 0.12
+    advice.notes.push('World-model validation discipline failed, so external knowledge should stay validation-first and avoid premature long-horizon internalization.')
+  }
+
+  const staleSelfModelVetoRate = input.results.reduce((sum, item) => {
+    return sum + Number(item.telemetryPatch.retrievalHealth.staleSelfModelVetoRate ?? 0)
+  }, 0) / Math.max(1, input.results.length)
+  advice.staleSelfModelVetoRate = clamp01(staleSelfModelVetoRate)
+  if (staleSelfModelVetoRate >= 0.2) {
+    advice.retrievalAdjustments.wrongThreadPenalty += 0.06
+    advice.surfaceAdjustments.inwardCarryBias += 0.08
+    advice.surfaceAdjustments.provenanceLabelBias += 0.06
+    advice.personStateAdjustments.closenessCapBias += 0.06
+    advice.notes.push('Stale self-model vetoes stayed elevated, so older self-story carry should rank lower and remain inward until newer self continuity stabilizes.')
+  }
+
+  const relationshipEraConfusionRate = input.results.reduce((sum, item) => {
+    return sum + Number(item.telemetryPatch.retrievalHealth.relationshipEraConfusionRate ?? 0)
+  }, 0) / Math.max(1, input.results.length)
+  advice.relationshipEraConfusionRate = clamp01(relationshipEraConfusionRate)
+  if (relationshipEraConfusionRate >= 0.2) {
+    advice.retrievalAdjustments.relationshipBoost += 0.04
+    advice.retrievalAdjustments.wrongThreadPenalty += 0.08
+    advice.surfaceAdjustments.delayUntilAfterPayoffBias += 0.06
+    advice.personStateAdjustments.repairWindowBias += 0.08
+    advice.personStateAdjustments.closenessCapBias += 0.08
+    advice.notes.push('Relationship-era confusion vetoes stayed elevated, so competing repair phases should separate earlier and keep distance before warmth returns.')
+  }
 
   const templateLeakageFailCount = input.results.reduce((sum, item) => {
     return sum + Number(item.telemetryPatch.retrievalHealth.templateLeakageFailCount ?? 0)
@@ -153,7 +200,7 @@ export function deriveMemoryTuningAdviceFromReplayBenchmark(input: {
   advice.surfaceAdjustments.specificityClampBias = clamp01(advice.surfaceAdjustments.specificityClampBias)
   advice.personStateAdjustments.repairWindowBias = clamp01(advice.personStateAdjustments.repairWindowBias)
   advice.personStateAdjustments.closenessCapBias = clamp01(advice.personStateAdjustments.closenessCapBias)
-  advice.notes = uniqueList(advice.notes, 8)
+  advice.notes = uniqueList(advice.notes, 12)
 
   return advice
 }
@@ -171,6 +218,8 @@ export function parseMemoryTuningAdvice(raw: string | undefined) {
       updatedAt: Number(parsed.updatedAt ?? 0),
       sourceReportAt: Number(parsed.sourceReportAt ?? 0),
       focusDimensions: uniqueList(parsed.focusDimensions ?? [], 12),
+      staleSelfModelVetoRate: clamp01(Number((parsed as any).staleSelfModelVetoRate ?? 0)),
+      relationshipEraConfusionRate: clamp01(Number((parsed as any).relationshipEraConfusionRate ?? 0)),
       retrievalAdjustments: {
         proceduralBoost: clamp01(Number(parsed.retrievalAdjustments?.proceduralBoost ?? 0)),
         relationshipBoost: clamp01(Number(parsed.retrievalAdjustments?.relationshipBoost ?? 0)),
@@ -187,7 +236,7 @@ export function parseMemoryTuningAdvice(raw: string | undefined) {
         repairWindowBias: clamp01(Number(parsed.personStateAdjustments?.repairWindowBias ?? 0)),
         closenessCapBias: clamp01(Number(parsed.personStateAdjustments?.closenessCapBias ?? 0)),
       },
-      notes: uniqueList(parsed.notes ?? [], 8),
+      notes: uniqueList(parsed.notes ?? [], 12),
     } satisfies AlicizationMemoryTuningAdvice
   }
   catch {
@@ -273,6 +322,24 @@ export function applyMemoryTuningAdviceToSpeechPlan(input: {
       styleNote: uniqueList([
         next.styleNote,
         'Keep recollection inward until the competing memory pressure settles.',
+      ], 2).join(' '),
+    }
+  }
+
+  if (
+    tuningAdvice.personStateAdjustments.closenessCapBias >= 0.12
+    && tuningAdvice.focusDimensions.includes('learningRevisionDiscipline')
+    && memoryDeliberation.surfacePolicy === 'relationship-continuity'
+    && moderateConflict
+  ) {
+    next = {
+      ...next,
+      shouldSurface: false,
+      placement: 'internal-only',
+      visibleLead: null,
+      styleNote: uniqueList([
+        next.styleNote,
+        'Keep relationship continuity inward until revision-prone distance and closeness cues settle.',
       ], 2).join(' '),
     }
   }

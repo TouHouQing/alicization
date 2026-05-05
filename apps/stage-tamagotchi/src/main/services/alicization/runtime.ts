@@ -209,6 +209,7 @@ import { createAlicizationChatStreamRuntime } from './runtime-chat-stream'
 import { createAlicizationDeliveryReminderRuntime } from './runtime-delivery-reminders'
 import { createAlicizationLearningActionScheduler } from './learning-action-scheduler'
 import { normalizeAlicizationDerivedMindStateBundle } from '@proj-alicization/stage-shared'
+import { createAlicizationLearningActionExecutor } from './learning-action-executor'
 import { createAlicizationDreamRuntime } from './runtime-dream'
 import {
   buildAlicizationChatStreamEmbodimentMeta,
@@ -783,6 +784,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       listMemoryConsolidations: async limit => await alicizationDb.listMemoryConsolidations(limit).catch(() => []),
       getLatestRelationshipDynamics: async () => await alicizationDb.getLatestRelationshipDynamics().catch(() => null),
       listRelationshipOutcomes: async input => await alicizationDb.listRelationshipOutcomes(input).catch(() => []),
+      listMemoryReflections: async input => await alicizationDb.listMemoryReflections(input).catch(() => []),
       listPersonaReinforcementEvents: async input => await alicizationDb.listPersonaReinforcementEvents(input).catch(() => []),
       summarizePersonStateEvolution: async input => await alicizationDb.summarizePersonStateEvolution(input).catch(() => ({
         trustShift: 0,
@@ -805,6 +807,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
       searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
       listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
+      getLatestLearningExecutionState: async cardId => await alicizationDb.getLatestLearningExecutionState(cardId).catch(() => null),
       recordMemoryCacheAccess: async hit => await memoryRetrievalTelemetryRuntime.recordCacheAccess(hit),
       recordMemoryPrewarmAccess: async hit => await memoryRetrievalTelemetryRuntime.recordPrewarmAccess(hit),
       recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
@@ -851,13 +854,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext,
   } = memoryRuntime
+  const executeLearningTask = createAlicizationLearningActionExecutor({
+    now: () => Date.now(),
+    cardId: activeCardId,
+    listMemoryFacts: () => alicizationDb.listMemoryFacts(),
+    listMemoryReflections: input => alicizationDb.listMemoryReflections(input),
+    listRelationshipOutcomes: input => alicizationDb.listRelationshipOutcomes(input),
+    upsertMemoryReflections: entries => alicizationDb.upsertMemoryReflections(entries),
+    applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
+    upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
+    appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+    assimilateMemoryFactsDetailed: input => memoryRuntime.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed(input),
+    recordLearningExecutionTelemetry: input => memoryRetrievalTelemetryRuntime.recordLearningExecution(input),
+  })
   const learningActionScheduler = createAlicizationLearningActionScheduler({
     now: () => Date.now(),
-    insertScheduledTask: input => alicizationDb.insertScheduledTask(input),
-    claimDueScheduledTasks: (nowMs, limit) => alicizationDb.claimDueScheduledTasks(nowMs, limit),
-    completeScheduledTask: (taskId, firedTurnId, completedAt) => alicizationDb.completeScheduledTask(taskId, firedTurnId, completedAt),
-    failScheduledTask: (taskId, error, completedAt) => alicizationDb.failScheduledTask(taskId, error, completedAt),
+    insertLearningTask: input => alicizationDb.insertLearningTask(input),
+    claimDueLearningTasks: (cardId, nowMs, limit) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit),
+    startLearningTask: (taskId, startedAt) => alicizationDb.startLearningTask(taskId, startedAt),
+    blockLearningTask: (taskId, input, updatedAt) => alicizationDb.blockLearningTask(taskId, input, updatedAt),
+    completeLearningTask: (taskId, input, completedAt) => alicizationDb.completeLearningTask(taskId, input, completedAt),
+    failLearningTask: (taskId, input, updatedAt) => alicizationDb.failLearningTask(taskId, input, updatedAt),
+    reopenLearningTask: (taskId, input, updatedAt) => alicizationDb.reopenLearningTask(taskId, input, updatedAt),
+    downgradeLearningTask: (taskId, input, updatedAt) => alicizationDb.downgradeLearningTask(taskId, input, updatedAt),
+    cancelLearningTask: (taskId, input, updatedAt) => alicizationDb.cancelLearningTask(taskId, input, updatedAt),
+    listLearningTasks: input => alicizationDb.listLearningTasks(input),
     appendAuditLog,
+    executeLearningTask,
     randomUUID,
     getActiveCardId: () => activeCardId,
   })
@@ -1179,6 +1202,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     prewarmOrganicMemoryAccessibility: async input => await memoryRuntime.prewarmAccessibilityLine(input),
     resolveOrganicMemoryPromptContext,
     scheduleOrganicLearningAction: async input => await learningActionScheduler.scheduleLearningTask(input),
+    listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),
+    listRelationshipOutcomes: async (cardId, limit) => await alicizationDb.listRelationshipOutcomes({ cardId, limit }).catch(() => []),
     resolveSessionContinuitySignals: async ({ cardId }) => await resolveAgentSessionContinuitySignals(cardId),
     resolveTaskPlanningCapabilities,
     scheduleReminderTask,
@@ -2812,14 +2837,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         : null
       const derivedBundleForLearning = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
       if (derivedBundleForLearning?.selfEvolution && normalizedPayload.origin === 'user-turn') {
+        const retrievedFactsForLearning = Array.isArray(structured?.retrievedFacts)
+          ? (structured?.retrievedFacts as unknown[]).filter(item => item && typeof item === 'object')
+          : []
         await learningActionScheduler.scheduleLearningTask({
           context: {
             hostAttitude: '',
             coreIncarnation: '',
             activeThoughts: [],
-            retrievedFacts: [],
+            retrievedFacts: retrievedFactsForLearning as any,
             recalledFragments: [],
             selfEvolution: derivedBundleForLearning.selfEvolution,
+            decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
+            sessionId: normalizedPayload.sessionId ?? null,
           },
           turnId: normalizedPayload.turnId ?? null,
         }).catch(() => {})
@@ -5045,8 +5075,33 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   const processDueLearningActionsForCurrentCard = async (trigger: 'timer' | 'force') => {
+    const recovery = await learningActionScheduler.recoverRetryableLearningTasks()
     const result = await learningActionScheduler.processDueLearningTasks()
-    if (result.claimed > 0 || result.completed > 0 || result.failed > 0) {
+    if (recovery.reopened > 0) {
+      for (let index = 0; index < recovery.reopened; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'reopened' })
+    }
+    if (result.failed > 0) {
+      for (let index = 0; index < result.failed; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'failed' })
+    }
+    if (result.blocked > 0) {
+      for (let index = 0; index < result.blocked; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'blocked' })
+    }
+    if (result.reopened > 0) {
+      for (let index = 0; index < result.reopened; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'reopened' })
+    }
+    if (result.downgraded > 0) {
+      for (let index = 0; index < result.downgraded; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'downgraded' })
+    }
+    if (result.cancelled > 0) {
+      for (let index = 0; index < result.cancelled; index += 1)
+        await memoryRetrievalTelemetryRuntime.recordLearningExecution({ status: 'cancelled' })
+    }
+    if (result.claimed > 0 || result.completed > 0 || result.failed > 0 || recovery.reopened > 0) {
       await appendAuditLog({
         level: 'notice',
         category: 'alicization.learning',
@@ -5054,6 +5109,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         message: 'Processed due learning action tasks.',
         payload: {
           trigger,
+          retryRecovery: recovery,
           claimed: result.claimed,
           completed: result.completed,
           failed: result.failed,

@@ -178,7 +178,13 @@ describe('runtime-governance', () => {
       execution_first_override_applied: true,
       execution_dispatch_hidden: true,
       execution_dispatch_channels: ['cli'],
-      visible_reply_authority: 'mind-surface-renderer',
+      visible_reply_authority: 'llm-second-pass-rewrite-request',
+      visible_reply_realization_authority: 'llm-second-pass-rewrite',
+    }))
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      fallbackPatternId: 'guide-current-knot',
     }))
   })
 
@@ -233,17 +239,23 @@ describe('runtime-governance', () => {
     expect(governed.payload.assistantText).not.toContain('重新落地')
     expect(String(structured.reply ?? '')).not.toContain('真实边界')
     expect(String(structured.reply ?? '')).not.toContain('重新落地')
-    expect(structured.visibleReplyAuthority).toBe('governed-repair-fallback')
+    expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      memoryTruthDiscipline: 'repair-first',
+    }))
     expect(structured.performance).toEqual(expect.objectContaining({
       baseEmotion: 'thinking',
       delivery: 'firm',
     }))
     expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'mind-surface-renderer',
+      visible_reply_authority: 'llm-second-pass-rewrite-request',
+      visible_reply_realization_authority: 'llm-second-pass-rewrite',
     }))
   })
 
-  it('replaces dialogue-first thin shells with a non-empty care reply', () => {
+  it('turns dialogue-first thin shells into a second-pass rewrite request without local visible wording', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-dialogue-first-thin-shell-1',
       sessionId: 'session-1',
@@ -291,15 +303,21 @@ describe('runtime-governance', () => {
 
     expect(governed.replyOverridden).toBe(true)
     expect(String(structured.reply ?? '')).not.toBe('我直接说。')
-    expect(String(structured.reply ?? '')).not.toBe('')
+    expect(String(structured.reply ?? '')).toBe('')
     expect(String(structured.thought ?? '')).toContain('obligation=care')
     expect(structured.emotion).toBe('concerned')
     expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'mind-surface-renderer',
+      visible_reply_authority: 'llm-second-pass-rewrite-request',
+      visible_reply_realization_authority: 'llm-second-pass-rewrite',
+    }))
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      memoryTruthDiscipline: 'dialogue-first',
     }))
   })
 
-  it('forces dialogue answer fallback through the renderer when contaminated dialogue-first replies have no initial surface', () => {
+  it('requests second-pass rewrite for contaminated dialogue-first replies without rendering local fallback speech', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-dialogue-first-contaminated-1',
       sessionId: 'session-1',
@@ -347,13 +365,20 @@ describe('runtime-governance', () => {
     const reply = String(structured.reply ?? '')
 
     expect(governed.replyOverridden).toBe(true)
-    expect(reply).not.toBe('')
+    expect(reply).toBe('')
     expect(reply).not.toContain('IntelliJ IDEA')
     expect(reply).not.toContain('主人')
     expect(governed.reasons).toContain('dialogue-first-visible-reply-contaminated')
     expect(governed.audit).toEqual(expect.objectContaining({
-      visible_reply_authority: 'mind-surface-renderer',
+      visible_reply_authority: 'llm-second-pass-rewrite-request',
+      visible_reply_realization_authority: 'llm-second-pass-rewrite',
     }))
+    expect((structured as any).visibleReplyRewriteRequest).toEqual(expect.objectContaining({
+      required: true,
+      authority: 'llm-second-pass-rewrite',
+      memoryTruthDiscipline: 'dialogue-first',
+    }))
+    expect(((structured as any).visibleReplyRewriteRequest?.mustDrop ?? [])).toEqual(expect.arrayContaining(['IntelliJ IDEA']))
   })
 
   it('records recall attribution and reply-memory coherence on the same decision trace', () => {
@@ -574,6 +599,9 @@ describe('runtime-governance', () => {
     expect(events.find(event => event.kind === 'reply-memory-coherence')?.payload).toEqual(expect.objectContaining({
       coherenceState: 'integrated',
       explicitSurfaceExpected: true,
+      whyWithheld: expect.stringContaining('stable remembered core'),
+      followUpPreferredTiming: 'after-payoff',
+      followUpIntrusionRisk: 'medium',
       matchedCueKinds: expect.arrayContaining(['procedure']),
       replyExcerpt: expect.stringContaining('patch 再 verify'),
     }))

@@ -206,4 +206,60 @@ describe('proactive-cadence rhythm authority', () => {
     expect(cadence.reasonTags).toContain('rhythm-cadence:ready-return')
     expect(cadence.cadencePressure).toBeGreaterThan(0.2)
   })
+
+  it('lets affective residue protect rest and delay warmth before proactive cadence expands', () => {
+    const affectiveResidue = {
+      version: 'affective-residue-memory-v1',
+      updatedAt: 20_000,
+      residues: [],
+      dominantResidueKind: 'rest-protective',
+      afterglowPressure: 0.18,
+      repairPressure: 0.62,
+      burdenPressure: 0.76,
+      trustPressure: 0.48,
+      restProtectivePressure: 0.84,
+      relationshipCadence: {
+        cadenceMode: 'cooldown',
+        distancePosture: 'protect-space',
+        companionshipDensity: 0.12,
+        repairRecovery: 0.42,
+        overreachRisk: 0.72,
+        fatigueGuard: 0.86,
+        afterglowCarry: 0.18,
+        shouldDelayWarmth: true,
+        shouldProtectRest: true,
+        reasonTags: ['residue:rest-protective'],
+        summary: 'Protect rest before widening warmth.',
+      },
+      sourceSignals: ['host tired'],
+      summary: 'Rest-protective residue dominates.',
+    } as any
+    const progressed = progressProactiveCadenceState({
+      state: createDefaultProactiveLoopState(10_000),
+      now: 20_000,
+      context: createContext(),
+      privateThought: {
+        shouldSpeak: true,
+        thoughtText: 'The host is tired; do not crowd.',
+      } as any,
+      affectiveResidue,
+    })
+    const cadence = deriveProactiveCadenceSignal({
+      state: progressed,
+      context: createContext(),
+      privateThought: {
+        shouldSpeak: true,
+      } as any,
+      affectiveResidue,
+    })
+
+    expect(progressed.openingMomentum).toBeLessThan(0.12)
+    expect(cadence.residueDominance).toBe('rest-protective')
+    expect(cadence.reasonTags).toEqual(expect.arrayContaining([
+      'residue:rest-protective',
+      'residue-delay-warmth',
+      'residue-protect-rest',
+    ]))
+    expect(cadence.cadencePressure).toBeLessThan(0.12)
+  })
 })

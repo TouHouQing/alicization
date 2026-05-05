@@ -497,6 +497,7 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
     truthState: truthState as AlicizationMindTurnGovernance['truthState'],
     visibleReplyAuthority: [
       'llm-mind',
+      'llm-second-pass-rewrite',
       'governed-repair-fallback',
       'local-deterministic-fallback',
     ].includes(visibleReplyAuthority)
@@ -1478,6 +1479,58 @@ export function resolveGovernedFallbackPatternId(governance: AlicizationMindTurn
   return 'answer'
 }
 
+function buildGovernedVisibleReplyRewriteRequest(input: {
+  shouldOverrideVisibleReply: boolean
+  reasons: string[]
+  coherentGovernance: AlicizationMindTurnGovernance
+  fallbackPatternId: string
+  renderedOverrideReply?: string | null
+  governedSurfaceReply?: string | null
+  candidateReply: string
+  unsupportedCues: string[]
+  conflictingCandidates: string[]
+  droppedClauses: string[]
+}) {
+  if (!input.shouldOverrideVisibleReply)
+    return null
+
+  const mustPreserve = uniqueCarryAnchors([
+    input.coherentGovernance.answerIntent ?? '',
+    input.coherentGovernance.focusAnchor ?? '',
+    input.coherentGovernance.dialogueActKernel?.openingClaim ?? '',
+    input.coherentGovernance.mindTurnFrame?.obligation.openingClaim ?? '',
+  ], 6)
+  const mustDrop = uniqueCarryAnchors([
+    ...input.unsupportedCues,
+    ...input.conflictingCandidates,
+    ...input.droppedClauses,
+    input.renderedOverrideReply ?? '',
+    input.governedSurfaceReply ?? '',
+  ].filter(item => item && input.candidateReply.includes(item)), 10)
+  const memoryTruthDiscipline = deriveAlicizationTruthDiscipline({
+    answerSubject: input.coherentGovernance.answerSubject ?? input.coherentGovernance.mindTurnFrame?.relation.subject ?? null,
+    screenReferenceMode: input.coherentGovernance.screenReferenceMode ?? null,
+    truthState: input.coherentGovernance.truthState,
+    turnMode: input.coherentGovernance.turnMode,
+    repairState: input.coherentGovernance.repairState,
+    evidenceMode: input.coherentGovernance.evidenceMode ?? input.coherentGovernance.claimEvidence?.evidenceMode ?? null,
+    labelCarryAsMemory: input.coherentGovernance.labelCarryAsMemory,
+    suppressAssociativeRecall: input.coherentGovernance.suppressAssociativeRecall,
+    claimEvidenceLedger: input.coherentGovernance.claimEvidence ?? null,
+  }).mode
+
+  return {
+    required: true,
+    authority: 'llm-second-pass-rewrite' as const,
+    reasonCodes: uniqueCarryAnchors(input.reasons, 12),
+    mustPreserve,
+    mustDrop,
+    surfaceContract: input.coherentGovernance.answerIntent ?? input.coherentGovernance.openingMove ?? null,
+    memoryTruthDiscipline,
+    fallbackPatternId: input.fallbackPatternId,
+  }
+}
+
 export function coerceConversationTurnToMindGovernedPayload(
   input: AlicizationConversationTurnInput,
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null,
@@ -1703,6 +1756,18 @@ export function coerceConversationTurnToMindGovernedPayload(
     ? (hardOverrideRequired ? 'hard-override' : 'soft-override')
     : 'none'
   const fallbackPatternId = resolveGovernedFallbackPatternId(coherentGovernance, shouldOverrideVisibleReply)
+  const visibleReplyRewriteRequest = buildGovernedVisibleReplyRewriteRequest({
+    shouldOverrideVisibleReply,
+    reasons,
+    coherentGovernance,
+    fallbackPatternId,
+    renderedOverrideReply: renderedOverrideSurface?.reply ?? null,
+    governedSurfaceReply: governedSurface?.reply ?? null,
+    candidateReply,
+    unsupportedCues: unsupportedTechnicalSpecificity.unsupportedCues,
+    conflictingCandidates: conflictingAnchors.conflictingCandidates ?? [],
+    droppedClauses: dialogueFirstSoftRepair.droppedClauses ?? [],
+  })
   const hardFallbackReason = shouldOverrideVisibleReply && hardOverrideRequired
     ? [
         executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
@@ -1715,7 +1780,7 @@ export function coerceConversationTurnToMindGovernedPayload(
       ].find(Boolean) ?? 'hard-governance-fallback'
     : null
   const finalReply = shouldOverrideVisibleReply
-    ? (dispatchOnlyVisibleOverride ? '' : (renderedOverrideSurface?.reply ?? candidateReply))
+    ? ''
     : candidateReply
   const finalThought = shouldOverrideVisibleReply
     ? renderedOverrideSurface?.thought ?? governedSurface?.thought ?? buildGovernedMindThought(coherentGovernance, input)
@@ -1744,7 +1809,7 @@ export function coerceConversationTurnToMindGovernedPayload(
   )
     ? 'repair-json'
     : parsePath
-  const normalizedAssistantText = dispatchOnlyVisibleOverride && shouldOverrideVisibleReply
+  const normalizedAssistantText = shouldOverrideVisibleReply
     ? ''
     : (finalReply || sanitizeBriefText(readStringValue(input.assistantText), 2_000))
   const tookOver = Boolean(
@@ -1795,8 +1860,9 @@ export function coerceConversationTurnToMindGovernedPayload(
         emotion: finalEmotion,
         reply: finalReply,
         visibleReplyAuthority: shouldOverrideVisibleReply
-          ? 'governed-repair-fallback'
+          ? 'llm-second-pass-rewrite'
           : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
+        visibleReplyRewriteRequest,
         performance: finalPerformance,
         embodiment: finalEmbodiment,
         speechTimeline: finalSpeechTimeline,
@@ -1877,10 +1943,11 @@ export function coerceConversationTurnToMindGovernedPayload(
       soft_repair_dropped_clauses: dialogueFirstSoftRepair.droppedClauses,
       hard_fallback_reason: hardFallbackReason,
       fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
-      visible_reply_authority: shouldOverrideVisibleReply ? 'mind-surface-renderer' : 'assistant-structured',
+      visible_reply_authority: shouldOverrideVisibleReply ? 'llm-second-pass-rewrite-request' : 'assistant-structured',
       visible_reply_realization_authority: shouldOverrideVisibleReply
-        ? 'governed-repair-fallback'
+        ? 'llm-second-pass-rewrite'
         : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
+      visible_reply_rewrite_request: visibleReplyRewriteRequest,
       reply_kept_despite_mismatch: replyKeptDespiteMismatch,
       organic_direct_reply: organicDirectReply,
     },
@@ -2180,6 +2247,11 @@ function summarizeReplyMemoryCoherencePayload(input: {
     explicitSurfaceObserved: strongestCueOverlap >= 0.45 || visibleLeadOverlap >= 0.45,
     strongestCueOverlap: Number(strongestCueOverlap.toFixed(2)),
     visibleLeadOverlap: Number(visibleLeadOverlap.toFixed(2)),
+    whyWithheld: sanitizeMindTraceTelemetryText(input.snapshot.whyWithheld, 220) || null,
+    followUpSummary: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.summary, 220) || null,
+    followUpWhyNow: sanitizeMindTraceTelemetryText(input.snapshot.followUpAffordance?.whyNow, 220) || null,
+    followUpPreferredTiming: input.snapshot.followUpAffordance?.preferredTiming ?? null,
+    followUpIntrusionRisk: input.snapshot.followUpAffordance?.intrusionRisk ?? null,
     matchedCueKinds: [...new Set(cueMatches.map(item => item.kind))],
     matchedCues: cueMatches.slice(0, 6).map(item => ({
       kind: item.kind,
@@ -2631,6 +2703,7 @@ export function normalizeDialogueRespondedPayload(
       reply,
       visibleReplyAuthority: [
         'llm-mind',
+        'llm-second-pass-rewrite',
         'governed-repair-fallback',
         'local-deterministic-fallback',
       ].includes(visibleReplyAuthority)
