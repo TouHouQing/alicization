@@ -3,6 +3,7 @@ import type {
 } from '../../../shared/eventa'
 
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
+import type { AlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 import {
   deriveAlicizationRecallLatencyPolicy,
 } from '@proj-alicization/stage-shared'
@@ -18,6 +19,9 @@ export interface AlicizationMemoryAccessibilityPlan {
   budgetClass: AlicizationMemoryRetrievalBudgetClass
   latencyClass: AlicizationMemoryLatencyClass
   expansionMode: AlicizationMemoryExpansionMode
+  verificationStrictness: 'normal' | 'strict' | 'quarantine'
+  wrongThreadSuppressionBias: number
+  provenanceLabelingBias: number
   preferredLayers: AlicizationMemoryAccessibilityLayer[]
   episodicLimit: number
   consolidationLimit: number
@@ -55,6 +59,7 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   recallGovernor?: AlicizationRecallGovernorSnapshot | null
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   latencyPolicy?: Partial<AlicizationRecallLatencyPolicyInput>
+  policy?: AlicizationOnlineMemoryPolicy | null
 }) {
   const seed = normalizeText(input.recallSeed, 240).toLowerCase()
   const governor = input.recallGovernor ?? null
@@ -71,10 +76,10 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
   const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
     recallSeed: input.recallSeed,
     recollectionIntent: governor?.recollectionIntent ?? null,
-    budgetClass: input.budgetClass ?? null,
+    budgetClass: input.policy?.budgetClassOverride ?? input.budgetClass ?? null,
     ...input.latencyPolicy,
   })
-  const budgetClass = recallLatencyPolicy.budgetClass
+  const budgetClass = input.policy?.budgetClassOverride ?? recallLatencyPolicy.budgetClass
   const latencyClass: AlicizationMemoryLatencyClass = recallLatencyPolicy.shouldAvoidDeepExpansion
     ? 'balanced'
     : recallLatencyPolicy.latencyClass === 'deep'
@@ -105,17 +110,20 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
     budgetClass,
     latencyClass,
     expansionMode,
+    verificationStrictness: input.policy?.verificationStrictness ?? 'normal',
+    wrongThreadSuppressionBias: input.policy?.wrongThreadSuppressionBias ?? 0,
+    provenanceLabelingBias: input.policy?.provenanceLabelingBias ?? 0,
     preferredLayers: expansionMode === 'summary-first'
       ? ['summary-layer', 'hot-index', 'raw-ledger']
       : expansionMode === 'deep-thread'
         ? ['hot-index', 'summary-layer', 'raw-ledger']
         : ['summary-layer', 'raw-ledger', 'hot-index'],
-    episodicLimit: latencyClass === 'fast' ? 3 : latencyClass === 'balanced' ? 5 : 8,
-    consolidationLimit: latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 10,
-    conversationLimit: latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 8,
-    graphExpansionLimit: latencyClass === 'fast' ? 120 : latencyClass === 'balanced' ? 240 : 480,
-    benchmarkSampleLimit: latencyClass === 'fast' ? 6 : latencyClass === 'balanced' ? 12 : 20,
-    cacheTtlMs: latencyClass === 'fast' ? 20_000 : latencyClass === 'balanced' ? 45_000 : 90_000,
+    episodicLimit: Math.max(2, Math.round((latencyClass === 'fast' ? 3 : latencyClass === 'balanced' ? 5 : 8) * (input.policy?.topKMultiplier ?? 1))),
+    consolidationLimit: Math.max(3, Math.round((latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 10) * (input.policy?.topKMultiplier ?? 1) * (input.policy?.sourceWeights.consolidation ?? 1))),
+    conversationLimit: Math.max(3, Math.round((latencyClass === 'fast' ? 4 : latencyClass === 'balanced' ? 6 : 8) * (input.policy?.topKMultiplier ?? 1) * (input.policy?.sourceWeights.conversation ?? 1))),
+    graphExpansionLimit: Math.max(80, Math.round((latencyClass === 'fast' ? 120 : latencyClass === 'balanced' ? 240 : 480) * (input.policy?.topKMultiplier ?? 1))),
+    benchmarkSampleLimit: Math.max(4, Math.round((latencyClass === 'fast' ? 6 : latencyClass === 'balanced' ? 12 : 20) * (input.policy?.topKMultiplier ?? 1))),
+    cacheTtlMs: Math.max(5_000, Math.round((latencyClass === 'fast' ? 20_000 : latencyClass === 'balanced' ? 45_000 : 90_000) * (input.policy?.cacheTtlMultiplier ?? 1))),
     prewarmKey,
     recallLatencyPolicy,
   } satisfies AlicizationMemoryAccessibilityPlan

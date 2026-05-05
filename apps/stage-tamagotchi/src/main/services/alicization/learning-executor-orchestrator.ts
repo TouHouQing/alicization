@@ -24,6 +24,11 @@ import {
   supersedeLearningReflectionLinesEffect,
   type AlicizationLearningTaskEffectContext,
 } from './learning-task-effects'
+import {
+  deriveAlicizationLearningLifecycleState,
+  deriveAlicizationLearningPolicyFeedback,
+  deriveNextAlicizationLearningLifecycleState,
+} from './learning-state-machine'
 
 interface AlicizationPreparedLearningTaskContext extends AlicizationLearningTaskEffectContext {
   effectiveSupportCount: number
@@ -208,22 +213,47 @@ export async function executeAlicizationLearningTaskOrchestrator(
     task,
     ...support,
   })
+  const lifecycleState = deriveAlicizationLearningLifecycleState({
+    task,
+    verifiedArtifact: context.verifiedArtifact,
+  })
+
+  const finalize = (result: AlicizationLearningActionExecutorResult): AlicizationLearningActionExecutorResult => {
+    const verifiedArtifact = result.verifiedArtifact ?? context.verifiedArtifact
+    const nextLifecycleState = deriveNextAlicizationLearningLifecycleState({
+      currentState: lifecycleState,
+      result,
+      verifiedArtifact,
+    })
+    return {
+      ...result,
+      verifiedArtifact,
+      lifecycleState,
+      nextLifecycleState,
+      policyFeedback: deriveAlicizationLearningPolicyFeedback({
+        state: lifecycleState,
+        domain: context.domain,
+        result,
+        verifiedArtifact,
+      }),
+    }
+  }
 
   if (task.action === 'record' || task.action === 'reflect')
-    return recordLearningReflectionEffect(options, context)
+    return finalize(await recordLearningReflectionEffect(options, context))
 
   if (task.action === 'verify')
-    return executeVerifyLearningTask(options, context)
+    return finalize(await executeVerifyLearningTask(options, context))
 
   if (task.action === 'revise')
-    return executeReviseLearningTask(options, context)
+    return finalize(await executeReviseLearningTask(options, context))
 
   if (task.action === 'internalize')
-    return executeInternalizeLearningTask(options, context)
+    return finalize(await executeInternalizeLearningTask(options, context))
 
-  return {
+  return finalize({
     status: 'cancelled',
     resultSummary: `Unsupported learning action: ${task.action}`,
     error: 'unsupported learning action',
-  }
+  })
 }

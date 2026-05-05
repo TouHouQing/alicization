@@ -1,4 +1,5 @@
 import type { Message, ToolChoice } from '@xsai/shared-chat'
+import type { AlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationMindTurnGovernance,
@@ -24,6 +25,7 @@ import {
   parseSoul,
 } from './runtime-soul'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
+import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 
 export interface AlicizationMainChatCaptureSurface {
   degradedReasons: string[]
@@ -61,13 +63,13 @@ export interface AlicizationMainChatTraceSurface {
 
 export interface AlicizationMainChatReplyAuthoritySurface {
   replyRealizationMode: 'provider-mind-required' | 'fallback-locally-allowed'
-  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
   whyProviderMindRequired: string | null
 }
 
 export interface AlicizationMainChatReplyExecutionPlanSurface {
   preferredMode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
-  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
   reason: string | null
 }
 
@@ -165,10 +167,10 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
 function resolveNormalVisibleReplyAuthority(
   governance: AlicizationMindTurnGovernance | null,
 ): AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'] {
-  const authority = governance?.visibleReplyAuthority ?? 'llm-mind'
-  if (authority === 'local-deterministic-fallback' || authority === 'governed-repair-fallback')
-    return 'llm-second-pass-rewrite'
-  return authority
+  return normalizeAlicizationNormalVisibleReplyAuthority(
+    governance?.visibleReplyAuthority ?? null,
+    'llm-mind',
+  )
 }
 
 function describeNormalVisibleReplyAuthority(authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority']) {
@@ -499,23 +501,17 @@ export function buildAlicizationMainChatRuntimeSurface(
     : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
   const expectedVisibleReplyAuthority = resolveNormalVisibleReplyAuthority(input.governance)
-  const replyRealizationMode = expectedVisibleReplyAuthority === 'llm-mind' || expectedVisibleReplyAuthority === 'llm-second-pass-rewrite'
-    ? 'provider-mind-required' as const
-    : 'fallback-locally-allowed' as const
-  const whyProviderMindRequired = replyRealizationMode === 'provider-mind-required'
-    ? sanitizePromptText(
-        digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
-        ?? input.governance?.answerIntent
-        ?? '',
-        220,
-      ) || describeNormalVisibleReplyAuthority(expectedVisibleReplyAuthority)
-    : null
+  const replyRealizationMode = 'provider-mind-required' as const
+  const whyProviderMindRequired = sanitizePromptText(
+    digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
+    ?? input.governance?.answerIntent
+    ?? '',
+    220,
+  ) || describeNormalVisibleReplyAuthority(expectedVisibleReplyAuthority)
   const replyExecutionPlan = {
-    preferredMode: replyRealizationMode === 'fallback-locally-allowed'
-      ? 'local-fallback' as const
-      : hasVisualGrounding
-        ? 'provider-one-shot' as const
-        : 'provider-stream' as const,
+    preferredMode: hasVisualGrounding
+      ? 'provider-one-shot' as const
+      : 'provider-stream' as const,
     expectedVisibleReplyAuthority,
     reason: whyProviderMindRequired,
   }

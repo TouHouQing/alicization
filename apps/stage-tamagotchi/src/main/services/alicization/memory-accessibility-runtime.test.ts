@@ -5,6 +5,7 @@ import {
   buildAlicizationMemoryAccessibilityPlan,
   tuneMemoryConsolidationSearchInput,
 } from './memory-accessibility-runtime'
+import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 
 describe('memory-accessibility-runtime', () => {
   it('builds a deep-thread accessibility plan for long-horizon task migration recall', () => {
@@ -105,5 +106,82 @@ describe('memory-accessibility-runtime', () => {
 
     expect(searchInput.limit).toBe(plan.consolidationLimit)
     expect(searchInput.query).toContain('runtime seam')
+  })
+
+  it('applies the online memory policy back into retrieval budget, strictness, and cache strategy', () => {
+    const policy = deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: 'realtime-reply',
+      telemetry: {
+        wrongThreadRate: 0.41,
+        wrongThreadSuppression: 0.44,
+        recallAt3: 0.46,
+        recallHitRate: 0.42,
+        precisionAt3: 0.58,
+        latencyBudgetPass: false,
+        falsePositiveSuppressionRate: 0.08,
+        misinternalizationRate: 0.16,
+        budgetLatencyTelemetry: {
+          'realtime-reply': {
+            sampleCount: 8,
+            p50LatencyMs: 680,
+            p95LatencyMs: 1820,
+            maxLatencyMs: 2350,
+            gateStatus: 'fail',
+            targetP95Ms: 900,
+          },
+        },
+      } as any,
+      tuningAdvice: {
+        version: 'memory-tuning-advice-v1',
+        source: 'nightly-replay-benchmark',
+        updatedAt: 1,
+        sourceReportAt: 1,
+        focusDimensions: ['wrongThreadSuppression'],
+        retrievalAdjustments: {
+          proceduralBoost: 0.18,
+          relationshipBoost: 0.1,
+          temporalWindowBias: 0.14,
+          wrongThreadPenalty: 0.2,
+        },
+        surfaceAdjustments: {
+          inwardCarryBias: 0.1,
+          delayUntilAfterPayoffBias: 0.12,
+          provenanceLabelBias: 0.22,
+          specificityClampBias: 0.16,
+        },
+        personStateAdjustments: {
+          repairWindowBias: 0.08,
+          closenessCapBias: 0.06,
+        },
+        notes: ['Tighten wrong-thread suppression while holding latency.'],
+      },
+    })
+    const plan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: '几个月后再回来，这条 repair seam 还该不该接',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'relationship-history',
+          temporalFocus: 'cross-session',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: true,
+          queryHints: ['repair seam', '几个月后'],
+          rationale: 'Long-horizon repair recall still needs bounded reopening.',
+          confidence: 0.78,
+        },
+        threadAnchors: ['repair seam'],
+      } as any,
+      budgetClass: 'realtime-reply',
+      policy,
+    })
+
+    expect(policy.reasonCodes).toContain('latency-budget-failing')
+    expect(plan.budgetClass).toBe('realtime-reply')
+    expect(plan.verificationStrictness).toBe('quarantine')
+    expect(plan.wrongThreadSuppressionBias).toBeGreaterThan(0.4)
+    expect(plan.provenanceLabelingBias).toBeGreaterThan(0.3)
+    expect(plan.cacheTtlMs).toBeGreaterThan(20_000)
+    expect(plan.consolidationLimit).toBeGreaterThanOrEqual(4)
+    expect(plan.recallLatencyPolicy.budgetClass).toBe('realtime-reply')
   })
 })

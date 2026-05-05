@@ -50,7 +50,7 @@ function createEvent(overrides: Partial<AlicizationExecutionEventRecord> = {}): 
 }
 
 describe('main chat follow-up payoff', () => {
-  it('answers remaining desktop items from real execution output instead of meta continuation text', async () => {
+  it('does not synthesize deterministic remaining-item follow-up replies anymore', async () => {
     const resolvePayoff = createAlicizationExecutionFollowUpPayoffResolver({
       listTaskThreads: vi.fn(async () => [createThread()]),
       listExecutionEvents: vi.fn(async () => [createEvent()]),
@@ -101,18 +101,10 @@ describe('main chat follow-up payoff', () => {
       } as any,
     })
 
-    expect(structured).toBeTruthy()
-    const parsed = JSON.parse(structured!)
-    expect(parsed.reply).toContain('另外 4 项是')
-    expect(parsed.reply).toContain('screenshot.png')
-    expect(parsed.reply).toContain('todo.md')
-    expect(parsed.reply).not.toContain('我直接沿刚才')
-    expect(parsed.visibleReplyAuthority).toBe('local-deterministic-fallback')
-    expect(parsed.governance.answerSubject).toBe('task-knot')
-    expect(parsed.governance.screenReferenceMode).toBe('helpful')
+    expect(structured).toBeNull()
   })
 
-  it('answers generic execution-result follow-ups from the real settled task outcome', async () => {
+  it('does not synthesize deterministic generic execution-result follow-up replies anymore', async () => {
     const resolvePayoff = createAlicizationExecutionFollowUpPayoffResolver({
       listTaskThreads: vi.fn(async () => [createThread({
         id: 'thread-vitest',
@@ -178,16 +170,7 @@ describe('main chat follow-up payoff', () => {
       } as any,
     })
 
-    expect(structured).toBeTruthy()
-    const parsed = JSON.parse(structured!)
-    expect(parsed.reply).toMatch(/CLI 那条.*(跑完了|收束了|回来了)/u)
-    expect(parsed.reply).toContain('vitest passed on stage-tamagotchi')
-    expect(parsed.reply).toContain('pnpm test finished without failures')
-    expect(parsed.visibleReplyAuthority).toBe('local-deterministic-fallback')
-    expect(parsed.governance.answerAct).toBe('guide')
-    expect(parsed.governance.dialogueActKernel.openingClaim).toContain('pnpm test finished without failures')
-    expect(String(parsed.governance.dialogueActKernel.mustSay[0] ?? '')).toContain('vitest passed on stage-tamagotchi')
-    expect(parsed.governance.mindTurnFrame.memory.memoryMode).toBe('task-thread')
+    expect(structured).toBeNull()
   })
 
   it('does not synthesize deterministic follow-up payoff on compact llm-authored lanes', async () => {

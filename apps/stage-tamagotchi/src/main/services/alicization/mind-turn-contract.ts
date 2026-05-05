@@ -3,6 +3,7 @@ import type {
   AlicizationAnswerPlannerSnapshot,
   AlicizationMindTurnContractSnapshot,
 } from '../../../shared/eventa'
+import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { AlicizationResponseSurfaceContract } from './response-surface-contract'
 
@@ -47,8 +48,11 @@ export function buildAlicizationMindTurnContract(input: {
     responseMode: compiler?.responseMode ?? 'answer-naturally',
     evidenceMode: planner?.evidenceMode ?? compiler?.evidenceMode ?? null,
     openingStyle: surface.openingStyle,
-    expectedVisibleReplyAuthority: surface.expectedVisibleReplyAuthority ?? 'llm-mind',
-    replyRealizationMode: surface.replyRealizationMode ?? 'provider-mind-required',
+    expectedVisibleReplyAuthority: normalizeAlicizationNormalVisibleReplyAuthority(
+      surface.expectedVisibleReplyAuthority ?? null,
+      'llm-mind',
+    ),
+    replyRealizationMode: 'provider-mind-required',
     personaKernelMode: surface.personaKernelMode,
     activeClosenessContext,
     activeClosenessRung,

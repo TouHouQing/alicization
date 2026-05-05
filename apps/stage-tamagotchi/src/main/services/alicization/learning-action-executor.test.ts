@@ -126,6 +126,14 @@ describe('learning action executor', () => {
 
     expect(result.status).toBe('completed')
     expect(result.resultSummary).toContain('relationship')
+    expect(result.lifecycleState).toBe('verification')
+    expect(result.nextLifecycleState).toBe('internalization')
+    expect(result.policyFeedback).toEqual(expect.objectContaining({
+      strictnessBias: expect.any(Number),
+      wrongThreadSuppressionBias: expect.any(Number),
+      provenanceLabelBias: expect.any(Number),
+      reasonCodes: expect.arrayContaining(['state:verification', 'result:completed', 'domain:relationship']),
+    }))
     expect(result.verifiedArtifact).toEqual(expect.objectContaining({
       version: 'verified-learning-artifact-v1',
       domain: 'relationship',
@@ -419,6 +427,14 @@ describe('learning action executor', () => {
     })
 
     expect(result.status).toBe('downgraded')
+    expect(result.lifecycleState).toBe('verification')
+    expect(result.nextLifecycleState).toBe('rollback-downgrade')
+    expect(result.policyFeedback?.reasonCodes).toEqual(expect.arrayContaining([
+      'state:verification',
+      'result:downgraded',
+      'rollback-pressure',
+      'domain:relationship',
+    ]))
     expect(result.verifiedArtifact).toEqual(expect.objectContaining({
       domain: 'relationship',
       status: 'rollback-required',

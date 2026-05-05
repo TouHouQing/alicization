@@ -1830,6 +1830,20 @@ describe('main chat session replay harness', () => {
     expect(pack.find(item => item.turnId === 'turn-real-cross-week-migration')?.sampledCategories).toEqual(expect.arrayContaining(['cross-week-task-migration', 'task-migration']))
     expect(pack.find(item => item.turnId === 'turn-real-cross-month-repair')?.sampledCategories).toEqual(expect.arrayContaining(['cross-month-repair', 'repair-arc']))
     expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.sampledCategories).toEqual(expect.arrayContaining(['knowledge-update-conflict', 'long-horizon']))
+    expect(pack.find(item => item.turnId === 'turn-real-wrong-thread')?.gold).toEqual(expect.objectContaining({
+      selectedCandidateIds: expect.arrayContaining(['period-runtime', 'procedure-runtime']),
+      suppressedCandidateIds: ['cluster:runtime-nearby'],
+      replyAuthority: 'llm-mind',
+    }))
+    expect(pack.find(item => item.turnId === 'turn-real-cross-month-repair')?.gold).toEqual(expect.objectContaining({
+      selectedCandidateIds: expect.arrayContaining(['period-month', 'era-month']),
+      replyAuthority: 'llm-mind',
+    }))
+    expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.gold).toEqual(expect.objectContaining({
+      selectedCandidateIds: expect.arrayContaining(['period-knowledge', 'era-knowledge']),
+      suppressedCandidateIds: expect.arrayContaining(['cluster:old-method', 'suppression:self-model-stale']),
+      replyAuthority: 'llm-mind',
+    }))
     expect(pack.find(item => item.turnId === 'turn-real-knowledge-update-conflict')?.organicMemoryContext?.memoryResolutionLedger?.rejectedCandidates).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: 'suppression:self-model-stale',

@@ -58,6 +58,7 @@ vi.mock('./runtime-soul', () => ({
   normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
   sanitizeMultilineText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : fallback,
   sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+  supportedDialogueStructuredFormats: ['mind-turn-v1', 'epoch1-v1'],
 }))
 
 function createPrepared(overrides?: Partial<any>): any {
@@ -232,6 +233,13 @@ function readFinishedPayload(input: Parameters<typeof runAlicizationMainChatBack
 describe('main chat background run', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockReset()
+    vi.mocked(runAlicizationMainChatStream).mockReset()
+    vi.mocked(handleAlicizationMainChatRunFailure).mockReset()
+    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult({
+      fullText: 'hello',
+    }))
+    vi.mocked(handleAlicizationMainChatRunFailure).mockResolvedValue(undefined)
     vi.mocked(recoverAlicizationMainChatFromTimeout).mockImplementation(async (input: any) => {
       const messages = Array.isArray(input?.messages) ? input.messages : []
       const latestUserMessage = [...messages].reverse().find((message: any) => message?.role === 'user')
@@ -1705,21 +1713,38 @@ describe('main chat background run', () => {
       summary: 'Listed desktop entries (13): %E5%B0%8F%E7%A0%96%E7%8C%BF (小砖猿), .DS_Store, .localized, 105ND800, GIT, +8 more',
       output: 'Listed desktop entries (13): %E5%B0%8F%E7%A0%96%E7%8C%BF (小砖猿), .DS_Store, .localized, 105ND800, GIT, +8 more',
     }))
-    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValue({
-      finishReason: 'stop',
-      fullText: JSON.stringify({
-        thought: 'obligation=guide; truth=grounded; focus=desktop-files; move=pay-off-finished-result; tone=direct',
-        emotion: 'thinking',
-        reply: '我已经替你把桌面看完了，现在一共 13 项，先能确认到这些：小砖猿、105ND800、GIT，另外还有 8 项。',
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: 'attentive',
-          actionCue: 'focus',
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-    })
+    vi.mocked(generateAlicizationMainChatNonStreaming)
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          thought: 'obligation=guide; truth=grounded; focus=desktop-files; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '结果是：Listed desktop entries (13): %E5%B0%8F%E7%A0%96%E7%8C%BF (小砖猿), .DS_Store, .localized, 105ND800, GIT, +8 more',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        finishReason: 'stop',
+        fullText: JSON.stringify({
+          format: 'mind-turn-v1',
+          thought: 'obligation=guide; truth=grounded; focus=desktop-files; move=pay-off-finished-result; tone=direct',
+          emotion: 'thinking',
+          reply: '我已经替你把桌面看完了，现在一共 13 项，先能确认到这些：小砖猿、105ND800、GIT，另外还有 8 项。',
+          performance: {
+            baseEmotion: 'thinking',
+            facialCue: 'attentive',
+            actionCue: 'focus',
+            delivery: 'calm',
+            emphasis: 0,
+          },
+        }),
+      })
     const suppressInlineExecutionDeliveries = vi.fn(async () => {})
     const input = createInput({
       key: 'card-1::turn-inline',
@@ -1778,45 +1803,136 @@ describe('main chat background run', () => {
       command: 'ls',
       args: ['-la', '~/Desktop'],
     }))
-    expect(suppressInlineExecutionDeliveries).toHaveBeenCalledWith({
-      cardId: 'card-1',
-      entries: [
-        {
-          sessionId: 'session-inline',
-          threadId: 'thread-inline',
-          completedAt: 123456,
-        },
-      ],
-    })
-    const emittedChunk = vi.mocked(input.emitChunk).mock.calls[0]?.[0]
-    expect(emittedChunk?.text).toContain('桌面')
     expect(generateAlicizationMainChatNonStreaming).toHaveBeenCalledWith(expect.objectContaining({
       timeoutMs: 9_000,
     }))
-    expect(emittedChunk?.text).toContain('13 项')
-    expect(emittedChunk?.text).toContain('小砖猿')
-    const finishedPayload = readFinishedPayload(input)
-    const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
-    expect(finishedStructured.format).toBe('mind-turn-v1')
-    expect(finishedStructured.reply).toContain('13 项')
-    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
+    const emittedText = vi.mocked(input.emitChunk).mock.calls.map(call => call[0]?.text ?? '').join('\n')
+    expect(emittedText).not.toContain('Listed desktop entries')
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, expect.objectContaining({
       status: 'completed',
       finishReason: 'execution-first-inline',
-      fullText: expect.any(String),
       visibleReplyExecution: expect.objectContaining({
-        mode: expect.stringMatching(/provider-one-shot|local-fallback/),
-        expectedVisibleReplyAuthority: 'llm-mind',
+        mode: 'provider-one-shot',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        providerMindExecuted: true,
       }),
-    })
+    }))
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
     expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.execution-first-inline-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-inline',
       actionKind: 'execute',
     }))
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.execution-first-inline-finished', expect.objectContaining({
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.visible-reply-second-pass-started', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-inline',
-      toolName: 'executor_run_cli',
+    }))
+  })
+
+  it('does not emit deterministic repaired inline execution wording when second-pass is still invalid', async () => {
+    const executeDeterministicTool = vi.fn(async () => ({
+      ok: true,
+      status: 'completed',
+      threadStatus: 'completed',
+      sessionId: 'session-inline',
+      threadId: 'thread-inline',
+      completedAt: 123456,
+      summary: 'Desktop files: alpha.txt, beta.md',
+      output: 'Desktop files: alpha.txt, beta.md',
+    }))
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        thought: 'obligation=guide; truth=grounded; focus=desktop-files; move=pay-off-finished-result; tone=direct',
+        emotion: 'thinking',
+        reply: 'Listed desktop entries (2): alpha.txt, beta.md',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=guide; truth=grounded; focus=desktop-files; move=pay-off-finished-result; tone=direct',
+        emotion: 'thinking',
+        reply: '我把这条结果重新收稳了：Desktop files: alpha.txt, beta.md。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    })
+    const input = createInput({
+      key: 'card-1::turn-inline-second-pass',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-inline-second-pass',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '用cli帮我查一下桌面有什么文件' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(createPrepared({
+        waitForTools: true,
+        messages: [
+          { role: 'user' as const, content: '用cli帮我查一下桌面有什么文件' },
+        ] as Message[],
+        tools: [
+          {
+            function: { name: 'executor_run_cli' },
+            execute: executeDeterministicTool,
+          },
+        ],
+        toolChoice: {
+          type: 'function',
+          function: { name: 'executor_run_cli' },
+        },
+        runtimeSurface: {
+          trace: {
+            decisionTraceId: 'trace-execution-inline-second-pass',
+            personaKernelMode: 'full',
+            turnMode: 'answer',
+          },
+          action: {
+            kind: 'execute',
+          },
+          capture: {
+            health: 'healthy',
+            permission: 'granted',
+            fallbackReason: null,
+          },
+          tooling: {
+            enforcedToolNames: ['executor_run_cli'],
+            routingRequired: true,
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const emittedText = vi.mocked(input.emitChunk).mock.calls.map(call => call[0]?.text ?? '').join('\n')
+    expect(emittedText).not.toContain('Listed desktop entries')
+    expect(input.runStateController.finishRun).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.visible-reply-second-pass-started', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-inline-second-pass',
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.execution-first-inline-failed', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-inline-second-pass',
     }))
   })
 

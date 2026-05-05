@@ -11,6 +11,7 @@ import type {
 import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
 import type { AlicizationLearningActionExecutorResult } from './learning-action-executor'
 import type { AlicizationLearningVerificationBasis } from './learning-domain-verifiers'
+import type { AlicizationLearningPolicyFeedback } from './learning-state-machine'
 
 import { appendLearningExecutionEvidence } from './learning-artifact-store'
 import { buildDomainReflectionTargetScope, buildInternalizeFactInput } from './learning-domain-verifiers'
@@ -44,6 +45,7 @@ export interface AlicizationLearningTaskEffectOptions {
     status: AlicizationLearningActionExecutorResult['status']
     domain?: AlicizationMemoryDomain | null
     internalizedAsValidatedOnly?: boolean
+    policyFeedback?: AlicizationLearningPolicyFeedback | null
   }) => Promise<void>
 }
 

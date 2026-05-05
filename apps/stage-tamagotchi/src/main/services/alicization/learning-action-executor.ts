@@ -10,6 +10,7 @@ import type {
 import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stage-shared'
 
 import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-orchestrator'
+import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
 
 export interface AlicizationLearningActionExecutorResult {
   status: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'
@@ -20,6 +21,9 @@ export interface AlicizationLearningActionExecutorResult {
   firedTurnId?: string | null
   verificationBasis?: Array<'existing-memory' | 'runtime-result' | 'trusted-source' | 'conflict-review'> | null
   verifiedArtifact?: AlicizationVerifiedLearningArtifact | null
+  lifecycleState?: AlicizationLearningLifecycleState | null
+  nextLifecycleState?: AlicizationLearningLifecycleState | null
+  policyFeedback?: AlicizationLearningPolicyFeedback | null
 }
 
 export interface CreateAlicizationLearningActionExecutorOptions {
@@ -60,6 +64,7 @@ export interface CreateAlicizationLearningActionExecutorOptions {
     status: AlicizationLearningActionExecutorResult['status']
     domain?: AlicizationMemoryDomain | null
     internalizedAsValidatedOnly?: boolean
+    policyFeedback?: AlicizationLearningPolicyFeedback | null
   }) => Promise<void>
 }
 

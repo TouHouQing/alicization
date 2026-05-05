@@ -65,7 +65,10 @@ import type {
   AlicizationWorldThreadSnapshot,
 } from '../../../shared/eventa'
 
-import { deriveAlicizationResidentPerformanceSnapshot } from '@proj-alicization/stage-shared'
+import {
+  deriveAlicizationResidentPerformanceSnapshot,
+  normalizeAlicizationNormalVisibleReplyAuthority,
+} from '@proj-alicization/stage-shared'
 
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
@@ -1507,8 +1510,7 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       && replyRealizationMode !== 'fallback-locally-allowed')
     || (expectedVisibleReplyAuthority != null
       && expectedVisibleReplyAuthority !== 'llm-mind'
-      && expectedVisibleReplyAuthority !== 'governed-repair-fallback'
-      && expectedVisibleReplyAuthority !== 'local-deterministic-fallback')
+      && expectedVisibleReplyAuthority !== 'llm-second-pass-rewrite')
     || (recommendedAct !== 'answer'
       && recommendedAct !== 'guide'
       && recommendedAct !== 'ask-reground'
@@ -1560,11 +1562,10 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     replyRealizationMode: replyRealizationMode === 'provider-mind-required' || replyRealizationMode === 'fallback-locally-allowed'
       ? replyRealizationMode
       : null,
-    expectedVisibleReplyAuthority: expectedVisibleReplyAuthority === 'llm-mind'
-      || expectedVisibleReplyAuthority === 'governed-repair-fallback'
-      || expectedVisibleReplyAuthority === 'local-deterministic-fallback'
-      ? expectedVisibleReplyAuthority
-      : null,
+    expectedVisibleReplyAuthority: normalizeAlicizationNormalVisibleReplyAuthority(
+      expectedVisibleReplyAuthority as any,
+      'llm-mind',
+    ),
     recommendedAct,
     evidenceMode,
     openingStyle,

@@ -430,6 +430,8 @@ export async function runAlicizationMainChatBackground(
   const rewriteStructuredVisibleReplyIfNeeded = async (rewriteInput: {
     fullText: string
     visibleReplyExecution: AlicizationVisibleReplyExecution
+    forceRewrite?: boolean
+    forceReasonCodes?: string[]
   }) => {
     if (!prepared)
       return null
@@ -448,6 +450,8 @@ export async function runAlicizationMainChatBackground(
         rawFullText: rewriteInput.fullText,
         prepared,
         visibleReplyExecution: rewriteInput.visibleReplyExecution,
+        forceRewrite: rewriteInput.forceRewrite,
+        forceReasonCodes: rewriteInput.forceReasonCodes,
         headers: input.headers,
         provider: async ({ chatConfig, messages, headers, timeoutMs }) => {
           return await generateAlicizationMainChatNonStreaming({
@@ -564,6 +568,7 @@ export async function runAlicizationMainChatBackground(
       emitToolCall: payload => emitToolCall(payload),
       emitToolResult: payload => emitToolResult(payload),
     })
+    noteInlineExecutionReceipt(recoveryResult.toolResult)
 
     const recoveryFinishAudit = recoveryInput.origin === 'execution-first'
       ? {
@@ -599,30 +604,26 @@ export async function runAlicizationMainChatBackground(
 
   const attemptInlineExecutionPayoff = async (recoveryResult: Awaited<ReturnType<typeof recoverAlicizationRequiredToolDeterministically>>) => {
     if (!prepared || !chatConfig || !input.isRunActive()) {
-      return buildAlicizationResolvedVisibleReply({
-        fullText: recoveryResult.fullText,
-        visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-          prepared: prepared!,
-          mode: 'local-fallback',
-          actualVisibleReplyAuthority: 'local-deterministic-fallback',
-          providerMindExecuted: false,
-          reason: 'execution-inline-payoff-unprepared',
-        }),
-      })
+      throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unprepared')
     }
 
     const surfaceInput = asInlineExecutionSurfaceInput(recoveryResult.toolName, recoveryResult.toolResult)
     if (!surfaceInput) {
-      return buildAlicizationResolvedVisibleReply({
+      const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
         fullText: recoveryResult.fullText,
         visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
           prepared,
-          mode: 'local-fallback',
+          mode: 'provider-one-shot',
           actualVisibleReplyAuthority: 'local-deterministic-fallback',
           providerMindExecuted: false,
-          reason: 'execution-inline-payoff-unsupported-surface',
+          reason: 'execution-inline-payoff-second-pass-required:unsupported-surface',
         }),
+        forceRewrite: true,
+        forceReasonCodes: ['execution-inline-payoff-unsupported-surface'],
       })
+      if (rewritten)
+        return buildAlicizationResolvedVisibleReply(rewritten)
+      throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unsupported-surface')
     }
 
     const deterministicStructured = buildAlicizationExecutionPayoffDeterministicStructured({
@@ -716,7 +717,35 @@ export async function runAlicizationMainChatBackground(
         performance,
         visibleReplyAuthority: selectedReply.source === 'llm'
           ? 'llm-mind'
-          : 'governed-repair-fallback',
+          : 'llm-second-pass-rewrite',
+      }
+      if (selectedReply.source !== 'llm') {
+        const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
+          fullText: JSON.stringify(structured),
+          visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
+            prepared,
+            mode: 'provider-one-shot',
+            actualVisibleReplyAuthority: 'local-deterministic-fallback',
+            providerMindExecuted: false,
+            reason: `execution-inline-payoff-second-pass-required:${selectedReply.reason ?? 'llm-repaired'}`,
+          }),
+          forceRewrite: true,
+          forceReasonCodes: [`execution-inline-payoff:${selectedReply.reason ?? 'llm-repaired'}`],
+        })
+        if (!rewritten) {
+          throw new AlicizationMindAuthoredReplyRequiredError(
+            `mind-authored-execution-payoff-required:${selectedReply.reason ?? 'llm-repaired'}`,
+          )
+        }
+        await input.appendRuntimeDebugLine('chat-stream.execution-payoff-finished', {
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          channel: surfaceInput.channel,
+          status: surfaceInput.status,
+          source: 'llm-second-pass-rewrite',
+          surfaceReason: selectedReply.reason ?? null,
+        })
+        return buildAlicizationResolvedVisibleReply(rewritten)
       }
       await input.appendRuntimeDebugLine('chat-stream.execution-payoff-finished', {
         cardId: input.payload.cardId,
@@ -731,10 +760,8 @@ export async function runAlicizationMainChatBackground(
         visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
           prepared,
           mode: 'provider-one-shot',
-          actualVisibleReplyAuthority: selectedReply.source === 'llm'
-            ? 'llm-mind'
-            : 'governed-repair-fallback',
-          providerMindExecuted: selectedReply.source === 'llm',
+          actualVisibleReplyAuthority: 'llm-mind',
+          providerMindExecuted: true,
           reason: 'execution-inline-payoff',
         }),
       })

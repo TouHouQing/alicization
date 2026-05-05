@@ -45,6 +45,8 @@ export interface AlicizationSecondPassRewriteOptions {
     finishReason: string
     fullText: string
   }>
+  forceRewrite?: boolean
+  forceReasonCodes?: string[]
   headers?: Record<string, string>
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
 }
@@ -101,6 +103,25 @@ function normalizeStructuredObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
     : null
+}
+
+function buildForcedSecondPassRewriteRequest(reasonCodes?: string[]) {
+  const normalizedReasonCodes = (reasonCodes ?? [])
+    .map(code => sanitizeText(code).slice(0, 120))
+    .filter(Boolean)
+
+  return {
+    required: true,
+    authority: 'llm-second-pass-rewrite' as const,
+    reasonCodes: normalizedReasonCodes.length > 0
+      ? normalizedReasonCodes
+      : ['forced-visible-reply-second-pass'],
+    mustPreserve: [],
+    mustDrop: [],
+    surfaceContract: null,
+    memoryTruthDiscipline: null,
+    fallbackPatternId: null,
+  }
 }
 
 function buildCandidateConversationTurn(input: {
@@ -279,7 +300,24 @@ export async function rewriteAlicizationVisibleReplySecondPass(
   const governed = coerceConversationTurnToMindGovernedPayload(candidateTurn, input.prepared.performanceManifest)
   const governedStructured = normalizeStructuredObject(governed.payload.structured)
   const rewriteRequest = normalizeStructuredObject(governedStructured?.visibleReplyRewriteRequest)
-  if (!governed.replyOverridden || rewriteRequest?.required !== true || !governedStructured) {
+  const shouldForceRewrite = input.forceRewrite === true
+  const effectiveRewriteRequest = rewriteRequest ?? (
+    shouldForceRewrite
+      ? buildForcedSecondPassRewriteRequest(input.forceReasonCodes)
+      : null
+  )
+  const effectiveGovernedStructured = governedStructured
+    ? {
+        ...governedStructured,
+        visibleReplyRewriteRequest: effectiveRewriteRequest ?? governedStructured.visibleReplyRewriteRequest ?? null,
+      }
+    : shouldForceRewrite
+      ? {
+          ...originalStructured,
+          visibleReplyRewriteRequest: effectiveRewriteRequest,
+        }
+      : null
+  if ((!governed.replyOverridden || effectiveRewriteRequest?.required !== true || !effectiveGovernedStructured) && !shouldForceRewrite) {
     return {
       fullText: input.rawFullText,
       visibleReplyExecution: input.visibleReplyExecution,
@@ -288,12 +326,23 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       audit: governed.audit,
     }
   }
+  if (!effectiveRewriteRequest || effectiveRewriteRequest.required !== true || !effectiveGovernedStructured) {
+    return {
+      fullText: input.rawFullText,
+      visibleReplyExecution: input.visibleReplyExecution,
+      rewritten: false,
+      reason: 'rewrite-force-setup-failed',
+      audit: governed.audit,
+    }
+  }
 
   await input.appendRuntimeDebugLine?.('chat-stream.visible-reply-second-pass-started', {
     cardId: input.cardId,
     turnId: input.turnId,
     decisionTraceId: governed.governance?.decisionTraceId ?? null,
-    reasons: governed.reasons,
+    reasons: shouldForceRewrite
+      ? effectiveRewriteRequest.reasonCodes
+      : governed.reasons,
     fallbackPatternId: governed.fallbackPatternId ?? null,
   })
 
@@ -304,7 +353,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
       prepared: input.prepared,
       userText: input.userText,
       originalStructured,
-      governedStructured,
+      governedStructured: effectiveGovernedStructured,
       governance: governed.governance ?? null,
     }),
     timeoutMs: 12_000,
@@ -315,7 +364,7 @@ export async function rewriteAlicizationVisibleReplySecondPass(
 
   const rewrittenStructured = normalizeSecondPassStructuredReply({
     parsed: parsedRewrite,
-    governedStructured,
+    governedStructured: effectiveGovernedStructured,
     performanceManifest: input.prepared.performanceManifest,
   })
   if (!rewrittenStructured)

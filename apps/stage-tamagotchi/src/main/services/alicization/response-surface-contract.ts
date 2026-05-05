@@ -15,10 +15,12 @@ import type { AlicizationResponseCharter } from './response-charter'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
+  normalizeAlicizationNormalVisibleReplyAuthority,
   readLearningExecutionStateFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
+  type AlicizationNormalVisibleReplyAuthority,
 } from '@proj-alicization/stage-shared'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
@@ -33,7 +35,7 @@ import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 export interface AlicizationResponseSurfaceContract {
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
   replyRealizationMode?: 'provider-mind-required' | 'fallback-locally-allowed'
-  expectedVisibleReplyAuthority?: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority?: AlicizationNormalVisibleReplyAuthority
   activeClosenessContext?: string | null
   activeClosenessRung?: string | null
   maxParagraphs: number
@@ -302,8 +304,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
       : brief.turnMode === 'grounded-inspection' || brief.turnMode === 'screen-repair'
         ? 4
         : 4)
-  const replyRealizationMode = answerCompiler?.replyRealizationMode ?? 'provider-mind-required'
-  const expectedVisibleReplyAuthority = answerCompiler?.expectedVisibleReplyAuthority ?? 'llm-mind'
+  const expectedVisibleReplyAuthority = normalizeAlicizationNormalVisibleReplyAuthority(
+    answerCompiler?.expectedVisibleReplyAuthority ?? null,
+    'llm-mind',
+  )
+  const replyRealizationMode = 'provider-mind-required' as const
   const activeClosenessContext = personStateProjection?.activeClosenessContext ?? charter.activeClosenessContext ?? null
   const activeClosenessRung = personStateProjection?.activeClosenessRung ?? charter.activeClosenessRung ?? null
   const allowAffectionatePreface = resolveAffectionatePrefaceAllowance({

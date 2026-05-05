@@ -1060,7 +1060,29 @@ export type AlicizationMindTruthState
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
 export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
-export type AlicizationVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+export type AlicizationNormalVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite'
+export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback'
+export type AlicizationVisibleReplyExecutionAuthority = AlicizationNormalVisibleReplyAuthority | AlicizationInfraVisibleReplyAuthority
+export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority | 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
+
+export function isAlicizationNormalVisibleReplyAuthority(raw: unknown): raw is AlicizationNormalVisibleReplyAuthority {
+  return raw === 'llm-mind' || raw === 'llm-second-pass-rewrite'
+}
+
+export function isAlicizationInfraVisibleReplyAuthority(raw: unknown): raw is AlicizationInfraVisibleReplyAuthority {
+  return raw === 'local-deterministic-fallback'
+}
+
+export function normalizeAlicizationNormalVisibleReplyAuthority(
+  authority: AlicizationVisibleReplyAuthority | null | undefined,
+  fallback: AlicizationNormalVisibleReplyAuthority = 'llm-mind',
+): AlicizationNormalVisibleReplyAuthority {
+  if (authority === 'llm-mind' || authority === 'llm-second-pass-rewrite')
+    return authority
+  if (authority === 'local-deterministic-fallback' || authority === 'governed-repair-fallback')
+    return 'llm-second-pass-rewrite'
+  return fallback
+}
 export interface AlicizationVisibleReplyRewriteRequest {
   required: boolean
   authority: 'llm-second-pass-rewrite'

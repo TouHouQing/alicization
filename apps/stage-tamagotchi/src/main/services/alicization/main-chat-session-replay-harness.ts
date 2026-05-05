@@ -1427,12 +1427,10 @@ export function buildSampledHumanlikeMemoryBenchmarkPack(input: {
         activeThreadId: readString(candidate.trace.activeThreadId, 160) || null,
       },
       sampledCategories: candidate.categories,
-      gold: buildReplayGoldExpectationFromOrganicMemoryContext(
-        organicMemoryContext,
-        readString(candidate.trace.governance?.screenReferenceMode, 64) === 'avoid'
-          ? 'llm-mind'
-          : null,
-      ),
+      gold: buildIndependentReplayGoldExpectationFromTrace({
+        trace: candidate.trace,
+        categories: candidate.categories,
+      }),
     } satisfies AlicizationReplayTurn
   })
 }
@@ -2312,36 +2310,48 @@ function readPreparedLatencyBudgetClass(prepared: AlicizationPreparedMainChatExe
   return readString(derivedBundle?.recallLatencyPolicy?.budgetClass, 64) || null
 }
 
-function buildReplayGoldExpectationFromOrganicMemoryContext(
-  context: OrganicMemoryPromptContext | undefined,
-  replyAuthority?: string | null,
-): AlicizationReplayGoldExpectation | undefined {
-  const selectedCandidateIds = uniqueStrings(context?.memorySituationCandidates?.selected.map(item => item.candidateId) ?? [])
-  const suppressedCandidateIds = uniqueStrings(context?.memorySituationCandidates?.suppressed.map(item => item.candidateId) ?? [])
-  const claimValidationStates = Object.fromEntries(
-    (context?.derivedMindStateBundle?.claimEvidenceGraphs ?? [])
-      .map(graph => [readString(graph.claimId, 180), readString(graph.validationState, 64)])
-      .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
-  )
-  const latencyBudgetClass = readPreparedLatencyBudgetClass({
-    organicMemoryContext: context ?? null,
-  } as AlicizationPreparedMainChatExecutionResult) as AlicizationReplayLatencyBudgetClass | null
+function buildIndependentReplayGoldExpectationFromTrace(input: {
+  trace: AlicizationMemoryDecisionTraceRecord
+  categories: AlicizationReplayBenchmarkSampleCategory[]
+}): AlicizationReplayGoldExpectation | undefined {
+  const recall = asObject(input.trace.recallAttribution)
+  const judged = asObject(input.trace.memoryDeliberationJudged)
+  const wrongThread = asObject(input.trace.memoryWrongThreadSuppressed)
+  const stableCore = asObject(input.trace.memoryStableCoreSurfaced)
+  const selectedCandidateIds = uniqueStrings([
+    ...readObjectArray(recall?.selectedEpisodes).map(item => readString(item.id, 180)),
+    ...readObjectArray(recall?.selectedProcedures).map(item => readString(item.id, 180)),
+    ...readObjectArray(recall?.selectedPeriods).map(item => readString(item.id, 180)),
+    ...readObjectArray(recall?.selectedEras).map(item => readString(item.id, 180)),
+    ...readStringArray(judged?.selectedCandidateIds, 24, 180),
+    ...readStringArray(stableCore?.selectedCandidateIds, 24, 180),
+  ])
+  const suppressedCandidateIds = uniqueStrings([
+    ...readObjectArray(wrongThread?.conflictVariants).map(item => readString(item.id, 180)),
+    ...readStringArray(wrongThread?.suppressedCandidateIds, 24, 180),
+    ...readStringArray(judged?.suppressedCandidateIds, 24, 180),
+  ])
+  const claimValidationStates = readStringRecord(asObject(input.trace.derivedMindStateBundle)?.claimValidationStates)
+    ?? readStringRecord(asObject(input.trace.memoryFactsUpserted)?.claimValidationStates)
+  const replyAuthority = input.categories.includes('wrong-thread')
+    || readString(input.trace.governance?.screenReferenceMode, 64) === 'avoid'
+    ? 'llm-mind'
+    : null
   if (
     selectedCandidateIds.length === 0
     && suppressedCandidateIds.length === 0
-    && Object.keys(claimValidationStates).length === 0
+    && !claimValidationStates
     && !replyAuthority
-    && !latencyBudgetClass
   ) {
     return undefined
   }
   return {
     selectedCandidateIds: selectedCandidateIds.length > 0 ? selectedCandidateIds : undefined,
     suppressedCandidateIds: suppressedCandidateIds.length > 0 ? suppressedCandidateIds : undefined,
-    claimValidationStates: Object.keys(claimValidationStates).length > 0 ? claimValidationStates : undefined,
-    replyAuthority: replyAuthority ?? null,
-    latencyBudgetClass: latencyBudgetClass ?? undefined,
-    latencyBudgetPass: latencyBudgetClass ? true : undefined,
+    claimValidationStates,
+    replyAuthority,
+    latencyBudgetClass: readReplayLatencyBudgetClass(asObject(input.trace.derivedMindStateBundle)?.recallLatencyPolicyBudgetClass),
+    latencyBudgetPass: true,
   }
 }
 
@@ -2690,6 +2700,36 @@ export function buildReplayBenchmarkBacklogPack(input: {
 }
 
 export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  const goldByTurnId: Record<string, AlicizationReplayGoldExpectation> = {
+    'benchmark-180d-autobiographical-span': {
+      selectedCandidateIds: ['episode:autobiographical-cross-session'],
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'deep-recall-reply',
+      latencyBudgetPass: true,
+    },
+    'benchmark-relationship-repair-tone-shift': {
+      selectedCandidateIds: ['relationship-era:post-repair-tone'],
+      suppressedCandidateIds: ['relationship-era:pre-repair-distance'],
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'deep-recall-reply',
+      latencyBudgetPass: true,
+    },
+    'benchmark-wrong-thread-lure': {
+      suppressedCandidateIds: ['thread:lookalike-stale-line'],
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'realtime-reply',
+      latencyBudgetPass: true,
+    },
+    'benchmark-knowledge-update-conflict': {
+      claimValidationStates: {
+        'knowledge:update-conflict': 'contradicted',
+      },
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'deep-recall-reply',
+      latencyBudgetPass: true,
+    },
+  }
+
   return [
     {
       turnId: 'benchmark-7d-conversation-history',
@@ -2702,18 +2742,22 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
         sessionId: null,
         activeThreadId: null,
       },
+      gold: goldByTurnId['benchmark-7d-conversation-history'],
     },
     {
       turnId: 'benchmark-30d-procedure-history',
       userText: '以前你是怎么帮我做这个的',
+      gold: goldByTurnId['benchmark-30d-procedure-history'],
     },
     {
       turnId: 'benchmark-90d-relationship-era',
       userText: '那段时间你为什么总这么回我',
+      gold: goldByTurnId['benchmark-90d-relationship-era'],
     },
     {
       turnId: 'benchmark-180d-autobiographical-span',
       userText: '半年前那条线你还接得回来吗',
+      gold: goldByTurnId['benchmark-180d-autobiographical-span'],
     },
     {
       turnId: 'benchmark-nonexplicit-similar-task',
@@ -2730,6 +2774,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     {
       turnId: 'benchmark-wrong-thread-lure',
       userText: '不是那条线，是另一条，你别把它们混在一起',
+      gold: goldByTurnId['benchmark-wrong-thread-lure'],
     },
     {
       turnId: 'benchmark-long-horizon-task-migration',
@@ -2738,6 +2783,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     {
       turnId: 'benchmark-relationship-repair-tone-shift',
       userText: '你这次为什么和之前不一样，是不是记错了哪次修复之后的分寸',
+      gold: goldByTurnId['benchmark-relationship-repair-tone-shift'],
     },
     {
       turnId: 'benchmark-relevant-but-inward-only',
@@ -2794,6 +2840,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
     {
       turnId: 'benchmark-knowledge-update-conflict',
       userText: '你后来学会了新做法，那你会不会把以前那套旧方法的记忆修正掉',
+      gold: goldByTurnId['benchmark-knowledge-update-conflict'],
     },
     {
       turnId: 'benchmark-rhythm-stability-repair-window',
@@ -2807,6 +2854,16 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
 }
 
 export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  const goldByTurnId: Record<string, AlicizationReplayGoldExpectation> = {
+    'growth-self-revision': {
+      claimValidationStates: {
+        'self-model:old-judgement': 'superseded',
+      },
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'deep-recall-reply',
+      latencyBudgetPass: true,
+    },
+  }
   return [
     {
       turnId: 'growth-repeated-mistake-avoidance',
@@ -2819,6 +2876,7 @@ export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn
         sessionId: null,
         activeThreadId: null,
       },
+      gold: goldByTurnId['growth-repeated-mistake-avoidance'],
     },
     {
       turnId: 'growth-host-understanding-burden',
@@ -2831,6 +2889,7 @@ export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn
         sessionId: null,
         activeThreadId: null,
       },
+      gold: goldByTurnId['growth-host-understanding-burden'],
     },
     {
       turnId: 'growth-skill-internalization',
@@ -2843,6 +2902,7 @@ export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn
         sessionId: null,
         activeThreadId: null,
       },
+      gold: goldByTurnId['growth-skill-internalization'],
     },
     {
       turnId: 'growth-self-revision',
@@ -2855,11 +2915,29 @@ export function buildGrowthHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn
         sessionId: null,
         activeThreadId: null,
       },
+      gold: goldByTurnId['growth-self-revision'],
     },
   ]
 }
 
 export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  const goldByTurnId: Record<string, AlicizationReplayGoldExpectation> = {
+    'adversarial-similar-task-different-conclusion': {
+      suppressedCandidateIds: ['procedure:other-task-conclusion'],
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'realtime-reply',
+      latencyBudgetPass: true,
+    },
+    'adversarial-stale-self-model-story': {
+      suppressedCandidateIds: ['self-model:stale-story'],
+      claimValidationStates: {
+        'self-model:stale-story': 'contradicted',
+      },
+      replyAuthority: 'llm-mind',
+      latencyBudgetClass: 'deep-recall-reply',
+      latencyBudgetPass: true,
+    },
+  }
   return [
     {
       turnId: 'adversarial-similar-task-different-conclusion',
@@ -2873,6 +2951,7 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
         activeThreadId: null,
       },
       sampledCategories: ['execution', 'wrong-thread', 'procedure-carry'],
+      gold: goldByTurnId['adversarial-similar-task-different-conclusion'],
     },
     {
       turnId: 'adversarial-relationship-era-repair-confusion',
@@ -2886,6 +2965,7 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
         activeThreadId: null,
       },
       sampledCategories: ['dialogue', 'repair-arc', 'wrong-thread'],
+      gold: goldByTurnId['adversarial-relationship-era-repair-confusion'],
     },
     {
       turnId: 'adversarial-stale-self-model-story',
@@ -2899,6 +2979,7 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
         activeThreadId: null,
       },
       sampledCategories: ['dialogue', 'wrong-thread', 'general-memory'],
+      gold: goldByTurnId['adversarial-stale-self-model-story'],
     },
     {
       turnId: 'adversarial-old-hurt-after-repair',
@@ -2912,6 +2993,7 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
         activeThreadId: null,
       },
       sampledCategories: ['dialogue', 'repair', 'wrong-thread'],
+      gold: goldByTurnId['adversarial-old-hurt-after-repair'],
     },
     {
       turnId: 'adversarial-afterglow-vs-longterm-relationship',
@@ -2925,6 +3007,7 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
         activeThreadId: null,
       },
       sampledCategories: ['dialogue', 'stable-core', 'wrong-thread'],
+      gold: goldByTurnId['adversarial-afterglow-vs-longterm-relationship'],
     },
   ]
 }

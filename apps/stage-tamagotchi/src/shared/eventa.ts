@@ -123,6 +123,9 @@ import type {
   AlicizationMemoryProvenance as SharedAlicizationMemoryProvenance,
   AlicizationMemorySource as SharedAlicizationMemorySource,
   AlicizationMemoryUpsertTrace as SharedAlicizationMemoryUpsertTrace,
+  AlicizationNormalVisibleReplyAuthority as SharedAlicizationNormalVisibleReplyAuthority,
+  AlicizationInfraVisibleReplyAuthority as SharedAlicizationInfraVisibleReplyAuthority,
+  AlicizationVisibleReplyExecutionAuthority as SharedAlicizationVisibleReplyExecutionAuthority,
   AlicizationMindHeadKey as SharedAlicizationMindHeadKey,
   AlicizationMindTurnEventInput as SharedAlicizationMindTurnEventInput,
   AlicizationMindTurnEventKind as SharedAlicizationMindTurnEventKind,
@@ -2198,6 +2201,9 @@ export type AlicizationCompiledResponseMode
     | 'answer-naturally'
 
 export type AlicizationReplyRealizationMode = 'provider-mind-required' | 'fallback-locally-allowed'
+export type AlicizationNormalVisibleReplyAuthority = SharedAlicizationNormalVisibleReplyAuthority
+export type AlicizationInfraVisibleReplyAuthority = SharedAlicizationInfraVisibleReplyAuthority
+export type AlicizationVisibleReplyExecutionAuthority = SharedAlicizationVisibleReplyExecutionAuthority
 
 export interface AlicizationAnswerCompilerSnapshot {
   answerSubject: AlicizationDialogueAnswerSubject
@@ -2207,7 +2213,7 @@ export interface AlicizationAnswerCompilerSnapshot {
   turnMode: 'grounded-inspection' | 'screen-repair' | 'guide-current-knot' | 'care' | 'accompany' | 'answer'
   responseMode: AlicizationCompiledResponseMode
   replyRealizationMode?: AlicizationReplyRealizationMode | null
-  expectedVisibleReplyAuthority?: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback' | null
+  expectedVisibleReplyAuthority?: AlicizationNormalVisibleReplyAuthority | null
   recommendedAct: AlicizationAnswerAct
   evidenceMode: AlicizationAnswerEvidenceMode
   openingStyle: 'direct-observation' | 'direct-correction' | 'direct-answer' | 'gentle-care' | 'light-accompaniment'
@@ -2245,7 +2251,7 @@ export interface AlicizationMindTurnContractSnapshot {
   responseMode: AlicizationCompiledResponseMode
   evidenceMode: AlicizationAnswerEvidenceMode | null
   openingStyle: AlicizationAnswerCompilerSnapshot['openingStyle']
-  expectedVisibleReplyAuthority: 'llm-mind' | 'llm-second-pass-rewrite' | 'governed-repair-fallback' | 'local-deterministic-fallback'
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
   replyRealizationMode: AlicizationReplyRealizationMode
   personaKernelMode: AlicizationAnswerCompilerSnapshot['personaKernelMode']
   activeClosenessContext: AlicizationAnswerCompilerSnapshot['activeClosenessContext']
@@ -2915,8 +2921,8 @@ export type AlicizationVisibleReplyExecutionMode = 'provider-stream' | 'provider
 
 export interface AlicizationVisibleReplyExecution {
   mode: AlicizationVisibleReplyExecutionMode
-  expectedVisibleReplyAuthority: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
-  actualVisibleReplyAuthority: AlicizationMindTurnGovernance['visibleReplyAuthority'] | null
+  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority | null
+  actualVisibleReplyAuthority: AlicizationVisibleReplyExecutionAuthority | null
   providerMindExecuted: boolean
   reason: string | null
 }
