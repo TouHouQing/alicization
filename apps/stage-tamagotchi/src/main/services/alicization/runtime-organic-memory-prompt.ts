@@ -24,10 +24,9 @@ import { deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-sh
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
 import { buildRelationshipDoctrineGuidance } from './relationship-doctrine-guidance'
 import { applyMemoryTuningAdviceToSpeechPlan } from './memory-tuning-advice'
-import { normalizeMemoryDomain } from './memory-domain-model'
 import { rankOrganicMemoryCandidatesStage } from './memory-candidate-ranking'
 import { buildMemorySituationCompetition } from './memory-situation-competition'
-import { buildLearningClaimEvidenceGraph } from './learning-claim-evidence-runtime'
+import { buildClaimEvidenceGraphFromMemoryFact } from './learning-claim-evidence-runtime'
 import { resolveOrganicMemoryRecollectionPlanningStage } from './memory-recollection-planning'
 import { planAlicizationRecall } from './recall-planner'
 import {
@@ -2592,30 +2591,10 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       consolidatedMemories: deliberatedConsolidatedMemories,
       proceduralMemories: deliberatedProceduralMemories,
     })
-    const claimEvidenceGraphs = retrievedFacts.slice(0, 6).map((fact) => {
-      const domain = fact.memoryDomain ? normalizeMemoryDomain(fact.memoryDomain) : normalizeMemoryDomain(null)
-      return buildLearningClaimEvidenceGraph({
-        now: Date.now(),
-        task: {
-          taskId: `organic-memory:${fact.id}`,
-          action: 'verify',
-          message: `${fact.subject} ${fact.predicate} ${fact.object}`,
-          payload: {
-            reason: `${fact.subject} ${fact.predicate} ${fact.object}`,
-            supportingFactIds: [fact.id],
-            conflictTargets: fact.conflictsWith ?? [],
-          },
-        } as any,
-        domain,
-        supportingFacts: [fact],
-        relatedReflections: [],
-        relatedOutcomes: [],
-        verificationBasis: [
-          (fact.validationStatus ?? 'unverified') === 'validated' ? 'existing-memory' : '',
-          fact.sourceLabel?.includes('trusted') || fact.sourceLabel?.includes('tool') ? 'trusted-source' : '',
-        ].filter(Boolean),
-      })
-    })
+    const claimEvidenceGraphs = retrievedFacts.slice(0, 6).map(fact => buildClaimEvidenceGraphFromMemoryFact({
+      now: Date.now(),
+      fact,
+    }))
 
     const selfEvolutionStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({

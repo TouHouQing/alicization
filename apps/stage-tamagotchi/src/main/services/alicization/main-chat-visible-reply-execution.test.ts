@@ -70,4 +70,43 @@ describe('main-chat-visible-reply-execution', () => {
     expect(visibleReplyExecution.mode).toBe('provider-stream')
     expect(visibleReplyExecution.providerMindExecuted).toBe(true)
   })
+
+  it('upgrades legacy deterministic normal reply plans to provider-authored rewrite authority', () => {
+    const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: {
+        hasVisualGrounding: false,
+        mindTurnContract: null,
+        replyRealization: {
+          replyRealizationMode: 'fallback-locally-allowed',
+          expectedVisibleReplyAuthority: 'local-deterministic-fallback',
+          whyProviderMindRequired: null,
+        },
+        replyExecutionPlan: {
+          preferredMode: 'local-fallback',
+          expectedVisibleReplyAuthority: 'local-deterministic-fallback',
+          reason: 'legacy-normal-fallback',
+        },
+        runtimeSurface: {
+          replyAuthority: {
+            replyRealizationMode: 'fallback-locally-allowed',
+            expectedVisibleReplyAuthority: 'local-deterministic-fallback',
+            whyProviderMindRequired: null,
+          },
+          replyExecutionPlan: {
+            preferredMode: 'local-fallback',
+            expectedVisibleReplyAuthority: 'local-deterministic-fallback',
+            reason: 'legacy-runtime-normal-fallback',
+          },
+        },
+        governance: {
+          visibleReplyAuthority: 'governed-repair-fallback',
+        },
+      } as any,
+    })
+
+    expect(visibleReplyExecution.expectedVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(visibleReplyExecution.mode).toBe('provider-stream')
+    expect(visibleReplyExecution.actualVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(visibleReplyExecution.providerMindExecuted).toBe(true)
+  })
 })

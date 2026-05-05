@@ -189,4 +189,88 @@ describe('memory-situation-competition', () => {
     expect(result.delayed.some(item => item.candidateId === 'memory-situation:slow-related')).toBe(true)
     expect(result.unresolved.some(item => item.candidateId === 'memory-situation:weak')).toBe(true)
   })
+
+  it('suppresses plausible wrong-thread candidates with explicit conflict reasons', () => {
+    const result = buildMemorySituationCompetition({
+      queryTexts: ['继续我们刚才的关系边界修复'],
+      eventGraphCandidates: {
+        version: 'memory-situation-candidates-v1',
+        producedAt: Date.now(),
+        queryTexts: ['关系边界修复'],
+        candidates: [{
+          candidateId: 'memory-situation:current-boundary',
+          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
+          situationKind: 'relationship-arc',
+          eraKey: 'current-repair-era',
+          relationshipArcKey: 'boundary-repair-with-host',
+          procedureKey: null,
+          selfModelKey: null,
+          worldClaimKeys: [],
+          selectedEvidenceIds: ['event-current'],
+          competingCandidateIds: [],
+          suppressionReasons: [],
+          confidence: 0.82,
+          latencyCost: 0.14,
+          status: 'selected',
+          statusReason: 'graph-selected-current-arc',
+          summary: 'current boundary repair arc',
+          evidenceSummary: 'same host repair arc',
+        }, {
+          candidateId: 'memory-situation:old-task-thread',
+          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
+          situationKind: 'relationship-arc',
+          eraKey: 'old-coding-era',
+          relationshipArcKey: 'code-review-pressure-arc',
+          procedureKey: null,
+          selfModelKey: null,
+          worldClaimKeys: [],
+          selectedEvidenceIds: ['event-old'],
+          competingCandidateIds: [],
+          suppressionReasons: ['wrong-thread-candidate'],
+          confidence: 0.66,
+          latencyCost: 0.18,
+          status: 'unresolved',
+          statusReason: null,
+          summary: 'old code review pressure arc',
+          evidenceSummary: 'plausible but old thread',
+        }, {
+          candidateId: 'fact:expired-world-claim',
+          sourceKinds: ['fact', 'world-model'],
+          situationKind: 'world-claim',
+          eraKey: null,
+          relationshipArcKey: null,
+          procedureKey: null,
+          selfModelKey: null,
+          worldClaimKeys: ['fact-expired'],
+          selectedEvidenceIds: ['fact-expired'],
+          competingCandidateIds: [],
+          suppressionReasons: [],
+          confidence: 0.5,
+          latencyCost: 0.12,
+          status: 'unresolved',
+          statusReason: null,
+          summary: 'stale world claim',
+          evidenceSummary: 'validation=expired | contradiction=1',
+        }],
+        selected: [],
+        rejected: [],
+        suppressed: [],
+        delayed: [],
+        unresolved: [],
+      },
+    })
+
+    expect(result.selected[0]?.candidateId).toBe('memory-situation:current-boundary')
+    expect(result.suppressed.map(item => item.candidateId)).toEqual(expect.arrayContaining([
+      'memory-situation:old-task-thread',
+      'fact:expired-world-claim',
+    ]))
+    expect(result.suppressed.find(item => item.candidateId === 'memory-situation:old-task-thread')?.suppressionReasons).toEqual(expect.arrayContaining([
+      'source-marked-suppressed',
+      'wrong-relationship-arc:memory-situation:current-boundary',
+      'wrong-era:memory-situation:current-boundary',
+    ]))
+    expect(result.suppressed.find(item => item.candidateId === 'fact:expired-world-claim')?.suppressionReasons).toContain('world-claim-contradicted-or-expired')
+    expect(result.selected[0]?.suppressionReasons).toEqual([])
+  })
 })

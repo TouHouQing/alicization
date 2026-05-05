@@ -520,6 +520,55 @@ describe('main chat runtime surface', () => {
     expect(result.trace.sessionPhases).toEqual(['runtime-surface'])
   })
 
+  it('upgrades legacy local fallback authority to provider-authored rewrite planning for normal governed turns', () => {
+    const result = buildAlicizationMainChatRuntimeSurface({
+      actionObligation: null,
+      allowTools: false,
+      waitForTools: false,
+      baseMessages: [{ role: 'user', content: '继续回答，不要只给我壳子。' } as Message],
+      runtimeCorePromptBlocks: ['[CORE]'],
+      perceptionPromptSystemBlocks: [],
+      perceptionSystemBlocks: [],
+      executionCapabilitySystemBlocks: [],
+      organicMemorySystemBlocks: [],
+      performanceManifestSystemBlocks: [],
+      digitalLifeRuntimeSurface: null,
+      customDirectivesResolution: {
+        text: '',
+        source: 'card-soul',
+      },
+      hasVisualGrounding: false,
+      governance: {
+        decisionTraceId: 'trace-normal-authority-gate',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        visibleReplyAuthority: 'local-deterministic-fallback',
+      } as any,
+      turnMode: 'answer',
+      personaKernelMode: 'full',
+      sessionPhases: ['runtime-surface'],
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        health: 'healthy',
+        permission: 'granted',
+        fallbackReason: null,
+        degradedReasons: [],
+      },
+    })
+
+    expect(result.replyAuthority).toEqual(expect.objectContaining({
+      replyRealizationMode: 'provider-mind-required',
+      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+    }))
+    expect(result.replyExecutionPlan).toEqual(expect.objectContaining({
+      preferredMode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+    }))
+    expect(result.replyAuthority?.whyProviderMindRequired).toContain('second-pass repair')
+  })
+
   it('collapses dialogue-first digital life prompt state into a living self block', () => {
     const result = buildAlicizationMainChatRuntimeSurface({
       actionObligation: {

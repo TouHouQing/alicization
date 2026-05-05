@@ -162,6 +162,21 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function resolveNormalVisibleReplyAuthority(
+  governance: AlicizationMindTurnGovernance | null,
+): AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'] {
+  const authority = governance?.visibleReplyAuthority ?? 'llm-mind'
+  if (authority === 'local-deterministic-fallback' || authority === 'governed-repair-fallback')
+    return 'llm-second-pass-rewrite'
+  return authority
+}
+
+function describeNormalVisibleReplyAuthority(authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority']) {
+  if (authority === 'llm-second-pass-rewrite')
+    return 'This turn may need provider-authored second-pass repair; local deterministic wording is not allowed to realize normal visible dialogue.'
+  return 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
+}
+
 export function shouldUseDialogueFirstLivingPromptMode(input: {
   actionObligation?: AlicizationMainChatActionObligation | null
   capture: Omit<AlicizationMainChatCaptureSurface, 'hasVisualGrounding'>
@@ -483,8 +498,8 @@ export function buildAlicizationMainChatRuntimeSurface(
     ? []
     : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
-  const expectedVisibleReplyAuthority = input.governance?.visibleReplyAuthority ?? 'llm-mind'
-  const replyRealizationMode = expectedVisibleReplyAuthority === 'llm-mind'
+  const expectedVisibleReplyAuthority = resolveNormalVisibleReplyAuthority(input.governance)
+  const replyRealizationMode = expectedVisibleReplyAuthority === 'llm-mind' || expectedVisibleReplyAuthority === 'llm-second-pass-rewrite'
     ? 'provider-mind-required' as const
     : 'fallback-locally-allowed' as const
   const whyProviderMindRequired = replyRealizationMode === 'provider-mind-required'
@@ -493,7 +508,7 @@ export function buildAlicizationMainChatRuntimeSurface(
         ?? input.governance?.answerIntent
         ?? '',
         220,
-      ) || 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
+      ) || describeNormalVisibleReplyAuthority(expectedVisibleReplyAuthority)
     : null
   const replyExecutionPlan = {
     preferredMode: replyRealizationMode === 'fallback-locally-allowed'

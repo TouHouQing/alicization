@@ -131,6 +131,69 @@ function scoreCandidatePriority(candidate: AlicizationMemorySituationCandidate) 
   return Number((candidate.confidence + graphSelectedBoost + graphSourceBoost + evidenceBoost + crossSourceBoost - latencyPenalty).toFixed(4))
 }
 
+function hasTextualConflict(left: string | null | undefined, right: string | null | undefined) {
+  const leftText = sanitizeText(left, 220).toLowerCase()
+  const rightText = sanitizeText(right, 220).toLowerCase()
+  if (!leftText || !rightText)
+    return false
+  if (leftText === rightText)
+    return false
+  if (leftText.includes(rightText) || rightText.includes(leftText))
+    return false
+  return true
+}
+
+function inferCandidateSuppression(input: {
+  candidate: AlicizationMemorySituationCandidate
+  winner: AlicizationMemorySituationCandidate | null
+  priority: number
+}) {
+  const reasons: string[] = []
+  if (input.candidate.suppressionReasons.some(reason => /suppressed|wrong-thread|stale-thread|conflict|contradict/u.test(reason)))
+    reasons.push('source-marked-suppressed')
+
+  if (input.winner) {
+    if (
+      input.candidate.relationshipArcKey
+      && input.winner.relationshipArcKey
+      && hasTextualConflict(input.candidate.relationshipArcKey, input.winner.relationshipArcKey)
+    ) {
+      reasons.push(`wrong-relationship-arc:${input.winner.candidateId}`)
+    }
+    if (
+      input.candidate.eraKey
+      && input.winner.eraKey
+      && hasTextualConflict(input.candidate.eraKey, input.winner.eraKey)
+    ) {
+      reasons.push(`wrong-era:${input.winner.candidateId}`)
+    }
+    if (
+      input.candidate.procedureKey
+      && input.winner.procedureKey
+      && hasTextualConflict(input.candidate.procedureKey, input.winner.procedureKey)
+      && input.candidate.confidence < input.winner.confidence + 0.08
+    ) {
+      reasons.push(`wrong-procedure-thread:${input.winner.candidateId}`)
+    }
+  }
+
+  if (
+    input.candidate.worldClaimKeys.length > 0
+    && /contradict|conflict|superseded|expired|矛盾|过期/u.test(`${input.candidate.evidenceSummary ?? ''} ${input.candidate.statusReason ?? ''}`)
+  ) {
+    reasons.push('world-claim-contradicted-or-expired')
+  }
+
+  if (reasons.length === 0)
+    return null
+
+  const strongEnoughToNotice = input.priority >= 0.22 || input.candidate.confidence >= 0.35
+  if (!strongEnoughToNotice)
+    return null
+
+  return uniqueList(reasons, 8)
+}
+
 export function buildMemorySituationCompetition(input: {
   producedAt?: number
   queryTexts: string[]
@@ -274,11 +337,21 @@ export function buildMemorySituationCompetition(input: {
     })
     .slice(0, 12)
 
-  const winner = ranked[0]?.candidateId ?? null
+  const winner = ranked[0] ?? null
+  const winnerId = winner?.candidateId ?? null
   const withStatuses: AlicizationMemorySituationCandidate[] = ranked.map((candidate, index): AlicizationMemorySituationCandidate => {
     const priority = scoreCandidatePriority(candidate)
+    const suppressionReasons = index === 0
+      ? []
+      : inferCandidateSuppression({
+          candidate,
+          winner,
+          priority,
+        })
     const nextStatus: AlicizationMemorySituationCandidate['status'] = index === 0
       ? 'selected'
+      : suppressionReasons
+        ? 'suppressed'
       : candidate.latencyCost >= 0.55 && priority >= 0.48
         ? 'delayed'
         : priority < 0.24
@@ -292,11 +365,14 @@ export function buildMemorySituationCompetition(input: {
         .slice(0, 8),
       suppressionReasons: index === 0 ? candidate.suppressionReasons : uniqueList([
         ...candidate.suppressionReasons,
-        winner ? `lost-to:${winner}` : 'no-winning-candidate',
+        ...(suppressionReasons ?? []),
+        winnerId ? `lost-to:${winnerId}` : 'no-winning-candidate',
       ], 8),
       status: nextStatus,
       statusReason: index === 0
         ? 'highest cross-source situation priority for current query'
+        : nextStatus === 'suppressed'
+          ? 'plausible memory was suppressed because it conflicts with the current selected situation'
         : nextStatus === 'delayed'
           ? 'plausible but too latency-expensive for the current recall slot'
           : nextStatus === 'unresolved'

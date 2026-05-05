@@ -14,27 +14,43 @@ export interface AlicizationResolvedVisibleReply {
 function resolvePreparedReplyExecutionPlan(prepared: AlicizationPreparedMainChatExecutionResult) {
   if (prepared.mindTurnContract) {
     return {
-      preferredMode: prepared.mindTurnContract.replyRealizationMode === 'fallback-locally-allowed'
-        ? 'local-fallback'
-        : prepared.hasVisualGrounding
-          ? 'provider-one-shot'
-          : 'provider-stream',
-      expectedVisibleReplyAuthority: prepared.mindTurnContract.expectedVisibleReplyAuthority,
+      preferredMode: prepared.hasVisualGrounding
+        ? 'provider-one-shot'
+        : 'provider-stream',
+      expectedVisibleReplyAuthority: normalizeNormalVisibleReplyAuthority(prepared.mindTurnContract.expectedVisibleReplyAuthority),
       reason: 'mind-turn-contract',
     } as const
   }
-  return prepared.replyExecutionPlan
+  const plan = prepared.replyExecutionPlan
     ?? prepared.runtimeSurface.replyExecutionPlan
     ?? null
+  if (!plan)
+    return null
+  return {
+    ...plan,
+    preferredMode: plan.preferredMode === 'local-fallback'
+      ? prepared.hasVisualGrounding ? 'provider-one-shot' : 'provider-stream'
+      : plan.preferredMode,
+    expectedVisibleReplyAuthority: normalizeNormalVisibleReplyAuthority(plan.expectedVisibleReplyAuthority),
+    reason: plan.reason ?? 'visible-reply-authority-gate',
+  } as const
 }
 
 function resolvePreparedVisibleReplyAuthority(prepared: AlicizationPreparedMainChatExecutionResult) {
   if (prepared.mindTurnContract)
-    return prepared.mindTurnContract.expectedVisibleReplyAuthority
-  return prepared.replyRealization?.expectedVisibleReplyAuthority
+    return normalizeNormalVisibleReplyAuthority(prepared.mindTurnContract.expectedVisibleReplyAuthority)
+  return normalizeNormalVisibleReplyAuthority(prepared.replyRealization?.expectedVisibleReplyAuthority
     ?? prepared.runtimeSurface.replyAuthority?.expectedVisibleReplyAuthority
     ?? prepared.governance?.visibleReplyAuthority
-    ?? 'llm-mind'
+    ?? 'llm-mind')
+}
+
+function normalizeNormalVisibleReplyAuthority(
+  authority: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority'],
+): AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority'] {
+  if (authority === 'local-deterministic-fallback' || authority === 'governed-repair-fallback')
+    return 'llm-second-pass-rewrite'
+  return authority
 }
 
 export function createAlicizationVisibleReplyExecution(input: {

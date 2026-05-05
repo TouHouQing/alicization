@@ -108,6 +108,72 @@ function deriveValidationState(input: {
   return 'unverified' satisfies AlicizationClaimValidationState
 }
 
+export function buildClaimEvidenceGraphFromMemoryFact(input: {
+  now: number
+  fact: AlicizationMemoryFact
+}): AlicizationClaimEvidenceGraph {
+  const domain = normalizeMemoryDomain(input.fact.memoryDomain)
+  const normalizedDomain = domain === 'procedure' || domain === 'relationship' || domain === 'self-model' || domain === 'world-model'
+    ? domain
+    : 'world-model'
+  return buildLearningClaimEvidenceGraph({
+    now: input.now,
+    task: {
+      id: `organic-memory:${input.fact.id}`,
+      cardId: 'organic-memory',
+      taskId: `organic-memory:${input.fact.id}`,
+      status: 'completed',
+      triggerAt: input.now,
+      action: 'verify',
+      message: `${input.fact.subject} ${input.fact.predicate} ${input.fact.object}`,
+      payload: {
+        action: 'verify',
+        reason: `${input.fact.subject} ${input.fact.predicate} ${input.fact.object}`,
+        focuses: [`organic-memory:${normalizedDomain}`],
+        dominantTrajectory: `${normalizedDomain} evidence carry`,
+        sourceSignals: [input.fact.sourceLabel ?? input.fact.subject],
+        learningReadiness: input.fact.confidence,
+        contradictionPressure: Math.min(1, (input.fact.contradictionCount ?? 0) * 0.25),
+        revisionPressure: 0,
+        autobiographicalStability: input.fact.confidence,
+        supportingFactIds: [input.fact.id],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: input.fact.conflictsWith ?? [],
+        sourceTurnId: null,
+        sourceSessionId: null,
+        decisionTraceId: `organic-memory:${input.fact.id}`,
+      },
+      attemptCount: 0,
+      maxAttempts: 1,
+      createdAt: input.now,
+      updatedAt: input.now,
+      claimedAt: null,
+      startedAt: null,
+      completedAt: input.now,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: null,
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    },
+    domain: normalizedDomain,
+    supportingFacts: [input.fact],
+    relatedReflections: [],
+    relatedOutcomes: [],
+    verificationBasis: [
+      (input.fact.validationStatus ?? 'unverified') === 'validated' ? 'existing-memory' : '',
+      input.fact.sourceLabel?.includes('trusted') || input.fact.sourceLabel?.includes('tool') ? 'trusted-source' : '',
+    ].filter(Boolean),
+  })
+}
+
 export function buildLearningClaimEvidenceGraph(input: {
   now: number
   task: AlicizationLearningTaskRecord
