@@ -1179,11 +1179,16 @@ class FakeSqliteDatabase {
       const decisionTraceId = _sql.includes('decision_trace_id = ?')
         ? String(actualParams[0] ?? '')
         : ''
+      const kind = _sql.includes('kind = ?')
+        ? String(actualParams[actualParams.length - 2] ?? '')
+        : ''
       const rows = mindTurnEvents
         .filter((event) => {
           if (decisionTraceId && event.decision_trace_id !== decisionTraceId)
             return false
           if (turnId && event.turn_id !== turnId)
+            return false
+          if (kind && event.kind !== kind)
             return false
           return true
         })
@@ -2891,6 +2896,51 @@ describe('alicization sqlite dao', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.kind).toBe('persistence-written')
     expect((rows[0]?.payload as Record<string, any>)?.digitalLifeSpine?.runtime?.activeThreadId).toBe('thread-beta')
+    await db.close()
+  })
+
+  it('filters replayable mind-turn events by kind for durable learning ledger queries', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.appendMindTurnEvents([
+      {
+        decisionTraceId: 'mind:l9f3lq:trace-learning-1',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'system',
+        kind: 'learning-executed',
+        payload: {
+          taskId: 'task-1',
+        },
+        createdAt: 100,
+      },
+      {
+        decisionTraceId: 'mind:l9f3lq:trace-learning-1',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'user-turn',
+        kind: 'persistence-written',
+        payload: {
+          format: 'mind-turn-v1',
+        },
+        createdAt: 120,
+      },
+    ])
+
+    const rows = await db.listMindTurnEvents({
+      kind: 'learning-executed',
+      limit: 10,
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.kind).toBe('learning-executed')
+    expect((rows[0]?.payload as Record<string, any>)?.taskId).toBe('task-1')
     await db.close()
   })
 

@@ -121,7 +121,7 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/memory-situation-
 
 ## Wave 3：Durable Claim Evidence Ledger
 
-- [ ] 新增 durable claim graph/artifact store
+- [x] 新增 durable claim graph/artifact store
 
 将 claim evidence graph / VerifiedLearningArtifact 写入 DB 或 mind_turn_events typed payload。
 
@@ -134,6 +134,8 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/memory-situation-
 - `sourceFactId`
 
 查询。
+
+evidence: `packages/stage-shared/src/alicization-learning-artifact-ledger.ts`, `packages/stage-shared/src/alicization-transport-contracts.ts`, `apps/stage-tamagotchi/src/shared/eventa.ts`, `apps/stage-tamagotchi/src/main/services/alicization/memory-mind-state-runtime.ts`, `apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-dialogue.ts`, tests: `pnpm exec vitest run packages/stage-shared/src/alicization-learning-artifact-ledger.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-mind-state-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/db.test.ts`, `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts -t "lists durable learning artifact ledger records through invoke handler"`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
 
 - [x] 替换 prompt 临时 graph 构造
 

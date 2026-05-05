@@ -1275,6 +1275,17 @@ export interface AlicizationListMindTurnEventsInput {
   decisionTraceId?: string
   turnId?: string
   activeThreadId?: string
+  kind?: AlicizationMindTurnEventKind
+  limit?: number
+}
+
+export interface AlicizationListLearningArtifactLedgerInput {
+  decisionTraceId?: string
+  turnId?: string
+  taskId?: string
+  artifactId?: string
+  claimId?: string
+  sourceFactId?: string
   limit?: number
 }
 

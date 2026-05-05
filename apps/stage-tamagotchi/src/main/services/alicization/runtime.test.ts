@@ -37,6 +37,7 @@ import {
   electronAlicizationListChannelCapabilityManifests,
   electronAlicizationListExecutionEvents,
   electronAlicizationListExecutorSessions,
+  electronAlicizationListLearningArtifactLedger,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListPersonStateUpdates,
@@ -1814,6 +1815,163 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         kind: 'governance-normalized',
       }),
     ]))
+  })
+
+  it('lists durable learning artifact ledger records through invoke handler', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const listLearningArtifactLedger = invokeHandlers.get(electronAlicizationListLearningArtifactLedger)
+    expect(listLearningArtifactLedger).toBeTypeOf('function')
+
+    dbStub.listMindTurnEvents.mockResolvedValue([
+      {
+        id: 'evt-learning-1',
+        decisionTraceId: 'mind:l9f3lq:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        origin: 'system',
+        kind: 'learning-executed',
+        payload: {
+          taskId: 'task-1',
+          action: 'verify',
+          domain: 'world-model',
+          verificationBasis: ['trusted-source'],
+          verifiedArtifact: {
+            version: 'verified-learning-artifact-v1',
+            artifactId: 'artifact-1',
+            taskId: 'task-1',
+            action: 'verify',
+            domain: 'world-model',
+            verifier: {
+              kind: 'world-model-verifier',
+              mayVerify: true,
+              mayInternalize: false,
+              mayValidateOnly: true,
+              rollbackRequired: false,
+              blockedReasons: [],
+            },
+            status: 'verified',
+            producedAt: 100,
+            claimGraph: {
+              version: 'claim-evidence-graph-v1',
+              producedAt: 100,
+              claimId: 'claim-runtime-1',
+              claim: 'runtime seam is stable',
+              domain: 'world-model',
+              supportingEvidence: [],
+              contradictingEvidence: [],
+              supersededBy: [],
+              currentBelief: 'runtime seam is stable',
+              validationState: 'validated',
+              sourceTrust: 0.9,
+              lastRevalidatedAt: 100,
+              revalidationPolicy: {
+                shouldRevalidate: false,
+                nextRevalidationAt: null,
+                expiredSourceIds: [],
+                reasonTags: [],
+              },
+              internalizationDecision: {
+                mayInternalize: true,
+                mayValidateOnly: false,
+                blockedReasons: [],
+              },
+            },
+            verificationBasis: ['trusted-source'],
+            supportingFactIds: ['fact-runtime-1'],
+            contradictionFactIds: [],
+            internalizationStage: 'validated-knowledge',
+            reason: 'verified',
+          },
+        },
+        createdAt: 100,
+      },
+      {
+        id: 'evt-learning-2',
+        decisionTraceId: 'mind:l9f3lq:othertrace',
+        turnId: 'turn-2',
+        sessionId: 'session-1',
+        origin: 'system',
+        kind: 'learning-executed',
+        payload: {
+          taskId: 'task-2',
+          action: 'verify',
+          domain: 'world-model',
+          verifiedArtifact: {
+            version: 'verified-learning-artifact-v1',
+            artifactId: 'artifact-2',
+            taskId: 'task-2',
+            action: 'verify',
+            domain: 'world-model',
+            verifier: {
+              kind: 'world-model-verifier',
+              mayVerify: true,
+              mayInternalize: false,
+              mayValidateOnly: true,
+              rollbackRequired: false,
+              blockedReasons: [],
+            },
+            status: 'verified',
+            producedAt: 110,
+            claimGraph: {
+              version: 'claim-evidence-graph-v1',
+              producedAt: 110,
+              claimId: 'claim-runtime-2',
+              claim: 'other claim',
+              domain: 'world-model',
+              supportingEvidence: [],
+              contradictingEvidence: [],
+              supersededBy: [],
+              currentBelief: 'other claim',
+              validationState: 'validated',
+              sourceTrust: 0.8,
+              lastRevalidatedAt: 110,
+              revalidationPolicy: {
+                shouldRevalidate: false,
+                nextRevalidationAt: null,
+                expiredSourceIds: [],
+                reasonTags: [],
+              },
+              internalizationDecision: {
+                mayInternalize: true,
+                mayValidateOnly: false,
+                blockedReasons: [],
+              },
+            },
+            verificationBasis: [],
+            supportingFactIds: ['fact-runtime-2'],
+            contradictionFactIds: [],
+            internalizationStage: 'validated-knowledge',
+            reason: 'verified',
+          },
+        },
+        createdAt: 110,
+      },
+    ])
+
+    const result = await listLearningArtifactLedger!({
+      cardId: 'default',
+      claimId: 'claim-runtime-1',
+      limit: 20,
+    })
+
+    expect(dbStub.listMindTurnEvents).toBeCalledWith({
+      decisionTraceId: undefined,
+      turnId: undefined,
+      kind: 'learning-executed',
+      limit: 160,
+    })
+    expect(result).toEqual([
+      expect.objectContaining({
+        taskId: 'task-1',
+        artifactId: 'artifact-1',
+        claimId: 'claim-runtime-1',
+        sourceFactIds: ['fact-runtime-1'],
+      }),
+    ])
   })
 
   it('lists structured memory decision traces through invoke handler', async () => {

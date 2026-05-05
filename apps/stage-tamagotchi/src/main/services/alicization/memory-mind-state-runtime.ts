@@ -151,6 +151,7 @@ export function createAlicizationMemoryMindStateRuntime(
     decisionTraceId?: string
     turnId?: string
     activeThreadId?: string
+    kind?: AlicizationMindTurnEventKind
     limit?: number
   }) {
     const decisionTraceId = typeof inputQuery.decisionTraceId === 'string'
@@ -162,7 +163,10 @@ export function createAlicizationMemoryMindStateRuntime(
     const activeThreadId = typeof inputQuery.activeThreadId === 'string'
       ? inputQuery.activeThreadId.trim()
       : ''
-    if (!decisionTraceId && !turnId)
+    const kind = typeof inputQuery.kind === 'string'
+      ? inputQuery.kind.trim() as AlicizationMindTurnEventKind
+      : ''
+    if (!decisionTraceId && !turnId && !kind)
       return [] as AlicizationMindTurnEventRecord[]
 
     const limit = Math.max(1, Math.min(5_000, Math.floor(inputQuery.limit ?? 300)))
@@ -182,10 +186,11 @@ export function createAlicizationMemoryMindStateRuntime(
           FROM mind_turn_events
           WHERE decision_trace_id = ?
             AND turn_id = ?
+            ${kind ? 'AND kind = ?' : ''}
           ORDER BY created_at DESC
           LIMIT ?
           `,
-          [decisionTraceId, turnId, limit],
+          kind ? [decisionTraceId, turnId, kind, limit] : [decisionTraceId, turnId, limit],
         )
       : decisionTraceId
         ? await input.all<DbMindTurnEventRow>(
@@ -202,11 +207,32 @@ export function createAlicizationMemoryMindStateRuntime(
               created_at
             FROM mind_turn_events
             WHERE decision_trace_id = ?
+            ${kind ? 'AND kind = ?' : ''}
             ORDER BY created_at DESC
             LIMIT ?
             `,
-            [decisionTraceId, limit],
+            kind ? [decisionTraceId, kind, limit] : [decisionTraceId, limit],
           )
+        : kind
+          ? await input.all<DbMindTurnEventRow>(
+              input.database,
+              `
+              SELECT
+                id,
+                decision_trace_id,
+                turn_id,
+                session_id,
+                origin,
+                kind,
+                payload_json,
+                created_at
+              FROM mind_turn_events
+              WHERE kind = ?
+              ORDER BY created_at DESC
+              LIMIT ?
+              `,
+              [kind, limit],
+            )
         : await input.all<DbMindTurnEventRow>(
             input.database,
             `
@@ -221,10 +247,11 @@ export function createAlicizationMemoryMindStateRuntime(
               created_at
             FROM mind_turn_events
             WHERE turn_id = ?
+            ${kind ? 'AND kind = ?' : ''}
             ORDER BY created_at DESC
             LIMIT ?
             `,
-            [turnId, limit],
+            kind ? [turnId, kind, limit] : [turnId, limit],
           )
 
     const mappedRows = [...rows]

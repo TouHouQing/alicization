@@ -3,6 +3,8 @@ import type {
   AlicizationConversationTurnInput,
   AlicizationConversationTurnRecord,
   AlicizationDialogueRespondedPayload,
+  AlicizationLearningArtifactLedgerRecord,
+  AlicizationListLearningArtifactLedgerPayload,
   AlicizationListPersonStateUpdatesPayload,
   AlicizationRunReplayBenchmarkPayload,
   AlicizationRunReplayBenchmarkResult,
@@ -21,13 +23,18 @@ import type {
   AlicizationRecentProactiveOutcome,
 } from './proactive-feedback'
 
-import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
+import {
+  buildAlicizationMemoryDecisionTraceRecords,
+  filterLearningArtifactLedgerRecords,
+  learningArtifactLedgerRecordFromMindTurnEvent,
+} from '@proj-alicization/stage-shared'
 
 import {
   electronAlicizationAckDialogue,
   electronAlicizationAppendConversationTurn,
   electronAlicizationClearAllConversations,
   electronAlicizationListConversationTurns,
+  electronAlicizationListLearningArtifactLedger,
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListPersonStateUpdates,
@@ -104,6 +111,7 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       decisionTraceId?: string
       turnId?: string
       activeThreadId?: string
+      kind?: AlicizationMindTurnEventRecord['kind']
       limit?: number
     }) => Promise<AlicizationMindTurnEventRecord[]>
     overrideMemoryStats: (next: any) => Promise<any>
@@ -285,9 +293,22 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       decisionTraceId: payload.decisionTraceId,
       turnId: payload.turnId,
       activeThreadId: payload.activeThreadId,
+      kind: payload.kind,
       limit: payload.limit,
     })
     return rows as AlicizationMindTurnEventRecord[]
+  }))
+  registerInvokeHandler(electronAlicizationListLearningArtifactLedger, async (payload: AlicizationListLearningArtifactLedgerPayload) => await withCardScope(payload.cardId, async () => {
+    const rows = await getAlicizationDb().listMindTurnEvents({
+      decisionTraceId: payload.decisionTraceId,
+      turnId: payload.turnId,
+      kind: 'learning-executed',
+      limit: payload.limit ? Math.max(payload.limit * 8, payload.limit) : 400,
+    })
+    const ledgerRecords = rows
+      .map(row => learningArtifactLedgerRecordFromMindTurnEvent(row))
+      .filter((row): row is AlicizationLearningArtifactLedgerRecord => Boolean(row))
+    return filterLearningArtifactLedgerRecords(ledgerRecords, payload) as AlicizationLearningArtifactLedgerRecord[]
   }))
   registerInvokeHandler(electronAlicizationListMemoryDecisionTraces, async (payload: AlicizationListMemoryDecisionTracesPayload) => await withCardScope(payload.cardId, async () => {
     const rows = await getAlicizationDb().listMindTurnEvents({

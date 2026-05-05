@@ -43,6 +43,7 @@ import type {
   AlicizationMemoryStats,
   AlicizationMindHeadKey,
   AlicizationMindTurnEventInput,
+  AlicizationMindTurnEventKind,
   AlicizationMindTurnEventRecord,
   AlicizationPersonaReinforcementEventInput,
   AlicizationPersonaReinforcementEventRecord,
@@ -1253,6 +1254,7 @@ export interface AlicizationDbService {
     decisionTraceId?: string
     turnId?: string
     activeThreadId?: string
+    kind?: AlicizationMindTurnEventKind
     limit?: number
   }) => Promise<AlicizationMindTurnEventRecord[]>
   getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>

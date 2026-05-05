@@ -50,6 +50,7 @@ import type {
   AlicizationOrganicMemoryStageReplay as SharedAlicizationOrganicMemoryStageReplay,
   AlicizationListExecutionEventsInput as SharedAlicizationListExecutionEventsInput,
   AlicizationListExecutorSessionsInput as SharedAlicizationListExecutorSessionsInput,
+  AlicizationListLearningArtifactLedgerInput as SharedAlicizationListLearningArtifactLedgerInput,
   AlicizationListMemoryDecisionTracesInput as SharedAlicizationListMemoryDecisionTracesInput,
   AlicizationListMindTurnEventsInput as SharedAlicizationListMindTurnEventsInput,
   AlicizationListPersonStateUpdatesInput as SharedAlicizationListPersonStateUpdatesInput,
@@ -83,6 +84,7 @@ import type {
   AlicizationMemoryFollowUpPayoffDependency as SharedAlicizationMemoryFollowUpPayoffDependency,
   AlicizationMemoryFollowUpPreferredTiming as SharedAlicizationMemoryFollowUpPreferredTiming,
   AlicizationMemoryStats as SharedAlicizationMemoryStats,
+  AlicizationLearningArtifactLedgerRecord as SharedAlicizationLearningArtifactLedgerRecord,
   AlicizationMemoryDecisionTraceRecord as SharedAlicizationMemoryDecisionTraceRecord,
   AlicizationReplayBenchmarkGateReport as SharedAlicizationReplayBenchmarkGateReport,
   AlicizationReplayBenchmarkFailureTurnRecord as SharedAlicizationReplayBenchmarkFailureTurnRecord,
@@ -749,8 +751,10 @@ export type AlicizationMindTurnEventInput = SharedAlicizationMindTurnEventInput
 export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
 
 export interface AlicizationListMindTurnEventsPayload extends AlicizationCardScope, SharedAlicizationListMindTurnEventsInput {}
+export interface AlicizationListLearningArtifactLedgerPayload extends AlicizationCardScope, SharedAlicizationListLearningArtifactLedgerInput {}
 export interface AlicizationListMemoryDecisionTracesPayload extends AlicizationCardScope, SharedAlicizationListMemoryDecisionTracesInput {}
 export interface AlicizationListPersonStateUpdatesPayload extends AlicizationCardScope, SharedAlicizationListPersonStateUpdatesInput {}
+export type AlicizationLearningArtifactLedgerRecord = SharedAlicizationLearningArtifactLedgerRecord
 export type AlicizationMemoryDecisionTraceRecord = SharedAlicizationMemoryDecisionTraceRecord
 export type AlicizationPersonStateEvolutionShiftKind = SharedAlicizationPersonStateEvolutionShiftKind
 export type AlicizationPersonStateEvolutionShift = SharedAlicizationPersonStateEvolutionShift
@@ -3074,6 +3078,7 @@ export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
 export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
+export const electronAlicizationListLearningArtifactLedger = defineInvokeEventa<AlicizationLearningArtifactLedgerRecord[], AlicizationListLearningArtifactLedgerPayload>('eventa:invoke:electron:alicization:conversation:list-learning-artifact-ledger')
 export const electronAlicizationListMemoryDecisionTraces = defineInvokeEventa<AlicizationMemoryDecisionTraceRecord[], AlicizationListMemoryDecisionTracesPayload>('eventa:invoke:electron:alicization:conversation:list-memory-decision-traces')
 export const electronAlicizationListPersonStateUpdates = defineInvokeEventa<AlicizationPersonStateUpdateRecord[], AlicizationListPersonStateUpdatesPayload>('eventa:invoke:electron:alicization:conversation:list-person-state-updates')
 export const electronAlicizationRunReplayBenchmark = defineInvokeEventa<AlicizationRunReplayBenchmarkResult, AlicizationRunReplayBenchmarkPayload>('eventa:invoke:electron:alicization:conversation:run-replay-benchmark')
