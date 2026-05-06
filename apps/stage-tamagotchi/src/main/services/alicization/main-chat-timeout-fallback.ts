@@ -9,10 +9,7 @@ import type { AlicizationDialogueSessionMirror } from './dialogue-session-manage
 import type { AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 
 import {
-  buildAlicizationActiveDialogueFallbackReply,
   buildAlicizationActiveDialogueGovernedReply,
-  deriveAlicizationActiveDialogueFastPathDecision,
-  shouldAlicizationActiveDialogueStayLLMAuthored,
 } from './main-chat-active-dialogue-loop'
 
 function sanitizeText(raw: unknown, maxChars = 160) {
@@ -38,12 +35,38 @@ function readLatestUserText(messages: Message[]) {
 function buildDialogueInfraRepairReply(input: {
   latestUserText: string
   turnId?: string
+  reason?: string
 }) {
-  const latestUserText = sanitizeText(input.latestUserText, 120)
-  const zh = countCjkChars(latestUserText) > 0
+  const zh = countCjkChars(sanitizeText(input.latestUserText, 120)) > 0
   return zh
-    ? `这轮没把完整回答带出来。你把同一句再发一次，我就继续回。`
-    : `This turn did not carry the full reply through. Send the same line again and I'll continue from there.`
+    ? '主模型这轮没有完成心智回复，我不能用本地固定句子替它回答。'
+    : 'The main model did not complete this mind-authored turn, so no local fixed reply was used.'
+}
+
+function buildTimeoutInfraDecision(input: {
+  latestUserText: string
+  governance?: AlicizationMindTurnGovernance | null
+  personaKernel?: AlicizationPersonaKernelSnapshot | null
+  runtimeDigest?: AlicizationRuntimeDigest | null
+  sessionMirror?: AlicizationDialogueSessionMirror | null
+}) {
+  return {
+    lane: 'dialogue',
+    strategy: 'local-only',
+    timeoutMs: 0,
+    resolvedTimeZone: 'UTC',
+    resolvedTimeZoneSource: 'process-env',
+    latestUserText: input.latestUserText,
+    previousUserText: '',
+    previousAssistantText: '',
+    continuityAnchor: '',
+    runtimeDigest: input.runtimeDigest ?? null,
+    sessionMirror: input.sessionMirror ?? null,
+    governance: input.governance ?? null,
+    personaKernel: input.personaKernel ?? null,
+    digitalLifeSpine: null,
+    reasonCodes: ['infra-status-only-timeout-fallback', 'normal-reply-requires-provider-mind'],
+  } as const
 }
 
 export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
@@ -57,74 +80,19 @@ export function buildAlicizationMainGatewayTimeoutFallbackReply(input: {
   sessionMirror?: AlicizationDialogueSessionMirror | null
 }) {
   const latestUserText = readLatestUserText(input.messages)
-  const decision = deriveAlicizationActiveDialogueFastPathDecision({
-    conversationMessages: input.messages,
-    prepared: {
-      waitForTools: false,
-      hasVisualGrounding: false,
+  return buildAlicizationActiveDialogueGovernedReply({
+    decision: buildTimeoutInfraDecision({
+      latestUserText,
       governance: input.governance ?? null,
       personaKernel: input.personaKernel ?? null,
-      messages: input.messages,
-      sessionMirror: input.sessionMirror ?? null,
-      runtimeSurface: {
-        action: input.actionKind ? { kind: input.actionKind } : null,
-        governance: input.governance ?? null,
-        digitalLifeSpine: input.digitalLifeSpine ?? null,
-      },
-    } as any,
-    runtimeDigest: input.runtimeDigest ?? null,
-  })
-
-  if (decision && shouldAlicizationActiveDialogueStayLLMAuthored(decision)) {
-    return buildAlicizationActiveDialogueGovernedReply({
-      decision,
-      reply: buildDialogueInfraRepairReply({
-        latestUserText: decision.latestUserText,
-        turnId: input.turnId,
-      }),
-      suppressGovernedLead: true,
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
-    })
-  }
-
-  if (!decision && input.actionKind !== 'execute' && input.actionKind !== 'continue-task') {
-    const fallbackDecision = {
-      lane: 'dialogue',
-      strategy: 'local-only',
-      timeoutMs: 0,
-      resolvedTimeZone: 'UTC',
-      resolvedTimeZoneSource: 'process-env',
-      latestUserText,
-      previousUserText: '',
-      previousAssistantText: '',
-      continuityAnchor: '',
       runtimeDigest: input.runtimeDigest ?? null,
       sessionMirror: input.sessionMirror ?? null,
-      governance: input.governance ?? null,
-      personaKernel: input.personaKernel ?? null,
-      digitalLifeSpine: input.digitalLifeSpine ?? null,
-      reasonCodes: ['infra-repair-only-timeout-fallback'],
-    } as const
-
-    return buildAlicizationActiveDialogueGovernedReply({
-      decision: fallbackDecision as any,
-      reply: buildDialogueInfraRepairReply({
-        latestUserText,
-        turnId: input.turnId,
-      }),
-      suppressGovernedLead: true,
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
-    })
-  }
-
-  return buildAlicizationActiveDialogueFallbackReply({
-    actionKind: input.actionKind,
-    conversationMessages: input.messages,
-    digitalLifeSpine: input.digitalLifeSpine,
-    governance: input.governance,
-    personaKernel: input.personaKernel,
-    runtimeDigest: input.runtimeDigest,
-    sessionMirror: input.sessionMirror,
-    turnId: input.turnId,
+    }) as any,
+    reply: buildDialogueInfraRepairReply({
+      latestUserText,
+      turnId: input.turnId,
+    }),
+    suppressGovernedLead: true,
+    visibleReplyAuthority: 'llm-second-pass-rewrite',
   })
 }

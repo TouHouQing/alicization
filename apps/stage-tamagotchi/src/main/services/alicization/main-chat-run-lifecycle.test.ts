@@ -25,6 +25,20 @@ function createRecoveredReply(fullText: string): any {
   }
 }
 
+function createLocalFallbackRecoveredReply(fullText: string): any {
+  return {
+    fullText,
+    visibleText: '',
+    visibleReplyExecution: {
+      mode: 'local-fallback',
+      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+      actualVisibleReplyAuthority: 'local-deterministic-fallback',
+      providerMindExecuted: false,
+      reason: 'timeout-recovered-local-fallback',
+    },
+  }
+}
+
 function createBaseInput(
   overrides?: Partial<Parameters<typeof handleAlicizationMainChatRunFailure>[0]>,
 ): Parameters<typeof handleAlicizationMainChatRunFailure>[0] {
@@ -264,6 +278,30 @@ describe('main chat run lifecycle', () => {
       finishReason: 'timeout-recovered',
       fullText: 'fallback reply',
     })
+  })
+
+  it('blocks local deterministic timeout recovery instead of completing a visible reply', async () => {
+    const controller = new AbortController()
+    controller.abort('chat-first-event-timeout')
+    const input = createBaseInput({
+      error: controller.signal.reason,
+      controller,
+      recoverFromTimeout: vi.fn(async () => ({
+        recoveredReply: createLocalFallbackRecoveredReply('{"reply":"本地固定 fallback"}'),
+        recoveryMode: 'local-fallback' as const,
+      })),
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.emitRecoveredText).not.toHaveBeenCalled()
+    expect(input.queueScopedAuditLog).toHaveBeenCalledWith('card-1', expect.objectContaining({
+      action: 'stream-timeout-non-human-recovery-blocked',
+    }))
+    expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'aborted',
+      finishReason: expect.stringContaining('main-gateway-timeout-recovery-non-human-authored'),
+    }))
   })
 
   it('falls back to aborted when timeout recovery itself fails', async () => {

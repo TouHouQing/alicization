@@ -70,6 +70,14 @@ function isMainGatewayRecoveryLivenessTag(tag: string) {
     || tag.includes('stream-open')
 }
 
+function isNonHumanAuthoredRecoveredReply(reply: AlicizationResolvedVisibleReply) {
+  const execution = reply.visibleReplyExecution
+  return execution.mode === 'local-fallback'
+    || execution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
+    || execution.providerMindExecuted === false
+    || !reply.visibleText.trim()
+}
+
 export function deriveAlicizationTimeoutRecoveryMs(input: {
   baseTimeoutMs: number
   timeoutRecoveryMode: AlicizationMainChatTimeoutRecoveryMode
@@ -219,6 +227,40 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
           toolChoice: input.toolChoice,
           timeoutMs: effectiveTimeoutRecoveryMs,
         })
+        if (isNonHumanAuthoredRecoveredReply(recoveryResult.recoveredReply)) {
+          const execution = recoveryResult.recoveredReply.visibleReplyExecution
+          await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+            level: 'warning',
+            category: 'alicization.main-gateway',
+            action: 'stream-timeout-non-human-recovery-blocked',
+            message: 'Blocked timeout recovery because it did not produce a provider-authored visible reply.',
+            payload: {
+              cardId: input.payload.cardId,
+              turnId: input.payload.turnId,
+              providerId: input.payload.providerId,
+              model: input.payload.model,
+              dispatchBound: input.dispatchBound,
+              timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
+              timeoutRecoveryMode: recoveryResult.recoveryMode || input.timeoutRecoveryMode,
+              visibleReplyMode: execution.mode,
+              actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
+              providerMindExecuted: execution.providerMindExecuted,
+              visibleChars: recoveryResult.recoveredReply.visibleText.length,
+            },
+          }))
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-non-human-blocked', {
+            cardId: input.payload.cardId,
+            turnId: input.payload.turnId,
+            dispatchBound: input.dispatchBound,
+            timeoutRecoveryMs: effectiveTimeoutRecoveryMs,
+            timeoutRecoveryMode: recoveryResult.recoveryMode || input.timeoutRecoveryMode,
+            visibleReplyMode: execution.mode,
+            actualVisibleReplyAuthority: execution.actualVisibleReplyAuthority,
+            providerMindExecuted: execution.providerMindExecuted,
+            visibleChars: recoveryResult.recoveredReply.visibleText.length,
+          })
+          throw new Error(`main-gateway-timeout-recovery-non-human-authored:${execution.reason ?? execution.actualVisibleReplyAuthority ?? execution.mode}`)
+        }
         const recoveredText = recoveryResult.recoveredReply.fullText
         const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
         if (recoveredText) {

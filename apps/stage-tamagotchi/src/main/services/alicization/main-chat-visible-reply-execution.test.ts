@@ -160,5 +160,7 @@ describe('main-chat-visible-reply-execution', () => {
     expect(resolved.visibleReplyExecution.actualVisibleReplyAuthority).toBe('local-deterministic-fallback')
     expect(resolved.visibleReplyExecution.providerMindExecuted).toBe(false)
     expect(resolved.visibleReplyExecution.reason).toBe('timeout-recovered-local-fallback')
+    expect(resolved.visibleText).toBe('')
+    expect(resolved.realization.blockedReasons).toContain('non-human-authored-visible-fallback')
   })
 })

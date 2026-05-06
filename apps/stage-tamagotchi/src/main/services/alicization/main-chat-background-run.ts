@@ -482,11 +482,21 @@ export async function runAlicizationMainChatBackground(
           `visible-reply-second-pass-required:${error instanceof Error ? error.message : String(error)}`,
         )
       }
-      return buildAlicizationSecondPassTransportFailureReply({
+      const blockedTransportFailure = buildAlicizationSecondPassTransportFailureReply({
         governedStructured: parseJsonObjectFromText(rewriteInput.fullText),
         previousExecution: rewriteInput.visibleReplyExecution,
         reason: error instanceof Error ? error.message : String(error),
       })
+      await input.appendRuntimeDebugLine('chat-stream.visible-reply-second-pass-local-fallback-blocked', {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        reason: blockedTransportFailure.visibleReplyExecution.reason,
+        gatewayReachable: reachability?.reachable ?? null,
+        gatewayReason: reachability?.reason ?? null,
+      })
+      throw new AlicizationMindAuthoredReplyRequiredError(
+        `visible-reply-second-pass-required:${blockedTransportFailure.visibleReplyExecution.reason}`,
+      )
     }
   }
 
@@ -779,24 +789,9 @@ export async function runAlicizationMainChatBackground(
         gatewayReachable: reachability?.reachable ?? null,
         gatewayReason: reachability?.reason ?? null,
       })
-      if (reachability?.reachable !== false) {
-        throw new AlicizationMindAuthoredReplyRequiredError(
-          `mind-authored-execution-payoff-required:${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-      return buildAlicizationResolvedVisibleReply({
-        fullText: JSON.stringify({
-          ...deterministicStructured,
-          visibleReplyAuthority: 'llm-second-pass-rewrite',
-        }),
-        visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-          prepared,
-          mode: 'local-fallback',
-          actualVisibleReplyAuthority: 'local-deterministic-fallback',
-          providerMindExecuted: false,
-          reason: 'execution-inline-payoff-provider-unavailable',
-        }),
-      })
+      throw new AlicizationMindAuthoredReplyRequiredError(
+        `mind-authored-execution-payoff-required:${reachability?.reachable === false ? 'provider-unavailable' : error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -1450,7 +1445,7 @@ export async function runAlicizationMainChatBackground(
         }
         catch {}
         if (localFallbackReply && input.isRunActive() && fallbackReachability?.reachable === false) {
-          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback', {
+          await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback-blocked', {
             cardId: normalizedCardId,
             turnId: normalizedTurnId,
             recoveredChars: localFallbackReply.length,
@@ -1462,8 +1457,8 @@ export async function runAlicizationMainChatBackground(
           await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
             level: 'warning',
             category: 'alicization.main-gateway',
-            action: 'stream-timeout-local-fallback',
-            message: 'Recovered turn with local continuity fallback after stream and one-shot recovery timed out.',
+            action: 'stream-timeout-local-fallback-blocked',
+            message: 'Blocked local timeout fallback because normal visible replies require provider-authored mind output.',
             payload: {
               cardId: normalizedCardId,
               turnId: normalizedTurnId,
@@ -1472,22 +1467,9 @@ export async function runAlicizationMainChatBackground(
               gatewayReason: fallbackReachability.reason ?? null,
             },
           }))
-          return {
-            recoveredReply: buildAlicizationResolvedVisibleReply({
-              fullText: localFallbackReply,
-              visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
-                prepared: preparedExecution,
-                mode: 'local-fallback',
-                actualVisibleReplyAuthority: 'local-deterministic-fallback',
-                providerMindExecuted: false,
-                reason: 'timeout-recovered-local-fallback',
-              }),
-            }),
-            recoveryMode: 'local-fallback',
-          }
         }
 
-        if (localFallbackReply && input.isRunActive()) {
+        if (localFallbackReply && input.isRunActive() && fallbackReachability?.reachable !== false) {
           await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-local-fallback-blocked', {
             cardId: normalizedCardId,
             turnId: normalizedTurnId,

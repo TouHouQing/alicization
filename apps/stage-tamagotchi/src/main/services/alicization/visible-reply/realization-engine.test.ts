@@ -34,8 +34,26 @@ describe('visible-reply-realization-engine', () => {
     })
 
     expect(realization.actualAuthority).toBe('local-deterministic-fallback')
+    expect(realization.visibleText).toBeNull()
     expect(realization.nonHumanAuthoredStatus).toBe('timeout-recovered-local-fallback')
     expect(realization.blockedReasons).toContain('non-human-authored-visible-fallback')
+  })
+
+  it('does not expose local fallback fullText as visible speech', () => {
+    const resolved = buildAlicizationResolvedVisibleReply({
+      fullText: '{"reply":"这轮先别继续伪装成正常心智回复。"}',
+      visibleReplyExecution: {
+        mode: 'local-fallback',
+        expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+        actualVisibleReplyAuthority: 'local-deterministic-fallback',
+        providerMindExecuted: false,
+        reason: 'timeout-recovered-local-fallback',
+      },
+    })
+
+    expect(resolved.visibleText).toBe('')
+    expect(resolved.realization.visibleText).toBeNull()
+    expect(resolved.realization.blockedReasons).toContain('non-human-authored-visible-fallback')
   })
 
   it('resolves visible text from structured payloads while preserving realization metadata', () => {

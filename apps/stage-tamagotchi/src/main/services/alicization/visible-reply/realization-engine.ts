@@ -28,6 +28,12 @@ export interface AlicizationResolvedVisibleReply {
   realization: AlicizationVisibleReplyRealizationArtifact
 }
 
+function isLocalDeterministicVisibleFallback(execution: AlicizationVisibleReplyExecution) {
+  return execution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
+    || execution.providerMindExecuted === false
+    || execution.mode === 'local-fallback'
+}
+
 function resolvePreparedReplyExecutionPlan(prepared: AlicizationPreparedMainChatExecutionResult) {
   if (prepared.mindTurnContract) {
     return {
@@ -103,8 +109,11 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   fullText?: string | null
   visibleReplyExecution: AlicizationVisibleReplyExecution
 }): AlicizationVisibleReplyRealizationArtifact {
-  const visibleText = deriveAlicizationVisibleReplyText(input.fullText ?? '')
-  const blockedReasons = input.visibleReplyExecution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
+  const localDeterministicFallback = isLocalDeterministicVisibleFallback(input.visibleReplyExecution)
+  const visibleText = localDeterministicFallback
+    ? ''
+    : deriveAlicizationVisibleReplyText(input.fullText ?? '')
+  const blockedReasons = localDeterministicFallback
     ? ['non-human-authored-visible-fallback']
     : []
   return {
@@ -114,7 +123,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     providerMindExecuted: input.visibleReplyExecution.providerMindExecuted,
     mode: input.visibleReplyExecution.mode,
     visibleText: visibleText || null,
-    nonHumanAuthoredStatus: input.visibleReplyExecution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
+    nonHumanAuthoredStatus: localDeterministicFallback
       ? input.visibleReplyExecution.reason ?? 'visible-reply-local-fallback'
       : null,
     blockedReasons,
@@ -174,7 +183,7 @@ export function buildAlicizationResolvedVisibleReply(input: {
   })
   return {
     fullText: input.fullText,
-    visibleText: realization.visibleText || input.fullText,
+    visibleText: realization.visibleText ?? '',
     visibleReplyExecution: input.visibleReplyExecution,
     realization,
   }
