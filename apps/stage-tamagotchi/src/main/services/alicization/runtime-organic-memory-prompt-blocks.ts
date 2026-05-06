@@ -2,10 +2,14 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { deriveAlicizationMemoryClosureDiscipline } from '@proj-alicization/stage-shared'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { formatMemoryProvenanceLabel } from './humanlike-memory'
 
-export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptContext) {
+export function buildOrganicMemorySystemBlocks(
+  context: OrganicMemoryPromptContext,
+  memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
+) {
   const blocks: string[] = []
   const deliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: context.memoryDeliberation ?? null,
@@ -309,6 +313,31 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
       closureDiscipline.shouldLabelUncertainty
         ? 'If you surface this memory, explicitly mark uncertainty, approximation, or reconstruction where needed.'
         : 'If you surface this memory, keep it grounded to the selected stable recall rather than inflating specificity.',
+    ].filter(Boolean).join('\n'))
+  }
+
+  if (memoryTurnArtifact) {
+    blocks.push([
+      '[ALICIZATION_MEMORY_TURN_GOVERNANCE]',
+      'This is the turn-level memory gate. It converts recall ranking, wrong-thread risk, precision pressure, and latency into visible-memory permission.',
+      'Use it as mind governance before speaking. Do not quote these metrics and do not turn them into a fixed visible reply template.',
+      `visible_memory_gate=${memoryTurnArtifact.visibleMemoryGate.status}`,
+      `recall_readiness=${memoryTurnArtifact.visibleMemoryGate.recallReadiness.toFixed(2)}`,
+      `precision_proxy=${memoryTurnArtifact.visibleMemoryGate.precisionProxy.toFixed(2)}`,
+      `wrong_thread_risk=${memoryTurnArtifact.visibleMemoryGate.wrongThreadRisk.toFixed(2)}`,
+      `latency_pressure=${memoryTurnArtifact.visibleMemoryGate.latencyPressure.toFixed(2)}`,
+      memoryTurnArtifact.visibleMemoryGate.reasons.length > 0
+        ? `gate_reasons=${memoryTurnArtifact.visibleMemoryGate.reasons.join(' | ')}`
+        : '',
+      `candidate_count=${memoryTurnArtifact.metrics.recallCandidateCount}`,
+      `selected_count=${memoryTurnArtifact.metrics.selectedCandidateCount}`,
+      `wrong_thread_suppressed=${memoryTurnArtifact.metrics.wrongThreadSuppressedCount}`,
+      `unsupported_specificity_blocked=${memoryTurnArtifact.metrics.unsupportedSpecificityBlockedCount}`,
+      memoryTurnArtifact.visibleMemoryGate.status === 'closed' || memoryTurnArtifact.visibleMemoryGate.status === 'inward-only'
+        ? 'Visible memory must stay inward this turn; let memory affect caution, care, ordering, and uncertainty without narrating recall.'
+        : memoryTurnArtifact.visibleMemoryGate.status === 'gist-only'
+          ? 'Visible memory may appear only as a brief gist that serves the current payoff and labels uncertainty when needed.'
+          : 'Visible memory may appear, but only when it directly helps the current payoff and remains model-authored in this turn.',
     ].filter(Boolean).join('\n'))
   }
 

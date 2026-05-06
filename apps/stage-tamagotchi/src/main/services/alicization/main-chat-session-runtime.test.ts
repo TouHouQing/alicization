@@ -785,7 +785,10 @@ describe('main chat session runtime', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-      buildOrganicMemorySystemBlocks: () => [],
+      buildOrganicMemorySystemBlocks: (_context, memoryTurnArtifact) =>
+        memoryTurnArtifact
+          ? [`[ALICIZATION_MEMORY_TURN_GOVERNANCE]\nvisible_memory_gate=${memoryTurnArtifact.visibleMemoryGate.status}`]
+          : [],
       buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
@@ -1032,7 +1035,10 @@ describe('main chat session runtime', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-      buildOrganicMemorySystemBlocks: () => [],
+      buildOrganicMemorySystemBlocks: (_context, memoryTurnArtifact) =>
+        memoryTurnArtifact
+          ? [`[ALICIZATION_MEMORY_TURN_GOVERNANCE]\nvisible_memory_gate=${memoryTurnArtifact.visibleMemoryGate.status}`]
+          : [],
       buildPerformanceManifestSystemBlocks: () => [],
       dialogueSessionMirrorTtlMs: 50,
       executeMainGatewayTaskThread: vi.fn(),
@@ -2494,7 +2500,10 @@ describe('main chat session runtime', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-      buildOrganicMemorySystemBlocks: () => [],
+      buildOrganicMemorySystemBlocks: (_context, memoryTurnArtifact) =>
+        memoryTurnArtifact
+          ? [`[ALICIZATION_MEMORY_TURN_GOVERNANCE]\nvisible_memory_gate=${memoryTurnArtifact.visibleMemoryGate.status}`]
+          : [],
       buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
@@ -2627,6 +2636,12 @@ describe('main chat session runtime', () => {
       'telemetry',
     ])
     expect(result.turnGraph.memory?.recallIntent.shouldRecall).toBe(true)
+    expect(result.turnGraph.memory?.visibleMemoryGate.status).toMatch(/^(open|gist-only|inward-only|closed)$/u)
+    expect(result.messages.some(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('[ALICIZATION_MEMORY_TURN_GOVERNANCE]'),
+    )).toBe(true)
     expect(result.turnGraph.learning.nextLearningAction).toBe('reflect')
   })
 })

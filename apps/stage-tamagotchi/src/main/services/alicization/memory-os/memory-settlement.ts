@@ -1,6 +1,7 @@
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
 import type { AlicizationMemoryCandidateCompetitionArtifact } from './candidate-competition'
+import type { AlicizationMemoryCandidateRetrievalArtifact } from './candidate-retrieval'
 import type { AlicizationMemoryDeliberationArtifact } from './memory-deliberation'
 import type { AlicizationMemoryRecallIntentArtifact } from './recall-intent'
 import type { AlicizationMemorySpeechPostureArtifact } from './speech-posture'
@@ -29,6 +30,18 @@ export interface AlicizationMemorySettlementArtifact {
     wrongThreadSuppressedCount: number
     unsupportedSpecificityBlockedCount: number
     latencyMs: number | null
+    recallReadiness: number
+    precisionProxy: number
+    wrongThreadRisk: number
+    latencyPressure: number
+  }
+  visibleMemoryGate: {
+    status: 'open' | 'gist-only' | 'inward-only' | 'closed'
+    recallReadiness: number
+    precisionProxy: number
+    wrongThreadRisk: number
+    latencyPressure: number
+    reasons: string[]
   }
 }
 
@@ -58,8 +71,166 @@ function countUnsupportedSpecificity(input: {
   return Math.max(input.deliberation.unsafeDetails.length, ledgerSpecificitySuppressionCount)
 }
 
+function clamp01(value: number) {
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.min(1, Number(value.toFixed(2))))
+}
+
+function average(values: number[]) {
+  const finite = values.filter(Number.isFinite)
+  if (finite.length === 0)
+    return 0
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length
+}
+
+function deriveLatencyPressure(latencyMs: number | null | undefined) {
+  if (!Number.isFinite(latencyMs))
+    return 0
+  const value = Math.max(0, Number(latencyMs))
+  if (value <= 120)
+    return 0
+  if (value >= 2_400)
+    return 1
+  return clamp01((value - 120) / 2_280)
+}
+
+function deriveRetrievalQualitySignals(input: {
+  retrieval?: AlicizationMemoryCandidateRetrievalArtifact | null
+  competition: AlicizationMemoryCandidateCompetitionArtifact
+  unsupportedSpecificityBlockedCount: number
+  latencyMs?: number | null
+}) {
+  const candidates = input.retrieval?.candidates ?? []
+  const selected = candidates.filter(item => item.selected)
+  const topCandidates = [...candidates]
+    .sort((left, right) => right.ranking.finalScore - left.ranking.finalScore)
+    .slice(0, 3)
+  const topSelectedScores = selected.length > 0
+    ? selected.map(item => item.ranking.finalScore)
+    : topCandidates.slice(0, 1).map(item => item.ranking.finalScore)
+  const topRecallScore = average(topCandidates.map(item => item.ranking.finalScore))
+  const selectedRecallScore = average(topSelectedScores)
+  const candidateCoverage = input.competition.candidateCount <= 0
+    ? 0
+    : clamp01(Math.min(input.competition.candidateCount, 6) / 6)
+  const selectedCoverage = input.competition.selectedCandidateCount <= 0
+    ? 0
+    : clamp01(Math.min(input.competition.selectedCandidateCount, 3) / 3)
+  const recallReadiness = clamp01(
+    selectedRecallScore * 0.46
+    + topRecallScore * 0.24
+    + candidateCoverage * 0.18
+    + selectedCoverage * 0.12,
+  )
+
+  const selectedConflictPenalty = average(selected.map(item => item.ranking.conflictPenalty))
+  const selectedThreadMatch = average(selected
+    .map(item => item.ranking.relationshipThreadMatch)
+    .filter((value): value is number => value != null))
+  const wrongThreadSuppressionRatio = input.competition.candidateCount <= 0
+    ? 0
+    : clamp01(input.competition.wrongThreadSuppressedCount / input.competition.candidateCount)
+  const unsupportedSpecificityRatio = input.competition.candidateCount <= 0
+    ? 0
+    : clamp01(input.unsupportedSpecificityBlockedCount / input.competition.candidateCount)
+  const conflictSeverityPenalty = input.competition.conflictSeverity === 'high'
+    ? 0.34
+    : input.competition.conflictSeverity === 'medium'
+      ? 0.2
+      : input.competition.conflictSeverity === 'low'
+        ? 0.08
+        : 0
+  const precisionProxy = clamp01(
+    0.42
+    + selectedRecallScore * 0.34
+    + (selectedThreadMatch || 0.55) * 0.18
+    - selectedConflictPenalty * 0.24
+    - wrongThreadSuppressionRatio * 0.28
+    - unsupportedSpecificityRatio * 0.22
+    - conflictSeverityPenalty,
+  )
+  const wrongThreadRisk = clamp01(
+    wrongThreadSuppressionRatio * 0.54
+    + selectedConflictPenalty * 0.2
+    + conflictSeverityPenalty * 0.44
+    + unsupportedSpecificityRatio * 0.22,
+  )
+  const latencyPressure = deriveLatencyPressure(input.latencyMs)
+
+  return {
+    recallReadiness,
+    precisionProxy,
+    wrongThreadRisk,
+    latencyPressure,
+  }
+}
+
+function deriveVisibleMemoryGate(input: {
+  shouldRecall: boolean
+  shouldSurfaceBeforeGate: boolean
+  closureDiscipline: ReturnType<typeof deriveAlicizationMemoryClosureDiscipline>
+  retrievalQualitySignals: ReturnType<typeof deriveRetrievalQualitySignals>
+}) {
+  const reasons: string[] = []
+  const {
+    recallReadiness,
+    precisionProxy,
+    wrongThreadRisk,
+    latencyPressure,
+  } = input.retrievalQualitySignals
+
+  if (!input.shouldRecall)
+    reasons.push('no-recall-intent')
+  if (!input.shouldSurfaceBeforeGate)
+    reasons.push('surface-posture-not-open')
+  if (input.closureDiscipline.shouldBlockVisibleMemory)
+    reasons.push('closure-blocks-visible-memory')
+  if (recallReadiness < 0.42)
+    reasons.push('recall-readiness-low')
+  if (precisionProxy < 0.56)
+    reasons.push('precision-proxy-low')
+  if (wrongThreadRisk >= 0.38)
+    reasons.push('wrong-thread-risk-high')
+  if (latencyPressure >= 0.72)
+    reasons.push('latency-pressure-high')
+
+  const hardClosed = reasons.includes('no-recall-intent')
+    || input.closureDiscipline.allowedSurface === 'none'
+    || input.closureDiscipline.surfacePermission === 'no-recall'
+  const inwardOnly = hardClosed
+    || reasons.includes('closure-blocks-visible-memory')
+    || reasons.includes('wrong-thread-risk-high')
+    || reasons.includes('precision-proxy-low')
+    || reasons.includes('recall-readiness-low')
+  const status = hardClosed
+    ? 'closed' as const
+    : inwardOnly
+      ? 'inward-only' as const
+      : input.closureDiscipline.allowedSurface === 'gist'
+        || input.closureDiscipline.shouldLabelUncertainty
+        || latencyPressure >= 0.45
+        ? 'gist-only' as const
+        : 'open' as const
+
+  if (status === 'gist-only' && reasons.length === 0)
+    reasons.push('visible-memory-gist-disciplined')
+  if (status === 'open' && reasons.length === 0)
+    reasons.push('visible-memory-open')
+
+  return {
+    status,
+    recallReadiness,
+    precisionProxy,
+    wrongThreadRisk,
+    latencyPressure,
+    reasons: compactList(reasons, 8),
+  }
+}
+
 export function settleAlicizationMemoryTurn(input: {
   context: OrganicMemoryPromptContext
+  retrieval?: AlicizationMemoryCandidateRetrievalArtifact | null
   recallIntent: AlicizationMemoryRecallIntentArtifact
   competition: AlicizationMemoryCandidateCompetitionArtifact
   deliberation: AlicizationMemoryDeliberationArtifact
@@ -73,10 +244,24 @@ export function settleAlicizationMemoryTurn(input: {
   const shouldRecall = input.deliberation.shouldRecall || input.recallIntent.shouldRecall
   const ledger = input.context.memoryResolutionLedger ?? null
   const closureDiscipline = deriveAlicizationMemoryClosureDiscipline(ledger)
-  const shouldSurface = shouldRecall
+  const shouldSurfaceBeforeGate = shouldRecall
     && input.speechPosture.shouldSurface
     && input.deliberation.surfacePolicy !== 'internal-only'
     && !closureDiscipline.shouldBlockVisibleMemory
+  const retrievalQualitySignals = deriveRetrievalQualitySignals({
+    retrieval: input.retrieval ?? null,
+    competition: input.competition,
+    unsupportedSpecificityBlockedCount,
+    latencyMs: input.latencyMs,
+  })
+  const visibleMemoryGate = deriveVisibleMemoryGate({
+    shouldRecall,
+    shouldSurfaceBeforeGate,
+    closureDiscipline,
+    retrievalQualitySignals,
+  })
+  const shouldSurface = shouldSurfaceBeforeGate
+    && (visibleMemoryGate.status === 'open' || visibleMemoryGate.status === 'gist-only')
 
   return {
     version: 'memory-settlement-v1',
@@ -97,6 +282,8 @@ export function settleAlicizationMemoryTurn(input: {
       unsupportedSpecificityBlockedCount > 0 ? 'unsafe-specificity-withheld' : null,
       !shouldRecall && input.competition.candidateCount > 0 ? 'present-facing-turn' : null,
       shouldRecall && !shouldSurface ? 'memory-held-inward' : null,
+      visibleMemoryGate.status === 'closed' ? 'visible-memory-gate-closed' : null,
+      visibleMemoryGate.status === 'inward-only' ? 'visible-memory-gate-inward-only' : null,
       ...closureDiscipline.withheldReasons,
       closureDiscipline.shouldLabelUncertainty ? 'uncertainty-label-required' : null,
     ], 8),
@@ -108,6 +295,8 @@ export function settleAlicizationMemoryTurn(input: {
       latencyMs: Number.isFinite(input.latencyMs)
         ? Number(input.latencyMs)
         : null,
+      ...retrievalQualitySignals,
     },
+    visibleMemoryGate,
   }
 }

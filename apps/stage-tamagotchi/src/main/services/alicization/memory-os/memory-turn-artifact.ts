@@ -80,6 +80,18 @@ export interface AlicizationMemoryTurnArtifact {
     wrongThreadSuppressedCount: number
     unsupportedSpecificityBlockedCount: number
     latencyMs: number | null
+    recallReadiness: number
+    precisionProxy: number
+    wrongThreadRisk: number
+    latencyPressure: number
+  }
+  visibleMemoryGate: {
+    status: 'open' | 'gist-only' | 'inward-only' | 'closed'
+    recallReadiness: number
+    precisionProxy: number
+    wrongThreadRisk: number
+    latencyPressure: number
+    reasons: string[]
   }
 }
 
@@ -116,6 +128,7 @@ export function buildAlicizationMemoryTurnArtifact(input: {
   })
   const settlement = settleAlicizationMemoryTurn({
     context,
+    retrieval,
     recallIntent,
     competition,
     deliberation: memoryDeliberation,
@@ -158,5 +171,6 @@ export function buildAlicizationMemoryTurnArtifact(input: {
     closure: settlement.closure,
     withheld: settlement.withheld,
     metrics: settlement.metrics,
+    visibleMemoryGate: settlement.visibleMemoryGate,
   }
 }

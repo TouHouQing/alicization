@@ -7,6 +7,7 @@ import type {
 import type { AlicizationOrganicMemoryStageReplay } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryResolutionLedger } from '@proj-alicization/stage-shared'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
@@ -507,9 +508,12 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     return overlap / candidateTerms.size
   }
 
-  function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptContext) {
+  function buildOrganicMemorySystemBlocks(
+    context: OrganicMemoryPromptContext,
+    memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
+  ) {
     const startedAt = Date.now()
-    const blocks = buildOrganicMemoryPromptBlocks(context)
+    const blocks = buildOrganicMemoryPromptBlocks(context, memoryTurnArtifact)
     void recordOrganicMemoryStageBudget?.({
       stage: 'prompt-blocks',
       budgetClass: 'realtime-reply',

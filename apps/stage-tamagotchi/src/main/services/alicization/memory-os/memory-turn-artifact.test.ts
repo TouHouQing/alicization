@@ -116,9 +116,17 @@ describe('memory-turn-artifact', () => {
       shouldLabelUncertainty: true,
     }))
     expect(artifact.metrics.unsupportedSpecificityBlockedCount).toBe(1)
+    expect(artifact.metrics.recallReadiness).toBeGreaterThan(0.4)
+    expect(artifact.metrics.precisionProxy).toBeGreaterThan(0.4)
+    expect(artifact.metrics.wrongThreadRisk).toBeGreaterThan(0)
+    expect(artifact.visibleMemoryGate.status).toBe('inward-only')
+    expect(artifact.visibleMemoryGate.reasons).toEqual(expect.arrayContaining([
+      'precision-proxy-low',
+    ]))
     expect(artifact.withheld).toEqual(expect.arrayContaining([
       'wrong-thread-suppressed',
       'unsafe-specificity-withheld',
+      'visible-memory-gate-inward-only',
       'uncertainty-label-required',
     ]))
   })

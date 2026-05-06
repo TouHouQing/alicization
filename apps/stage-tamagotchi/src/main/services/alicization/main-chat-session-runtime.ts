@@ -159,7 +159,10 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     hostName: string
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) => string[]
-  buildOrganicMemorySystemBlocks: (context: OrganicMemoryPromptContext) => string[]
+  buildOrganicMemorySystemBlocks: (
+    context: OrganicMemoryPromptContext,
+    memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact> | null,
+  ) => string[]
   buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
@@ -430,6 +433,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         executionReplyObligation,
       ),
       context: organicPromptContext,
+      memoryTurnArtifact,
       applyMemoryDeliberationToGovernance,
       applyHostPersonModelToGovernance,
       applyRecollectionSurfaceRules: (governance) => {
@@ -717,7 +721,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           sessionMirrorSystemBlock,
           agentTurn.buildSessionSystemBlock(),
         ],
-        organicMemorySystemBlocks: options.buildOrganicMemorySystemBlocks(organicPromptContext),
+        organicMemorySystemBlocks: options.buildOrganicMemorySystemBlocks(organicPromptContext, memoryTurnArtifact),
         performanceManifestSystemBlocks: options.buildPerformanceManifestSystemBlocks(performanceManifest),
         customDirectivesResolution,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,

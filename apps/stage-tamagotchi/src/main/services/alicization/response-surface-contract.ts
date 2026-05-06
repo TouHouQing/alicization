@@ -24,13 +24,17 @@ import {
   type AlicizationNormalVisibleReplyAuthority,
 } from '@proj-alicization/stage-shared'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
-import { buildMainChatExecutionReplyVisibleSurfaceRules } from './main-chat-execution-reply-obligation'
 import {
   buildMemoryLatentBoundaryTag,
   buildMemoryOpeningStrategyTag,
 } from './memory-deliberation-latent-controls'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildAlicizationResponseSurfaceDigitalLifeRules } from './response-surface-digital-life-rules'
+import { buildAlicizationResponseSurfaceLearningRules } from './response-surface-learning-rules'
 import { buildAlicizationResponseSurfaceMemoryClosureRules } from './response-surface-memory-closure-rules'
+import { buildAlicizationResponseSurfaceRelationshipRules } from './response-surface-relationship-rules'
+import { appendAlicizationResponseSurfaceRules } from './response-surface-rules'
+import { buildAlicizationResponseSurfaceTruthDialogueRules } from './response-surface-truth-dialogue-rules'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
@@ -357,60 +361,19 @@ export function buildAlicizationResponseSurfaceContract(input: {
       : 'Do not pretend a fallback-only lane is a provider-mind authored normal answer.',
   ]
 
-  if (openingStyle === 'direct-correction') {
-    pushUnique(mustDo, 'Use the first sentence to correct the stale read before anything else.')
-  }
-  if (openingStyle === 'direct-observation') {
-    pushUnique(mustDo, 'Lead with what is visible now or with the strongest grounded evidence for this turn.')
-  }
-  if (brief.turnMode === 'guide-current-knot') {
-    pushUnique(mustDo, 'Move from the observed knot to one actionable next step.')
-    pushUnique(mustNotDo, 'Do not drift into generic multi-option advice lists unless the user asks.')
-  }
-  if (dialogueObligation?.mustAnswerDirectly) {
-    pushUnique(mustDo, 'Use the first sentence to pay off the host’s current ask.')
-  }
-  if (dialogueObligation?.mustStayTaskBound) {
-    pushUnique(mustDo, 'Keep the reply inside the active knot until the knot is answered.')
-  }
-  if (input.executionReplyObligation) {
-    const visibleSurfaceRules = buildMainChatExecutionReplyVisibleSurfaceRules(input.executionReplyObligation)
-    for (const item of visibleSurfaceRules.mustDo)
-      pushUnique(mustDo, item)
-    for (const item of visibleSurfaceRules.mustNotDo)
-      pushUnique(mustNotDo, item)
-  }
-  if (personaKernelMode !== 'full') {
-    pushUnique(mustNotDo, 'Do not use persona flourishes, pet names, or coy prefaces as the reply spine.')
-  }
-  if (dialogueSemantics?.truthExpectation === 'strict') {
-    pushUnique(mustNotDo, 'Do not smooth over uncertainty with emotionally pleasing language.')
-  }
-  if (truthDiscipline.dialogueFirst) {
-    pushUnique(mustDo, 'Stay with the live dialogue subject and keep screen grounding in the background.')
-    pushUnique(mustNotDo, 'Do not append screen-status caveats or grounding requests unless the host explicitly asks for a live look.')
-  }
-  if (truthDiscipline.shouldLabelHypothesis) {
-    pushUnique(mustDo, 'When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
-  }
-  if (truthDiscipline.forbidUnsupportedSpecificity) {
-    pushUnique(mustNotDo, 'Do not smuggle in file names, class names, enum names, or field changes that are not grounded in this turn.')
-  }
-  if (truthDiscipline.shouldKeepMemoryInward) {
-    pushUnique(mustDo, 'Let remembered continuity contour the answer from the inside instead of announcing recollection outright.')
-    pushUnique(mustNotDo, 'Do not surface recollection just because it is active internally; keep the live payoff in front.')
-  }
-  if (truthDiscipline.shouldOnlySurfaceMemoryStableCore) {
-    pushUnique(mustDo, 'If recollection becomes visible, let only the stable remembered core cross onto the surface.')
-    pushUnique(mustNotDo, 'Do not let contested remembered detail outrun the stable core.')
-  }
-  if (truthDiscipline.shouldLabelMemoryProvenance) {
-    pushUnique(mustDo, 'If recollection becomes visible, mark it as memory, residue, inference, or reconstruction rather than settled live fact.')
-  }
-  if (truthDiscipline.shouldDelayMemoryUntilAfterPayoff) {
-    pushUnique(mustDo, 'Land the live payoff first, then reopen remembered continuity only if room remains.')
-    pushUnique(mustNotDo, 'Do not let recollection step in front of the current payoff.')
-  }
+  appendAlicizationResponseSurfaceRules(
+    { mustDo, mustNotDo },
+    buildAlicizationResponseSurfaceTruthDialogueRules({
+      openingStyle,
+      briefTurnMode: brief.turnMode,
+      personaKernelMode,
+      labelCarryAsMemory,
+      dialogueObligation,
+      dialogueSemantics,
+      truthDiscipline,
+      executionReplyObligation: input.executionReplyObligation ?? null,
+    }),
+  )
   if (memoryResolutionLedger) {
     const memoryClosureRules = buildAlicizationResponseSurfaceMemoryClosureRules(memoryClosureDiscipline)
     for (const item of memoryClosureRules.mustDo)
@@ -418,72 +381,23 @@ export function buildAlicizationResponseSurfaceContract(input: {
     for (const item of memoryClosureRules.mustNotDo)
       pushUnique(mustNotDo, item)
   }
-  if (digitalLifeArchitecture?.operatingMode === 'speaking' || digitalLifeArchitecture?.dominantSystem === 'dialogue') {
-    pushUnique(mustDo, 'Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
-  }
-  if (digitalLifeArchitecture?.operatingMode === 'observing' || digitalLifeArchitecture?.dominantSystem === 'perception') {
-    pushUnique(mustDo, 'Keep the visible answer anchored to current observation before interpretation.')
-  }
-  if (digitalLifeArchitecture?.operatingMode === 'acting' || digitalLifeArchitecture?.dominantSystem === 'control') {
-    pushUnique(mustDo, 'When the turn is task-shaped, land on one concrete next move or decision boundary.')
-  }
-  if (digitalLifeArchitecture?.operatingMode === 'remembering' || digitalLifeArchitecture?.dominantSystem === 'memory') {
-    pushUnique(mustDo, 'If continuity comes from memory, mark it as memory, carry, or residue in the visible answer.')
-    pushUnique(mustNotDo, 'Do not present remembered continuity as a fresh live read.')
-  }
-  if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
-    pushUnique(mustNotDo, 'Do not let internal urge-to-speak or unsolicited initiative outrank the host’s current ask.')
-  }
-  if (brief.turnMode === 'care' || brief.turnMode === 'accompany') {
-    pushUnique(mustDo, 'If warmth appears, keep it brief and subordinate to the actual issue.')
-  }
-  if (personStateProjection) {
-    pushUnique(mustDo, `Keep the visible closeness inside this ladder: ${personStateProjection.activeClosenessContext}/${personStateProjection.activeClosenessRung}.`)
-    if (personStateProjection.activeClosenessRung === 'space-first' || personStateProjection.activeClosenessRung === 'measured-room') {
-      pushUnique(mustNotDo, 'Do not let visible warmth, intimacy, or callback enthusiasm outrun the host’s current need for room.')
-    }
-    if (personStateProjection.activeClosenessRung === 'nearby-soft') {
-      pushUnique(mustDo, 'Let care stay low-pressure and nearby-soft rather than widening into high-energy companionship.')
-    }
-    if (personStateProjection.activeClosenessRung === 'close-hold') {
-      pushUnique(mustDo, 'If warmth comes forward, keep it lived-in and bounded rather than theatrical.')
-    }
-  }
-  if (activeClosenessContext === 'execution-callback') {
-    pushUnique(mustDo, 'Keep callback delivery thread-faithful and bounded to the same result line.')
-    pushUnique(mustNotDo, 'Do not widen a bounded execution callback into generic companionship tone.')
-  }
-  if (activeClosenessContext === 'repair-window') {
-    pushUnique(mustDo, 'Let repair stay visibly ahead of closeness until the seam is actually steady.')
-    pushUnique(mustNotDo, 'Do not write as if warmth is already restored before the repair lands.')
-  }
-  if (activeClosenessContext === 'open-companionship') {
-    pushUnique(mustDo, 'If warmth comes forward, let it stay openly near and lived-in instead of turning theatrical or generic.')
-  }
-  if (learningExecutionState?.nextLearningAction === 'verify') {
-    pushUnique(mustDo, 'Keep visible certainty behind the current verification pass.')
-    pushUnique(mustNotDo, 'Do not let fluency or warmth outrun what is still being verified.')
-  }
-  if (learningExecutionState?.nextLearningAction === 'revise') {
-    pushUnique(mustDo, 'Treat the older continuity line as actively revisable instead of settled.')
-    pushUnique(mustNotDo, 'Do not rest visible certainty on continuity the system is actively revising.')
-  }
-  if (learningExecutionState?.nextLearningAction === 'internalize') {
-    pushUnique(mustDo, 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.')
-    pushUnique(mustNotDo, 'Do not fall back to older unstable procedures while a stronger one is being internalized.')
-  }
-  if (
-    brief.turnMode === 'care'
-    || brief.turnMode === 'accompany'
-    || (brief.turnMode === 'answer' && truthDiscipline.dialogueFirst)
-  ) {
-    pushUnique(mustDo, 'Complete the actual answer, care move, or companionship move in the same reply.')
-    pushUnique(mustNotDo, 'Do not stop at a shell opener such as "I will answer directly" or "Let me stay with you" without the real content.')
-  }
-  if (labelCarryAsMemory) {
-    pushUnique(mustDo, 'If carried continuity is mentioned, label it as memory, residue, or the thread still being held.')
-    pushUnique(mustNotDo, 'Do not present carried continuity as the literal current screen.')
-  }
+  appendAlicizationResponseSurfaceRules(
+    { mustDo, mustNotDo },
+    buildAlicizationResponseSurfaceDigitalLifeRules(digitalLifeArchitecture),
+  )
+  appendAlicizationResponseSurfaceRules(
+    { mustDo, mustNotDo },
+    buildAlicizationResponseSurfaceRelationshipRules({
+      personStateProjection,
+      activeClosenessContext,
+      activeClosenessRung,
+      briefTurnMode: brief.turnMode,
+    }),
+  )
+  appendAlicizationResponseSurfaceRules(
+    { mustDo, mustNotDo },
+    buildAlicizationResponseSurfaceLearningRules(learningExecutionState),
+  )
   for (const item of memoryDeliberationKernel?.restraint.mustDo ?? [])
     pushUnique(mustDo, item)
   for (const item of memoryDeliberationKernel?.restraint.mustNotDo ?? [])

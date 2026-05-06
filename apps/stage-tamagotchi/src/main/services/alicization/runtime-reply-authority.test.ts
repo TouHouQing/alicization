@@ -39,6 +39,16 @@ describe('runtime reply authority helpers', () => {
         retrievedFacts: [],
         recalledFragments: [],
       },
+      memoryTurnArtifact: {
+        visibleMemoryGate: {
+          status: 'inward-only',
+          recallReadiness: 0.5,
+          precisionProxy: 0.42,
+          wrongThreadRisk: 0.2,
+          latencyPressure: 0.1,
+          reasons: ['precision-proxy-low'],
+        },
+      } as any,
       applyMemoryDeliberationToGovernance,
       applyHostPersonModelToGovernance,
       applyRecollectionSurfaceRules,
@@ -48,7 +58,10 @@ describe('runtime reply authority helpers', () => {
     expect(applyRecollectionSurfaceRules).toHaveBeenCalled()
     expect(applyHostPersonModelToGovernance).toHaveBeenCalled()
     expect(result.effectiveMindTurnGovernanceWithRecollection).toEqual(expect.objectContaining({
-      mustDo: ['recollection-rule'],
+      mustDo: expect.arrayContaining([
+        'recollection-rule',
+        'Honor the turn memory gate before speaking: inward-only.',
+      ]),
     }))
     expect(result.llmMindAuthorityGovernance).toEqual(expect.objectContaining({
       answerIntent: 'host-shaped',

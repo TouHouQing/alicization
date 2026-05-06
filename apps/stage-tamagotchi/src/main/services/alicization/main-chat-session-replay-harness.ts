@@ -479,6 +479,12 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       selectedCandidateCount: turnGraph.memory?.metrics.selectedCandidateCount ?? null,
       wrongThreadSuppressedCount: turnGraph.memory?.metrics.wrongThreadSuppressedCount ?? null,
       unsupportedSpecificityBlockedCount: turnGraph.memory?.metrics.unsupportedSpecificityBlockedCount ?? null,
+      recallReadiness: turnGraph.memory?.metrics.recallReadiness ?? null,
+      precisionProxy: turnGraph.memory?.metrics.precisionProxy ?? null,
+      wrongThreadRisk: turnGraph.memory?.metrics.wrongThreadRisk ?? null,
+      latencyPressure: turnGraph.memory?.metrics.latencyPressure ?? null,
+      visibleMemoryGate: turnGraph.memory?.visibleMemoryGate.status ?? null,
+      visibleMemoryGateReasons: [...(turnGraph.memory?.visibleMemoryGate.reasons ?? [])],
     },
     visibleReply: {
       expectedAuthority: turnGraph.surface?.expectedAuthority ?? turnGraph.deliberation.replyAuthority ?? null,
