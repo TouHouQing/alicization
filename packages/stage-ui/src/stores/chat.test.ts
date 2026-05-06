@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
-import { useChatOrchestratorStore } from './chat'
+import { configureAlicizationChatRuntimeForTest, useChatOrchestratorStore } from './chat'
 
 const streamMock = vi.fn()
 const executeRealtimeQueryTurnMock = vi.fn()
@@ -310,11 +310,24 @@ function installAlicizationBridge(options?: {
   } as any)
 }
 
+function expectRuntimeAuthoritativeLocalVisibleReplyBlocked(action = 'runtime-authoritative-local-failure-reply-blocked') {
+  expect(appendConversationTurnMock).not.toHaveBeenCalled()
+  expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+    category: 'alicization.visible-reply',
+    action,
+  }))
+  expect(streamingMessage.value.content).toBe('')
+  expect(ensureSessionMessages(activeSessionId.value).some(message => message?.role === 'assistant')).toBe(false)
+}
+
 describe('chat orchestrator', () => {
   beforeEach(() => {
     const pinia = createTestingPinia({ createSpy: vi.fn, stubActions: false })
     setActivePinia(pinia)
     clearAlicizationBridge()
+    configureAlicizationChatRuntimeForTest({
+      epoch1StrictModeEnabled: false,
+    })
     installAlicizationBridge()
 
     streamMock.mockReset()
@@ -1525,7 +1538,7 @@ describe('chat orchestrator', () => {
     }))
   })
 
-  it('emits a visible fallback reply when bridge stream fails before completion', async () => {
+  it('blocks renderer local visible fallback when bridge stream fails before completion', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new Error('connect ECONNREFUSED 127.0.0.1:11434')
     })
@@ -1542,19 +1555,10 @@ describe('chat orchestrator', () => {
 
     expect(streamMock).not.toBeCalled()
     expect(store.sending).toBe(false)
-    expect(appendConversationTurnMock).toBeCalledTimes(1)
-    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
-      category: 'alicization.chat',
-      action: 'turn-failed-safe-reply',
-    }))
-
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/本地模型服务|local model runtime/i)
-    expect(streamingMessage.value.content).toBe('')
-    expect(ensureSessionMessages(activeSessionId.value).at(-1)?.role).toBe('assistant')
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
-  it('times out stuck bridge streams and emits fallback reply', async () => {
+  it('times out stuck bridge streams and blocks renderer local visible fallback', async () => {
     vi.useFakeTimers()
     try {
       const bridgeChatAbortMock = vi.fn().mockResolvedValue({ accepted: true, state: 'aborted' })
@@ -1577,13 +1581,41 @@ describe('chat orchestrator', () => {
       expect(bridgeStreamChatMock).toBeCalledTimes(1)
       expect(bridgeChatAbortMock.mock.calls.length).toBeGreaterThanOrEqual(1)
       expect(store.sending).toBe(false)
-      expect(appendConversationTurnMock).toBeCalledTimes(1)
-      const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-      expect(String(payload?.assistantText ?? '')).toMatch(/响应超时|timed out/i)
+      expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
     }
     finally {
       vi.useRealTimers()
     }
+  })
+
+  it('blocks strict realtime refusal local fallback when runtime-authoritative refusal stream fails', async () => {
+    configureAlicizationChatRuntimeForTest({
+      epoch1StrictModeEnabled: true,
+    })
+    const bridgeStreamChatMock = vi.fn(async () => {
+      throw new Error('strict refusal bridge failure')
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('请帮我查一下今天美国天气', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    expect(bridgeStreamChatMock).toBeCalledTimes(1)
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'realtime-policy',
+      action: 'epoch1-strict-realtime-blocked',
+    }))
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'realtime-policy',
+      action: 'epoch1-strict-realtime-refusal-failed',
+    }))
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked('epoch1-strict-local-visible-fallback-blocked')
   })
 
   it('records renderer watchdog diagnostics when only meta arrives before timeout', async () => {
@@ -1645,9 +1677,7 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/回复失败|reply failed/i)
-    expect(String(payload?.assistantText ?? '')).not.toMatch(/没有连上模型服务|couldn't reach/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   function createStartRejectedError(message: string) {
@@ -1656,7 +1686,7 @@ describe('chat orchestrator', () => {
     })
   }
 
-  it('surfaces provider configuration fallback when stream start is rejected by missing config', async () => {
+  it('blocks renderer local visible fallback when stream start is rejected by missing config', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw createStartRejectedError('Alicization stream start rejected (state=missing-config) for turn turn-x. reason=Missing providerId/model for main-process chat stream.')
     })
@@ -1671,9 +1701,7 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/路由不完整|配置缺失|configuration is incomplete/i)
-    expect(String(payload?.assistantText ?? '')).not.toMatch(/没有连上本地模型服务|local model runtime/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   it('uses the resolved consciousness model for bridge chat starts when send options omit it', async () => {
@@ -1701,7 +1729,7 @@ describe('chat orchestrator', () => {
     }), expect.anything())
   })
 
-  it('surfaces provider network fallback when stream start is rejected by a dead gateway probe', async () => {
+  it('blocks renderer local visible fallback when stream start is rejected by a dead gateway probe', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw createStartRejectedError('Alicization stream start rejected (state=start-failed) for turn turn-x. reason=Main gateway connectivity check failed for example.test (econnrefused).')
     })
@@ -1716,12 +1744,10 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/网络|network|unstable|模型服务|model service/i)
-    expect(String(payload?.assistantText ?? '')).not.toMatch(/路由不完整|配置缺失|configuration is incomplete/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
-  it('surfaces timeout fallback when stream start is rejected by cached gateway generation timeout', async () => {
+  it('blocks renderer local visible fallback when stream start is rejected by cached gateway generation timeout', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw createStartRejectedError('Alicization stream start rejected (state=start-failed) for turn turn-x. reason=Main gateway health check failed for example.test (chat_timeout). Chat completions timed out before the first event.')
     })
@@ -1736,14 +1762,10 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    const assistantText = String(payload?.assistantText ?? '')
-    expect(assistantText).toMatch(/等待模型响应超时|timed out waiting for the model/i)
-    expect(assistantText).toMatch(/我还在线|不断线|I am still here|I am staying on this thread/i)
-    expect(assistantText).not.toMatch(/路由不完整|配置缺失|configuration is incomplete/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
-  it('falls back to generic stream failure for unclassified start-rejected errors', async () => {
+  it('blocks renderer local visible fallback for unclassified start-rejected errors', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw createStartRejectedError('Alicization stream start rejected (state=start-failed) for turn turn-x. reason=main gateway rejected request with unknown policy.')
     })
@@ -1758,10 +1780,7 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    const assistantText = String(payload?.assistantText ?? '')
-    expect(assistantText).toMatch(/回复失败|reply failed/i)
-    expect(assistantText).not.toMatch(/路由不完整|配置缺失|configuration is incomplete/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   it('sends plain dialogue turns to main-gateway with tools disabled', async () => {
@@ -1931,11 +1950,10 @@ describe('chat orchestrator', () => {
       action: 'stream-retry-without-tools',
     }))
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/等待模型响应超时|timed out waiting for the model/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
-  it('surfaces timeout continuity fallback without exposing internal recovery diagnostics', async () => {
+  it('blocks renderer local timeout continuity fallback without exposing internal recovery diagnostics', async () => {
     const bridgeStreamChatMock = vi.fn(async () => {
       throw new DOMException(
         'Alicization chat stream aborted: chat-first-event-timeout|after-dispatch-meta|recovery-mode=tools-disabled|recovery-failed=main-gateway-timeout-recovery',
@@ -1954,12 +1972,7 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    const assistantText = String(payload?.assistantText ?? '')
-    expect(assistantText).toMatch(/等待模型响应超时|timed out waiting for the model/i)
-    expect(assistantText).toMatch(/我还在线|不断线|I am still here|I am staying on this thread/i)
-    expect(assistantText).not.toMatch(/主网关流已经建立|main-gateway stream was connected/i)
-    expect(assistantText).not.toMatch(/无工具恢复|without optional tools/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   it('does not misclassify duplicate-finished stream rejection as provider config missing', async () => {
@@ -1977,9 +1990,7 @@ describe('chat orchestrator', () => {
       origin: 'ui-user',
     })).resolves.toBeUndefined()
 
-    const payload = appendConversationTurnMock.mock.calls.at(-1)?.[0]
-    expect(String(payload?.assistantText ?? '')).toMatch(/回复失败|reply failed/i)
-    expect(String(payload?.assistantText ?? '')).not.toMatch(/路由不完整|配置缺失|configuration is incomplete/i)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   it('finalizes from partial stream when finish event is missing after text progress', async () => {

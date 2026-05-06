@@ -153,7 +153,20 @@ const assistantProviderNetworkFallbackReply = (userText?: string) => mindRepairT
 const assistantProviderConfigFallbackReply = (userText?: string) => mindRepairText('provider-config', userText)
 const assistantUnsupportedToolsFallbackReply = (userText?: string) => mindRepairText('unsupported-tools', userText)
 const runtimeGatewayWatchdogPolicy = deriveAlicizationRendererBridgeWatchdogTimeoutPolicy()
-const alicizationEpoch1StrictModeEnabled = false
+const alicizationChatRuntimeFlags = {
+  epoch1StrictModeEnabled: false,
+}
+
+export function configureAlicizationChatRuntimeForTest(options: {
+  epoch1StrictModeEnabled?: boolean
+}) {
+  const meta = import.meta as unknown as { vitest?: unknown }
+  if (!meta.vitest)
+    return
+
+  alicizationChatRuntimeFlags.epoch1StrictModeEnabled = Boolean(options.epoch1StrictModeEnabled)
+}
+
 const runtimeContractAnchorHeader = 'Output contract (must-follow, highest priority):'
 const structuredRetrySystemPrompt = [
   'Return ONLY one strict JSON object with keys: thought, emotion, reply, performance.',
@@ -1522,6 +1535,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
+    let runtimeAuthoritativeVisibleReplyBlocked = false
     let turnMindGovernance: AlicizationMindTurnGovernance | null = null
     let turnEmbodiment: AlicizationDialogueEmbodimentEnvelope | null = null
     let turnSpeechTimeline: AlicizationDialogueSpeechTimeline | null = null
@@ -1572,6 +1586,42 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         },
         reply: normalizedReply,
       })
+    }
+
+    const isRendererRuntimeAuthoritativeBridgeMode = () => {
+      if ((options.origin ?? 'ui-user') !== 'ui-user' || !hasAlicizationBridge())
+        return false
+      return Boolean(getAlicizationBridge().streamChat)
+    }
+
+    const blockRuntimeAuthoritativeLocalVisibleReply = async (input: {
+      action: string
+      message: string
+      details?: Record<string, unknown>
+      level?: 'warning' | 'critical'
+    }) => {
+      runtimeAuthoritativeVisibleReplyBlocked = true
+      stagedAssistantResolution = null
+      stagedSpeechDraft = ''
+      finalAssistantDisplayText = ''
+      buildingMessage.content = ''
+      buildingMessage.slices = removeExecutionStatusSlices(buildingMessage.slices)
+      buildingMessage.categorization = undefined
+      buildingMessage.structured = undefined
+      await appendAlicizationAuditLog({
+        level: input.level ?? 'warning',
+        category: 'alicization.visible-reply',
+        action: input.action,
+        message: input.message,
+        details: {
+          sessionId,
+          turnId,
+          ...input.details,
+        },
+      })
+      if (isForegroundSession()) {
+        streamingMessage.value = createEmptyStreamingMessage()
+      }
     }
 
     async function finalizeGovernedStructuredOutput(
@@ -1628,44 +1678,47 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
 
     const commitAssistantResolution = async () => {
-        if (assistantTextCommitted)
-          return finalAssistantDisplayText
+      if (runtimeAuthoritativeVisibleReplyBlocked)
+        return ''
 
-        const staged = stagedAssistantResolution
-        const fallbackReply = (
-          staged?.reply
-          || finalAssistantDisplayText
-          || stagedSpeechDraft
-          || stringifyAssistantContent(buildingMessage.content)
-        ).trim()
+      if (assistantTextCommitted)
+        return finalAssistantDisplayText
 
-        if (!fallbackReply)
-          return ''
+      const staged = stagedAssistantResolution
+      const fallbackReply = (
+        staged?.reply
+        || finalAssistantDisplayText
+        || stagedSpeechDraft
+        || stringifyAssistantContent(buildingMessage.content)
+      ).trim()
 
-        const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral', sendingMessage)
-        const structuredWithGovernance = await finalizeGovernedStructuredOutput({
-          structured,
-          fallbackReply,
-          personalityState: turnPersonalityState,
-          preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
-        })
-        const finalReply = structuredWithGovernance.reply.trim() || fallbackReply
-        const categorization = staged?.categorization ?? {
-          speech: finalReply,
-          reasoning: '',
-        }
-        const finalizedCategorization = {
-          ...categorization,
-          speech: finalReply,
-        }
-        const finalizedSlices = finalReply
-          ? removeExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
-          : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
+      if (!fallbackReply)
+        return ''
 
-        buildingMessage.categorization = finalizedCategorization
-        buildingMessage.structured = structuredWithGovernance
-        buildingMessage.content = finalReply
-        buildingMessage.slices = finalizedSlices
+      const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral', sendingMessage)
+      const structuredWithGovernance = await finalizeGovernedStructuredOutput({
+        structured,
+        fallbackReply,
+        personalityState: turnPersonalityState,
+        preferGroundedEvidence: inspectionLikeTurn || hasVisualAttachment,
+      })
+      const finalReply = structuredWithGovernance.reply.trim() || fallbackReply
+      const categorization = staged?.categorization ?? {
+        speech: finalReply,
+        reasoning: '',
+      }
+      const finalizedCategorization = {
+        ...categorization,
+        speech: finalReply,
+      }
+      const finalizedSlices = finalReply
+        ? removeExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
+        : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
+
+      buildingMessage.categorization = finalizedCategorization
+      buildingMessage.structured = structuredWithGovernance
+      buildingMessage.content = finalReply
+      buildingMessage.slices = finalizedSlices
       finalAssistantDisplayText = finalReply
       assistantTextCommitted = true
 
@@ -1800,7 +1853,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         recentMessages: sessionMessagesForSend.slice(0, -1),
       })
       const preferLocalContractRepair = hasVisualAttachment || inspectionLikeTurn || Boolean(turnMindGovernance)
-      const strictEpoch1Mode = alicizationEpoch1StrictModeEnabled && hasAlicizationBridge()
+      const strictEpoch1Mode = alicizationChatRuntimeFlags.epoch1StrictModeEnabled && hasAlicizationBridge()
       const realtimeIntent = hasAlicizationBridge() && origin === 'ui-user'
         ? detectRealtimeQueryIntent(sendingMessage)
         : detectRealtimeQueryIntent('')
@@ -2594,6 +2647,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       const persistBuiltAssistantMessage = () => {
+        if (runtimeAuthoritativeVisibleReplyBlocked)
+          return
+
         if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
           sessionMessagesForSend.push(toRaw(buildingMessage))
           chatSession.persistSessionMessages(sessionId)
@@ -2614,7 +2670,21 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       const finalizeAssistantTurn = async () => {
+        if (runtimeAuthoritativeVisibleReplyBlocked) {
+          if (isForegroundSession()) {
+            streamingMessage.value = createEmptyStreamingMessage()
+          }
+          return ''
+        }
+
         const assistantOutputText = await commitAssistantResolution()
+        if (!assistantOutputText.trim() && isRendererRuntimeAuthoritativeBridgeMode()) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'runtime-authoritative-empty-reply-blocked',
+            message: 'Renderer blocked empty local finalization because runtime-authoritative turns require a model-authored visible reply.',
+          })
+          return ''
+        }
         persistBuiltAssistantMessage()
         assistantOutputCommitted = true
         if (hasAlicizationBridge()) {
@@ -2662,6 +2732,23 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         else if (leakFallbackApplied || emptyOutputFallbackApplied) {
           finalSpeech = sanitizeFallbackReply
+        }
+
+        if (runtimeAuthoritativeBridge && (realtimeFallbackApplied || leakFallbackApplied || emptyOutputFallbackApplied)) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'renderer-local-visible-fallback-blocked',
+            message: 'Renderer blocked a local fallback visible reply because runtime-authoritative turns require model-authored speech.',
+            details: {
+              realtimeFallbackApplied,
+              leakFallbackApplied,
+              emptyOutputFallbackApplied,
+              fabricationDetected: sanitizedOutput.fabricationDetected,
+              leakDetected: sanitizedOutput.leakDetected,
+              removedCount: sanitizedOutput.removedCount,
+              verifiedToolResult: turnToolEvidence.verifiedToolResult,
+            },
+          })
+          return
         }
 
         if (sanitizedOutput.fabricationDetected) {
@@ -3087,13 +3174,28 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             level: 'warning',
             category: 'realtime-policy',
             action: 'epoch1-strict-realtime-refusal-failed',
-            message: 'Strict realtime refusal LLM path failed, applied fixed fallback reply.',
+            message: runtimeAuthoritativeBridge
+              ? 'Strict realtime refusal LLM path failed; renderer blocked local refusal fallback in runtime-authoritative mode.'
+              : 'Strict realtime refusal LLM path failed, applied fixed fallback reply.',
             details: {
               sessionId,
               turnId,
               reason: error instanceof Error ? error.message : String(error),
             },
           })
+
+          if (runtimeAuthoritativeBridge) {
+            await blockRuntimeAuthoritativeLocalVisibleReply({
+              action: 'epoch1-strict-local-visible-fallback-blocked',
+              message: 'Renderer blocked strict realtime refusal fallback speech because runtime-authoritative turns require model-authored visible replies.',
+              details: {
+                reason: error instanceof Error ? error.message : String(error),
+              },
+              level: 'critical',
+            })
+            await finalizeAssistantTurn()
+            return
+          }
 
           const fallbackReply = assistantEpoch1StrictFallbackReply(sendingMessage)
           await applyAssistantResult({
@@ -3572,7 +3674,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
           else {
             const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
-            if (fallbackReply) {
+            if (fallbackReply && !runtimeAuthoritativeBridge) {
               stageAssistantFallback(
                 fallbackReply,
                 turnToolEvidence.latestExecutorResult.status === 'failed'
@@ -3581,6 +3683,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   ? 'concerned'
                   : 'neutral',
               )
+            }
+            else if (fallbackReply && runtimeAuthoritativeBridge) {
+              await blockRuntimeAuthoritativeLocalVisibleReply({
+                action: 'executor-payoff-local-visible-fallback-blocked',
+                message: 'Renderer blocked executor-summary fallback speech because execution payoff must be model-authored in runtime-authoritative mode.',
+                details: {
+                  executorSummary: turnToolEvidence.latestExecutorResult.summary,
+                  executorStatus: turnToolEvidence.latestExecutorResult.status,
+                },
+              })
             }
             await appendAlicizationAuditLog({
               level: 'warning',
@@ -3598,8 +3710,21 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         else {
           const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
-          if (fallbackReply)
+          if (fallbackReply && !runtimeAuthoritativeBridge) {
             stageAssistantFallback(fallbackReply)
+          }
+          else if (fallbackReply && runtimeAuthoritativeBridge) {
+            await blockRuntimeAuthoritativeLocalVisibleReply({
+              action: 'executor-payoff-blocked-retry-local-visible-fallback-blocked',
+              message: 'Renderer blocked executor-summary fallback speech after payoff retry sanitization was blocked.',
+              details: {
+                executorSummary: turnToolEvidence.latestExecutorResult.summary,
+                executorStatus: turnToolEvidence.latestExecutorResult.status,
+                reason: sanitizedPayoffRetry.reason,
+              },
+              level: 'critical',
+            })
+          }
           await appendAlicizationAuditLog({
             level: 'critical',
             category: 'alicization.intent-action',
@@ -3700,7 +3825,18 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
 
         const reminderFailureReply = mindRepairText('reminder-schedule-failed', sendingMessage)
-        stageAssistantFallback(reminderFailureReply, 'concerned')
+        if (runtimeAuthoritativeBridge) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'reminder-failure-local-visible-fallback-blocked',
+            message: 'Renderer blocked reminder failure fallback speech because runtime-authoritative turns require model-authored visible replies.',
+            details: {
+              reminderToolCallCount: turnToolEvidence.reminderToolCallIds.size,
+            },
+          })
+        }
+        else {
+          stageAssistantFallback(reminderFailureReply, 'concerned')
+        }
         await appendAlicizationAuditLog({
           level: 'warning',
           category: 'alicization.intent-action',
@@ -3772,6 +3908,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       if (!assistantOutputCommitted) {
+        if (isRendererRuntimeAuthoritativeBridgeMode()) {
+          const fallback = resolveStreamFailureFallback(error, sendingMessage)
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'runtime-authoritative-local-failure-reply-blocked',
+            message: 'Renderer blocked local failure reply because runtime-authoritative turns require model-authored visible speech.',
+            details: {
+              reason: error instanceof Error ? error.message : String(error),
+              fallbackKind: fallback.kind,
+            },
+          })
+          assistantOutputCommitted = true
+          return
+        }
+
         const fallback = resolveStreamFailureFallback(error, sendingMessage)
         const fallbackReply = fallback.reply
         stageAssistantFallback(

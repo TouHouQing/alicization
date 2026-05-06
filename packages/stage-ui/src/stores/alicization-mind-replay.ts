@@ -442,7 +442,12 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           lastFailureNextRetryAt: state.lastFailureNextRetryAt,
         }
       })()
-      const resolutionLedgerSummary = item.resolutionLedgerSummary ?? null
+      const resolutionLedgerSummary = item.resolutionLedgerSummary
+        ? {
+            ...item.resolutionLedgerSummary,
+            suppressionTags: [...(item.resolutionLedgerSummary.suppressionTags ?? [])],
+          }
+        : null
       const memorySituationCandidateSummary = item.memorySituationCandidateSummary
         ? {
             selected: [...item.memorySituationCandidateSummary.selected],

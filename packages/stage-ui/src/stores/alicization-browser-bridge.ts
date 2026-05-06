@@ -2250,6 +2250,7 @@ function buildBrowserMemoryResolutionLedger(input: {
     shouldStayInward: input.recollectionSpeechPlan?.shouldSurface === false || input.recollectionSpeechPlan?.placement === 'internal-only',
     shouldDelayUntilAfterPayoff: input.recollectionSpeechPlan?.placement === 'after-payoff',
     stableCoreOnly: input.recollectionForeground?.surfaceSummary?.includes('surface=inward') ?? false,
+    suppressionTags: [],
     finalRationale: sanitizeBriefText(input.recollectionSpeechPlan?.rationale ?? input.recollectionPlan?.rationale ?? summary, 220) || null,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryResolutionLedger']>
 }
