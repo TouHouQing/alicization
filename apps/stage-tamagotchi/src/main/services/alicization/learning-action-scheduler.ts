@@ -6,6 +6,7 @@ import type {
   AlicizationLearningTaskRecord,
   AlicizationSelfEvolutionKernelSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
@@ -43,6 +44,7 @@ interface AlicizationLearningTaskExecutionResult {
   error?: string | null
   nextRetryAt?: number | null
   firedTurnId?: string | null
+  selfRevisionEvent?: AlicizationSelfRevisionEvent | null
 }
 
 interface CreateAlicizationLearningActionSchedulerOptions {
@@ -448,6 +450,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             failureKind: result.failureKind ?? null,
             error: result.error ?? null,
             nextRetryAt: result.nextRetryAt ?? null,
+            selfRevisionEvent: result.selfRevisionEvent ?? null,
           },
         }, cardId)
       }

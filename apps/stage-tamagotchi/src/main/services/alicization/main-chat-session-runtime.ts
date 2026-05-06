@@ -97,6 +97,8 @@ import {
   mergeUniqueRules,
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
+import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
+import { buildAlicizationTurnGraph, type AlicizationTurnGraph } from './turn-os/turn-graph'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -141,6 +143,7 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
+  memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
   personaKernel: AlicizationPersonaKernelSnapshot | null
   performanceManifest: CharacterPerformanceCapabilitiesManifest | null
   replyRealization: AlicizationMainChatReplyAuthoritySurface | null
@@ -148,6 +151,7 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   runtimeSurface: AlicizationMainChatRuntimeSurface
   sessionMirror: AlicizationDialogueSessionMirror | null
   sessionTrace: AlicizationRuntimeCallChainSnapshot
+  turnGraph: AlicizationTurnGraph
 }
 
 interface CreateAlicizationMainChatSessionRuntimeOptions {
@@ -378,6 +382,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }
 
+    const organicMemoryContextStartedAt = getNow()
     const organicPromptContext = await agentTurn.trackPhase('organic-memory-context', async () => {
       return options.tuneOrganicMemoryPromptContextForExecutiveTurn({
         context: await options.resolveOrganicMemoryPromptContext({
@@ -394,6 +399,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }, {
       personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
       suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+    })
+    const memoryTurnArtifact = buildAlicizationMemoryTurnArtifact({
+      context: organicPromptContext,
+      retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
+      latencyMs: getNow() - organicMemoryContextStartedAt,
     })
     await runOrganicLearningGovernor({
       agentTurn,
@@ -757,7 +767,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }
 
-    return {
+    const preparedResultBase = {
       chatConfig: prelude.chatConfig,
       conversationSessionId: agentTurn.conversationSessionId,
       getSessionTrace: () => agentTurn.snapshot(),
@@ -770,6 +780,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       governance: runtimeSurface.governance,
       mindTurnContract: prelude.perceptionAugmentation.chatGovernance.mindTurnContract,
       organicMemoryContext: organicPromptContext,
+      memoryTurnArtifact,
       personaKernel,
       performanceManifest,
       replyRealization: runtimeSurface.replyAuthority ?? null,
@@ -777,6 +788,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       runtimeSurface,
       sessionMirror,
       sessionTrace: agentTurn.snapshot(),
+    }
+    const turnGraph = buildAlicizationTurnGraph({
+      prepared: preparedResultBase as AlicizationPreparedMainChatExecutionResult,
+      cardId: payload.cardId,
+      turnId: payload.turnId,
+      actionObligation: prelude.actionObligation,
+      memory: memoryTurnArtifact,
+      surface: null,
+      routingRequired,
+    })
+
+    return {
+      ...preparedResultBase,
+      turnGraph,
     }
   }
 

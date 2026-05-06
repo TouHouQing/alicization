@@ -7,6 +7,7 @@ import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
+import { decideAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-policy'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
@@ -580,6 +581,12 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             reply: selectedReply.reply,
           }
       const deliverySource = selectedReply.source
+      const visibleUtteranceDecision = decideAlicizationProactiveVisibleUtterance({
+        hasMindAuthoredStructured: selectedReply.source === 'llm' && Boolean(llmStructured),
+        reason: selectedReply.source === 'llm'
+          ? 'mind-authored-execution-callback'
+          : `execution-callback-visible-fallback-blocked:${selectedReply.reason ?? selectedReply.source}`,
+      })
       await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {
         trigger,
         cardId: options.getActiveCardId(),
@@ -590,6 +597,28 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         surfaceReason: selectedReply.reason ?? null,
         policy: deliveryPolicy,
       })
+
+      if (!visibleUtteranceDecision.shouldPersistVisibleUtterance) {
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        await options.persistExecutionDeliveryState(options.getActiveCardId())
+        options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'requeued-mind-authored-required',
+          message: 'Execution callback visible reply was deferred because normal visible callback text must be mind-authored.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+            source: deliverySource,
+            surfaceReason: selectedReply.reason ?? null,
+            visibleUtteranceDecision,
+          },
+        })
+        return false
+      }
 
       if (await skipIfInlineSurfaced('pre-persist'))
         return true

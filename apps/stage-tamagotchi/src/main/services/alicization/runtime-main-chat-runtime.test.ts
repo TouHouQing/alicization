@@ -111,6 +111,7 @@ describe('runtime main chat runtime', () => {
         runtimeSurface: {} as any,
         sessionMirror: null,
         sessionTrace: {} as any,
+        turnGraph: {} as any,
         ...input.prelude,
       }),
     })

@@ -2464,4 +2464,169 @@ describe('main chat session runtime', () => {
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.replyDeliberation?.mustAvoid).toContain('Do not present dream residue as lived remembered fact.')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.answerIntent).toContain('fragmentary')
   })
+
+  it('emits a turn graph skeleton with memory artifact for downstream turn-os adoption', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 8,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 2048,
+          totalMB: 8192,
+          usagePercent: 75,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
+      buildOrganicMemorySystemBlocks: () => [],
+      buildPerformanceManifestSystemBlocks: () => [],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'none' as const })),
+      resolveCardHostName: vi.fn(async () => ''),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: 'alice',
+        activeThoughts: [],
+        retrievedFacts: [{ id: 'fact-1' } as any],
+        recalledFragments: [{ id: 'fragment-1' } as any],
+        recalledEpisodes: [{ id: 'episode-1' } as any],
+        recollectionIntent: {
+          shouldOpenRecollection: true,
+          recollectionAgenda: ['repair the old misunderstanding'],
+        } as any,
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedEpisodeIds: ['episode-1'],
+          selectedEraIds: [],
+          selectedConsolidationIds: [],
+          selectedWindowIds: [],
+          selectedProcedureIds: [],
+          selectedConversationTurnIds: [],
+          selectedRelationshipLines: [],
+          selectedEras: [],
+          selectedPeriods: [],
+          selectedEpisodes: [{
+            id: 'episode-1',
+            summary: 'The stable core still matters.',
+            provenance: 'remembered',
+            reconsolidatedFromTraceId: null,
+          }],
+          selectedProcedures: [],
+          selectedBundles: [],
+          selectedChains: [],
+          stableCore: ['The stable core still matters.'],
+          unsafeDetails: ['Do not state unsafe detail as certain fact.'],
+          conflictSeverity: 'low',
+          conflictVariants: [],
+          surfacePolicy: 'gist-first',
+          confidence: 0.71,
+          whyNow: 'The host asks directly about the memory line.',
+          inwardLine: 'The old correction is what comes back.',
+          visibleLine: 'I would keep it as a gist rather than a hard detail.',
+        } as any,
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'gist-first',
+          placement: 'inside-payoff',
+          certainty: 'approximate',
+          styleNote: 'Let memory guide tone, not wording.',
+        } as any,
+        selfEvolution: {
+          version: 'self-evolution-kernel-v1',
+          updatedAt: 1_700_000_000_000,
+          evolutionMomentum: 0.32,
+          learningReadiness: 0.44,
+          contradictionPressure: 0.1,
+          revisionPressure: 0.28,
+          autobiographicalStability: 0.7,
+          dominantTrajectory: 'repair the old misunderstanding',
+          relationshipDoctrine: null,
+          latestInflection: 'The host corrected the old understanding.',
+          burdenLine: null,
+          trustMeaning: null,
+          nextLearningAction: 'reflect',
+          nextLearningReason: 'Recent correction should consolidate before future reuse.',
+          shouldRecord: false,
+          shouldReflect: true,
+          shouldVerify: false,
+          shouldRevise: false,
+          shouldInternalize: false,
+          activeLearningFocuses: ['repair-the-old-misunderstanding'],
+          sourceSignals: ['The host corrected the old understanding.'],
+          summary: 'A revision-shaped learning line is active for this turn.',
+        } as any,
+      })),
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
+        policy: {
+          reasonCodes: ['low-recall'],
+        },
+        plan: {
+          budgetClass: 'realtime-reply',
+          prewarmKey: 'policy-turn-graph',
+        },
+      }) as any),
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-graph-smoke',
+        messages: [{
+          role: 'user',
+          content: '把这个记忆线说清楚一点',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '把这个记忆线说清楚一点',
+        } as Message],
+      }),
+    })
+
+    expect(result.memoryTurnArtifact?.policySnapshotId).toBe('policy-turn-graph')
+    expect(result.turnGraph.ids.turnId).toBe('turn-graph-smoke')
+    expect(result.turnGraph.telemetry.canonicalStageOrder).toEqual([
+      'encounter',
+      'conscious-frame',
+      'obligation',
+      'memory',
+      'deliberation',
+      'surface',
+      'delivery',
+      'learning',
+      'telemetry',
+    ])
+    expect(result.turnGraph.memory?.recallIntent.shouldRecall).toBe(true)
+    expect(result.turnGraph.learning.nextLearningAction).toBe('reflect')
+  })
 })

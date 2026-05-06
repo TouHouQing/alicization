@@ -1,6 +1,7 @@
 import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './autonomy-actuation'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
+import { decideAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-policy'
 
 export function createAlicizationSubconsciousTickRuntime(options: any) {
   const {
@@ -634,6 +635,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         const turnId = `subconscious:${activeCardId}:${now}`
         let structured: any = null
         let deliveryDecision = decision
+        let llmStructured: any = null
         if (autonomyExecutionProposalSurface) {
           const performanceManifest = await getPerformanceManifest()
           const structuredPerformance = clampAlicizationPerformancePayloadToManifest(
@@ -698,7 +700,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             }),
           }
           deliveryDecision = sociallyAdjustedDecision
-          const llmStructured = await generateProactiveStructuredWithGateway(
+          llmStructured = await generateProactiveStructuredWithGateway(
             personality,
             nextState,
             layeredContext,
@@ -761,7 +763,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               level: 'warning',
               category: 'alicization.subconscious',
               action: 'proactive-llm-fallback',
-              message: 'Main gateway proactive generation unavailable; deterministic fallback reused the same policy decision.',
+              message: 'Main gateway proactive generation unavailable; deterministic visible proactive text was deferred.',
               payload: {
                 decision: {
                   scenario: decision.scenario,
@@ -777,64 +779,85 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             })
           }
         }
-        const deliveredSessionId = await ensureActiveOrLatestSessionId(activeCardId)
-        const persisted = await appendConversationTurnWithGuards({
-          turnId,
-          sessionId: deliveredSessionId,
-          assistantText: structured.reply,
-          structured,
-          origin: 'subconscious-proactive',
-          createdAt: now,
+        const proactiveVisibleUtteranceDecision = decideAlicizationProactiveVisibleUtterance({
+          hasMindAuthoredStructured: Boolean(llmStructured),
+          reason: llmStructured
+            ? 'mind-authored-proactive-utterance'
+            : 'provider-mind-unavailable-for-proactive-visible-utterance',
         })
-        if (!persisted) {
+        if (!proactiveVisibleUtteranceDecision.shouldPersistVisibleUtterance) {
           proactive = false
-        }
-        else {
-          nextState.boredom = clampNeed(nextState.boredom * 0.35)
-          nextState.loneliness = clampNeed(nextState.loneliness * 0.4)
-          nextState.fatigue = clampNeed(nextState.fatigue + 5)
-          syncAgentTurnSessionMirror({
-            agentTurn: backgroundAgentTurn,
-            cardId: activeCardId,
-            continuitySignals: structured.proactive
-              ? [buildPendingProactiveContinuitySignal({
-                  now,
-                  pending: {
-                    turnId,
-                    scenario: structured.proactive.scenario,
-                    deliveredAt: now,
-                    feedbackWindowMs: structured.proactive.feedbackWindowMs,
-                  },
-                })]
-              : undefined,
-            sessionId: deliveredSessionId,
-            source: 'proactive',
-          })
           await appendAuditLog({
-            level: 'notice',
+            level: 'warning',
             category: 'alicization.subconscious',
-            action: 'proactive-triggered',
-            message: 'Generated proactive dialogue from the Epoch 3 policy loop.',
+            action: 'proactive-visible-utterance-deferred',
+            message: 'Deferred proactive visible utterance because normal visible proactive text must be mind-authored.',
             payload: {
               turnId,
-              decision: {
-                shouldInterrupt: decision.shouldInterrupt,
-                confidence: decision.confidence,
-                urgency: decision.urgency,
-                style: deliveryDecision.style,
-                cooldownMs: decision.cooldownMs,
-                scenario: decision.scenario,
-                policyVersion: decision.policyVersion,
-              },
-              reasonCodes: decision.reasonCodes,
-              style: deliveryDecision.style,
-              format: structured.format,
-              proactive: structured.proactive ?? null,
-              emotion: structured.emotion,
-              trigger,
-              agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+              decision: proactiveVisibleUtteranceDecision,
             },
           })
+        }
+        else {
+          const deliveredSessionId = await ensureActiveOrLatestSessionId(activeCardId)
+          const persisted = await appendConversationTurnWithGuards({
+            turnId,
+            sessionId: deliveredSessionId,
+            assistantText: structured.reply,
+            structured,
+            origin: 'subconscious-proactive',
+            createdAt: now,
+          })
+          if (!persisted) {
+            proactive = false
+          }
+          else {
+            nextState.boredom = clampNeed(nextState.boredom * 0.35)
+            nextState.loneliness = clampNeed(nextState.loneliness * 0.4)
+            nextState.fatigue = clampNeed(nextState.fatigue + 5)
+            syncAgentTurnSessionMirror({
+              agentTurn: backgroundAgentTurn,
+              cardId: activeCardId,
+              continuitySignals: structured.proactive
+                ? [buildPendingProactiveContinuitySignal({
+                    now,
+                    pending: {
+                      turnId,
+                      scenario: structured.proactive.scenario,
+                      deliveredAt: now,
+                      feedbackWindowMs: structured.proactive.feedbackWindowMs,
+                    },
+                  })]
+                : undefined,
+              sessionId: deliveredSessionId,
+              source: 'proactive',
+            })
+            await appendAuditLog({
+              level: 'notice',
+              category: 'alicization.subconscious',
+              action: 'proactive-triggered',
+              message: 'Generated proactive dialogue from the Epoch 3 policy loop.',
+              payload: {
+                turnId,
+                decision: {
+                  shouldInterrupt: decision.shouldInterrupt,
+                  confidence: decision.confidence,
+                  urgency: decision.urgency,
+                  style: deliveryDecision.style,
+                  cooldownMs: decision.cooldownMs,
+                  scenario: decision.scenario,
+                  policyVersion: decision.policyVersion,
+                },
+                reasonCodes: decision.reasonCodes,
+                style: deliveryDecision.style,
+                format: structured.format,
+                proactive: structured.proactive ?? null,
+                emotion: structured.emotion,
+                trigger,
+                agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+              },
+            })
+          }
         }
       }
     }

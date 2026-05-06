@@ -93,6 +93,22 @@ describe('memory-tuning-advice', () => {
           },
           telemetryPersisted: true,
           failingTurnSet: [],
+          finalReplayGate: {
+            version: 'final-replay-gate-v1',
+            passed: false,
+            failingKeys: ['template-leakage'],
+            metrics: {
+              recallAt3: null,
+              precisionAt3: null,
+              wrongThreadRate: 0.2,
+              templateLeakageFailCount: 2,
+              authorityLeakCount: 0,
+              localHumanlikeVisibleFallbackCount: 0,
+              unsupportedSpecificityVisibleFailCount: 0,
+              turnOsTraceCoverage: 1,
+              learningOutcomeToSelfRevisionRoundtrip: 1,
+            },
+          },
           shipGate: [],
           regressionTriage: [],
           datasetFeedback: {

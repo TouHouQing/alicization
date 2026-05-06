@@ -29,6 +29,7 @@ import {
   deriveAlicizationLearningPolicyFeedback,
   deriveNextAlicizationLearningLifecycleState,
 } from './learning-state-machine'
+import { buildAlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 
 interface AlicizationPreparedLearningTaskContext extends AlicizationLearningTaskEffectContext {
   effectiveSupportCount: number
@@ -235,6 +236,13 @@ export async function executeAlicizationLearningTaskOrchestrator(
         domain: context.domain,
         result,
         verifiedArtifact,
+      }),
+      selfRevisionEvent: buildAlicizationSelfRevisionEvent({
+        task,
+        domain: context.domain,
+        result,
+        verifiedArtifact,
+        supportCount: context.supportingFacts.length + context.relatedReflections.length + context.relatedOutcomes.length,
       }),
     }
     await options.recordLearningExecutionTelemetry?.({

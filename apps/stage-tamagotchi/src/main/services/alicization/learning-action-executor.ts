@@ -11,6 +11,7 @@ import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stag
 
 import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-orchestrator'
 import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
+import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 
 export interface AlicizationLearningActionExecutorResult {
   status: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'
@@ -24,6 +25,7 @@ export interface AlicizationLearningActionExecutorResult {
   lifecycleState?: AlicizationLearningLifecycleState | null
   nextLifecycleState?: AlicizationLearningLifecycleState | null
   policyFeedback?: AlicizationLearningPolicyFeedback | null
+  selfRevisionEvent?: AlicizationSelfRevisionEvent | null
 }
 
 export interface CreateAlicizationLearningActionExecutorOptions {

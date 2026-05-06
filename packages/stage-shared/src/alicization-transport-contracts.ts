@@ -1505,6 +1505,31 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
   userText: string
   failingDimensions: Array<keyof AlicizationReplayBenchmarkStandardsRecord>
   tracePointer: AlicizationReplayBenchmarkTracePointer
+  firstFailingStage?: 'encounter' | 'conscious-frame' | 'obligation' | 'memory' | 'deliberation' | 'surface' | 'delivery' | 'learning' | 'telemetry' | null
+  turnGraphSummary?: {
+    version: 'turn-graph-summary-v1'
+    decisionTraceId: string | null
+    sessionId: string | null
+    canonicalStageOrder: string[]
+    observedPhaseOrder: string[]
+    memory: {
+      shouldRecall: boolean | null
+      recallCandidateCount: number | null
+      selectedCandidateCount: number | null
+      wrongThreadSuppressedCount: number | null
+      unsupportedSpecificityBlockedCount: number | null
+    }
+    visibleReply: {
+      expectedAuthority: string | null
+      actualAuthority: string | null
+      providerMindExecuted: boolean | null
+      blockedReasons: string[]
+    }
+    learning: {
+      selfEvolutionKernelVersion: string | null
+      nextLearningAction: string | null
+    }
+  } | null
   sampledCategories?: string[] | null
   paritySummary?: {
     version: 'browser-main-parity-v1'
@@ -1555,6 +1580,23 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   } | null
 }
 
+export interface AlicizationFinalReplayGateReportRecord {
+  version: 'final-replay-gate-v1'
+  passed: boolean
+  failingKeys: string[]
+  metrics: {
+    recallAt3: number | null
+    precisionAt3: number | null
+    wrongThreadRate: number | null
+    templateLeakageFailCount: number | null
+    authorityLeakCount: number | null
+    localHumanlikeVisibleFallbackCount: number | null
+    unsupportedSpecificityVisibleFailCount?: number | null
+    turnOsTraceCoverage?: number | null
+    learningOutcomeToSelfRevisionRoundtrip?: number | null
+  }
+}
+
 export interface AlicizationReplayHumanRatingDimension {
   key:
     | 'samePersonaFeel'
@@ -1574,7 +1616,7 @@ export interface AlicizationReplayHumanRatingRubric {
 }
 
 export interface AlicizationReplayBenchmarkShipGateRow {
-  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'learning-domain-gate' | 'browser-main-parity-gate'
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'final-replay-gate'
   status: 'pass' | 'fail'
   detail: string
 }
@@ -1601,6 +1643,7 @@ export interface AlicizationRunReplayBenchmarkResult {
   telemetryPatch: AlicizationReplayBenchmarkTelemetryPatch
   telemetryPersisted: boolean
   failingTurnSet: AlicizationReplayBenchmarkFailureTurnRecord[]
+  finalReplayGate: AlicizationFinalReplayGateReportRecord
   datasetFeedback: AlicizationReplayBenchmarkDatasetFeedback
   shipGate: AlicizationReplayBenchmarkShipGateRow[]
   regressionTriage: AlicizationReplayBenchmarkTriageRow[]

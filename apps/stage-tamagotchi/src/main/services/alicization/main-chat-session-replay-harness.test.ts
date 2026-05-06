@@ -2101,6 +2101,55 @@ describe('main chat session replay harness', () => {
     const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
       packId: 'sampled-humanlike-memory-v1',
       turns: turns as any,
+      preparedTurns: [
+        {
+          turnGraph: {
+            version: 'turn-graph-v1',
+            ids: {
+              cardId: 'default',
+              sessionId: 'session-1',
+              turnId: 'turn-failing-1',
+              decisionTraceId: 'mind:sampled:failing-1',
+            },
+            memory: {
+              recallIntent: {
+                shouldRecall: true,
+              },
+              deliberation: {
+                shouldRecall: true,
+              },
+              metrics: {
+                recallCandidateCount: 3,
+                selectedCandidateCount: 1,
+                wrongThreadSuppressedCount: 1,
+                unsupportedSpecificityBlockedCount: 0,
+              },
+            },
+            deliberation: {
+              replyAuthority: 'llm-mind',
+            },
+            surface: null,
+            learning: {
+              selfEvolutionKernelVersion: 'self-evolution-kernel-v1',
+              nextLearningAction: 'reflect',
+            },
+            telemetry: {
+              canonicalStageOrder: [
+                'encounter',
+                'conscious-frame',
+                'obligation',
+                'memory',
+                'deliberation',
+                'surface',
+                'delivery',
+                'learning',
+                'telemetry',
+              ],
+              phaseOrder: ['contextual-memory', 'organic-memory-context'],
+            },
+          },
+        },
+      ] as any,
       quality,
       gate,
     })
@@ -2114,6 +2163,14 @@ describe('main chat session replay harness', () => {
           decisionTraceId: 'mind:sampled:failing-1',
         }),
         sampledCategories: expect.arrayContaining(['wrong-thread']),
+        firstFailingStage: 'memory',
+        turnGraphSummary: expect.objectContaining({
+          version: 'turn-graph-summary-v1',
+          decisionTraceId: 'mind:sampled:failing-1',
+          memory: expect.objectContaining({
+            wrongThreadSuppressedCount: 1,
+          }),
+        }),
       }),
       expect.objectContaining({
         turnId: 'turn-failing-2',

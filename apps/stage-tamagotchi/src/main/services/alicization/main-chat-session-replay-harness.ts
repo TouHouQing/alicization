@@ -14,6 +14,7 @@ import type {
 import type { AlicizationPreparedMainChatPrelude } from './main-chat-session-runtime'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 
 import {
   deriveAlicizationBrowserMainParitySummary,
@@ -28,6 +29,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
+import { alicizationTurnGraphCanonicalStageOrder } from './turn-os/turn-graph'
 
 const executionChannels = [
   'cli',
@@ -459,6 +461,86 @@ export interface AlicizationReplayBenchmarkStandards {
   relationshipDistanceJumpRate: 'pass' | 'fail'
   afterglowFalseCarryRate: 'pass' | 'fail'
   templateLeakage: 'pass' | 'fail'
+}
+
+function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undefined) {
+  if (!turnGraph)
+    return null
+  return {
+    version: 'turn-graph-summary-v1' as const,
+    decisionTraceId: turnGraph.ids.decisionTraceId,
+    sessionId: turnGraph.ids.sessionId,
+    canonicalStageOrder: [...(turnGraph.telemetry.canonicalStageOrder ?? alicizationTurnGraphCanonicalStageOrder)],
+    observedPhaseOrder: [...(turnGraph.telemetry.phaseOrder ?? [])],
+    memory: {
+      shouldRecall: turnGraph.memory?.deliberation.shouldRecall ?? turnGraph.memory?.recallIntent.shouldRecall ?? null,
+      recallCandidateCount: turnGraph.memory?.metrics.recallCandidateCount ?? null,
+      selectedCandidateCount: turnGraph.memory?.metrics.selectedCandidateCount ?? null,
+      wrongThreadSuppressedCount: turnGraph.memory?.metrics.wrongThreadSuppressedCount ?? null,
+      unsupportedSpecificityBlockedCount: turnGraph.memory?.metrics.unsupportedSpecificityBlockedCount ?? null,
+    },
+    visibleReply: {
+      expectedAuthority: turnGraph.surface?.expectedAuthority ?? turnGraph.deliberation.replyAuthority ?? null,
+      actualAuthority: turnGraph.surface?.actualAuthority ?? null,
+      providerMindExecuted: turnGraph.surface?.providerMindExecuted ?? null,
+      blockedReasons: [...(turnGraph.surface?.blockedReasons ?? [])],
+    },
+    learning: {
+      selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,
+      nextLearningAction: turnGraph.learning.nextLearningAction,
+    },
+  }
+}
+
+function deriveReplayFirstFailingStage(input: {
+  quality: AlicizationReplayMemoryQuality
+  prepared: AlicizationPreparedMainChatExecutionResult | null | undefined
+}) {
+  const turnGraph = input.prepared?.turnGraph ?? null
+  if (!turnGraph)
+    return 'telemetry' as const
+  const quality = input.quality
+
+  if (
+    quality.eraFirst === 'fail'
+    || quality.resolutionLedgerQuality === 'fail'
+    || quality.procedureCarryQuality === 'fail'
+    || quality.wrongThreadSuppression === 'fail'
+    || quality.implicitRecallQuality === 'fail'
+    || quality.temporalScopeFlexibility === 'fail'
+    || quality.recentOnlyDrift === 'fail'
+    || quality.eventGraphRecallCollapse === 'fail'
+  ) {
+    return 'memory' as const
+  }
+  if (
+    quality.replyMemoryCoherence === 'fail'
+    || quality.knowledgeCorrectionDiscipline === 'fail'
+    || quality.repeatedMistakeAvoidance === 'fail'
+    || quality.hostUnderstandingGrowth === 'fail'
+    || quality.skillInternalizationGrowth === 'fail'
+    || quality.selfRevisionGrowth === 'fail'
+    || quality.learningRevisionDiscipline === 'fail'
+    || quality.domainInternalizationDiscipline === 'fail'
+    || quality.worldModelValidationDiscipline === 'fail'
+  ) {
+    return 'learning' as const
+  }
+  if (
+    quality.surfaceRestraint === 'fail'
+    || quality.relationshipRepairAdaptation === 'fail'
+    || quality.closenessLadderDrift === 'fail'
+    || quality.dialogueRhythmStability === 'fail'
+    || quality.emptyCareRate === 'fail'
+    || quality.repairMechanicalRate === 'fail'
+    || quality.warmthTemplateRisk === 'fail'
+    || quality.relationshipDistanceJumpRate === 'fail'
+    || quality.afterglowFalseCarryRate === 'fail'
+    || quality.templateLeakage === 'fail'
+  ) {
+    return 'surface' as const
+  }
+  return 'telemetry' as const
 }
 
 export interface AlicizationReplayBenchmarkGateDimensionReport {
@@ -2446,10 +2528,17 @@ function evaluateReplayGoldMetrics(input: {
 export function buildReplayBenchmarkFailingTurnSet(input: {
   packId: AlicizationReplayBenchmarkPackId
   turns: AlicizationReplayTurn[]
+  preparedTurns?: AlicizationPreparedMainChatExecutionResult[]
   quality: AlicizationReplayMemoryQuality[]
   gate: AlicizationReplayBenchmarkGateReport
 }) {
   const turnById = new Map(input.turns.map(turn => [turn.turnId, turn]))
+  const preparedTurnByTurnId = new Map(
+    (input.preparedTurns ?? []).map(prepared => [
+      prepared.turnGraph.ids.turnId,
+      prepared,
+    ]),
+  )
   const failingDimensionsByTurnId = new Map<string, Array<keyof AlicizationReplayBenchmarkStandards>>()
   for (const dimension of input.gate.dimensions) {
     if (dimension.status !== 'fail')
@@ -2468,6 +2557,7 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
       if (failingDimensions.length === 0)
         return null
       const turn = turnById.get(item.turnId)
+      const prepared = preparedTurnByTurnId.get(item.turnId) ?? null
       const tracePointer = turn?.tracePointer ?? buildReplayBenchmarkSyntheticTracePointer({
         packId: input.packId,
         turn: turn ?? {
@@ -2480,6 +2570,11 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
         userText: item.userText,
         failingDimensions,
         tracePointer,
+        firstFailingStage: deriveReplayFirstFailingStage({
+          quality: item,
+          prepared,
+        }),
+        turnGraphSummary: summarizeReplayTurnGraph(prepared?.turnGraph),
         sampledCategories: turn?.sampledCategories ?? null,
         paritySummary: buildReplayBenchmarkParitySummary(turn),
         resolutionLedgerSummary: turn?.organicMemoryContext?.memoryResolutionLedger

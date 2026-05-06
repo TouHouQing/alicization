@@ -30,6 +30,7 @@ import {
   deriveMemoryTuningAdviceFromReplayBenchmark,
   replayBenchmarkTuningAdviceMetaKey,
 } from './memory-tuning-advice'
+import { buildAlicizationFinalReplayGateReport } from './replay/final-gates'
 
 interface ReplayConversationTurnRow {
   turnId: string | null
@@ -211,6 +212,18 @@ function buildReplayBenchmarkNoopResult(input: {
       templateLeakageFailCount: 0,
     },
   }
+  const finalReplayGate = buildAlicizationFinalReplayGateReport({
+    retrievalHealth: {
+      ...telemetryPatch.retrievalHealth,
+      wrongThreadRate: 0,
+      templateLeakageFailCount: 0,
+      unsupportedSpecificityVisibleFailCount: 0,
+      turnOsTraceCoverage: 1,
+      learningOutcomeToSelfRevisionRoundtrip: 1,
+    },
+    authorityLeakCount: 0,
+    localHumanlikeVisibleFallbackCount: 0,
+  })
   return {
     packId: input.packId,
     ranAt: input.ranAt,
@@ -221,7 +234,15 @@ function buildReplayBenchmarkNoopResult(input: {
     telemetryPatch,
     telemetryPersisted: input.telemetryPersisted,
     failingTurnSet: [] as AlicizationReplayBenchmarkFailureTurnRecord[],
+    finalReplayGate,
     shipGate: [
+      {
+        key: 'final-replay-gate',
+        status: finalReplayGate.passed ? 'pass' : 'fail',
+        detail: finalReplayGate.passed
+          ? 'Final replay gate passed.'
+          : `Final failing standards: ${finalReplayGate.failingKeys.join(', ') || 'none'}.`,
+      },
       { key: 'benchmark-gate', status: 'pass', detail: 'Replay benchmark gate passed.' },
       { key: 'human-rating-gate', status: 'pass', detail: 'Human rubric dimensions available: 6.' },
       { key: 'latency-gate', status: 'pass', detail: 'semantic=n/a, graph=n/a' },
@@ -241,11 +262,19 @@ function buildReplayBenchmarkNoopResult(input: {
 
 function buildReplayBenchmarkShipGate(input: {
   report: Pick<AlicizationRunReplayBenchmarkResult, 'gate' | 'telemetryPatch' | 'datasetFeedback'>
+  finalReplayGate: AlicizationRunReplayBenchmarkResult['finalReplayGate']
 }) {
   const telemetry = input.report.telemetryPatch.retrievalHealth
   const rubricCount = input.report.datasetFeedback.humanRatingRubric?.dimensions.length ?? 0
   const paritySummary = input.report.datasetFeedback.paritySummary ?? null
   return [
+    {
+      key: 'final-replay-gate' as const,
+      status: input.finalReplayGate.passed ? 'pass' : 'fail',
+      detail: input.finalReplayGate.passed
+        ? 'Final replay gate passed.'
+        : `Final failing standards: ${input.finalReplayGate.failingKeys.join(', ') || 'none'}.`,
+    },
     {
       key: 'benchmark-gate' as const,
       status: input.report.gate.passed ? 'pass' : 'fail',
@@ -311,6 +340,56 @@ function runtimeMetricNumber(raw: unknown) {
   return typeof raw === 'number' && Number.isFinite(raw)
     ? raw
     : null
+}
+
+function countReplayAuthorityLeaks(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}) {
+  return input.turns.filter((turn) => {
+    const expected = turn.turnGraph.surface?.expectedAuthority
+      ?? turn.replyRealization?.expectedVisibleReplyAuthority
+      ?? turn.replyExecutionPlan?.expectedVisibleReplyAuthority
+      ?? null
+    const actual = turn.turnGraph.surface?.actualAuthority
+      ?? null
+    return Boolean(expected && actual && expected !== actual)
+  }).length
+}
+
+function countReplayLocalHumanlikeVisibleFallbacks(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}) {
+  return input.turns.filter((turn) => {
+    const surface = turn.turnGraph.surface
+    return surface?.actualAuthority === 'local-deterministic-fallback'
+      && Boolean(surface.visibleText?.trim())
+  }).length
+}
+
+function deriveReplayTurnOsTraceCoverage(input: {
+  turns: Awaited<ReturnType<typeof benchmarkMainChatSessionReplay>>['turns']
+}) {
+  if (input.turns.length === 0)
+    return 1
+  const traced = input.turns.filter(turn => turn.turnGraph?.version === 'turn-graph-v1').length
+  return Number((traced / input.turns.length).toFixed(2))
+}
+
+function deriveReplayLearningSelfRevisionRoundtrip(input: {
+  traces: AlicizationMemoryDecisionTraceRecord[]
+}) {
+  if (input.traces.length === 0)
+    return 1
+  const learningRelevant = input.traces.filter(trace =>
+    trace.eventKinds.some(kind => String(kind).includes('learning'))
+    || trace.eventKinds.some(kind => String(kind).includes('self-revision')),
+  )
+  if (learningRelevant.length === 0)
+    return 1
+  const closed = learningRelevant.filter(trace =>
+    trace.eventKinds.some(kind => String(kind).includes('self-revision')),
+  ).length
+  return Number((closed / learningRelevant.length).toFixed(2))
 }
 
 function preferRuntimeGrowthMetrics(input: {
@@ -616,6 +695,7 @@ export function createAlicizationReplayBenchmarkRuntime(
     const failingTurnSet = buildReplayBenchmarkFailingTurnSet({
       packId,
       turns,
+      preparedTurns: replay.turns,
       quality: replay.quality,
       gate: replay.gate,
     })
@@ -682,6 +762,25 @@ export function createAlicizationReplayBenchmarkRuntime(
       replayPatch: replayTelemetryPatch,
       currentStats,
     })
+    const authorityLeakCount = countReplayAuthorityLeaks({
+      turns: replay.turns,
+    })
+    const localHumanlikeVisibleFallbackCount = countReplayLocalHumanlikeVisibleFallbacks({
+      turns: replay.turns,
+    })
+    const finalReplayGate = buildAlicizationFinalReplayGateReport({
+      retrievalHealth: {
+        ...telemetryPatch.retrievalHealth,
+        turnOsTraceCoverage: deriveReplayTurnOsTraceCoverage({
+          turns: replay.turns,
+        }),
+        learningOutcomeToSelfRevisionRoundtrip: deriveReplayLearningSelfRevisionRoundtrip({
+          traces: benchmarkTraceRecords,
+        }),
+      },
+      authorityLeakCount,
+      localHumanlikeVisibleFallbackCount,
+    })
 
     if (persistTelemetry) {
       await db.overrideMemoryStats({
@@ -703,12 +802,14 @@ export function createAlicizationReplayBenchmarkRuntime(
       telemetryPatch,
       telemetryPersisted: persistTelemetry,
       failingTurnSet,
+      finalReplayGate,
       shipGate: buildReplayBenchmarkShipGate({
         report: {
           gate: replay.gate,
           telemetryPatch,
           datasetFeedback,
         },
+        finalReplayGate,
       }),
       regressionTriage: buildReplayBenchmarkRegressionTriage({
         failingKeys: replay.gate.failingKeys,
@@ -729,6 +830,7 @@ export function createAlicizationReplayBenchmarkRuntime(
           sampledTurnCount: turns.length,
           failingKeys: result.gate.failingKeys,
           failingTurnCount: result.failingTurnSet.length,
+          finalReplayGate: result.finalReplayGate,
           shipGate: result.shipGate,
           regressionTriage: result.regressionTriage,
           datasetFeedback: result.datasetFeedback,
@@ -806,6 +908,7 @@ export function createAlicizationReplayBenchmarkRuntime(
           packId: result.packId,
           turnCount: result.turnCount,
           gate: result.gate,
+          finalReplayGate: result.finalReplayGate,
           shipGate: result.shipGate,
           regressionTriage: result.regressionTriage,
           failingTurnSet: result.failingTurnSet,
@@ -835,6 +938,7 @@ export function createAlicizationReplayBenchmarkRuntime(
           packId: result.packId,
           turnCount: result.turnCount,
           failingKeys: result.gate.failingKeys,
+          finalReplayGateFailingKeys: result.finalReplayGate.failingKeys,
           failingTurnCount: result.failingTurnSet.length,
         })),
       },
