@@ -13,6 +13,10 @@ describe('final replay gates', () => {
         unsupportedSpecificityVisibleFailCount: 1,
         turnOsTraceCoverage: 0.9,
         learningOutcomeToSelfRevisionRoundtrip: 0.5,
+        memoryClosureCoverage: 0.8,
+        memoryClosureConflictClosureRate: 0.5,
+        memoryClosureLowQualityWithholdRate: 0,
+        memoryClosureUncertaintyLabelRate: 0.75,
       },
       authorityLeakCount: 1,
       localHumanlikeVisibleFallbackCount: 3,
@@ -29,6 +33,10 @@ describe('final replay gates', () => {
       'unsupported-specificity-visible',
       'turn-os-trace-coverage',
       'learning-self-revision-roundtrip',
+      'memory-closure-coverage',
+      'memory-closure-conflict',
+      'memory-closure-low-quality-withhold',
+      'memory-closure-uncertainty-label',
     ]))
   })
 })

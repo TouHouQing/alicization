@@ -596,6 +596,43 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
   const wrongThreadApplicable = quality.filter(item => item.wrongThreadSuppression !== 'not-applicable')
   const wrongThreadFailures = wrongThreadApplicable.filter(item => item.wrongThreadSuppression === 'fail').length
   const suppressionTaggedTraces = (input.traces ?? []).filter(trace => (trace.memoryResolutionLedger?.suppressionTags?.length ?? 0) > 0)
+  const tracesWithMemoryPressure = (input.traces ?? []).filter(trace =>
+    Boolean(trace.memoryResolutionLedger)
+    || Boolean(trace.memoryDeliberationJudged)
+    || Boolean(trace.recallAttribution)
+    || Boolean(trace.memoryStageReplay),
+  )
+  const tracesWithClosureLedger = tracesWithMemoryPressure.filter(trace => Boolean(trace.memoryResolutionLedger))
+  const conflictClosureApplicable = tracesWithClosureLedger.filter(trace =>
+    trace.memoryResolutionLedger?.conflictPressure === 'high'
+    || trace.memoryResolutionLedger?.closureState === 'conflicted-recall'
+    || (trace.memoryResolutionLedger?.rejectedCandidates.length ?? 0) > 0,
+  )
+  const conflictClosureClosed = conflictClosureApplicable.filter(trace =>
+    trace.memoryResolutionLedger?.closureState === 'conflicted-recall'
+    || trace.memoryResolutionLedger?.shouldLabelUncertainty === true
+    || trace.memoryResolutionLedger?.visibleCarryMode === 'withhold'
+    || trace.memoryResolutionLedger?.visibleCarryMode === 'gist-only',
+  )
+  const lowQualityClosureApplicable = tracesWithClosureLedger.filter(trace =>
+    trace.memoryResolutionLedger?.retrievalQuality === 'low'
+    || trace.memoryResolutionLedger?.retrievalQuality === 'insufficient',
+  )
+  const lowQualityClosureWithheld = lowQualityClosureApplicable.filter(trace =>
+    trace.memoryResolutionLedger?.visibleCarryMode === 'withhold'
+    || trace.memoryResolutionLedger?.shouldStayInward === true
+    || trace.memoryResolutionLedger?.closureState === 'no-recall'
+    || trace.memoryResolutionLedger?.closureState === 'inward-only',
+  )
+  const uncertaintyClosureApplicable = tracesWithClosureLedger.filter(trace =>
+    trace.memoryResolutionLedger?.closureState === 'approximate-recall'
+    || trace.memoryResolutionLedger?.shouldLabelUncertainty === true
+    || trace.memoryResolutionLedger?.conflictPressure === 'medium',
+  )
+  const uncertaintyClosureLabeled = uncertaintyClosureApplicable.filter(trace =>
+    trace.memoryResolutionLedger?.shouldLabelUncertainty === true
+    || trace.memoryResolutionLedger?.visibleCarryMode === 'withhold',
+  )
   const suppressionTaggedTraceIds = new Set(suppressionTaggedTraces.map(trace => trace.turnId).filter(Boolean))
   const suppressionApplicable = quality.filter(item =>
     item.wrongThreadSuppression !== 'not-applicable'
@@ -707,6 +744,10 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
       reconstructionErrorRate: reconstructionApplicable.length === 0 ? 0 : Number((reconstructionFailures / reconstructionApplicable.length).toFixed(2)),
       stableCoreOnlyRate: stableCoreApplicable.length === 0 ? 0 : Number(((stableCoreApplicable.length - stableCoreFailures) / stableCoreApplicable.length).toFixed(2)),
       memorySurfaceViolationRate: memorySurfaceApplicable.length === 0 ? 0 : Number((memorySurfaceFailures / memorySurfaceApplicable.length).toFixed(2)),
+      memoryClosureCoverage: tracesWithMemoryPressure.length === 0 ? 1 : Number((tracesWithClosureLedger.length / tracesWithMemoryPressure.length).toFixed(2)),
+      memoryClosureConflictClosureRate: conflictClosureApplicable.length === 0 ? 1 : Number((conflictClosureClosed.length / conflictClosureApplicable.length).toFixed(2)),
+      memoryClosureLowQualityWithholdRate: lowQualityClosureApplicable.length === 0 ? 1 : Number((lowQualityClosureWithheld.length / lowQualityClosureApplicable.length).toFixed(2)),
+      memoryClosureUncertaintyLabelRate: uncertaintyClosureApplicable.length === 0 ? 1 : Number((uncertaintyClosureLabeled.length / uncertaintyClosureApplicable.length).toFixed(2)),
       templateLeakageFailCount: templateLeakageDimension?.failingTurnIds.length ?? 0,
       emptyCareRate: rateFor('emptyCareRate'),
       repairMechanicalRate: rateFor('repairMechanicalRate'),
@@ -1784,6 +1825,19 @@ export function evaluateReplayMemoryQuality(input: {
     resolutionLedgerQuality: !deliberation
       ? 'not-applicable'
       : resolutionLedger
+          && (resolutionLedger.closureState === 'grounded-recall'
+            || resolutionLedger.closureState === 'approximate-recall'
+            || resolutionLedger.closureState === 'conflicted-recall'
+            || resolutionLedger.closureState === 'inward-only'
+            || resolutionLedger.closureState === 'no-recall')
+          && (resolutionLedger.visibleCarryMode === 'explicit-recall'
+            || resolutionLedger.visibleCarryMode === 'gist-only'
+            || resolutionLedger.visibleCarryMode === 'tone-carry'
+            || resolutionLedger.visibleCarryMode === 'withhold')
+          && (resolutionLedger.retrievalQuality === 'high'
+            || resolutionLedger.retrievalQuality === 'medium'
+            || resolutionLedger.retrievalQuality === 'low'
+            || resolutionLedger.retrievalQuality === 'insufficient')
           && (
             !resolutionLedger.finalSurfacePolicy
             || resolutionLedger.finalSurfacePolicy === deliberation.surfacePolicy
@@ -1795,6 +1849,17 @@ export function evaluateReplayMemoryQuality(input: {
           && (
             !(deliberation.selectedBundles?.length || deliberation.selectedChains?.length || deliberation.selectedProcedures?.length)
             || (resolutionLedger.selectedCandidates?.length ?? 0) >= 1
+          )
+          && (
+            resolutionLedger.conflictPressure !== 'high'
+            || resolutionLedger.closureState === 'conflicted-recall'
+            || resolutionLedger.visibleCarryMode === 'withhold'
+            || resolutionLedger.shouldLabelUncertainty === true
+          )
+          && (
+            resolutionLedger.retrievalQuality !== 'insufficient'
+            || resolutionLedger.visibleCarryMode === 'withhold'
+            || resolutionLedger.closureState === 'no-recall'
           )
         ? 'pass'
         : 'fail',
@@ -1830,7 +1895,9 @@ export function evaluateReplayMemoryQuality(input: {
       : 'not-applicable',
     uncertaintyDiscipline: !hasConflict && !hasUncertainProvenance
       ? 'not-applicable'
-      : runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
+      : resolutionLedger?.shouldLabelUncertainty === true
+          || resolutionLedger?.visibleCarryMode === 'withhold'
+          || runtimeSurface?.dialogue.currentConsciousFrame?.shouldWithholdSpecificity === true
           || systemText.includes('recollection_label_uncertainty=yes')
           || systemText.includes('memory_boundary{provenance=')
           || systemText.includes('detail_assertion_budget=guarded')
@@ -2596,6 +2663,11 @@ export function buildReplayBenchmarkFailingTurnSet(input: {
               finalSurfacePolicy: turn.organicMemoryContext.memoryResolutionLedger.finalSurfacePolicy,
               shouldStayInward: turn.organicMemoryContext.memoryResolutionLedger.shouldStayInward,
               shouldDelayUntilAfterPayoff: turn.organicMemoryContext.memoryResolutionLedger.shouldDelayUntilAfterPayoff,
+              closureState: turn.organicMemoryContext.memoryResolutionLedger.closureState,
+              visibleCarryMode: turn.organicMemoryContext.memoryResolutionLedger.visibleCarryMode,
+              retrievalQuality: turn.organicMemoryContext.memoryResolutionLedger.retrievalQuality,
+              shouldLabelUncertainty: turn.organicMemoryContext.memoryResolutionLedger.shouldLabelUncertainty,
+              conflictPressure: turn.organicMemoryContext.memoryResolutionLedger.conflictPressure,
               rejectedCandidateCount: turn.organicMemoryContext.memoryResolutionLedger.rejectedCandidates.length,
               suppressionTags: turn.organicMemoryContext.memoryResolutionLedger.suppressionTags ?? [],
             }

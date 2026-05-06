@@ -1454,6 +1454,10 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     reconstructionErrorRate?: number
     stableCoreOnlyRate?: number
     memorySurfaceViolationRate?: number
+    memoryClosureCoverage?: number
+    memoryClosureConflictClosureRate?: number
+    memoryClosureLowQualityWithholdRate?: number
+    memoryClosureUncertaintyLabelRate?: number
     templateLeakageFailCount: number
     emptyCareRate?: number
     repairMechanicalRate?: number
@@ -1553,6 +1557,11 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
     finalSurfacePolicy: string | null
     shouldStayInward: boolean
     shouldDelayUntilAfterPayoff: boolean
+    closureState?: string | null
+    visibleCarryMode?: string | null
+    retrievalQuality?: string | null
+    shouldLabelUncertainty?: boolean
+    conflictPressure?: string | null
     rejectedCandidateCount: number
     suppressionTags?: string[]
   } | null
@@ -1594,6 +1603,10 @@ export interface AlicizationFinalReplayGateReportRecord {
     unsupportedSpecificityVisibleFailCount?: number | null
     turnOsTraceCoverage?: number | null
     learningOutcomeToSelfRevisionRoundtrip?: number | null
+    memoryClosureCoverage?: number | null
+    memoryClosureConflictClosureRate?: number | null
+    memoryClosureLowQualityWithholdRate?: number | null
+    memoryClosureUncertaintyLabelRate?: number | null
   }
 }
 

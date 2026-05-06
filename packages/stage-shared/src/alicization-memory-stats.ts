@@ -124,6 +124,10 @@ export interface AlicizationMemoryRetrievalHealth {
   reconstructionErrorRate?: number
   stableCoreOnlyRate?: number
   memorySurfaceViolationRate?: number
+  memoryClosureCoverage?: number
+  memoryClosureConflictClosureRate?: number
+  memoryClosureLowQualityWithholdRate?: number
+  memoryClosureUncertaintyLabelRate?: number
   templateLeakageFailCount: number
   mindParticipation?: number
   memoryParticipation?: number

@@ -811,6 +811,39 @@ describe('main chat session replay harness', () => {
       gate: result.gate,
       quality: result.quality,
       goldMetrics: result.goldMetrics,
+      traces: [{
+        decisionTraceId: 'trace-gold-1',
+        turnId: 'turn-gold-1',
+        sessionId: 'session-gold',
+        origin: 'user-turn',
+        activeThreadId: null,
+        createdAt: 1,
+        lastUpdatedAt: 1,
+        eventKinds: ['governance-normalized'],
+        memoryResolutionLedger: {
+          version: 'memory-resolution-ledger-v1',
+          producedAt: 1,
+          dominantClusterId: 'cluster:gold',
+          dominantClusterSummary: 'Gold seam',
+          competingClusterId: null,
+          competingClusterSummary: null,
+          candidates: [],
+          selectedCandidates: [],
+          rejectedCandidates: [],
+          finalSurfacePolicy: 'procedural-carry',
+          shouldStayInward: false,
+          shouldDelayUntilAfterPayoff: false,
+          stableCoreOnly: false,
+          suppressionTags: [],
+          closureState: 'grounded-recall',
+          surfaceConfidence: 0.9,
+          shouldLabelUncertainty: false,
+          visibleCarryMode: 'tone-carry',
+          conflictPressure: 'none',
+          retrievalQuality: 'high',
+          finalRationale: null,
+        },
+      } as any],
     }).retrievalHealth).toEqual(expect.objectContaining({
       recallAt1: 1,
       recallAt3: 1,
@@ -819,6 +852,10 @@ describe('main chat session replay harness', () => {
       claimAccuracy: 1,
       replyAuthorityAccuracy: 1,
       latencyBudgetPass: true,
+      memoryClosureCoverage: 1,
+      memoryClosureConflictClosureRate: 1,
+      memoryClosureLowQualityWithholdRate: 1,
+      memoryClosureUncertaintyLabelRate: 1,
     }))
   })
 
@@ -2510,6 +2547,10 @@ describe('main chat session replay harness', () => {
         reconstructionErrorRate: 0,
         stableCoreOnlyRate: 0,
         memorySurfaceViolationRate: 0,
+        memoryClosureCoverage: 1,
+        memoryClosureConflictClosureRate: 1,
+        memoryClosureLowQualityWithholdRate: 1,
+        memoryClosureUncertaintyLabelRate: 1,
         templateLeakageFailCount: 1,
         emptyCareRate: 0,
         repairMechanicalRate: 0,
@@ -2622,6 +2663,101 @@ describe('main chat session replay harness', () => {
     expect(quality.surfaceRestraint).toBe('not-applicable')
     expect(quality.relationshipRepairAdaptation).toBe('not-applicable')
     expect(quality.templateLeakage).toBe('fail')
+  })
+
+  it('fails resolution ledger quality when memory closure fields are missing or contradictory', () => {
+    const quality = evaluateReplayMemoryQuality({
+      turnId: 'turn-missing-closure',
+      userText: '这段记忆到底能不能说出来',
+      prepared: {
+        messages: [],
+        governance: {
+          mustDo: [],
+        },
+        organicMemoryContext: {
+          hostAttitude: 'focused',
+          coreIncarnation: '',
+          activeThoughts: [],
+          retrievedFacts: [],
+          recalledFragments: [],
+          memoryDeliberation: {
+            shouldRecall: true,
+            selectedEraIds: [],
+            selectedConsolidationIds: [],
+            selectedWindowIds: [],
+            selectedProcedureIds: ['procedure-1'],
+            selectedEpisodeIds: [],
+            selectedConversationTurnIds: [],
+            selectedRelationshipLines: [],
+            selectedEras: [],
+            selectedPeriods: [],
+            selectedEpisodes: [],
+            selectedProcedures: [{
+              id: 'procedure-1',
+              label: 'stable procedure',
+              approach: 'Use only the safe gist.',
+            }],
+            selectedBundles: [],
+            selectedChains: [],
+            conflictVariants: [{
+              id: 'cluster:wrong-thread',
+              summary: 'Competing wrong thread.',
+              provenance: 'reconstructed',
+            }],
+            conflictSeverity: 'high',
+            surfacePolicy: 'gist-first',
+            confidence: 0.51,
+            whyNow: 'The host asks for recall.',
+          },
+          memoryResolutionLedger: {
+            version: 'memory-resolution-ledger-v1',
+            producedAt: 1,
+            dominantClusterId: 'cluster:primary',
+            dominantClusterSummary: 'Primary but weak recall',
+            competingClusterId: 'cluster:wrong-thread',
+            competingClusterSummary: 'Wrong thread',
+            candidates: [],
+            selectedCandidates: [],
+            rejectedCandidates: [],
+            finalSurfacePolicy: 'gist-first',
+            shouldStayInward: false,
+            shouldDelayUntilAfterPayoff: false,
+            stableCoreOnly: false,
+            suppressionTags: [],
+            closureState: 'grounded-recall',
+            surfaceConfidence: 0.51,
+            shouldLabelUncertainty: false,
+            visibleCarryMode: 'explicit-recall',
+            conflictPressure: 'high',
+            retrievalQuality: 'insufficient',
+            finalRationale: 'Bad fixture should fail closure checks.',
+          },
+        },
+        runtimeSurface: {
+          digitalLifeRuntimeSurface: {
+            dialogue: {
+              dialogueActKernel: {
+                selectedEvidence: [],
+                openingClaim: '',
+                sourceTrace: ['memory-deliberation'],
+              },
+              answerPlanner: {
+                governingFocus: '',
+                mustDo: [],
+              },
+              replyDeliberation: {
+                speakingFrom: 'held-memory',
+                whyThisReplyNow: 'Memory is active.',
+                mustAvoid: [],
+              },
+            },
+            memory: {},
+          },
+        },
+      } as any,
+    })
+
+    expect(quality.resolutionLedgerQuality).toBe('fail')
   })
 
   it('scores self-evolution growth dimensions from unified learning signals instead of treating growth as invisible', () => {

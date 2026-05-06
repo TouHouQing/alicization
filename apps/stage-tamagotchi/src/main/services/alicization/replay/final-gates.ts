@@ -12,6 +12,10 @@ export interface AlicizationFinalReplayGateReport {
     unsupportedSpecificityVisibleFailCount: number | null
     turnOsTraceCoverage: number | null
     learningOutcomeToSelfRevisionRoundtrip: number | null
+    memoryClosureCoverage: number | null
+    memoryClosureConflictClosureRate: number | null
+    memoryClosureLowQualityWithholdRate: number | null
+    memoryClosureUncertaintyLabelRate: number | null
   }
 }
 
@@ -44,6 +48,10 @@ export function buildAlicizationFinalReplayGateReport(input: {
     unsupportedSpecificityVisibleFailCount: readNumber(input.retrievalHealth?.unsupportedSpecificityVisibleFailCount),
     turnOsTraceCoverage: readNumber(input.retrievalHealth?.turnOsTraceCoverage),
     learningOutcomeToSelfRevisionRoundtrip: readNumber(input.retrievalHealth?.learningOutcomeToSelfRevisionRoundtrip),
+    memoryClosureCoverage: readNumber(input.retrievalHealth?.memoryClosureCoverage),
+    memoryClosureConflictClosureRate: readNumber(input.retrievalHealth?.memoryClosureConflictClosureRate),
+    memoryClosureLowQualityWithholdRate: readNumber(input.retrievalHealth?.memoryClosureLowQualityWithholdRate),
+    memoryClosureUncertaintyLabelRate: readNumber(input.retrievalHealth?.memoryClosureUncertaintyLabelRate),
   }
 
   const failingKeys = [
@@ -56,6 +64,10 @@ export function buildAlicizationFinalReplayGateReport(input: {
     metrics.unsupportedSpecificityVisibleFailCount !== null && metrics.unsupportedSpecificityVisibleFailCount > 0 ? 'unsupported-specificity-visible' : null,
     metrics.turnOsTraceCoverage !== null && metrics.turnOsTraceCoverage < 1 ? 'turn-os-trace-coverage' : null,
     metrics.learningOutcomeToSelfRevisionRoundtrip !== null && metrics.learningOutcomeToSelfRevisionRoundtrip < 1 ? 'learning-self-revision-roundtrip' : null,
+    metrics.memoryClosureCoverage !== null && metrics.memoryClosureCoverage < 1 ? 'memory-closure-coverage' : null,
+    metrics.memoryClosureConflictClosureRate !== null && metrics.memoryClosureConflictClosureRate < 1 ? 'memory-closure-conflict' : null,
+    metrics.memoryClosureLowQualityWithholdRate !== null && metrics.memoryClosureLowQualityWithholdRate < 1 ? 'memory-closure-low-quality-withhold' : null,
+    metrics.memoryClosureUncertaintyLabelRate !== null && metrics.memoryClosureUncertaintyLabelRate < 1 ? 'memory-closure-uncertainty-label' : null,
   ].filter(Boolean) as string[]
 
   return {
