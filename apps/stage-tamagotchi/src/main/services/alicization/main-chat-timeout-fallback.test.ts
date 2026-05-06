@@ -176,12 +176,12 @@ describe('main chat timeout fallback', () => {
     expect(reply).not.toContain('provider')
     expect(reply).not.toContain('baseUrl')
     expect(payload.reply).toContain('再发一次')
-    expect(payload.visibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(payload.governance.answerSubject).toBe('relationship')
     expect(payload.governance.screenReferenceMode).toBe('avoid')
   })
 
-  it('keeps timeout fallback explicitly marked as infra-only local authority instead of normal reply authority', () => {
+  it('keeps timeout fallback payload on repaired normal authority instead of local reply authority', () => {
     const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
       turnId: 'turn-timeout-authority',
       actionKind: 'answer',
@@ -199,7 +199,7 @@ describe('main chat timeout fallback', () => {
       }
     }
 
-    expect(payload.visibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(payload.reply).toContain('再发一次')
     expect(payload.reply).not.toContain('模板化')
     expect(payload.reply).not.toContain('接住')

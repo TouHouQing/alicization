@@ -165,7 +165,7 @@ describe('main-chat-second-pass-rewrite', () => {
 
     expect(String(structured.reply ?? '')).toContain('主模型连接')
     expect(String(structured.reply ?? '')).not.toContain('IntelliJ IDEA')
-    expect(structured.visibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(structured.format).toBe('fallback-v1')
     expect(structured.parsePath).toBe('transport-failure')
     expect(structured.transportFailure).toEqual(expect.objectContaining({

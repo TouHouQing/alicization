@@ -218,14 +218,14 @@ export async function executeAlicizationLearningTaskOrchestrator(
     verifiedArtifact: context.verifiedArtifact,
   })
 
-  const finalize = (result: AlicizationLearningActionExecutorResult): AlicizationLearningActionExecutorResult => {
+  const finalize = async (result: AlicizationLearningActionExecutorResult): Promise<AlicizationLearningActionExecutorResult> => {
     const verifiedArtifact = result.verifiedArtifact ?? context.verifiedArtifact
     const nextLifecycleState = deriveNextAlicizationLearningLifecycleState({
       currentState: lifecycleState,
       result,
       verifiedArtifact,
     })
-    return {
+    const finalized = {
       ...result,
       verifiedArtifact,
       lifecycleState,
@@ -237,21 +237,28 @@ export async function executeAlicizationLearningTaskOrchestrator(
         verifiedArtifact,
       }),
     }
+    await options.recordLearningExecutionTelemetry?.({
+      status: finalized.status,
+      domain: context.domain,
+      internalizedAsValidatedOnly: finalized.status === 'completed' && context.domain === 'world-model',
+      policyFeedback: finalized.policyFeedback ?? null,
+    })
+    return finalized
   }
 
   if (task.action === 'record' || task.action === 'reflect')
-    return finalize(await recordLearningReflectionEffect(options, context))
+    return await finalize(await recordLearningReflectionEffect(options, context))
 
   if (task.action === 'verify')
-    return finalize(await executeVerifyLearningTask(options, context))
+    return await finalize(await executeVerifyLearningTask(options, context))
 
   if (task.action === 'revise')
-    return finalize(await executeReviseLearningTask(options, context))
+    return await finalize(await executeReviseLearningTask(options, context))
 
   if (task.action === 'internalize')
-    return finalize(await executeInternalizeLearningTask(options, context))
+    return await finalize(await executeInternalizeLearningTask(options, context))
 
-  return finalize({
+  return await finalize({
     status: 'cancelled',
     resultSummary: `Unsupported learning action: ${task.action}`,
     error: 'unsupported learning action',

@@ -69,15 +69,22 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
     pushUnique(reasons, 'latency-budget-failing')
   if ((telemetry?.misinternalizationRate ?? 0) >= 0.12)
     pushUnique(reasons, 'learning-misinternalization-pressure')
+  for (const reason of telemetry?.learningPolicyReasonCodes ?? [])
+    pushUnique(reasons, `learning:${reason}`)
 
   const budgetClassOverride: AlicizationMemoryRetrievalBudgetClass | null = latencyFailing
     ? 'realtime-reply'
     : recallPressure >= 0.45 && input.budgetClass === 'realtime-reply'
       ? 'deep-recall-reply'
       : null
-  const strictness = wrongThreadPressure >= 0.42 || (telemetry?.misinternalizationRate ?? 0) >= 0.18
+  const strictness = wrongThreadPressure >= 0.42
+    || (telemetry?.misinternalizationRate ?? 0) >= 0.18
+    || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.28
     ? 'quarantine'
-    : wrongThreadPressure >= 0.2 || precisionPressure >= 0.22 || (tuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.14
+    : wrongThreadPressure >= 0.2
+        || precisionPressure >= 0.22
+        || (tuningAdvice?.surfaceAdjustments.specificityClampBias ?? 0) >= 0.14
+        || (telemetry?.learningPolicyStrictnessBias ?? 0) >= 0.12
       ? 'strict'
       : 'normal'
 
@@ -87,6 +94,7 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
   const suppressionBias = clamp(
     wrongThreadPressure
     + (tuningAdvice?.retrievalAdjustments.wrongThreadPenalty ?? 0)
+    + (telemetry?.learningPolicyWrongThreadSuppressionBias ?? 0)
     + (telemetry?.falsePositiveSuppressionRate ?? 0) * -0.3,
     0,
     1,
@@ -103,7 +111,8 @@ export function deriveAlicizationOnlineMemoryPolicy(input: {
     provenanceLabelingBias: rounded(clamp(
       (tuningAdvice?.surfaceAdjustments.provenanceLabelBias ?? 0)
       + wrongThreadPressure * 0.35
-      + precisionPressure * 0.25,
+      + precisionPressure * 0.25
+      + (telemetry?.learningPolicyProvenanceLabelBias ?? 0),
       0,
       1,
     )),

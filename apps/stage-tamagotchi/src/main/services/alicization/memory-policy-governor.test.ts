@@ -59,4 +59,33 @@ describe('memory-policy-governor', () => {
     expect(policy.reasonCodes).toContain('wrong-thread-pressure')
     expect(policy.reasonCodes).toContain('latency-budget-failing')
   })
+
+  it('feeds learning policy feedback directly into online memory strictness and provenance labeling', () => {
+    const policy = deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: 'deep-recall-reply',
+      telemetry: {
+        wrongThreadRate: 0.08,
+        wrongThreadSuppression: 0.93,
+        recallAt3: 0.82,
+        recallHitRate: 0.8,
+        precisionAt3: 0.88,
+        latencyBudgetPass: true,
+        falsePositiveSuppressionRate: 0,
+        misinternalizationRate: 0,
+        learningPolicyStrictnessBias: 0.31,
+        learningPolicyWrongThreadSuppressionBias: 0.34,
+        learningPolicyProvenanceLabelBias: 0.41,
+        learningPolicyReasonCodes: ['rollback-pressure', 'domain:relationship'],
+      } as any,
+      tuningAdvice: null,
+    })
+
+    expect(policy.verificationStrictness).toBe('quarantine')
+    expect(policy.wrongThreadSuppressionBias).toBeGreaterThanOrEqual(0.4)
+    expect(policy.provenanceLabelingBias).toBeGreaterThanOrEqual(0.4)
+    expect(policy.reasonCodes).toEqual(expect.arrayContaining([
+      'learning:rollback-pressure',
+      'learning:domain:relationship',
+    ]))
+  })
 })

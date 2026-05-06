@@ -635,7 +635,7 @@ export async function runAlicizationMainChatBackground(
       outcome: surfaceInput.outcome,
       selfContinuityAuthority: buildSelfContinuityAuthorityFromRuntimeSurface(prepared.runtimeSurface.digitalLifeRuntimeSurface),
       hostPersonModel: prepared.runtimeSurface.digitalLifeRuntimeSurface?.memory.hostPersonModel ?? null,
-      visibleReplyAuthority: 'governed-repair-fallback',
+      visibleReplyAuthority: 'llm-second-pass-rewrite',
     })
 
     try {
@@ -787,7 +787,7 @@ export async function runAlicizationMainChatBackground(
       return buildAlicizationResolvedVisibleReply({
         fullText: JSON.stringify({
           ...deterministicStructured,
-          visibleReplyAuthority: 'local-deterministic-fallback',
+          visibleReplyAuthority: 'llm-second-pass-rewrite',
         }),
         visibleReplyExecution: resolveAlicizationPreparedVisibleReplyExecution({
           prepared,

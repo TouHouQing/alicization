@@ -104,10 +104,6 @@ export async function recordLearningReflectionEffect(
     supportingFactIds: supportingFacts.map(item => item.id),
     supportingOutcomeIds: relatedOutcomes.map(item => item.id),
   }])
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'completed',
-    domain,
-  })
   await recordLearningEvidence({
     options,
     context,
@@ -130,10 +126,6 @@ export async function blockLearningVerificationEffect(
     delayMs: number
   },
 ): Promise<AlicizationLearningActionExecutorResult> {
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'blocked',
-    domain: context.domain,
-  })
   return {
     status: 'blocked',
     resultSummary: input.resultSummary,
@@ -157,10 +149,6 @@ export async function rollbackVerifiedLearningArtifactEffect(
     sourceLabel: `artifact-rollback:${verifiedArtifact.artifactId}`,
     appendConflictsWith: task.payload.conflictTargets,
   })))
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'downgraded',
-    domain,
-  })
   await recordLearningEvidence({
     options,
     context,
@@ -238,10 +226,6 @@ export async function applyLearningVerificationCorrectionsEffect(
 ): Promise<AlicizationLearningActionExecutorResult> {
   const resultSummary = `Verification reopened ${correctionTargets.length} ${context.domain} target(s).`
   await options.applyMemoryFactCorrections(correctionTargets)
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'completed',
-    domain: context.domain,
-  })
   await recordLearningEvidence({
     options,
     context,
@@ -311,10 +295,6 @@ export async function applyLearningRevisionCorrectionsEffect(
     sourceLabel: `learning-revise-${normalizeMemoryDomain(fact.memoryDomain)}`,
     appendConflictsWith: context.task.payload.conflictTargets,
   })))
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'completed',
-    domain: context.domain,
-  })
   await recordLearningEvidence({
     options,
     context,
@@ -343,11 +323,6 @@ export async function internalizeLearningFactsEffect(
   await options.upsertMemoryFacts(assimilation.facts, 'rule')
   const domainSummary = [...new Set(domains)].join(', ') || domain
   const resultSummary = `Internalized or validated ${assimilation.facts.length} ${domainSummary} fact(s).`
-  await options.recordLearningExecutionTelemetry?.({
-    status: 'completed',
-    domain,
-    internalizedAsValidatedOnly: domain === 'world-model',
-  })
   await recordLearningEvidence({
     options,
     context,

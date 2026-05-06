@@ -1201,6 +1201,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveCardPersonaKernel,
     resolveExecutionCapabilitiesForPrompt,
     prewarmOrganicMemoryAccessibility: async input => await memoryRuntime.prewarmAccessibilityLine(input),
+    resolveTurnRetrievalPolicySnapshot: async input => await memoryRuntime.resolveTurnRetrievalPolicySnapshot(input),
     resolveOrganicMemoryPromptContext,
     scheduleOrganicLearningAction: async input => await learningActionScheduler.scheduleLearningTask(input),
     listMemoryReflections: async (cardId, limit) => await alicizationDb.listMemoryReflections({ cardId, limit }).catch(() => []),

@@ -224,7 +224,7 @@ export function createAlicizationRuntimeExecutionDelivery(
       personStateProjection: input.personStateProjection ?? null,
       selfContinuityAuthority: input.selfContinuityAuthority,
       hostPersonModel: input.hostPersonModel ?? null,
-      visibleReplyAuthority: 'governed-repair-fallback',
+      visibleReplyAuthority: 'llm-second-pass-rewrite',
     })
   }
 

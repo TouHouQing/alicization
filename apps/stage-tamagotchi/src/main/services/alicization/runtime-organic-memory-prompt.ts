@@ -18,6 +18,7 @@ import type {
   RecollectionIntentSnapshot,
   RecollectionPlanSnapshot,
 } from './runtime-organic-memory-prompt-types'
+import { buildAlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 
 import { buildHostSocialGuidance, inferHostSocialContextsFromText } from './host-social-guidance'
 import { deriveAlicizationRecallLatencyPolicy } from '@proj-alicization/stage-shared'
@@ -408,6 +409,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recordMemorySpeechPlanLatency,
     recordOrganicMemoryStageLatency,
     recordOrganicMemoryStageBudget,
+    resolveTurnRetrievalPolicySnapshot,
   } = options
 
   function countRecallTermOverlap(base: string, candidate: string) {
@@ -1901,10 +1903,28 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }): Promise<OrganicMemoryPromptContext> {
     const budgetClass = options?.budgetClass ?? 'realtime-reply'
+    const retrievalPolicySnapshot = await (
+      resolveTurnRetrievalPolicySnapshot
+      ?? (async (input: {
+        recallSeed: string
+        recallGovernor?: AlicizationRecallGovernorSnapshot | null
+        budgetClass?: AlicizationMemoryRetrievalBudgetClass
+      }) => buildAlicizationTurnRetrievalPolicySnapshot({
+        recallSeed: input.recallSeed,
+        recallGovernor: input.recallGovernor ?? null,
+        budgetClass: input.budgetClass,
+        telemetry: null,
+        tuningAdvice: null,
+      }))
+    )({
+      recallSeed: options?.recallSeed ?? options?.recallGovernor?.recallSeed ?? '',
+      recallGovernor: options?.recallGovernor ?? null,
+      budgetClass,
+    })
     const preludeStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({
       stage: 'search-prelude',
-      budgetClass,
+      budgetClass: retrievalPolicySnapshot.plan.budgetClass,
     }).catch(() => {})
     const {
       snapshot,
@@ -1936,7 +1956,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recallGovernor: options?.recallGovernor ?? null,
       sessionId: options?.sessionId ?? null,
       turnId: options?.turnId ?? null,
-      budgetClass: options?.budgetClass,
+      budgetClass: retrievalPolicySnapshot.plan.budgetClass,
+      retrievalPolicySnapshot,
     })
     void recordOrganicMemoryStageLatency?.({
       stage: 'search-prelude',
@@ -1968,7 +1989,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     const candidateGenerationStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({
       stage: 'candidate-generation',
-      budgetClass,
+      budgetClass: retrievalPolicySnapshot.plan.budgetClass,
     }).catch(() => {})
     const {
       recalledConversationHistory,
@@ -1984,7 +2005,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recallSeed,
       recollectionIntent: activeRecollectionIntent,
       recalledEpisodes,
-      budgetClass: options?.budgetClass,
+      budgetClass: retrievalPolicySnapshot.plan.budgetClass,
+      retrievalPolicySnapshot,
     })
     void recordMemoryCandidateGenerationLatency?.(Date.now() - candidateGenerationStartedAt).catch(() => {})
     void recordOrganicMemoryStageLatency?.({
@@ -1994,7 +2016,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     const candidateRankingStartedAt = Date.now()
     void recordOrganicMemoryStageBudget?.({
       stage: 'candidate-ranking',
-      budgetClass,
+      budgetClass: retrievalPolicySnapshot.plan.budgetClass,
     }).catch(() => {})
     const {
       clusterState,

@@ -1063,7 +1063,8 @@ export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incid
 export type AlicizationNormalVisibleReplyAuthority = 'llm-mind' | 'llm-second-pass-rewrite'
 export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback'
 export type AlicizationVisibleReplyExecutionAuthority = AlicizationNormalVisibleReplyAuthority | AlicizationInfraVisibleReplyAuthority
-export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority | 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
+export type AlicizationVisibleReplyAuthority = AlicizationNormalVisibleReplyAuthority
+export type AlicizationLegacyVisibleReplyAuthority = 'governed-repair-fallback' | AlicizationInfraVisibleReplyAuthority
 
 export function isAlicizationNormalVisibleReplyAuthority(raw: unknown): raw is AlicizationNormalVisibleReplyAuthority {
   return raw === 'llm-mind' || raw === 'llm-second-pass-rewrite'
@@ -1074,7 +1075,7 @@ export function isAlicizationInfraVisibleReplyAuthority(raw: unknown): raw is Al
 }
 
 export function normalizeAlicizationNormalVisibleReplyAuthority(
-  authority: AlicizationVisibleReplyAuthority | null | undefined,
+  authority: AlicizationVisibleReplyAuthority | AlicizationLegacyVisibleReplyAuthority | null | undefined,
   fallback: AlicizationNormalVisibleReplyAuthority = 'llm-mind',
 ): AlicizationNormalVisibleReplyAuthority {
   if (authority === 'llm-mind' || authority === 'llm-second-pass-rewrite')

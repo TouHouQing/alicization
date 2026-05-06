@@ -70,7 +70,7 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
         delivery: 'firm',
         emphasis: 0,
       },
-      visibleReplyAuthority: 'local-deterministic-fallback',
+      visibleReplyAuthority: 'llm-second-pass-rewrite',
       visibleReplyRewriteRequest: null,
       format: 'fallback-v1',
       parsePath: 'transport-failure',

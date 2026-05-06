@@ -49,6 +49,7 @@ export function createAlicizationRuntimeMemoryRuntime(
     recallConversationHistory,
     recallMemoryConsolidations,
     prewarmAccessibilityLine,
+    resolveTurnRetrievalPolicySnapshot,
   } = organicMemoryAccessRuntime
 
   const memorySearchRuntime = createAlicizationMemorySearchRuntime({
@@ -59,6 +60,7 @@ export function createAlicizationRuntimeMemoryRuntime(
       recallEpisodicEventsWithGovernor,
       buildHostPersonModel,
       getMemoryTuningAdvice,
+      resolveTurnRetrievalPolicySnapshot,
       listMemoryReflections: async input => listRecentMemoryReflections(input.cardId ?? options.organicMemoryAccess.getActiveCardId(), input.limit),
       listRelationshipOutcomes: async input => options.organicMemoryAccess.listRelationshipOutcomes({
         cardId: input.cardId ?? options.organicMemoryAccess.getActiveCardId(),

@@ -38,6 +38,8 @@ import { buildHostPersonModelSnapshot } from './humanlike-memory'
 import {
   buildAlicizationMemoryAccessCacheKey,
   buildAlicizationMemoryAccessibilityPlan,
+  buildAlicizationTurnRetrievalPolicySnapshot,
+  type AlicizationTurnRetrievalPolicySnapshot,
   tuneMemoryConsolidationSearchInput,
 } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
@@ -47,7 +49,6 @@ import {
   replayBenchmarkTuningAdviceMetaKey,
 } from './memory-tuning-advice'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
-import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
 
 export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
@@ -170,30 +171,45 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     })
   }
 
+  async function resolveTurnRetrievalPolicySnapshot(input: {
+    recallSeed: string
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
+  }): Promise<AlicizationTurnRetrievalPolicySnapshot> {
+    const [telemetry, tuningAdvice] = await Promise.all([
+      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
+      getMemoryTuningAdvice().catch(() => null),
+    ])
+    return buildAlicizationTurnRetrievalPolicySnapshot({
+      recallSeed: input.recallSeed,
+      recallGovernor: input.recallGovernor ?? null,
+      budgetClass: input.budgetClass,
+      telemetry,
+      tuningAdvice,
+    })
+  }
+
   async function prewarmAccessibilityLine(input: {
     recallSeed: string
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed)
       return null
-    const [telemetry, tuningAdvice] = await Promise.all([
-      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
-      getMemoryTuningAdvice().catch(() => null),
-    ])
-    const policy = deriveAlicizationOnlineMemoryPolicy({
+    const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
+      recallSeed,
+      recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
-      telemetry,
-      tuningAdvice,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
-      policy,
+      policy: snapshot.policy,
     })
     void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     if (!plan.prewarmKey) {
@@ -207,16 +223,22 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
       recallGovernor: input.recallGovernor ?? null,
+      budgetClass: snapshot.plan.budgetClass,
+      retrievalPolicySnapshot: snapshot,
     }).catch(() => [])
     void recallConversationHistory({
       query: recallSeed,
       limit: plan.conversationLimit,
       recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+      budgetClass: snapshot.plan.budgetClass,
+      retrievalPolicySnapshot: snapshot,
     }).catch(() => [])
     void recallMemoryConsolidations({
       query: recallSeed,
       limit: plan.consolidationLimit,
       recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
+      budgetClass: snapshot.plan.budgetClass,
+      retrievalPolicySnapshot: snapshot,
     }).catch(() => [])
     return plan
   }
@@ -308,24 +330,21 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     turnId?: string | null
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
     const recallSeed = normalizeOrganicRecallText(input.recallSeed)
     if (!recallSeed || input.recallGovernor?.mode === 'scene')
       return []
-    const [telemetry, tuningAdvice] = await Promise.all([
-      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
-      getMemoryTuningAdvice().catch(() => null),
-    ])
-    const policy = deriveAlicizationOnlineMemoryPolicy({
+    const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
+      recallSeed,
+      recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
-      telemetry,
-      tuningAdvice,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
-      policy,
+      policy: snapshot.policy,
     })
     void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
@@ -433,21 +452,18 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
-    const [telemetry, tuningAdvice] = await Promise.all([
-      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
-      getMemoryTuningAdvice().catch(() => null),
-    ])
-    const policy = deriveAlicizationOnlineMemoryPolicy({
+    const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
+      recallSeed: input.query,
+      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
       budgetClass: input.budgetClass,
-      telemetry,
-      tuningAdvice,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: input.query,
       recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
       budgetClass: input.budgetClass,
-      policy,
+      policy: snapshot.policy,
     })
     void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
@@ -496,21 +512,18 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) {
-    const [telemetry, tuningAdvice] = await Promise.all([
-      options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
-      getMemoryTuningAdvice().catch(() => null),
-    ])
-    const policy = deriveAlicizationOnlineMemoryPolicy({
+    const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
+      recallSeed: input.query,
+      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
       budgetClass: input.budgetClass,
-      telemetry,
-      tuningAdvice,
     })
     const plan = buildAlicizationMemoryAccessibilityPlan({
       recallSeed: input.query,
       recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
       budgetClass: input.budgetClass,
-      policy,
+      policy: snapshot.policy,
     })
     void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
     const cacheKey = buildAlicizationMemoryAccessCacheKey({
@@ -578,6 +591,7 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     recallConversationHistory,
     recallMemoryConsolidations,
     prewarmAccessibilityLine,
+    resolveTurnRetrievalPolicySnapshot,
     resolveRecentContextualTurns,
   }
 }

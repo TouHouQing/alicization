@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAlicizationMemoryAccessCacheKey,
   buildAlicizationMemoryAccessibilityPlan,
+  buildAlicizationTurnRetrievalPolicySnapshot,
   tuneMemoryConsolidationSearchInput,
 } from './memory-accessibility-runtime'
 import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
@@ -183,5 +184,60 @@ describe('memory-accessibility-runtime', () => {
     expect(plan.cacheTtlMs).toBeGreaterThan(20_000)
     expect(plan.consolidationLimit).toBeGreaterThanOrEqual(4)
     expect(plan.recallLatencyPolicy.budgetClass).toBe('realtime-reply')
+  })
+
+  it('builds a single turn retrieval policy snapshot for repeated recall surfaces', () => {
+    const snapshot = buildAlicizationTurnRetrievalPolicySnapshot({
+      recallSeed: '继续沿着之前的 runtime seam 修',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'experience-pattern',
+          temporalFocus: 'experience-matched',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: true,
+          queryHints: ['runtime seam'],
+          rationale: 'Use one retrieval policy for every surface in this turn.',
+          confidence: 0.82,
+        },
+        threadAnchors: ['runtime seam'],
+      } as any,
+      budgetClass: 'realtime-reply',
+      telemetry: {
+        recallAt3: 0.42,
+        recallHitRate: 0.4,
+        precisionAt3: 0.88,
+        wrongThreadRate: 0.05,
+        wrongThreadSuppression: 0.96,
+        latencyBudgetPass: true,
+        learningPolicyStrictnessBias: 0.18,
+        learningPolicyWrongThreadSuppressionBias: 0.21,
+        learningPolicyProvenanceLabelBias: 0.24,
+        learningPolicyReasonCodes: ['state:verification'],
+      } as any,
+      tuningAdvice: null,
+    })
+    const reusedPlan = buildAlicizationMemoryAccessibilityPlan({
+      recallSeed: '继续沿着之前的 runtime seam 修',
+      recallGovernor: {
+        recollectionIntent: {
+          mode: 'experience-pattern',
+          temporalFocus: 'experience-matched',
+          searchEpisodes: true,
+          searchConversations: true,
+          searchProceduralExperience: true,
+          queryHints: ['runtime seam'],
+          rationale: 'Use one retrieval policy for every surface in this turn.',
+          confidence: 0.82,
+        },
+        threadAnchors: ['runtime seam'],
+      } as any,
+      budgetClass: 'realtime-reply',
+      policy: snapshot.policy,
+    })
+
+    expect(snapshot.policy.reasonCodes).toContain('learning:state:verification')
+    expect(snapshot.plan.verificationStrictness).toBe('strict')
+    expect(reusedPlan).toEqual(snapshot.plan)
   })
 })

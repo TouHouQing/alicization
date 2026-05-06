@@ -68,6 +68,10 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   learningTaskFailureRate: number
   learningTaskReopenRecoveryRate: number
   misinternalizationRate: number
+  learningPolicyStrictnessBias: number
+  learningPolicyWrongThreadSuppressionBias: number
+  learningPolicyProvenanceLabelBias: number
+  learningPolicyReasonCodes: string[]
   relationshipCadenceRegressionRate: number
   selfModelStaleBeliefRate: number
   lastUpdatedAt: number | null
@@ -135,6 +139,10 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  learningPolicyStrictnessBias?: number
+  learningPolicyWrongThreadSuppressionBias?: number
+  learningPolicyProvenanceLabelBias?: number
+  learningPolicyReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }
@@ -176,6 +184,12 @@ interface AlicizationLearningExecutionTelemetryInput {
   status: 'completed' | 'failed' | 'blocked' | 'reopened' | 'downgraded' | 'cancelled'
   domain?: 'procedure' | 'relationship' | 'self-model' | 'world-model' | null
   internalizedAsValidatedOnly?: boolean
+  policyFeedback?: {
+    strictnessBias: number
+    wrongThreadSuppressionBias: number
+    provenanceLabelBias: number
+    reasonCodes: string[]
+  } | null
 }
 
 const memoryRetrievalBudgetClasses = [
@@ -264,6 +278,10 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     learningTaskFailureRate: 0,
     learningTaskReopenRecoveryRate: 0,
     misinternalizationRate: 0,
+    learningPolicyStrictnessBias: 0,
+    learningPolicyWrongThreadSuppressionBias: 0,
+    learningPolicyProvenanceLabelBias: 0,
+    learningPolicyReasonCodes: [],
     relationshipCadenceRegressionRate: 0,
     selfModelStaleBeliefRate: 0,
     lastUpdatedAt: null,
@@ -346,6 +364,12 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const learningTaskFailureRate = Number(candidate.learningTaskFailureRate)
   const learningTaskReopenRecoveryRate = Number(candidate.learningTaskReopenRecoveryRate)
   const misinternalizationRate = Number(candidate.misinternalizationRate)
+  const learningPolicyStrictnessBias = Number(candidate.learningPolicyStrictnessBias)
+  const learningPolicyWrongThreadSuppressionBias = Number(candidate.learningPolicyWrongThreadSuppressionBias)
+  const learningPolicyProvenanceLabelBias = Number(candidate.learningPolicyProvenanceLabelBias)
+  const learningPolicyReasonCodes = Array.isArray(candidate.learningPolicyReasonCodes)
+    ? candidate.learningPolicyReasonCodes
+    : []
   const relationshipCadenceRegressionRate = Number(candidate.relationshipCadenceRegressionRate)
   const selfModelStaleBeliefRate = Number(candidate.selfModelStaleBeliefRate)
   const lastUpdatedAt = Number(candidate.lastUpdatedAt)
@@ -485,6 +509,13 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     learningTaskFailureRate: Number.isFinite(learningTaskFailureRate) ? Math.max(0, Math.min(1, learningTaskFailureRate)) : 0,
     learningTaskReopenRecoveryRate: Number.isFinite(learningTaskReopenRecoveryRate) ? Math.max(0, Math.min(1, learningTaskReopenRecoveryRate)) : 0,
     misinternalizationRate: Number.isFinite(misinternalizationRate) ? Math.max(0, Math.min(1, misinternalizationRate)) : 0,
+    learningPolicyStrictnessBias: Number.isFinite(learningPolicyStrictnessBias) ? Math.max(0, Math.min(1, learningPolicyStrictnessBias)) : 0,
+    learningPolicyWrongThreadSuppressionBias: Number.isFinite(learningPolicyWrongThreadSuppressionBias) ? Math.max(0, Math.min(1, learningPolicyWrongThreadSuppressionBias)) : 0,
+    learningPolicyProvenanceLabelBias: Number.isFinite(learningPolicyProvenanceLabelBias) ? Math.max(0, Math.min(1, learningPolicyProvenanceLabelBias)) : 0,
+    learningPolicyReasonCodes: learningPolicyReasonCodes
+      .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+      .filter(Boolean)
+      .slice(0, 16),
     relationshipCadenceRegressionRate: Number.isFinite(relationshipCadenceRegressionRate) ? Math.max(0, Math.min(1, relationshipCadenceRegressionRate)) : 0,
     selfModelStaleBeliefRate: Number.isFinite(selfModelStaleBeliefRate) ? Math.max(0, Math.min(1, selfModelStaleBeliefRate)) : 0,
     lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? Math.max(0, Math.floor(lastUpdatedAt)) : null,
@@ -508,6 +539,28 @@ function nullableNonNegativeNumber(raw: unknown) {
 
 function averageUnit(previous: number, sample: number) {
   return Math.max(0, Math.min(1, Number(((previous + sample) / 2).toFixed(2))))
+}
+
+function blendLearningPolicyBias(previous: number, sample: number) {
+  const normalizedSample = Math.max(0, Math.min(1, Number(sample) || 0))
+  if (!Number.isFinite(previous) || previous <= 0)
+    return Number(normalizedSample.toFixed(2))
+  return averageUnit(previous, normalizedSample)
+}
+
+function mergeReasonCodes(current: string[], next: string[] | null | undefined, maxItems = 16) {
+  const merged: string[] = []
+  for (const raw of [...(next ?? []), ...current]) {
+    const normalized = typeof raw === 'string'
+      ? raw.trim().slice(0, 120)
+      : ''
+    if (!normalized || merged.includes(normalized))
+      continue
+    merged.push(normalized)
+    if (merged.length >= maxItems)
+      break
+  }
+  return merged
 }
 
 function trimLatencySamples(samples: number[], maxItems = 64) {
@@ -864,6 +917,7 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       const learningWorldModelFalseInternalizationCount = telemetry.learningWorldModelFalseInternalizationCount + (
         inputValue.status === 'completed' && inputValue.domain === 'world-model' && inputValue.internalizedAsValidatedOnly === false ? 1 : 0
       )
+      const policyFeedback = inputValue.policyFeedback ?? null
       const learningAttemptCount = learningTaskCompletionCount
         + learningTaskFailureCount
         + learningTaskBlockedCount
@@ -889,6 +943,19 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         learningTaskFailureRate: learningAttemptCount <= 0 ? 0 : Number((learningTaskFailureCount / learningAttemptCount).toFixed(2)),
         learningTaskReopenRecoveryRate: learningTaskReopenedCount <= 0 ? 0 : Number((Math.min(learningTaskCompletionCount, learningTaskReopenedCount) / learningTaskReopenedCount).toFixed(2)),
         misinternalizationRate: learningWorldModelValidationCount <= 0 ? 0 : Number((learningWorldModelFalseInternalizationCount / learningWorldModelValidationCount).toFixed(2)),
+        learningPolicyStrictnessBias: policyFeedback
+          ? blendLearningPolicyBias(telemetry.learningPolicyStrictnessBias, policyFeedback.strictnessBias)
+          : telemetry.learningPolicyStrictnessBias,
+        learningPolicyWrongThreadSuppressionBias: policyFeedback
+          ? blendLearningPolicyBias(telemetry.learningPolicyWrongThreadSuppressionBias, policyFeedback.wrongThreadSuppressionBias)
+          : telemetry.learningPolicyWrongThreadSuppressionBias,
+        learningPolicyProvenanceLabelBias: policyFeedback
+          ? blendLearningPolicyBias(telemetry.learningPolicyProvenanceLabelBias, policyFeedback.provenanceLabelBias)
+          : telemetry.learningPolicyProvenanceLabelBias,
+        learningPolicyReasonCodes: mergeReasonCodes(
+          telemetry.learningPolicyReasonCodes,
+          policyFeedback?.reasonCodes,
+        ),
         lastUpdatedAt: currentTs,
       })
     })
@@ -1071,6 +1138,21 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       misinternalizationRate: Number.isFinite(next.misinternalizationRate)
         ? Math.max(0, Math.min(1, Number(next.misinternalizationRate)))
         : telemetry.misinternalizationRate,
+      learningPolicyStrictnessBias: Number.isFinite(next.learningPolicyStrictnessBias)
+        ? Math.max(0, Math.min(1, Number(next.learningPolicyStrictnessBias)))
+        : telemetry.learningPolicyStrictnessBias,
+      learningPolicyWrongThreadSuppressionBias: Number.isFinite(next.learningPolicyWrongThreadSuppressionBias)
+        ? Math.max(0, Math.min(1, Number(next.learningPolicyWrongThreadSuppressionBias)))
+        : telemetry.learningPolicyWrongThreadSuppressionBias,
+      learningPolicyProvenanceLabelBias: Number.isFinite(next.learningPolicyProvenanceLabelBias)
+        ? Math.max(0, Math.min(1, Number(next.learningPolicyProvenanceLabelBias)))
+        : telemetry.learningPolicyProvenanceLabelBias,
+      learningPolicyReasonCodes: Array.isArray(next.learningPolicyReasonCodes)
+        ? next.learningPolicyReasonCodes
+          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+          .filter(Boolean)
+          .slice(0, 16)
+        : telemetry.learningPolicyReasonCodes,
       relationshipCadenceRegressionRate: Number.isFinite(next.relationshipCadenceRegressionRate)
         ? Math.max(0, Math.min(1, Number(next.relationshipCadenceRegressionRate)))
         : telemetry.relationshipCadenceRegressionRate,

@@ -822,7 +822,7 @@ export function buildAlicizationExecutionPayoffDeterministicStructured(input: {
     emotion: null,
     delivery: null,
     performance: null,
-    visibleReplyAuthority: input.visibleReplyAuthority ?? 'governed-repair-fallback',
+    visibleReplyAuthority: input.visibleReplyAuthority ?? 'llm-second-pass-rewrite',
   })
 
   return {

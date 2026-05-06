@@ -4,12 +4,15 @@ import type {
 
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
 import type { AlicizationOnlineMemoryPolicy } from './memory-policy-governor'
+import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
+import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import {
   deriveAlicizationRecallLatencyPolicy,
 } from '@proj-alicization/stage-shared'
 import type {
   AlicizationRecallLatencyPolicyInput,
 } from '@proj-alicization/stage-shared'
+import { deriveAlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 
 export type AlicizationMemoryAccessibilityLayer = 'raw-ledger' | 'summary-layer' | 'hot-index'
 export type AlicizationMemoryExpansionMode = 'summary-first' | 'balanced' | 'deep-thread'
@@ -31,6 +34,13 @@ export interface AlicizationMemoryAccessibilityPlan {
   cacheTtlMs: number
   prewarmKey: string | null
   recallLatencyPolicy: ReturnType<typeof deriveAlicizationRecallLatencyPolicy>
+}
+
+export interface AlicizationTurnRetrievalPolicySnapshot {
+  policy: AlicizationOnlineMemoryPolicy
+  plan: AlicizationMemoryAccessibilityPlan
+  telemetry: AlicizationMemoryRetrievalTelemetrySnapshot | null
+  tuningAdvice: AlicizationMemoryTuningAdvice | null
 }
 
 function normalizeText(raw: unknown, maxChars = 220) {
@@ -127,6 +137,32 @@ export function buildAlicizationMemoryAccessibilityPlan(input: {
     prewarmKey,
     recallLatencyPolicy,
   } satisfies AlicizationMemoryAccessibilityPlan
+}
+
+export function buildAlicizationTurnRetrievalPolicySnapshot(input: {
+  recallSeed: string
+  recallGovernor?: AlicizationRecallGovernorSnapshot | null
+  budgetClass?: AlicizationMemoryRetrievalBudgetClass
+  telemetry?: AlicizationMemoryRetrievalTelemetrySnapshot | null
+  tuningAdvice?: AlicizationMemoryTuningAdvice | null
+}) {
+  const policy = deriveAlicizationOnlineMemoryPolicy({
+    budgetClass: input.budgetClass,
+    telemetry: input.telemetry ?? null,
+    tuningAdvice: input.tuningAdvice ?? null,
+  })
+  const plan = buildAlicizationMemoryAccessibilityPlan({
+    recallSeed: input.recallSeed,
+    recallGovernor: input.recallGovernor ?? null,
+    budgetClass: input.budgetClass,
+    policy,
+  })
+  return {
+    policy,
+    plan,
+    telemetry: input.telemetry ?? null,
+    tuningAdvice: input.tuningAdvice ?? null,
+  } satisfies AlicizationTurnRetrievalPolicySnapshot
 }
 
 export function buildAlicizationMemoryAccessCacheKey(input: {

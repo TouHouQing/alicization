@@ -1207,9 +1207,11 @@ describe('main chat active dialogue loop', () => {
       ] as Message[],
     })
 
-    expect(reply).toContain('桌面')
-    expect(reply).not.toContain('继续还是执行下一步')
-    expect(reply).not.toContain('旧锚点')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
+    expect(payload.reply).toContain('桌面')
+    expect(payload.reply).not.toContain('继续还是执行下一步')
+    expect(payload.reply).not.toContain('旧锚点')
+    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
   it('keeps ordinary dialogue fallback current-turn-first instead of replaying an older greeting anchor', () => {
@@ -1222,12 +1224,13 @@ describe('main chat active dialogue loop', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
     expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
     expect(payload.reply).not.toContain('你好')
     expect(payload.reply).not.toContain('往下')
     expect(payload.reply).not.toContain('滑开')
     expect(payload.reply).not.toContain('别的壳')
+    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
   it('keeps greeting repair fallback off the governed shell stack', () => {
@@ -1240,11 +1243,12 @@ describe('main chat active dialogue loop', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
     expect(payload.reply).toMatch(/接偏了|没贴住|偏到.+外面去了/u)
     expect(payload.reply).toContain('你好呀')
     expect(payload.reply).not.toContain('我就正面回你')
     expect(payload.reply).not.toContain('我听见你了')
+    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
   it('answers identity doubt as content instead of thread-shell narration', () => {

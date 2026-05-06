@@ -38,6 +38,7 @@ import type {
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-telemetry'
+import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationRuntimeCallChainSnapshot } from './runtime-call-chain'
 import type {
   MainGatewayResolvedConfig,
@@ -188,6 +189,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) => Promise<OrganicMemoryPromptContext>
   scheduleOrganicLearningAction?: (input: {
     context: OrganicMemoryPromptContext
@@ -209,7 +211,13 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId?: string | null
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) => Promise<unknown>
+  resolveTurnRetrievalPolicySnapshot?: (input: {
+    recallSeed: string
+    recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
+  }) => Promise<AlicizationTurnRetrievalPolicySnapshot>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
     turnId: string
@@ -347,13 +355,23 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const organicMemoryBudgetClass = deriveOrganicMemoryBudgetClass(
       prelude.perceptionAugmentation.recallGovernor,
     )
+    const organicMemoryRetrievalPolicySnapshot = options.resolveTurnRetrievalPolicySnapshot
+      ? await agentTurn.trackPhase('organic-memory-policy-snapshot', async () => await options.resolveTurnRetrievalPolicySnapshot?.({
+          recallSeed: organicRecallSeed,
+          recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+          budgetClass: organicMemoryBudgetClass,
+        }) ?? null, {
+          budgetClass: organicMemoryBudgetClass,
+        })
+      : null
     if (options.prewarmOrganicMemoryAccessibility) {
       await agentTurn.trackPhase('organic-memory-prewarm', async () => {
         await options.prewarmOrganicMemoryAccessibility?.({
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: organicMemoryBudgetClass,
+          budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+          retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
         })
       }, {
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
@@ -366,7 +384,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: organicMemoryBudgetClass,
+          budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+          retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
         }),
         suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,

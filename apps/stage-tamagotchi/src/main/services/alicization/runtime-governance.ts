@@ -30,6 +30,7 @@ import {
   inferGovernedMindFallbackLocaleForUserText,
   isWeakAlicizationScreenSurfaceCue,
   normalizeExecutionFirstGovernance,
+  normalizeAlicizationNormalVisibleReplyAuthority,
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeSpineDigest,
   replyViolatesExecutionFirstSurface,
@@ -495,13 +496,8 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
     decisionTraceId: decisionTraceId || null,
     turnMode: turnMode as AlicizationMindTurnGovernance['turnMode'],
     truthState: truthState as AlicizationMindTurnGovernance['truthState'],
-    visibleReplyAuthority: [
-      'llm-mind',
-      'llm-second-pass-rewrite',
-      'governed-repair-fallback',
-      'local-deterministic-fallback',
-    ].includes(visibleReplyAuthority)
-      ? visibleReplyAuthority as AlicizationMindTurnGovernance['visibleReplyAuthority']
+    visibleReplyAuthority: visibleReplyAuthority
+      ? normalizeAlicizationNormalVisibleReplyAuthority(visibleReplyAuthority as any, 'llm-mind')
       : null,
     groundedThisTurn: candidate.groundedThisTurn === true,
     personaKernelMode: personaKernelMode as AlicizationMindTurnGovernance['personaKernelMode'],
@@ -2701,13 +2697,8 @@ export function normalizeDialogueRespondedPayload(
       thought,
       emotion: embodiment.emotion,
       reply,
-      visibleReplyAuthority: [
-        'llm-mind',
-        'llm-second-pass-rewrite',
-        'governed-repair-fallback',
-        'local-deterministic-fallback',
-      ].includes(visibleReplyAuthority)
-        ? visibleReplyAuthority as AlicizationDialogueRespondedPayload['structured']['visibleReplyAuthority']
+      visibleReplyAuthority: visibleReplyAuthority
+        ? normalizeAlicizationNormalVisibleReplyAuthority(visibleReplyAuthority as any, 'llm-mind')
         : governance?.visibleReplyAuthority ?? null,
       performance: embodiment.performance,
       embodiment,

@@ -6,6 +6,7 @@ import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass, AlicizationOrganicMemoryRuntimeStage } from './memory-retrieval-telemetry'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
@@ -34,6 +35,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     turnId?: string | null
     recallGovernor?: AlicizationRecallGovernorSnapshot | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
   buildHostPersonModel: (input?: {
     now?: number
@@ -56,6 +58,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) => Promise<Array<{
     turnId: string | null
     sessionId: string
@@ -68,7 +71,13 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     limit?: number
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
+    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>>
+  resolveTurnRetrievalPolicySnapshot?: (input: {
+    recallSeed: string
+    recallGovernor?: AlicizationRecallGovernorSnapshot | null
+    budgetClass?: AlicizationMemoryRetrievalBudgetClass
+  }) => Promise<AlicizationTurnRetrievalPolicySnapshot>
   planRecollectionIntent?: (input: {
     recallSeed: string
     heuristicIntent: OrganicMemoryPromptContext['recollectionIntent'] | null

@@ -2002,7 +2002,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
 }) {
   const governance = buildFastPathGovernance(
     input.decision,
-    input.visibleReplyAuthority ?? 'llm-mind',
+    input.visibleReplyAuthority ?? (input.decision.strategy === 'local-only' ? 'llm-second-pass-rewrite' : 'llm-mind'),
   )
   const governedThought = buildFastPathGovernedThought(input.decision, governance)
   const moves = input.moves?.length
@@ -2040,7 +2040,7 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
       decision,
       reply: directInfraFallback,
       suppressGovernedLead: true,
-      visibleReplyAuthority: 'local-deterministic-fallback',
+      visibleReplyAuthority: 'llm-second-pass-rewrite',
     })
   }
 
@@ -2048,7 +2048,7 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
     decision,
     moves: buildDecisionLocalMoves(decision),
     suppressGovernedLead: true,
-    visibleReplyAuthority: 'local-deterministic-fallback',
+    visibleReplyAuthority: 'llm-second-pass-rewrite',
   })
 }
 

@@ -325,7 +325,7 @@ describe('execution delivery surface', () => {
     expect((structured as any).visibleReplyAuthority).toBe('llm-mind')
   })
 
-  it('keeps deterministic callback structured payload on mind-turn-v1 instead of a separate callback-only surface', () => {
+  it('keeps deterministic callback structured payload on normal repaired mind-turn authority', () => {
     const structured = buildAlicizationExecutionPayoffDeterministicStructured({
       mode: 'callback-delivery',
       channel: 'cli',
@@ -337,10 +337,10 @@ describe('execution delivery surface', () => {
 
     expect(structured.format).toBe('mind-turn-v1')
     expect(structured.reply).toContain('patched runtime line')
-    expect((structured as any).visibleReplyAuthority).toBe('governed-repair-fallback')
+    expect((structured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
   })
 
-  it('labels missing llm callback payoff as governed repair fallback instead of raw deterministic authority', () => {
+  it('labels missing llm callback payoff as llm-repaired instead of raw deterministic authority', () => {
     const selected = selectAlicizationExecutionDeliveryReply({
       channel: 'cli',
       goal: 'Patch the runtime line.',

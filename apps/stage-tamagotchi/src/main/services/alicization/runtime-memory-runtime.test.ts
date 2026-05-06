@@ -138,7 +138,7 @@ describe('runtime memory runtime', () => {
       source: 'main-runtime',
       knowledgeEvidence: expect.any(Object),
       selfEvolution: expect.any(Object),
-      learningExecutionState: null,
+      learningExecutionState: expect.any(Object),
     }))
     expect(runtime.organicMemoryAccessRuntime).toBeTruthy()
     expect(runtime.memorySearchRuntime).toBeTruthy()

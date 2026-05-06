@@ -92,7 +92,7 @@ describe('reply authority invariants', () => {
     expect(result.contract.mustNotDo).toContain('Do not reuse drafted recollection wording, drafted memory contours, or internal recollection leads verbatim.')
   })
 
-  it('keeps execution payoffs on llm-mind for normal path and governed repair fallback for repaired path', () => {
+  it('keeps execution payoffs on normal reply authority for both llm and repaired paths', () => {
     const llmStructured = buildAlicizationExecutionPayoffStructuredReply({
       mode: 'callback-delivery',
       channel: 'cli',
@@ -129,7 +129,7 @@ describe('reply authority invariants', () => {
     })
 
     expect((llmStructured as any).visibleReplyAuthority).toBe('llm-mind')
-    expect((repairedStructured as any).visibleReplyAuthority).toBe('governed-repair-fallback')
+    expect((repairedStructured as any).visibleReplyAuthority).toBe('llm-second-pass-rewrite')
     expect(selected.source).toBe('llm-repaired')
     expect(selected.reason).toBe('missing-llm-reply')
   })
