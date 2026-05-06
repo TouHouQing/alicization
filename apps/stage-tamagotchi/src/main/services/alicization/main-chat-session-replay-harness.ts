@@ -17,6 +17,7 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 
 import {
+  deriveAlicizationMemoryClosureDiscipline,
   deriveAlicizationBrowserMainParitySummary,
   readDialogueRhythmFromDerivedMindStateBundle,
   readAffectiveResidueFromDerivedMindStateBundle,
@@ -603,35 +604,27 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
     || Boolean(trace.memoryStageReplay),
   )
   const tracesWithClosureLedger = tracesWithMemoryPressure.filter(trace => Boolean(trace.memoryResolutionLedger))
-  const conflictClosureApplicable = tracesWithClosureLedger.filter(trace =>
-    trace.memoryResolutionLedger?.conflictPressure === 'high'
-    || trace.memoryResolutionLedger?.closureState === 'conflicted-recall'
-    || (trace.memoryResolutionLedger?.rejectedCandidates.length ?? 0) > 0,
+  const closureDisciplines = tracesWithClosureLedger.map(trace => ({
+    trace,
+    discipline: deriveAlicizationMemoryClosureDiscipline(trace.memoryResolutionLedger),
+  }))
+  const conflictClosureApplicable = closureDisciplines.filter(({ discipline }) =>
+    discipline.finalGateSignals.conflictClosed !== null,
   )
-  const conflictClosureClosed = conflictClosureApplicable.filter(trace =>
-    trace.memoryResolutionLedger?.closureState === 'conflicted-recall'
-    || trace.memoryResolutionLedger?.shouldLabelUncertainty === true
-    || trace.memoryResolutionLedger?.visibleCarryMode === 'withhold'
-    || trace.memoryResolutionLedger?.visibleCarryMode === 'gist-only',
+  const conflictClosureClosed = conflictClosureApplicable.filter(({ discipline }) =>
+    discipline.finalGateSignals.conflictClosed === true,
   )
-  const lowQualityClosureApplicable = tracesWithClosureLedger.filter(trace =>
-    trace.memoryResolutionLedger?.retrievalQuality === 'low'
-    || trace.memoryResolutionLedger?.retrievalQuality === 'insufficient',
+  const lowQualityClosureApplicable = closureDisciplines.filter(({ discipline }) =>
+    discipline.finalGateSignals.lowQualityWithheld !== null,
   )
-  const lowQualityClosureWithheld = lowQualityClosureApplicable.filter(trace =>
-    trace.memoryResolutionLedger?.visibleCarryMode === 'withhold'
-    || trace.memoryResolutionLedger?.shouldStayInward === true
-    || trace.memoryResolutionLedger?.closureState === 'no-recall'
-    || trace.memoryResolutionLedger?.closureState === 'inward-only',
+  const lowQualityClosureWithheld = lowQualityClosureApplicable.filter(({ discipline }) =>
+    discipline.finalGateSignals.lowQualityWithheld === true,
   )
-  const uncertaintyClosureApplicable = tracesWithClosureLedger.filter(trace =>
-    trace.memoryResolutionLedger?.closureState === 'approximate-recall'
-    || trace.memoryResolutionLedger?.shouldLabelUncertainty === true
-    || trace.memoryResolutionLedger?.conflictPressure === 'medium',
+  const uncertaintyClosureApplicable = closureDisciplines.filter(({ discipline }) =>
+    discipline.finalGateSignals.uncertaintyLabeled !== null,
   )
-  const uncertaintyClosureLabeled = uncertaintyClosureApplicable.filter(trace =>
-    trace.memoryResolutionLedger?.shouldLabelUncertainty === true
-    || trace.memoryResolutionLedger?.visibleCarryMode === 'withhold',
+  const uncertaintyClosureLabeled = uncertaintyClosureApplicable.filter(({ discipline }) =>
+    discipline.finalGateSignals.uncertaintyLabeled === true,
   )
   const suppressionTaggedTraceIds = new Set(suppressionTaggedTraces.map(trace => trace.turnId).filter(Boolean))
   const suppressionApplicable = quality.filter(item =>

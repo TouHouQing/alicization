@@ -15,6 +15,7 @@ import type { AlicizationResponseCharter } from './response-charter'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import {
+  deriveAlicizationMemoryClosureDiscipline,
   normalizeAlicizationNormalVisibleReplyAuthority,
   readLearningExecutionStateFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
@@ -29,6 +30,7 @@ import {
   buildMemoryOpeningStrategyTag,
 } from './memory-deliberation-latent-controls'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
+import { buildAlicizationResponseSurfaceMemoryClosureRules } from './response-surface-memory-closure-rules'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
 
@@ -251,6 +253,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     ?? null
   const recollectionSpeechPlan = input.recollectionSpeechPlan ?? null
   const memoryResolutionLedger = runtimeSurface?.memory.memoryResolutionLedger ?? null
+  const memoryClosureDiscipline = deriveAlicizationMemoryClosureDiscipline(memoryResolutionLedger)
   const memoryDeliberationKernel = buildAlicizationMemoryDeliberationKernel({
     deliberation: readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)
       ?? runtimeSurface?.memory.memoryDeliberation
@@ -409,29 +412,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
     pushUnique(mustNotDo, 'Do not let recollection step in front of the current payoff.')
   }
   if (memoryResolutionLedger) {
-    if (memoryResolutionLedger.visibleCarryMode === 'withhold' || memoryResolutionLedger.closureState === 'inward-only') {
-      pushUnique(mustDo, 'Keep this remembered material as inward continuity only; let it shape care, caution, or ordering without announcing recall.')
-      pushUnique(mustNotDo, 'Do not visibly cite or narrate this memory while the closure state is inward-only or withheld.')
-    }
-    if (memoryResolutionLedger.visibleCarryMode === 'gist-only') {
-      pushUnique(mustDo, 'If memory is visible, reduce it to a brief gist that supports the current payoff.')
-      pushUnique(mustNotDo, 'Do not quote, over-specify, or reconstruct exact details from a gist-only memory posture.')
-    }
-    if (memoryResolutionLedger.visibleCarryMode === 'explicit-recall') {
-      pushUnique(mustDo, 'If memory is visible, make it serve the answer directly instead of becoming a separate archive report.')
-    }
-    if (memoryResolutionLedger.shouldLabelUncertainty || memoryResolutionLedger.closureState === 'approximate-recall') {
-      pushUnique(mustDo, 'When surfacing this memory, mark approximation or reconstruction instead of sounding exact.')
-      pushUnique(mustNotDo, 'Do not present approximate recall as exact remembered wording or settled chronology.')
-    }
-    if (memoryResolutionLedger.conflictPressure === 'high' || memoryResolutionLedger.closureState === 'conflicted-recall') {
-      pushUnique(mustDo, 'Treat competing memory clusters as conflict pressure and keep only the safest stable core visible.')
-      pushUnique(mustNotDo, 'Do not merge competing remembered threads into one confident story.')
-    }
-    if (memoryResolutionLedger.retrievalQuality === 'low' || memoryResolutionLedger.retrievalQuality === 'insufficient') {
-      pushUnique(mustDo, 'Keep low-quality recall behind the live answer unless the host explicitly asks for uncertainty-aware recollection.')
-      pushUnique(mustNotDo, 'Do not let low-quality or insufficient recall drive the visible answer.')
-    }
+    const memoryClosureRules = buildAlicizationResponseSurfaceMemoryClosureRules(memoryClosureDiscipline)
+    for (const item of memoryClosureRules.mustDo)
+      pushUnique(mustDo, item)
+    for (const item of memoryClosureRules.mustNotDo)
+      pushUnique(mustNotDo, item)
   }
   if (digitalLifeArchitecture?.operatingMode === 'speaking' || digitalLifeArchitecture?.dominantSystem === 'dialogue') {
     pushUnique(mustDo, 'Treat this as an already-live speaking turn; begin with payoff instead of scene-setting.')
@@ -576,6 +561,12 @@ export function buildAlicizationResponseSurfaceContract(input: {
         : '',
       memoryResolutionLedger
         ? `Memory uncertainty label required: ${memoryResolutionLedger.shouldLabelUncertainty ? 'yes' : 'no'}.`
+        : '',
+      memoryResolutionLedger
+        ? `Memory allowed visible surface: ${memoryClosureDiscipline.allowedSurface}.`
+        : '',
+      memoryClosureDiscipline.requiredSurfaceDiscipline.length > 0
+        ? `Memory closure discipline: ${memoryClosureDiscipline.requiredSurfaceDiscipline.join(' | ')}.`
         : '',
       truthDiscipline.memoryWhyWithheld
         ? `Truth discipline memory why withheld: ${truthDiscipline.memoryWhyWithheld}.`

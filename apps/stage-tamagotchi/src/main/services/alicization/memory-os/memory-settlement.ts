@@ -5,33 +5,22 @@ import type { AlicizationMemoryDeliberationArtifact } from './memory-deliberatio
 import type { AlicizationMemoryRecallIntentArtifact } from './recall-intent'
 import type { AlicizationMemorySpeechPostureArtifact } from './speech-posture'
 
+import {
+  deriveAlicizationMemoryClosureDiscipline,
+  type AlicizationMemoryResolutionLedger,
+} from '@proj-alicization/stage-shared'
+
 export interface AlicizationMemorySettlementArtifact {
   version: 'memory-settlement-v1'
   shouldRecall: boolean
   shouldSurface: boolean
   closure: {
-    closureState: OrganicMemoryPromptContext['memoryResolutionLedger'] extends infer Ledger
-      ? Ledger extends { closureState?: infer State }
-        ? State | null
-        : string | null
-      : string | null
-    visibleCarryMode: OrganicMemoryPromptContext['memoryResolutionLedger'] extends infer Ledger
-      ? Ledger extends { visibleCarryMode?: infer Mode }
-        ? Mode | null
-        : string | null
-      : string | null
-    retrievalQuality: OrganicMemoryPromptContext['memoryResolutionLedger'] extends infer Ledger
-      ? Ledger extends { retrievalQuality?: infer Quality }
-        ? Quality | null
-        : string | null
-      : string | null
+    closureState: AlicizationMemoryResolutionLedger['closureState'] | null
+    visibleCarryMode: AlicizationMemoryResolutionLedger['visibleCarryMode'] | null
+    retrievalQuality: AlicizationMemoryResolutionLedger['retrievalQuality'] | null
     shouldLabelUncertainty: boolean
     surfaceConfidence: number | null
-    conflictPressure: OrganicMemoryPromptContext['memoryResolutionLedger'] extends infer Ledger
-      ? Ledger extends { conflictPressure?: infer Pressure }
-        ? Pressure | null
-        : string | null
-      : string | null
+    conflictPressure: AlicizationMemoryResolutionLedger['conflictPressure'] | null
   }
   withheld: string[]
   metrics: {
@@ -83,39 +72,33 @@ export function settleAlicizationMemoryTurn(input: {
   })
   const shouldRecall = input.deliberation.shouldRecall || input.recallIntent.shouldRecall
   const ledger = input.context.memoryResolutionLedger ?? null
-  const closureBlocksSurface = ledger?.visibleCarryMode === 'withhold'
-    || ledger?.closureState === 'inward-only'
-    || ledger?.closureState === 'no-recall'
-    || ledger?.retrievalQuality === 'insufficient'
-    || ledger?.conflictPressure === 'high'
+  const closureDiscipline = deriveAlicizationMemoryClosureDiscipline(ledger)
   const shouldSurface = shouldRecall
     && input.speechPosture.shouldSurface
     && input.deliberation.surfacePolicy !== 'internal-only'
-    && !closureBlocksSurface
+    && !closureDiscipline.shouldBlockVisibleMemory
 
   return {
     version: 'memory-settlement-v1',
     shouldRecall,
     shouldSurface,
     closure: {
-      closureState: ledger?.closureState ?? null,
-      visibleCarryMode: ledger?.visibleCarryMode ?? null,
-      retrievalQuality: ledger?.retrievalQuality ?? null,
-      shouldLabelUncertainty: ledger?.shouldLabelUncertainty === true,
+      closureState: closureDiscipline.closureState,
+      visibleCarryMode: closureDiscipline.visibleCarryMode,
+      retrievalQuality: closureDiscipline.retrievalQuality,
+      shouldLabelUncertainty: closureDiscipline.shouldLabelUncertainty,
       surfaceConfidence: Number.isFinite(ledger?.surfaceConfidence)
         ? Number(ledger?.surfaceConfidence)
         : null,
-      conflictPressure: ledger?.conflictPressure ?? null,
+      conflictPressure: closureDiscipline.conflictPressure,
     },
     withheld: compactList([
       input.competition.wrongThreadSuppressedCount > 0 ? 'wrong-thread-suppressed' : null,
       unsupportedSpecificityBlockedCount > 0 ? 'unsafe-specificity-withheld' : null,
       !shouldRecall && input.competition.candidateCount > 0 ? 'present-facing-turn' : null,
       shouldRecall && !shouldSurface ? 'memory-held-inward' : null,
-      ledger?.shouldLabelUncertainty ? 'uncertainty-label-required' : null,
-      ledger?.retrievalQuality === 'insufficient' ? 'retrieval-insufficient' : null,
-      ledger?.conflictPressure === 'high' ? 'conflict-pressure-high' : null,
-      ledger?.closureState === 'no-recall' ? 'no-recall-available' : null,
+      ...closureDiscipline.withheldReasons,
+      closureDiscipline.shouldLabelUncertainty ? 'uncertainty-label-required' : null,
     ], 8),
     metrics: {
       recallCandidateCount: input.competition.candidateCount,

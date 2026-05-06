@@ -72,4 +72,61 @@ describe('visible-reply-realization-engine', () => {
     expect(resolved.realization.providerMindExecuted).toBe(true)
     expect(resolved.realization.nonHumanAuthoredStatus).toBeNull()
   })
+
+  it('downgrades provider-mode replies to infra fallback when provider mind did not execute', () => {
+    const execution = resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: {
+        hasVisualGrounding: false,
+        mindTurnContract: null,
+        replyRealization: null,
+        replyExecutionPlan: null,
+        runtimeSurface: {
+          replyAuthority: null,
+          replyExecutionPlan: null,
+        },
+        governance: {
+          visibleReplyAuthority: 'llm-mind',
+        },
+      } as any,
+      mode: 'provider-stream',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: false,
+      reason: 'provider-stream-no-mind-output',
+    })
+
+    const resolved = buildAlicizationResolvedVisibleReply({
+      fullText: '{"reply":"这句不能作为正常可见回复。"}',
+      visibleReplyExecution: execution,
+    })
+
+    expect(execution.expectedVisibleReplyAuthority).toBe('llm-mind')
+    expect(execution.actualVisibleReplyAuthority).toBe('local-deterministic-fallback')
+    expect(resolved.visibleText).toBe('')
+    expect(resolved.realization.blockedReasons).toContain('non-human-authored-visible-fallback')
+  })
+
+  it('normalizes requested local authority to provider second-pass when provider mind executed', () => {
+    const execution = resolveAlicizationPreparedVisibleReplyExecution({
+      prepared: {
+        hasVisualGrounding: false,
+        mindTurnContract: null,
+        replyRealization: null,
+        replyExecutionPlan: null,
+        runtimeSurface: {
+          replyAuthority: null,
+          replyExecutionPlan: null,
+        },
+        governance: {
+          visibleReplyAuthority: 'local-deterministic-fallback',
+        },
+      } as any,
+      mode: 'provider-stream',
+      actualVisibleReplyAuthority: 'local-deterministic-fallback',
+      providerMindExecuted: true,
+      reason: 'legacy-authority-normalization',
+    })
+
+    expect(execution.expectedVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(execution.actualVisibleReplyAuthority).toBe('llm-second-pass-rewrite')
+  })
 })

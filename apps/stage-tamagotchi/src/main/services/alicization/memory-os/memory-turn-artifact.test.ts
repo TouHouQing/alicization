@@ -11,7 +11,14 @@ describe('memory-turn-artifact', () => {
         activeThoughts: [],
         retrievedFacts: [{ id: 'fact-1' } as any],
         recalledFragments: [{ id: 'fragment-1' } as any],
-        recalledEpisodes: [{ id: 'episode-1' } as any],
+        recalledEpisodes: [{
+          id: 'episode-1',
+          confidence: 0.82,
+          provenance: 'remembered',
+          semanticScore: 0.76,
+          graphAffinity: 0.71,
+          relationshipThreadMatch: 0.74,
+        } as any],
         recalledConversationHistory: [{ turnId: 'turn-1' } as any],
         recollectionIntent: {
           shouldOpenRecollection: true,
@@ -83,6 +90,18 @@ describe('memory-turn-artifact', () => {
     expect(artifact.competition.wrongThreadSuppressedCount).toBe(1)
     expect(artifact.candidates.retrievalCandidateIds).toEqual(expect.arrayContaining(['fact-1', 'fragment-1', 'episode-1', 'turn-1']))
     expect(artifact.candidates.selectedCandidateIds).toContain('episode-1')
+    expect(artifact.candidates.topRankedCandidates[0]).toEqual(expect.objectContaining({
+      id: 'episode-1',
+      kind: 'episode',
+      selected: true,
+      provenance: 'remembered',
+    }))
+    expect(artifact.candidates.topRankedCandidates[0]?.finalScore ?? 0).toBeGreaterThan(0.6)
+    expect(artifact.candidates.topRankedCandidates[0]?.reasons).toEqual(expect.arrayContaining([
+      'selected-by-deliberation',
+      'graph-affinity',
+      'relationship-thread-match',
+    ]))
     expect(artifact.deliberation.unsafeDetails).toContain('Exact file path is not safe to claim.')
     expect(artifact.deliberation.ambiguityPosture).toBe('approximate')
     expect(artifact.deliberation.followUp).toEqual(expect.objectContaining({

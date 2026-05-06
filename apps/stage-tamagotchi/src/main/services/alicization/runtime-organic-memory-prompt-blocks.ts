@@ -1,5 +1,6 @@
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
+import { deriveAlicizationMemoryClosureDiscipline } from '@proj-alicization/stage-shared'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import { deriveRecollectionSurfaceControls } from './recollection-surface-controls'
 import { formatMemoryProvenanceLabel } from './humanlike-memory'
@@ -274,12 +275,14 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
   }
 
   if (context.memoryResolutionLedger) {
+    const closureDiscipline = deriveAlicizationMemoryClosureDiscipline(context.memoryResolutionLedger)
     blocks.push([
       '[ALICIZATION_MEMORY_CLOSURE_STATE]',
       'This is the final memory closure posture for the current turn.',
       'Treat it as mind governance for recall accuracy, uncertainty labeling, and visible carry discipline. Do not turn it into a fixed visible wording pattern.',
       `closure_state=${context.memoryResolutionLedger.closureState}`,
       `visible_carry_mode=${context.memoryResolutionLedger.visibleCarryMode}`,
+      `allowed_surface=${closureDiscipline.allowedSurface}`,
       `retrieval_quality=${context.memoryResolutionLedger.retrievalQuality}`,
       `conflict_pressure=${context.memoryResolutionLedger.conflictPressure}`,
       context.memoryResolutionLedger.surfaceConfidence != null
@@ -300,7 +303,10 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
       context.memoryResolutionLedger.finalRationale
         ? `closure_rationale=${context.memoryResolutionLedger.finalRationale}`
         : '',
-      context.memoryResolutionLedger.shouldLabelUncertainty
+      closureDiscipline.requiredSurfaceDiscipline.length > 0
+        ? `closure_discipline=${closureDiscipline.requiredSurfaceDiscipline.join(' | ')}`
+        : '',
+      closureDiscipline.shouldLabelUncertainty
         ? 'If you surface this memory, explicitly mark uncertainty, approximation, or reconstruction where needed.'
         : 'If you surface this memory, keep it grounded to the selected stable recall rather than inflating specificity.',
     ].filter(Boolean).join('\n'))

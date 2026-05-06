@@ -5,7 +5,10 @@ import type {
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 
 import { looksLikeAlicizationStructuredPayloadText } from '@proj-alicization/stage-shared'
-import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
+import {
+  isAlicizationNormalVisibleReplyAuthority,
+  normalizeAlicizationNormalVisibleReplyAuthority,
+} from '@proj-alicization/stage-shared'
 
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
@@ -81,6 +84,24 @@ function resolvePreparedVisibleReplyAuthority(prepared: AlicizationPreparedMainC
   )
 }
 
+function resolveActualVisibleReplyAuthority(input: {
+  mode: AlicizationVisibleReplyExecutionMode
+  expectedVisibleReplyAuthority: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority']
+  requestedAuthority?: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority']
+  providerMindExecuted: boolean
+}) {
+  if (!input.providerMindExecuted || input.mode === 'local-fallback')
+    return 'local-deterministic-fallback' as const
+
+  if (isAlicizationNormalVisibleReplyAuthority(input.requestedAuthority))
+    return input.requestedAuthority
+
+  return normalizeAlicizationNormalVisibleReplyAuthority(
+    input.expectedVisibleReplyAuthority,
+    'llm-mind',
+  )
+}
+
 export function createAlicizationVisibleReplyExecution(input: {
   mode: AlicizationVisibleReplyExecutionMode
   expectedVisibleReplyAuthority: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority']
@@ -89,16 +110,20 @@ export function createAlicizationVisibleReplyExecution(input: {
   reason?: string | null
 }): AlicizationVisibleReplyExecution {
   const providerMindExecuted = input.providerMindExecuted ?? input.mode !== 'local-fallback'
-  const actualVisibleReplyAuthority = input.actualVisibleReplyAuthority
-    ?? (providerMindExecuted
-      ? input.expectedVisibleReplyAuthority
-      : input.mode === 'local-fallback'
-        ? 'local-deterministic-fallback'
-        : null)
+  const expectedVisibleReplyAuthority = normalizeAlicizationNormalVisibleReplyAuthority(
+    input.expectedVisibleReplyAuthority,
+    'llm-mind',
+  )
+  const actualVisibleReplyAuthority = resolveActualVisibleReplyAuthority({
+    mode: input.mode,
+    expectedVisibleReplyAuthority,
+    requestedAuthority: input.actualVisibleReplyAuthority,
+    providerMindExecuted,
+  })
 
   return {
     mode: input.mode,
-    expectedVisibleReplyAuthority: input.expectedVisibleReplyAuthority ?? null,
+    expectedVisibleReplyAuthority,
     actualVisibleReplyAuthority: actualVisibleReplyAuthority ?? null,
     providerMindExecuted,
     reason: input.reason ?? null,

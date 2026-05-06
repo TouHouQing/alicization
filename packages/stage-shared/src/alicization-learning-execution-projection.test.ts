@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import type { AlicizationLearningExecutionStateSnapshot } from './alicization-transport-contracts'
+
 import { deriveAlicizationLearningExecutionProjection } from './alicization-learning-execution-projection'
 
 describe('alicization-learning-execution-projection', () => {
   it('preserves persisted learning execution state as the source of truth', () => {
-    const persisted = {
+    const persisted: AlicizationLearningExecutionStateSnapshot = {
       currentTaskId: 'task-1',
       currentStatus: 'running',
       currentAttemptCount: 1,
@@ -31,7 +33,7 @@ describe('alicization-learning-execution-projection', () => {
       lastFailureReason: null,
       lastFailureNextRetryAt: null,
       updatedAt: 100,
-    } as const
+    }
 
     expect(deriveAlicizationLearningExecutionProjection({
       persistedState: persisted,

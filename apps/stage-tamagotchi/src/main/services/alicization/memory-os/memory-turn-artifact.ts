@@ -26,6 +26,15 @@ export interface AlicizationMemoryTurnArtifact {
     proceduralMemories: number
     retrievalCandidateIds: string[]
     selectedCandidateIds: string[]
+    topRankedCandidates: Array<{
+      id: string
+      kind: string
+      selected: boolean
+      finalScore: number
+      confidence: number | null
+      provenance: string | null
+      reasons: string[]
+    }>
   }
   competition: {
     candidateCount: number
@@ -128,6 +137,18 @@ export function buildAlicizationMemoryTurnArtifact(input: {
       proceduralMemories,
       retrievalCandidateIds: retrieval.candidates.map(item => item.id).slice(0, 32),
       selectedCandidateIds: retrieval.selectedCandidateIds.slice(0, 32),
+      topRankedCandidates: [...retrieval.candidates]
+        .sort((left, right) => right.ranking.finalScore - left.ranking.finalScore)
+        .slice(0, 8)
+        .map(item => ({
+          id: item.id,
+          kind: item.kind,
+          selected: item.selected,
+          finalScore: item.ranking.finalScore,
+          confidence: item.confidence,
+          provenance: item.provenance,
+          reasons: item.ranking.reasons.slice(0, 8),
+        })),
     },
     competition,
     deliberation: {
