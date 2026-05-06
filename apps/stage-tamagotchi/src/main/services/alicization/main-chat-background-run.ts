@@ -72,8 +72,12 @@ import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-tim
 import { parseJsonObjectFromText } from './runtime-transport-content'
 import { attachAlicizationTurnGraphSurface } from './turn-os/turn-graph'
 import {
+  AlicizationVisibleReplyClosureBlockedError,
+  closeAlicizationVisibleReply,
+  type AlicizationVisibleReplyClosureResult,
+} from './visible-reply/closure-orchestrator'
+import {
   buildAlicizationVisibleReplyCriticArtifact,
-  shouldForceAlicizationVisibleReplyRepair,
 } from './visible-reply/critic'
 import {
   mainChatFirstEventTimeoutMs,
@@ -446,7 +450,24 @@ export async function runAlicizationMainChatBackground(
     })
   }
 
-  const rewriteStructuredVisibleReplyIfNeeded = async (rewriteInput: {
+  const rememberVisibleReplyClosure = (closed: AlicizationVisibleReplyClosureResult) => {
+    if (!prepared)
+      return
+    prepared = {
+      ...prepared,
+      turnGraph: attachAlicizationTurnGraphSurface({
+        turnGraph: prepared.turnGraph,
+        surface: buildAlicizationVisibleReplyRealizationArtifact({
+          fullText: closed.fullText,
+          visibleReplyExecution: closed.visibleReplyExecution,
+          critic: closed.critic,
+          closure: closed.closure,
+        }),
+      }),
+    }
+  }
+
+  const closeStructuredVisibleReplyIfNeeded = async (rewriteInput: {
     fullText: string
     visibleReplyExecution: AlicizationVisibleReplyExecution
     forceRewrite?: boolean
@@ -460,77 +481,57 @@ export async function runAlicizationMainChatBackground(
     if (!latestUserText)
       return null
 
-    const critic = buildAlicizationVisibleReplyCriticArtifact({
-      fullText: rewriteInput.fullText,
-      visibleReplyExecution: rewriteInput.visibleReplyExecution,
-      prepared,
-    })
-    const forceRewrite = rewriteInput.forceRewrite === true || shouldForceAlicizationVisibleReplyRepair(critic)
-    const forceReasonCodes = [
-      ...(rewriteInput.forceReasonCodes ?? []),
-      ...critic.repairReasonCodes,
-    ]
-    if (!forceRewrite) {
-      const realization = buildAlicizationVisibleReplyRealizationArtifact({
-        fullText: rewriteInput.fullText,
-        visibleReplyExecution: rewriteInput.visibleReplyExecution,
-        critic,
-      })
-      prepared = {
-        ...prepared,
-        turnGraph: attachAlicizationTurnGraphSurface({
-          turnGraph: prepared.turnGraph,
-          surface: realization,
-        }),
-      }
-      return null
-    }
-
     try {
-      const rewritten = await rewriteAlicizationVisibleReplySecondPass({
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        sessionId: prepared.conversationSessionId,
-        userText: latestUserText,
-        rawFullText: rewriteInput.fullText,
-        prepared,
-        visibleReplyExecution: rewriteInput.visibleReplyExecution,
-        forceRewrite,
-        forceReasonCodes,
-        headers: input.headers,
-        provider: async ({ chatConfig, messages, headers, timeoutMs }) => {
-          return await generateAlicizationMainChatNonStreaming({
-            chatConfig,
-            messages,
-            headers,
-            timeoutMs,
-          })
+      const closed = await closeAlicizationVisibleReply({
+        draft: {
+          fullText: rewriteInput.fullText,
+          visibleReplyExecution: rewriteInput.visibleReplyExecution,
         },
-        appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-      })
-      if (!rewritten.rewritten)
-        return null
-      const postCritic = buildAlicizationVisibleReplyCriticArtifact({
-        fullText: rewritten.fullText,
-        visibleReplyExecution: rewritten.visibleReplyExecution,
         prepared,
+        forceRewrite: rewriteInput.forceRewrite,
+        forceReasonCodes: rewriteInput.forceReasonCodes,
+        rewriteSecondPass: async secondPassInput => await rewriteAlicizationVisibleReplySecondPass({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          sessionId: prepared!.conversationSessionId,
+          userText: latestUserText,
+          rawFullText: secondPassInput.fullText,
+          prepared: prepared!,
+          visibleReplyExecution: secondPassInput.visibleReplyExecution,
+          forceRewrite: secondPassInput.forceRewrite,
+          forceReasonCodes: secondPassInput.forceReasonCodes,
+          headers: input.headers,
+          provider: async ({ chatConfig, messages, headers, timeoutMs }) => {
+            return await generateAlicizationMainChatNonStreaming({
+              chatConfig,
+              messages,
+              headers,
+              timeoutMs,
+            })
+          },
+          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+        }),
       })
-      if (shouldForceAlicizationVisibleReplyRepair(postCritic)) {
-        throw new AlicizationMindAuthoredReplyRequiredError(
-          `visible-reply-second-pass-still-fails-critic:${postCritic.reasonCodes.join(',') || 'unknown'}`,
-        )
-      }
+      if (!closed)
+        return null
+      rememberVisibleReplyClosure(closed)
       return {
-        fullText: rewritten.fullText,
-        visibleReplyExecution: rewritten.visibleReplyExecution,
-        critic: postCritic,
+        fullText: closed.fullText,
+        visibleReplyExecution: closed.visibleReplyExecution,
+        critic: closed.critic,
+        closure: closed.closure,
       }
     }
     catch (error) {
+      const closure = error instanceof AlicizationVisibleReplyClosureBlockedError
+        ? error.closure
+        : null
       await input.appendRuntimeDebugLine('chat-stream.visible-reply-second-pass-failed', {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
         reason: error instanceof Error ? error.message : String(error),
+        closureStatus: closure?.status ?? null,
+        closureReasonCodes: closure?.reasonCodes ?? [],
       })
       const reachability = await input.ensureMainGatewayReachable(input.mainGateway, { bypassCache: true }).catch(() => null)
       if (reachability?.reachable !== false) {
@@ -549,10 +550,28 @@ export async function runAlicizationMainChatBackground(
         reason: blockedTransportFailure.visibleReplyExecution.reason,
         gatewayReachable: reachability?.reachable ?? null,
         gatewayReason: reachability?.reason ?? null,
+        closureReasonCodes: closure?.reasonCodes ?? [],
       })
       throw new AlicizationMindAuthoredReplyRequiredError(
         `visible-reply-second-pass-required:${blockedTransportFailure.visibleReplyExecution.reason}`,
       )
+    }
+  }
+
+  const rewriteStructuredVisibleReplyIfNeeded = async (rewriteInput: {
+    fullText: string
+    visibleReplyExecution: AlicizationVisibleReplyExecution
+    forceRewrite?: boolean
+    forceReasonCodes?: string[]
+  }) => {
+    const closed = await closeStructuredVisibleReplyIfNeeded(rewriteInput)
+    if (!closed)
+      return null
+    return {
+      fullText: closed.fullText,
+      visibleReplyExecution: closed.visibleReplyExecution,
+      critic: closed.critic,
+      closure: closed.closure,
     }
   }
 
@@ -1182,13 +1201,14 @@ export async function runAlicizationMainChatBackground(
       },
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
       rewriteStructuredVisibleReply: rewriteStructuredVisibleReplyIfNeeded,
+      delayVisibleRelease: true,
     })
     if (streamResult.fullText.trim()) {
       await suppressInlineExecutionDeliveries()
     }
     currentVisibleReplyExecution = streamResult.visibleReplyExecution
     if (prepared) {
-      const critic = buildAlicizationVisibleReplyCriticArtifact({
+      const critic = streamResult.visibleReplyCritic ?? buildAlicizationVisibleReplyCriticArtifact({
         fullText: streamResult.fullText,
         visibleReplyExecution: streamResult.visibleReplyExecution,
         prepared,
@@ -1201,6 +1221,7 @@ export async function runAlicizationMainChatBackground(
             fullText: streamResult.fullText,
             visibleReplyExecution: streamResult.visibleReplyExecution,
             critic,
+            closure: streamResult.visibleReplyClosure ?? null,
           }),
         }),
       }

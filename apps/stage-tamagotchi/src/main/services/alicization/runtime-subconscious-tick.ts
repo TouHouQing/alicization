@@ -804,7 +804,11 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             turnId,
             sessionId: deliveredSessionId,
             assistantText: structured.reply,
-            structured,
+            structured: {
+              ...structured,
+              visibleReplyAuthority: 'llm-mind',
+              replyRealizationMode: 'provider-mind-required',
+            },
             origin: 'subconscious-proactive',
             createdAt: now,
           })

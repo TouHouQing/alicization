@@ -31,14 +31,14 @@ export function buildAlicizationFinalReplayGateReport(input: {
     precisionAt3?: unknown
     wrongThreadRate?: unknown
     templateLeakageFailCount?: unknown
-	    unsupportedSpecificityVisibleFailCount?: unknown
-	    turnOsTraceCoverage?: unknown
-	    learningOutcomeToSelfRevisionRoundtrip?: unknown
-	    memoryClosureCoverage?: unknown
-	    memoryClosureConflictClosureRate?: unknown
-	    memoryClosureLowQualityWithholdRate?: unknown
-	    memoryClosureUncertaintyLabelRate?: unknown
-	  } | null
+    unsupportedSpecificityVisibleFailCount?: unknown
+    turnOsTraceCoverage?: unknown
+    learningOutcomeToSelfRevisionRoundtrip?: unknown
+    memoryClosureCoverage?: unknown
+    memoryClosureConflictClosureRate?: unknown
+    memoryClosureLowQualityWithholdRate?: unknown
+    memoryClosureUncertaintyLabelRate?: unknown
+  } | null
   authorityLeakCount?: unknown
   localHumanlikeVisibleFallbackCount?: unknown
 }): AlicizationFinalReplayGateReport {

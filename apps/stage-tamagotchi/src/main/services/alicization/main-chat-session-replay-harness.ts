@@ -467,6 +467,14 @@ export interface AlicizationReplayBenchmarkStandards {
 function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undefined) {
   if (!turnGraph)
     return null
+  const memoryOutcome = turnGraph.learning.memoryOutcome ?? {
+    usedCandidateIds: [],
+    surfacedCandidateIds: [],
+    suppressedCandidateIds: [],
+    wrongThreadCandidateIds: [],
+    conflictCandidateIds: [],
+    feedbackSignal: null,
+  }
   return {
     version: 'turn-graph-summary-v1' as const,
     decisionTraceId: turnGraph.ids.decisionTraceId,
@@ -495,10 +503,20 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       criticStatus: turnGraph.surface?.critic?.status ?? null,
       criticReasonCodes: [...(turnGraph.surface?.critic?.reasonCodes ?? [])],
       criticScores: turnGraph.surface?.critic?.scores ?? null,
+      closureStatus: turnGraph.surface?.closure?.status ?? null,
+      closureReasonCodes: [...(turnGraph.surface?.closure?.reasonCodes ?? [])],
+      closureRewriteAttempted: turnGraph.surface?.closure?.rewriteAttempted ?? null,
+      closureRewriteSucceeded: turnGraph.surface?.closure?.rewriteSucceeded ?? null,
     },
     learning: {
       selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,
       nextLearningAction: turnGraph.learning.nextLearningAction,
+      memoryUsedCandidateCount: memoryOutcome.usedCandidateIds.length,
+      memorySurfacedCandidateCount: memoryOutcome.surfacedCandidateIds.length,
+      memorySuppressedCandidateCount: memoryOutcome.suppressedCandidateIds.length,
+      memoryWrongThreadCandidateCount: memoryOutcome.wrongThreadCandidateIds.length,
+      memoryConflictCandidateCount: memoryOutcome.conflictCandidateIds.length,
+      memoryFeedbackSignal: memoryOutcome.feedbackSignal,
     },
   }
 }

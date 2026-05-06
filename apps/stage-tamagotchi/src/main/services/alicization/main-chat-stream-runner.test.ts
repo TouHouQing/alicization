@@ -113,6 +113,68 @@ describe('main chat stream runner', () => {
     })
   })
 
+  it('emits only the visible reply field from visual grounding structured one-shot output', async () => {
+    const streamMeta = createStreamMetaController()
+    const incrementChunkStats = vi.fn()
+    const emitChunk = vi.fn()
+    const streamTextImpl = vi.fn()
+    const generateNonStreaming = vi.fn(async () => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer',
+        emotion: 'thinking',
+        reply: '我只把这句发给你。',
+      }),
+    }))
+    const closure = {
+      version: 'visible-reply-closure-v1',
+      status: 'approved',
+      initialCritic: null,
+      finalCritic: null,
+      rewriteAttempted: false,
+      rewriteSucceeded: false,
+      reasonCodes: [],
+    } as const
+    const rewriteStructuredVisibleReply = vi.fn(input => ({
+      ...input,
+      closure,
+    }))
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-visual-structured',
+      } as any,
+      prepared: createPrepared({
+        hasVisualGrounding: true,
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats,
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta,
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming,
+      rewriteStructuredVisibleReply,
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toContain('"reply":"我只把这句发给你。"')
+    expect(result.visibleReplyClosure?.status).toBe('approved')
+    expect(incrementChunkStats).toHaveBeenCalledWith('我只把这句发给你。')
+    expect(streamMeta.emit).toHaveBeenCalledWith('我只把这句发给你。')
+    expect(emitChunk).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-visual-structured',
+      text: '我只把这句发给你。',
+    })
+    expect(emitChunk.mock.calls[0]?.[0]?.text).not.toContain('mind-turn-v1')
+  })
+
   it('streams deltas, waits through tool-calls finishes, and records reminder debug signals', async () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
@@ -247,6 +309,83 @@ describe('main chat stream runner', () => {
     })
     expect(incrementChunkStats).toHaveBeenCalledWith('你好。')
     expect(streamMeta.emit).toHaveBeenCalledWith('你好。')
+  })
+
+  it('delays visible deltas until the full reply passes the closure rewrite hook', async () => {
+    const streamMeta = createStreamMetaController()
+    const incrementChunkStats = vi.fn()
+    const emitChunk = vi.fn()
+    const rewriteStructuredVisibleReply = vi.fn(async input => ({
+      ...input,
+      fullText: '{"format":"mind-turn-v1","thought":"obligation=answer","emotion":"thinking","reply":"修复后的回复。"}',
+      critic: {
+        version: 'visible-reply-critic-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        scores: {
+          memoryGateCompliance: 1,
+          templateDiscipline: 1,
+          truthSpecificity: 1,
+          payoffCompletion: 1,
+          personaAffectCoherence: 1,
+        },
+        reasonCodes: [],
+        repairReasonCodes: [],
+        mustDrop: [],
+        mustPreserve: [],
+      },
+      closure: {
+        version: 'visible-reply-closure-v1',
+        status: 'rewritten',
+        initialCritic: null,
+        finalCritic: null,
+        rewriteAttempted: true,
+        rewriteSucceeded: true,
+        reasonCodes: ['dialogue-shell-opener'],
+      },
+    }))
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-delayed-visible-release',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats,
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta,
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      rewriteStructuredVisibleReply,
+      delayVisibleRelease: true,
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({ type: 'text-delta', text: '我先直接回答你。' })
+        expect(emitChunk).not.toHaveBeenCalled()
+        await emit({ type: 'text-delta', text: '这句应该先被闭环验收。' })
+        expect(emitChunk).not.toHaveBeenCalled()
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(result.fullText).toBe('{"format":"mind-turn-v1","thought":"obligation=answer","emotion":"thinking","reply":"修复后的回复。"}')
+    expect(result.visibleReplyClosure?.status).toBe('rewritten')
+    expect(rewriteStructuredVisibleReply).toHaveBeenCalledWith(expect.objectContaining({
+      fullText: '我先直接回答你。这句应该先被闭环验收。',
+    }))
+    expect(emitChunk).toHaveBeenCalledTimes(1)
+    expect(emitChunk).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-delayed-visible-release',
+      text: '修复后的回复。',
+    })
+    expect(incrementChunkStats).toHaveBeenCalledWith('修复后的回复。')
+    expect(streamMeta.emit).toHaveBeenCalledWith('修复后的回复。')
   })
 
   it('aborts with a first-event-timeout when the stream never produces progress', async () => {

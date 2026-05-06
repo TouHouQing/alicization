@@ -24,10 +24,10 @@ export function decideAlicizationProactiveVisibleUtterance(input: {
   if (input.allowDeterministicVisibleFallback === true) {
     return {
       version: 'proactive-visible-utterance-policy-v1',
-      shouldPersistVisibleUtterance: true,
+      shouldPersistVisibleUtterance: false,
       requiresMindAuthoredText: false,
-      action: 'persist',
-      reason: input.reason ?? 'explicit-deterministic-visible-fallback-allowed',
+      action: 'hold',
+      reason: input.reason ?? 'explicit-deterministic-visible-fallback-held',
     }
   }
 

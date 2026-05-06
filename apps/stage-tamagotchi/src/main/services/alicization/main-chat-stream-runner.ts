@@ -6,6 +6,8 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationVisibleReplyCriticArtifact } from './visible-reply/critic'
+import type { AlicizationVisibleReplyClosureArtifact } from './visible-reply/realization-engine'
 
 import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
 import { errorMessageFrom } from '@moeru/std'
@@ -14,7 +16,10 @@ import { streamText } from '@xsai/stream-text'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
-import { resolveAlicizationPreparedVisibleReplyExecution } from './main-chat-visible-reply-execution'
+import {
+  deriveAlicizationVisibleReplyText,
+  resolveAlicizationPreparedVisibleReplyExecution,
+} from './main-chat-visible-reply-execution'
 import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { parseJsonObjectFromText } from './runtime-transport-content'
@@ -25,6 +30,8 @@ export interface AlicizationMainChatStreamRunnerResult {
   finishReason: string
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
+  visibleReplyCritic?: AlicizationVisibleReplyCriticArtifact | null
+  visibleReplyClosure?: AlicizationVisibleReplyClosureArtifact | null
 }
 
 export interface AlicizationMainChatStreamMetaController {
@@ -35,6 +42,8 @@ export interface AlicizationMainChatStreamMetaController {
 interface AlicizationStructuredVisibleReplyRewriteInput {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
+  critic?: AlicizationVisibleReplyCriticArtifact | null
+  closure?: AlicizationVisibleReplyClosureArtifact | null
 }
 
 interface RunAlicizationMainChatStreamOptions {
@@ -74,6 +83,7 @@ interface RunAlicizationMainChatStreamOptions {
   }) => Promise<void> | void
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void>
   rewriteStructuredVisibleReply?: (input: AlicizationStructuredVisibleReplyRewriteInput) => Promise<AlicizationStructuredVisibleReplyRewriteInput | null> | AlicizationStructuredVisibleReplyRewriteInput | null
+  delayVisibleRelease?: boolean
   streamTextImpl?: StreamTextInvoker
 }
 
@@ -123,19 +133,22 @@ export async function runAlicizationMainChatStream(
     }) ?? null
     const visualFullText = shapedVisualOneShot?.fullText ?? visualOneShot.fullText ?? ''
     const visualReplyExecution = shapedVisualOneShot?.visibleReplyExecution ?? initialVisibleReplyExecution
-    if (visualFullText && input.isRunActive()) {
-      input.incrementChunkStats(visualFullText)
-      input.streamMeta.emit(visualFullText)
+    const visualVisibleText = deriveAlicizationVisibleReplyText(visualFullText)
+    if (visualVisibleText && input.isRunActive()) {
+      input.incrementChunkStats(visualVisibleText)
+      input.streamMeta.emit(visualVisibleText)
       input.emitChunk({
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
-        text: visualFullText,
+        text: visualVisibleText,
       })
     }
     return {
       finishReason: visualOneShot.finishReason || 'stop',
       fullText: visualFullText,
       visibleReplyExecution: visualReplyExecution,
+      ...(shapedVisualOneShot?.critic ? { visibleReplyCritic: shapedVisualOneShot.critic } : {}),
+      ...(shapedVisualOneShot?.closure ? { visibleReplyClosure: shapedVisualOneShot.closure } : {}),
     }
   }
 
@@ -148,7 +161,8 @@ export async function runAlicizationMainChatStream(
   let sawProgressEvent = false
   let sawAnyEvent = false
   let firstEventGraceApplied = false
-  const shouldDelayStructuredRelease = Boolean(input.rewriteStructuredVisibleReply)
+  const shouldDelayVisibleRelease = input.delayVisibleRelease === true
+  const shouldDelayStructuredRelease = Boolean(input.rewriteStructuredVisibleReply) || shouldDelayVisibleRelease
   const firstEventGraceTimeoutMs = Math.max(
     1_000,
     Math.min(12_000, Math.floor(input.firstEventTimeoutMs * 0.2)),
@@ -296,6 +310,8 @@ export async function runAlicizationMainChatStream(
             return
           const rawDelta = readRawTextDelta(event.text)
           fullText += rawDelta
+          if (shouldDelayVisibleRelease)
+            return
           const shouldBufferStructured = bufferingStructuredPrelude
             || shouldBufferAlicizationStructuredSpeechPrelude(fullText)
           if (shouldBufferStructured) {
@@ -446,7 +462,9 @@ export async function runAlicizationMainChatStream(
     providerMindExecuted: true,
     reason: 'provider-stream',
   })
-  if (bufferingStructuredPrelude && shouldDelayStructuredRelease) {
+  let visibleReplyCritic: AlicizationVisibleReplyCriticArtifact | null = null
+  let visibleReplyClosure: AlicizationVisibleReplyClosureArtifact | null = null
+  if ((bufferingStructuredPrelude || shouldDelayVisibleRelease) && input.rewriteStructuredVisibleReply) {
     const shaped = await input.rewriteStructuredVisibleReply?.({
       fullText,
       visibleReplyExecution,
@@ -454,13 +472,28 @@ export async function runAlicizationMainChatStream(
     if (shaped) {
       fullText = shaped.fullText
       visibleReplyExecution = shaped.visibleReplyExecution
+      visibleReplyCritic = shaped.critic ?? null
+      visibleReplyClosure = shaped.closure ?? null
     }
+  }
+  if (shouldDelayVisibleRelease) {
+    const visibleReleaseText = deriveAlicizationVisibleReplyText(fullText)
+    if (visibleReleaseText) {
+      emitVisibleDelta(visibleReleaseText)
+      appendStreamDebugLine('chat-stream.visible-release-after-closure', {
+        elapsedMs: Date.now() - startedAt,
+        visibleChars: visibleReleaseText.length,
+        closureStatus: visibleReplyClosure?.status ?? null,
+      })
+    }
+  }
+  else if (bufferingStructuredPrelude && shouldDelayStructuredRelease) {
     if (flushStructuredVisibleReply() && !releasedStructuredReply) {
       releasedStructuredReply = true
       appendStreamDebugLine('chat-stream.structured-prelude-released', {
         elapsedMs: Date.now() - startedAt,
         visibleChars: visibleText.length,
-        afterRewrite: Boolean(shaped),
+        afterRewrite: Boolean(visibleReplyClosure),
       })
     }
   }
@@ -469,5 +502,7 @@ export async function runAlicizationMainChatStream(
     finishReason,
     fullText,
     visibleReplyExecution,
+    ...(visibleReplyCritic ? { visibleReplyCritic } : {}),
+    ...(visibleReplyClosure ? { visibleReplyClosure } : {}),
   }
 }

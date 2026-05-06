@@ -13,6 +13,16 @@ import {
 
 import { parseJsonObjectFromText } from '../runtime-transport-content'
 
+export interface AlicizationVisibleReplyClosureArtifact {
+  version: 'visible-reply-closure-v1'
+  status: 'approved' | 'rewritten' | 'blocked'
+  initialCritic: AlicizationVisibleReplyCriticArtifact | null
+  finalCritic: AlicizationVisibleReplyCriticArtifact | null
+  rewriteAttempted: boolean
+  rewriteSucceeded: boolean
+  reasonCodes: string[]
+}
+
 export interface AlicizationVisibleReplyRealizationArtifact {
   version: 'visible-reply-realization-v1'
   expectedAuthority: 'llm-mind' | 'llm-second-pass-rewrite'
@@ -24,6 +34,7 @@ export interface AlicizationVisibleReplyRealizationArtifact {
   blockedReasons: string[]
   reason: string | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
+  closure?: AlicizationVisibleReplyClosureArtifact | null
 }
 
 export interface AlicizationResolvedVisibleReply {
@@ -136,6 +147,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   fullText?: string | null
   visibleReplyExecution: AlicizationVisibleReplyExecution
   critic?: AlicizationVisibleReplyCriticArtifact | null
+  closure?: AlicizationVisibleReplyClosureArtifact | null
 }): AlicizationVisibleReplyRealizationArtifact {
   const localDeterministicFallback = isLocalDeterministicVisibleFallback(input.visibleReplyExecution)
   const visibleText = localDeterministicFallback
@@ -157,6 +169,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     blockedReasons,
     reason: input.visibleReplyExecution.reason,
     critic: input.critic ?? null,
+    closure: input.closure ?? null,
   }
 }
 
@@ -206,11 +219,13 @@ export function buildAlicizationResolvedVisibleReply(input: {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
   critic?: AlicizationVisibleReplyCriticArtifact | null
+  closure?: AlicizationVisibleReplyClosureArtifact | null
 }): AlicizationResolvedVisibleReply {
   const realization = buildAlicizationVisibleReplyRealizationArtifact({
     fullText: input.fullText,
     visibleReplyExecution: input.visibleReplyExecution,
     critic: input.critic ?? null,
+    closure: input.closure ?? null,
   })
   return {
     fullText: input.fullText,

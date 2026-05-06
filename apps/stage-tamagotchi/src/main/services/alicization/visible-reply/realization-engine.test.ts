@@ -82,12 +82,22 @@ describe('visible-reply-realization-engine', () => {
         mustDrop: [],
         mustPreserve: [],
       },
+      closure: {
+        version: 'visible-reply-closure-v1',
+        status: 'approved',
+        initialCritic: null,
+        finalCritic: null,
+        rewriteAttempted: false,
+        rewriteSucceeded: false,
+        reasonCodes: [],
+      },
     })
 
     expect(resolved.visibleText).toBe('先回答你真正关心的点。')
     expect(resolved.realization.providerMindExecuted).toBe(true)
     expect(resolved.realization.nonHumanAuthoredStatus).toBeNull()
     expect(resolved.realization.critic?.status).toBe('pass')
+    expect(resolved.realization.closure?.status).toBe('approved')
   })
 
   it('downgrades provider-mode replies to infra fallback when provider mind did not execute', () => {

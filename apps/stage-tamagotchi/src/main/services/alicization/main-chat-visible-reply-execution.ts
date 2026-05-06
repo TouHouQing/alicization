@@ -1,4 +1,5 @@
 export type {
+  AlicizationVisibleReplyClosureArtifact,
   AlicizationResolvedVisibleReply,
   AlicizationVisibleReplyRealizationArtifact,
 } from './visible-reply/realization-engine'

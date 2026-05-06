@@ -93,9 +93,9 @@
 - [ ] 迁入 `main-chat-runtime-surface.ts`
 - [ ] 迁入 `response-surface-contract.ts`
 - [ ] 迁入 `response-charter.ts`
-- [ ] 接管 timeout / required-tool-recovery / active-dialogue / callback / background-run 的 visible reply 选择逻辑
-- [ ] 普通路径删除 deterministic 拟人正文 fallback
-- [ ] provider 不可用时统一进入 hold / retry / explicit-unavailable lane
+- [x] 接管 timeout / required-tool-recovery / active-dialogue / callback / background-run 的 visible reply 选择逻辑
+- [x] 普通路径删除 deterministic 拟人正文 fallback
+- [x] provider 不可用时统一进入 hold / retry / explicit-unavailable lane
 
 ## Wave 3：Memory OS 抽离
 
@@ -108,7 +108,7 @@
 - [x] 抽离 `memory-settlement`
 - [ ] `runtime-organic-memory-prompt.ts` 降级为 prompt compiler，而不是记忆总运行时
 - [x] recall / precision / wrong-thread / unsupported-specificity 指标直接写入 replay gate
-- [ ] 记忆外显只输出姿态和约束，不输出固定壳句模板
+- [x] 记忆外显只输出姿态和约束，不输出固定壳句模板
 
 ## Wave 4：Self Evolution OS 闭环
 
@@ -124,12 +124,12 @@
 ## Wave 5：Proactive Mind 分层
 
 - [x] 新增 `proactive-mind/` 目录
-- [ ] 把 proactive 控制决策和 visible utterance request 分层
-- [ ] deterministic 路径只负责是否打断、是否提醒、是否重试、是否发起工具
+- [x] 把 proactive 控制决策和 visible utterance request 分层
+- [x] deterministic 路径只负责是否打断、是否提醒、是否重试、是否发起工具
 - [ ] proactive visible utterance 全部接到 realization engine
 - [ ] `runtime-subconscious-tick.ts` 切分 control lane 与 visible lane
-- [ ] `runtime-delivery-reminders.ts` 去掉 deterministic 拟人正文出口
-- [ ] provider 不可用时主动话语只 requeue / hold，不伪装回复完成
+- [x] `runtime-delivery-reminders.ts` 去掉 deterministic 拟人正文出口
+- [x] provider 不可用时主动话语只 requeue / hold，不伪装回复完成
 
 ## Wave 6：Replay Gate 最终交付化
 
@@ -212,9 +212,28 @@ result:
 
 result:
 - normal authority contract 已收窄
-- local deterministic fallback 仍存在 execution metadata 与部分 visible fallback lane
-- subconscious / reminder 仍存在 deterministic visible surface 路径
-- replay gate 已有基础，但还未成为唯一 ship gate
+- main stream visible release now waits for visible-reply closure before emitting user-visible text
+- visual grounding one-shot emits only the governed `reply` field, not raw structured JSON
+- local deterministic fallback is blocked from normal visible reply persistence and proactive visible utterance persistence
+- subconscious reminder / execution callback paths requeue or hold when provider mind text is unavailable
+- subconscious reminder / execution callback persisted turns now carry explicit `visibleReplyAuthority=llm-mind` and `replyRealizationMode=provider-mind-required`
+- replay gate 已有基础，并覆盖 authority leak / local fallback / self revision / memory closure 指标
+
+- [x] 本轮 visible reply closure / proactive hold-requeue / replay gate 收敛已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/closure-orchestrator.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.ts`
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-second-pass-rewrite.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts apps/stage-tamagotchi/src/main/services/alicization/reply-authority-invariants.test.ts`
 
 ## 实施顺序
 

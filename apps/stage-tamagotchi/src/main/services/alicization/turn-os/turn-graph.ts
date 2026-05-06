@@ -54,6 +54,14 @@ export interface AlicizationTurnGraph {
   learning: {
     selfEvolutionKernelVersion: string | null
     nextLearningAction: string | null
+    memoryOutcome: {
+      usedCandidateIds: string[]
+      surfacedCandidateIds: string[]
+      suppressedCandidateIds: string[]
+      wrongThreadCandidateIds: string[]
+      conflictCandidateIds: string[]
+      feedbackSignal: 'pending' | 'confirmed' | 'corrected' | 'rejected' | null
+    }
   }
   telemetry: {
     canonicalStageOrder: AlicizationTurnGraphStage[]
@@ -114,6 +122,18 @@ export function buildAlicizationTurnGraph(input: {
     learning: {
       selfEvolutionKernelVersion: selfEvolution?.version ?? null,
       nextLearningAction: selfEvolution?.nextLearningAction ?? null,
+      memoryOutcome: {
+        usedCandidateIds: input.memory?.candidates.selectedCandidateIds ?? [],
+        surfacedCandidateIds: input.memory?.visibleMemoryGate.status === 'open' || input.memory?.visibleMemoryGate.status === 'gist-only'
+          ? input.memory.candidates.selectedCandidateIds
+          : [],
+        suppressedCandidateIds: input.memory?.visibleMemoryGate.status === 'closed' || input.memory?.visibleMemoryGate.status === 'inward-only'
+          ? input.memory.candidates.selectedCandidateIds
+          : [],
+        wrongThreadCandidateIds: input.memory?.competition.wrongThreadCandidateIds ?? [],
+        conflictCandidateIds: input.memory?.competition.conflictCandidateIds ?? [],
+        feedbackSignal: 'pending',
+      },
     },
     telemetry: {
       canonicalStageOrder: [...alicizationTurnGraphCanonicalStageOrder],

@@ -3,6 +3,29 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationFinalReplayGateReport } from './final-gates'
 
 describe('final replay gates', () => {
+  it('passes only when memory, reply authority, and learning loop standards all meet final thresholds', () => {
+    const report = buildAlicizationFinalReplayGateReport({
+      retrievalHealth: {
+        recallAt3: 0.9,
+        precisionAt3: 0.86,
+        wrongThreadRate: 0,
+        templateLeakageFailCount: 0,
+        unsupportedSpecificityVisibleFailCount: 0,
+        turnOsTraceCoverage: 1,
+        learningOutcomeToSelfRevisionRoundtrip: 1,
+        memoryClosureCoverage: 1,
+        memoryClosureConflictClosureRate: 1,
+        memoryClosureLowQualityWithholdRate: 1,
+        memoryClosureUncertaintyLabelRate: 1,
+      },
+      authorityLeakCount: 0,
+      localHumanlikeVisibleFallbackCount: 0,
+    })
+
+    expect(report.passed).toBe(true)
+    expect(report.failingKeys).toEqual([])
+  })
+
   it('fails when recall, precision, authority, or visible fallback violate final ship standards', () => {
     const report = buildAlicizationFinalReplayGateReport({
       retrievalHealth: {
