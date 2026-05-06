@@ -479,6 +479,7 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       selectedCandidateCount: turnGraph.memory?.metrics.selectedCandidateCount ?? null,
       wrongThreadSuppressedCount: turnGraph.memory?.metrics.wrongThreadSuppressedCount ?? null,
       unsupportedSpecificityBlockedCount: turnGraph.memory?.metrics.unsupportedSpecificityBlockedCount ?? null,
+      conflictCandidateCount: turnGraph.memory?.metrics.conflictCandidateCount ?? null,
       recallReadiness: turnGraph.memory?.metrics.recallReadiness ?? null,
       precisionProxy: turnGraph.memory?.metrics.precisionProxy ?? null,
       wrongThreadRisk: turnGraph.memory?.metrics.wrongThreadRisk ?? null,
@@ -491,6 +492,9 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
       actualAuthority: turnGraph.surface?.actualAuthority ?? null,
       providerMindExecuted: turnGraph.surface?.providerMindExecuted ?? null,
       blockedReasons: [...(turnGraph.surface?.blockedReasons ?? [])],
+      criticStatus: turnGraph.surface?.critic?.status ?? null,
+      criticReasonCodes: [...(turnGraph.surface?.critic?.reasonCodes ?? [])],
+      criticScores: turnGraph.surface?.critic?.scores ?? null,
     },
     learning: {
       selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,

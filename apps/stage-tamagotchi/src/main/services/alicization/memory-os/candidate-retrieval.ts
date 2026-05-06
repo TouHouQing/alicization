@@ -124,11 +124,35 @@ function trustForProvenance(provenance: string | null) {
   return 0.62
 }
 
-function recencyScoreFromTimestamp(timestamp: number | null) {
-  if (timestamp == null)
+function recencyScoreFromTimestamp(input: {
+  timestamp: number | null
+  referenceNow: number | null
+}) {
+  if (input.timestamp == null || input.referenceNow == null)
     return null
-  const ageDays = Math.max(0, (Date.now() - timestamp) / (24 * 60 * 60 * 1000))
+  const ageDays = Math.max(0, (input.referenceNow - input.timestamp) / (24 * 60 * 60 * 1000))
   return Math.max(0.2, Math.min(1, Number((1 / (1 + ageDays / 30)).toFixed(2))))
+}
+
+function collectCandidateReferenceNow(context: OrganicMemoryPromptContext, explicitNow?: number | null) {
+  if (Number.isFinite(explicitNow))
+    return Math.max(0, Number(explicitNow))
+  if (Number.isFinite(context.memoryResolutionLedger?.producedAt))
+    return Math.max(0, Number(context.memoryResolutionLedger?.producedAt))
+
+  const timestamps = [
+    ...context.retrievedFacts.map(itemUpdatedAt),
+    ...context.recalledFragments.map(itemUpdatedAt),
+    ...(context.recalledEpisodes ?? []).map(itemUpdatedAt),
+    ...(context.recalledConversationHistory ?? []).map(itemUpdatedAt),
+    ...(context.recollectedWindows ?? []).map(itemUpdatedAt),
+    ...(context.consolidatedMemories ?? []).map(itemUpdatedAt),
+    ...(context.proceduralMemories ?? []).map(itemUpdatedAt),
+  ].filter((value): value is number => value != null)
+
+  return timestamps.length > 0
+    ? Math.max(...timestamps)
+    : null
 }
 
 function deriveRanking(input: {
@@ -136,6 +160,7 @@ function deriveRanking(input: {
   selected: boolean
   confidence: number | null
   provenance: string | null
+  referenceNow: number | null
 }) {
   const record = asRecord(input.raw)
   const semanticSimilarity = clamp01(
@@ -145,7 +170,10 @@ function deriveRanking(input: {
   const graphAffinity = record?.graphAffinity != null || record?.graphScore != null
     ? clamp01(record?.graphAffinity ?? record?.graphScore)
     : null
-  const recencyScore = recencyScoreFromTimestamp(itemUpdatedAt(input.raw))
+  const recencyScore = recencyScoreFromTimestamp({
+    timestamp: itemUpdatedAt(input.raw),
+    referenceNow: input.referenceNow,
+  })
   const provenanceTrust = trustForProvenance(input.provenance)
   const relationshipThreadMatch = record?.relationshipThreadMatch != null || record?.threadMatch != null
     ? clamp01(record?.relationshipThreadMatch ?? record?.threadMatch)
@@ -212,6 +240,7 @@ function appendCandidates(input: {
   kind: AlicizationMemoryCandidateKind
   items: unknown[]
   selected: Set<string>
+  referenceNow: number | null
 }) {
   for (const [index, item] of input.items.entries()) {
     const id = itemId(item, `${input.kind}:${index + 1}`)
@@ -230,6 +259,7 @@ function appendCandidates(input: {
         selected,
         confidence,
         provenance,
+        referenceNow: input.referenceNow,
       }),
     })
   }
@@ -237,50 +267,59 @@ function appendCandidates(input: {
 
 export function deriveAlicizationMemoryCandidateRetrieval(input: {
   context: OrganicMemoryPromptContext
+  nowMs?: number | null
 }): AlicizationMemoryCandidateRetrievalArtifact {
   const selected = selectedIds(input.context)
+  const referenceNow = collectCandidateReferenceNow(input.context, input.nowMs)
   const candidates: AlicizationMemoryCandidateRetrievalItem[] = []
   appendCandidates({
     result: candidates,
     kind: 'fact',
     items: input.context.retrievedFacts,
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'fragment',
     items: input.context.recalledFragments,
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'episode',
     items: input.context.recalledEpisodes ?? [],
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'conversation',
     items: input.context.recalledConversationHistory ?? [],
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'window',
     items: input.context.recollectedWindows ?? [],
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'consolidation',
     items: input.context.consolidatedMemories ?? [],
     selected,
+    referenceNow,
   })
   appendCandidates({
     result: candidates,
     kind: 'procedure',
     items: input.context.proceduralMemories ?? [],
     selected,
+    referenceNow,
   })
 
   const counts = candidates.reduce<Record<AlicizationMemoryCandidateKind, number>>((acc, item) => {

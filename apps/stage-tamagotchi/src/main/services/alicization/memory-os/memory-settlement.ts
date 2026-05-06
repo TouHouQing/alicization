@@ -34,6 +34,7 @@ export interface AlicizationMemorySettlementArtifact {
     precisionProxy: number
     wrongThreadRisk: number
     latencyPressure: number
+    conflictCandidateCount: number
   }
   visibleMemoryGate: {
     status: 'open' | 'gist-only' | 'inward-only' | 'closed'
@@ -131,6 +132,9 @@ function deriveRetrievalQualitySignals(input: {
   const wrongThreadSuppressionRatio = input.competition.candidateCount <= 0
     ? 0
     : clamp01(input.competition.wrongThreadSuppressedCount / input.competition.candidateCount)
+  const conflictCandidateRatio = input.competition.candidateCount <= 0
+    ? 0
+    : clamp01(input.competition.conflictCandidateIds.length / input.competition.candidateCount)
   const unsupportedSpecificityRatio = input.competition.candidateCount <= 0
     ? 0
     : clamp01(input.unsupportedSpecificityBlockedCount / input.competition.candidateCount)
@@ -147,12 +151,14 @@ function deriveRetrievalQualitySignals(input: {
     + (selectedThreadMatch || 0.55) * 0.18
     - selectedConflictPenalty * 0.24
     - wrongThreadSuppressionRatio * 0.28
+    - conflictCandidateRatio * 0.16
     - unsupportedSpecificityRatio * 0.22
     - conflictSeverityPenalty,
   )
   const wrongThreadRisk = clamp01(
     wrongThreadSuppressionRatio * 0.54
     + selectedConflictPenalty * 0.2
+    + conflictCandidateRatio * 0.22
     + conflictSeverityPenalty * 0.44
     + unsupportedSpecificityRatio * 0.22,
   )
@@ -163,6 +169,7 @@ function deriveRetrievalQualitySignals(input: {
     precisionProxy,
     wrongThreadRisk,
     latencyPressure,
+    conflictCandidateCount: input.competition.conflictCandidateIds.length,
   }
 }
 

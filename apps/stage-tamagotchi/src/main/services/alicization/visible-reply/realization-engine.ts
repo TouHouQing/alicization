@@ -3,6 +3,7 @@ import type {
   AlicizationVisibleReplyExecutionMode,
 } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
+import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 
 import { looksLikeAlicizationStructuredPayloadText } from '@proj-alicization/stage-shared'
 import {
@@ -22,6 +23,7 @@ export interface AlicizationVisibleReplyRealizationArtifact {
   nonHumanAuthoredStatus: string | null
   blockedReasons: string[]
   reason: string | null
+  critic?: AlicizationVisibleReplyCriticArtifact | null
 }
 
 export interface AlicizationResolvedVisibleReply {
@@ -133,6 +135,7 @@ export function createAlicizationVisibleReplyExecution(input: {
 export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   fullText?: string | null
   visibleReplyExecution: AlicizationVisibleReplyExecution
+  critic?: AlicizationVisibleReplyCriticArtifact | null
 }): AlicizationVisibleReplyRealizationArtifact {
   const localDeterministicFallback = isLocalDeterministicVisibleFallback(input.visibleReplyExecution)
   const visibleText = localDeterministicFallback
@@ -153,6 +156,7 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
       : null,
     blockedReasons,
     reason: input.visibleReplyExecution.reason,
+    critic: input.critic ?? null,
   }
 }
 
@@ -201,10 +205,12 @@ export function deriveAlicizationVisibleReplyText(rawText: string) {
 export function buildAlicizationResolvedVisibleReply(input: {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
+  critic?: AlicizationVisibleReplyCriticArtifact | null
 }): AlicizationResolvedVisibleReply {
   const realization = buildAlicizationVisibleReplyRealizationArtifact({
     fullText: input.fullText,
     visibleReplyExecution: input.visibleReplyExecution,
+    critic: input.critic ?? null,
   })
   return {
     fullText: input.fullText,

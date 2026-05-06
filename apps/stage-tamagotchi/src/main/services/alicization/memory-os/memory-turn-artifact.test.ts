@@ -82,6 +82,7 @@ describe('memory-turn-artifact', () => {
         },
       } as any,
       latencyMs: 42,
+      nowMs: 42,
     })
 
     expect(artifact.policySnapshotId).toBe('policy-turn-1')
@@ -129,5 +130,83 @@ describe('memory-turn-artifact', () => {
       'visible-memory-gate-inward-only',
       'uncertainty-label-required',
     ]))
+  })
+
+  it('uses explicit nowMs for deterministic recency and detects wrong-thread candidates from retrieval signals', () => {
+    const freshAt = 1_000_000
+    const oldAt = freshAt - 90 * 24 * 60 * 60 * 1000
+    const artifact = buildAlicizationMemoryTurnArtifact({
+      context: {
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [{
+          id: 'fresh-selected',
+          confidence: 0.8,
+          provenance: 'remembered',
+          semanticScore: 0.72,
+          relationshipThreadMatch: 0.82,
+          updatedAt: freshAt,
+        } as any],
+        recalledFragments: [{
+          id: 'wrong-thread-candidate',
+          confidence: 0.74,
+          provenance: 'remembered',
+          semanticScore: 0.78,
+          relationshipThreadMatch: 0.18,
+          conflictPenalty: 0.62,
+          updatedAt: oldAt,
+        } as any],
+        memoryDeliberation: {
+          shouldRecall: true,
+          selectedEraIds: [],
+          selectedConsolidationIds: [],
+          selectedWindowIds: [],
+          selectedProcedureIds: [],
+          selectedEpisodeIds: [],
+          selectedConversationTurnIds: [],
+          selectedBundles: [{
+            id: 'bundle-current-thread',
+            summary: 'Use current thread.',
+            confidence: 0.81,
+            periodId: null,
+            episodeId: null,
+            procedureId: null,
+            conversationTurnId: null,
+            relationshipLine: null,
+          }],
+          stableCore: ['Use current thread.'],
+          unsafeDetails: [],
+          conflictSeverity: 'low',
+          surfacePolicy: 'gist-first',
+          ambiguityPosture: 'approximate',
+          whyNow: 'Compare current and wrong thread.',
+          inwardLine: 'Reject wrong thread.',
+          confidence: 0.81,
+        } as any,
+        recollectionSpeechPlan: {
+          shouldSurface: true,
+          surfaceMode: 'gist-first',
+          placement: 'inside-payoff',
+          certainty: 'approximate',
+          confidence: 0.81,
+        } as any,
+      },
+      latencyMs: 20,
+      nowMs: freshAt,
+    })
+
+    const fresh = artifact.candidates.topRankedCandidates.find(candidate => candidate.id === 'fresh-selected')
+    const wrong = artifact.candidates.topRankedCandidates.find(candidate => candidate.id === 'wrong-thread-candidate')
+    expect(fresh?.reasons).toContain('recency-signal')
+    expect(wrong?.reasons).toEqual(expect.arrayContaining([
+      'recency-signal',
+      'conflict-penalty',
+      'relationship-thread-match',
+    ]))
+    expect(artifact.competition.wrongThreadCandidateIds).toContain('wrong-thread-candidate')
+    expect(artifact.competition.conflictCandidateIds).toContain('wrong-thread-candidate')
+    expect(artifact.metrics.conflictCandidateCount).toBe(1)
+    expect(artifact.metrics.wrongThreadRisk).toBeGreaterThan(0.2)
   })
 })

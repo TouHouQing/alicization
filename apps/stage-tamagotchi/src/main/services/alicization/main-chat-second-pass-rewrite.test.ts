@@ -139,6 +139,56 @@ describe('main-chat-second-pass-rewrite', () => {
     ]))
   })
 
+  it('forces provider-authored repair for unstructured visible drafts', async () => {
+    const provider = vi.fn(async (_input: ProviderCall) => ({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-host-turn; move=answer-without-unsupported-screen-detail; tone=warm',
+        emotion: 'thinking',
+        reply: '我不能把没确认的画面细节说成真的；你这句我会先按当前对话本身接住。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    }))
+
+    const result = await rewriteAlicizationVisibleReplySecondPass({
+      cardId: 'card-1',
+      turnId: 'turn-plain-draft',
+      sessionId: 'session-1',
+      userText: '你仔细看看呢',
+      rawFullText: '我先直接回答你。我记得上次你就在 IntelliJ IDEA 里改这个东西。',
+      prepared: createPrepared(),
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'provider-stream',
+      },
+      provider,
+      forceRewrite: true,
+      forceReasonCodes: ['dialogue-shell-opener', 'unsupported-surface-specificity'],
+    })
+
+    const structured = JSON.parse(result.fullText) as Record<string, unknown>
+    expect(result.rewritten).toBe(true)
+    expect(result.reason).toBe('visible-reply-second-pass-rewrite')
+    expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    expect(structured.parsePath).toBe('second-pass-json')
+    expect(String(structured.reply ?? '')).not.toContain('IntelliJ IDEA')
+    expect(String(structured.reply ?? '')).not.toContain('我先直接回答')
+    expect(provider).toHaveBeenCalledOnce()
+    const providerInput = provider.mock.calls[0]?.[0]
+    expect(String(providerInput?.messages.at(-1)?.content ?? '')).toContain('forced_second_pass_input=unstructured_visible_draft')
+    expect(String(providerInput?.messages.at(-1)?.content ?? '')).toContain('我先直接回答你')
+  })
+
   it('uses an explicit transport failure surface instead of replaying contaminated draft text', () => {
     const result = buildAlicizationSecondPassTransportFailureReply({
       governedStructured: {

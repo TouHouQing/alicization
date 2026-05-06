@@ -532,6 +532,109 @@ describe('main chat background run', () => {
     }))
   })
 
+  it('repairs unstructured visible replies when the critic detects shell and unsupported specificity', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockImplementationOnce(async (streamInput: any) => {
+      const visibleReplyExecution = createStreamResult().visibleReplyExecution
+      const shaped = await streamInput.rewriteStructuredVisibleReply({
+        fullText: '我先直接回答你。我记得上次你就在 IntelliJ IDEA 里改这个东西。',
+        visibleReplyExecution,
+      })
+      return createStreamResult({
+        fullText: shaped?.fullText ?? '我先直接回答你。我记得上次你就在 IntelliJ IDEA 里改这个东西。',
+        visibleReplyExecution: shaped?.visibleReplyExecution ?? visibleReplyExecution,
+      })
+    })
+    vi.mocked(generateAlicizationMainChatNonStreaming).mockResolvedValueOnce({
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'obligation=answer; truth=dialogue-grounded; focus=current-turn; move=answer-without-unsupported-screen-detail; tone=direct-warm',
+        emotion: 'thinking',
+        reply: '这次我只按你现在这句话来接：先把当前问题说清楚，不把没证据的画面细节当事实。',
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+    })
+    const input = createInput({
+      key: 'card-1::turn-visible-critic',
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-visible-critic',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '你仔细看看呢' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(createPrepared({
+        messages: [
+          { role: 'user' as const, content: '你仔细看看呢' },
+        ] as Message[],
+        governance: {
+          decisionTraceId: 'trace-visible-critic',
+          turnMode: 'answer',
+          truthState: 'dialogue-grounded',
+          personaKernelMode: 'full',
+          answerSubject: 'general',
+          screenReferenceMode: 'avoid',
+          answerAct: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          repairState: 'none',
+          liveSurface: 'Finder',
+          focusAnchor: '你仔细看看呢',
+          answerIntent: 'Answer the current dialogue turn without inventing screen detail.',
+          openingMove: 'Start from the current turn.',
+          suppressAssociativeRecall: true,
+          labelCarryAsMemory: false,
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          maxSentences: 3,
+          mindMode: 'tracking',
+          embodiedPresence: 'steady',
+          emotionalTension: 'calm',
+          mustDo: [],
+          mustNotDo: [],
+        },
+        replyRealization: {
+          replyRealizationMode: 'provider-mind-required',
+        },
+        memoryTurnArtifact: {
+          visibleMemoryGate: {
+            status: 'inward-only',
+          },
+        },
+      })),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const finishedPayload = readFinishedPayload(input)
+    const finishedStructured = parseStructuredMindTurn(String(finishedPayload?.fullText ?? ''))
+    expect(finishedStructured.reply).not.toContain('IntelliJ IDEA')
+    expect(finishedStructured.reply).not.toContain('我先直接回答')
+    expect(finishedStructured.reply).not.toContain('上次')
+    expect(finishedPayload?.visibleReplyExecution).toEqual(expect.objectContaining({
+      expectedVisibleReplyAuthority: 'llm-second-pass-rewrite',
+      actualVisibleReplyAuthority: 'llm-second-pass-rewrite',
+      providerMindExecuted: true,
+    }))
+    expect(generateAlicizationMainChatNonStreaming).toHaveBeenCalledOnce()
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.visible-reply-second-pass-started', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-visible-critic',
+      reasons: expect.arrayContaining([
+        'dialogue-shell-opener',
+        'unsupported-surface-specificity',
+      ]),
+    }))
+  })
+
   it('serves current time turns from the active dialogue local lane instead of inheriting stale continuity', async () => {
     const input = createInput({
       key: 'card-1::turn-time',

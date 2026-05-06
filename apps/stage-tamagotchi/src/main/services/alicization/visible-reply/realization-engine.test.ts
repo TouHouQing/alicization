@@ -66,11 +66,28 @@ describe('visible-reply-realization-engine', () => {
         providerMindExecuted: true,
         reason: 'mind-turn-contract',
       },
+      critic: {
+        version: 'visible-reply-critic-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        scores: {
+          memoryGateCompliance: 1,
+          templateDiscipline: 1,
+          truthSpecificity: 1,
+          payoffCompletion: 1,
+          personaAffectCoherence: 1,
+        },
+        reasonCodes: [],
+        repairReasonCodes: [],
+        mustDrop: [],
+        mustPreserve: [],
+      },
     })
 
     expect(resolved.visibleText).toBe('先回答你真正关心的点。')
     expect(resolved.realization.providerMindExecuted).toBe(true)
     expect(resolved.realization.nonHumanAuthoredStatus).toBeNull()
+    expect(resolved.realization.critic?.status).toBe('pass')
   })
 
   it('downgrades provider-mode replies to infra fallback when provider mind did not execute', () => {

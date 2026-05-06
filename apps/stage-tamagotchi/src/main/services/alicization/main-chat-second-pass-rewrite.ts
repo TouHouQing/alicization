@@ -124,6 +124,34 @@ function buildForcedSecondPassRewriteRequest(reasonCodes?: string[]) {
   }
 }
 
+function buildForcedOriginalStructuredDraft(input: {
+  rawFullText: string
+  forceReasonCodes?: string[]
+}) {
+  const rawDraft = sanitizeText(input.rawFullText).slice(0, 2_000)
+  return {
+    format: 'mind-turn-v1',
+    thought: 'forced_second_pass_input=unstructured_visible_draft; rule_layer_must_not_author_visible_reply',
+    emotion: 'thinking',
+    reply: rawDraft,
+    performance: {
+      baseEmotion: 'thinking',
+      facialCue: null,
+      actionCue: null,
+      delivery: 'calm',
+      emphasis: 0,
+    },
+    visibleReplyAuthority: 'llm-second-pass-rewrite',
+    visibleReplyRewriteRequest: buildForcedSecondPassRewriteRequest([
+      'unstructured-visible-draft',
+      ...(input.forceReasonCodes ?? []),
+    ]),
+    parsePath: 'forced-unstructured-visible-draft',
+    formatBeforeRewrite: null,
+    contractFailed: true,
+  }
+}
+
 function buildCandidateConversationTurn(input: {
   rawStructured: Record<string, unknown>
   prepared: AlicizationPreparedMainChatExecutionResult
@@ -279,7 +307,16 @@ export async function rewriteAlicizationVisibleReplySecondPass(
   input: AlicizationSecondPassRewriteOptions,
 ): Promise<AlicizationSecondPassRewriteResult> {
   const parsedOriginal = parseJsonObjectFromText(input.rawFullText)
+  const shouldForceRewrite = input.forceRewrite === true
   const originalStructured = normalizeStructuredObject(parsedOriginal)
+    ?? (
+      shouldForceRewrite
+        ? buildForcedOriginalStructuredDraft({
+            rawFullText: input.rawFullText,
+            forceReasonCodes: input.forceReasonCodes,
+          })
+        : null
+    )
   if (!originalStructured) {
     return {
       fullText: input.rawFullText,
@@ -300,7 +337,6 @@ export async function rewriteAlicizationVisibleReplySecondPass(
   const governed = coerceConversationTurnToMindGovernedPayload(candidateTurn, input.prepared.performanceManifest)
   const governedStructured = normalizeStructuredObject(governed.payload.structured)
   const rewriteRequest = normalizeStructuredObject(governedStructured?.visibleReplyRewriteRequest)
-  const shouldForceRewrite = input.forceRewrite === true
   const effectiveRewriteRequest = rewriteRequest ?? (
     shouldForceRewrite
       ? buildForcedSecondPassRewriteRequest(input.forceReasonCodes)

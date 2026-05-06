@@ -40,6 +40,8 @@ export interface AlicizationMemoryTurnArtifact {
     candidateCount: number
     selectedCandidateCount: number
     wrongThreadSuppressedCount: number
+    wrongThreadCandidateIds: string[]
+    conflictCandidateIds: string[]
     conflictSeverity: 'none' | 'low' | 'medium' | 'high'
   }
   deliberation: {
@@ -84,6 +86,7 @@ export interface AlicizationMemoryTurnArtifact {
     precisionProxy: number
     wrongThreadRisk: number
     latencyPressure: number
+    conflictCandidateCount: number
   }
   visibleMemoryGate: {
     status: 'open' | 'gist-only' | 'inward-only' | 'closed'
@@ -99,6 +102,7 @@ export function buildAlicizationMemoryTurnArtifact(input: {
   context: OrganicMemoryPromptContext
   retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
   latencyMs?: number | null
+  nowMs?: number | null
 }): AlicizationMemoryTurnArtifact {
   const { context } = input
   const recalledEpisodes = context.recalledEpisodes?.length ?? 0
@@ -108,6 +112,7 @@ export function buildAlicizationMemoryTurnArtifact(input: {
   const proceduralMemories = context.proceduralMemories?.length ?? 0
   const retrieval = deriveAlicizationMemoryCandidateRetrieval({
     context,
+    nowMs: input.nowMs,
   })
   const competition = deriveAlicizationMemoryCandidateCompetition({
     context,

@@ -407,6 +407,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       context: organicPromptContext,
       retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
       latencyMs: getNow() - organicMemoryContextStartedAt,
+      nowMs: getNow(),
     })
     await runOrganicLearningGovernor({
       agentTurn,

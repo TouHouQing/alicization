@@ -121,3 +121,13 @@ export function buildAlicizationTurnGraph(input: {
     },
   }
 }
+
+export function attachAlicizationTurnGraphSurface(input: {
+  turnGraph: AlicizationTurnGraph
+  surface: AlicizationVisibleReplyRealizationArtifact | null
+}) {
+  return {
+    ...input.turnGraph,
+    surface: input.surface ?? null,
+  } satisfies AlicizationTurnGraph
+}
