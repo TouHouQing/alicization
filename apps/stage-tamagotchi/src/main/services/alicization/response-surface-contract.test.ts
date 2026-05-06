@@ -905,6 +905,29 @@ describe('response-surface-contract', () => {
         preferredTiming: 'after-payoff',
       },
     } as any
+    runtimeSurface.memory.memoryResolutionLedger = {
+      version: 'memory-resolution-ledger-v1',
+      producedAt: 1_700_000_000_000,
+      dominantClusterId: 'cluster:runtime-seam',
+      dominantClusterSummary: 'Runtime seam memory',
+      competingClusterId: 'cluster:old-branch',
+      competingClusterSummary: 'Old branch that should stay secondary',
+      candidates: [],
+      selectedCandidates: [],
+      rejectedCandidates: [],
+      finalSurfacePolicy: 'answer-anchoring',
+      shouldStayInward: false,
+      shouldDelayUntilAfterPayoff: true,
+      stableCoreOnly: true,
+      suppressionTags: ['old-branch'],
+      closureState: 'approximate-recall',
+      surfaceConfidence: 0.7,
+      shouldLabelUncertainty: true,
+      visibleCarryMode: 'gist-only',
+      conflictPressure: 'medium',
+      retrievalQuality: 'medium',
+      finalRationale: 'Use the remembered seam as approximate gist only.',
+    }
 
     const result = buildAlicizationResponseSurfaceContract({
       brief: {
@@ -942,9 +965,14 @@ describe('response-surface-contract', () => {
     expect(result.contract.mustDo).toContain('Land the live payoff first, then reopen remembered continuity only if room remains.')
     expect(result.contract.mustNotDo).toContain('Do not force recollection forward before the host has room for it.')
     expect(result.contract.mustNotDo).toContain('Do not let recollection step in front of the current payoff.')
+    expect(result.contract.mustDo).toContain('If memory is visible, reduce it to a brief gist that supports the current payoff.')
+    expect(result.contract.mustDo).toContain('When surfacing this memory, mark approximation or reconstruction instead of sounding exact.')
+    expect(result.contract.mustNotDo).toContain('Do not quote, over-specify, or reconstruct exact details from a gist-only memory posture.')
     expect(result.contract.mustNotDo.some(item => item.includes('Do not outrun this recollection boundary'))).toBe(true)
     expect(result.contract.mustNotDo.some(item => item.includes('Do not surface unstable remembered detail as settled fact'))).toBe(true)
     expect(result.systemBlock).toContain('Truth discipline stable-core-only: yes.')
     expect(result.systemBlock).toContain('Truth discipline delay memory until payoff: yes.')
+    expect(result.systemBlock).toContain('Memory closure state: approximate-recall.')
+    expect(result.systemBlock).toContain('Memory visible carry mode: gist-only.')
   })
 })

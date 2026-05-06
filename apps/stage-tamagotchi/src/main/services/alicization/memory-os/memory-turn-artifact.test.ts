@@ -57,6 +57,12 @@ describe('memory-turn-artifact', () => {
           shouldDelayUntilAfterPayoff: false,
           stableCoreOnly: false,
           suppressionTags: ['wrong-thread', 'unsupported-specificity'],
+          closureState: 'approximate-recall',
+          surfaceConfidence: 0.68,
+          shouldLabelUncertainty: true,
+          visibleCarryMode: 'gist-only',
+          conflictPressure: 'medium',
+          retrievalQuality: 'medium',
           finalRationale: 'Select stable core only.',
         },
       },
@@ -84,10 +90,17 @@ describe('memory-turn-artifact', () => {
       intrusionRisk: 'medium',
     }))
     expect(artifact.speechPosture.styleNote).toBe('Let memory guide tone, not wording.')
+    expect(artifact.closure).toEqual(expect.objectContaining({
+      closureState: 'approximate-recall',
+      visibleCarryMode: 'gist-only',
+      retrievalQuality: 'medium',
+      shouldLabelUncertainty: true,
+    }))
     expect(artifact.metrics.unsupportedSpecificityBlockedCount).toBe(1)
     expect(artifact.withheld).toEqual(expect.arrayContaining([
       'wrong-thread-suppressed',
       'unsafe-specificity-withheld',
+      'uncertainty-label-required',
     ]))
   })
 })

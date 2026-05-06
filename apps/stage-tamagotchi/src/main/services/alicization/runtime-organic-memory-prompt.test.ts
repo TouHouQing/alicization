@@ -3007,7 +3007,12 @@ describe('runtime-organic-memory-prompt', () => {
       finalSurfacePolicy: null,
       selectedCandidates: expect.any(Array),
       rejectedCandidates: expect.any(Array),
+      closureState: expect.any(String),
+      visibleCarryMode: expect.any(String),
+      retrievalQuality: expect.any(String),
     }))
+    const systemText = runtime.buildOrganicMemorySystemBlocks(context).join('\n\n')
+    expect(systemText).toContain('[ALICIZATION_MEMORY_CLOSURE_STATE]')
   })
 
   it('uses learning tuning advice to keep revision-prone relationship episodes inward', async () => {

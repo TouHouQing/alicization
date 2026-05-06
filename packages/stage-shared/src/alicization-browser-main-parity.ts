@@ -132,6 +132,12 @@ function normalizeResolutionLedger(state: AlicizationMemoryResolutionLedger | nu
     shouldDelayUntilAfterPayoff: normalizeScalar(state.shouldDelayUntilAfterPayoff),
     stableCoreOnly: normalizeScalar(state.stableCoreOnly),
     suppressionTags: normalizeStringList(state.suppressionTags),
+    closureState: normalizeScalar(state.closureState),
+    surfaceConfidence: normalizeScalar(state.surfaceConfidence),
+    shouldLabelUncertainty: normalizeScalar(state.shouldLabelUncertainty),
+    visibleCarryMode: normalizeScalar(state.visibleCarryMode),
+    conflictPressure: normalizeScalar(state.conflictPressure),
+    retrievalQuality: normalizeScalar(state.retrievalQuality),
   }
 }
 

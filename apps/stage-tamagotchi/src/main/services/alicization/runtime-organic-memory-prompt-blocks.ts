@@ -273,6 +273,39 @@ export function buildOrganicMemorySystemBlocks(context: OrganicMemoryPromptConte
     ].filter(Boolean).join('\n'))
   }
 
+  if (context.memoryResolutionLedger) {
+    blocks.push([
+      '[ALICIZATION_MEMORY_CLOSURE_STATE]',
+      'This is the final memory closure posture for the current turn.',
+      'Treat it as mind governance for recall accuracy, uncertainty labeling, and visible carry discipline. Do not turn it into a fixed visible wording pattern.',
+      `closure_state=${context.memoryResolutionLedger.closureState}`,
+      `visible_carry_mode=${context.memoryResolutionLedger.visibleCarryMode}`,
+      `retrieval_quality=${context.memoryResolutionLedger.retrievalQuality}`,
+      `conflict_pressure=${context.memoryResolutionLedger.conflictPressure}`,
+      context.memoryResolutionLedger.surfaceConfidence != null
+        ? `surface_confidence=${context.memoryResolutionLedger.surfaceConfidence.toFixed(2)}`
+        : '',
+      `should_label_uncertainty=${context.memoryResolutionLedger.shouldLabelUncertainty ? 'yes' : 'no'}`,
+      `should_stay_inward=${context.memoryResolutionLedger.shouldStayInward ? 'yes' : 'no'}`,
+      `delay_until_after_payoff=${context.memoryResolutionLedger.shouldDelayUntilAfterPayoff ? 'yes' : 'no'}`,
+      context.memoryResolutionLedger.dominantClusterSummary
+        ? `dominant_cluster=${context.memoryResolutionLedger.dominantClusterSummary}`
+        : '',
+      context.memoryResolutionLedger.competingClusterSummary
+        ? `competing_cluster=${context.memoryResolutionLedger.competingClusterSummary}`
+        : '',
+      (context.memoryResolutionLedger.suppressionTags?.length ?? 0) > 0
+        ? `suppression_tags=${context.memoryResolutionLedger.suppressionTags.join(' | ')}`
+        : '',
+      context.memoryResolutionLedger.finalRationale
+        ? `closure_rationale=${context.memoryResolutionLedger.finalRationale}`
+        : '',
+      context.memoryResolutionLedger.shouldLabelUncertainty
+        ? 'If you surface this memory, explicitly mark uncertainty, approximation, or reconstruction where needed.'
+        : 'If you surface this memory, keep it grounded to the selected stable recall rather than inflating specificity.',
+    ].filter(Boolean).join('\n'))
+  }
+
   if ((context.proceduralMemories ?? []).length > 0) {
     blocks.push([
       '[ALICIZATION_PROCEDURAL_MEMORY]',

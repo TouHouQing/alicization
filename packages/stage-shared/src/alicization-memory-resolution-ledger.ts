@@ -27,6 +27,12 @@ export interface AlicizationMemoryResolutionLedger {
   shouldDelayUntilAfterPayoff: boolean
   stableCoreOnly: boolean
   suppressionTags: string[]
+  closureState: 'grounded-recall' | 'approximate-recall' | 'conflicted-recall' | 'inward-only' | 'no-recall'
+  surfaceConfidence: number | null
+  shouldLabelUncertainty: boolean
+  visibleCarryMode: 'explicit-recall' | 'gist-only' | 'tone-carry' | 'withhold'
+  conflictPressure: 'none' | 'low' | 'medium' | 'high'
+  retrievalQuality: 'high' | 'medium' | 'low' | 'insufficient'
   finalRationale: string | null
 }
 
@@ -81,6 +87,52 @@ export function normalizeAlicizationMemoryResolutionLedger(raw: unknown): Aliciz
     suppressionTags: Array.isArray(candidate.suppressionTags)
       ? candidate.suppressionTags.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 8)
       : [],
+    closureState: (() => {
+      const value = sanitizeText(candidate.closureState, 48)
+      if (
+        value === 'grounded-recall'
+        || value === 'approximate-recall'
+        || value === 'conflicted-recall'
+        || value === 'inward-only'
+        || value === 'no-recall'
+      )
+        return value
+      return candidate.shouldStayInward === true
+        ? 'inward-only'
+        : 'no-recall'
+    })(),
+    surfaceConfidence: (() => {
+      const value = Number(candidate.surfaceConfidence)
+      return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null
+    })(),
+    shouldLabelUncertainty: candidate.shouldLabelUncertainty === true,
+    visibleCarryMode: (() => {
+      const value = sanitizeText(candidate.visibleCarryMode, 48)
+      if (
+        value === 'explicit-recall'
+        || value === 'gist-only'
+        || value === 'tone-carry'
+        || value === 'withhold'
+      )
+        return value
+      return candidate.shouldStayInward === true
+        ? 'withhold'
+        : 'tone-carry'
+    })(),
+    conflictPressure: (() => {
+      const value = sanitizeText(candidate.conflictPressure, 32)
+      if (value === 'none' || value === 'low' || value === 'medium' || value === 'high')
+        return value
+      return candidate.competingClusterSummary ? 'medium' : 'none'
+    })(),
+    retrievalQuality: (() => {
+      const value = sanitizeText(candidate.retrievalQuality, 32)
+      if (value === 'high' || value === 'medium' || value === 'low' || value === 'insufficient')
+        return value
+      return candidate.selectedCandidates && Array.isArray(candidate.selectedCandidates) && candidate.selectedCandidates.length > 0
+        ? 'medium'
+        : 'insufficient'
+    })(),
     finalRationale: sanitizeText(candidate.finalRationale, 240) || null,
   }
 }

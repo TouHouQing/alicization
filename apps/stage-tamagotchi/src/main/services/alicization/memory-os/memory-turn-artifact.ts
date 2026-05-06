@@ -56,6 +56,14 @@ export interface AlicizationMemoryTurnArtifact {
     certainty: string | null
     styleNote: string | null
   }
+  closure: {
+    closureState: string | null
+    visibleCarryMode: string | null
+    retrievalQuality: string | null
+    shouldLabelUncertainty: boolean
+    surfaceConfidence: number | null
+    conflictPressure: string | null
+  }
   withheld: string[]
   metrics: {
     recallCandidateCount: number
@@ -126,6 +134,7 @@ export function buildAlicizationMemoryTurnArtifact(input: {
       ...memoryDeliberation,
     },
     speechPosture,
+    closure: settlement.closure,
     withheld: settlement.withheld,
     metrics: settlement.metrics,
   }

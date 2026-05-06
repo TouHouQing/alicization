@@ -1418,6 +1418,12 @@ describe('main chat session replay harness', () => {
             shouldDelayUntilAfterPayoff: true,
             stableCoreOnly: true,
             suppressionTags: [],
+            closureState: 'grounded-recall',
+            surfaceConfidence: 0.78,
+            shouldLabelUncertainty: false,
+            visibleCarryMode: 'tone-carry',
+            conflictPressure: 'medium',
+            retrievalQuality: 'medium',
             finalRationale: 'Keep the stable runtime seam and suppress the competing branch.',
           },
           governance: {

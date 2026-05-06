@@ -1206,6 +1206,8 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
     provenance: normalizeMemoryProvenance(item.provenance),
     reconsolidatedFromTraceId: readString(item.reconsolidatedFromTraceId, 160) || null,
   })).filter(item => item.summary)
+  const selectedPeriodEntries = readObjectArray(recall?.selectedPeriods)
+  const selectedProcedureEntries = readObjectArray(recall?.selectedProcedures)
   const conflictVariants = readObjectArray(wrongThread?.conflictVariants ?? recall?.conflictVariants).map(item => ({
     id: readString(item.id, 120) || `variant:${input.trace.decisionTraceId}`,
     summary: readString(item.summary, 220),
@@ -1254,6 +1256,16 @@ function buildOrganicMemoryPromptContextFromTrace(input: {
             suppressionTags: syntheticSuppressionCandidates
               .map(item => String(item.id).replace(/^suppression:/, ''))
               .slice(0, 8),
+            closureState: 'conflicted-recall' as const,
+            surfaceConfidence: null,
+            shouldLabelUncertainty: true,
+            visibleCarryMode: shouldStayInward || surfacePolicy === 'internal-only'
+              ? 'withhold' as const
+              : stableCore.length > 0
+                ? 'gist-only' as const
+                : 'tone-carry' as const,
+            conflictPressure: 'high' as const,
+            retrievalQuality: selectedEpisodes.length > 0 || selectedPeriodEntries.length > 0 || selectedProcedureEntries.length > 0 ? 'low' as const : 'insufficient' as const,
             finalRationale: readString(recall?.whyNow, 220) || readString(judged?.whyWithheld, 220) || null,
           } satisfies NonNullable<OrganicMemoryPromptContext['memoryResolutionLedger']>
         : null

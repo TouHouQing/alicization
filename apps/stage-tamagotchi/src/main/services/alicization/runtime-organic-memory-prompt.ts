@@ -324,6 +324,7 @@ function buildMemoryResolutionLedger(input: {
   clusterState: MemoryClusterState
   finalMemoryDeliberation: OrganicMemoryPromptContext['memoryDeliberation'] | null
   finalRecollectionPlan: OrganicMemoryPromptContext['recollectionPlan'] | null
+  finalRecollectionSpeechPlan: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
 }) {
   const candidates = uniqueMemoryResolutionCandidates([
     ...(input.clusterState.dominantClusterKey
@@ -362,6 +363,70 @@ function buildMemoryResolutionLedger(input: {
       ].filter((item): item is string => Boolean(item)),
     ),
   ].slice(0, 8)
+  const ambiguityPosture = input.finalMemoryDeliberation?.ambiguityPosture ?? 'settled'
+  const conflictSeverity = input.finalMemoryDeliberation?.conflictSeverity ?? 'none'
+  const confidenceCandidates = [
+    input.finalMemoryDeliberation?.confidence,
+    input.finalRecollectionPlan?.confidence,
+    input.clusterState.dominantScore,
+  ].filter((value): value is number => Number.isFinite(value))
+  const surfaceConfidence = confidenceCandidates.length > 0
+    ? Math.max(0, Math.min(1, confidenceCandidates.reduce((sum, value) => sum + value, 0) / confidenceCandidates.length))
+    : null
+  const shouldStayInward = input.finalMemoryDeliberation?.surfacePolicy === 'internal-only'
+  const shouldDelayUntilAfterPayoff = input.finalMemoryDeliberation?.followUpAffordance?.preferredTiming === 'after-payoff'
+  const shouldLabelUncertainty = (
+    ambiguityPosture === 'approximate'
+    || ambiguityPosture === 'ambiguous'
+    || conflictSeverity === 'medium'
+    || conflictSeverity === 'high'
+    || (input.finalMemoryDeliberation?.selectedEpisodes ?? []).some(item =>
+      item.provenance === 'reconstructed'
+      || item.provenance === 'dreamt'
+      || item.provenance === 'inferred',
+    )
+  )
+  const visibleCarryMode = shouldStayInward
+    ? 'withhold' as const
+    : input.finalRecollectionSpeechPlan?.shouldSurface === true
+        ? (
+            input.finalRecollectionSpeechPlan.surfaceMode === 'answer-anchoring'
+              || input.finalRecollectionSpeechPlan.surfaceMode === 'relationship-continuity'
+              ? 'explicit-recall'
+              : input.finalRecollectionSpeechPlan.surfaceMode === 'gist-first'
+                ? 'gist-only'
+                : 'tone-carry'
+          )
+        : input.finalRecollectionSpeechPlan?.placement === 'inside-payoff'
+          || input.finalRecollectionSpeechPlan?.placement === 'after-payoff'
+          ? 'gist-only'
+          : 'tone-carry'
+  const closureState = shouldStayInward
+    ? (
+        confidenceCandidates.length > 0 || candidates.length > 0
+          ? 'inward-only' as const
+          : 'no-recall' as const
+      )
+    : conflictSeverity === 'high'
+      || ambiguityPosture === 'ambiguous'
+      ? 'conflicted-recall' as const
+      : shouldLabelUncertainty
+        ? 'approximate-recall' as const
+        : candidates.some(item => item.status === 'selected')
+          ? 'grounded-recall' as const
+          : 'no-recall' as const
+  const retrievalQuality = !candidates.some(item => item.status === 'selected')
+    ? 'insufficient' as const
+    : surfaceConfidence == null
+      ? 'medium' as const
+      : surfaceConfidence >= 0.8
+        && conflictSeverity === 'none'
+        && ambiguityPosture === 'settled'
+        ? 'high' as const
+        : surfaceConfidence >= 0.55
+          && conflictSeverity !== 'high'
+          ? 'medium' as const
+          : 'low' as const
 
   return {
     version: 'memory-resolution-ledger-v1',
@@ -374,10 +439,16 @@ function buildMemoryResolutionLedger(input: {
     selectedCandidates: candidates.filter(item => item.status === 'selected'),
     rejectedCandidates: candidates.filter(item => item.status === 'rejected'),
     finalSurfacePolicy: input.finalMemoryDeliberation?.surfacePolicy ?? null,
-    shouldStayInward: input.finalMemoryDeliberation?.surfacePolicy === 'internal-only',
-    shouldDelayUntilAfterPayoff: input.finalMemoryDeliberation?.followUpAffordance?.preferredTiming === 'after-payoff',
+    shouldStayInward,
+    shouldDelayUntilAfterPayoff,
     stableCoreOnly: (input.finalMemoryDeliberation?.unsafeDetails?.length ?? 0) > 0 || (input.finalMemoryDeliberation?.stableCore?.length ?? 0) > 0,
     suppressionTags,
+    closureState,
+    surfaceConfidence,
+    shouldLabelUncertainty,
+    visibleCarryMode,
+    conflictPressure: conflictSeverity,
+    retrievalQuality,
     finalRationale: input.finalMemoryDeliberation?.whyNow ?? input.finalRecollectionPlan?.rationale ?? null,
   } satisfies AlicizationMemoryResolutionLedger
 }
@@ -2747,6 +2818,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       clusterState,
       finalMemoryDeliberation: resolvedMemoryDeliberation,
       finalRecollectionPlan,
+      finalRecollectionSpeechPlan: effectiveRecollectionSpeechPlan,
     })
     return {
       hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,

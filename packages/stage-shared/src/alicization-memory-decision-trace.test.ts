@@ -59,6 +59,13 @@ describe('alicization memory decision trace', () => {
             shouldStayInward: false,
             shouldDelayUntilAfterPayoff: true,
             stableCoreOnly: true,
+            suppressionTags: ['nearby-thread'],
+            closureState: 'grounded-recall',
+            surfaceConfidence: 0.79,
+            shouldLabelUncertainty: false,
+            visibleCarryMode: 'tone-carry',
+            conflictPressure: 'medium',
+            retrievalQuality: 'medium',
             finalRationale: 'Keep the stable seam and suppress the competing branch.',
           },
         },
@@ -123,6 +130,9 @@ describe('alicization memory decision trace', () => {
         }),
       ]),
       finalSurfacePolicy: 'procedural-carry',
+      closureState: 'grounded-recall',
+      visibleCarryMode: 'tone-carry',
+      retrievalQuality: 'medium',
     }))
     expect(records[0]?.learningExecuted).toEqual(expect.objectContaining({
       action: 'verify',

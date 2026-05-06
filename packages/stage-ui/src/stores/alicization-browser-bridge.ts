@@ -2224,6 +2224,21 @@ function buildBrowserMemoryResolutionLedger(input: {
   const summary = input.recollectionForeground?.summary ?? input.recollectionPlan?.opening ?? ''
   if (!summary)
     return null
+  const surfaceConfidence = Math.max(0, Math.min(1, input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? input.recollectionSpeechPlan?.confidence ?? 0.5))
+  const shouldStayInward = input.recollectionSpeechPlan?.shouldSurface === false || input.recollectionSpeechPlan?.placement === 'internal-only'
+  const shouldLabelUncertainty = input.recollectionPlan?.certainty === 'approximate' || input.recollectionSpeechPlan?.certainty === 'approximate'
+  const visibleCarryMode = shouldStayInward
+    ? 'withhold' as const
+    : input.recollectionSpeechPlan?.surfaceMode === 'answer-anchoring' || input.recollectionSpeechPlan?.surfaceMode === 'relationship-continuity'
+      ? 'explicit-recall' as const
+      : input.recollectionSpeechPlan?.surfaceMode === 'gist-first'
+        ? 'gist-only' as const
+        : 'tone-carry' as const
+  const closureState = shouldStayInward
+    ? 'inward-only' as const
+    : shouldLabelUncertainty
+      ? 'approximate-recall' as const
+      : 'grounded-recall' as const
   return {
     version: 'memory-resolution-ledger-v1',
     producedAt: now(),
@@ -2241,16 +2256,22 @@ function buildBrowserMemoryResolutionLedger(input: {
     selectedCandidates: [{
       id: 'browser-fallback:primary',
       summary: sanitizeBriefText(summary, 220),
-      score: input.recollectionForeground?.confidence ?? input.recollectionPlan?.confidence ?? 0.5,
+      score: surfaceConfidence,
       status: 'selected',
       reason: sanitizeBriefText(input.recollectionPlan?.rationale ?? input.recollectionSpeechPlan?.rationale ?? summary, 220) || null,
     }],
     rejectedCandidates: [],
     finalSurfacePolicy: input.recollectionSpeechPlan?.surfaceMode ?? null,
-    shouldStayInward: input.recollectionSpeechPlan?.shouldSurface === false || input.recollectionSpeechPlan?.placement === 'internal-only',
+    shouldStayInward,
     shouldDelayUntilAfterPayoff: input.recollectionSpeechPlan?.placement === 'after-payoff',
     stableCoreOnly: input.recollectionForeground?.surfaceSummary?.includes('surface=inward') ?? false,
     suppressionTags: [],
+    closureState,
+    surfaceConfidence,
+    shouldLabelUncertainty,
+    visibleCarryMode,
+    conflictPressure: 'none',
+    retrievalQuality: surfaceConfidence >= 0.8 && !shouldLabelUncertainty ? 'high' : surfaceConfidence >= 0.55 ? 'medium' : 'low',
     finalRationale: sanitizeBriefText(input.recollectionSpeechPlan?.rationale ?? input.recollectionPlan?.rationale ?? summary, 220) || null,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryResolutionLedger']>
 }
