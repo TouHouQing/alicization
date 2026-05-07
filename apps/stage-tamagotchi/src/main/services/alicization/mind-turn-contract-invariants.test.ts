@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMindTurnContract } from './mind-turn-contract'
-import { resolveAlicizationPreparedVisibleReplyExecution } from './main-chat-visible-reply-execution'
+import { resolveAlicizationPreparedVisibleReplyExecution } from './visible-reply/facade'
 
 describe('mind-turn-contract invariants', () => {
   it('keeps one latent authority when contract and legacy surfaces disagree', () => {

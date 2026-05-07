@@ -17,9 +17,19 @@ describe('final replay gates', () => {
         memoryClosureConflictClosureRate: 1,
         memoryClosureLowQualityWithholdRate: 1,
         memoryClosureUncertaintyLabelRate: 1,
+        claimAccuracy: 0.98,
+        replyAuthorityAccuracy: 1,
+        latencyBudgetPass: true,
+        mindParticipation: 0.9,
+        memoryParticipation: 0.8,
+        personalityParticipation: 0.7,
+        relationshipParticipation: 0.6,
+        continuityParticipation: 0.8,
+        misinternalizationRate: 0,
       },
       authorityLeakCount: 0,
       localHumanlikeVisibleFallbackCount: 0,
+      sampleCount: 12,
     })
 
     expect(report.passed).toBe(true)
@@ -40,9 +50,19 @@ describe('final replay gates', () => {
         memoryClosureConflictClosureRate: 0.5,
         memoryClosureLowQualityWithholdRate: 0,
         memoryClosureUncertaintyLabelRate: 0.75,
+        claimAccuracy: 0.8,
+        replyAuthorityAccuracy: 0.95,
+        latencyBudgetPass: false,
+        mindParticipation: 0.4,
+        memoryParticipation: 0.5,
+        personalityParticipation: 0.4,
+        relationshipParticipation: 0.3,
+        continuityParticipation: 0.5,
+        misinternalizationRate: 0.1,
       },
       authorityLeakCount: 1,
       localHumanlikeVisibleFallbackCount: 3,
+      sampleCount: 0,
     })
 
     expect(report.passed).toBe(false)
@@ -60,6 +80,16 @@ describe('final replay gates', () => {
       'memory-closure-conflict',
       'memory-closure-low-quality-withhold',
       'memory-closure-uncertainty-label',
+      'claim-accuracy',
+      'reply-authority-accuracy',
+      'latency-budget',
+      'mind-participation',
+      'memory-participation',
+      'personality-participation',
+      'relationship-participation',
+      'continuity-participation',
+      'learning-misinternalization',
+      'minimum-sample-count',
     ]))
   })
 })

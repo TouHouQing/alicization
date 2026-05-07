@@ -5,6 +5,75 @@ import { buildAlicizationResponseSurfaceContract } from './response-surface-cont
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('response-surface-contract', () => {
+  it('threads current conscious frame into truth discipline and visible surface obligations', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer the actual current ask.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      currentConsciousFrame: {
+        subject: 'general',
+        centerOfGravity: 'answer',
+        truthDiscipline: 'observe-then-hypothesize',
+        consciousNeed: 'Stay inside the user ask.',
+        consciousTension: 'Avoid reaching for stale technical detail.',
+        speakingIntention: 'Answer with current-turn evidence only.',
+        focusAnchor: 'current ask',
+        withheldImpulse: 'Name a file that was not observed.',
+        shouldWithholdSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.91,
+        reasonTags: ['specificity-withheld'],
+        updatedAt: 1,
+      },
+      claimEvidenceLedger: {
+        subject: 'general',
+        evidenceMode: 'dialogue-grounded',
+        specificityBudget: 'dialogue-only',
+        hostReferencedCues: [],
+        groundedArtifactCues: [],
+        allowedSpecificCues: [],
+        shouldLabelHypothesis: true,
+        forbidUnsupportedSpecificity: true,
+        shouldSelfRevise: false,
+        confidence: 0.86,
+        reasonTags: [],
+        updatedAt: 1,
+      },
+    })
+
+    expect(result.contract.mustDo).toContain('Let the current conscious speaking intention govern wording: Answer with current-turn evidence only.')
+    expect(result.contract.mustNotDo).toContain('Do not leak this withheld impulse into the visible reply: Name a file that was not observed.')
+    expect(result.contract.mustNotDo).toContain('Do not add specific file, class, enum, app, or screen details unless grounded by this turn.')
+    expect(result.systemBlock).toContain('Current conscious need: Stay inside the user ask.')
+    expect(result.systemBlock).toContain('Current conscious frame withholds unsupported specificity: yes.')
+    expect(result.systemBlock).toContain('When the answer goes beyond direct observation, mark that move as a guess or hypothesis.')
+  })
+
   it('forces direct correction discipline for repair turns', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {
@@ -974,5 +1043,84 @@ describe('response-surface-contract', () => {
     expect(result.systemBlock).toContain('Truth discipline delay memory until payoff: yes.')
     expect(result.systemBlock).toContain('Memory closure state: approximate-recall.')
     expect(result.systemBlock).toContain('Memory visible carry mode: gist-only.')
+  })
+
+  it('threads active self-revision response posture into the response surface contract', () => {
+    const result = buildAlicizationResponseSurfaceContract({
+      brief: {
+        turnMode: 'answer',
+        liveSurface: '',
+        carriedThread: null,
+        truthState: 'dialogue-grounded',
+        separateCarryFromSurface: false,
+        shouldCompactHistory: false,
+        maxRecentUserTurns: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      charter: {
+        epistemicMode: 'dialogue-grounded',
+        responseMode: 'answer-naturally',
+        governingFocus: 'Answer the current ask through revised understanding.',
+        governingConcern: null,
+        governingCommitment: null,
+        governingInquiry: null,
+        governingProject: null,
+        latestRevision: null,
+        executivePhase: 'acting',
+        truthFrame: 'dialogue',
+        mindMode: 'tracking',
+        relationshipPosture: 'warm',
+        reasons: [],
+        mustDo: [],
+        mustNotDo: [],
+      },
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-response-1',
+        sourceEventId: 'event-1',
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        domain: 'dialogue-style',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['response-posture'],
+        memoryPolicy: {
+          strictnessBias: 0,
+          wrongThreadSuppressionBias: 0,
+          provenanceLabelBias: 0,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.16,
+          hypothesisLabelBias: 0.14,
+          specificityClampBias: 0.2,
+          templateShellSuppressionBias: 0.28,
+        },
+        proactivePolicy: {
+          restraintBias: 0,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        reasonCodes: ['self-revision-response-posture'],
+        summary: 'suppress shells and label hypotheses after correction',
+      },
+    })
+
+    expect(result.contract.activeSelfRevisionPatchId).toBe('patch-response-1')
+    expect(result.contract.mustDo).toContain('Expose hypothesis boundaries more explicitly because the active self-revision patch raised hypothesis-label discipline.')
+    expect(result.contract.mustNotDo).toContain('Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
+    expect(result.systemBlock).toContain('Active self revision patch: patch-response-1.')
   })
 })

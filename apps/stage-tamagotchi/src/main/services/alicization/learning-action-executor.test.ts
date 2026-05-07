@@ -8,6 +8,24 @@ describe('learning action executor', () => {
     const applyMemoryFactCorrections = vi.fn(async () => {})
     const upsertMemoryFacts = vi.fn(async () => {})
     const appendMindTurnEvents = vi.fn(async () => {})
+    const proposeSelfEvolutionVersion = vi.fn(async () => ({
+      version: 'self-evolution-version-candidate-v1',
+      id: 'candidate-relationship-1',
+      status: 'active',
+      sourceEventId: 'learning:relationship:verify:completed',
+      decisionTraceId: 'trace-1',
+      sourceTurnId: 'turn-1',
+      patch: null,
+      validation: {
+        replayRequired: false,
+        replayPassed: true,
+        rollbackSupported: false,
+        activationBlockedReasons: [],
+      },
+      activatedAt: 10_000,
+      rolledBackAt: null,
+      createdAt: 10_000,
+    } as any))
     const execute = createAlicizationLearningActionExecutor({
       now: () => 10_000,
       cardId: 'default',
@@ -72,6 +90,7 @@ describe('learning action executor', () => {
       applyMemoryFactCorrections,
       upsertMemoryFacts,
       appendMindTurnEvents,
+      proposeSelfEvolutionVersion,
       assimilateMemoryFactsDetailed: input => ({
         facts: input.facts,
         corrections: [],
@@ -143,6 +162,15 @@ describe('learning action executor', () => {
         wrongThreadSuppressionBias: expect.any(Number),
       }),
     }))
+    expect(result.selfEvolutionVersionCandidate).toEqual(expect.objectContaining({
+      version: 'self-evolution-version-candidate-v1',
+      id: 'candidate-relationship-1',
+      status: 'active',
+    }))
+    expect(proposeSelfEvolutionVersion).toBeCalledWith({
+      event: result.selfRevisionEvent,
+      patch: result.selfRevisionStatePatch,
+    })
     expect(result.verifiedArtifact).toEqual(expect.objectContaining({
       version: 'verified-learning-artifact-v1',
       domain: 'relationship',
@@ -162,6 +190,19 @@ describe('learning action executor', () => {
         payload: expect.objectContaining({
           action: 'verify',
           domain: 'relationship',
+          status: 'completed',
+          lifecycleState: 'verification',
+          nextLifecycleState: 'internalization',
+          policyFeedback: expect.objectContaining({
+            reasonCodes: expect.arrayContaining(['domain:relationship']),
+          }),
+          selfRevisionStatePatch: expect.objectContaining({
+            version: 'self-revision-state-patch-v1',
+          }),
+          selfEvolutionVersionCandidate: expect.objectContaining({
+            id: 'candidate-relationship-1',
+            status: 'active',
+          }),
           verifiedArtifact: expect.objectContaining({
             version: 'verified-learning-artifact-v1',
           }),
@@ -679,6 +720,210 @@ describe('learning action executor', () => {
             status: 'rollback-required',
           }),
         }),
+      }),
+    ]))
+  })
+
+  it('supersedes user-corrected old relationship beliefs from explicit revise targets', async () => {
+    const applyMemoryFactCorrections = vi.fn(async () => {})
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const execute = createAlicizationLearningActionExecutor({
+      now: () => 10_000,
+      cardId: 'default',
+      listMemoryFacts: async () => [{
+        id: 'fact-old-belief',
+        subject: 'host',
+        predicate: 'relationship',
+        object: 'likes immediate affectionate reassurance',
+        confidence: 0.84,
+        source: 'rule',
+        dedupeKey: 'host|relationship|likes immediate affectionate reassurance',
+        createdAt: 1,
+        updatedAt: 9_900,
+        lastAccessAt: null,
+        accessCount: 4,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+        validationCount: 3,
+        contradictionCount: 0,
+        conflictsWith: [],
+        supersedes: [],
+      } as any],
+      listMemoryReflections: async () => [],
+      listRelationshipOutcomes: async () => [],
+      upsertMemoryReflections: async () => {},
+      applyMemoryFactCorrections,
+      upsertMemoryFacts: async () => {},
+      appendMindTurnEvents,
+      assimilateMemoryFactsDetailed: input => ({
+        facts: input.facts,
+        corrections: [],
+      }),
+    })
+
+    const result = await execute({
+      id: 'row-user-correction',
+      cardId: 'default',
+      taskId: 'learning:relationship:user-correction',
+      status: 'running',
+      triggerAt: 1,
+      action: 'revise',
+      message: 'learning-action=revise ; reason=user corrected old belief',
+      payload: {
+        sourceTurnId: 'turn-correction',
+        decisionTraceId: 'trace-user-correction',
+        sourceSessionId: 'session-1',
+        action: 'revise',
+        reason: 'The host corrected an old relationship belief; do not carry it as stable memory.',
+        focuses: ['revise-relationship-old-belief'],
+        dominantTrajectory: 'User correction should retire the old relationship belief.',
+        sourceSignals: ['User corrected the old belief directly.'],
+        learningReadiness: 0.86,
+        contradictionPressure: 0.64,
+        revisionPressure: 0.9,
+        autobiographicalStability: 0.72,
+        supportingFactIds: ['fact-old-belief'],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: ['fact-new-boundary'],
+        conflictTargets: [],
+      },
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1,
+      updatedAt: 1,
+      claimedAt: 1,
+      startedAt: 1,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: 'turn-correction',
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    })
+
+    expect(result.status).toBe('completed')
+    expect(result.resultSummary).toContain('superseded 1 stale relationship target')
+    expect(result.selfRevisionStatePatch).toEqual(expect.objectContaining({
+      domain: 'relationship',
+      lanes: expect.arrayContaining(['memory-policy', 'relationship-posture', 'response-posture']),
+    }))
+    expect(applyMemoryFactCorrections).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-old-belief',
+        nextValidationStatus: 'superseded',
+        sourceLabel: 'learning-revise-relationship',
+        appendSupersedes: ['fact-new-boundary'],
+      }),
+    ]))
+    expect(appendMindTurnEvents).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          action: 'revise',
+          domain: 'relationship',
+          status: 'completed',
+          selfRevisionEvent: expect.objectContaining({
+            appliedTargets: expect.arrayContaining(['fact-old-belief', 'fact-new-boundary']),
+          }),
+        }),
+      }),
+    ]))
+  })
+
+  it('retracts directly corrected old beliefs even before a replacement fact id exists', async () => {
+    const applyMemoryFactCorrections = vi.fn(async () => {})
+    const execute = createAlicizationLearningActionExecutor({
+      now: () => 10_000,
+      cardId: 'default',
+      listMemoryFacts: async () => [{
+        id: 'fact-old-style',
+        subject: 'host',
+        predicate: 'relationship',
+        object: 'wants cheerful reassurance before answering',
+        confidence: 0.82,
+        source: 'rule',
+        dedupeKey: 'host|relationship|wants cheerful reassurance before answering',
+        createdAt: 1,
+        updatedAt: 9_900,
+        lastAccessAt: null,
+        accessCount: 5,
+        memoryDomain: 'relationship',
+        knowledgeStage: 'internalized-long-horizon-knowledge',
+        validationStatus: 'validated',
+        validationCount: 4,
+        contradictionCount: 0,
+        conflictsWith: [],
+        supersedes: [],
+      } as any],
+      listMemoryReflections: async () => [],
+      listRelationshipOutcomes: async () => [],
+      upsertMemoryReflections: async () => {},
+      applyMemoryFactCorrections,
+      upsertMemoryFacts: async () => {},
+      assimilateMemoryFactsDetailed: input => ({
+        facts: input.facts,
+        corrections: [],
+      }),
+    })
+
+    const result = await execute({
+      id: 'row-direct-correction',
+      cardId: 'default',
+      taskId: 'learning:relationship:direct-correction',
+      status: 'running',
+      triggerAt: 1,
+      action: 'revise',
+      message: 'learning-action=revise ; reason=user correction of old understanding',
+      payload: {
+        sourceTurnId: 'turn-direct-correction',
+        decisionTraceId: 'trace-direct-correction',
+        sourceSessionId: 'session-1',
+        action: 'revise',
+        reason: 'User correction: that old understanding is wrong and should not be carried forward.',
+        focuses: ['retract-old-belief'],
+        dominantTrajectory: 'Direct correction requires retracting the stale relationship belief.',
+        sourceSignals: ['The host said the old belief was a misread.'],
+        learningReadiness: 0.82,
+        contradictionPressure: 0.58,
+        revisionPressure: 0.88,
+        autobiographicalStability: 0.7,
+        supportingFactIds: ['fact-old-style'],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: [],
+      },
+      attemptCount: 0,
+      maxAttempts: 3,
+      createdAt: 1,
+      updatedAt: 1,
+      claimedAt: 1,
+      startedAt: 1,
+      completedAt: null,
+      blockedAt: null,
+      cancelledAt: null,
+      downgradedAt: null,
+      reopenedAt: null,
+      nextRetryAt: null,
+      sourceTurnId: 'turn-direct-correction',
+      resultSummary: null,
+      failureKind: null,
+      lastError: null,
+      firedTurnId: null,
+    })
+
+    expect(result.status).toBe('completed')
+    expect(applyMemoryFactCorrections).toBeCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        targetFactId: 'fact-old-style',
+        nextValidationStatus: 'superseded',
+        sourceLabel: 'learning-revise-relationship',
       }),
     ]))
   })

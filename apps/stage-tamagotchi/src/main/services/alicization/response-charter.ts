@@ -22,6 +22,7 @@ import type {
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -61,6 +62,7 @@ export interface AlicizationResponseCharter {
   activeClosenessContext?: AlicizationPersonStateProjection['activeClosenessContext'] | null
   activeClosenessRung?: AlicizationPersonStateProjection['activeClosenessRung'] | null
   activeLearningAction?: AlicizationLearningExecutionStateSnapshot['nextLearningAction'] | null
+  activeSelfRevisionPatch?: Pick<AlicizationSelfRevisionStatePatch, 'id' | 'decisionTraceId' | 'lanes' | 'reasonCodes' | 'summary'> | null
   relationshipPosture: 'restrained' | 'warm' | 'tender'
   reasons: string[]
   mustDo: string[]
@@ -332,7 +334,15 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
 function mergeRelationshipPosture(input: {
   projected?: AlicizationResponseCharter['relationshipPosture'] | null
   computed: AlicizationResponseCharter['relationshipPosture']
+  selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
+  const patch = input.selfRevisionPatch ?? null
+  if (patch?.lanes.includes('relationship-posture')) {
+    if (patch.relationshipPosture.closenessCapBias >= 0.12 || patch.relationshipPosture.repairWindowBias >= 0.14)
+      return 'restrained' as const
+    if (patch.relationshipPosture.warmthReleaseBias >= 0.08 && input.computed !== 'restrained' && input.projected !== 'restrained')
+      return 'warm' as const
+  }
   if (!input.projected)
     return input.computed
   if (input.computed === 'restrained' || input.projected === 'restrained')
@@ -357,6 +367,7 @@ export function buildAlicizationResponseCharter(input: {
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
+  selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
   const runtimeSurface = input.runtimeSurface ?? buildAlicizationDigitalLifeRuntimeSurface(input.state)
   const digitalLifeArchitecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
@@ -404,6 +415,7 @@ export function buildAlicizationResponseCharter(input: {
   const replyDeliberation = runtimeSurface.dialogue.replyDeliberation ?? null
   const answerPlanner = runtimeSurface.dialogue.answerPlanner ?? null
   const initiative = runtimeSurface.agency.initiative ?? null
+  const selfRevisionPatch = input.selfRevisionPatch ?? null
   const concern = strongestConcern(concerns)
   const commitment = governingCommitment(commitmentLedger)
   const inquiry = activeInquiryPlan(inquiryPlanner)
@@ -464,9 +476,19 @@ export function buildAlicizationResponseCharter(input: {
       activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
       activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
       activeLearningAction: learningExecutionState?.nextLearningAction ?? null,
+      activeSelfRevisionPatch: selfRevisionPatch
+        ? {
+            id: selfRevisionPatch.id,
+            decisionTraceId: selfRevisionPatch.decisionTraceId,
+            lanes: [...selfRevisionPatch.lanes],
+            reasonCodes: [...selfRevisionPatch.reasonCodes],
+            summary: selfRevisionPatch.summary,
+          }
+        : null,
       relationshipPosture: mergeRelationshipPosture({
         projected: personStateProjection?.relationshipPosture ?? null,
         computed: answerCompiler.relationshipPosture,
+        selfRevisionPatch,
       }),
       reasons: uniqueList([
         personStateProjection
@@ -491,6 +513,9 @@ export function buildAlicizationResponseCharter(input: {
         discourseState?.currentTurnSummary,
         learningExecutionState?.nextLearningAction
           ? `Learning stance: ${learningExecutionState.nextLearningAction}.`
+          : null,
+        selfRevisionPatch
+          ? `Active self revision: ${selfRevisionPatch.summary ?? selfRevisionPatch.reasonCodes[0] ?? selfRevisionPatch.id}.`
           : null,
       ], 4),
       mustDo: uniqueList([
@@ -518,6 +543,15 @@ export function buildAlicizationResponseCharter(input: {
         learningExecutionState?.nextLearningAction === 'internalize'
           ? 'Let the stabilizing learned procedure constrain this answer instead of slipping back to older habits.'
           : null,
+        selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1
+          ? 'Let the active self-revision patch make hypothesis labeling more visible this turn.'
+          : null,
+        selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.specificityClampBias >= 0.1
+          ? 'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.'
+          : null,
+        selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.secondPassRequiredBias >= 0.1
+          ? 'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.'
+          : null,
         ...(dialogueActKernel?.mustSay ?? []),
         ...answerCompiler.mustDo,
       ], 8),
@@ -542,6 +576,12 @@ export function buildAlicizationResponseCharter(input: {
           : null,
         learningExecutionState?.nextLearningAction === 'internalize'
           ? 'Do not fall back to older unstable procedures while a stronger one is being internalized.'
+          : null,
+        selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1
+          ? 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.'
+          : null,
+        selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.specificityClampBias >= 0.1
+          ? 'Do not let a recently revised belief surface as exact technical detail without current support.'
           : null,
         ...(dialogueActKernel?.mustAvoid ?? []),
         ...answerCompiler.mustNotDo,
@@ -738,6 +778,19 @@ export function buildAlicizationResponseCharter(input: {
     pushUnique(mustDo, 'Keep closeness capped so learned familiarity does not outrun the host’s current room.')
     pushUnique(mustNotDo, 'Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
   }
+  if (selfRevisionPatch?.lanes.includes('response-posture')) {
+    pushUnique(reasons, `Active self revision: ${selfRevisionPatch.summary ?? selfRevisionPatch.reasonCodes[0] ?? selfRevisionPatch.id}.`)
+    if (selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1)
+      pushUnique(mustDo, 'Let the active self-revision patch make hypothesis labeling more visible this turn.')
+    if (selfRevisionPatch.responsePosture.specificityClampBias >= 0.1) {
+      pushUnique(mustDo, 'Let the active self-revision patch clamp unsupported specificity before warmth or fluency.')
+      pushUnique(mustNotDo, 'Do not let a recently revised belief surface as exact technical detail without current support.')
+    }
+    if (selfRevisionPatch.responsePosture.secondPassRequiredBias >= 0.1)
+      pushUnique(mustDo, 'Let the active self-revision patch bias this answer toward repair/rewrite before visible certainty.')
+    if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
+      pushUnique(mustNotDo, 'Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
+  }
   if (digitalLifeArchitecture?.dominantSystem === 'proactive') {
     mustNotDo.push('Do not let the urge to speak outrun the host’s actual turn.')
   }
@@ -800,9 +853,19 @@ export function buildAlicizationResponseCharter(input: {
     activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
     activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
     activeLearningAction: learningExecutionState?.nextLearningAction ?? null,
+    activeSelfRevisionPatch: selfRevisionPatch
+      ? {
+          id: selfRevisionPatch.id,
+          decisionTraceId: selfRevisionPatch.decisionTraceId,
+          lanes: [...selfRevisionPatch.lanes],
+          reasonCodes: [...selfRevisionPatch.reasonCodes],
+          summary: selfRevisionPatch.summary,
+        }
+      : null,
     relationshipPosture: mergeRelationshipPosture({
       projected: personStateProjection?.relationshipPosture ?? null,
       computed: relationshipPosture,
+      selfRevisionPatch,
     }),
     reasons: uniqueList([
       personStateProjection

@@ -72,11 +72,13 @@ import {
 } from './main-chat-execution-surface'
 import {
   buildAlicizationMainChatRuntimeSurface,
-  type AlicizationMainChatReplyAuthoritySurface,
-  type AlicizationMainChatReplyExecutionPlanSurface,
   shouldUseDialogueFirstLivingPromptMode,
 } from './main-chat-runtime-surface'
-import { buildRecollectionSpeechVisibleSurfaceRules } from './response-surface-contract'
+import {
+  type AlicizationMainChatReplyAuthoritySurface,
+  type AlicizationMainChatReplyExecutionPlanSurface,
+  buildRecollectionSpeechVisibleSurfaceRules,
+} from './visible-reply/facade'
 import { runOrganicLearningGovernor } from './runtime-learning-governor'
 import { deriveRuntimeReplyAuthorityGovernance } from './runtime-reply-authority'
 import {

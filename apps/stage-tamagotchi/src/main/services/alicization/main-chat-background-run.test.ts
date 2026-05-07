@@ -2076,7 +2076,7 @@ describe('main chat background run', () => {
     expect(typeof failureInput?.recoverFromTimeout).toBe('function')
   })
 
-  it('tries compact governed dialogue recovery before local fallback when full-runtime dialogue stays llm-authored', async () => {
+  it('keeps ordinary dialogue timeout recovery on the main-runtime authored non-streaming path', async () => {
     vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
     vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValue(JSON.stringify({
       format: 'mind-turn-v1',
@@ -2128,11 +2128,127 @@ describe('main chat background run', () => {
       timeoutMs: 1500,
     })
 
-    expect(recoveryResult?.recoveryMode).toBe('active-dialogue-compact')
-    expect(vi.mocked(recoverAlicizationMainChatFromTimeout)).toHaveBeenCalledWith(expect.objectContaining({
-      messages: expect.arrayContaining([
-        expect.objectContaining({ role: 'system' }),
+    expect(recoveryResult?.recoveryMode).toBe('non-streaming')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-active-dialogue-deferred', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-compact-dialogue-timeout-recovered',
+      deferredReason: 'mind-authored-lane',
+    }))
+  })
+
+  it('does not use compact timeout recovery for memory-heavy follow-up lanes that must stay main-runtime authored', async () => {
+    vi.mocked(runAlicizationMainChatStream).mockRejectedValue(new Error('stream exploded'))
+    vi.mocked(recoverAlicizationMainChatFromTimeout).mockResolvedValue(JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'obligation=guide; truth=remembered; focus=thread-continuation; move=continue-payoff; tone=direct',
+      emotion: 'thinking',
+      reply: '剩下那部分我按同一条线继续补。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'firm',
+        emphasis: 0,
+      },
+    }))
+
+    const prepared = createPrepared({
+      messages: [
+        {
+          role: 'system' as const,
+          content: '[ALICIZATION_EXECUTION_LEDGER]\nsummary=desktop listing already returned; remaining items still requested',
+        },
+        { role: 'user' as const, content: '用cli帮我查一下桌面有什么文件' },
+        { role: 'assistant' as const, content: '我已经替你把桌面看完了，现在一共 13 项，先能确认到这些：小砖猿、105ND800、GIT，另外还有 8 项。' },
+        { role: 'user' as const, content: '另外还有哪四项？' },
+      ] as Message[],
+      sessionMirror: {
+        sessionId: 'session-memory-heavy-follow-up',
+        cardId: 'card-1',
+        updatedAt: Date.now(),
+        dialogueSummary: 'The host is continuing the same desktop-listing thread.',
+        executionSummary: 'Desktop listing already returned; remaining items still requested.',
+        memorySummary: 'Continue from the remembered execution result, not a new greeting.',
+        agencySummary: null,
+        recollectionSummary: 'The follow-up asks for remembered remaining items.',
+        recollectionSurfaceSummary: 'Use remembered execution continuity as evidence.',
+      },
+      runtimeSurface: {
+        ...createPrepared().runtimeSurface,
+        digitalLifeRuntimeSurface: {
+          dialogue: {
+            dialogueWorldThread: {
+              recallKeys: ['desktop listing', 'remaining items'],
+              recallSeed: 'desktop listing remaining items',
+            },
+            conversationState: null,
+            answerCompiler: null,
+            replyDeliberation: null,
+            dialogueEncounter: null,
+          },
+          cognition: {
+            privateThought: 'This is an explicit remembered task continuation.',
+          },
+          memory: {
+            longHorizonMemory: 'desktop listing remaining items',
+            goalStack: {
+              activeGoal: 'finish remembered listing payoff',
+              hostGoals: [],
+              alicizationGoals: [{
+                label: 'finish remembered listing payoff',
+                status: 'active',
+                urgency: 0.8,
+              }],
+              sharedGoals: [],
+            },
+            motiveEngine: null,
+          },
+        },
+      },
+    })
+    const input = createInput({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-memory-heavy-follow-up-timeout',
+        providerId: 'openai',
+        model: 'gpt-test',
+        providerConfig: {},
+        messages: [
+          { role: 'user' as const, content: '用cli帮我查一下桌面有什么文件' },
+          { role: 'assistant' as const, content: '我已经替你把桌面看完了，现在一共 13 项，先能确认到这些：小砖猿、105ND800、GIT，另外还有 8 项。' },
+          { role: 'user' as const, content: '另外还有哪四项？' },
+        ],
+      } as any,
+      preparationPromise: Promise.resolve(prepared),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0]
+    const recoveryResult = await failureInput?.recoverFromTimeout({
+      chatConfig: prepared.chatConfig,
+      messages: prepared.messages,
+      headers: input.headers,
+      tools: undefined,
+      toolChoice: undefined,
+      timeoutMs: 1500,
+    })
+
+    expect(recoveryResult?.recoveryMode).toBe('non-streaming')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.timeout-recovery-active-dialogue-deferred', expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-memory-heavy-follow-up-timeout',
+      deferredReason: 'mind-authored-lane',
+      reasonCodes: expect.arrayContaining([
+        'prepared-execution-ledger',
+        'execution-carry-llm-authored',
       ]),
     }))
+    const firstRecoveryCall = vi.mocked(recoverAlicizationMainChatFromTimeout).mock.calls[0]?.[0]
+    expect(firstRecoveryCall?.messages).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        content: expect.stringContaining('[ALICIZATION_ACTIVE_DIALOGUE_FAST_LOOP]'),
+      }),
+    ]))
   })
 })

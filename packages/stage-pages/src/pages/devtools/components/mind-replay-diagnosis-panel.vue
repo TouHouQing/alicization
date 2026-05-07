@@ -7,7 +7,10 @@ import type {
   AlicizationMindReplayRegressionTriageRow,
   AlicizationMindReplayShipGateRow,
 } from '@proj-alicization/stage-ui/stores/alicization-mind-replay'
-import type { AlicizationRunReplayBenchmarkResult } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type {
+  AlicizationReplayBenchmarkPackId,
+  AlicizationRunReplayBenchmarkResult,
+} from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
 import { Button, FieldInput, SelectTab } from '@proj-alicization/ui'
 import { computed } from 'vue'
@@ -19,7 +22,7 @@ const props = defineProps<{
   report: AlicizationRunReplayBenchmarkResult | null
   loading: boolean
   supported: boolean
-  packId: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1' | 'growth-humanlike-memory-v1'
+  packId: AlicizationReplayBenchmarkPackId
   sampleLimit: number
   dimensionGroups: AlicizationMindReplayBenchmarkDimensionGroup[]
   humanRatingRows: AlicizationMindReplayHumanRatingDimensionRow[]
@@ -32,7 +35,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (event: 'update:packId', value: 'default-humanlike-memory-v1' | 'sampled-humanlike-memory-v1' | 'backlog-humanlike-memory-v1' | 'growth-humanlike-memory-v1'): void
+  (event: 'update:packId', value: AlicizationReplayBenchmarkPackId): void
   (event: 'update:sampleLimit', value: number): void
   (event: 'update:selectedDimension', value: string): void
   (event: 'update:selectedTurnId', value: string | null): void
@@ -62,6 +65,10 @@ const sampleLimitText = computed({
 
 const packOptions = computed(() => [
   {
+    label: tDiagnosis('packs.final', 'Final'),
+    value: 'final-humanlike-memory-v1',
+  },
+  {
     label: tDiagnosis('packs.sampled', 'Sampled'),
     value: 'sampled-humanlike-memory-v1',
   },
@@ -77,6 +84,10 @@ const packOptions = computed(() => [
     label: tDiagnosis('packs.growth', 'Growth'),
     value: 'growth-humanlike-memory-v1',
   },
+  {
+    label: tDiagnosis('packs.adversarial', 'Adversarial'),
+    value: 'adversarial-humanlike-memory-v2',
+  },
 ])
 
 const dimensionOptions = computed(() => [
@@ -91,8 +102,16 @@ const dimensionOptions = computed(() => [
 ])
 
 function updatePackId(value: unknown) {
-  if (value === 'sampled-humanlike-memory-v1' || value === 'backlog-humanlike-memory-v1' || value === 'default-humanlike-memory-v1' || value === 'growth-humanlike-memory-v1')
+  if (
+    value === 'final-humanlike-memory-v1'
+    || value === 'sampled-humanlike-memory-v1'
+    || value === 'backlog-humanlike-memory-v1'
+    || value === 'default-humanlike-memory-v1'
+    || value === 'growth-humanlike-memory-v1'
+    || value === 'adversarial-humanlike-memory-v2'
+  ) {
     emit('update:packId', value)
+  }
 }
 
 function updateSelectedDimension(value: unknown) {

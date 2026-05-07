@@ -7,7 +7,8 @@ import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { AlicizationExecutionResultDeliveryPolicy } from './execution-interaction-learning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
-import { decideAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-policy'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
@@ -105,6 +106,7 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
     stronglyValidatedProcedureCount?: number | null
     contradictionHeavyFactCount?: number | null
   } | null>
+  getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
@@ -271,6 +273,40 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           continue
         }
         const structured = llmStructured
+        const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+        const reminderVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
+          kind: 'reminder',
+          structured,
+          hasMindAuthoredStructured: true,
+          reason: 'mind-authored-reminder',
+          selfRevisionPatch: activeSelfRevisionPatch,
+        })
+        if (!reminderVisibleUtterance.shouldPersistVisibleUtterance) {
+          const nextTriggerAt = Date.now() + options.reminderLlmRetryDelayMs
+          await options.getAlicizationDb().requeueScheduledTask(task.taskId, reminderVisibleUtterance.decision.reason, nextTriggerAt)
+          requeued += 1
+          await options.appendAuditLog({
+            level: 'warning',
+            category: 'alicization.reminder',
+            action: 'alicization.reminder.task.failed',
+            message: 'Reminder visible utterance was deferred because provider mind output was empty or not human-authored.',
+            payload: {
+              trigger,
+              taskId: task.taskId,
+              nextTriggerAt,
+              decision: reminderVisibleUtterance.decision,
+              visibleReplyRealization: reminderVisibleUtterance.visibleReplyRealization,
+              selfRevisionPatch: activeSelfRevisionPatch
+                ? {
+                    id: activeSelfRevisionPatch.id,
+                    lanes: activeSelfRevisionPatch.lanes,
+                    reasonCodes: activeSelfRevisionPatch.reasonCodes,
+                  }
+                : null,
+            },
+          })
+          continue
+        }
         await options.appendRuntimeDebugLine('reminder.task-generated', {
           cardId: options.getActiveCardId(),
           trigger,
@@ -283,12 +319,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         const persisted = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,
           sessionId: deliveredSessionId,
-          assistantText: structured.reply,
-          structured: {
-            ...structured,
-            visibleReplyAuthority: 'llm-mind',
-            replyRealizationMode: 'provider-mind-required',
-          },
+          assistantText: reminderVisibleUtterance.assistantText,
+          structured: reminderVisibleUtterance.structuredForPersistence,
           origin: 'subconscious-proactive',
           createdAt: Date.now(),
         })
@@ -585,11 +617,15 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             reply: selectedReply.reply,
           }
       const deliverySource = selectedReply.source
-      const visibleUtteranceDecision = decideAlicizationProactiveVisibleUtterance({
+      const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+      const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
+        kind: 'execution-callback',
+        structured,
         hasMindAuthoredStructured: selectedReply.source === 'llm' && Boolean(llmStructured),
         reason: selectedReply.source === 'llm'
           ? 'mind-authored-execution-callback'
           : `execution-callback-visible-fallback-blocked:${selectedReply.reason ?? selectedReply.source}`,
+        selfRevisionPatch: activeSelfRevisionPatch,
       })
       await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {
         trigger,
@@ -602,7 +638,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         policy: deliveryPolicy,
       })
 
-      if (!visibleUtteranceDecision.shouldPersistVisibleUtterance) {
+      if (!callbackVisibleUtterance.shouldPersistVisibleUtterance) {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
         options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-requeue:${pendingDelivery.threadId}`, 1_500)
@@ -618,7 +654,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             status: pendingDelivery.status,
             source: deliverySource,
             surfaceReason: selectedReply.reason ?? null,
-            visibleUtteranceDecision,
+            visibleUtteranceDecision: callbackVisibleUtterance.decision,
+            visibleReplyRealization: callbackVisibleUtterance.visibleReplyRealization,
           },
         })
         return false
@@ -630,12 +667,8 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       const persisted = await options.appendConversationTurnWithGuards({
         turnId: firedTurnId,
         sessionId: pendingDelivery.sessionId,
-        assistantText: structured.reply,
-        structured: {
-          ...structured,
-          visibleReplyAuthority: 'llm-mind',
-          replyRealizationMode: 'provider-mind-required',
-        },
+        assistantText: callbackVisibleUtterance.assistantText,
+        structured: callbackVisibleUtterance.structuredForPersistence,
         origin: 'subconscious-proactive',
         createdAt: Date.now(),
       })

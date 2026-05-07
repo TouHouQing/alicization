@@ -37,6 +37,7 @@ import type { AlicizationContinuityDeliberation } from './continuity-deliberatio
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
 import type { AlicizationProactiveLoopState } from './proactive-feedback'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import { deriveAlicizationRuntimeProactiveSignals } from './alicization-active-loop'
 import { deriveProactiveCadenceSignal } from './proactive-cadence'
@@ -319,6 +320,7 @@ export function evaluateProactivePolicy(input: {
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
+  selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
   const contextScenario = inferScenarioFromContext({
@@ -448,6 +450,14 @@ export function evaluateProactivePolicy(input: {
     consideredSignals.push('continuityDeliberation.kind', 'continuityDeliberation.timing', 'continuityDeliberation.intrusion')
   if (input.affectiveResidue)
     consideredSignals.push('affectiveResidue.dominant', 'affectiveResidue.cadence', 'affectiveResidue.restProtection')
+  const selfRevisionPatch = input.selfRevisionPatch ?? null
+  if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
+    consideredSignals.push(
+      'selfRevision.proactivePolicy.restraintBias',
+      'selfRevision.proactivePolicy.learningProposalBias',
+      'selfRevision.proactivePolicy.actuationCooldownBias',
+    )
+  }
   const cadence = deriveProactiveCadenceSignal({
     state: proactiveState,
     context,
@@ -900,6 +910,11 @@ export function evaluateProactivePolicy(input: {
     baseScore += 0.03
   baseScore -= (input.affectiveResidue?.relationshipCadence.overreachRisk ?? 0) * 0.08
   baseScore -= (input.affectiveResidue?.relationshipCadence.fatigueGuard ?? 0) * 0.08
+  if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
+    baseScore += selfRevisionPatch.proactivePolicy.learningProposalBias * 0.08
+    baseScore -= selfRevisionPatch.proactivePolicy.restraintBias * 0.22
+    baseScore -= selfRevisionPatch.proactivePolicy.actuationCooldownBias * 0.18
+  }
 
   let threshold = buildBaseThreshold(scenario)
     + feedbackBias
@@ -971,6 +986,11 @@ export function evaluateProactivePolicy(input: {
   threshold -= Math.max(0, cadence.initiativeTrust - 0.5) * 0.06
   threshold += (input.affectiveResidue?.relationshipCadence.shouldDelayWarmth ? 0.06 : 0)
   threshold += (input.affectiveResidue?.relationshipCadence.shouldProtectRest ? 0.06 : 0)
+  if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
+    threshold += selfRevisionPatch.proactivePolicy.restraintBias * 0.18
+    threshold += selfRevisionPatch.proactivePolicy.actuationCooldownBias * 0.16
+    threshold -= selfRevisionPatch.proactivePolicy.learningProposalBias * 0.04
+  }
 
   const initiativeReady = autonomy
     ? autonomy.shouldSpeak === true
@@ -986,12 +1006,22 @@ export function evaluateProactivePolicy(input: {
     || runtimeDialogueReady
     || runtimeControlReady
   const contradictionHeavyKnowledgeHold = contradictionPressure >= 8 && validationRelief <= 1
+  const selfRevisionProactiveHold = Boolean(
+    selfRevisionPatch?.lanes.includes('proactive-policy')
+    && (
+      selfRevisionPatch.proactivePolicy.restraintBias >= 0.5
+      || selfRevisionPatch.proactivePolicy.actuationCooldownBias >= 0.5
+      || selfRevisionPatch.validation.requiresRevalidation
+      || selfRevisionPatch.validation.requiresRollbackCheck
+    ),
+  )
   const shouldInterrupt
     = !input.killSwitchSuspended
       && !suppressBusy
       && !cooldownActive
       && !continuityHoldForLater
       && !contradictionHeavyKnowledgeHold
+      && !selfRevisionProactiveHold
       && runtimeAwareStyle !== 'silent-observe'
       && activeLoopAllowsSpeaking
       && governorAllowsSpeaking
@@ -1057,6 +1087,12 @@ export function evaluateProactivePolicy(input: {
   pushReason(reasonCodes, 'relationship-guarded', input.relationshipModel?.climate === 'guarded')
   pushReason(reasonCodes, 'relationship-attuned', input.relationshipModel?.climate === 'attuned')
   pushReason(reasonCodes, 'relationship-correction-sensitive', (input.relationshipModel?.correctionSensitivity ?? 0) >= 0.58)
+  if (selfRevisionPatch?.lanes.includes('proactive-policy')) {
+    if (!reasonCodes.includes('recent-ignored-penalty'))
+      pushReason(reasonCodes, 'recent-ignored-penalty', selfRevisionPatch.proactivePolicy.restraintBias >= 0.12)
+    if (!reasonCodes.includes('scenario-bias-raised'))
+      pushReason(reasonCodes, 'scenario-bias-raised', selfRevisionPatch.proactivePolicy.actuationCooldownBias >= 0.12)
+  }
 
   const cooldownMs = clampMs(
     buildBaseCooldownMs(scenario) * (proactiveState.consecutiveIgnored[scenario] >= 3 ? 2 : 1),
@@ -1171,6 +1207,11 @@ export function evaluateProactivePolicy(input: {
       return '她当前的主动感知通道仍在主导运行时循环，继续观察比贸然开口更诚实。'
     if (continuityHoldForLater && continuityDeliberation?.summary)
       return `这条连续性现在更适合先留在心里，因为 ${continuityDeliberation.summary}。`
+    if (selfRevisionProactiveHold) {
+      return selfRevisionPatch?.summary
+        ? `活跃自我修订「${selfRevisionPatch.summary}」要求她先收住主动话语，避免把未复验的学习直接说成陪伴。`
+        : '活跃自我修订要求她先收住主动话语，避免把未复验的学习直接说成陪伴。'
+    }
     if (governorWithholdActive) {
       if (thoughtThread?.status === 'waiting')
         return '她确实挂着这条内在线程，但它还在等待更自然的 opening。'
@@ -1241,6 +1282,8 @@ export function evaluateProactivePolicy(input: {
         return '先让执行结果或当前主回答自己落地，不要让 callback 抢在前面开口。'
       return '先让这条连续性继续留在内在层，等时机更松再重新判断。'
     }
+    if (selfRevisionProactiveHold)
+      return '先等这条自我修订完成复验或冷却，再决定要不要主动靠近。'
     if (governorWithholdActive) {
       if (thoughtThread?.reopenWhen[0])
         return `先等「${thoughtThread.reopenWhen[0]}」这样的开口条件出现，再决定要不要靠近。`

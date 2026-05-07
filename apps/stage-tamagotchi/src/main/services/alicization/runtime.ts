@@ -210,6 +210,10 @@ import { createAlicizationDeliveryReminderRuntime } from './runtime-delivery-rem
 import { createAlicizationLearningActionScheduler } from './learning-action-scheduler'
 import { normalizeAlicizationDerivedMindStateBundle } from '@proj-alicization/stage-shared'
 import { createAlicizationLearningActionExecutor } from './learning-action-executor'
+import {
+  createAlicizationSelfEvolutionVersionRuntime,
+  type AlicizationSelfEvolutionVersionRuntimeSnapshot,
+} from './self-evolution/version-runtime'
 import { createAlicizationDreamRuntime } from './runtime-dream'
 import {
   buildAlicizationChatStreamEmbodimentMeta,
@@ -361,6 +365,8 @@ import {
   updateVisualPresenceState,
 } from './visual-episodic-memory'
 import { buildVisualHeartbeat } from './visual-heartbeat'
+
+const alicizationSelfEvolutionVersionRuntimeMetaKey = 'self_evolution_version_runtime_v1'
 
 export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupOptions) {
   const userDataPath = options?.userDataPathOverride ?? app.getPath('userData')
@@ -762,6 +768,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     upsertMeta: async (key, value) => await alicizationDb.setMetaValue(key, value),
     enqueueWrite: async task => await task(),
   })
+  const selfEvolutionVersionRuntime = createAlicizationSelfEvolutionVersionRuntime({
+    now: () => Date.now(),
+    readSnapshot: async () => {
+      const raw = await alicizationDb.getMetaValue(alicizationSelfEvolutionVersionRuntimeMetaKey)
+      if (!raw)
+        return null
+      const parsed = JSON.parse(raw)
+      return parsed && typeof parsed === 'object'
+        ? parsed as AlicizationSelfEvolutionVersionRuntimeSnapshot
+        : null
+    },
+    writeSnapshot: async (snapshot) => {
+      await alicizationDb.setMetaValue(
+        alicizationSelfEvolutionVersionRuntimeMetaKey,
+        JSON.stringify(snapshot),
+      )
+    },
+  })
   const executionCallbackRuntime = createAlicizationExecutionCallbackRuntime({
     listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
     listTaskThreads: input => alicizationDb.listTaskThreads(input),
@@ -813,6 +837,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
       recordMemoryHotKeyOutcome: async input => await memoryRetrievalTelemetryRuntime.recordHotKeyOutcome(input),
       getMemoryRetrievalTelemetry: async () => await memoryRetrievalTelemetryRuntime.getTelemetry(),
+      getActiveSelfRevisionStatePatch: async () => await selfEvolutionVersionRuntime.getActivePatch(),
     },
     organicMemorySearch: {
       normalizeOrganicRecallText,
@@ -867,6 +892,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
     assimilateMemoryFactsDetailed: input => memoryRuntime.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed(input),
     recordLearningExecutionTelemetry: input => memoryRetrievalTelemetryRuntime.recordLearningExecution(input),
+    proposeSelfEvolutionVersion: input => selfEvolutionVersionRuntime.propose(input),
   })
   const learningActionScheduler = createAlicizationLearningActionScheduler({
     now: () => Date.now(),
@@ -4962,6 +4988,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveExecutionSelfContinuityAuthority: resolveExecutionSelfContinuityAuthorityForRuntime,
     resolveExecutionHostPersonModel: resolveExecutionHostPersonModelForRuntime,
     resolveExecutionKnowledgeEvidence: resolveExecutionKnowledgeEvidenceForRuntime,
+    getActiveSelfRevisionStatePatch: async () => await selfEvolutionVersionRuntime.getActivePatch(),
     resolveExecutionPersonStateProjection: resolveExecutionPersonStateProjectionForRuntime,
     persistExecutionDeliveryState: async cardId => await persistExecutionDeliveryState(cardId),
     queueSubconsciousWake,
@@ -5221,6 +5248,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     alicizationSubconsciousPersistMs,
     persistProactiveLoopState,
     persistSubconsciousState,
+    getActiveSelfRevisionStatePatch: async () => await selfEvolutionVersionRuntime.getActivePatch(),
   })
 
   async function runSubconsciousTickAcrossCards(
@@ -5371,6 +5399,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     visualPresenceCapturePersistDebounceWindowMs,
     buildVisualPresenceCapturePersistFingerprint,
     appendAuditLog,
+    getActiveSelfRevisionStatePatch: async () => await selfEvolutionVersionRuntime.getActivePatch(),
   })
 
   const mainChatStartEagerPreparationBudgetMs = 120

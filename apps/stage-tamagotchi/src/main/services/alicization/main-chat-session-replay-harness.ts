@@ -30,6 +30,10 @@ import {
 } from '@proj-alicization/stage-shared'
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
+import {
+  buildAlicizationMemoryRecallFeedbackSample,
+  summarizeAlicizationMemoryRecallFeedback,
+} from './memory-os/recall-feedback-runtime'
 import { alicizationTurnGraphCanonicalStageOrder } from './turn-os/turn-graph'
 
 const executionChannels = [
@@ -795,6 +799,7 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
             claimAccuracy: input.goldMetrics.claimAccuracy,
             replyAuthorityAccuracy: input.goldMetrics.replyAuthorityAccuracy,
             latencyBudgetPass: input.goldMetrics.latencyBudgetPass,
+            sampleCount: input.goldMetrics.evaluatedTurnCount,
           }
         : {}),
       ...traceParticipation,
@@ -2560,6 +2565,7 @@ function evaluateReplayGoldMetrics(input: {
   let replyAuthorityDenominator = 0
   let latencyBudgetMatches = 0
   let latencyBudgetDenominator = 0
+  const recallFeedbackSamples: ReturnType<typeof buildAlicizationMemoryRecallFeedbackSample>[] = []
 
   for (const { turn, prepared } of evaluated) {
     const gold = turn.gold!
@@ -2581,6 +2587,20 @@ function evaluateReplayGoldMetrics(input: {
         recallAt3Hits += 1
       precisionMatches += actualSelected.slice(0, 3).filter(item => expectedSelected.includes(item)).length
       precisionDenominator += Math.max(1, Math.min(3, actualSelected.slice(0, 3).length))
+      recallFeedbackSamples.push(buildAlicizationMemoryRecallFeedbackSample({
+        turnId: turn.turnId,
+        decisionTraceId: turn.tracePointer?.decisionTraceId ?? null,
+        expectedMemoryIds: expectedSelected,
+        retrievedCandidateIds: uniqueStrings([
+          ...actualSelected,
+          ...actualSuppressed,
+          ...(prepared.memoryTurnArtifact?.candidates.retrievalCandidateIds ?? []),
+        ]),
+        surfacedMemoryIds: actualSelected,
+        wrongThreadIds: actualSuppressed,
+        judgeReason: 'replay-gold-evaluation',
+        now: 0,
+      }))
     }
 
     if ((gold.suppressedCandidateIds?.length ?? 0) > 0) {
@@ -2613,11 +2633,12 @@ function evaluateReplayGoldMetrics(input: {
   }
 
   const selectedExpectationCount = evaluated.filter(item => (item.turn.gold?.selectedCandidateIds?.length ?? 0) > 0).length
+  const recallFeedback = summarizeAlicizationMemoryRecallFeedback(recallFeedbackSamples)
   return {
     evaluatedTurnCount: evaluated.length,
     recallAt1: ratioOrZero(recallAt1Hits, selectedExpectationCount),
-    recallAt3: ratioOrZero(recallAt3Hits, selectedExpectationCount),
-    precisionAt3: ratioOrZero(precisionMatches, precisionDenominator),
+    recallAt3: recallFeedback.sampleCount > 0 ? recallFeedback.recallAt3 : ratioOrZero(recallAt3Hits, selectedExpectationCount),
+    precisionAt3: recallFeedback.sampleCount > 0 ? recallFeedback.precisionAt3 : ratioOrZero(precisionMatches, precisionDenominator),
     wrongThreadSuppression: ratioOrZero(wrongThreadHits, wrongThreadDenominator),
     claimAccuracy: ratioOrZero(claimMatches, claimDenominator),
     replyAuthorityAccuracy: ratioOrZero(replyAuthorityMatches, replyAuthorityDenominator),
@@ -2764,6 +2785,9 @@ function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmar
     value === 'default-humanlike-memory-v1'
     || value === 'sampled-humanlike-memory-v1'
     || value === 'backlog-humanlike-memory-v1'
+    || value === 'growth-humanlike-memory-v1'
+    || value === 'adversarial-humanlike-memory-v2'
+    || value === 'final-humanlike-memory-v1'
   ) {
     return value
   }
@@ -3210,6 +3234,34 @@ export function buildAdversarialHumanlikeMemoryBenchmarkPack(): AlicizationRepla
       gold: goldByTurnId['adversarial-afterglow-vs-longterm-relationship'],
     },
   ]
+}
+
+export function buildFinalHumanlikeMemoryBenchmarkPack(): AlicizationReplayTurn[] {
+  const byTurnId = new Map<string, AlicizationReplayTurn>()
+  const ordered = [
+    ...buildDefaultHumanlikeMemoryBenchmarkPack(),
+    ...buildGrowthHumanlikeMemoryBenchmarkPack(),
+    ...buildAdversarialHumanlikeMemoryBenchmarkPack(),
+  ]
+  for (const turn of ordered) {
+    byTurnId.set(turn.turnId, {
+      ...turn,
+      tracePointer: turn.tracePointer
+        ? {
+            ...turn.tracePointer,
+            packId: 'final-humanlike-memory-v1',
+          }
+        : {
+            kind: 'synthetic-pack-turn',
+            packId: 'final-humanlike-memory-v1',
+            turnId: turn.turnId,
+            decisionTraceId: null,
+            sessionId: null,
+            activeThreadId: null,
+          },
+    })
+  }
+  return [...byTurnId.values()]
 }
 
 export async function benchmarkMainChatSessionReplay(input: {

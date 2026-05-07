@@ -1400,4 +1400,67 @@ describe('evaluateProactivePolicy', () => {
     expect(decision.shouldInterrupt).toBe(false)
     expect(decision.consideredSignals).toContain('knowledgeEvidence')
   })
+
+  it('lets active self-revision proactive restraint suppress interruption even when the rest of the scene is speakable', () => {
+    const decision = evaluateProactivePolicy({
+      now: 1_000,
+      context: createContext(),
+      proactiveState: createDefaultProactiveLoopState(1_000),
+      killSwitchSuspended: false,
+      architecture: createArchitecture(),
+      runtimeDigest: createRuntimeSnapshot(),
+      watchMode: 'symbiotic-vision',
+      privateThought: createPrivateThought(),
+      beliefLedger: createBeliefLedger(),
+      relationshipModel: createRelationshipModel(),
+      inquiryLoop: createInquiryLoop(),
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-1',
+        sourceEventId: 'event-1',
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        domain: 'proactive-policy',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['proactive-policy'],
+        memoryPolicy: {
+          strictnessBias: 0,
+          wrongThreadSuppressionBias: 0,
+          provenanceLabelBias: 0,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0,
+          closenessCapBias: 0,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0,
+          hypothesisLabelBias: 0,
+          specificityClampBias: 0,
+          templateShellSuppressionBias: 0,
+        },
+        proactivePolicy: {
+          restraintBias: 0.62,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0.14,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        reasonCodes: ['self-revision-proactive-restraint'],
+        summary: 'hold proactive speech until the new habit is validated',
+      },
+    })
+
+    expect(decision.shouldInterrupt).toBe(false)
+    expect(decision.reasonCodes).toContain('recent-ignored-penalty')
+    expect(decision.reasonCodes).toContain('scenario-bias-raised')
+    expect(decision.consideredSignals).toContain('selfRevision.proactivePolicy.restraintBias')
+    expect(decision.whyNow).toContain('自我修订')
+  })
 })

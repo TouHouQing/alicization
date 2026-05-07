@@ -166,20 +166,20 @@ describe('main chat timeout fallback', () => {
 
     const payload = JSON.parse(reply) as {
       reply: string
-      governance: {
-        answerSubject: string
-        screenReferenceMode: string
+      visibleReplyBlocked: boolean
+      nonHumanAuthoredStatus: string
+      transportFailure: {
+        stage: string
       }
       visibleReplyAuthority: string
     }
-    expect(reply).toContain('主模型这轮没有完成心智回复')
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
+    expect(payload.nonHumanAuthoredStatus).toBe('main-gateway-timeout-recovery-exhausted')
+    expect(payload.transportFailure.stage).toBe('main-gateway-timeout')
     expect(reply).toContain('normal-reply-requires-provider-mind')
-    expect(payload.reply).not.toContain('provider')
     expect(reply).not.toContain('baseUrl')
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
     expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
-    expect(payload.governance.answerSubject).toBe('relationship')
-    expect(payload.governance.screenReferenceMode).toBe('avoid')
   })
 
   it('keeps timeout fallback payload on repaired normal authority instead of local reply authority', () => {
@@ -201,10 +201,10 @@ describe('main chat timeout fallback', () => {
     }
 
     expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    expect(payload.reply).toBe('')
     expect(payload.reply).not.toContain('模板化')
     expect(payload.reply).not.toContain('接住')
-    expect(payload.governance?.screenReferenceMode).toBe('avoid')
+    expect(payload.governance?.screenReferenceMode).toBeUndefined()
   })
 
   it('keeps execution timeout fallback on infra-status instead of contentful execution recovery', () => {
@@ -216,9 +216,10 @@ describe('main chat timeout fallback', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string, governance: { mindTurnFrame: { memory: { recallKeys: string[] } } } }
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
-    expect(payload.governance.mindTurnFrame.memory.recallKeys).toContain('normal-reply-requires-provider-mind')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyBlocked: boolean, reasonCodes: string[] }
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
+    expect(payload.reasonCodes).toContain('normal-reply-requires-provider-mind')
     expect(payload.reply).not.toContain('重新执行')
     expect(payload.reply).not.toContain('用cli帮我查一下桌面有什么文件')
   })
@@ -234,8 +235,9 @@ describe('main chat timeout fallback', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyBlocked: boolean }
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
     expect(reply).not.toContain('桌面')
     expect(reply).not.toContain('继续还是执行下一步')
     expect(reply).not.toContain('旧锚点')
@@ -250,8 +252,9 @@ describe('main chat timeout fallback', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyBlocked: boolean }
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
     expect(payload.reply).not.toContain('两小时')
     expect(payload.reply).not.toContain('我先守住真实边界')
   })
@@ -267,8 +270,9 @@ describe('main chat timeout fallback', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyBlocked: boolean }
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
     expect(payload.reply).not.toContain('你好')
     expect(payload.reply).not.toContain('往下')
     expect(payload.reply).not.toContain('滑开')
@@ -291,21 +295,13 @@ describe('main chat timeout fallback', () => {
         baseEmotion: string
         facialCue: string | null
       }
-      embodiment: {
-        emotion: string
-      } | null
-      speechTimeline: {
-        segments: unknown[]
-      } | null
     }
 
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    expect(payload.reply).toBe('')
     expect(payload.reply).not.toContain('直接接')
     expect(payload.reply).not.toContain('往下')
     expect(payload.reply).not.toMatch(/笑|眼神|情绪|眉眼/u)
     expect(payload.performance.baseEmotion).toBeTruthy()
-    expect(payload.embodiment?.emotion).toBeTruthy()
-    expect(payload.speechTimeline?.segments.length).toBeGreaterThan(0)
   })
 
   it('keeps timeout self-appraisal fallback on minimal repair instead of pretending durable self answered', () => {
@@ -318,8 +314,9 @@ describe('main chat timeout fallback', () => {
       ] as Message[],
     })
 
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('不能用本地固定句子替它回答')
+    const payload = JSON.parse(reply) as { reply: string, visibleReplyBlocked: boolean }
+    expect(payload.reply).toBe('')
+    expect(payload.visibleReplyBlocked).toBe(true)
     expect(payload.reply).not.toContain('可爱')
     expect(payload.reply).not.toContain('最在意的那一层')
   })

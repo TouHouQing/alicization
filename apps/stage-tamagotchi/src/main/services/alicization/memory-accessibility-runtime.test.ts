@@ -240,4 +240,68 @@ describe('memory-accessibility-runtime', () => {
     expect(snapshot.plan.verificationStrictness).toBe('strict')
     expect(reusedPlan).toEqual(snapshot.plan)
   })
+
+  it('applies active self-revision memory policy into turn retrieval policy', () => {
+    const snapshot = buildAlicizationTurnRetrievalPolicySnapshot({
+      recallSeed: '这条旧关系线现在还能不能接着用',
+      budgetClass: 'realtime-reply',
+      telemetry: {
+        recallAt3: 0.88,
+        recallHitRate: 0.82,
+        precisionAt3: 0.9,
+        wrongThreadRate: 0.02,
+        wrongThreadSuppression: 0.96,
+        latencyBudgetPass: true,
+      } as any,
+      tuningAdvice: null,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'revision-1',
+        sourceEventId: 'event-1',
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        domain: 'relationship',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['memory-policy', 'relationship-posture', 'response-posture'],
+        memoryPolicy: {
+          strictnessBias: 0.32,
+          wrongThreadSuppressionBias: 0.44,
+          provenanceLabelBias: 0.38,
+          recallExpansionBias: 0.26,
+          shouldQuarantineUnsupportedCarry: true,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0.12,
+          closenessCapBias: 0.1,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.18,
+          hypothesisLabelBias: 0.16,
+          specificityClampBias: 0.22,
+          templateShellSuppressionBias: 0.28,
+        },
+        proactivePolicy: {
+          restraintBias: 0.16,
+          learningProposalBias: 0.08,
+          actuationCooldownBias: 0.12,
+        },
+        validation: {
+          requiresRollbackCheck: true,
+          requiresRevalidation: false,
+          rollbackPlan: ['revalidate-old-relationship-line'],
+        },
+        reasonCodes: ['quarantine-unsupported-carry'],
+        summary: 'Old relationship line needs provenance before visible reuse.',
+      },
+    })
+
+    expect(snapshot.policy.verificationStrictness).toBe('quarantine')
+    expect(snapshot.policy.wrongThreadSuppressionBias).toBeGreaterThan(0.2)
+    expect(snapshot.policy.provenanceLabelingBias).toBeGreaterThan(0.2)
+    expect(snapshot.policy.reasonCodes).toContain('self-revision-memory-policy-active')
+    expect(snapshot.selfRevisionPatch?.id).toBe('revision-1')
+    expect(snapshot.plan.verificationStrictness).toBe('quarantine')
+  })
 })

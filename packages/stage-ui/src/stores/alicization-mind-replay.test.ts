@@ -397,7 +397,7 @@ describe('alicization mind replay store', () => {
     const result = await store.runReplayBenchmark()
 
     expect(runReplayBenchmark).toBeCalledWith({
-      packId: 'sampled-humanlike-memory-v1',
+      packId: 'final-humanlike-memory-v1',
       persistTelemetry: undefined,
       sampleLimit: 12,
     })

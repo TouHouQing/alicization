@@ -13,6 +13,7 @@ import type { AlicizationLearningActionExecutorResult } from './learning-action-
 import type { AlicizationLearningVerificationBasis } from './learning-domain-verifiers'
 import type { AlicizationLearningPolicyFeedback } from './learning-state-machine'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+import type { AlicizationSelfEvolutionVersionCandidate } from './self-evolution/version-runtime'
 
 import { appendLearningExecutionEvidence } from './learning-artifact-store'
 import { buildDomainReflectionTargetScope, buildInternalizeFactInput } from './learning-domain-verifiers'
@@ -48,6 +49,7 @@ export interface AlicizationLearningTaskEffectOptions {
     internalizedAsValidatedOnly?: boolean
     policyFeedback?: AlicizationLearningPolicyFeedback | null
     selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
+    selfEvolutionVersionCandidate?: AlicizationSelfEvolutionVersionCandidate | null
   }) => Promise<void>
 }
 
@@ -62,20 +64,28 @@ export interface AlicizationLearningTaskEffectContext {
   verifiedArtifact: AlicizationVerifiedLearningArtifact
 }
 
-async function recordLearningEvidence(input: {
+export async function recordFinalizedLearningExecutionEvidence(input: {
   options: AlicizationLearningTaskEffectOptions
   context: AlicizationLearningTaskEffectContext
-  resultSummary: string
+  result: AlicizationLearningActionExecutorResult
   includeVerificationBasis?: boolean
 }) {
   const { context, options } = input
+  const resultSummary = input.result.resultSummary ?? `Learning ${input.result.status} for ${context.domain}.`
   await appendLearningExecutionEvidence({
     options,
     task: context.task,
     domain: context.domain,
-    resultSummary: input.resultSummary,
+    resultSummary,
+    status: input.result.status,
+    lifecycleState: input.result.lifecycleState ?? null,
+    nextLifecycleState: input.result.nextLifecycleState ?? null,
+    policyFeedback: input.result.policyFeedback ?? null,
+    selfRevisionEvent: input.result.selfRevisionEvent ?? null,
+    selfRevisionStatePatch: input.result.selfRevisionStatePatch ?? null,
+    selfEvolutionVersionCandidate: input.result.selfEvolutionVersionCandidate ?? null,
     verificationBasis: input.includeVerificationBasis ? context.verificationBasis : undefined,
-    verifiedArtifact: context.verifiedArtifact,
+    verifiedArtifact: input.result.verifiedArtifact ?? context.verifiedArtifact,
   })
 }
 
@@ -106,12 +116,6 @@ export async function recordLearningReflectionEffect(
     supportingFactIds: supportingFacts.map(item => item.id),
     supportingOutcomeIds: relatedOutcomes.map(item => item.id),
   }])
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-    includeVerificationBasis: true,
-  })
   return {
     status: 'completed',
     resultSummary,
@@ -151,12 +155,6 @@ export async function rollbackVerifiedLearningArtifactEffect(
     sourceLabel: `artifact-rollback:${verifiedArtifact.artifactId}`,
     appendConflictsWith: task.payload.conflictTargets,
   })))
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-    includeVerificationBasis: true,
-  })
   return {
     status: 'downgraded',
     resultSummary,
@@ -207,12 +205,6 @@ export async function confirmLearningReflectionPressureEffect(
     supportingFactIds: task.payload.supportingFactIds,
     supportingOutcomeIds: relatedOutcomes.map(item => item.id),
   })))
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-    includeVerificationBasis: true,
-  })
   return {
     status: 'completed',
     resultSummary,
@@ -228,12 +220,6 @@ export async function applyLearningVerificationCorrectionsEffect(
 ): Promise<AlicizationLearningActionExecutorResult> {
   const resultSummary = `Verification reopened ${correctionTargets.length} ${context.domain} target(s).`
   await options.applyMemoryFactCorrections(correctionTargets)
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-    includeVerificationBasis: true,
-  })
   return {
     status: 'completed',
     resultSummary,
@@ -242,12 +228,37 @@ export async function applyLearningVerificationCorrectionsEffect(
   }
 }
 
+function shouldReviseSupportingFactsFromDirectCorrection(context: AlicizationLearningTaskEffectContext) {
+  const correctionNarrative = [
+    context.task.message,
+    context.task.payload.reason,
+    context.task.payload.dominantTrajectory,
+    ...context.task.payload.sourceSignals,
+    ...context.task.payload.focuses,
+  ].filter(Boolean).join(' ')
+
+  return /\b(?:correct(?:ed|ion)?|misread|stale|old belief|old understanding|retract|reinterpret|repair old)\b|纠正|更正|误解|旧理解|旧判断|撤回|重解释|改口/u.test(correctionNarrative)
+}
+
 export function buildLearningReviseTargets(context: AlicizationLearningTaskEffectContext) {
+  const explicitTargets = new Set([
+    ...context.task.payload.conflictTargets,
+    ...context.task.payload.supersedeTargets,
+  ])
+  const reviseBySupersession = context.task.payload.supersedeTargets.length > 0
+  const supportingTargetIds = new Set(context.task.payload.supportingFactIds)
+  const reviseByDirectCorrection = shouldReviseSupportingFactsFromDirectCorrection(context)
   return context.supportingFacts.filter(fact => {
     const factDomain = normalizeMemoryDomain(fact.memoryDomain)
     if (factDomain === 'relationship' || factDomain === 'self-model')
-      return context.task.payload.conflictTargets.includes(fact.id) || (fact.contradictionCount ?? 0) >= 1
-    return context.task.payload.conflictTargets.includes(fact.id) || (fact.contradictionCount ?? 0) >= 2
+      return explicitTargets.has(fact.id)
+        || (reviseBySupersession && supportingTargetIds.has(fact.id))
+        || (reviseByDirectCorrection && supportingTargetIds.has(fact.id))
+        || (fact.contradictionCount ?? 0) >= 1
+    return explicitTargets.has(fact.id)
+      || (reviseBySupersession && supportingTargetIds.has(fact.id))
+      || (reviseByDirectCorrection && supportingTargetIds.has(fact.id))
+      || (fact.contradictionCount ?? 0) >= 2
   })
 }
 
@@ -272,11 +283,6 @@ export async function supersedeLearningReflectionLinesEffect(
     supportingFactIds: task.payload.supportingFactIds,
     supportingOutcomeIds: relatedOutcomes.map(entry => entry.id),
   })))
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-  })
   return {
     status: 'completed',
     resultSummary,
@@ -296,12 +302,8 @@ export async function applyLearningRevisionCorrectionsEffect(
     nextKnowledgeStage: fact.knowledgeStage ?? 'working-understanding',
     sourceLabel: `learning-revise-${normalizeMemoryDomain(fact.memoryDomain)}`,
     appendConflictsWith: context.task.payload.conflictTargets,
+    appendSupersedes: context.task.payload.supersedeTargets,
   })))
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-  })
   return {
     status: 'completed',
     resultSummary,
@@ -325,11 +327,6 @@ export async function internalizeLearningFactsEffect(
   await options.upsertMemoryFacts(assimilation.facts, 'rule')
   const domainSummary = [...new Set(domains)].join(', ') || domain
   const resultSummary = `Internalized or validated ${assimilation.facts.length} ${domainSummary} fact(s).`
-  await recordLearningEvidence({
-    options,
-    context,
-    resultSummary,
-  })
   return {
     status: 'completed',
     resultSummary,

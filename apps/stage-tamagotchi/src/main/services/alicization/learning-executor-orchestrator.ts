@@ -19,6 +19,7 @@ import {
   buildLearningVerifyCorrectionTargets,
   confirmLearningReflectionPressureEffect,
   internalizeLearningFactsEffect,
+  recordFinalizedLearningExecutionEvidence,
   recordLearningReflectionEffect,
   rollbackVerifiedLearningArtifactEffect,
   supersedeLearningReflectionLinesEffect,
@@ -244,6 +245,10 @@ export async function executeAlicizationLearningTaskOrchestrator(
       event: selfRevisionEvent,
       policyFeedback,
     })
+    const selfEvolutionVersionCandidate = await options.proposeSelfEvolutionVersion?.({
+      event: selfRevisionEvent,
+      patch: selfRevisionStatePatch,
+    }).catch(() => null) ?? null
     const finalized = {
       ...result,
       verifiedArtifact,
@@ -252,6 +257,7 @@ export async function executeAlicizationLearningTaskOrchestrator(
       policyFeedback,
       selfRevisionEvent,
       selfRevisionStatePatch,
+      selfEvolutionVersionCandidate,
     }
     await options.recordLearningExecutionTelemetry?.({
       status: finalized.status,
@@ -259,6 +265,13 @@ export async function executeAlicizationLearningTaskOrchestrator(
       internalizedAsValidatedOnly: finalized.status === 'completed' && context.domain === 'world-model',
       policyFeedback: finalized.policyFeedback ?? null,
       selfRevisionStatePatch: finalized.selfRevisionStatePatch ?? null,
+      selfEvolutionVersionCandidate: finalized.selfEvolutionVersionCandidate ?? null,
+    })
+    await recordFinalizedLearningExecutionEvidence({
+      options,
+      context,
+      result: finalized,
+      includeVerificationBasis: true,
     })
     return finalized
   }

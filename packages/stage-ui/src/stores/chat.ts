@@ -636,6 +636,7 @@ interface StagedAssistantResolution {
     reasoning: string
   }
   reply: string
+  visibleReplySource: 'runtime-model' | 'renderer-local'
 }
 
 function mergeStructuredRuntimeMeta(
@@ -1536,6 +1537,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let userTurnMessageId: string | null = null
     let assistantOutputCommitted = false
     let runtimeAuthoritativeVisibleReplyBlocked = false
+    let runtimeAuthoritativeModelTextObserved = false
     let turnMindGovernance: AlicizationMindTurnGovernance | null = null
     let turnEmbodiment: AlicizationDialogueEmbodimentEnvelope | null = null
     let turnSpeechTimeline: AlicizationDialogueSpeechTimeline | null = null
@@ -1585,14 +1587,21 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           reasoning,
         },
         reply: normalizedReply,
+        visibleReplySource: 'renderer-local',
       })
     }
 
+    const isAlicizationUserTurn = () =>
+      (options.origin ?? 'ui-user') === 'ui-user'
+      && hasAlicizationBridge()
+
     const isRendererRuntimeAuthoritativeBridgeMode = () => {
-      if ((options.origin ?? 'ui-user') !== 'ui-user' || !hasAlicizationBridge())
+      if (!isAlicizationUserTurn())
         return false
       return Boolean(getAlicizationBridge().streamChat)
     }
+
+    const shouldBlockRendererLocalVisibleReply = () => isAlicizationUserTurn()
 
     const blockRuntimeAuthoritativeLocalVisibleReply = async (input: {
       action: string
@@ -1694,6 +1703,40 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       if (!fallbackReply)
         return ''
+
+      if (isRendererRuntimeAuthoritativeBridgeMode()) {
+        const stagedSource = staged?.visibleReplySource ?? null
+        if (stagedSource !== 'runtime-model' || !runtimeAuthoritativeModelTextObserved) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'runtime-authoritative-renderer-finalization-blocked',
+            message: 'Renderer blocked local finalization because runtime-authoritative visible replies must come from main-runtime model text.',
+            details: {
+              stagedSource,
+              hasStagedReply: Boolean(staged?.reply?.trim()),
+              hasFinalAssistantDisplayText: Boolean(finalAssistantDisplayText.trim()),
+              hasStagedSpeechDraft: Boolean(stagedSpeechDraft.trim()),
+              hasBuildingContent: Boolean(stringifyAssistantContent(buildingMessage.content).trim()),
+              runtimeAuthoritativeModelTextObserved,
+            },
+            level: 'critical',
+          })
+          return ''
+        }
+      }
+      else if (shouldBlockRendererLocalVisibleReply() && staged?.visibleReplySource === 'renderer-local') {
+        await blockRuntimeAuthoritativeLocalVisibleReply({
+          action: 'renderer-local-visible-fallback-blocked',
+          message: 'Renderer blocked local fallback finalization because Alicization visible replies must be model-authored.',
+          details: {
+            hasStagedReply: Boolean(staged.reply.trim()),
+            hasFinalAssistantDisplayText: Boolean(finalAssistantDisplayText.trim()),
+            hasStagedSpeechDraft: Boolean(stagedSpeechDraft.trim()),
+            hasBuildingContent: Boolean(stringifyAssistantContent(buildingMessage.content).trim()),
+          },
+          level: 'critical',
+        })
+        return ''
+      }
 
       const structured = staged?.structured ?? createStructuredFallback(fallbackReply, 'neutral', sendingMessage)
       const structuredWithGovernance = await finalizeGovernedStructuredOutput({
@@ -2069,6 +2112,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                       sawProgress = true
                       touch('progress')
                     }
+                    if (event.type === 'text-delta' && event.text.trim())
+                      runtimeAuthoritativeModelTextObserved = true
                     await streamOptions.onStreamEvent?.(event)
                   },
                 })
@@ -2450,7 +2495,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           candidateReply
           && !looksLikeAlicizationStructuredPayloadText(candidateReply),
         )
-        if (runtimeAuthoritativeBridge && replyLooksUsable) {
+        if (hasAlicizationBridge() && replyLooksUsable) {
           const sanitizedCandidateReply = sanitizeStructuredReplySurface(candidateReply) || candidateReply
           const resolvedEmbodiment = resolveAlicizationDialogueEmbodiment({
             candidateEmotion: candidate.emotion,
@@ -2566,16 +2611,30 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           reminderScheduled: turnToolEvidence.reminderScheduled,
         }), sendingMessage)
         await appendAlicizationAuditLog({
-          level: 'warning',
+          level: shouldBlockRendererLocalVisibleReply() ? 'critical' : 'warning',
           category: 'structured-output',
           action: 'contract-fallback',
-          message: 'Structured contract failed after retry and switched to fallback-v1.',
+          message: shouldBlockRendererLocalVisibleReply()
+            ? 'Structured contract failed after retry; renderer blocked local fallback visible speech for Alicization.'
+            : 'Structured contract failed after retry and switched to fallback-v1.',
           details: {
             parsePath: candidate.parsePath,
             emotion: candidate.emotion,
             violations: summarizeValidationIssues(validationIssues),
           },
         })
+        if (shouldBlockRendererLocalVisibleReply()) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'structured-contract-local-visible-fallback-blocked',
+            message: 'Renderer blocked structured-contract fallback because Alicization visible replies must be model-authored.',
+            details: {
+              parsePath: candidate.parsePath,
+              emotion: candidate.emotion,
+              violations: summarizeValidationIssues(validationIssues),
+            },
+            level: 'critical',
+          })
+        }
         return fallback
       }
 
@@ -2591,6 +2650,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           denialSource: turnToolEvidence.denialSource,
           reminderScheduled: turnToolEvidence.reminderScheduled,
         }, sendingMessage)
+        if (shouldBlockRendererLocalVisibleReply() && payload.enforceContract === false) {
+          await blockRuntimeAuthoritativeLocalVisibleReply({
+            action: 'renderer-local-non-contract-visible-fallback-blocked',
+            message: 'Renderer blocked non-contract fallback because Alicization visible replies must be model-authored.',
+            details: {
+              hasPayloadReply: Boolean(payload.reply.trim()),
+              policyLocked: payload.policyLocked ?? null,
+            },
+            level: 'critical',
+          })
+        }
         const structured = payload.enforceContract === false
           ? createStructuredFallback(nonContractReply, createContractFallbackEmotion(turnPersonalityState, {
               toolDenied: turnToolEvidence.deniedBySafety,
@@ -2643,6 +2713,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           },
           structured: governedStructured,
           reply: finalReply,
+          visibleReplySource: 'runtime-model',
         })
       }
 
@@ -2678,10 +2749,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
 
         const assistantOutputText = await commitAssistantResolution()
-        if (!assistantOutputText.trim() && isRendererRuntimeAuthoritativeBridgeMode()) {
+        if (!assistantOutputText.trim() && shouldBlockRendererLocalVisibleReply()) {
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'runtime-authoritative-empty-reply-blocked',
-            message: 'Renderer blocked empty local finalization because runtime-authoritative turns require a model-authored visible reply.',
+            message: 'Renderer blocked empty local finalization because Alicization turns require a model-authored visible reply.',
+            details: {
+              runtimeAuthoritativeModelTextObserved,
+              hasStagedResolution: Boolean(stagedAssistantResolution),
+              hasFinalAssistantDisplayText: Boolean(finalAssistantDisplayText.trim()),
+              hasStagedSpeechDraft: Boolean(stagedSpeechDraft.trim()),
+              hasBuildingContent: Boolean(stringifyAssistantContent(buildingMessage.content).trim()),
+            },
           })
           return ''
         }
@@ -2734,10 +2812,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           finalSpeech = sanitizeFallbackReply
         }
 
-        if (runtimeAuthoritativeBridge && (realtimeFallbackApplied || leakFallbackApplied || emptyOutputFallbackApplied)) {
+        if (shouldBlockRendererLocalVisibleReply() && (realtimeFallbackApplied || leakFallbackApplied || emptyOutputFallbackApplied)) {
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'renderer-local-visible-fallback-blocked',
-            message: 'Renderer blocked a local fallback visible reply because runtime-authoritative turns require model-authored speech.',
+            message: 'Renderer blocked a local fallback visible reply because Alicization turns require model-authored speech.',
             details: {
               realtimeFallbackApplied,
               leakFallbackApplied,
@@ -2746,6 +2824,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               leakDetected: sanitizedOutput.leakDetected,
               removedCount: sanitizedOutput.removedCount,
               verifiedToolResult: turnToolEvidence.verifiedToolResult,
+              runtimeAuthoritativeModelTextObserved,
             },
           })
           return
@@ -3174,8 +3253,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             level: 'warning',
             category: 'realtime-policy',
             action: 'epoch1-strict-realtime-refusal-failed',
-            message: runtimeAuthoritativeBridge
-              ? 'Strict realtime refusal LLM path failed; renderer blocked local refusal fallback in runtime-authoritative mode.'
+            message: shouldBlockRendererLocalVisibleReply()
+              ? 'Strict realtime refusal LLM path failed; renderer blocked local refusal fallback in Alicization mode.'
               : 'Strict realtime refusal LLM path failed, applied fixed fallback reply.',
             details: {
               sessionId,
@@ -3184,10 +3263,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
 
-          if (runtimeAuthoritativeBridge) {
+          if (shouldBlockRendererLocalVisibleReply()) {
             await blockRuntimeAuthoritativeLocalVisibleReply({
               action: 'epoch1-strict-local-visible-fallback-blocked',
-              message: 'Renderer blocked strict realtime refusal fallback speech because runtime-authoritative turns require model-authored visible replies.',
+              message: 'Renderer blocked strict realtime refusal fallback speech because Alicization turns require model-authored visible replies.',
               details: {
                 reason: error instanceof Error ? error.message : String(error),
               },
@@ -3674,7 +3753,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
           else {
             const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
-            if (fallbackReply && !runtimeAuthoritativeBridge) {
+            if (fallbackReply && !shouldBlockRendererLocalVisibleReply()) {
               stageAssistantFallback(
                 fallbackReply,
                 turnToolEvidence.latestExecutorResult.status === 'failed'
@@ -3684,10 +3763,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   : 'neutral',
               )
             }
-            else if (fallbackReply && runtimeAuthoritativeBridge) {
+            else if (fallbackReply && shouldBlockRendererLocalVisibleReply()) {
               await blockRuntimeAuthoritativeLocalVisibleReply({
                 action: 'executor-payoff-local-visible-fallback-blocked',
-                message: 'Renderer blocked executor-summary fallback speech because execution payoff must be model-authored in runtime-authoritative mode.',
+                message: 'Renderer blocked executor-summary fallback speech because execution payoff must be model-authored in Alicization mode.',
                 details: {
                   executorSummary: turnToolEvidence.latestExecutorResult.summary,
                   executorStatus: turnToolEvidence.latestExecutorResult.status,
@@ -3710,10 +3789,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }
         else {
           const fallbackReply = buildExecutorResultFallbackReply(turnToolEvidence.latestExecutorResult)
-          if (fallbackReply && !runtimeAuthoritativeBridge) {
+          if (fallbackReply && !shouldBlockRendererLocalVisibleReply()) {
             stageAssistantFallback(fallbackReply)
           }
-          else if (fallbackReply && runtimeAuthoritativeBridge) {
+          else if (fallbackReply && shouldBlockRendererLocalVisibleReply()) {
             await blockRuntimeAuthoritativeLocalVisibleReply({
               action: 'executor-payoff-blocked-retry-local-visible-fallback-blocked',
               message: 'Renderer blocked executor-summary fallback speech after payoff retry sanitization was blocked.',
@@ -3825,10 +3904,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         })
 
         const reminderFailureReply = mindRepairText('reminder-schedule-failed', sendingMessage)
-        if (runtimeAuthoritativeBridge) {
+        if (shouldBlockRendererLocalVisibleReply()) {
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'reminder-failure-local-visible-fallback-blocked',
-            message: 'Renderer blocked reminder failure fallback speech because runtime-authoritative turns require model-authored visible replies.',
+            message: 'Renderer blocked reminder failure fallback speech because Alicization turns require model-authored visible replies.',
             details: {
               reminderToolCallCount: turnToolEvidence.reminderToolCallIds.size,
             },
@@ -3908,11 +3987,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
 
       if (!assistantOutputCommitted) {
-        if (isRendererRuntimeAuthoritativeBridgeMode()) {
+        if (shouldBlockRendererLocalVisibleReply()) {
           const fallback = resolveStreamFailureFallback(error, sendingMessage)
           await blockRuntimeAuthoritativeLocalVisibleReply({
             action: 'runtime-authoritative-local-failure-reply-blocked',
-            message: 'Renderer blocked local failure reply because runtime-authoritative turns require model-authored visible speech.',
+            message: 'Renderer blocked local failure reply because Alicization turns require model-authored visible speech.',
             details: {
               reason: error instanceof Error ? error.message : String(error),
               fallbackKind: fallback.kind,

@@ -351,7 +351,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   const benchmarkReport = ref<AlicizationRunReplayBenchmarkResult | null>(null)
   const benchmarkStatsBefore = ref<AlicizationMemoryStats | null>(null)
   const benchmarkStatsAfter = ref<AlicizationMemoryStats | null>(null)
-  const selectedBenchmarkPackId = ref<NonNullable<AlicizationRunReplayBenchmarkPayload['packId']>>('sampled-humanlike-memory-v1')
+  const selectedBenchmarkPackId = ref<NonNullable<AlicizationRunReplayBenchmarkPayload['packId']>>('final-humanlike-memory-v1')
   const selectedBenchmarkSampleLimit = ref(12)
   const selectedDiagnosisDimension = ref<string>('all')
   const selectedDiagnosisTurnId = ref<string | null>(null)
@@ -362,10 +362,12 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
   const replaySummary = computed(() => deriveMindReplaySummary(sortedEvents.value))
   const benchmarkSupported = computed(() => hasAlicizationBridge() && Boolean(getAlicizationBridge().runReplayBenchmark))
   const benchmarkPackOptions = computed(() => [
+    { label: 'Final', value: 'final-humanlike-memory-v1' },
     { label: 'Sampled', value: 'sampled-humanlike-memory-v1' },
     { label: 'Backlog', value: 'backlog-humanlike-memory-v1' },
     { label: 'Default', value: 'default-humanlike-memory-v1' },
     { label: 'Growth', value: 'growth-humanlike-memory-v1' },
+    { label: 'Adversarial', value: 'adversarial-humanlike-memory-v2' },
   ] as const)
   const benchmarkDimensionGroups = computed<AlicizationMindReplayBenchmarkDimensionGroup[]>(() => {
     const dimensions = benchmarkReport.value?.gate.dimensions ?? []

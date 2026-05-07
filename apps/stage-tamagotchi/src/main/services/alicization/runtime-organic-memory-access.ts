@@ -50,6 +50,7 @@ import {
 } from './memory-tuning-advice'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   getActiveCardId: () => string
@@ -145,6 +146,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     won?: boolean
   }) => Promise<void>
   getMemoryRetrievalTelemetry?: () => Promise<AlicizationMemoryRetrievalTelemetrySnapshot | null>
+  getActiveSelfRevisionStatePatch?: () => Promise<AlicizationSelfRevisionStatePatch | null>
 }
 
 export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlicizationOrganicMemoryAccessRuntimeOptions) {
@@ -180,12 +182,14 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       options.getMemoryRetrievalTelemetry?.().catch(() => null) ?? Promise.resolve(null),
       getMemoryTuningAdvice().catch(() => null),
     ])
+    const selfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
     return buildAlicizationTurnRetrievalPolicySnapshot({
       recallSeed: input.recallSeed,
       recallGovernor: input.recallGovernor ?? null,
       budgetClass: input.budgetClass,
       telemetry,
       tuningAdvice,
+      selfRevisionPatch,
     })
   }
 

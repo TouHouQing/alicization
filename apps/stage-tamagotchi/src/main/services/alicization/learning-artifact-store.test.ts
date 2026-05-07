@@ -23,6 +23,24 @@ describe('learning-artifact-store', () => {
       } as any,
       domain: 'world-model',
       resultSummary: 'Verified a world-model claim.',
+      status: 'completed',
+      lifecycleState: 'verification',
+      nextLifecycleState: 'internalization',
+      policyFeedback: {
+        strictnessBias: 0.2,
+        wrongThreadSuppressionBias: 0.1,
+        provenanceLabelBias: 0.3,
+        reasonCodes: ['domain:world-model'],
+      } as any,
+      selfRevisionStatePatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-1',
+      } as any,
+      selfEvolutionVersionCandidate: {
+        version: 'self-evolution-version-candidate-v1',
+        id: 'candidate-1',
+        status: 'shadow',
+      } as any,
       verificationBasis: ['trusted-source'],
       verifiedArtifact: {
         artifactId: 'artifact-1',
@@ -45,8 +63,21 @@ describe('learning-artifact-store', () => {
           action: 'verify',
           domain: 'world-model',
           resultSummary: 'Verified a world-model claim.',
+          status: 'completed',
+          lifecycleState: 'verification',
+          nextLifecycleState: 'internalization',
           focuses: ['world-model'],
           verificationBasis: ['trusted-source'],
+          policyFeedback: expect.objectContaining({
+            reasonCodes: ['domain:world-model'],
+          }),
+          selfRevisionStatePatch: expect.objectContaining({
+            id: 'patch-1',
+          }),
+          selfEvolutionVersionCandidate: expect.objectContaining({
+            id: 'candidate-1',
+            status: 'shadow',
+          }),
           verifiedArtifact: expect.objectContaining({
             artifactId: 'artifact-1',
           }),

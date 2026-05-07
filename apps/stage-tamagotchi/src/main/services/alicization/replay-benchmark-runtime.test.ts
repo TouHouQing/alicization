@@ -272,11 +272,59 @@ describe('replay benchmark runtime', () => {
     expect(nightly.results.map(item => item.packId)).toEqual(expect.arrayContaining([
       'sampled-humanlike-memory-v1',
       'growth-humanlike-memory-v1',
+      'final-humanlike-memory-v1',
     ]))
     expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('nightly-test')
     expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('growth-humanlike-memory-v1')
+    expect(meta.get(replayBenchmarkLatestReportMetaKey)).toContain('final-humanlike-memory-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('memory-tuning-advice-v1')
     expect(meta.get(replayBenchmarkTuningAdviceMetaKey)).toContain('repairWindowBias')
+  })
+
+  it('uses the final humanlike memory pack as the default ship gate pack', async () => {
+    const meta = new Map<string, string>()
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {
+            semanticLatencyMs: null,
+            graphLatencyMs: null,
+            reconstructionFrequency: 0,
+            reconstructedCount: 0,
+            recallHitRate: 0,
+            recallMissRate: 0,
+            wrongThreadRate: 0,
+            suppressionHitRate: 0,
+            wrongThreadPreventedCount: 0,
+            falsePositiveSuppressionRate: 0,
+            reconstructionErrorRate: 0,
+            stableCoreOnlyRate: 0,
+            memorySurfaceViolationRate: 0,
+            templateLeakageFailCount: 0,
+          },
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async (key: string) => meta.get(key)),
+        setMetaValue: vi.fn(async (key: string, value: string) => {
+          meta.set(key, value)
+        }),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      persistTelemetry: false,
+    })
+
+    expect(result.packId).toBe('final-humanlike-memory-v1')
+    expect(result.turnCount).toBeGreaterThan(12)
   })
 
   it('surfaces stale self-model and relationship-era suppression rates in ship gate rows', async () => {

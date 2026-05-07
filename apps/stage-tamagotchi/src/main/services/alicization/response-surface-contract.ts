@@ -1,6 +1,7 @@
 import type {
   AlicizationAnswerCompilerSnapshot,
   AlicizationClaimEvidenceLedgerSnapshot,
+  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDialogueActKernelSnapshot,
   AlicizationDialogueTurnEncounterSnapshot,
 } from '../../../shared/eventa'
@@ -13,6 +14,7 @@ import type { AlicizationExecutiveAnswerBrief } from './executive-answer-brief'
 import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type { AlicizationResponseCharter } from './response-charter'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
   deriveAlicizationMemoryClosureDiscipline,
@@ -53,6 +55,7 @@ export interface AlicizationResponseSurfaceContract {
   labelCarryAsMemory: boolean
   suppressAssociativeRecall: boolean
   recollectionLatentControls?: string[] | null
+  activeSelfRevisionPatchId?: string | null
   mustDo: string[]
   mustNotDo: string[]
 }
@@ -219,6 +222,13 @@ function resolveAffectionatePrefaceAllowance(input: {
   return false
 }
 
+function asSurfaceSentence(prefix: string, value: string) {
+  const text = value.trim()
+  if (!text)
+    return ''
+  return `${prefix}${/[.!?。！？]$/u.test(text) ? text : `${text}.`}`
+}
+
 interface AlicizationDialogueEncounterSurface extends Pick<
   AlicizationDialogueTurnEncounterSnapshot,
   'subject' | 'screenReferenceMode'
@@ -234,9 +244,11 @@ export function buildAlicizationResponseSurfaceContract(input: {
   dialogueFocus?: AlicizationDialogueFocusGovernance | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
+  currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null
   runtimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   recollectionSpeechPlan?: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null
+  selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
   const runtimeSurface = input.runtimeSurface ?? null
   const digitalLifeArchitecture = buildAlicizationDigitalLifeArchitecture(runtimeSurface)
@@ -248,6 +260,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
   const dialogueActKernel = runtimeSurface?.dialogue.dialogueActKernel ?? input.dialogueActKernel ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
   const claimEvidenceLedger = runtimeSurface?.dialogue.claimEvidenceLedger ?? input.claimEvidenceLedger ?? null
+  const currentConsciousFrame = runtimeSurface?.dialogue.currentConsciousFrame ?? input.currentConsciousFrame ?? null
   const derivedBundle = runtimeSurface?.memory.derivedMindStateBundle ?? null
   const personStateProjection = readPersonStateProjectionFromDerivedMindStateBundle<any>(derivedBundle)
     ?? runtimeSurface?.memory.personStateProjection
@@ -268,6 +281,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
       ?? runtimeSurface?.memory.knowledgeEvidence
       ?? null,
   })
+  const selfRevisionPatch = input.selfRevisionPatch ?? null
   const { brief, charter } = input
   const truthDiscipline = deriveAlicizationTruthDiscipline({
     answerSubject: dialogueEncounterSurface?.subject ?? dialogueFocus?.subject ?? answerCompiler?.answerSubject ?? null,
@@ -279,7 +293,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     labelCarryAsMemory: (answerCompiler?.labelCarryAsMemory ?? brief.separateCarryFromSurface) || brief.truthState === 'remembered',
     suppressAssociativeRecall: answerCompiler?.suppressAssociativeRecall ?? false,
     claimEvidenceLedger,
-    currentConsciousFrame: null,
+    currentConsciousFrame,
     memoryRestraint: memoryDeliberationKernel?.restraint ?? null,
   })
 
@@ -347,19 +361,37 @@ export function buildAlicizationResponseSurfaceContract(input: {
     'Keep the reply compact and current-turn-governed.',
     'Speak as someone fulfilling the present obligation, not as someone performing a default persona script.',
     'Sound like one continuing subject in the moment, not like a narrator summarizing internal state.',
+    currentConsciousFrame?.speakingIntention
+      ? asSurfaceSentence('Let the current conscious speaking intention govern wording: ', currentConsciousFrame.speakingIntention)
+      : '',
+    currentConsciousFrame?.consciousTension
+      ? asSurfaceSentence('Resolve the current conscious tension before widening the answer: ', currentConsciousFrame.consciousTension)
+      : '',
     replyRealizationMode === 'provider-mind-required'
       ? 'Fully realize the visible reply inside this provider-mind turn instead of leaving payoff wording for a later local fallback layer.'
       : 'Only use local fallback wording when this turn is explicitly marked as a fallback-only lane.',
-  ]
+    selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.secondPassRequiredBias >= 0.1
+      ? 'The active self-revision patch raises rewrite/repair discipline for this visible turn.'
+      : '',
+  ].filter(Boolean)
   const mustNotDo = [
     'Do not begin with moans, pet names, ellipsis-only prefaces, or decorative roleplay.',
     'Do not use parenthetical stage directions or body-action narration.',
     'Do not mirror or lightly paraphrase the host\'s latest line as the spine of the reply.',
     'Do not expose planning jargon, governance labels, or internal control summaries in the visible answer.',
+    currentConsciousFrame?.withheldImpulse
+      ? asSurfaceSentence('Do not leak this withheld impulse into the visible reply: ', currentConsciousFrame.withheldImpulse)
+      : '',
+    currentConsciousFrame?.shouldWithholdSpecificity
+      ? 'Do not add specific file, class, enum, app, or screen details unless grounded by this turn.'
+      : '',
     replyRealizationMode === 'provider-mind-required'
       ? 'Do not stop at a thin shell that assumes a local deterministic layer will finish the real visible reply for you.'
       : 'Do not pretend a fallback-only lane is a provider-mind authored normal answer.',
-  ]
+    selfRevisionPatch?.lanes.includes('response-posture') && selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1
+      ? 'Do not use a template shell, empty empathy shell, or pacing shell as a substitute for actual answer payoff.'
+      : '',
+  ].filter(Boolean)
 
   appendAlicizationResponseSurfaceRules(
     { mustDo, mustNotDo },
@@ -413,6 +445,14 @@ export function buildAlicizationResponseSurfaceContract(input: {
     for (const item of answerCompiler.mustNotDo)
       pushUnique(mustNotDo, item)
   }
+  if (selfRevisionPatch?.lanes.includes('response-posture')) {
+    if (selfRevisionPatch.responsePosture.hypothesisLabelBias >= 0.1)
+      pushUnique(mustDo, 'Expose hypothesis boundaries more explicitly because the active self-revision patch raised hypothesis-label discipline.')
+    if (selfRevisionPatch.responsePosture.specificityClampBias >= 0.1)
+      pushUnique(mustNotDo, 'Do not let freshly revised confidence leak into unsupported specificity on the visible surface.')
+    if (selfRevisionPatch.responsePosture.templateShellSuppressionBias >= 0.1)
+      pushUnique(mustNotDo, 'Do not satisfy the host with a template shell; close the loop with concrete answer or care content now.')
+  }
   for (const item of dialogueActKernel?.mustSay ?? [])
     pushUnique(mustDo, item)
   for (const item of dialogueActKernel?.mustAvoid ?? [])
@@ -433,6 +473,7 @@ export function buildAlicizationResponseSurfaceContract(input: {
     labelCarryAsMemory,
     suppressAssociativeRecall,
     recollectionLatentControls: recollectionSpeechRules.latentControls,
+    activeSelfRevisionPatchId: selfRevisionPatch?.id ?? null,
     mustDo,
     mustNotDo,
   }
@@ -456,11 +497,29 @@ export function buildAlicizationResponseSurfaceContract(input: {
       `Body narration allowed: ${contract.allowBodyNarration ? 'yes' : 'no'}.`,
       `Label carried continuity explicitly: ${contract.labelCarryAsMemory ? 'yes' : 'no'}.`,
       `Suppress associative recall noise for this turn: ${contract.suppressAssociativeRecall ? 'yes' : 'no'}.`,
+      contract.activeSelfRevisionPatchId
+        ? `Active self revision patch: ${contract.activeSelfRevisionPatchId}.`
+        : '',
       `Truth discipline memory surface: ${truthDiscipline.memorySurfaceMode ?? 'none'}.`,
       `Truth discipline memory provenance: ${truthDiscipline.memoryProvenanceMode ?? 'none'}.`,
       `Truth discipline memory inward-only: ${truthDiscipline.shouldKeepMemoryInward ? 'yes' : 'no'}.`,
       `Truth discipline stable-core-only: ${truthDiscipline.shouldOnlySurfaceMemoryStableCore ? 'yes' : 'no'}.`,
       `Truth discipline delay memory until payoff: ${truthDiscipline.shouldDelayMemoryUntilAfterPayoff ? 'yes' : 'no'}.`,
+      currentConsciousFrame
+        ? `Current conscious need: ${currentConsciousFrame.consciousNeed}.`
+        : '',
+      currentConsciousFrame
+        ? `Current conscious tension: ${currentConsciousFrame.consciousTension}.`
+        : '',
+      currentConsciousFrame
+        ? `Current speaking intention: ${currentConsciousFrame.speakingIntention}.`
+        : '',
+      currentConsciousFrame?.focusAnchor
+        ? `Current conscious focus anchor: ${currentConsciousFrame.focusAnchor}.`
+        : '',
+      currentConsciousFrame?.shouldWithholdSpecificity
+        ? 'Current conscious frame withholds unsupported specificity: yes.'
+        : '',
       memoryResolutionLedger
         ? `Memory closure state: ${memoryResolutionLedger.closureState}.`
         : '',

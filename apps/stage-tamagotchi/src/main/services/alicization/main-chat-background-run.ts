@@ -42,23 +42,22 @@ import {
   buildAlicizationActiveDialogueFastPathMessages,
   deriveAlicizationActiveDialogueFastPathDecision,
   normalizeAlicizationActiveDialogueFastPathReplyOrEscalate,
-  shouldAlicizationActiveDialogueStayLLMAuthored,
 } from './main-chat-active-dialogue-loop'
 import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
 import {
-  buildAlicizationSecondPassTransportFailureReply,
-  rewriteAlicizationVisibleReplySecondPass,
-} from './main-chat-second-pass-rewrite'
-import {
-  type AlicizationResolvedVisibleReply,
-  buildAlicizationResolvedVisibleReply,
-  buildAlicizationVisibleReplyRealizationArtifact,
-  resolveAlicizationPreparedVisibleReplyExecution,
-  resolveAlicizationTimeoutRecoveredVisibleReply,
-} from './main-chat-visible-reply-execution'
+  alicizationExecutorToolNames,
+  asAlicizationInlineExecutionSurfaceInput,
+  buildAlicizationMinimalContextRecoveryMessages,
+  readAlicizationInlineExecutionReceipt,
+  shouldUseAlicizationExecutionFirstFastPath,
+  type AlicizationInlineExecutionReceipt,
+} from './main-chat-background-rules'
+import type {
+  AlicizationResolvedVisibleReply,
+} from './visible-reply/facade'
 import { isAlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import {
   recoverAlicizationRequiredToolDeterministically,
@@ -73,12 +72,17 @@ import { parseJsonObjectFromText } from './runtime-transport-content'
 import { attachAlicizationTurnGraphSurface } from './turn-os/turn-graph'
 import {
   AlicizationVisibleReplyClosureBlockedError,
-  closeAlicizationVisibleReply,
   type AlicizationVisibleReplyClosureResult,
-} from './visible-reply/closure-orchestrator'
-import {
+  buildAlicizationSecondPassTransportFailureReply,
+  buildAlicizationResolvedVisibleReply,
   buildAlicizationVisibleReplyCriticArtifact,
-} from './visible-reply/critic'
+  buildAlicizationVisibleReplyRealizationArtifact,
+  closeAlicizationVisibleReply,
+  decideAlicizationActiveDialogueCompactAuthority,
+  resolveAlicizationPreparedVisibleReplyExecution,
+  resolveAlicizationTimeoutRecoveredVisibleReply,
+  rewriteAlicizationVisibleReplySecondPass,
+} from './visible-reply/facade'
 import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
@@ -140,176 +144,11 @@ interface RunAlicizationMainChatBackgroundOptions {
   }) => Promise<string | null> | string | null
 }
 
-interface AlicizationInlineExecutionReceipt {
-  completedAt: number
-  sessionId: string
-  threadId: string
-}
-
-interface AlicizationInlineExecutionSurfaceInput {
-  channel: string
-  status: 'completed' | 'failed' | 'blocked' | 'cancelled' | 'queued' | 'running'
-  goal: string
-  summary: string
-  outcome: string
-}
-
 class AlicizationMindAuthoredReplyRequiredError extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'AlicizationMindAuthoredReplyRequiredError'
   }
-}
-
-const executorToolNames = new Set([
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
-  'executor_run_openclaw',
-])
-
-const terminalExecutionThreadStatuses = new Set([
-  'completed',
-  'failed',
-  'blocked',
-  'cancelled',
-])
-
-function buildMinimalContextRecoveryMessages(messages: Message[]) {
-  if (!Array.isArray(messages) || messages.length <= 6)
-    return messages
-
-  const keepIndexes = new Set<number>()
-  let preservedSystemCount = 0
-
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index]
-    if (message?.role !== 'system')
-      continue
-    if (preservedSystemCount < 3) {
-      keepIndexes.add(index)
-      preservedSystemCount += 1
-    }
-  }
-
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index]
-    if (message?.role === 'system') {
-      keepIndexes.add(index)
-      break
-    }
-  }
-
-  let preservedTailCount = 0
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index]?.role === 'system')
-      continue
-    keepIndexes.add(index)
-    preservedTailCount += 1
-    if (preservedTailCount >= 4)
-      break
-  }
-
-  const compactMessages = messages.filter((_, index) => keepIndexes.has(index))
-  return compactMessages.length > 0
-    ? compactMessages
-    : messages.slice(-6)
-}
-
-function readInlineExecutionReceipt(result: unknown): AlicizationInlineExecutionReceipt | null {
-  if (!result || typeof result !== 'object' || Array.isArray(result))
-    return null
-
-  const payload = result as {
-    completedAt?: unknown
-    sessionId?: unknown
-    threadId?: unknown
-    threadStatus?: unknown
-  }
-  const threadStatus = sanitizeText(payload.threadStatus, '')
-    .toLowerCase()
-  const sessionId = sanitizeText(payload.sessionId, '')
-  const threadId = sanitizeText(payload.threadId, '')
-  const completedAt = typeof payload.completedAt === 'number' && Number.isFinite(payload.completedAt)
-    ? Math.max(0, Math.floor(payload.completedAt))
-    : 0
-
-  if (!terminalExecutionThreadStatuses.has(threadStatus) || !sessionId || !threadId || completedAt <= 0)
-    return null
-
-  return {
-    completedAt,
-    sessionId,
-    threadId,
-  }
-}
-
-function asInlineExecutionSurfaceInput(toolName: string, result: unknown): AlicizationInlineExecutionSurfaceInput | null {
-  if (!result || typeof result !== 'object' || Array.isArray(result))
-    return null
-
-  const payload = result as Record<string, unknown>
-  const normalizedToolName = sanitizeText(toolName, '').toLowerCase()
-  const selectedChannel = sanitizeText(payload.selectedChannel, '')
-    || sanitizeText(payload.channel, '')
-    || (normalizedToolName === 'executor_run_cli'
-      ? 'cli'
-      : normalizedToolName === 'executor_run_codex'
-        ? 'codex'
-        : normalizedToolName === 'executor_run_claude_code'
-          ? 'claude-code'
-          : normalizedToolName === 'executor_run_openclaw'
-            ? 'openclaw'
-            : 'executor')
-  const status = sanitizeText(payload.threadStatus, '').toLowerCase()
-    || sanitizeText(payload.status, '').toLowerCase()
-    || (payload.ok === true ? 'completed' : payload.ok === false ? 'failed' : '')
-  const normalizedStatus = (
-    status === 'completed'
-    || status === 'failed'
-    || status === 'blocked'
-    || status === 'cancelled'
-    || status === 'queued'
-    || status === 'running'
-  )
-    ? status
-    : 'failed'
-  const summary = sanitizeText(payload.summary, '')
-  const output = typeof payload.output === 'string'
-    ? payload.output
-    : payload.output != null
-      ? JSON.stringify(payload.output)
-      : ''
-  const outcome = sanitizeText(output, '')
-  const goal = sanitizeText(payload.goal, '')
-    || summary
-    || 'the current task'
-
-  return {
-    channel: selectedChannel,
-    status: normalizedStatus,
-    goal,
-    summary,
-    outcome,
-  }
-}
-
-function shouldUseExecutionFirstFastPath(input: {
-  enforcedExecutionTools: string[]
-  prepared: AlicizationPreparedMainChatExecutionResult
-}) {
-  if (!input.prepared.waitForTools)
-    return false
-  if (input.enforcedExecutionTools.length !== 1)
-    return false
-  if (!input.enforcedExecutionTools.every(toolName => executorToolNames.has(toolName)))
-    return false
-
-  const actionKind = input.prepared.runtimeSurface.action?.kind
-  if (actionKind !== 'execute' && actionKind !== 'continue-task')
-    return false
-
-  return input.prepared.runtimeSurface.tooling.routingRequired === true
 }
 
 export async function runAlicizationMainChatBackground(
@@ -389,7 +228,7 @@ export async function runAlicizationMainChatBackground(
   const inlineExecutionReceipts = new Map<string, AlicizationInlineExecutionReceipt>()
 
   const noteInlineExecutionReceipt = (result: unknown) => {
-    const receipt = readInlineExecutionReceipt(result)
+    const receipt = readAlicizationInlineExecutionReceipt(result)
     if (!receipt)
       return
     inlineExecutionReceipts.set(
@@ -401,7 +240,7 @@ export async function runAlicizationMainChatBackground(
   const emitToolCall = (event: AlicizationChatToolCallEvent) => {
     const toolName = sanitizeText(event.toolName, '')
     const toolCallId = sanitizeText(event.toolCallId, '')
-    if (toolName && toolCallId && executorToolNames.has(toolName))
+    if (toolName && toolCallId && alicizationExecutorToolNames.has(toolName))
       executorToolCallIds.add(toolCallId)
     input.emitToolCall(event)
   }
@@ -692,7 +531,7 @@ export async function runAlicizationMainChatBackground(
       throw new AlicizationMindAuthoredReplyRequiredError('mind-authored-execution-payoff-required:execution-inline-payoff-unprepared')
     }
 
-    const surfaceInput = asInlineExecutionSurfaceInput(recoveryResult.toolName, recoveryResult.toolResult)
+    const surfaceInput = asAlicizationInlineExecutionSurfaceInput(recoveryResult.toolName, recoveryResult.toolResult)
     if (!surfaceInput) {
       const rewritten = await rewriteStructuredVisibleReplyIfNeeded({
         fullText: recoveryResult.fullText,
@@ -762,7 +601,7 @@ export async function runAlicizationMainChatBackground(
         headers: input.headers,
         messages: [
           { role: 'system', content: prompt.system },
-          ...buildMinimalContextRecoveryMessages(messages),
+          ...buildAlicizationMinimalContextRecoveryMessages(messages),
           { role: 'user', content: prompt.user },
         ],
         timeoutMs: 9_000,
@@ -979,7 +818,7 @@ export async function runAlicizationMainChatBackground(
       toolCount: Array.isArray(tools) ? tools.length : 0,
       messageCount: messages.length,
     })
-    if (shouldUseExecutionFirstFastPath({
+    if (shouldUseAlicizationExecutionFirstFastPath({
       prepared,
       enforcedExecutionTools,
     })) {
@@ -1029,9 +868,9 @@ export async function runAlicizationMainChatBackground(
       prepared,
       runtimeDigest: resolveRuntimeDigestFromPrepared(),
     })
+    const activeDialogueCompactAuthority = decideAlicizationActiveDialogueCompactAuthority(activeDialogueDecision)
     const activeDialogueUsesCompactFastPath = activeDialogueDecision
-      && !shouldAlicizationActiveDialogueStayLLMAuthored(activeDialogueDecision)
-      && activeDialogueDecision.strategy === 'compact-one-shot'
+      && activeDialogueCompactAuthority.allowed
     if (activeDialogueDecision && !activeDialogueUsesCompactFastPath) {
       await input.appendRuntimeDebugLine('chat-stream.active-dialogue-deferred-to-main-runtime', {
         cardId: input.payload.cardId,
@@ -1039,9 +878,7 @@ export async function runAlicizationMainChatBackground(
         lane: activeDialogueDecision.lane,
         strategy: activeDialogueDecision.strategy,
         reasonCodes: activeDialogueDecision.reasonCodes,
-        deferredReason: activeDialogueDecision.strategy !== 'compact-one-shot'
-          ? 'infra-only-strategy'
-          : 'mind-authored-lane',
+        deferredReason: activeDialogueCompactAuthority.reason,
       })
     }
     if (activeDialogueDecision && activeDialogueUsesCompactFastPath) {
@@ -1343,10 +1180,11 @@ export async function runAlicizationMainChatBackground(
               runtimeDigest: resolveRuntimeDigestFromPrepared(),
             })
           : null
+        const timeoutActiveDialogueCompactAuthority = decideAlicizationActiveDialogueCompactAuthority(timeoutActiveDialogueDecision)
         const timeoutActiveDialogueUsesCompactRecovery
           = !toolingRequired
             && !!timeoutActiveDialogueDecision
-            && timeoutActiveDialogueDecision.strategy === 'compact-one-shot'
+            && timeoutActiveDialogueCompactAuthority.allowed
         if (!toolingRequired && timeoutActiveDialogueDecision && !timeoutActiveDialogueUsesCompactRecovery) {
           await input.appendRuntimeDebugLine('chat-stream.timeout-recovery-active-dialogue-deferred', {
             cardId: normalizedCardId,
@@ -1354,9 +1192,7 @@ export async function runAlicizationMainChatBackground(
             lane: timeoutActiveDialogueDecision.lane,
             strategy: timeoutActiveDialogueDecision.strategy,
             reasonCodes: timeoutActiveDialogueDecision.reasonCodes,
-            deferredReason: timeoutActiveDialogueDecision.strategy !== 'compact-one-shot'
-              ? 'infra-only-strategy'
-              : 'mind-authored-lane',
+            deferredReason: timeoutActiveDialogueCompactAuthority.reason,
           })
         }
         if (timeoutActiveDialogueUsesCompactRecovery && timeoutActiveDialogueDecision) {
@@ -1411,7 +1247,7 @@ export async function runAlicizationMainChatBackground(
           },
         })
         if (!toolingRequired) {
-          const minimalMessages = buildMinimalContextRecoveryMessages(recoveryInput.messages)
+          const minimalMessages = buildAlicizationMinimalContextRecoveryMessages(recoveryInput.messages)
           if (minimalMessages.length < recoveryInput.messages.length || recoveryInput.messages.length > 6) {
             recoveryAttempts.push({
               mode: 'minimal-context-non-streaming',

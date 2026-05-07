@@ -1558,6 +1558,40 @@ describe('chat orchestrator', () => {
     expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
+  it('blocks renderer finalization when runtime-authoritative bridge finishes without model text', async () => {
+    const bridgeStreamChatMock = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'meta',
+        governance: {
+          decisionTraceId: 'trace-empty-bridge',
+          turnMode: 'answer',
+        },
+      })
+      await options.onStreamEvent?.({ type: 'finish' })
+    })
+    installAlicizationBridge({
+      streamChat: bridgeStreamChatMock,
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('你在吗', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    expect(streamMock).not.toBeCalled()
+    expect(store.sending).toBe(false)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked('renderer-local-visible-fallback-blocked')
+    expect(appendAuditLogMock).toBeCalledWith(expect.objectContaining({
+      category: 'alicization.visible-reply',
+      action: 'renderer-local-visible-fallback-blocked',
+      payload: expect.objectContaining({
+        runtimeAuthoritativeModelTextObserved: false,
+      }),
+    }))
+  })
+
   it('times out stuck bridge streams and blocks renderer local visible fallback', async () => {
     vi.useFakeTimers()
     try {
@@ -2020,6 +2054,22 @@ describe('chat orchestrator', () => {
       category: 'alicization.main-gateway',
       action: 'stream-timeout-after-progress',
     }))
+  })
+
+  it('blocks renderer local failure fallback for Alicization turns even without bridge streamChat', async () => {
+    streamMock.mockImplementation(async () => {
+      throw new Error('renderer provider route failed')
+    })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    expect(streamMock).toBeCalledTimes(1)
+    expectRuntimeAuthoritativeLocalVisibleReplyBlocked()
   })
 
   it('retries same-turn reminder leakage and converges to confirmation-only reply', async () => {

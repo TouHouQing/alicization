@@ -4,6 +4,7 @@ import {
   buildReplayBenchmarkBacklogPack,
   buildAdversarialHumanlikeMemoryBenchmarkPack,
   buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildFinalHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
   buildReplayBenchmarkFailingTurnSet,
   benchmarkMainChatSessionReplay,
@@ -2301,6 +2302,21 @@ describe('main chat session replay harness', () => {
       'adversarial-afterglow-vs-longterm-relationship',
     ])
     expect(buildAdversarialHumanlikeMemoryBenchmarkPack().every(item => item.tracePointer?.packId === 'adversarial-humanlike-memory-v2')).toBe(true)
+    expect(buildFinalHumanlikeMemoryBenchmarkPack().map(item => item.turnId)).toEqual(expect.arrayContaining([
+      'benchmark-7d-conversation-history',
+      'benchmark-30d-procedure-history',
+      'benchmark-90d-relationship-era',
+      'benchmark-180d-autobiographical-span',
+      'benchmark-wrong-thread-lure',
+      'benchmark-implicit-recall-similar-task',
+      'benchmark-relationship-repair-tone-shift',
+      'benchmark-knowledge-update-conflict',
+      'benchmark-nonexplicit-delayed-recollection',
+      'benchmark-template-shell-fishing',
+      'growth-self-revision',
+      'adversarial-similar-task-different-conclusion',
+    ]))
+    expect(buildFinalHumanlikeMemoryBenchmarkPack().every(item => item.tracePointer?.packId === 'final-humanlike-memory-v1')).toBe(true)
 
     const standards = evaluateReplayBenchmarkStandards({
       quality: [

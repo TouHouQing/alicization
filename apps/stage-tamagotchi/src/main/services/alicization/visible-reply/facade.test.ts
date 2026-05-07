@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   resolveAlicizationPreparedVisibleReplyExecution,
   resolveAlicizationTimeoutRecoveredVisibleReply,
-} from './main-chat-visible-reply-execution'
+} from './facade'
 
-describe('main-chat-visible-reply-execution', () => {
+describe('visible-reply-facade', () => {
   it('prefers mind-turn contract authority over legacy reply execution surfaces', () => {
     const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
       prepared: {

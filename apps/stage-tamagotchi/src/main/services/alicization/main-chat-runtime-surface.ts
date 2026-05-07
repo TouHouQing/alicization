@@ -1,5 +1,4 @@
 import type { Message, ToolChoice } from '@xsai/shared-chat'
-import type { AlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationMindTurnGovernance,
@@ -11,6 +10,10 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 import type { AlicizationMainChatActionObligation, AlicizationMainChatActionObligationKind } from './main-chat-action-obligation'
 import type { ResolvedCardCustomDirectives } from './runtime-soul'
+import type {
+  AlicizationMainChatReplyAuthoritySurface,
+  AlicizationMainChatReplyExecutionPlanSurface,
+} from './visible-reply/facade'
 
 import { buildAutobiographicalSelfSystemBlock } from './autobiographical-self'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -25,7 +28,10 @@ import {
   parseSoul,
 } from './runtime-soul'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
-import { normalizeAlicizationNormalVisibleReplyAuthority } from '@proj-alicization/stage-shared'
+import {
+  describeAlicizationMainChatProviderMindRequirement,
+  resolveAlicizationMainChatNormalVisibleReplyAuthority,
+} from './visible-reply/facade'
 
 export interface AlicizationMainChatCaptureSurface {
   degradedReasons: string[]
@@ -59,18 +65,6 @@ export interface AlicizationMainChatTraceSurface {
   personaKernelMode: AlicizationMindTurnGovernance['personaKernelMode']
   sessionPhases: string[]
   turnMode: AlicizationMindTurnGovernance['turnMode'] | null
-}
-
-export interface AlicizationMainChatReplyAuthoritySurface {
-  replyRealizationMode: 'provider-mind-required' | 'fallback-locally-allowed'
-  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
-  whyProviderMindRequired: string | null
-}
-
-export interface AlicizationMainChatReplyExecutionPlanSurface {
-  preferredMode: 'provider-stream' | 'provider-one-shot' | 'local-fallback'
-  expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
-  reason: string | null
 }
 
 export interface AlicizationMainChatRuntimeSurface {
@@ -162,21 +156,6 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function resolveNormalVisibleReplyAuthority(
-  governance: AlicizationMindTurnGovernance | null,
-): AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority'] {
-  return normalizeAlicizationNormalVisibleReplyAuthority(
-    governance?.visibleReplyAuthority ?? null,
-    'llm-mind',
-  )
-}
-
-function describeNormalVisibleReplyAuthority(authority: AlicizationMainChatReplyAuthoritySurface['expectedVisibleReplyAuthority']) {
-  if (authority === 'llm-second-pass-rewrite')
-    return 'This turn may need provider-authored second-pass repair; local deterministic wording is not allowed to realize normal visible dialogue.'
-  return 'This turn should be fully realized by the provider mind rather than a local deterministic wording layer.'
 }
 
 export function shouldUseDialogueFirstLivingPromptMode(input: {
@@ -500,14 +479,14 @@ export function buildAlicizationMainChatRuntimeSurface(
     ? []
     : extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
-  const expectedVisibleReplyAuthority = resolveNormalVisibleReplyAuthority(input.governance)
+  const expectedVisibleReplyAuthority = resolveAlicizationMainChatNormalVisibleReplyAuthority(input.governance)
   const replyRealizationMode = 'provider-mind-required' as const
   const whyProviderMindRequired = sanitizePromptText(
     digitalLifeRuntimeSurface?.dialogue.answerCompiler?.openingDirective
     ?? input.governance?.answerIntent
     ?? '',
     220,
-  ) || describeNormalVisibleReplyAuthority(expectedVisibleReplyAuthority)
+  ) || describeAlicizationMainChatProviderMindRequirement(expectedVisibleReplyAuthority)
   const replyExecutionPlan = {
     preferredMode: hasVisualGrounding
       ? 'provider-one-shot' as const

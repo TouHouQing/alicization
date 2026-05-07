@@ -148,6 +148,7 @@ export interface AlicizationMemoryRetrievalHealth {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  sampleCount?: number
   learningPolicyStrictnessBias?: number
   learningPolicyWrongThreadSuppressionBias?: number
   learningPolicyProvenanceLabelBias?: number
@@ -159,6 +160,14 @@ export interface AlicizationMemoryRetrievalHealth {
   selfRevisionProactivePolicyBias?: number
   selfRevisionValidationBias?: number
   selfRevisionReasonCodes?: string[]
+  selfEvolutionVersionCandidateCount?: number
+  selfEvolutionActiveCandidateCount?: number
+  selfEvolutionShadowCandidateCount?: number
+  selfEvolutionRejectedCandidateCount?: number
+  selfEvolutionRolledBackCandidateCount?: number
+  selfEvolutionReplayRequiredCount?: number
+  selfEvolutionReplayPassedCount?: number
+  selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }

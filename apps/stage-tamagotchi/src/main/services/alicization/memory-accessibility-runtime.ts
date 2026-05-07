@@ -6,6 +6,7 @@ import type { AlicizationMemoryRetrievalBudgetClass } from './memory-retrieval-t
 import type { AlicizationOnlineMemoryPolicy } from './memory-policy-governor'
 import type { AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 import {
   deriveAlicizationRecallLatencyPolicy,
 } from '@proj-alicization/stage-shared'
@@ -41,6 +42,7 @@ export interface AlicizationTurnRetrievalPolicySnapshot {
   plan: AlicizationMemoryAccessibilityPlan
   telemetry: AlicizationMemoryRetrievalTelemetrySnapshot | null
   tuningAdvice: AlicizationMemoryTuningAdvice | null
+  selfRevisionPatch: AlicizationSelfRevisionStatePatch | null
 }
 
 function normalizeText(raw: unknown, maxChars = 220) {
@@ -62,6 +64,75 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
       break
   }
   return result
+}
+
+function clamp(value: number, min: number, max: number) {
+  if (!Number.isFinite(value))
+    return min
+  return Math.max(min, Math.min(max, value))
+}
+
+function round(value: number) {
+  return Number(value.toFixed(2))
+}
+
+function mergeSelfRevisionMemoryPolicy(input: {
+  base: AlicizationOnlineMemoryPolicy
+  patch?: AlicizationSelfRevisionStatePatch | null
+}) {
+  const patch = input.patch ?? null
+  if (!patch || !patch.lanes.includes('memory-policy'))
+    return input.base
+
+  const verificationStrictness = patch.memoryPolicy.shouldQuarantineUnsupportedCarry
+    ? 'quarantine'
+    : input.base.verificationStrictness === 'quarantine'
+      ? 'quarantine'
+      : (input.base.verificationStrictness === 'strict' || patch.memoryPolicy.strictnessBias >= 0.2)
+          ? 'strict'
+          : 'normal'
+
+  return {
+    ...input.base,
+    topKMultiplier: round(clamp(
+      input.base.topKMultiplier + patch.memoryPolicy.recallExpansionBias * 0.35,
+      0.7,
+      1.8,
+    )),
+    verificationStrictness,
+    wrongThreadSuppressionBias: round(clamp(
+      input.base.wrongThreadSuppressionBias + patch.memoryPolicy.wrongThreadSuppressionBias * 0.5,
+      0,
+      1,
+    )),
+    provenanceLabelingBias: round(clamp(
+      input.base.provenanceLabelingBias + patch.memoryPolicy.provenanceLabelBias * 0.45,
+      0,
+      1,
+    )),
+    sourceWeights: {
+      episodic: round(clamp(
+        input.base.sourceWeights.episodic - patch.memoryPolicy.wrongThreadSuppressionBias * 0.18,
+        0.6,
+        1.45,
+      )),
+      consolidation: round(clamp(
+        input.base.sourceWeights.consolidation + patch.memoryPolicy.recallExpansionBias * 0.28,
+        0.75,
+        1.6,
+      )),
+      conversation: round(clamp(
+        input.base.sourceWeights.conversation - patch.memoryPolicy.wrongThreadSuppressionBias * 0.12,
+        0.65,
+        1.35,
+      )),
+    },
+    reasonCodes: uniqueList([
+      ...input.base.reasonCodes,
+      ...patch.reasonCodes.map(code => `self-revision:${code}`),
+      'self-revision-memory-policy-active',
+    ], 16),
+  } satisfies AlicizationOnlineMemoryPolicy
 }
 
 export function buildAlicizationMemoryAccessibilityPlan(input: {
@@ -145,11 +216,15 @@ export function buildAlicizationTurnRetrievalPolicySnapshot(input: {
   budgetClass?: AlicizationMemoryRetrievalBudgetClass
   telemetry?: AlicizationMemoryRetrievalTelemetrySnapshot | null
   tuningAdvice?: AlicizationMemoryTuningAdvice | null
+  selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
 }) {
-  const policy = deriveAlicizationOnlineMemoryPolicy({
-    budgetClass: input.budgetClass,
-    telemetry: input.telemetry ?? null,
-    tuningAdvice: input.tuningAdvice ?? null,
+  const policy = mergeSelfRevisionMemoryPolicy({
+    base: deriveAlicizationOnlineMemoryPolicy({
+      budgetClass: input.budgetClass,
+      telemetry: input.telemetry ?? null,
+      tuningAdvice: input.tuningAdvice ?? null,
+    }),
+    patch: input.selfRevisionPatch ?? null,
   })
   const plan = buildAlicizationMemoryAccessibilityPlan({
     recallSeed: input.recallSeed,
@@ -162,6 +237,7 @@ export function buildAlicizationTurnRetrievalPolicySnapshot(input: {
     plan,
     telemetry: input.telemetry ?? null,
     tuningAdvice: input.tuningAdvice ?? null,
+    selfRevisionPatch: input.selfRevisionPatch ?? null,
   } satisfies AlicizationTurnRetrievalPolicySnapshot
 }
 

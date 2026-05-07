@@ -794,4 +794,58 @@ describe('response-charter', () => {
     expect(charter.mustNotDo).toContain('Do not let learned confidence spill into unsupported technical specificity.')
     expect(charter.mustNotDo).toContain('Do not let learned familiarity widen visible closeness faster than the host’s current room allows.')
   })
+
+  it('threads active self-revision response posture into charter-level reply discipline', () => {
+    const charter = buildAlicizationResponseCharter({
+      context: createContext(),
+      state: createState(),
+      inspectionRequested: false,
+      selfRevisionPatch: {
+        version: 'self-revision-state-patch-v1',
+        id: 'patch-charter-1',
+        sourceEventId: 'event-1',
+        sourceTurnId: 'turn-1',
+        decisionTraceId: 'trace-1',
+        domain: 'dialogue-style',
+        action: 'internalize',
+        resultStatus: 'completed',
+        lanes: ['response-posture', 'relationship-posture'],
+        memoryPolicy: {
+          strictnessBias: 0,
+          wrongThreadSuppressionBias: 0,
+          provenanceLabelBias: 0,
+          recallExpansionBias: 0,
+          shouldQuarantineUnsupportedCarry: false,
+        },
+        relationshipPosture: {
+          repairWindowBias: 0.16,
+          closenessCapBias: 0.18,
+          warmthReleaseBias: 0,
+        },
+        responsePosture: {
+          secondPassRequiredBias: 0.16,
+          hypothesisLabelBias: 0.14,
+          specificityClampBias: 0.18,
+          templateShellSuppressionBias: 0.22,
+        },
+        proactivePolicy: {
+          restraintBias: 0,
+          learningProposalBias: 0,
+          actuationCooldownBias: 0,
+        },
+        validation: {
+          requiresRollbackCheck: false,
+          requiresRevalidation: false,
+          rollbackPlan: [],
+        },
+        reasonCodes: ['self-revision-response-posture'],
+        summary: 'revised dialogue style must avoid shell answers',
+      },
+    })
+
+    expect(charter.activeSelfRevisionPatch?.id).toBe('patch-charter-1')
+    expect(charter.relationshipPosture).toBe('restrained')
+    expect(charter.mustDo).toContain('Let the active self-revision patch make hypothesis labeling more visible this turn.')
+    expect(charter.mustNotDo).toContain('Do not satisfy the turn with a template shell; the active self-revision patch requires concrete payoff in the same answer.')
+  })
 })

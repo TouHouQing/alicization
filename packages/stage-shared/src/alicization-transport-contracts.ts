@@ -1331,6 +1331,7 @@ export type AlicizationReplayBenchmarkPackId =
   | 'backlog-humanlike-memory-v1'
   | 'growth-humanlike-memory-v1'
   | 'adversarial-humanlike-memory-v2'
+  | 'final-humanlike-memory-v1'
 export type AlicizationReplayBenchmarkQualityStatus = 'pass' | 'fail' | 'not-applicable'
 
 export interface AlicizationReplayMemoryQualityRecord {
@@ -1492,6 +1493,7 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     claimAccuracy?: number
     replyAuthorityAccuracy?: number
     latencyBudgetPass?: boolean
+    sampleCount?: number
   }
 }
 
@@ -1607,6 +1609,17 @@ export interface AlicizationFinalReplayGateReportRecord {
     memoryClosureConflictClosureRate?: number | null
     memoryClosureLowQualityWithholdRate?: number | null
     memoryClosureUncertaintyLabelRate?: number | null
+    claimAccuracy?: number | null
+    replyAuthorityAccuracy?: number | null
+    latencyBudgetPass?: boolean | null
+    mindParticipation?: number | null
+    memoryParticipation?: number | null
+    personalityParticipation?: number | null
+    relationshipParticipation?: number | null
+    continuityParticipation?: number | null
+    misinternalizationRate?: number | null
+    sampleCount?: number | null
+    minimumSampleCount?: number
   }
 }
 

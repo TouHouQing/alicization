@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildAlicizationSecondPassTransportFailureReply,
   rewriteAlicizationVisibleReplySecondPass,
-} from './main-chat-second-pass-rewrite'
+} from './second-pass-rewrite'
 
 interface ProviderCall {
   messages: Message[]
@@ -66,7 +66,7 @@ function createPrepared(overrides?: Partial<any>) {
   } as any
 }
 
-describe('main-chat-second-pass-rewrite', () => {
+describe('visible-reply second-pass rewrite', () => {
   it('uses provider-authored second pass instead of deterministic local fallback text', async () => {
     const provider = vi.fn(async (_input: ProviderCall) => ({
       finishReason: 'stop',
@@ -189,7 +189,7 @@ describe('main-chat-second-pass-rewrite', () => {
     expect(String(providerInput?.messages.at(-1)?.content ?? '')).toContain('我先直接回答你')
   })
 
-  it('uses an explicit transport failure surface instead of replaying contaminated draft text', () => {
+  it('blocks visible reply on transport failure instead of replaying local status text', () => {
     const result = buildAlicizationSecondPassTransportFailureReply({
       governedStructured: {
         emotion: 'thinking',
@@ -213,11 +213,18 @@ describe('main-chat-second-pass-rewrite', () => {
     })
     const structured = JSON.parse(result.fullText) as Record<string, unknown>
 
-    expect(String(structured.reply ?? '')).toContain('主模型连接')
+    expect(structured.reply).toBe('')
+    expect(structured.visibleReplyBlocked).toBe(true)
+    expect(structured.nonHumanAuthoredStatus).toBe('gateway-unreachable')
     expect(String(structured.reply ?? '')).not.toContain('IntelliJ IDEA')
     expect(structured.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
-    expect(structured.format).toBe('fallback-v1')
+    expect(structured.format).toBe('mind-turn-v1')
     expect(structured.parsePath).toBe('transport-failure')
+    expect(structured.reasonCodes).toEqual(expect.arrayContaining([
+      'normal-reply-requires-provider-mind',
+      'non-human-authored-visible-fallback-blocked',
+      'visible-reply-second-pass-transport-failure',
+    ]))
     expect(structured.transportFailure).toEqual(expect.objectContaining({
       stage: 'visible-reply-second-pass',
       reason: 'gateway-unreachable',

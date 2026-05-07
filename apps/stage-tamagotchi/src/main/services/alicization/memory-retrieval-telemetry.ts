@@ -68,6 +68,7 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   learningTaskFailureRate: number
   learningTaskReopenRecoveryRate: number
   misinternalizationRate: number
+  sampleCount: number
   learningPolicyStrictnessBias: number
   learningPolicyWrongThreadSuppressionBias: number
   learningPolicyProvenanceLabelBias: number
@@ -79,6 +80,14 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   selfRevisionProactivePolicyBias: number
   selfRevisionValidationBias: number
   selfRevisionReasonCodes: string[]
+  selfEvolutionVersionCandidateCount: number
+  selfEvolutionActiveCandidateCount: number
+  selfEvolutionShadowCandidateCount: number
+  selfEvolutionRejectedCandidateCount: number
+  selfEvolutionRolledBackCandidateCount: number
+  selfEvolutionReplayRequiredCount: number
+  selfEvolutionReplayPassedCount: number
+  selfEvolutionReasonCodes: string[]
   relationshipCadenceRegressionRate: number
   selfModelStaleBeliefRate: number
   lastUpdatedAt: number | null
@@ -146,6 +155,7 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  sampleCount?: number
   learningPolicyStrictnessBias?: number
   learningPolicyWrongThreadSuppressionBias?: number
   learningPolicyProvenanceLabelBias?: number
@@ -157,6 +167,14 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   selfRevisionProactivePolicyBias?: number
   selfRevisionValidationBias?: number
   selfRevisionReasonCodes?: string[]
+  selfEvolutionVersionCandidateCount?: number
+  selfEvolutionActiveCandidateCount?: number
+  selfEvolutionShadowCandidateCount?: number
+  selfEvolutionRejectedCandidateCount?: number
+  selfEvolutionRolledBackCandidateCount?: number
+  selfEvolutionReplayRequiredCount?: number
+  selfEvolutionReplayPassedCount?: number
+  selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }
@@ -234,6 +252,15 @@ interface AlicizationLearningExecutionTelemetryInput {
       requiresRevalidation?: boolean
     }
     reasonCodes?: string[]
+  } | null
+  selfEvolutionVersionCandidate?: {
+    status?: 'shadow' | 'active' | 'rejected' | 'rolled-back'
+    validation?: {
+      replayRequired?: boolean
+      replayPassed?: boolean | null
+      rollbackSupported?: boolean
+      activationBlockedReasons?: string[]
+    }
   } | null
 }
 
@@ -323,6 +350,7 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     learningTaskFailureRate: 0,
     learningTaskReopenRecoveryRate: 0,
     misinternalizationRate: 0,
+    sampleCount: 0,
     learningPolicyStrictnessBias: 0,
     learningPolicyWrongThreadSuppressionBias: 0,
     learningPolicyProvenanceLabelBias: 0,
@@ -334,6 +362,14 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     selfRevisionProactivePolicyBias: 0,
     selfRevisionValidationBias: 0,
     selfRevisionReasonCodes: [],
+    selfEvolutionVersionCandidateCount: 0,
+    selfEvolutionActiveCandidateCount: 0,
+    selfEvolutionShadowCandidateCount: 0,
+    selfEvolutionRejectedCandidateCount: 0,
+    selfEvolutionRolledBackCandidateCount: 0,
+    selfEvolutionReplayRequiredCount: 0,
+    selfEvolutionReplayPassedCount: 0,
+    selfEvolutionReasonCodes: [],
     relationshipCadenceRegressionRate: 0,
     selfModelStaleBeliefRate: 0,
     lastUpdatedAt: null,
@@ -416,6 +452,7 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const learningTaskFailureRate = Number(candidate.learningTaskFailureRate)
   const learningTaskReopenRecoveryRate = Number(candidate.learningTaskReopenRecoveryRate)
   const misinternalizationRate = Number(candidate.misinternalizationRate)
+  const sampleCount = Number(candidate.sampleCount)
   const learningPolicyStrictnessBias = Number(candidate.learningPolicyStrictnessBias)
   const learningPolicyWrongThreadSuppressionBias = Number(candidate.learningPolicyWrongThreadSuppressionBias)
   const learningPolicyProvenanceLabelBias = Number(candidate.learningPolicyProvenanceLabelBias)
@@ -430,6 +467,16 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const selfRevisionValidationBias = Number(candidate.selfRevisionValidationBias)
   const selfRevisionReasonCodes = Array.isArray(candidate.selfRevisionReasonCodes)
     ? candidate.selfRevisionReasonCodes
+    : []
+  const selfEvolutionVersionCandidateCount = Number(candidate.selfEvolutionVersionCandidateCount)
+  const selfEvolutionActiveCandidateCount = Number(candidate.selfEvolutionActiveCandidateCount)
+  const selfEvolutionShadowCandidateCount = Number(candidate.selfEvolutionShadowCandidateCount)
+  const selfEvolutionRejectedCandidateCount = Number(candidate.selfEvolutionRejectedCandidateCount)
+  const selfEvolutionRolledBackCandidateCount = Number(candidate.selfEvolutionRolledBackCandidateCount)
+  const selfEvolutionReplayRequiredCount = Number(candidate.selfEvolutionReplayRequiredCount)
+  const selfEvolutionReplayPassedCount = Number(candidate.selfEvolutionReplayPassedCount)
+  const selfEvolutionReasonCodes = Array.isArray(candidate.selfEvolutionReasonCodes)
+    ? candidate.selfEvolutionReasonCodes
     : []
   const relationshipCadenceRegressionRate = Number(candidate.relationshipCadenceRegressionRate)
   const selfModelStaleBeliefRate = Number(candidate.selfModelStaleBeliefRate)
@@ -570,6 +617,7 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     learningTaskFailureRate: Number.isFinite(learningTaskFailureRate) ? Math.max(0, Math.min(1, learningTaskFailureRate)) : 0,
     learningTaskReopenRecoveryRate: Number.isFinite(learningTaskReopenRecoveryRate) ? Math.max(0, Math.min(1, learningTaskReopenRecoveryRate)) : 0,
     misinternalizationRate: Number.isFinite(misinternalizationRate) ? Math.max(0, Math.min(1, misinternalizationRate)) : 0,
+    sampleCount: Number.isFinite(sampleCount) ? Math.max(0, Math.floor(sampleCount)) : 0,
     learningPolicyStrictnessBias: Number.isFinite(learningPolicyStrictnessBias) ? Math.max(0, Math.min(1, learningPolicyStrictnessBias)) : 0,
     learningPolicyWrongThreadSuppressionBias: Number.isFinite(learningPolicyWrongThreadSuppressionBias) ? Math.max(0, Math.min(1, learningPolicyWrongThreadSuppressionBias)) : 0,
     learningPolicyProvenanceLabelBias: Number.isFinite(learningPolicyProvenanceLabelBias) ? Math.max(0, Math.min(1, learningPolicyProvenanceLabelBias)) : 0,
@@ -584,6 +632,17 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
     selfRevisionProactivePolicyBias: Number.isFinite(selfRevisionProactivePolicyBias) ? Math.max(0, Math.min(1, selfRevisionProactivePolicyBias)) : 0,
     selfRevisionValidationBias: Number.isFinite(selfRevisionValidationBias) ? Math.max(0, Math.min(1, selfRevisionValidationBias)) : 0,
     selfRevisionReasonCodes: selfRevisionReasonCodes
+      .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+      .filter(Boolean)
+      .slice(0, 24),
+    selfEvolutionVersionCandidateCount: Number.isFinite(selfEvolutionVersionCandidateCount) ? Math.max(0, Math.floor(selfEvolutionVersionCandidateCount)) : 0,
+    selfEvolutionActiveCandidateCount: Number.isFinite(selfEvolutionActiveCandidateCount) ? Math.max(0, Math.floor(selfEvolutionActiveCandidateCount)) : 0,
+    selfEvolutionShadowCandidateCount: Number.isFinite(selfEvolutionShadowCandidateCount) ? Math.max(0, Math.floor(selfEvolutionShadowCandidateCount)) : 0,
+    selfEvolutionRejectedCandidateCount: Number.isFinite(selfEvolutionRejectedCandidateCount) ? Math.max(0, Math.floor(selfEvolutionRejectedCandidateCount)) : 0,
+    selfEvolutionRolledBackCandidateCount: Number.isFinite(selfEvolutionRolledBackCandidateCount) ? Math.max(0, Math.floor(selfEvolutionRolledBackCandidateCount)) : 0,
+    selfEvolutionReplayRequiredCount: Number.isFinite(selfEvolutionReplayRequiredCount) ? Math.max(0, Math.floor(selfEvolutionReplayRequiredCount)) : 0,
+    selfEvolutionReplayPassedCount: Number.isFinite(selfEvolutionReplayPassedCount) ? Math.max(0, Math.floor(selfEvolutionReplayPassedCount)) : 0,
+    selfEvolutionReasonCodes: selfEvolutionReasonCodes
       .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
       .filter(Boolean)
       .slice(0, 24),
@@ -677,6 +736,24 @@ function summarizeSelfRevisionStatePatch(inputValue: NonNullable<AlicizationLear
       ...(Array.isArray(inputValue.reasonCodes) ? inputValue.reasonCodes : []),
       ...(Array.isArray(inputValue.lanes) ? inputValue.lanes.map(lane => `lane:${lane}`) : []),
     ], 24),
+  }
+}
+
+function summarizeSelfEvolutionVersionCandidate(inputValue: NonNullable<AlicizationLearningExecutionTelemetryInput['selfEvolutionVersionCandidate']>) {
+  const status = inputValue.status
+  const validation = inputValue.validation ?? {}
+  return {
+    status,
+    replayRequired: validation.replayRequired === true,
+    replayPassed: validation.replayPassed === true,
+    reasonCodes: mergeReasonCodes([], ([
+      status ? `self-evolution:status:${status}` : null,
+      validation.replayRequired === true ? 'self-evolution:replay-required' : null,
+      validation.replayPassed === true ? 'self-evolution:replay-passed' : null,
+      validation.replayPassed === false ? 'self-evolution:replay-failed' : null,
+      validation.rollbackSupported === true ? 'self-evolution:rollback-supported' : null,
+      ...(Array.isArray(validation.activationBlockedReasons) ? validation.activationBlockedReasons : []),
+    ].filter((item): item is string => typeof item === 'string')), 24),
   }
 }
 
@@ -1039,6 +1116,10 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
       const selfRevisionSummary = selfRevisionPatch
         ? summarizeSelfRevisionStatePatch(selfRevisionPatch)
         : null
+      const selfEvolutionVersionCandidate = inputValue.selfEvolutionVersionCandidate ?? null
+      const selfEvolutionSummary = selfEvolutionVersionCandidate
+        ? summarizeSelfEvolutionVersionCandidate(selfEvolutionVersionCandidate)
+        : null
       const learningAttemptCount = learningTaskCompletionCount
         + learningTaskFailureCount
         + learningTaskBlockedCount
@@ -1096,6 +1177,18 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         selfRevisionReasonCodes: mergeReasonCodes(
           telemetry.selfRevisionReasonCodes,
           selfRevisionSummary?.reasonCodes,
+          24,
+        ),
+        selfEvolutionVersionCandidateCount: telemetry.selfEvolutionVersionCandidateCount + (selfEvolutionSummary ? 1 : 0),
+        selfEvolutionActiveCandidateCount: telemetry.selfEvolutionActiveCandidateCount + (selfEvolutionSummary?.status === 'active' ? 1 : 0),
+        selfEvolutionShadowCandidateCount: telemetry.selfEvolutionShadowCandidateCount + (selfEvolutionSummary?.status === 'shadow' ? 1 : 0),
+        selfEvolutionRejectedCandidateCount: telemetry.selfEvolutionRejectedCandidateCount + (selfEvolutionSummary?.status === 'rejected' ? 1 : 0),
+        selfEvolutionRolledBackCandidateCount: telemetry.selfEvolutionRolledBackCandidateCount + (selfEvolutionSummary?.status === 'rolled-back' ? 1 : 0),
+        selfEvolutionReplayRequiredCount: telemetry.selfEvolutionReplayRequiredCount + (selfEvolutionSummary?.replayRequired ? 1 : 0),
+        selfEvolutionReplayPassedCount: telemetry.selfEvolutionReplayPassedCount + (selfEvolutionSummary?.replayPassed ? 1 : 0),
+        selfEvolutionReasonCodes: mergeReasonCodes(
+          telemetry.selfEvolutionReasonCodes,
+          selfEvolutionSummary?.reasonCodes,
           24,
         ),
         lastUpdatedAt: currentTs,
@@ -1319,12 +1412,42 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
           .filter(Boolean)
           .slice(0, 24)
         : telemetry.selfRevisionReasonCodes,
+      selfEvolutionVersionCandidateCount: Number.isFinite(next.selfEvolutionVersionCandidateCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionVersionCandidateCount)))
+        : telemetry.selfEvolutionVersionCandidateCount,
+      selfEvolutionActiveCandidateCount: Number.isFinite(next.selfEvolutionActiveCandidateCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionActiveCandidateCount)))
+        : telemetry.selfEvolutionActiveCandidateCount,
+      selfEvolutionShadowCandidateCount: Number.isFinite(next.selfEvolutionShadowCandidateCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionShadowCandidateCount)))
+        : telemetry.selfEvolutionShadowCandidateCount,
+      selfEvolutionRejectedCandidateCount: Number.isFinite(next.selfEvolutionRejectedCandidateCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionRejectedCandidateCount)))
+        : telemetry.selfEvolutionRejectedCandidateCount,
+      selfEvolutionRolledBackCandidateCount: Number.isFinite(next.selfEvolutionRolledBackCandidateCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionRolledBackCandidateCount)))
+        : telemetry.selfEvolutionRolledBackCandidateCount,
+      selfEvolutionReplayRequiredCount: Number.isFinite(next.selfEvolutionReplayRequiredCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionReplayRequiredCount)))
+        : telemetry.selfEvolutionReplayRequiredCount,
+      selfEvolutionReplayPassedCount: Number.isFinite(next.selfEvolutionReplayPassedCount)
+        ? Math.max(0, Math.floor(Number(next.selfEvolutionReplayPassedCount)))
+        : telemetry.selfEvolutionReplayPassedCount,
+      selfEvolutionReasonCodes: Array.isArray(next.selfEvolutionReasonCodes)
+        ? next.selfEvolutionReasonCodes
+          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+          .filter(Boolean)
+          .slice(0, 24)
+        : telemetry.selfEvolutionReasonCodes,
       relationshipCadenceRegressionRate: Number.isFinite(next.relationshipCadenceRegressionRate)
         ? Math.max(0, Math.min(1, Number(next.relationshipCadenceRegressionRate)))
         : telemetry.relationshipCadenceRegressionRate,
       selfModelStaleBeliefRate: Number.isFinite(next.selfModelStaleBeliefRate)
         ? Math.max(0, Math.min(1, Number(next.selfModelStaleBeliefRate)))
         : telemetry.selfModelStaleBeliefRate,
+      sampleCount: Number.isFinite(next.sampleCount)
+        ? Math.max(0, Math.floor(Number(next.sampleCount)))
+        : telemetry.sampleCount,
       lastUpdatedAt: input.now(),
     })
   }

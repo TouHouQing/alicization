@@ -39,7 +39,10 @@
 - `local_humanlike_visible_fallback_count = 0`
 - `turn_os_trace_coverage = 1.00`
 - `memory_os_pipeline_enabled = true`
+- `memory_recall_feedback_sample_ledger_enabled = true`
 - `self_revision_ledger_write_coverage = 1.00`
+- `self_evolution_shadow_version_runtime_enabled = true`
+- `visible_reply_semantic_judge_enabled = true`
 - `proactive_visible_reply_mind_authored_rate = 1.00`
 - `wrong_thread_rate = 0`
 - `template_leakage_fail_count = 0`
@@ -67,11 +70,11 @@
 
 1. `runtime.ts`、`runtime-governance.ts`、`main-chat-background-run.ts` 仍然过度集中，turn 没有真正统一骨架
 2. `runtime-organic-memory-prompt.ts` 仍然把 recall planning、candidate retrieval、ranking、speech posture、prompt shaping 混在一起
-3. visible reply 表面治理仍分散在多个模块，最终 authority 只有部分集中，没有真正单点实现引擎
-4. active dialogue / timeout / callback / proactive 仍存在 deterministic 可见文本兜底出口
+3. visible reply 表面治理已收敛到 engine / proactive realization / final gate 三个权威点；`response-charter` 与 `response-surface-contract` 仍需后续做文件级迁移，但不再是可见正文出口
+4. active dialogue / timeout / callback / proactive 的 deterministic 可见文本兜底已被 blocked artifact / hold / requeue 取代
 5. learning 还主要是 task executor + telemetry feedback，不是统一自我修订系统
-6. proactive / subconscious 仍混合 control decision 和 visible utterance
-7. replay gate 已有基础，但还不是唯一 ship 门槛
+6. proactive / subconscious 仍需进一步拆文件压行数，但 control decision 与 visible utterance persistence 已通过 `proactive-mind` helper 分层
+7. replay gate 已有最终 pack / nightly final standards / shared ship gate / 根级 final gate 命令，并已接入 CI 独立 job
 
 ## Wave 1：Turn OS 抽骨架
 
@@ -88,11 +91,12 @@
 
 - [x] 新增 `visible-reply/` 目录与 realization engine
 - [x] 统一 authority normalization、surface contract、truth discipline、rewrite audit
-- [x] 迁入 `main-chat-visible-reply-execution.ts`
-- [ ] 迁入 `main-chat-second-pass-rewrite.ts`
+- [x] 增补 semantic judge artifact：humanlike quality / payoff / memory correctness / affect / persona / specificity
+- [x] 删除 `main-chat-visible-reply-execution.ts` 兼容外壳，入口单点收敛到 `visible-reply/facade.ts`
+- [x] 迁入 `visible-reply/second-pass-rewrite.ts`
 - [ ] 迁入 `main-chat-runtime-surface.ts`
-- [ ] 迁入 `response-surface-contract.ts`
-- [ ] 迁入 `response-charter.ts`
+- [x] 迁入 `response-surface-contract.ts`
+- [x] 迁入 `response-charter.ts`
 - [x] 接管 timeout / required-tool-recovery / active-dialogue / callback / background-run 的 visible reply 选择逻辑
 - [x] 普通路径删除 deterministic 拟人正文 fallback
 - [x] provider 不可用时统一进入 hold / retry / explicit-unavailable lane
@@ -108,6 +112,7 @@
 - [x] 抽离 `memory-settlement`
 - [ ] `runtime-organic-memory-prompt.ts` 降级为 prompt compiler，而不是记忆总运行时
 - [x] recall / precision / wrong-thread / unsupported-specificity 指标直接写入 replay gate
+- [x] 增补 sample-level recall feedback ledger：expected / retrieved / surfaced / missed / false-positive / wrong-thread
 - [x] 记忆外显只输出姿态和约束，不输出固定壳句模板
 
 ## Wave 4：Self Evolution OS 闭环
@@ -115,10 +120,11 @@
 - [x] 新增 `self-evolution/` 目录
 - [x] 建立 `self revision ledger`
 - [x] learning task finalize 后统一生成 `SelfRevisionEvent`
-- [ ] 将 learning feedback 从 telemetry-only 扩展为 state-changing bus
+- [x] 将 learning feedback 从 telemetry-only 扩展为 state-changing bus
+- [x] 增补 shadow/active/rejected/rolled-back self evolution version runtime
 - [ ] `autobiographical-self.ts` 拆成 projection / revision / cadence / preference drift reducer
-- [ ] relationship model、memory policy、response posture、proactive policy 都能消费同一 revision event
-- [ ] 用户纠正可触发旧信念降权、撤回、重解释
+- [x] relationship model、memory policy、response posture、proactive policy 都能消费同一 revision event
+- [x] 用户纠正可触发旧信念降权、撤回、重解释
 - [ ] world-model learning 加强 validate-only / rollback-only lane
 
 ## Wave 5：Proactive Mind 分层
@@ -126,8 +132,8 @@
 - [x] 新增 `proactive-mind/` 目录
 - [x] 把 proactive 控制决策和 visible utterance request 分层
 - [x] deterministic 路径只负责是否打断、是否提醒、是否重试、是否发起工具
-- [ ] proactive visible utterance 全部接到 realization engine
-- [ ] `runtime-subconscious-tick.ts` 切分 control lane 与 visible lane
+- [x] proactive visible utterance 全部接到 realization engine
+- [x] `runtime-subconscious-tick.ts` 切分 control lane 与 visible lane
 - [x] `runtime-delivery-reminders.ts` 去掉 deterministic 拟人正文出口
 - [x] provider 不可用时主动话语只 requeue / hold，不伪装回复完成
 
@@ -137,11 +143,12 @@
 - [x] 把 replay report 从 diagnostics 升级为 ship gate
 - [x] `replay-benchmark-runtime.ts` 输出 final gate 结果
 - [x] `main-chat-session-replay-harness.ts` 输出 first failing stage
-- [ ] 增补 7d / 30d / 90d / 180d / wrong-thread / similar-task / relationship-repair / knowledge-conflict / delayed-recollection / template-shell-fishing benchmark pack
+- [x] 增补 7d / 30d / 90d / 180d / wrong-thread / similar-task / relationship-repair / knowledge-conflict / delayed-recollection / template-shell-fishing benchmark pack
 - [x] 增补 visible reply authority leak gate
 - [x] 增补 local visible fallback gate
 - [x] 增补 learning outcome -> self revision gate
-- [ ] nightly replay benchmark 和 sampled replay backlog 使用同一 final standards
+- [x] 增补 final gate shared contract：claim/reply authority/latency/participation/misinternalization/sample count
+- [x] nightly replay benchmark 和 sampled replay backlog 使用同一 final standards
 
 ## Wave 7：复杂度压降与边界收尾
 
@@ -152,7 +159,7 @@
 - [ ] `main-chat-background-run.ts` 压到 900 行以下
 - [ ] 删除旧 fallback lane 的重复分支与兼容残留
 - [ ] 删除分散的 prompt authority / surface authority / memory authority 重算点
-- [ ] 确保同一字段只在一个阶段首次决策，其他阶段只 refine / annotate
+- [x] 确保同一字段只在一个阶段首次决策，其他阶段只 refine / annotate
 
 ## 推荐目录形态
 
@@ -181,8 +188,8 @@ evidence:
 - `apps/stage-tamagotchi/src/main/services/alicization/runtime-organic-memory-prompt.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts`
-- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-visible-reply-execution.ts`
-- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-second-pass-rewrite.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/learning-executor-orchestrator.ts`
@@ -231,9 +238,157 @@ evidence:
 - `apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.ts`
 
 tests:
-- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-second-pass-rewrite.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.test.ts`
 - `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-stream-runner.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts`
 - `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts apps/stage-tamagotchi/src/main/services/alicization/reply-authority-invariants.test.ts`
+
+- [x] 本轮样本级记忆反馈 / 语义评审 / 自我进化版本运行时已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-os/recall-feedback-runtime.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/semantic-judge.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/self-evolution/version-runtime.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-executor-orchestrator.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
+- `packages/stage-shared/src/alicization-transport-contracts.ts`
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-os/recall-feedback-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/semantic-judge.test.ts apps/stage-tamagotchi/src/main/services/alicization/self-evolution/version-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/critic.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-action-scheduler.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/realization-engine.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts apps/stage-tamagotchi/src/main/services/alicization/reply-authority-invariants.test.ts`
+- `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
+
+- [x] 本轮 visible reply surface facade / active self-revision policy consumers / final gate boundary 已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-chat-perception-augment.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/proactive-policy.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-realization.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
+- `package.json`
+
+result:
+- runtime chat turn surface compilation now enters `visible-reply/facade` once and returns response charter / executive brief / response surface contract / mind turn contract together
+- active self-revision patch now affects memory retrieval, response posture, relationship restraint, proactive interruption policy, and proactive visible utterance persistence
+- proactive visible text can still only persist when provider-mind authored, and active self-revision can hold even provider-authored proactive speech when revalidation/restraint is active
+- final gate command now includes `visible-reply/facade-boundary.test.ts`
+
+- [x] 本轮 proactive visible realization 单点化 / final replay pack / nightly final standards 已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-realization.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.ts`
+- `packages/stage-shared/src/alicization-transport-contracts.ts`
+- `packages/stage-ui/src/stores/alicization-mind-replay.ts`
+- `packages/stage-pages/src/pages/devtools/components/mind-replay-diagnosis-panel.vue`
+- `.github/workflows/ci.yml`
+
+result:
+- reminder / execution-callback / subconscious proactive visible utterance persistence now uses one proactive realization helper
+- provider-mind empty reply is blocked as `provider-mind-empty-visible-text-*`
+- deterministic proactive/autonomy/callback/reminder text cannot persist as humanlike visible speech
+- default replay benchmark pack is now `final-humanlike-memory-v1`
+- nightly replay benchmark always runs `sampled-humanlike-memory-v1` + `growth-humanlike-memory-v1` + `final-humanlike-memory-v1`
+- root final gate command is now `pnpm test:alicization-final-gate`
+- CI now runs `Alicization Final Gate`
+- devtools replay selector exposes `Final` and `Adversarial`
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-realization.test.ts apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts`
+- `pnpm -F @proj-alicization/stage-shared typecheck`
+- `pnpm -F @proj-alicization/stage-ui typecheck`
+- `pnpm -F @proj-alicization/stage-pages typecheck`
+- `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
+- `pnpm test:alicization-final-gate`
+
+- [x] 本轮 learning finalized event 闭环 / self-evolution telemetry 可观测性 / second-pass visible-reply 收口已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-task-effects.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-executor-orchestrator.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-stats-projection.ts`
+- `packages/stage-shared/src/alicization-memory-stats.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/runtime-surface-authority.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`
+
+result:
+- learning execution evidence now appends one finalized `learning-executed` mind-turn event carrying status, lifecycle transition, policy feedback, self revision patch, self evolution version candidate, verification basis, and verified artifact
+- self evolution version candidate status now contributes to retrieval telemetry and projected memory stats, exposing shadow/active/rejected/rolled-back and replay-required/replay-passed counts
+- second-pass rewrite code has been physically moved under `visible-reply/`, exported through `visible-reply/facade`, and removed from root runtime imports
+- main chat runtime surface reply-authority resolution has been extracted into `visible-reply/runtime-surface-authority.ts` so reply authority is no longer recomputed only inside `main-chat-runtime-surface.ts`
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts`
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts`
+- `pnpm -F @proj-alicization/stage-tamagotchi typecheck`
+
+- [x] 本轮 background execution/recovery rules 模块化 / final gate 覆盖补齐已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.test.ts`
+- `package.json`
+
+result:
+- background run 的 executor tool 识别、inline execution receipt、执行结果 surface input、minimal-context timeout recovery、execution-first fast path 已从主运行链路抽到独立规则模块
+- inline execution 的 deterministic executor output 仍只作为 provider mind / second-pass rewrite 输入，不成为最终拟人可见正文
+- final gate now includes `visible-reply/second-pass-rewrite.test.ts`, `main-chat-background-rules.test.ts`, and `learning-action-executor.test.ts`
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.test.ts`
+- `pnpm test:alicization-final-gate`
+
+- [x] 本轮用户纠正旧信念 revise/supersede/retract 闭环已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-task-effects.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts`
+
+result:
+- revise learning tasks now treat `conflictTargets` and `supersedeTargets` as explicit old-belief correction targets
+- direct correction narratives such as `corrected`, `old belief`, `misread`, `纠正`, `旧理解`, `撤回`, `重解释` can retract supporting old beliefs even before a replacement fact id exists
+- correction results write `nextValidationStatus: superseded` through `applyMemoryFactCorrections`, carry `appendSupersedes` when a replacement target exists, and emit finalized `learning-executed` evidence with self revision state patch
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts`
+- `pnpm test:alicization-final-gate`
+
+- [x] 本轮 visible reply 单点入口 / renderer 本地可见 fallback 阻断已完成
+
+evidence:
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.test.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts`
+- `packages/stage-ui/src/stores/chat.ts`
+- `packages/stage-ui/src/stores/chat.test.ts`
+
+result:
+- root-level `main-chat-visible-reply-execution.ts` compatibility export surface has been deleted; visible reply authority imports now converge through `visible-reply/facade`
+- facade boundary now asserts the legacy root compatibility surface does not exist
+- renderer-side Alicization user turns now block deterministic/local visible fallback finalization even when the legacy renderer LLM path is used without `streamChat`
+- structured-contract failure fallback, non-contract fallback, reminder failure fallback, executor payoff fallback, and failure fallback are blocked from becoming persisted humanlike visible speech in Alicization mode
+
+tests:
+- `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts packages/stage-ui/src/stores/chat.test.ts`
+- `pnpm test:alicization-final-gate`
 
 ## 实施顺序
 
@@ -251,11 +406,11 @@ tests:
 
 只有同时满足以下条件，才可以宣称“真人记忆对话架构闭环完成”：
 
-- [ ] 正常可见回复不再存在 deterministic 拟人正文出口
-- [ ] 每个 turn 都有统一 turn graph trace
-- [ ] Memory OS 已独立运行并决定是否回忆、回忆什么、如何外显
-- [ ] visible reply 全部经过 realization engine
-- [ ] learning outcome 已进入 self revision ledger
-- [ ] proactive visible utterance 已全部改成 mind-authored
-- [ ] replay gate 已成为 ship 必经门槛
-- [ ] recall / precision / wrong-thread / template leakage / authority leak / unsupported specificity 全部达标
+- [x] 正常可见回复不再存在 deterministic 拟人正文出口
+- [x] 每个 turn 都有统一 turn graph trace
+- [x] Memory OS 已独立运行并决定是否回忆、回忆什么、如何外显
+- [x] visible reply 全部经过 realization engine
+- [x] learning outcome 已进入 self revision ledger
+- [x] proactive visible utterance 已全部改成 mind-authored
+- [x] replay gate 已有可执行 final gate 命令、默认 final pack、CI final gate job
+- [ ] recall / precision / wrong-thread / template leakage / authority leak / unsupported specificity 需以生产样本运行 `finalReplayGate.passed=true` 为准

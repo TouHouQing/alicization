@@ -77,6 +77,7 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  sampleCount?: number
   learningPolicyStrictnessBias?: number
   learningPolicyWrongThreadSuppressionBias?: number
   learningPolicyProvenanceLabelBias?: number
@@ -88,6 +89,14 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   selfRevisionProactivePolicyBias?: number
   selfRevisionValidationBias?: number
   selfRevisionReasonCodes?: string[]
+  selfEvolutionVersionCandidateCount?: number
+  selfEvolutionActiveCandidateCount?: number
+  selfEvolutionShadowCandidateCount?: number
+  selfEvolutionRejectedCandidateCount?: number
+  selfEvolutionRolledBackCandidateCount?: number
+  selfEvolutionReplayRequiredCount?: number
+  selfEvolutionReplayPassedCount?: number
+  selfEvolutionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }
@@ -282,6 +291,7 @@ export function buildAlicizationMemoryStatsProjection(input: {
       learningTaskFailureRate: Number((learningAttemptCount <= 0 ? 0 : learningFailureCount / learningAttemptCount).toFixed(2)),
       learningTaskReopenRecoveryRate: Number((learningReopenCount <= 0 ? 0 : Math.min(learningCompletionCount, learningReopenCount) / learningReopenCount).toFixed(2)),
       misinternalizationRate: Number((learningWorldValidationCount <= 0 ? 0 : learningWorldFalseInternalizationCount / learningWorldValidationCount).toFixed(2)),
+      sampleCount: Math.max(0, Math.floor(input.retrievalTelemetry.sampleCount ?? 0)),
       learningPolicyStrictnessBias: Number((input.retrievalTelemetry.learningPolicyStrictnessBias ?? 0).toFixed(2)),
       learningPolicyWrongThreadSuppressionBias: Number((input.retrievalTelemetry.learningPolicyWrongThreadSuppressionBias ?? 0).toFixed(2)),
       learningPolicyProvenanceLabelBias: Number((input.retrievalTelemetry.learningPolicyProvenanceLabelBias ?? 0).toFixed(2)),
@@ -293,6 +303,14 @@ export function buildAlicizationMemoryStatsProjection(input: {
       selfRevisionProactivePolicyBias: Number((input.retrievalTelemetry.selfRevisionProactivePolicyBias ?? 0).toFixed(2)),
       selfRevisionValidationBias: Number((input.retrievalTelemetry.selfRevisionValidationBias ?? 0).toFixed(2)),
       selfRevisionReasonCodes: input.retrievalTelemetry.selfRevisionReasonCodes ?? [],
+      selfEvolutionVersionCandidateCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionVersionCandidateCount ?? 0)),
+      selfEvolutionActiveCandidateCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionActiveCandidateCount ?? 0)),
+      selfEvolutionShadowCandidateCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionShadowCandidateCount ?? 0)),
+      selfEvolutionRejectedCandidateCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionRejectedCandidateCount ?? 0)),
+      selfEvolutionRolledBackCandidateCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionRolledBackCandidateCount ?? 0)),
+      selfEvolutionReplayRequiredCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionReplayRequiredCount ?? 0)),
+      selfEvolutionReplayPassedCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfEvolutionReplayPassedCount ?? 0)),
+      selfEvolutionReasonCodes: input.retrievalTelemetry.selfEvolutionReasonCodes ?? [],
       relationshipCadenceRegressionRate: Number((relationshipCadenceRegressionRate ?? 0).toFixed(2)),
       selfModelStaleBeliefRate: Number((selfModelStaleBeliefRate ?? 0).toFixed(2)),
     },

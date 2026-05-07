@@ -3,7 +3,7 @@ import type { Message } from '@xsai/shared-chat'
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
-import type { AlicizationResolvedVisibleReply } from './main-chat-visible-reply-execution'
+import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 function isAbortLikeError(error: unknown) {

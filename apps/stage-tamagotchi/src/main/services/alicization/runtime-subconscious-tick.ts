@@ -1,7 +1,7 @@
 import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './autonomy-actuation'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
-import { decideAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-policy'
+import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
 
 export function createAlicizationSubconsciousTickRuntime(options: any) {
   const {
@@ -91,6 +91,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
     alicizationSubconsciousPersistMs,
     persistProactiveLoopState,
     persistSubconsciousState,
+    getActiveSelfRevisionStatePatch,
   } = options as any
 
   async function runSubconsciousTickForCurrentCard(trigger: 'timer' | 'force') {
@@ -430,6 +431,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
       ...committedDigitalLifeSpine.current.proactivePolicy,
     })
     setProactiveLoopStateCache(activeCardId, proactiveLoopState)
+    const activeSelfRevisionPatch = await getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
 
     let proactive = false
     let suppressed = false
@@ -452,6 +454,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         knowledgeEvidence: committedDigitalLifeSpine.current.runtimeSurface.memory.knowledgeEvidence ?? null,
         perception: perceptionSignals,
         runtimeDigest: proactiveRuntimeSnapshot,
+        selfRevisionPatch: activeSelfRevisionPatch,
         ...committedDigitalLifeSpine.current.proactivePolicy,
       })
       const hardSuppressed = !decision.shouldInterrupt
@@ -755,6 +758,13 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 recallSeed: proactiveRecallSeed || null,
                 recalledFragments: organicPromptContext.recalledFragments.length,
                 agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+                selfRevisionPatch: activeSelfRevisionPatch
+                  ? {
+                      id: activeSelfRevisionPatch.id,
+                      lanes: activeSelfRevisionPatch.lanes,
+                      reasonCodes: activeSelfRevisionPatch.reasonCodes,
+                    }
+                  : null,
               },
             })
           }
@@ -775,17 +785,27 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 recallSeed: proactiveRecallSeed || null,
                 recalledFragments: organicPromptContext.recalledFragments.length,
                 agentRuntime: buildAgentRuntimeAuditSnapshot(backgroundAgentTurn),
+                selfRevisionPatch: activeSelfRevisionPatch
+                  ? {
+                      id: activeSelfRevisionPatch.id,
+                      lanes: activeSelfRevisionPatch.lanes,
+                      reasonCodes: activeSelfRevisionPatch.reasonCodes,
+                    }
+                  : null,
               },
             })
           }
         }
-        const proactiveVisibleUtteranceDecision = decideAlicizationProactiveVisibleUtterance({
+        const proactiveVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
+          kind: autonomyExecutionProposalSurface ? 'autonomy-proposal' : 'subconscious-proactive',
+          structured,
           hasMindAuthoredStructured: Boolean(llmStructured),
           reason: llmStructured
             ? 'mind-authored-proactive-utterance'
             : 'provider-mind-unavailable-for-proactive-visible-utterance',
+          selfRevisionPatch: activeSelfRevisionPatch,
         })
-        if (!proactiveVisibleUtteranceDecision.shouldPersistVisibleUtterance) {
+        if (!proactiveVisibleUtterance.shouldPersistVisibleUtterance) {
           proactive = false
           await appendAuditLog({
             level: 'warning',
@@ -794,7 +814,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             message: 'Deferred proactive visible utterance because normal visible proactive text must be mind-authored.',
             payload: {
               turnId,
-              decision: proactiveVisibleUtteranceDecision,
+              decision: proactiveVisibleUtterance.decision,
+              visibleReplyRealization: proactiveVisibleUtterance.visibleReplyRealization,
             },
           })
         }
@@ -803,12 +824,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           const persisted = await appendConversationTurnWithGuards({
             turnId,
             sessionId: deliveredSessionId,
-            assistantText: structured.reply,
-            structured: {
-              ...structured,
-              visibleReplyAuthority: 'llm-mind',
-              replyRealizationMode: 'provider-mind-required',
-            },
+            assistantText: proactiveVisibleUtterance.assistantText,
+            structured: proactiveVisibleUtterance.structuredForPersistence,
             origin: 'subconscious-proactive',
             createdAt: now,
           })

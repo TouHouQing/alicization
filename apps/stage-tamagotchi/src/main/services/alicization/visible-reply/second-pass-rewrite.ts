@@ -5,18 +5,19 @@ import type {
   AlicizationDialoguePerformancePayload,
   AlicizationMindTurnGovernance,
   AlicizationVisibleReplyExecution,
-} from '../../../shared/eventa'
-import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-import type { MainGatewayResolvedConfig } from './runtime-soul'
+} from '../../../../shared/eventa'
+import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
+import type { MainGatewayResolvedConfig } from '../runtime-soul'
 
 import {
   clampAlicizationPerformancePayloadToManifest,
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
-} from '../../../shared/eventa'
-import { coerceConversationTurnToMindGovernedPayload } from './runtime-governance'
-import { parseJsonObjectFromText } from './runtime-transport-content'
-import { sanitizeText } from './runtime-soul'
+} from '../../../../shared/eventa'
+import { buildAlicizationMindAuthoringFailureArtifact } from './authority-orchestrator'
+import { coerceConversationTurnToMindGovernedPayload } from '../runtime-governance'
+import { parseJsonObjectFromText } from '../runtime-transport-content'
+import { sanitizeText } from '../runtime-soul'
 
 interface AlicizationSecondPassProviderInput {
   chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
@@ -56,29 +57,21 @@ export function buildAlicizationSecondPassTransportFailureReply(input: {
   previousExecution: AlicizationVisibleReplyExecution
   reason: string
 }) {
-  const previousPerformance = normalizeStructuredObject(input.governedStructured?.performance)
-  const normalizedEmotion = normalizeAlicizationEmotion(input.governedStructured?.emotion)
-  const performance = normalizeAlicizationPerformancePayload(previousPerformance, normalizedEmotion.emotion)
+  const reason = sanitizeText(input.reason).slice(0, 180) || 'visible-reply-second-pass-transport-failure'
   return {
     fullText: JSON.stringify({
-      thought: `transport_failure=visible-reply-second-pass; reason=${input.reason.slice(0, 160)}`,
-      emotion: performance.baseEmotion,
-      reply: '主模型连接在修复这次回复时失败了；我不能把上一版不可靠内容发出来。',
-      performance: {
-        ...performance,
-        baseEmotion: performance.baseEmotion,
-        delivery: 'firm',
-        emphasis: 0,
-      },
-      visibleReplyAuthority: 'llm-second-pass-rewrite',
-      visibleReplyRewriteRequest: null,
-      format: 'fallback-v1',
-      parsePath: 'transport-failure',
-      contractFailed: true,
-      transportFailure: {
+      ...buildAlicizationMindAuthoringFailureArtifact({
         stage: 'visible-reply-second-pass',
-        reason: input.reason,
-      },
+        reason,
+        reasonCodes: ['visible-reply-second-pass-transport-failure'],
+      }),
+      governedStructured: input.governedStructured
+        ? {
+            format: input.governedStructured.format ?? null,
+            parsePath: input.governedStructured.parsePath ?? null,
+            visibleReplyAuthority: input.governedStructured.visibleReplyAuthority ?? null,
+          }
+        : null,
     }),
     visibleReplyExecution: {
       ...input.previousExecution,
@@ -225,6 +218,19 @@ function buildSecondPassRewriteMessages(input: {
     '',
     '[REWRITE_REQUEST]',
     safeJson(rewriteRequest),
+    '',
+    '[MIND_TURN_CONTRACT]',
+    safeJson(input.prepared.mindTurnContract ?? null),
+    '',
+    '[RESPONSE_SURFACE_AUTHORITY]',
+    safeJson({
+      replyRealization: input.prepared.replyRealization ?? null,
+      replyExecutionPlan: input.prepared.replyExecutionPlan ?? null,
+      currentConsciousFrame: input.prepared.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame ?? null,
+      claimEvidenceLedger: input.prepared.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.claimEvidenceLedger ?? input.governance?.claimEvidence ?? null,
+      answerCompiler: input.prepared.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerCompiler ?? null,
+      answerPlanner: input.prepared.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner ?? null,
+    }),
     '',
     '[ORIGINAL_STRUCTURED_REPLY]',
     safeJson({

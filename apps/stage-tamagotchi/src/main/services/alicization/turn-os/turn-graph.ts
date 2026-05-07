@@ -1,7 +1,7 @@
 import type { AlicizationMindTurnGovernance } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
 import type { AlicizationMemoryTurnArtifact } from '../memory-os/memory-turn-artifact'
-import type { AlicizationVisibleReplyRealizationArtifact } from '../visible-reply/realization-engine'
+import type { AlicizationVisibleReplyRealizationArtifact } from '../visible-reply/facade'
 
 export const alicizationTurnGraphCanonicalStageOrder = [
   'encounter',

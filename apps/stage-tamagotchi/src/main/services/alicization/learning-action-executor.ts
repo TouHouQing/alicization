@@ -13,6 +13,7 @@ import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-
 import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
+import type { AlicizationSelfEvolutionVersionCandidate } from './self-evolution/version-runtime'
 
 export interface AlicizationLearningActionExecutorResult {
   status: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'
@@ -28,6 +29,7 @@ export interface AlicizationLearningActionExecutorResult {
   policyFeedback?: AlicizationLearningPolicyFeedback | null
   selfRevisionEvent?: AlicizationSelfRevisionEvent | null
   selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
+  selfEvolutionVersionCandidate?: AlicizationSelfEvolutionVersionCandidate | null
 }
 
 export interface CreateAlicizationLearningActionExecutorOptions {
@@ -56,6 +58,10 @@ export interface CreateAlicizationLearningActionExecutorOptions {
     payload: Record<string, unknown>
     createdAt: number
   }>) => Promise<unknown>
+  proposeSelfEvolutionVersion?: (input: {
+    event: AlicizationSelfRevisionEvent
+    patch: AlicizationSelfRevisionStatePatch
+  }) => Promise<AlicizationSelfEvolutionVersionCandidate>
   assimilateMemoryFactsDetailed: (input: {
     facts: AlicizationMemoryFactInput[]
     source: 'rule'
@@ -70,6 +76,7 @@ export interface CreateAlicizationLearningActionExecutorOptions {
     internalizedAsValidatedOnly?: boolean
     policyFeedback?: AlicizationLearningPolicyFeedback | null
     selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
+    selfEvolutionVersionCandidate?: AlicizationSelfEvolutionVersionCandidate | null
   }) => Promise<void>
 }
 

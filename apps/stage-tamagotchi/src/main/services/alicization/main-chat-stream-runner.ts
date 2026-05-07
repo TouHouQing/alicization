@@ -6,8 +6,10 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
-import type { AlicizationVisibleReplyCriticArtifact } from './visible-reply/critic'
-import type { AlicizationVisibleReplyClosureArtifact } from './visible-reply/realization-engine'
+import type {
+  AlicizationVisibleReplyClosureArtifact,
+  AlicizationVisibleReplyCriticArtifact,
+} from './visible-reply/facade'
 
 import { shouldBufferAlicizationStructuredSpeechPrelude } from '@proj-alicization/stage-shared'
 import { errorMessageFrom } from '@moeru/std'
@@ -19,7 +21,7 @@ import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-pol
 import {
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
-} from './main-chat-visible-reply-execution'
+} from './visible-reply/facade'
 import { createAbortError, isMainGatewayProgressEventType, readRawTextDelta, sanitizeText } from './main-chat-stream-primitives'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { parseJsonObjectFromText } from './runtime-transport-content'

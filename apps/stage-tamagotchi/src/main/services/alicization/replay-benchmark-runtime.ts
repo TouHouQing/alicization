@@ -22,6 +22,7 @@ import {
   buildReplayHumanRatingRubric,
   buildReplayBenchmarkMemoryStatsPatch,
   buildDefaultHumanlikeMemoryBenchmarkPack,
+  buildFinalHumanlikeMemoryBenchmarkPack,
   buildSampledHumanlikeMemoryBenchmarkPack,
   buildAdversarialHumanlikeMemoryBenchmarkPack,
   mergeReplayBenchmarkDatasetBacklog,
@@ -88,8 +89,9 @@ function normalizeReplayBenchmarkPackId(raw: unknown): AlicizationReplayBenchmar
     || raw === 'default-humanlike-memory-v1'
     || raw === 'growth-humanlike-memory-v1'
     || raw === 'adversarial-humanlike-memory-v2'
+    || raw === 'final-humanlike-memory-v1'
     ? raw
-    : 'default-humanlike-memory-v1'
+    : 'final-humanlike-memory-v1'
 }
 
 function sanitizeReplayBenchmarkSampleText(raw: string) {
@@ -223,6 +225,7 @@ function buildReplayBenchmarkNoopResult(input: {
     },
     authorityLeakCount: 0,
     localHumanlikeVisibleFallbackCount: 0,
+    sampleCount: 0,
   })
   return {
     packId: input.packId,
@@ -528,6 +531,8 @@ export function createAlicizationReplayBenchmarkRuntime(
       return buildGrowthHumanlikeMemoryBenchmarkPack()
     if (input.packId === 'adversarial-humanlike-memory-v2')
       return buildAdversarialHumanlikeMemoryBenchmarkPack()
+    if (input.packId === 'final-humanlike-memory-v1')
+      return buildFinalHumanlikeMemoryBenchmarkPack()
 
     if (input.packId === 'backlog-humanlike-memory-v1') {
       return buildReplayBenchmarkBacklogPack({
@@ -780,6 +785,7 @@ export function createAlicizationReplayBenchmarkRuntime(
       },
       authorityLeakCount,
       localHumanlikeVisibleFallbackCount,
+      sampleCount: telemetryPatch.retrievalHealth.sampleCount ?? replay.turns.length,
     })
 
     if (persistTelemetry) {
@@ -884,7 +890,17 @@ export function createAlicizationReplayBenchmarkRuntime(
         cardId: input?.cardId,
       },
     })
-    const results: AlicizationRunReplayBenchmarkResult[] = [sampledResult, growthResult]
+    const finalPackResult = await runReplayBenchmark({
+      packId: 'final-humanlike-memory-v1',
+      sampleLimit: input?.sampleLimit,
+      persistTelemetry: input?.persistTelemetry,
+      auditContext: {
+        category: 'alicization.memory-benchmark',
+        action: 'replay-benchmark-nightly-final-pack-ran',
+        cardId: input?.cardId,
+      },
+    })
+    const results: AlicizationRunReplayBenchmarkResult[] = [sampledResult, growthResult, finalPackResult]
     if (backlogEntries.length > 0) {
       const backlogResult = await runReplayBenchmark({
         packId: 'backlog-humanlike-memory-v1',

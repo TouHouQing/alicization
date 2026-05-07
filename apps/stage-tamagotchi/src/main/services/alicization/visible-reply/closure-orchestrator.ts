@@ -1,6 +1,6 @@
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-session-runtime'
-import type { AlicizationSecondPassRewriteResult } from '../main-chat-second-pass-rewrite'
+import type { AlicizationSecondPassRewriteResult } from './second-pass-rewrite'
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 import type { AlicizationVisibleReplyClosureArtifact } from './realization-engine'
 

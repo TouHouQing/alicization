@@ -33,6 +33,7 @@
     "build:crates": "cargo build --workspace",
     "test": "vitest --coverage",
     "test:run": "vitest run",
+    "test:alicization-final-gate": "vitest run apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-rules.test.ts apps/stage-tamagotchi/src/main/services/alicization/learning-action-executor.test.ts apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-realization.test.ts apps/stage-tamagotchi/src/main/services/alicization/proactive-mind/visible-utterance-policy.test.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-delivery-reminders.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay/final-gates.test.ts packages/stage-ui/src/stores/alicization-mind-replay.test.ts",
     "lint": "moeru-lint .",
     "lint:fix": "moeru-lint --fix .",
     "lint:rust": "cargo fmt --check && cargo clippy --workspace",
