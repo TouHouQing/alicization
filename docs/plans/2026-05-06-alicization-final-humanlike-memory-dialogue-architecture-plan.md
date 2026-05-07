@@ -311,6 +311,7 @@ tests:
 - `pnpm test:alicization-final-gate`
 
 - [x] 本轮 learning finalized event 闭环 / self-evolution telemetry 可观测性 / second-pass visible-reply 收口已完成
+- [x] 本轮 runtime structured format lineage / renderer visible reply guard / final replay hard gate 已完成
 
 evidence:
 - `apps/stage-tamagotchi/src/main/services/alicization/learning-artifact-store.ts`
@@ -323,6 +324,14 @@ evidence:
 - `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/runtime-surface-authority.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade-boundary.test.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-structured-format.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-structured-format.test.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/governance-audit.ts`
+- `apps/stage-tamagotchi/src/main/services/alicization/visible-reply/governance-audit.test.ts`
+- `apps/stage-tamagotchi/src/renderer/alicization-chat-structured-record.ts`
+- `apps/stage-tamagotchi/src/renderer/alicization-chat-structured-record.test.ts`
+- `packages/stage-ui/src/stores/alicization-visible-reply-guard.ts`
+- `packages/stage-ui/src/stores/alicization-visible-reply-guard.test.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-background-run.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts`
 - `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`
@@ -413,4 +422,5 @@ tests:
 - [x] learning outcome 已进入 self revision ledger
 - [x] proactive visible utterance 已全部改成 mind-authored
 - [x] replay gate 已有可执行 final gate 命令、默认 final pack、CI final gate job
-- [ ] recall / precision / wrong-thread / template leakage / authority leak / unsupported specificity 需以生产样本运行 `finalReplayGate.passed=true` 为准
+- [x] final replay gate 对 recall / precision / wrong-thread / template leakage / authority leak / unsupported specificity / latency / participation / learning misinternalization 缺失指标 fail-closed
+- [ ] recall / precision / wrong-thread / template leakage / authority leak / unsupported specificity 仍需以真实生产样本运行 `finalReplayGate.passed=true` 为准

@@ -7,7 +7,7 @@ import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-alicization/stage-layouts/composables/theme-color'
 import { ToasterRoot } from '@proj-alicization/stage-ui/components'
-import { clearAlicizationBridge, normalizeAlicizationDigitalLifeSpineDigest, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import { clearAlicizationBridge, setAlicizationBridge } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/alicization-epoch1'
 import { useAlicizationPresenceDispatcherStore } from '@proj-alicization/stage-ui/stores/alicization-presence-dispatcher'
 import { useSharedAnalyticsStore } from '@proj-alicization/stage-ui/stores/analytics'
@@ -121,7 +121,7 @@ import {
   pluginProtocolListProviders,
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
-import { normalizeProactiveMetadata, normalizeStructuredFormat } from './alicization-dialogue-normalization'
+import { normalizeChatStructuredRecord, resolveVisibleReasoning } from './alicization-chat-structured-record'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
@@ -371,35 +371,6 @@ async function upsertProactiveAssistantTurn(payload: {
 
 function normalizeContentText(raw: unknown) {
   return String(raw ?? '').trim()
-}
-
-function normalizeChatStructuredRecord(raw: unknown, fallbackReply: string) {
-  const structured = raw && typeof raw === 'object'
-    ? raw as Record<string, unknown>
-    : {}
-
-  return {
-    ...structured,
-    thought: typeof structured.thought === 'string' ? structured.thought.trim() : '',
-    emotion: typeof structured.emotion === 'string' ? structured.emotion.trim() : 'neutral',
-    reply: typeof structured.reply === 'string' && structured.reply.trim()
-      ? structured.reply.trim()
-      : fallbackReply,
-    format: normalizeStructuredFormat(structured.format),
-    proactive: normalizeProactiveMetadata(structured.proactive),
-    digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(structured.digitalLifeSpine),
-  }
-}
-
-function resolveVisibleReasoning(
-  structured: ReturnType<typeof normalizeChatStructuredRecord>,
-  origin: 'subconscious-proactive' | 'user-turn',
-) {
-  if (origin === 'subconscious-proactive')
-    return ''
-  if (structured.format.startsWith('subconscious-'))
-    return ''
-  return structured.thought
 }
 
 function getMessageText(message: any) {

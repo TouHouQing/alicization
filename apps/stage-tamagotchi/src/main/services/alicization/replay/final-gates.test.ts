@@ -92,4 +92,34 @@ describe('final replay gates', () => {
       'minimum-sample-count',
     ]))
   })
+
+  it('fails closed when production replay metrics are missing', () => {
+    const report = buildAlicizationFinalReplayGateReport({
+      retrievalHealth: null,
+      authorityLeakCount: 0,
+      localHumanlikeVisibleFallbackCount: 0,
+      sampleCount: 12,
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.failingKeys).toEqual(expect.arrayContaining([
+      'recall-at-3',
+      'precision-at-3',
+      'wrong-thread-rate',
+      'template-leakage',
+      'unsupported-specificity-visible',
+      'turn-os-trace-coverage',
+      'learning-self-revision-roundtrip',
+      'memory-closure-coverage',
+      'claim-accuracy',
+      'reply-authority-accuracy',
+      'latency-budget',
+      'mind-participation',
+      'memory-participation',
+      'personality-participation',
+      'relationship-participation',
+      'continuity-participation',
+      'learning-misinternalization',
+    ]))
+  })
 })

@@ -1,17 +1,21 @@
 import type { AlicizationDialogueStructuredFormat, AlicizationProactiveMetadata } from '../shared/eventa'
 
-const supportedStructuredFormats = [
+const normalStructuredFormats = [
   'subconscious-proactive-v1',
   'subconscious-proactive-llm-v1',
   'subconscious-reminder-v1',
   'mind-turn-v1',
+] as const satisfies AlicizationDialogueStructuredFormat[]
+
+const legacyStructuredFormats = [
   'epoch1-v1',
   'fallback-v1',
 ] as const satisfies AlicizationDialogueStructuredFormat[]
 
-export function normalizeStructuredFormat(raw: unknown): AlicizationDialogueStructuredFormat {
+export function normalizeStructuredFormat(raw: unknown): AlicizationDialogueStructuredFormat | undefined {
   const candidate = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  return supportedStructuredFormats.find(format => format === candidate) ?? 'fallback-v1'
+  return normalStructuredFormats.find(format => format === candidate)
+    ?? legacyStructuredFormats.find(format => format === candidate)
 }
 
 export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMetadata | undefined {

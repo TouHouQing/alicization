@@ -9,7 +9,7 @@ describe('alicization dialogue normalization', () => {
     expect(normalizeStructuredFormat('subconscious-reminder-v1')).toBe('subconscious-reminder-v1')
     expect(normalizeStructuredFormat('mind-turn-v1')).toBe('mind-turn-v1')
     expect(normalizeStructuredFormat('epoch1-v1')).toBe('epoch1-v1')
-    expect(normalizeStructuredFormat('unknown')).toBe('fallback-v1')
+    expect(normalizeStructuredFormat('unknown')).toBeUndefined()
   })
 
   it('normalizes proactive metadata for renderer/state-ui consumption', () => {

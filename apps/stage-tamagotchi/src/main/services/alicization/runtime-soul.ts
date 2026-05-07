@@ -9,7 +9,6 @@ import type {
   AlicizationChatStreamDispatchPayload,
   AlicizationDialogueRespondedPayload,
   AlicizationEpisodicEventRecord,
-  AlicizationDialogueStructuredFormat,
   AlicizationGender,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryFact,
@@ -49,6 +48,11 @@ import {
   defaultAlicizationProfile,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
+export {
+  legacyDialogueStructuredFormats,
+  normalDialogueStructuredFormats,
+  supportedDialogueStructuredFormats,
+} from './runtime-structured-format'
 
 export const currentSoulSchemaVersion = 2
 export const soulPersonaNotesStart = '<!-- ALICIZATION_PERSONA_NOTES_START -->'
@@ -120,15 +124,6 @@ export const dialogueDeliveryRetryBaseMs = 2_000
 export const dialogueDeliveryRetryMaxMs = 60_000
 export const dialogueDeliveryRetryMaxAttempts = 8
 export const alicizationCustomDirectivesMarker = '[ALICIZATION_CARD_CUSTOM_DIRECTIVES]'
-
-export const supportedDialogueStructuredFormats = [
-  'subconscious-proactive-v1',
-  'subconscious-proactive-llm-v1',
-  'subconscious-reminder-v1',
-  'mind-turn-v1',
-  'epoch1-v1',
-  'fallback-v1',
-] as const satisfies AlicizationDialogueStructuredFormat[]
 
 export interface SubconsciousCardState extends AlicizationSubconsciousNeedsState {
   updatedAt: number

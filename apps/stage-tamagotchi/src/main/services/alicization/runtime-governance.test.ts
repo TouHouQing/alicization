@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildMindTurnTraceEvents,
   coerceConversationTurnToMindGovernedPayload,
+  normalizeDialogueRespondedPayload,
 } from './runtime-governance'
 
 describe('runtime-governance', () => {
@@ -607,6 +608,77 @@ describe('runtime-governance', () => {
     }))
     expect(events.find(event => event.kind === 'governance-normalized')?.payload).toEqual(expect.objectContaining({
       memoryStageReplay: null,
+    }))
+  })
+
+  it('preserves legacy input format lineage while normalizing persisted governed payload format', () => {
+    const createdAt = Date.now()
+    const input: AlicizationConversationTurnInput = {
+      turnId: 'turn-legacy-format-lineage-1',
+      sessionId: 'session-legacy-format-lineage',
+      userText: '继续',
+      assistantText: '我接着做。',
+      structured: {
+        thought: 'obligation=answer; truth=remembered; focus=current-user-turn; move=continue; tone=direct',
+        emotion: 'thinking',
+        reply: '我接着做。',
+        parsePath: 'json',
+        format: 'epoch1-v1',
+      },
+      governance: {
+        decisionTraceId: 'mind:legacy:epoch1lineage',
+        turnMode: 'answer',
+        truthState: 'remembered',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerAct: 'guide',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        liveSurface: 'current task thread',
+        focusAnchor: 'current task thread',
+        answerIntent: 'Continue the current task thread directly.',
+        openingMove: 'Continue the live thread.',
+        carriedThread: 'current task thread',
+        suppressAssociativeRecall: false,
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 3,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      createdAt,
+    }
+
+    const governedTurn = coerceConversationTurnToMindGovernedPayload(input)
+    expect((governedTurn.payload.structured as Record<string, unknown>).format).toBe('mind-turn-v1')
+    expect((governedTurn.payload.structured as Record<string, unknown>).formatLane).toBe('normal')
+    expect((governedTurn.payload.structured as Record<string, unknown>).legacyInputFormat).toBe('epoch1-v1')
+
+    const dialoguePayload = normalizeDialogueRespondedPayload(governedTurn.payload)!
+    expect(dialoguePayload.structured.format).toBe('mind-turn-v1')
+    expect(dialoguePayload.structured.formatLane).toBe('normal')
+    expect(dialoguePayload.structured.legacyInputFormat).toBe('epoch1-v1')
+
+    const events = buildMindTurnTraceEvents({
+      payload: governedTurn.payload,
+      governedTurn,
+      createdAt,
+      dialoguePayload,
+    })
+
+    expect(events.find(event => event.kind === 'persistence-written')?.payload).toEqual(expect.objectContaining({
+      format: 'mind-turn-v1',
+      formatLane: 'normal',
+      legacyInputFormat: 'epoch1-v1',
+    }))
+    expect(events.find(event => event.kind === 'dialogue-emitted')?.payload).toEqual(expect.objectContaining({
+      format: 'mind-turn-v1',
+      formatLane: 'normal',
+      legacyInputFormat: 'epoch1-v1',
     }))
   })
 })

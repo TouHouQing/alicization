@@ -48,6 +48,11 @@ import { translateStageUi } from '../utils/i18n'
 import { getAlicizationBridge, hasAlicizationBridge, normalizeAlicizationPerformancePayload } from './alicization-bridge'
 import { type RealtimeEvidenceItem, useAlicizationExecutionEngineStore } from './alicization-execution-engine'
 import { extractRuleFacts, upsertFacts } from './alicization-memory'
+import {
+  blockAlicizationRendererLocalVisibleReply,
+  removeAlicizationExecutionStatusSlices,
+  shouldBlockAlicizationRendererLocalVisibleReply,
+} from './alicization-visible-reply-guard'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -328,9 +333,7 @@ function upsertExecutionStatusSlice(slices: ChatSlices[], next: ChatSlicesExecut
   slices.push(next)
 }
 
-function removeExecutionStatusSlices(slices: ChatSlices[]) {
-  return slices.filter(slice => slice.type !== 'execution-status')
-}
+const removeExecutionStatusSlices = removeAlicizationExecutionStatusSlices
 
 const chineseNumberDigits: Record<string, number> = {
   零: 0,
@@ -1601,7 +1604,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       return Boolean(getAlicizationBridge().streamChat)
     }
 
-    const shouldBlockRendererLocalVisibleReply = () => isAlicizationUserTurn()
+    const shouldBlockRendererLocalVisibleReply = () => shouldBlockAlicizationRendererLocalVisibleReply({
+      isAlicizationUserTurn: isAlicizationUserTurn(),
+    })
 
     const blockRuntimeAuthoritativeLocalVisibleReply = async (input: {
       action: string
@@ -1609,14 +1614,22 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       details?: Record<string, unknown>
       level?: 'warning' | 'critical'
     }) => {
-      runtimeAuthoritativeVisibleReplyBlocked = true
-      stagedAssistantResolution = null
-      stagedSpeechDraft = ''
-      finalAssistantDisplayText = ''
-      buildingMessage.content = ''
-      buildingMessage.slices = removeExecutionStatusSlices(buildingMessage.slices)
-      buildingMessage.categorization = undefined
-      buildingMessage.structured = undefined
+      const blockResult = blockAlicizationRendererLocalVisibleReply({
+        buildingMessage,
+        setRuntimeBlocked: () => {
+          runtimeAuthoritativeVisibleReplyBlocked = true
+        },
+        resetStagedResolution: () => {
+          stagedAssistantResolution = null
+        },
+        resetSpeechDraft: () => {
+          stagedSpeechDraft = ''
+        },
+        resetFinalAssistantDisplayText: () => {
+          finalAssistantDisplayText = ''
+        },
+        createEmptyStreamingMessage,
+      })
       await appendAlicizationAuditLog({
         level: input.level ?? 'warning',
         category: 'alicization.visible-reply',
@@ -1629,7 +1642,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         },
       })
       if (isForegroundSession()) {
-        streamingMessage.value = createEmptyStreamingMessage()
+        streamingMessage.value = blockResult.streamingMessage
       }
     }
 

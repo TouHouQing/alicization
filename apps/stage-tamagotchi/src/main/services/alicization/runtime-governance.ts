@@ -9,7 +9,6 @@ import type {
   AlicizationDialoguePerformancePayload,
   AlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline,
-  AlicizationDialogueStructuredFormat,
   AlicizationDialogueStructuredPayload,
   AlicizationEmotion,
   AlicizationMindTurnEventInput,
@@ -64,8 +63,10 @@ import { renderAlicizationMindSurface } from './mind-surface-renderer'
 import { ensureMindGovernanceDecisionTraceId, sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 import { sanitizeBriefText, uniqueCarryAnchors } from './runtime-realtime'
-import { clamp01, sanitizeText, supportedDialogueStructuredFormats } from './runtime-soul'
+import { clamp01, sanitizeText } from './runtime-soul'
+import { resolveAlicizationRuntimeMindTurnStructuredFormat } from './runtime-structured-format'
 import { deriveAlicizationTruthDiscipline } from './truth-discipline'
+import { resolveAlicizationVisibleReplyGovernanceAuditAuthority } from './visible-reply/governance-audit'
 
 export function createAbortError(reason?: string) {
   return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
@@ -273,12 +274,6 @@ function applyDialoguePerformanceSeedToEmbodiment(
       emotion: normalizedSeeded.baseEmotion,
     },
   }
-}
-
-export function normalizeDialogueStructuredFormat(raw: unknown, fallback?: AlicizationDialogueStructuredFormat) {
-  const candidate = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
-  const normalized = supportedDialogueStructuredFormats.find(format => format === candidate)
-  return normalized ?? fallback
 }
 
 export interface AlicizationChatStreamEmbodimentMeta {
@@ -1544,7 +1539,13 @@ export function coerceConversationTurnToMindGovernedPayload(
     return { payload: input, governance, tookOver: false, replyOverridden: false, reasons: [] as string[], audit: null as Record<string, unknown> | null }
 
   const thought = readStringValue(structuredPayload.thought).trim()
-  const format = normalizeDialogueStructuredFormat(structuredPayload.format)
+  const formatResolution = resolveAlicizationRuntimeMindTurnStructuredFormat({
+    rawFormat: structuredPayload.format,
+    contractFailed: structuredPayload.contractFailed === true,
+    hasGovernance: true,
+    origin: input.origin,
+  })
+  const format = formatResolution.format
   const parsePath = readStringValue(structuredPayload.parsePath).trim().toLowerCase()
   const dialogueActKernel = normalizeDialogueActKernel(
     structuredPayload.dialogueActKernel ?? governance.dialogueActKernel,
@@ -1764,6 +1765,10 @@ export function coerceConversationTurnToMindGovernedPayload(
     conflictingCandidates: conflictingAnchors.conflictingCandidates ?? [],
     droppedClauses: dialogueFirstSoftRepair.droppedClauses ?? [],
   })
+  const visibleReplyAuditAuthority = resolveAlicizationVisibleReplyGovernanceAuditAuthority({
+    shouldOverrideVisibleReply,
+    governance: coherentGovernance,
+  })
   const hardFallbackReason = shouldOverrideVisibleReply && hardOverrideRequired
     ? [
         executionSurfaceViolation ? 'execution-first-visible-reply-violation' : '',
@@ -1864,6 +1869,8 @@ export function coerceConversationTurnToMindGovernedPayload(
         speechTimeline: finalSpeechTimeline,
         digitalLife: finalDigitalLife,
         format: 'mind-turn-v1',
+        formatLane: 'normal',
+        legacyInputFormat: formatResolution.legacyInputFormat,
         dialogueActKernel,
         parsePath: finalParsePath,
         contractFailed: false,
@@ -1939,10 +1946,8 @@ export function coerceConversationTurnToMindGovernedPayload(
       soft_repair_dropped_clauses: dialogueFirstSoftRepair.droppedClauses,
       hard_fallback_reason: hardFallbackReason,
       fallback_template_key: shouldOverrideVisibleReply ? fallbackPatternId : null,
-      visible_reply_authority: shouldOverrideVisibleReply ? 'llm-second-pass-rewrite-request' : 'assistant-structured',
-      visible_reply_realization_authority: shouldOverrideVisibleReply
-        ? 'llm-second-pass-rewrite'
-        : (coherentGovernance.visibleReplyAuthority ?? 'llm-mind'),
+      visible_reply_authority: visibleReplyAuditAuthority.visibleReplyAuthority,
+      visible_reply_realization_authority: visibleReplyAuditAuthority.visibleReplyRealizationAuthority,
       visible_reply_rewrite_request: visibleReplyRewriteRequest,
       reply_kept_despite_mismatch: replyKeptDespiteMismatch,
       organic_direct_reply: organicDirectReply,
@@ -2518,6 +2523,8 @@ export function buildMindTurnTraceEvents(input: {
     kind: 'persistence-written',
     payload: {
       format: readStringValue(structured.format).trim().toLowerCase() || null,
+      formatLane: readStringValue(structured.formatLane).trim().toLowerCase() || null,
+      legacyInputFormat: readStringValue(structured.legacyInputFormat).trim().toLowerCase() || null,
       parsePath: readStringValue(structured.parsePath).trim().toLowerCase() || null,
       emotion: readStringValue(structured.emotion).trim().toLowerCase() || null,
       rawEmotion: readStringValue(structured.rawEmotion).trim().toLowerCase() || null,
@@ -2567,6 +2574,8 @@ export function buildMindTurnTraceEvents(input: {
         origin: input.dialoguePayload.origin,
         isFallback: input.dialoguePayload.isFallback,
         format: input.dialoguePayload.structured.format,
+        formatLane: input.dialoguePayload.structured.formatLane ?? null,
+        legacyInputFormat: input.dialoguePayload.structured.legacyInputFormat ?? null,
         emotion: input.dialoguePayload.structured.emotion,
         rawEmotion: input.dialoguePayload.structured.rawEmotion,
         embodimentVariationToken: input.dialoguePayload.structured.embodiment?.variationToken ?? null,
@@ -2617,13 +2626,19 @@ export function normalizeDialogueRespondedPayload(
   const governance = normalizeMindTurnGovernance(
     input.governance ?? (structuredPayload as Record<string, unknown>).governance,
   )
-  const normalizedFormat = normalizeDialogueStructuredFormat(
-    (structuredPayload as Record<string, unknown>).format,
-    contractFailed ? 'fallback-v1' : undefined,
-  )
-  const format = governance && input.origin !== 'subconscious-proactive' && normalizedFormat === 'epoch1-v1'
-    ? 'mind-turn-v1'
-    : normalizedFormat
+  const explicitLegacyInputFormat = (() => {
+    const rawLegacyInputFormat = readStringValue((structuredPayload as Record<string, unknown>).legacyInputFormat).trim().toLowerCase()
+    return rawLegacyInputFormat === 'epoch1-v1' || rawLegacyInputFormat === 'fallback-v1'
+      ? rawLegacyInputFormat
+      : null
+  })()
+  const formatResolution = resolveAlicizationRuntimeMindTurnStructuredFormat({
+    rawFormat: (structuredPayload as Record<string, unknown>).format,
+    contractFailed,
+    hasGovernance: Boolean(governance),
+    origin: input.origin,
+  })
+  const format = formatResolution.format
   const visibleReplyAuthority = readStringValue((structuredPayload as Record<string, unknown>).visibleReplyAuthority).trim()
   const proactive = normalizeProactiveMetadata((structuredPayload as Record<string, unknown>).proactive)
   const dialogueActKernel = normalizeDialogueActKernel(
@@ -2706,6 +2721,8 @@ export function normalizeDialogueRespondedPayload(
       digitalLife,
       digitalLifeSpine,
       format,
+      formatLane: formatResolution.lane,
+      legacyInputFormat: explicitLegacyInputFormat ?? formatResolution.legacyInputFormat,
       proactive,
       dialogueActKernel,
       governance,

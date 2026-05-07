@@ -3481,6 +3481,7 @@ export type AlicizationDialogueStructuredFormat
     | 'mind-turn-v1'
     | 'epoch1-v1'
     | 'fallback-v1'
+export type AlicizationDialogueStructuredFormatLane = 'normal' | 'legacy-input' | 'infra-fallback'
 
 export type AlicizationProactiveScenario = 'coding' | 'media' | 'late-night-care' | 'general'
 export type AlicizationProactiveStyle = 'silent-observe' | 'light-nudge' | 'gentle-care' | 'firm-warning'
@@ -3571,6 +3572,8 @@ export interface AlicizationDialogueStructuredPayload {
   digitalLife?: AlicizationDigitalLifeEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   format?: AlicizationDialogueStructuredFormat
+  formatLane?: AlicizationDialogueStructuredFormatLane | null
+  legacyInputFormat?: Extract<AlicizationDialogueStructuredFormat, 'epoch1-v1' | 'fallback-v1'> | null
   proactive?: AlicizationProactiveMetadata
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   governance?: AlicizationMindTurnGovernance | null
