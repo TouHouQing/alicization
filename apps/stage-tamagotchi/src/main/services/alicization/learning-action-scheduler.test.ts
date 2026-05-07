@@ -270,6 +270,47 @@ describe('learning action scheduler', () => {
         status: 'blocked',
         resultSummary: 'waiting for stronger support',
         error: 'missing supporting facts and reflections',
+        selfRevisionStatePatch: {
+          version: 'self-revision-state-patch-v1',
+          id: 'patch-1',
+          sourceEventId: 'event-1',
+          sourceTurnId: 'turn-1',
+          decisionTraceId: 'trace-1',
+          domain: 'relationship',
+          action: 'verify',
+          resultStatus: 'blocked',
+          lanes: ['memory-policy', 'relationship-posture', 'response-posture'],
+          memoryPolicy: {
+            strictnessBias: 0.22,
+            wrongThreadSuppressionBias: 0.18,
+            provenanceLabelBias: 0.12,
+            recallExpansionBias: 0.08,
+            shouldQuarantineUnsupportedCarry: false,
+          },
+          relationshipPosture: {
+            repairWindowBias: 0.28,
+            closenessCapBias: 0.14,
+            warmthReleaseBias: 0,
+          },
+          responsePosture: {
+            secondPassRequiredBias: 0.24,
+            hypothesisLabelBias: 0.1,
+            specificityClampBias: 0.12,
+            templateShellSuppressionBias: 0.22,
+          },
+          proactivePolicy: {
+            restraintBias: 0.12,
+            learningProposalBias: 0.08,
+            actuationCooldownBias: 0,
+          },
+          validation: {
+            requiresRollbackCheck: false,
+            requiresRevalidation: false,
+            rollbackPlan: [],
+          },
+          reasonCodes: ['domain:relationship', 'result:blocked'],
+          summary: 'waiting for stronger support',
+        } as any,
       }),
       randomUUID: () => 'uuid-learning',
       getActiveCardId: () => 'default',
@@ -288,6 +329,11 @@ describe('learning action scheduler', () => {
       payload: expect.objectContaining({
         resultStatus: 'blocked',
         error: 'missing supporting facts and reflections',
+        selfRevisionPolicyConsumers: expect.arrayContaining([
+          'memory-policy',
+          'relationship-posture',
+          'response-posture',
+        ]),
       }),
     }), 'default')
   })

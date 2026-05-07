@@ -2034,6 +2034,11 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
 }
 
 function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDecision) {
+  if (!allowsDeterministicVisibleReplyForDecision(decision)) {
+    throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+      `active-dialogue-local-visible-reply-forbidden:${decision.lane}`,
+    )
+  }
   const directInfraFallback = buildMindAuthorityInfraFallbackText(decision)
   if (directInfraFallback) {
     return buildAlicizationActiveDialogueGovernedReply({
@@ -2055,7 +2060,41 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
 function allowsDeterministicVisibleReplyForDecision(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
 ) {
-  return decision.strategy === 'local-only'
+  if (decision.strategy !== 'local-only')
+    return false
+  return decision.lane === 'utility-time'
+    || decision.lane === 'utility-date'
+    || decision.lane === 'follow-up'
+}
+
+function canUseDeterministicInfraFallbackForLane(
+  lane: AlicizationActiveDialogueFastPathLane,
+) {
+  return lane === 'utility-time' || lane === 'utility-date'
+}
+
+function appendFastPathReasonCode(reasonCodes: string[], code: string) {
+  return reasonCodes.includes(code) ? reasonCodes : [...reasonCodes, code]
+}
+
+function coerceInfraFallbackDecision(
+  decision: AlicizationActiveDialogueFastPathDecision,
+): AlicizationActiveDialogueFastPathDecision {
+  if (allowsDeterministicVisibleReplyForDecision(decision))
+    return decision
+
+  if (!canUseDeterministicInfraFallbackForLane(decision.lane))
+    return decision
+
+  return {
+    ...decision,
+    strategy: 'local-only',
+    timeoutMs: 0,
+    reasonCodes: appendFastPathReasonCode(
+      decision.reasonCodes,
+      'mind-authority-infra-fallback',
+    ),
+  }
 }
 
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
@@ -2373,7 +2412,13 @@ export function buildAlicizationActiveDialogueFallbackReply(
     reasonCodes: ['local-recovery'],
   } satisfies AlicizationActiveDialogueFastPathDecision
 
-  return buildDecisionLocalReply(decision)
+  const fallbackDecision = coerceInfraFallbackDecision(decision)
+  if (!allowsDeterministicVisibleReplyForDecision(fallbackDecision)) {
+    throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+      `active-dialogue-fallback-visible-reply-forbidden:${fallbackDecision.lane}`,
+    )
+  }
+  return buildDecisionLocalReply(fallbackDecision)
 }
 
 export function normalizeAlicizationActiveDialogueFastPathReply(input: {

@@ -30,6 +30,7 @@ import {
   deriveNextAlicizationLearningLifecycleState,
 } from './learning-state-machine'
 import { buildAlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
+import { buildAlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 interface AlicizationPreparedLearningTaskContext extends AlicizationLearningTaskEffectContext {
   effectiveSupportCount: number
@@ -226,30 +227,38 @@ export async function executeAlicizationLearningTaskOrchestrator(
       result,
       verifiedArtifact,
     })
+    const policyFeedback = deriveAlicizationLearningPolicyFeedback({
+      state: lifecycleState,
+      domain: context.domain,
+      result,
+      verifiedArtifact,
+    })
+    const selfRevisionEvent = buildAlicizationSelfRevisionEvent({
+      task,
+      domain: context.domain,
+      result,
+      verifiedArtifact,
+      supportCount: context.supportingFacts.length + context.relatedReflections.length + context.relatedOutcomes.length,
+    })
+    const selfRevisionStatePatch = buildAlicizationSelfRevisionStatePatch({
+      event: selfRevisionEvent,
+      policyFeedback,
+    })
     const finalized = {
       ...result,
       verifiedArtifact,
       lifecycleState,
       nextLifecycleState,
-      policyFeedback: deriveAlicizationLearningPolicyFeedback({
-        state: lifecycleState,
-        domain: context.domain,
-        result,
-        verifiedArtifact,
-      }),
-      selfRevisionEvent: buildAlicizationSelfRevisionEvent({
-        task,
-        domain: context.domain,
-        result,
-        verifiedArtifact,
-        supportCount: context.supportingFacts.length + context.relatedReflections.length + context.relatedOutcomes.length,
-      }),
+      policyFeedback,
+      selfRevisionEvent,
+      selfRevisionStatePatch,
     }
     await options.recordLearningExecutionTelemetry?.({
       status: finalized.status,
       domain: context.domain,
       internalizedAsValidatedOnly: finalized.status === 'completed' && context.domain === 'world-model',
       policyFeedback: finalized.policyFeedback ?? null,
+      selfRevisionStatePatch: finalized.selfRevisionStatePatch ?? null,
     })
     return finalized
   }

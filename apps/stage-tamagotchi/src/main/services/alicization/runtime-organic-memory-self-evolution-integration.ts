@@ -89,6 +89,21 @@ export function buildOrganicMemoryEvolutionState(input: {
     personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
     hostPersonModel: input.hostPersonModel,
     knowledgeEvidence,
+    learningPolicyState: input.memoryStats?.retrievalHealth
+      ? {
+          strictnessBias: input.memoryStats.retrievalHealth.learningPolicyStrictnessBias ?? 0,
+          wrongThreadSuppressionBias: input.memoryStats.retrievalHealth.learningPolicyWrongThreadSuppressionBias ?? 0,
+          provenanceLabelBias: input.memoryStats.retrievalHealth.learningPolicyProvenanceLabelBias ?? 0,
+          reasonCodes: input.memoryStats.retrievalHealth.learningPolicyReasonCodes ?? [],
+          selfRevisionPatchCount: input.memoryStats.retrievalHealth.selfRevisionPatchCount ?? 0,
+          selfRevisionMemoryPolicyBias: input.memoryStats.retrievalHealth.selfRevisionMemoryPolicyBias ?? 0,
+          selfRevisionRelationshipPostureBias: input.memoryStats.retrievalHealth.selfRevisionRelationshipPostureBias ?? 0,
+          selfRevisionResponsePostureBias: input.memoryStats.retrievalHealth.selfRevisionResponsePostureBias ?? 0,
+          selfRevisionProactivePolicyBias: input.memoryStats.retrievalHealth.selfRevisionProactivePolicyBias ?? 0,
+          selfRevisionValidationBias: input.memoryStats.retrievalHealth.selfRevisionValidationBias ?? 0,
+          selfRevisionReasonCodes: input.memoryStats.retrievalHealth.selfRevisionReasonCodes ?? [],
+        }
+      : null,
     reflectionSummary: input.personStateEvolutionSummary?.recentSummaries?.[0] ?? null,
     reflectionLesson: input.personStateEvolutionSummary?.explanation?.[0] ?? null,
     reflectionTargetScope: input.personStateEvolutionSummary?.latestDoctrine ? 'relationship' : null,

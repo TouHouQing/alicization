@@ -129,6 +129,19 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     selfModelViewStrength?: number
     worldModelViewStrength?: number
   } | null
+  learningPolicyState?: {
+    strictnessBias?: number | null
+    wrongThreadSuppressionBias?: number | null
+    provenanceLabelBias?: number | null
+    reasonCodes?: string[] | null
+    selfRevisionPatchCount?: number | null
+    selfRevisionMemoryPolicyBias?: number | null
+    selfRevisionRelationshipPostureBias?: number | null
+    selfRevisionResponsePostureBias?: number | null
+    selfRevisionProactivePolicyBias?: number | null
+    selfRevisionValidationBias?: number | null
+    selfRevisionReasonCodes?: string[] | null
+  } | null
   reflectionSummary?: string | null
   reflectionLesson?: string | null
   reflectionTargetScope?: string | null
@@ -146,6 +159,18 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const relationshipViewStrength = clamp01(knowledgeEvidence?.relationshipViewStrength ?? 0)
   const selfModelViewStrength = clamp01(knowledgeEvidence?.selfModelViewStrength ?? 0)
   const worldModelViewStrength = clamp01(knowledgeEvidence?.worldModelViewStrength ?? 0)
+  const learningPolicyState = input.learningPolicyState ?? null
+  const selfRevisionLearningPressure = clamp01(
+    (learningPolicyState?.selfRevisionMemoryPolicyBias ?? 0) * 0.18
+    + (learningPolicyState?.selfRevisionRelationshipPostureBias ?? 0) * 0.12
+    + (learningPolicyState?.selfRevisionResponsePostureBias ?? 0) * 0.14
+    + (learningPolicyState?.selfRevisionValidationBias ?? 0) * 0.16,
+  )
+  const learningStrictnessPressure = clamp01(
+    (learningPolicyState?.strictnessBias ?? 0) * 0.16
+    + (learningPolicyState?.wrongThreadSuppressionBias ?? 0) * 0.08
+    + (learningPolicyState?.provenanceLabelBias ?? 0) * 0.08,
+  )
 
   const relationshipDoctrine = sanitizeText(
     evolution?.latestDoctrine
@@ -178,12 +203,14 @@ export function buildAlicizationSelfEvolutionKernel(input: {
 
   const contradictionPressure = clamp01(
     ((knowledgeEvidence?.contradictionCount ?? 0) * 0.14)
-    + ((knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 0.22),
+    + ((knowledgeEvidence?.contradictionHeavyFactCount ?? 0) * 0.22)
+    + learningStrictnessPressure * 0.35,
   )
   const revisionPressure = clamp01(
     Number(input.reflectionPressure ?? 0)
     + contradictionPressure * 0.35
-    + Math.max(0, evolution?.repairShift ?? 0) * 0.16,
+    + Math.max(0, evolution?.repairShift ?? 0) * 0.16
+    + selfRevisionLearningPressure * 0.45,
   )
   const autobiographicalStability = clamp01(
     Number(input.autobiographicalStability ?? longHorizonMemory?.identityBias.selfDirection ?? 0.5),
@@ -193,7 +220,8 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     + Math.min(1, (knowledgeEvidence?.validationCount ?? 0) * 0.08) * 0.18
     + Math.min(1, (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) * 0.12) * 0.14
     + Math.min(1, Math.abs(evolution?.relationshipDoctrineShift ?? 0) * 2) * 0.16
-    + Math.min(1, Math.abs(evolution?.repairShift ?? 0) * 2) * 0.12,
+    + Math.min(1, Math.abs(evolution?.repairShift ?? 0) * 2) * 0.12
+    + selfRevisionLearningPressure * 0.18,
   )
   const evolutionMomentum = clamp01(
     learningReadiness * 0.36
@@ -206,6 +234,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const activeLearningFocuses = uniqueList([
     input.reflectionTargetScope ? `reflection:${input.reflectionTargetScope}` : null,
     contradictionPressure >= 0.42 ? 'resolve-contradictions' : null,
+    (learningPolicyState?.selfRevisionPatchCount ?? 0) > 0 ? 'self-revision-policy-feedback' : null,
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0 ? 'internalize-procedure' : null,
     relationshipCount > 0 && relationshipViewStrength >= 0.58 ? 'internalize-relationship' : null,
     selfModelCount > 0 && selfModelViewStrength >= 0.54 ? 'internalize-self-model' : null,
@@ -218,6 +247,8 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const sourceSignals = uniqueList([
     input.reflectionSummary,
     input.reflectionLesson,
+    learningPolicyState?.selfRevisionReasonCodes?.[0] ? `self-revision:${learningPolicyState.selfRevisionReasonCodes[0]}` : null,
+    learningPolicyState?.reasonCodes?.[0] ? `learning-policy:${learningPolicyState.reasonCodes[0]}` : null,
     evolution?.recentSummaries?.[0] ?? null,
     longHorizonMemory?.dominantCueSummary ?? null,
     longHorizonMemory?.rememberedPlanSummary ?? null,

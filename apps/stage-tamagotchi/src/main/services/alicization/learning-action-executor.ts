@@ -12,6 +12,7 @@ import type { AlicizationVerifiedLearningArtifact } from '@proj-alicization/stag
 import { executeAlicizationLearningTaskOrchestrator } from './learning-executor-orchestrator'
 import type { AlicizationLearningLifecycleState, AlicizationLearningPolicyFeedback } from './learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
+import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 export interface AlicizationLearningActionExecutorResult {
   status: 'completed' | 'blocked' | 'failed' | 'reopened' | 'downgraded' | 'cancelled'
@@ -26,6 +27,7 @@ export interface AlicizationLearningActionExecutorResult {
   nextLifecycleState?: AlicizationLearningLifecycleState | null
   policyFeedback?: AlicizationLearningPolicyFeedback | null
   selfRevisionEvent?: AlicizationSelfRevisionEvent | null
+  selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
 }
 
 export interface CreateAlicizationLearningActionExecutorOptions {
@@ -67,6 +69,7 @@ export interface CreateAlicizationLearningActionExecutorOptions {
     domain?: AlicizationMemoryDomain | null
     internalizedAsValidatedOnly?: boolean
     policyFeedback?: AlicizationLearningPolicyFeedback | null
+    selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
   }) => Promise<void>
 }
 

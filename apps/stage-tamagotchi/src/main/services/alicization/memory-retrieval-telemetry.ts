@@ -72,6 +72,13 @@ export interface AlicizationMemoryRetrievalTelemetrySnapshot {
   learningPolicyWrongThreadSuppressionBias: number
   learningPolicyProvenanceLabelBias: number
   learningPolicyReasonCodes: string[]
+  selfRevisionPatchCount: number
+  selfRevisionMemoryPolicyBias: number
+  selfRevisionRelationshipPostureBias: number
+  selfRevisionResponsePostureBias: number
+  selfRevisionProactivePolicyBias: number
+  selfRevisionValidationBias: number
+  selfRevisionReasonCodes: string[]
   relationshipCadenceRegressionRate: number
   selfModelStaleBeliefRate: number
   lastUpdatedAt: number | null
@@ -143,6 +150,13 @@ export interface AlicizationMemoryRetrievalHealthOverride {
   learningPolicyWrongThreadSuppressionBias?: number
   learningPolicyProvenanceLabelBias?: number
   learningPolicyReasonCodes?: string[]
+  selfRevisionPatchCount?: number
+  selfRevisionMemoryPolicyBias?: number
+  selfRevisionRelationshipPostureBias?: number
+  selfRevisionResponsePostureBias?: number
+  selfRevisionProactivePolicyBias?: number
+  selfRevisionValidationBias?: number
+  selfRevisionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }
@@ -189,6 +203,37 @@ interface AlicizationLearningExecutionTelemetryInput {
     wrongThreadSuppressionBias: number
     provenanceLabelBias: number
     reasonCodes: string[]
+  } | null
+  selfRevisionStatePatch?: {
+    lanes?: string[]
+    memoryPolicy?: {
+      strictnessBias?: number
+      wrongThreadSuppressionBias?: number
+      provenanceLabelBias?: number
+      recallExpansionBias?: number
+      shouldQuarantineUnsupportedCarry?: boolean
+    }
+    relationshipPosture?: {
+      repairWindowBias?: number
+      closenessCapBias?: number
+      warmthReleaseBias?: number
+    }
+    responsePosture?: {
+      secondPassRequiredBias?: number
+      hypothesisLabelBias?: number
+      specificityClampBias?: number
+      templateShellSuppressionBias?: number
+    }
+    proactivePolicy?: {
+      restraintBias?: number
+      learningProposalBias?: number
+      actuationCooldownBias?: number
+    }
+    validation?: {
+      requiresRollbackCheck?: boolean
+      requiresRevalidation?: boolean
+    }
+    reasonCodes?: string[]
   } | null
 }
 
@@ -282,6 +327,13 @@ export function defaultAlicizationMemoryRetrievalTelemetry(): AlicizationMemoryR
     learningPolicyWrongThreadSuppressionBias: 0,
     learningPolicyProvenanceLabelBias: 0,
     learningPolicyReasonCodes: [],
+    selfRevisionPatchCount: 0,
+    selfRevisionMemoryPolicyBias: 0,
+    selfRevisionRelationshipPostureBias: 0,
+    selfRevisionResponsePostureBias: 0,
+    selfRevisionProactivePolicyBias: 0,
+    selfRevisionValidationBias: 0,
+    selfRevisionReasonCodes: [],
     relationshipCadenceRegressionRate: 0,
     selfModelStaleBeliefRate: 0,
     lastUpdatedAt: null,
@@ -369,6 +421,15 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
   const learningPolicyProvenanceLabelBias = Number(candidate.learningPolicyProvenanceLabelBias)
   const learningPolicyReasonCodes = Array.isArray(candidate.learningPolicyReasonCodes)
     ? candidate.learningPolicyReasonCodes
+    : []
+  const selfRevisionPatchCount = Number(candidate.selfRevisionPatchCount)
+  const selfRevisionMemoryPolicyBias = Number(candidate.selfRevisionMemoryPolicyBias)
+  const selfRevisionRelationshipPostureBias = Number(candidate.selfRevisionRelationshipPostureBias)
+  const selfRevisionResponsePostureBias = Number(candidate.selfRevisionResponsePostureBias)
+  const selfRevisionProactivePolicyBias = Number(candidate.selfRevisionProactivePolicyBias)
+  const selfRevisionValidationBias = Number(candidate.selfRevisionValidationBias)
+  const selfRevisionReasonCodes = Array.isArray(candidate.selfRevisionReasonCodes)
+    ? candidate.selfRevisionReasonCodes
     : []
   const relationshipCadenceRegressionRate = Number(candidate.relationshipCadenceRegressionRate)
   const selfModelStaleBeliefRate = Number(candidate.selfModelStaleBeliefRate)
@@ -516,6 +577,16 @@ export function normalizeAlicizationMemoryRetrievalTelemetry(raw: unknown): Alic
       .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
       .filter(Boolean)
       .slice(0, 16),
+    selfRevisionPatchCount: Number.isFinite(selfRevisionPatchCount) ? Math.max(0, Math.floor(selfRevisionPatchCount)) : 0,
+    selfRevisionMemoryPolicyBias: Number.isFinite(selfRevisionMemoryPolicyBias) ? Math.max(0, Math.min(1, selfRevisionMemoryPolicyBias)) : 0,
+    selfRevisionRelationshipPostureBias: Number.isFinite(selfRevisionRelationshipPostureBias) ? Math.max(0, Math.min(1, selfRevisionRelationshipPostureBias)) : 0,
+    selfRevisionResponsePostureBias: Number.isFinite(selfRevisionResponsePostureBias) ? Math.max(0, Math.min(1, selfRevisionResponsePostureBias)) : 0,
+    selfRevisionProactivePolicyBias: Number.isFinite(selfRevisionProactivePolicyBias) ? Math.max(0, Math.min(1, selfRevisionProactivePolicyBias)) : 0,
+    selfRevisionValidationBias: Number.isFinite(selfRevisionValidationBias) ? Math.max(0, Math.min(1, selfRevisionValidationBias)) : 0,
+    selfRevisionReasonCodes: selfRevisionReasonCodes
+      .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+      .filter(Boolean)
+      .slice(0, 24),
     relationshipCadenceRegressionRate: Number.isFinite(relationshipCadenceRegressionRate) ? Math.max(0, Math.min(1, relationshipCadenceRegressionRate)) : 0,
     selfModelStaleBeliefRate: Number.isFinite(selfModelStaleBeliefRate) ? Math.max(0, Math.min(1, selfModelStaleBeliefRate)) : 0,
     lastUpdatedAt: Number.isFinite(lastUpdatedAt) ? Math.max(0, Math.floor(lastUpdatedAt)) : null,
@@ -561,6 +632,52 @@ function mergeReasonCodes(current: string[], next: string[] | null | undefined, 
       break
   }
   return merged
+}
+
+function summarizeSelfRevisionStatePatch(inputValue: NonNullable<AlicizationLearningExecutionTelemetryInput['selfRevisionStatePatch']>) {
+  const memoryPolicy = inputValue.memoryPolicy ?? {}
+  const relationshipPosture = inputValue.relationshipPosture ?? {}
+  const responsePosture = inputValue.responsePosture ?? {}
+  const proactivePolicy = inputValue.proactivePolicy ?? {}
+  const validation = inputValue.validation ?? {}
+  const memoryPolicyBias = Math.max(
+    Number(memoryPolicy.strictnessBias ?? 0),
+    Number(memoryPolicy.wrongThreadSuppressionBias ?? 0),
+    Number(memoryPolicy.provenanceLabelBias ?? 0),
+    Number(memoryPolicy.recallExpansionBias ?? 0),
+    memoryPolicy.shouldQuarantineUnsupportedCarry ? 0.2 : 0,
+  )
+  const relationshipPostureBias = Math.max(
+    Number(relationshipPosture.repairWindowBias ?? 0),
+    Number(relationshipPosture.closenessCapBias ?? 0),
+    Number(relationshipPosture.warmthReleaseBias ?? 0),
+  )
+  const responsePostureBias = Math.max(
+    Number(responsePosture.secondPassRequiredBias ?? 0),
+    Number(responsePosture.hypothesisLabelBias ?? 0),
+    Number(responsePosture.specificityClampBias ?? 0),
+    Number(responsePosture.templateShellSuppressionBias ?? 0),
+  )
+  const proactivePolicyBias = Math.max(
+    Number(proactivePolicy.restraintBias ?? 0),
+    Number(proactivePolicy.learningProposalBias ?? 0),
+    Number(proactivePolicy.actuationCooldownBias ?? 0),
+  )
+  const validationBias = Math.max(
+    validation.requiresRollbackCheck ? 1 : 0,
+    validation.requiresRevalidation ? 1 : 0,
+  )
+  return {
+    memoryPolicyBias: Math.max(0, Math.min(1, Number(memoryPolicyBias.toFixed(2)))),
+    relationshipPostureBias: Math.max(0, Math.min(1, Number(relationshipPostureBias.toFixed(2)))),
+    responsePostureBias: Math.max(0, Math.min(1, Number(responsePostureBias.toFixed(2)))),
+    proactivePolicyBias: Math.max(0, Math.min(1, Number(proactivePolicyBias.toFixed(2)))),
+    validationBias: Math.max(0, Math.min(1, Number(validationBias.toFixed(2)))),
+    reasonCodes: mergeReasonCodes([], [
+      ...(Array.isArray(inputValue.reasonCodes) ? inputValue.reasonCodes : []),
+      ...(Array.isArray(inputValue.lanes) ? inputValue.lanes.map(lane => `lane:${lane}`) : []),
+    ], 24),
+  }
 }
 
 function trimLatencySamples(samples: number[], maxItems = 64) {
@@ -918,6 +1035,10 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         inputValue.status === 'completed' && inputValue.domain === 'world-model' && inputValue.internalizedAsValidatedOnly === false ? 1 : 0
       )
       const policyFeedback = inputValue.policyFeedback ?? null
+      const selfRevisionPatch = inputValue.selfRevisionStatePatch ?? null
+      const selfRevisionSummary = selfRevisionPatch
+        ? summarizeSelfRevisionStatePatch(selfRevisionPatch)
+        : null
       const learningAttemptCount = learningTaskCompletionCount
         + learningTaskFailureCount
         + learningTaskBlockedCount
@@ -955,6 +1076,27 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
         learningPolicyReasonCodes: mergeReasonCodes(
           telemetry.learningPolicyReasonCodes,
           policyFeedback?.reasonCodes,
+        ),
+        selfRevisionPatchCount: telemetry.selfRevisionPatchCount + (selfRevisionPatch ? 1 : 0),
+        selfRevisionMemoryPolicyBias: selfRevisionSummary
+          ? blendLearningPolicyBias(telemetry.selfRevisionMemoryPolicyBias, selfRevisionSummary.memoryPolicyBias)
+          : telemetry.selfRevisionMemoryPolicyBias,
+        selfRevisionRelationshipPostureBias: selfRevisionSummary
+          ? blendLearningPolicyBias(telemetry.selfRevisionRelationshipPostureBias, selfRevisionSummary.relationshipPostureBias)
+          : telemetry.selfRevisionRelationshipPostureBias,
+        selfRevisionResponsePostureBias: selfRevisionSummary
+          ? blendLearningPolicyBias(telemetry.selfRevisionResponsePostureBias, selfRevisionSummary.responsePostureBias)
+          : telemetry.selfRevisionResponsePostureBias,
+        selfRevisionProactivePolicyBias: selfRevisionSummary
+          ? blendLearningPolicyBias(telemetry.selfRevisionProactivePolicyBias, selfRevisionSummary.proactivePolicyBias)
+          : telemetry.selfRevisionProactivePolicyBias,
+        selfRevisionValidationBias: selfRevisionSummary
+          ? blendLearningPolicyBias(telemetry.selfRevisionValidationBias, selfRevisionSummary.validationBias)
+          : telemetry.selfRevisionValidationBias,
+        selfRevisionReasonCodes: mergeReasonCodes(
+          telemetry.selfRevisionReasonCodes,
+          selfRevisionSummary?.reasonCodes,
+          24,
         ),
         lastUpdatedAt: currentTs,
       })
@@ -1153,6 +1295,30 @@ export function createAlicizationMemoryRetrievalTelemetryRuntime(
           .filter(Boolean)
           .slice(0, 16)
         : telemetry.learningPolicyReasonCodes,
+      selfRevisionPatchCount: Number.isFinite(next.selfRevisionPatchCount)
+        ? Math.max(0, Math.floor(Number(next.selfRevisionPatchCount)))
+        : telemetry.selfRevisionPatchCount,
+      selfRevisionMemoryPolicyBias: Number.isFinite(next.selfRevisionMemoryPolicyBias)
+        ? Math.max(0, Math.min(1, Number(next.selfRevisionMemoryPolicyBias)))
+        : telemetry.selfRevisionMemoryPolicyBias,
+      selfRevisionRelationshipPostureBias: Number.isFinite(next.selfRevisionRelationshipPostureBias)
+        ? Math.max(0, Math.min(1, Number(next.selfRevisionRelationshipPostureBias)))
+        : telemetry.selfRevisionRelationshipPostureBias,
+      selfRevisionResponsePostureBias: Number.isFinite(next.selfRevisionResponsePostureBias)
+        ? Math.max(0, Math.min(1, Number(next.selfRevisionResponsePostureBias)))
+        : telemetry.selfRevisionResponsePostureBias,
+      selfRevisionProactivePolicyBias: Number.isFinite(next.selfRevisionProactivePolicyBias)
+        ? Math.max(0, Math.min(1, Number(next.selfRevisionProactivePolicyBias)))
+        : telemetry.selfRevisionProactivePolicyBias,
+      selfRevisionValidationBias: Number.isFinite(next.selfRevisionValidationBias)
+        ? Math.max(0, Math.min(1, Number(next.selfRevisionValidationBias)))
+        : telemetry.selfRevisionValidationBias,
+      selfRevisionReasonCodes: Array.isArray(next.selfRevisionReasonCodes)
+        ? next.selfRevisionReasonCodes
+          .map(item => typeof item === 'string' ? item.trim().slice(0, 120) : '')
+          .filter(Boolean)
+          .slice(0, 24)
+        : telemetry.selfRevisionReasonCodes,
       relationshipCadenceRegressionRate: Number.isFinite(next.relationshipCadenceRegressionRate)
         ? Math.max(0, Math.min(1, Number(next.relationshipCadenceRegressionRate)))
         : telemetry.relationshipCadenceRegressionRate,

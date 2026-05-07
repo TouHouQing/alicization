@@ -134,6 +134,15 @@ describe('learning action executor', () => {
       provenanceLabelBias: expect.any(Number),
       reasonCodes: expect.arrayContaining(['state:verification', 'result:completed', 'domain:relationship']),
     }))
+    expect(result.selfRevisionStatePatch).toEqual(expect.objectContaining({
+      version: 'self-revision-state-patch-v1',
+      domain: 'relationship',
+      lanes: expect.arrayContaining(['memory-policy', 'relationship-posture', 'response-posture']),
+      memoryPolicy: expect.objectContaining({
+        strictnessBias: expect.any(Number),
+        wrongThreadSuppressionBias: expect.any(Number),
+      }),
+    }))
     expect(result.verifiedArtifact).toEqual(expect.objectContaining({
       version: 'verified-learning-artifact-v1',
       domain: 'relationship',
@@ -435,6 +444,13 @@ describe('learning action executor', () => {
       'rollback-pressure',
       'domain:relationship',
     ]))
+    expect(result.selfRevisionStatePatch).toEqual(expect.objectContaining({
+      domain: 'relationship',
+      lanes: expect.arrayContaining(['memory-policy', 'relationship-posture', 'response-posture', 'rollback-validation']),
+      validation: expect.objectContaining({
+        requiresRollbackCheck: true,
+      }),
+    }))
     expect(result.verifiedArtifact).toEqual(expect.objectContaining({
       domain: 'relationship',
       status: 'rollback-required',

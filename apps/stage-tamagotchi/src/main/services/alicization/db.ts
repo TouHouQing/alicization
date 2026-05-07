@@ -2660,7 +2660,7 @@ export async function setupAlicizationDb(
     await memoryEventGraphRuntime.upsertGraphForEpisodicEvents(
       prepared.map(mapPreparedEventToEventGraphSource),
     )
-    for (const cardId of [...new Set(prepared.map(event => event.cardId))])
+    for (const cardId of new Set(prepared.map(event => event.cardId)))
       await rebuildMemoryConsolidationsFromEvents(cardId)
   }
 
@@ -4890,6 +4890,33 @@ export async function setupAlicizationDb(
             stableCoreOnlyRate: next.retrievalHealth.stableCoreOnlyRate,
             memorySurfaceViolationRate: next.retrievalHealth.memorySurfaceViolationRate,
             templateLeakageFailCount: next.retrievalHealth.templateLeakageFailCount,
+            learningTaskCompletionCount: next.retrievalHealth.learningTaskCompletionCount,
+            learningTaskFailureCount: next.retrievalHealth.learningTaskFailureCount,
+            learningTaskBlockedCount: next.retrievalHealth.learningTaskBlockedCount,
+            learningTaskReopenedCount: next.retrievalHealth.learningTaskReopenedCount,
+            learningTaskDowngradedCount: next.retrievalHealth.learningTaskDowngradedCount,
+            learningTaskCancelledCount: next.retrievalHealth.learningTaskCancelledCount,
+            learningRelationshipReviseCount: next.retrievalHealth.learningRelationshipReviseCount,
+            learningSelfModelReviseCount: next.retrievalHealth.learningSelfModelReviseCount,
+            learningWorldModelValidationCount: next.retrievalHealth.learningWorldModelValidationCount,
+            learningWorldModelFalseInternalizationCount: next.retrievalHealth.learningWorldModelFalseInternalizationCount,
+            learningTaskCompletionRate: next.retrievalHealth.learningTaskCompletionRate,
+            learningTaskFailureRate: next.retrievalHealth.learningTaskFailureRate,
+            learningTaskReopenRecoveryRate: next.retrievalHealth.learningTaskReopenRecoveryRate,
+            misinternalizationRate: next.retrievalHealth.misinternalizationRate,
+            learningPolicyStrictnessBias: next.retrievalHealth.learningPolicyStrictnessBias,
+            learningPolicyWrongThreadSuppressionBias: next.retrievalHealth.learningPolicyWrongThreadSuppressionBias,
+            learningPolicyProvenanceLabelBias: next.retrievalHealth.learningPolicyProvenanceLabelBias,
+            learningPolicyReasonCodes: next.retrievalHealth.learningPolicyReasonCodes,
+            selfRevisionPatchCount: next.retrievalHealth.selfRevisionPatchCount,
+            selfRevisionMemoryPolicyBias: next.retrievalHealth.selfRevisionMemoryPolicyBias,
+            selfRevisionRelationshipPostureBias: next.retrievalHealth.selfRevisionRelationshipPostureBias,
+            selfRevisionResponsePostureBias: next.retrievalHealth.selfRevisionResponsePostureBias,
+            selfRevisionProactivePolicyBias: next.retrievalHealth.selfRevisionProactivePolicyBias,
+            selfRevisionValidationBias: next.retrievalHealth.selfRevisionValidationBias,
+            selfRevisionReasonCodes: next.retrievalHealth.selfRevisionReasonCodes,
+            relationshipCadenceRegressionRate: next.retrievalHealth.relationshipCadenceRegressionRate,
+            selfModelStaleBeliefRate: next.retrievalHealth.selfModelStaleBeliefRate,
             mindParticipation: next.retrievalHealth.mindParticipation,
             memoryParticipation: next.retrievalHealth.memoryParticipation,
             personalityParticipation: next.retrievalHealth.personalityParticipation,

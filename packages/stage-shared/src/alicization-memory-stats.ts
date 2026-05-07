@@ -148,6 +148,17 @@ export interface AlicizationMemoryRetrievalHealth {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  learningPolicyStrictnessBias?: number
+  learningPolicyWrongThreadSuppressionBias?: number
+  learningPolicyProvenanceLabelBias?: number
+  learningPolicyReasonCodes?: string[]
+  selfRevisionPatchCount?: number
+  selfRevisionMemoryPolicyBias?: number
+  selfRevisionRelationshipPostureBias?: number
+  selfRevisionResponsePostureBias?: number
+  selfRevisionProactivePolicyBias?: number
+  selfRevisionValidationBias?: number
+  selfRevisionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }

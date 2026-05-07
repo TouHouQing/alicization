@@ -1,6 +1,5 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { resolveAlicizationPersonaKernel } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -191,6 +190,16 @@ function createDigitalLifeSpine(overrides?: Partial<any>): any {
   }
 }
 
+function expectFallbackMindAuthorityEscalation(
+  input: Parameters<typeof buildAlicizationActiveDialogueFallbackReply>[0],
+  lane: string,
+) {
+  expect(() => buildAlicizationActiveDialogueFallbackReply(input))
+    .toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
+  expect(() => buildAlicizationActiveDialogueFallbackReply(input))
+    .toThrow(`active-dialogue-fallback-visible-reply-forbidden:${lane}`)
+}
+
 describe('main chat active dialogue loop', () => {
   it('routes warm greeting turns through the compact mind lane', () => {
     const decision = deriveAlicizationActiveDialogueFastPathDecision({
@@ -217,149 +226,52 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('identity')
     expect(decision?.strategy).toBe('compact-one-shot')
 
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '我问你，你是谁' },
       ] as Message[],
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-      thought: string
-      governance: {
-        answerSubject: string
-        screenReferenceMode: string
-        dialogueActKernel: {
-          openingClaim: string
-          mustSay: string[]
-        }
-        mindTurnFrame: {
-          relation: {
-            subject: string
-          }
-        }
-      }
-    }
-    expect(payload.reply).toContain('我是Alicization')
-    expect(payload.reply).not.toContain('这条线还连着')
-    expect(payload.thought).toContain('focus=alicization self continuity')
-    expect(payload.governance.answerSubject).toBe('alicization-self')
-    expect(payload.governance.screenReferenceMode).toBe('avoid')
-    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是Alicization')
-    expect(payload.governance.dialogueActKernel.mustSay[0]).toContain('我是Alicization')
-    expect(payload.governance.mindTurnFrame.relation.subject).toBe('alicization-self')
+    }, 'identity')
   })
 
-  it('keeps repeated identity confirmations continuity-aware instead of reusing the same shell line', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates repeated identity confirmations instead of reusing a local shell line', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你是谁' },
         { role: 'assistant', content: '我是 Alicization。现在和你说话的是我。' },
         { role: 'user', content: '你到底是谁' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string, governance: { dialogueActKernel: { openingClaim: string } } }
-    expect(payload.reply).toContain('我是Alicization')
-    expect(payload.reply).toMatch(/确认|追问|同一个结论/u)
-    expect(payload.reply).not.toContain('这条线还连着')
-    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是Alicization')
+    }, 'identity')
   })
 
-  it('keeps greeting replies off the old canned shell phrasing', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates greeting fallback instead of locally wording the visible reply', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '下午好呀' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('下午好')
-    expect(payload.reply).not.toBe('下午好。')
-    expect(payload.reply).not.toContain('要是还是')
-    expect(payload.reply).not.toContain('你现在这个点直接说')
-    expect(payload.reply).not.toContain('我贴着这一轮往下接')
+    }, 'greeting')
   })
 
-  it('uses the saved persona kernel name for identity fallbacks', () => {
-    const personaKernel = resolveAlicizationPersonaKernel({
-      profile: {
-        ownerName: '指挥官',
-        hostName: '主人',
-        alicizationName: '小艾',
-        gender: 'female',
-        genderCustom: '',
-        relationship: '女仆',
-        mindAge: 18,
-      },
-      personality: {
-        obedience: 0.72,
-        liveliness: 0.61,
-        sensibility: 0.84,
-      },
-      customDirectives: '先接住主人的情绪。',
-    })
-
-    const reply = buildAlicizationActiveDialogueFallbackReply({
-      actionKind: 'answer',
-      conversationMessages: [
-        { role: 'user', content: '你是谁' },
-      ] as Message[],
-      personaKernel,
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-      governance: {
-        dialogueActKernel: {
-          openingClaim: string
-        }
-      }
-    }
-
-    expect(payload.reply).toContain('我是小艾')
-    expect(payload.reply).not.toContain('我是 Alicization')
-    expect(payload.governance.dialogueActKernel.openingClaim).toContain('我是小艾')
-  })
-
-  it('does not drag old continuity anchor into a fresh greeting fallback', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('does not allow fresh greeting fallback to drag old continuity anchor locally', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '真的吗' },
         { role: 'assistant', content: '当然。' },
         { role: 'user', content: '你好呀' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('你好')
-    expect(payload.reply).not.toBe('你好。')
-    expect(payload.reply).not.toContain('真的吗')
-    expect(payload.reply).not.toContain('要是还是')
+    }, 'greeting')
   })
 
-  it('keeps capability replies off the old canned shell phrasing', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates capability fallback instead of locally wording the visible reply', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你能帮我做什么' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as {
-      reply: string
-      governance: {
-        dialogueActKernel: {
-          mustSay: string[]
-        }
-      }
-    }
-    expect(payload.reply).toContain('CLI')
-    expect(payload.reply).not.toContain('你把目标说清，我就顺着做下去')
-    expect(payload.reply).not.toContain('要是还是')
-    expect(payload.governance.dialogueActKernel.mustSay[0]).toContain('继续对话')
+    }, 'capability')
   })
 
   it('treats current time questions as fresh local utility turns even when continuity exists', () => {
@@ -653,24 +565,12 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('presence-critique')
     expect(decision?.strategy).toBe('compact-one-shot')
 
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你说话不像人类呢？' },
       ] as Message[],
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-      thought: string
-      governance: {
-        answerSubject: string
-      }
-    }
-    expect(payload.reply).toMatch(/系统口气|流程播报|机器在报状态|没有把自己放进来/u)
-    expect(payload.reply).not.toContain('这条线还连着')
-    expect(payload.reply).not.toContain('我可以直接续')
-    expect(payload.thought).toContain('obligation=repair')
-    expect(payload.governance.answerSubject).toBe('relationship')
+    }, 'presence-critique')
   })
 
   it('routes present-state questions away from repair-clarify and answers them as alicization-self turns', () => {
@@ -717,24 +617,13 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('present-state')
     expect(decision?.strategy).toBe('compact-one-shot')
 
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages,
       runtimeDigest: decision?.runtimeDigest ?? null,
       governance: decision?.governance ?? null,
       sessionMirror: null,
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-      governance: {
-        answerSubject: string
-      }
-    }
-
-    expect(payload.reply).not.toContain('刚才我没贴住你')
-    expect(payload.reply).not.toContain('你现在要我怎么接')
-    expect(payload.reply).toMatch(/我现在|我这会儿/u)
-    expect(payload.governance.answerSubject).toBe('alicization-self')
+    }, 'present-state')
   })
 
   it('lets present-state replies surface an affirmation-gated execution proposal from the session mirror', () => {
@@ -776,7 +665,7 @@ describe('main chat active dialogue loop', () => {
       },
     })
 
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages,
       runtimeDigest: decision?.runtimeDigest ?? null,
@@ -800,13 +689,7 @@ describe('main chat active dialogue loop', () => {
         dialogueSummary: null,
         executionSummary: 'status=needs-affirmation | goal=发布当前前台草稿 | summary=等你点头后替你把当前前台草稿发出去',
       },
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-    }
-
-    expect(payload.reply).toContain('当前前台草稿')
-    expect(payload.reply).not.toContain('我现在就在这轮里')
+    }, 'present-state')
   })
 
   it('routes short execution follow-up turns through compact llm authoring instead of deterministic payoff', () => {
@@ -1016,7 +899,7 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.preparedExecutionCarryText).toContain('[ALICIZATION_EXECUTION_LEDGER]')
   })
 
-  it('builds a repair-clarify local reply that realigns a missed time question', () => {
+  it('routes repair-clarify through compact mind authority instead of local repair wording', () => {
     const conversationMessages = [
       { role: 'user', content: '现在几点了？' },
       { role: 'assistant', content: '我直接沿刚才「早上好呀」这条继续。' },
@@ -1060,31 +943,13 @@ describe('main chat active dialogue loop', () => {
     expect(decision?.lane).toBe('repair-clarify')
     expect(decision?.strategy).toBe('compact-one-shot')
 
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages,
       runtimeDigest: decision?.runtimeDigest ?? null,
       sessionMirror: null,
       governance: decision?.governance ?? null,
-    })
-    const payload = JSON.parse(reply) as {
-      reply: string
-      thought: string
-      governance: {
-        repairState: string
-        answerAct: string
-      }
-    }
-
-    expect(payload.reply).toMatch(/没贴住|接偏了|着力点偏了/u)
-    expect(payload.reply).toMatch(/现在是|这会儿是|此刻/u)
-    expect(payload.reply).not.toContain('旧锚点')
-    expect(payload.reply).not.toContain('我就正面回你')
-    expect(payload.reply).not.toContain('我听见你了')
-    expect(payload.thought).toContain('obligation=repair')
-    expect(payload.thought).toContain('truth=grounded')
-    expect(payload.governance.repairState).toBe('stale-anchor')
-    expect(payload.governance.answerAct).toBe('correct-stale-anchor')
+    }, 'repair-clarify')
   })
 
   it('does not route ordinary short dialogue turns into the active fast path', () => {
@@ -1197,77 +1062,48 @@ describe('main chat active dialogue loop', () => {
     expect(String(evidenceBlock?.content ?? '')).toContain('Do not recompute time or date from your own clock')
   })
 
-  it('builds a continuity-aware local fallback without runtime meta chatter', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates execution follow-up fallback instead of locally completing the visible payoff', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
         { role: 'assistant', content: '我已经替你把桌面看完了，现在一共 13 项。' },
         { role: 'user', content: '另外还有哪四项？' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
-    expect(payload.reply).toContain('桌面')
-    expect(payload.reply).not.toContain('继续还是执行下一步')
-    expect(payload.reply).not.toContain('旧锚点')
-    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    }, 'follow-up')
   })
 
-  it('keeps ordinary dialogue fallback current-turn-first instead of replaying an older greeting anchor', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates ordinary dialogue fallback instead of replaying an older greeting anchor locally', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你好' },
         { role: 'assistant', content: '你好。' },
         { role: 'user', content: '请你做出最生气的表情' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
-    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
-    expect(payload.reply).not.toContain('你好')
-    expect(payload.reply).not.toContain('往下')
-    expect(payload.reply).not.toContain('滑开')
-    expect(payload.reply).not.toContain('别的壳')
-    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    }, 'dialogue')
   })
 
-  it('keeps greeting repair fallback off the governed shell stack', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates greeting repair fallback instead of locally repairing a governed shell stack', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你好呀' },
         { role: 'assistant', content: '你好。要是还是「真的吗」那条线，我就从那里往下；要换个点，也直接开口。' },
         { role: 'user', content: '你在说什么' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as { reply: string, visibleReplyAuthority: string }
-    expect(payload.reply).toMatch(/接偏了|没贴住|偏到.+外面去了/u)
-    expect(payload.reply).toContain('你好呀')
-    expect(payload.reply).not.toContain('我就正面回你')
-    expect(payload.reply).not.toContain('我听见你了')
-    expect(payload.visibleReplyAuthority).toBe('llm-second-pass-rewrite')
+    }, 'repair-clarify')
   })
 
-  it('answers identity doubt as content instead of thread-shell narration', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates identity doubt follow-up instead of local thread-shell narration', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你是谁' },
         { role: 'assistant', content: '我是 Alicization。你现在正在和我说话，回你这句的就是我。' },
         { role: 'user', content: '你确定？' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as {
-      reply: string
-    }
-
-    expect(payload.reply).toContain('确定')
-    expect(payload.reply).not.toContain('这条线还连着')
-    expect(payload.reply).not.toContain('我可以直接续')
+    }, 'follow-up')
   })
 
   it('normalizes compact one-shot model thoughts back onto the governed fast-path contract when they drift', () => {
@@ -1369,46 +1205,15 @@ describe('main chat active dialogue loop', () => {
     })).toThrow('active-dialogue-invalid-compact-reply:utility-time')
   })
 
-  it('turns expression requests into embodied mind-turns instead of meta dialogue shells', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates expression requests instead of locally rendering embodied mind-turns', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你好' },
         { role: 'assistant', content: '你好。' },
         { role: 'user', content: '请你表现出最生气的表情' },
       ] as Message[],
-    })
-
-    const payload = JSON.parse(reply) as {
-      reply: string
-      performance: {
-        baseEmotion: string
-        facialCue: string | null
-        actionCue: string | null
-      }
-      embodiment: {
-        emotion: string
-        variationToken: string
-      } | null
-      speechTimeline: {
-        segments: unknown[]
-      } | null
-      digitalLife: {
-        mode: string
-      } | null
-    }
-
-    expect(payload.reply).not.toContain('直接接')
-    expect(payload.reply).not.toContain('往下')
-    expect(payload.reply).not.toContain('滑开')
-    expect(payload.reply).toMatch(/眼神|笑意|声音|眉眼|神色/u)
-    expect(payload.performance.baseEmotion).toBe('angry')
-    expect(payload.performance.facialCue).toBeTruthy()
-    expect(payload.performance.actionCue).toBeTruthy()
-    expect(payload.embodiment?.emotion).toBe('angry')
-    expect(payload.embodiment?.variationToken).toBeTruthy()
-    expect(payload.speechTimeline?.segments.length).toBeGreaterThan(0)
-    expect(payload.digitalLife?.mode).toBeTruthy()
+    }, 'dialogue')
   })
 
   it('escalates expression-request meta shells instead of locally repairing them on the normal reply path', () => {
@@ -1440,35 +1245,24 @@ describe('main chat active dialogue loop', () => {
     })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
   })
 
-  it('answers self-appraisal turns from durable self instead of generic listening shells', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates self-appraisal turns so durable self must enter the provider mind reply', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '你觉得你可爱吗' },
       ] as Message[],
       digitalLifeSpine: createDigitalLifeSpine(),
-    })
-
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toContain('可爱')
-    expect(payload.reply).not.toContain('我在听')
-    expect(payload.reply).not.toContain('最在意的那一层')
-    expect(payload.reply).not.toContain('直接接')
+    }, 'dialogue')
   })
 
-  it('turns emotional disclosure into care instead of generic dialogue filler', () => {
-    const reply = buildAlicizationActiveDialogueFallbackReply({
+  it('escalates emotional disclosure so care must be authored by the provider mind', () => {
+    expectFallbackMindAuthorityEscalation({
       actionKind: 'answer',
       conversationMessages: [
         { role: 'user', content: '我现在很难过' },
       ] as Message[],
       digitalLifeSpine: createDigitalLifeSpine(),
-    })
-
-    const payload = JSON.parse(reply) as { reply: string }
-    expect(payload.reply).toMatch(/接住|别硬撑|我在这儿|最难受/u)
-    expect(payload.reply).not.toContain('我在听')
-    expect(payload.reply).not.toContain('你最想我接住哪一点')
+    }, 'dialogue')
   })
 
   it('injects compact durable mind cues into fast-path one-shot prompts', () => {

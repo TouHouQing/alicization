@@ -1,10 +1,34 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationExecutionPayoffDeterministicStructured, buildAlicizationExecutionPayoffStructuredReply, selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
-import { normalizeAlicizationActiveDialogueFastPathReplyOrEscalate } from './main-chat-active-dialogue-loop'
+import { AlicizationActiveDialogueMindAuthorityEscalationError, buildAlicizationActiveDialogueFallbackReply, normalizeAlicizationActiveDialogueFastPathReplyOrEscalate } from './main-chat-active-dialogue-loop'
 import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 
 describe('reply authority invariants', () => {
+  it('forbids deterministic visible fallbacks for ordinary humanlike dialogue lanes', () => {
+    const cases = [
+      { lane: 'greeting', userText: '你好呀' },
+      { lane: 'identity', userText: '你是谁' },
+      { lane: 'presence-critique', userText: '你说话不像真人' },
+      { lane: 'dialogue', userText: '我现在很难过' },
+    ] as const
+
+    for (const item of cases) {
+      expect(() => buildAlicizationActiveDialogueFallbackReply({
+        actionKind: 'answer',
+        conversationMessages: [
+          { role: 'user', content: item.userText },
+        ],
+      })).toThrow(AlicizationActiveDialogueMindAuthorityEscalationError)
+      expect(() => buildAlicizationActiveDialogueFallbackReply({
+        actionKind: 'answer',
+        conversationMessages: [
+          { role: 'user', content: item.userText },
+        ],
+      })).toThrow(`active-dialogue-fallback-visible-reply-forbidden:${item.lane}`)
+    }
+  })
+
   it('keeps normal reply contracts on provider-mind authority instead of a later local wording layer', () => {
     const result = buildAlicizationResponseSurfaceContract({
       brief: {

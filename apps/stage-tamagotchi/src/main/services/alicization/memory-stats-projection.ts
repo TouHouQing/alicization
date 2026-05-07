@@ -77,6 +77,17 @@ interface AlicizationMemoryRetrievalTelemetryLike {
   learningTaskFailureRate?: number
   learningTaskReopenRecoveryRate?: number
   misinternalizationRate?: number
+  learningPolicyStrictnessBias?: number
+  learningPolicyWrongThreadSuppressionBias?: number
+  learningPolicyProvenanceLabelBias?: number
+  learningPolicyReasonCodes?: string[]
+  selfRevisionPatchCount?: number
+  selfRevisionMemoryPolicyBias?: number
+  selfRevisionRelationshipPostureBias?: number
+  selfRevisionResponsePostureBias?: number
+  selfRevisionProactivePolicyBias?: number
+  selfRevisionValidationBias?: number
+  selfRevisionReasonCodes?: string[]
   relationshipCadenceRegressionRate?: number
   selfModelStaleBeliefRate?: number
 }
@@ -271,6 +282,17 @@ export function buildAlicizationMemoryStatsProjection(input: {
       learningTaskFailureRate: Number((learningAttemptCount <= 0 ? 0 : learningFailureCount / learningAttemptCount).toFixed(2)),
       learningTaskReopenRecoveryRate: Number((learningReopenCount <= 0 ? 0 : Math.min(learningCompletionCount, learningReopenCount) / learningReopenCount).toFixed(2)),
       misinternalizationRate: Number((learningWorldValidationCount <= 0 ? 0 : learningWorldFalseInternalizationCount / learningWorldValidationCount).toFixed(2)),
+      learningPolicyStrictnessBias: Number((input.retrievalTelemetry.learningPolicyStrictnessBias ?? 0).toFixed(2)),
+      learningPolicyWrongThreadSuppressionBias: Number((input.retrievalTelemetry.learningPolicyWrongThreadSuppressionBias ?? 0).toFixed(2)),
+      learningPolicyProvenanceLabelBias: Number((input.retrievalTelemetry.learningPolicyProvenanceLabelBias ?? 0).toFixed(2)),
+      learningPolicyReasonCodes: input.retrievalTelemetry.learningPolicyReasonCodes ?? [],
+      selfRevisionPatchCount: Math.max(0, Math.floor(input.retrievalTelemetry.selfRevisionPatchCount ?? 0)),
+      selfRevisionMemoryPolicyBias: Number((input.retrievalTelemetry.selfRevisionMemoryPolicyBias ?? 0).toFixed(2)),
+      selfRevisionRelationshipPostureBias: Number((input.retrievalTelemetry.selfRevisionRelationshipPostureBias ?? 0).toFixed(2)),
+      selfRevisionResponsePostureBias: Number((input.retrievalTelemetry.selfRevisionResponsePostureBias ?? 0).toFixed(2)),
+      selfRevisionProactivePolicyBias: Number((input.retrievalTelemetry.selfRevisionProactivePolicyBias ?? 0).toFixed(2)),
+      selfRevisionValidationBias: Number((input.retrievalTelemetry.selfRevisionValidationBias ?? 0).toFixed(2)),
+      selfRevisionReasonCodes: input.retrievalTelemetry.selfRevisionReasonCodes ?? [],
       relationshipCadenceRegressionRate: Number((relationshipCadenceRegressionRate ?? 0).toFixed(2)),
       selfModelStaleBeliefRate: Number((selfModelStaleBeliefRate ?? 0).toFixed(2)),
     },
