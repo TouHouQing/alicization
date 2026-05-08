@@ -6,6 +6,7 @@ import type {
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
+import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type {
   AlicizationVisibleReplyClosureArtifact,
   AlicizationVisibleReplyCriticArtifact,
@@ -18,6 +19,7 @@ import { streamText } from '@xsai/stream-text'
 import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
+import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import {
   deriveAlicizationVisibleReplyText,
   resolveAlicizationPreparedVisibleReplyExecution,
@@ -87,11 +89,13 @@ interface RunAlicizationMainChatStreamOptions {
   rewriteStructuredVisibleReply?: (input: AlicizationStructuredVisibleReplyRewriteInput) => Promise<AlicizationStructuredVisibleReplyRewriteInput | null> | AlicizationStructuredVisibleReplyRewriteInput | null
   delayVisibleRelease?: boolean
   streamTextImpl?: StreamTextInvoker
+  turnRuntimeContext?: AlicizationTurnRuntimeContext | null
 }
 
 export async function runAlicizationMainChatStream(
   input: RunAlicizationMainChatStreamOptions,
 ): Promise<AlicizationMainChatStreamRunnerResult> {
+  const turnRuntime = createAlicizationTurnRuntime()
   const reminderToolCallIds = new Set<string>()
   const requiredToolNames = new Set(
     input.prepared.waitForTools
@@ -110,6 +114,40 @@ export async function runAlicizationMainChatStream(
       turnId: input.payload.turnId,
       ...payload,
     })
+  }
+
+  const settleVisibleReplyLifecycle = (surface: ReturnType<typeof buildSurfaceArtifact>) => {
+    if (!input.turnRuntimeContext)
+      return
+    turnRuntime.settleSurface({
+      context: input.turnRuntimeContext,
+      surface,
+    })
+    turnRuntime.settleDelivery({
+      context: input.turnRuntimeContext,
+      surface,
+    })
+  }
+
+  const buildSurfaceArtifact = (inputSurface: {
+    fullText: string
+    visibleReplyExecution: AlicizationVisibleReplyExecution
+    critic?: AlicizationVisibleReplyCriticArtifact | null
+    closure?: AlicizationVisibleReplyClosureArtifact | null
+  }) => {
+    return {
+      version: 'visible-reply-realization-v1' as const,
+      expectedAuthority: inputSurface.visibleReplyExecution.expectedVisibleReplyAuthority ?? 'llm-mind',
+      actualAuthority: inputSurface.visibleReplyExecution.actualVisibleReplyAuthority ?? null,
+      providerMindExecuted: inputSurface.visibleReplyExecution.providerMindExecuted,
+      mode: inputSurface.visibleReplyExecution.mode,
+      visibleText: deriveAlicizationVisibleReplyText(inputSurface.fullText) || null,
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: inputSurface.visibleReplyExecution.reason,
+      critic: inputSurface.critic ?? null,
+      closure: inputSurface.closure ?? null,
+    }
   }
 
   if (input.prepared.hasVisualGrounding) {
@@ -145,6 +183,12 @@ export async function runAlicizationMainChatStream(
         text: visualVisibleText,
       })
     }
+    settleVisibleReplyLifecycle(buildSurfaceArtifact({
+      fullText: visualFullText,
+      visibleReplyExecution: visualReplyExecution,
+      critic: shapedVisualOneShot?.critic ?? null,
+      closure: shapedVisualOneShot?.closure ?? null,
+    }))
     return {
       finishReason: visualOneShot.finishReason || 'stop',
       fullText: visualFullText,
@@ -499,6 +543,13 @@ export async function runAlicizationMainChatStream(
       })
     }
   }
+
+  settleVisibleReplyLifecycle(buildSurfaceArtifact({
+    fullText,
+    visibleReplyExecution,
+    critic: visibleReplyCritic,
+    closure: visibleReplyClosure,
+  }))
 
   return {
     finishReason,

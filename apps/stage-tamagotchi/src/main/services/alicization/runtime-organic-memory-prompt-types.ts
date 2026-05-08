@@ -6,6 +6,7 @@ import type {
   AlicizationRecallGovernorSnapshot,
 } from '../../../shared/eventa'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
+import type { AlicizationRelationshipLineCandidate } from './memory-search-retrieval-operators'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationMemoryRetrievalBudgetClass, AlicizationOrganicMemoryRuntimeStage } from './memory-retrieval-telemetry'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
@@ -21,6 +22,7 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     hostAttitude: string
     coreIncarnation: string
     activeThoughts: OrganicMemoryPromptContext['activeThoughts']
+    learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState']
   }>
   getLatestRelationshipDynamics: () => Promise<OrganicMemoryPromptContext['relationshipDynamics']>
   retrieveMemoryFacts: (recallSeed: string, limit: number) => Promise<OrganicMemoryPromptContext['retrievedFacts']>
@@ -158,4 +160,45 @@ export type MemoryClusterState = {
     summary: string
     reason: string
   }>
+}
+
+export interface AlicizationOrganicMemoryPreludeResolution {
+  stageLatencyMs: {
+    prelude: number
+  }
+  retrievalPolicySnapshot: AlicizationTurnRetrievalPolicySnapshot
+  budgetClass: AlicizationMemoryRetrievalBudgetClass
+  snapshot: Awaited<ReturnType<CreateAlicizationOrganicMemoryPromptRuntimeOptions['getOrganicMemorySnapshot']>>
+  relationshipDynamics: Awaited<ReturnType<CreateAlicizationOrganicMemoryPromptRuntimeOptions['getLatestRelationshipDynamics']>>
+  hostPersonModel: Awaited<ReturnType<CreateAlicizationOrganicMemoryPromptRuntimeOptions['buildHostPersonModel']>>
+  recallSeed: string
+  retrievedFacts: OrganicMemoryPromptContext['retrievedFacts']
+  recalledFragments: OrganicMemoryPromptContext['recalledFragments']
+  recalledEpisodes: AlicizationEpisodicEventRecord[]
+  recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+  activeRecollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
+  memoryTuningAdvice: Awaited<ReturnType<NonNullable<CreateAlicizationOrganicMemoryPromptRuntimeOptions['getMemoryTuningAdvice']>>> | null
+  personStateEvolutionSummary: Awaited<ReturnType<NonNullable<CreateAlicizationOrganicMemoryPromptRuntimeOptions['getPersonStateEvolutionSummary']>>> | null
+  memoryStats: Awaited<ReturnType<NonNullable<CreateAlicizationOrganicMemoryPromptRuntimeOptions['getMemoryStats']>>> | null
+  recentRelationshipOutcomes: OrganicMemoryPromptContext['recentRelationshipOutcomes']
+  recentMemoryReflections: OrganicMemoryPromptContext['recentMemoryReflections']
+  personStateProjection: OrganicMemoryPromptContext['personStateProjection'] | null
+}
+
+export interface AlicizationOrganicMemoryCandidateResolution {
+  stageLatencyMs: {
+    candidateGeneration: number
+    candidateRanking: number
+  }
+  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
+  consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+  recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+  proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+  relationshipLineCandidates: AlicizationRelationshipLineCandidate[]
+  clusterState: MemoryClusterState
+  agendaRankedConsolidatedMemoriesClustered: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
+  agendaRankedWindowsClustered: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
+  agendaRankedProceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
+  agendaRankedEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
+  agendaRankedConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
 }

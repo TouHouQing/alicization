@@ -1,5 +1,10 @@
 import type { OrganicMemoryPromptContext } from '../runtime-soul'
 
+import {
+  normalizeAlicizationMemoryProvenance,
+  scoreAlicizationMemoryProvenanceTrust,
+} from '@proj-alicization/stage-shared'
+
 export type AlicizationMemoryCandidateKind
   = 'fact'
     | 'fragment'
@@ -16,6 +21,16 @@ export interface AlicizationMemoryCandidateRetrievalItem {
   provenance: string | null
   confidence: number | null
   selected: boolean
+  metadata: {
+    threadId: string | null
+    sessionId: string | null
+    eraId: string | null
+    sourceConfidence: number | null
+    conflictIds: string[]
+    supersedes: string[]
+    lastValidatedAt: number | null
+    updatedAt: number | null
+  }
   ranking: {
     semanticSimilarity: number | null
     graphAffinity: number | null
@@ -93,6 +108,37 @@ function itemConfidence(raw: unknown) {
   return normalizeNumber(record?.confidence)
 }
 
+function itemStringList(raw: unknown, maxItems = 8) {
+  if (!Array.isArray(raw))
+    return []
+  return raw
+    .map(item => normalizeText(item, 120))
+    .filter((item): item is string => Boolean(item))
+    .slice(0, maxItems)
+}
+
+function itemMetadata(raw: unknown) {
+  const record = asRecord(raw)
+  return {
+    threadId: normalizeText(record?.threadId, 120)
+      ?? normalizeText(record?.threadAnchor, 120)
+      ?? null,
+    sessionId: normalizeText(record?.sessionId, 120) ?? null,
+    eraId: normalizeText(record?.eraId, 120)
+      ?? normalizeText(record?.periodKey, 120)
+      ?? null,
+    sourceConfidence: normalizeNumber(record?.sourceConfidence)
+      ?? normalizeNumber(record?.confidence)
+      ?? null,
+    conflictIds: itemStringList(record?.conflictsWith),
+    supersedes: itemStringList(record?.supersedes),
+    lastValidatedAt: normalizeNumber(record?.lastValidatedAt)
+      ?? normalizeNumber(record?.validatedAt)
+      ?? null,
+    updatedAt: itemUpdatedAt(raw),
+  }
+}
+
 function itemUpdatedAt(raw: unknown) {
   const record = asRecord(raw)
   const candidates = [
@@ -111,17 +157,9 @@ function itemUpdatedAt(raw: unknown) {
 }
 
 function trustForProvenance(provenance: string | null) {
-  if (provenance === 'observed')
-    return 0.95
-  if (provenance === 'remembered')
-    return 0.82
-  if (provenance === 'reconstructed')
-    return 0.58
-  if (provenance === 'inferred')
-    return 0.48
-  if (provenance === 'dreamt')
-    return 0.28
-  return 0.62
+  return scoreAlicizationMemoryProvenanceTrust(
+    provenance == null ? null : normalizeAlicizationMemoryProvenance(provenance, 'remembered'),
+  )
 }
 
 function recencyScoreFromTimestamp(input: {
@@ -247,6 +285,7 @@ function appendCandidates(input: {
     const provenance = itemProvenance(item)
     const confidence = itemConfidence(item)
     const selected = input.selected.has(id)
+    const metadata = itemMetadata(item)
     input.result.push({
       id,
       kind: input.kind,
@@ -254,6 +293,7 @@ function appendCandidates(input: {
       provenance,
       confidence,
       selected,
+      metadata,
       ranking: deriveRanking({
         raw: item,
         selected,

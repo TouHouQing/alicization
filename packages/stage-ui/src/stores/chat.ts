@@ -1232,6 +1232,24 @@ function createStructuredFallback(
   }
 }
 
+function createAlicizationBlockedRendererFallback(reason: string): StructuredWithContract {
+  return {
+    thought: 'obligation=repair; truth=uncertain; focus=do not invent visible speech outside runtime mind authority; move=block local renderer fallback and wait for model-authored retry; tone=direct',
+    emotion: 'neutral',
+    reply: '',
+    performance: normalizeAlicizationPerformancePayload(undefined, 'neutral'),
+    userSentimentScore: 0,
+    sentimentConfidence: 0,
+    format: 'mind-turn-v1',
+    parsePath: 'fallback',
+    repairTimedOut: false,
+    contractFailed: true,
+    visibleReplyBlocked: true,
+    nonHumanAuthoredStatus: reason,
+    visibleReplyAuthority: 'local-deterministic-fallback',
+  }
+}
+
 function createFailureFallbackThought(kind: StreamFailureKind) {
   switch (kind) {
     case 'provider-config':
@@ -2618,11 +2636,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               denialSource: turnToolEvidence.denialSource,
               reminderScheduled: turnToolEvidence.reminderScheduled,
             }, sendingMessage)
-        const fallback = createStructuredFallback(fallbackReply, createContractFallbackEmotion(turnPersonalityState, {
-          toolDenied: turnToolEvidence.deniedBySafety,
-          denialSource: turnToolEvidence.denialSource,
-          reminderScheduled: turnToolEvidence.reminderScheduled,
-        }), sendingMessage)
+        const fallback = shouldBlockRendererLocalVisibleReply()
+          ? createAlicizationBlockedRendererFallback('structured-contract-local-visible-fallback-blocked')
+          : createStructuredFallback(fallbackReply, createContractFallbackEmotion(turnPersonalityState, {
+              toolDenied: turnToolEvidence.deniedBySafety,
+              denialSource: turnToolEvidence.denialSource,
+              reminderScheduled: turnToolEvidence.reminderScheduled,
+            }), sendingMessage)
         await appendAlicizationAuditLog({
           level: shouldBlockRendererLocalVisibleReply() ? 'critical' : 'warning',
           category: 'structured-output',

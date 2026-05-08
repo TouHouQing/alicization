@@ -30,11 +30,27 @@ export function deriveAlicizationMemoryCandidateCompetition(input: {
   retrieval?: AlicizationMemoryCandidateRetrievalArtifact | null
 }): AlicizationMemoryCandidateCompetitionArtifact {
   const candidates = input.retrieval?.candidates ?? []
+  const selectedCandidates = candidates.filter(candidate => candidate.selected)
+  const selectedThreadIds = new Set(selectedCandidates.map(item => item.metadata.threadId).filter(Boolean))
+  const selectedSessionIds = new Set(selectedCandidates.map(item => item.metadata.sessionId).filter(Boolean))
+  const selectedEraIds = new Set(selectedCandidates.map(item => item.metadata.eraId).filter(Boolean))
   const wrongThreadCandidateIds = candidates
     .filter((candidate) => {
       const relationshipThreadWeak = candidate.ranking.relationshipThreadMatch != null
         && candidate.ranking.relationshipThreadMatch < 0.4
       const conflictHeavy = candidate.ranking.conflictPenalty >= 0.4
+      const metadataThreadMismatch = selectedThreadIds.size > 0
+        && candidate.metadata.threadId != null
+        && !selectedThreadIds.has(candidate.metadata.threadId)
+      const metadataSessionMismatch = selectedSessionIds.size > 0
+        && candidate.metadata.sessionId != null
+        && !selectedSessionIds.has(candidate.metadata.sessionId)
+      const metadataEraMismatch = selectedEraIds.size > 0
+        && candidate.metadata.eraId != null
+        && !selectedEraIds.has(candidate.metadata.eraId)
+      const explicitConflictWithSelected = candidate.metadata.conflictIds.some(id =>
+        selectedCandidates.some(item => item.id === id || item.metadata.supersedes.includes(id)),
+      )
       const clearlyOutrankedSelected = !candidate.selected
         && candidate.ranking.finalScore >= 0.58
         && candidates.some(other =>
@@ -45,7 +61,13 @@ export function deriveAlicizationMemoryCandidateCompetition(input: {
           && other.ranking.relationshipThreadMatch > candidate.ranking.relationshipThreadMatch
           && other.ranking.finalScore >= candidate.ranking.finalScore
         )
-      return relationshipThreadWeak || conflictHeavy || clearlyOutrankedSelected
+      return relationshipThreadWeak
+        || conflictHeavy
+        || clearlyOutrankedSelected
+        || metadataThreadMismatch
+        || metadataSessionMismatch
+        || metadataEraMismatch
+        || explicitConflictWithSelected
     })
     .map(candidate => candidate.id)
     .slice(0, 12)

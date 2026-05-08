@@ -11,6 +11,7 @@ import type {
   AlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult,
 } from '../../../shared/eventa'
+import type { AlicizationSelfEvolutionRuntime } from './self-evolution/runtime'
 
 import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
 
@@ -32,6 +33,7 @@ import {
   replayBenchmarkTuningAdviceMetaKey,
 } from './memory-tuning-advice'
 import { buildAlicizationFinalReplayGateReport } from './replay/final-gates'
+import { isAlicizationTurnGraphClosed } from './turn-os/turn-graph'
 
 interface ReplayConversationTurnRow {
   turnId: string | null
@@ -62,6 +64,7 @@ interface CreateAlicizationReplayBenchmarkRuntimeOptions {
   getAlicizationDb: () => ReplayBenchmarkDbAccess
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
   getNow?: () => number
+  selfEvolutionRuntime?: AlicizationSelfEvolutionRuntime
 }
 
 export const replayBenchmarkDatasetBacklogKey = 'replay_benchmark_dataset_backlog_v1'
@@ -223,10 +226,12 @@ function buildReplayBenchmarkNoopResult(input: {
       turnOsTraceCoverage: 1,
       learningOutcomeToSelfRevisionRoundtrip: 1,
     },
-    authorityLeakCount: 0,
-    localHumanlikeVisibleFallbackCount: 0,
-    sampleCount: 0,
-  })
+      authorityLeakCount: 0,
+      localHumanlikeVisibleFallbackCount: 0,
+      sampleCount: 0,
+      productionGoldSampleCount: 0,
+      productionGoldCoverage: 0,
+    })
   return {
     packId: input.packId,
     ranAt: input.ranAt,
@@ -374,7 +379,7 @@ function deriveReplayTurnOsTraceCoverage(input: {
 }) {
   if (input.turns.length === 0)
     return 1
-  const traced = input.turns.filter(turn => turn.turnGraph?.version === 'turn-graph-v1').length
+  const traced = input.turns.filter(turn => isAlicizationTurnGraphClosed(turn.turnGraph)).length
   return Number((traced / input.turns.length).toFixed(2))
 }
 
@@ -786,6 +791,8 @@ export function createAlicizationReplayBenchmarkRuntime(
       authorityLeakCount,
       localHumanlikeVisibleFallbackCount,
       sampleCount: telemetryPatch.retrievalHealth.sampleCount ?? replay.turns.length,
+      productionGoldSampleCount: telemetryPatch.retrievalHealth.productionGoldSampleCount,
+      productionGoldCoverage: telemetryPatch.retrievalHealth.productionGoldCoverage,
     })
 
     if (persistTelemetry) {
@@ -822,6 +829,15 @@ export function createAlicizationReplayBenchmarkRuntime(
       }),
       datasetFeedback,
     } satisfies AlicizationRunReplayBenchmarkResult
+
+    if (options.selfEvolutionRuntime) {
+      await options.selfEvolutionRuntime.validateAllShadowVersions({
+        replayPassed: result.gate.passed,
+        finalReplayGatePassed: result.finalReplayGate.passed,
+        productionGoldSampleCount: result.finalReplayGate.metrics.productionGoldSampleCount,
+        productionGoldCoverage: result.finalReplayGate.metrics.productionGoldCoverage,
+      }).catch(() => {})
+    }
 
     if (input.auditContext) {
       await options.appendAuditLog({

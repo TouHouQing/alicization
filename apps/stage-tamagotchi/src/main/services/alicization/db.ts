@@ -64,6 +64,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
+import { normalizeAlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
 
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
@@ -745,9 +746,7 @@ function mapEpisodicReconsolidation(raw: string | null): AlicizationEpisodicReco
     decisionTraceId: typeof parsed.decisionTraceId === 'string' && parsed.decisionTraceId.trim()
       ? parsed.decisionTraceId.trim()
       : null,
-    provenance: provenance === 'observed' || provenance === 'remembered' || provenance === 'dreamt' || provenance === 'inferred' || provenance === 'reconstructed'
-      ? provenance
-      : 'reconstructed',
+    provenance: normalizeAlicizationMemoryProvenance(provenance, 'reconstructed'),
     confidence: clamp01(confidence),
     reason,
     emotionTags: parseJsonStringArray(JSON.stringify(parsed.emotionTags ?? [])),
@@ -4364,9 +4363,7 @@ export async function setupAlicizationDb(
         const occurredAt = Number.isFinite(event.occurredAt) ? Math.max(0, Math.floor(Number(event.occurredAt))) : now()
         const createdAt = Number.isFinite(event.createdAt) ? Math.max(0, Math.floor(Number(event.createdAt))) : occurredAt
         const updatedAt = Number.isFinite(event.updatedAt) ? Math.max(0, Math.floor(Number(event.updatedAt))) : createdAt
-        const provenance = event.provenance === 'observed' || event.provenance === 'remembered' || event.provenance === 'dreamt' || event.provenance === 'inferred' || event.provenance === 'reconstructed'
-          ? event.provenance
-          : 'remembered'
+        const provenance = normalizeAlicizationMemoryProvenance(event.provenance, 'remembered')
         const relationshipShift = event.relationshipShift
           ? {
               closenessDelta: clampRelationshipDelta(Number(event.relationshipShift.closenessDelta ?? 0), 0.24),

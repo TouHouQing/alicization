@@ -1,4 +1,9 @@
-import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
+import type { AlicizationEpisodicEventRecord, AlicizationMemoryProvenance } from '../../../shared/eventa'
+
+import {
+  pickDominantAlicizationMemoryProvenance,
+  shouldAlicizationMemoryProvenanceEnterLongTermConsolidation,
+} from '@proj-alicization/stage-shared'
 
 import { buildProceduralMemoryAbstractions } from './memory-procedural-abstraction'
 import {
@@ -21,7 +26,7 @@ export interface AlicizationMemoryConsolidationRecord {
   lesson: string | null
   cues: string[]
   confidence: number
-  dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+  dominantProvenance: AlicizationMemoryProvenance
   derivedEventIds: string[]
   updatedAt: number
   memoryTier?: 'hot' | 'warm' | 'cold' | null
@@ -68,19 +73,7 @@ function buildWeekKey(timestamp: number) {
   return `${utcDate.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`
 }
 
-function pickDominantProvenance(values: Array<'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'>) {
-  const order = ['observed', 'remembered', 'inferred', 'reconstructed', 'dreamt'] as const
-  let best: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' = 'remembered'
-  let bestScore = -1
-  for (const candidate of order) {
-    const score = values.filter(value => value === candidate).length
-    if (score > bestScore) {
-      best = candidate
-      bestScore = score
-    }
-  }
-  return best
-}
+const pickDominantProvenance = pickDominantAlicizationMemoryProvenance
 
 function sortEvents(events: AlicizationEpisodicEventRecord[]) {
   return [...events].sort((left, right) => {
@@ -226,7 +219,7 @@ export function buildMemoryConsolidationRecords(input: {
   now: number
 }): AlicizationMemoryConsolidationRecord[] {
   const events = [...input.events]
-    .filter(event => event.provenance !== 'dreamt')
+    .filter(event => shouldAlicizationMemoryProvenanceEnterLongTermConsolidation(event.provenance))
     .sort((left, right) => left.occurredAt - right.occurredAt)
   if (events.length === 0)
     return []

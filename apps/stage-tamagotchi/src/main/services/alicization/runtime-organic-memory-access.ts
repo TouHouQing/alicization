@@ -2,6 +2,7 @@ import type {
   AlicizationActiveThought,
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
+  AlicizationMemoryProvenance,
   AlicizationLearningExecutionStateSnapshot,
   AlicizationOrganicMemorySnapshot,
   AlicizationPersonaReinforcementEventRecord,
@@ -128,7 +129,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     lesson: string | null
     cues: string[]
     confidence: number
-    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    dominantProvenance: AlicizationMemoryProvenance
     derivedEventIds: string[]
     updatedAt: number
   }>>

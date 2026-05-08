@@ -46,6 +46,8 @@ import type {
   PreparedMainChatExecution,
   ResolvedCardCustomDirectives,
 } from './runtime-soul'
+import type { AlicizationSelfEvolutionVersionRuntimeSnapshot } from './self-evolution/version-runtime'
+import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import {
   emptyAlicizationExecutionCallbackContext,
 } from './execution-callback-runtime'
@@ -100,7 +102,9 @@ import {
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
 import { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
-import { buildAlicizationTurnGraph, type AlicizationTurnGraph } from './turn-os/turn-graph'
+import { runAlicizationMemoryOsTurnRuntime, type AlicizationMemoryOsTurnRuntimeArtifact } from './memory-os/runtime'
+import { type AlicizationTurnGraph } from './turn-os/turn-graph'
+import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -146,6 +150,8 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
+  memoryOsRuntime?: AlicizationMemoryOsTurnRuntimeArtifact
+  turnRuntimeContext?: AlicizationTurnRuntimeContext
   personaKernel: AlicizationPersonaKernelSnapshot | null
   performanceManifest: CharacterPerformanceCapabilitiesManifest | null
   replyRealization: AlicizationMainChatReplyAuthoritySurface | null
@@ -227,6 +233,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     recallGovernor: AlicizationRecallGovernorSnapshot | null | undefined
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
   }) => Promise<AlicizationTurnRetrievalPolicySnapshot>
+  getActiveSelfEvolutionSnapshot?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot | null>
   resolveSessionContinuitySignals?: (input: {
     cardId: string
     turnId: string
@@ -249,6 +256,9 @@ function normalizeSessionPhases(phases: string[]) {
 
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
   const getNow = options.getNow ?? Date.now
+  const turnRuntime = createAlicizationTurnRuntime({
+    now: getNow,
+  })
   const dialogueSessionManager = options.dialogueSessionManager
     ?? createAlicizationDialogueSessionManager({
       getNow: options.getNow,
@@ -261,6 +271,46 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
     const { payload, prelude } = input
     const now = getNow()
+    const activeSelfEvolutionSnapshot = await options.getActiveSelfEvolutionSnapshot?.().catch(() => null) ?? null
+    const turnContext = turnRuntime.beginTurn({
+      cardId: payload.cardId,
+      turnId: payload.turnId,
+      governance: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
+      activeSelfEvolutionSnapshot,
+    })
+    turnRuntime.settleStage(turnContext, 'encounter', {
+      inputSummary: [
+        `messages=${Array.isArray(payload.messages) ? payload.messages.length : 0}`,
+        `waitForTools=${payload.waitForTools === true ? 'yes' : 'no'}`,
+      ],
+      outputSummary: [
+        prelude.actionObligation.kind,
+        prelude.actionObligation.routingIntent ? 'routing=required' : 'routing=not-required',
+      ],
+      reasonCodes: prelude.actionObligation.reasonCodes,
+    })
+    turnRuntime.settleStage(turnContext, 'conscious-frame', {
+      status: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance ? 'completed' : 'skipped',
+      outputSummary: [
+        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.turnMode ?? null,
+        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.personaKernelMode ?? null,
+        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.answerIntent ?? null,
+        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.focusAnchor ?? null,
+      ],
+      reasonCodes: [
+        turnContext.selfRevisionConsumption.activePatchId
+          ? 'turn-os:active-self-revision-snapshot-frozen'
+          : 'turn-os:no-active-self-revision',
+      ],
+    })
+    turnRuntime.settleStage(turnContext, 'obligation', {
+      outputSummary: [
+        prelude.actionObligation.kind,
+        prelude.actionObligation.summary,
+        prelude.actionObligation.source,
+      ],
+      reasonCodes: prelude.actionObligation.reasonCodes,
+    })
     const effectiveExecutionRoutingIntent = prelude.actionObligation.routingIntent ?? prelude.executionRoutingIntent
     const routingRequired = Boolean(effectiveExecutionRoutingIntent)
     const digitalLifeSpine = prelude.perceptionAugmentation.digitalLifeRuntimeSurface
@@ -272,6 +322,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       turnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
     })
+    turnContext.sessionId = agentTurn.conversationSessionId
     let messages = prelude.messages
 
     agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
@@ -387,30 +438,53 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }
 
-    const organicMemoryContextStartedAt = getNow()
-    const organicPromptContext = await agentTurn.trackPhase('organic-memory-context', async () => {
-      return options.tuneOrganicMemoryPromptContextForExecutiveTurn({
-        context: await options.resolveOrganicMemoryPromptContext({
+    const memoryOsRuntime = await turnRuntime.runStage(turnContext, 'memory', {
+      inputSummary: [
+        `budget=${organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass}`,
+        `recallSeedChars=${organicRecallSeed.length}`,
+      ],
+      run: async () => await agentTurn.trackPhase('memory-os-runtime', async () => {
+        return await runAlicizationMemoryOsTurnRuntime({
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
           budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
           retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
-        }),
-        suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+          suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+          personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+          resolveContext: async () => await options.resolveOrganicMemoryPromptContext({
+            recallSeed: organicRecallSeed,
+            recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+            turnId: payload.turnId,
+            budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+            retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
+          }),
+          tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
+            context: input.context,
+            suppressAssociativeRecall: Boolean(input.suppressAssociativeRecall),
+            personaKernelMode: (input.personaKernelMode ?? prelude.perceptionAugmentation.chatGovernance.personaKernelMode) as AlicizationMindTurnGovernance['personaKernelMode'],
+            recallGovernor: prelude.perceptionAugmentation.recallGovernor,
+          }),
+          nowMs: getNow,
+        })
+      }, {
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-        recallGovernor: prelude.perceptionAugmentation.recallGovernor,
-      })
-    }, {
-      personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-      suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+        suppressAssociativeRecall: prelude.perceptionAugmentation.chatGovernance.suppressAssociativeRecall,
+      }),
+      summarizeOutput: runtime => ({
+        outputSummary: [
+          `adapter=${runtime.adapterSource}`,
+          `gate=${runtime.artifact.visibleMemoryGate.status}`,
+          `selected=${runtime.artifact.candidates.selectedCandidateIds.length}`,
+        ],
+        reasonCodes: [
+          ...runtime.artifact.visibleMemoryGate.reasons,
+          ...runtime.closure.missingStages.map(stage => `memory-os-missing:${stage}`),
+        ],
+      }),
     })
-    const memoryTurnArtifact = buildAlicizationMemoryTurnArtifact({
-      context: organicPromptContext,
-      retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
-      latencyMs: getNow() - organicMemoryContextStartedAt,
-      nowMs: getNow(),
-    })
+    const organicPromptContext = memoryOsRuntime.context
+    const memoryTurnArtifact = memoryOsRuntime.artifact
     await runOrganicLearningGovernor({
       agentTurn,
       cardId: payload.cardId,
@@ -752,6 +826,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       routingRequired,
       sessionPhases: sessionPhases.join(' -> '),
     })
+    turnRuntime.settleStage(turnContext, 'deliberation', {
+      outputSummary: [
+        runtimeSurface.replyAuthority?.expectedVisibleReplyAuthority ?? null,
+        runtimeSurface.replyExecutionPlan?.preferredMode ?? null,
+      ],
+      reasonCodes: runtimeSurface.replyAuthority
+        ? ['visible-reply-authority-settled']
+        : ['visible-reply-authority-missing'],
+    })
     messages = runtimeSurface.messages
 
     const sessionMirror = agentTurn.conversationSessionId
@@ -788,6 +871,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       mindTurnContract: prelude.perceptionAugmentation.chatGovernance.mindTurnContract,
       organicMemoryContext: organicPromptContext,
       memoryTurnArtifact,
+      memoryOsRuntime,
+      turnRuntimeContext: turnContext,
       personaKernel,
       performanceManifest,
       replyRealization: runtimeSurface.replyAuthority ?? null,
@@ -796,10 +881,26 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       sessionMirror,
       sessionTrace: agentTurn.snapshot(),
     }
-    const turnGraph = buildAlicizationTurnGraph({
+    turnRuntime.settleStage(turnContext, 'learning', {
+      outputSummary: [
+        organicPromptContext.selfEvolution?.nextLearningAction
+          ? `next=${organicPromptContext.selfEvolution.nextLearningAction}`
+          : 'next=none',
+        turnContext.selfRevisionConsumption.activePatchId
+          ? `activePatch=${turnContext.selfRevisionConsumption.activePatchId}`
+          : 'activePatch=none',
+      ],
+      reasonCodes: turnContext.selfRevisionConsumption.reasonCodes,
+    })
+    turnRuntime.settleStage(turnContext, 'telemetry', {
+      outputSummary: [
+        `phases=${agentTurn.snapshot().phaseOrder.length}`,
+        agentTurn.snapshot().phaseOrder.join(' -> '),
+      ],
+    })
+    const turnGraph = turnRuntime.finalizeTurn({
+      context: turnContext,
       prepared: preparedResultBase as AlicizationPreparedMainChatExecutionResult,
-      cardId: payload.cardId,
-      turnId: payload.turnId,
       actionObligation: prelude.actionObligation,
       memory: memoryTurnArtifact,
       surface: null,

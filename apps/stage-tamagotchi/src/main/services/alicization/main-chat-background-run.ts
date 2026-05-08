@@ -69,19 +69,18 @@ import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 import { buildAlicizationMainGatewayTimeoutFallbackReply } from './main-chat-timeout-fallback'
 import { parseJsonObjectFromText } from './runtime-transport-content'
-import { attachAlicizationTurnGraphSurface } from './turn-os/turn-graph'
+import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 import {
   AlicizationVisibleReplyClosureBlockedError,
-  type AlicizationVisibleReplyClosureResult,
   buildAlicizationSecondPassTransportFailureReply,
   buildAlicizationResolvedVisibleReply,
   buildAlicizationVisibleReplyCriticArtifact,
   buildAlicizationVisibleReplyRealizationArtifact,
-  closeAlicizationVisibleReply,
   decideAlicizationActiveDialogueCompactAuthority,
   resolveAlicizationPreparedVisibleReplyExecution,
   resolveAlicizationTimeoutRecoveredVisibleReply,
   rewriteAlicizationVisibleReplySecondPass,
+  settleAlicizationVisibleReply,
 } from './visible-reply/facade'
 import {
   mainChatFirstEventTimeoutMs,
@@ -264,21 +263,35 @@ export async function runAlicizationMainChatBackground(
     }))
   }
 
-  const rememberVisibleReplySurface = (reply: AlicizationResolvedVisibleReply) => {
-    if (!prepared)
-      return
-    prepared = {
-      ...prepared,
-      turnGraph: attachAlicizationTurnGraphSurface({
-        turnGraph: prepared.turnGraph,
-        surface: reply.realization,
-      }),
-    }
+  const rebuildPreparedTurnGraph = (nextPrepared: AlicizationPreparedMainChatExecutionResult, surface: ReturnType<typeof buildAlicizationVisibleReplyRealizationArtifact> | AlicizationResolvedVisibleReply['realization'] | null) => {
+    return buildAlicizationTurnGraphFromSettlements({
+      prepared: nextPrepared,
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      actionObligation: nextPrepared.runtimeSurface?.action ?? null,
+      memory: nextPrepared.memoryTurnArtifact ?? null,
+      surface,
+      routingRequired: nextPrepared.runtimeSurface?.tooling?.routingRequired ?? false,
+      stageSettlements: nextPrepared.turnRuntimeContext?.stageSettlements ?? nextPrepared.turnGraph?.stageSettlements ?? [],
+      activeSelfRevision: {
+        patchId: nextPrepared.turnRuntimeContext?.selfRevisionConsumption.activePatchId ?? null,
+        decisionTraceId: nextPrepared.turnRuntimeContext?.selfRevisionConsumption.activePatchDecisionTraceId ?? null,
+        candidateId: nextPrepared.turnRuntimeContext?.selfRevisionConsumption.activeCandidateId ?? null,
+      },
+    })
   }
 
   const emitResolvedVisibleReply = (reply: AlicizationResolvedVisibleReply) => {
     currentVisibleReplyExecution = reply.visibleReplyExecution
-    rememberVisibleReplySurface(reply)
+    if (prepared) {
+      const nextPrepared = {
+        ...prepared,
+      }
+      prepared = {
+        ...nextPrepared,
+        turnGraph: rebuildPreparedTurnGraph(nextPrepared, reply.realization),
+      }
+    }
     if (!reply.visibleText)
       return
     emitStreamEmbodimentMeta(reply.visibleText)
@@ -287,23 +300,6 @@ export async function runAlicizationMainChatBackground(
       turnId: input.payload.turnId,
       text: reply.visibleText,
     })
-  }
-
-  const rememberVisibleReplyClosure = (closed: AlicizationVisibleReplyClosureResult) => {
-    if (!prepared)
-      return
-    prepared = {
-      ...prepared,
-      turnGraph: attachAlicizationTurnGraphSurface({
-        turnGraph: prepared.turnGraph,
-        surface: buildAlicizationVisibleReplyRealizationArtifact({
-          fullText: closed.fullText,
-          visibleReplyExecution: closed.visibleReplyExecution,
-          critic: closed.critic,
-          closure: closed.closure,
-        }),
-      }),
-    }
   }
 
   const closeStructuredVisibleReplyIfNeeded = async (rewriteInput: {
@@ -321,7 +317,7 @@ export async function runAlicizationMainChatBackground(
       return null
 
     try {
-      const closed = await closeAlicizationVisibleReply({
+      const settled = await settleAlicizationVisibleReply({
         draft: {
           fullText: rewriteInput.fullText,
           visibleReplyExecution: rewriteInput.visibleReplyExecution,
@@ -351,14 +347,11 @@ export async function runAlicizationMainChatBackground(
           appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         }),
       })
-      if (!closed)
-        return null
-      rememberVisibleReplyClosure(closed)
       return {
-        fullText: closed.fullText,
-        visibleReplyExecution: closed.visibleReplyExecution,
-        critic: closed.critic,
-        closure: closed.closure,
+        fullText: settled.fullText,
+        visibleReplyExecution: settled.visibleReplyExecution,
+        critic: settled.realization.critic ?? null,
+        closure: settled.realization.closure ?? null,
       }
     }
     catch (error) {
@@ -1039,6 +1032,7 @@ export async function runAlicizationMainChatBackground(
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
       rewriteStructuredVisibleReply: rewriteStructuredVisibleReplyIfNeeded,
       delayVisibleRelease: true,
+      turnRuntimeContext: prepared?.turnRuntimeContext ?? null,
     })
     if (streamResult.fullText.trim()) {
       await suppressInlineExecutionDeliveries()
@@ -1050,24 +1044,25 @@ export async function runAlicizationMainChatBackground(
         visibleReplyExecution: streamResult.visibleReplyExecution,
         prepared,
       })
-      prepared = {
+      const surface = buildAlicizationVisibleReplyRealizationArtifact({
+        fullText: streamResult.fullText,
+        visibleReplyExecution: streamResult.visibleReplyExecution,
+        critic,
+        closure: streamResult.visibleReplyClosure ?? null,
+      })
+      const nextPrepared = {
         ...prepared,
-        turnGraph: attachAlicizationTurnGraphSurface({
-          turnGraph: prepared.turnGraph,
-          surface: buildAlicizationVisibleReplyRealizationArtifact({
-            fullText: streamResult.fullText,
-            visibleReplyExecution: streamResult.visibleReplyExecution,
-            critic,
-            closure: streamResult.visibleReplyClosure ?? null,
-          }),
-        }),
+      }
+      prepared = {
+        ...nextPrepared,
+        turnGraph: rebuildPreparedTurnGraph(nextPrepared, surface),
       }
     }
     input.runStateController.finishRun(input.key, {
       status: 'completed',
       finishReason: streamResult.finishReason,
-      fullText: streamResult.fullText || undefined,
-      visibleReplyExecution: streamResult.visibleReplyExecution,
+      fullText: streamResult.fullText,
+      visibleReplyExecution: streamResult.visibleReplyExecution ?? currentVisibleReplyExecution ?? undefined,
     })
   }
   catch (error) {
@@ -1437,6 +1432,7 @@ export async function runAlicizationMainChatBackground(
       }),
       appendRuntimeDebugLine: input.appendRuntimeDebugLine,
       queueScopedAuditLog: input.queueScopedAuditLog,
+      turnRuntimeContext: prepared?.turnRuntimeContext ?? null,
     })
   }
 }

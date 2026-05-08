@@ -11,6 +11,7 @@ export interface AlicizationFinalReplayGateReport {
     localHumanlikeVisibleFallbackCount: number | null
     unsupportedSpecificityVisibleFailCount: number | null
     turnOsTraceCoverage: number | null
+    turnOsTraceClosureCoverage: number | null
     learningOutcomeToSelfRevisionRoundtrip: number | null
     memoryClosureCoverage: number | null
     memoryClosureConflictClosureRate: number | null
@@ -27,6 +28,9 @@ export interface AlicizationFinalReplayGateReport {
     misinternalizationRate: number | null
     sampleCount: number | null
     minimumSampleCount: number
+    productionGoldSampleCount: number | null
+    minimumProductionGoldSampleCount: number
+    productionGoldCoverage: number | null
   }
 }
 
@@ -50,6 +54,7 @@ export function buildAlicizationFinalReplayGateReport(input: {
     templateLeakageFailCount?: unknown
     unsupportedSpecificityVisibleFailCount?: unknown
     turnOsTraceCoverage?: unknown
+    turnOsTraceClosureCoverage?: unknown
     learningOutcomeToSelfRevisionRoundtrip?: unknown
     memoryClosureCoverage?: unknown
     memoryClosureConflictClosureRate?: unknown
@@ -70,8 +75,12 @@ export function buildAlicizationFinalReplayGateReport(input: {
   localHumanlikeVisibleFallbackCount?: unknown
   sampleCount?: unknown
   minimumSampleCount?: number
+  productionGoldSampleCount?: unknown
+  minimumProductionGoldSampleCount?: number
+  productionGoldCoverage?: unknown
 }): AlicizationFinalReplayGateReport {
   const minimumSampleCount = Math.max(1, Math.floor(input.minimumSampleCount ?? 1))
+  const minimumProductionGoldSampleCount = Math.max(1, Math.floor(input.minimumProductionGoldSampleCount ?? 1))
   const metrics = {
     recallAt3: readNumber(input.retrievalHealth?.recallAt3),
     precisionAt3: readNumber(input.retrievalHealth?.precisionAt3),
@@ -81,6 +90,7 @@ export function buildAlicizationFinalReplayGateReport(input: {
     localHumanlikeVisibleFallbackCount: readNumber(input.localHumanlikeVisibleFallbackCount),
     unsupportedSpecificityVisibleFailCount: readNumber(input.retrievalHealth?.unsupportedSpecificityVisibleFailCount),
     turnOsTraceCoverage: readNumber(input.retrievalHealth?.turnOsTraceCoverage),
+    turnOsTraceClosureCoverage: readNumber(input.retrievalHealth?.turnOsTraceClosureCoverage ?? input.retrievalHealth?.turnOsTraceCoverage),
     learningOutcomeToSelfRevisionRoundtrip: readNumber(input.retrievalHealth?.learningOutcomeToSelfRevisionRoundtrip),
     memoryClosureCoverage: readNumber(input.retrievalHealth?.memoryClosureCoverage),
     memoryClosureConflictClosureRate: readNumber(input.retrievalHealth?.memoryClosureConflictClosureRate),
@@ -97,10 +107,15 @@ export function buildAlicizationFinalReplayGateReport(input: {
     misinternalizationRate: readNumber(input.retrievalHealth?.misinternalizationRate),
     sampleCount: readNumber(input.sampleCount ?? input.retrievalHealth?.sampleCount),
     minimumSampleCount,
+    productionGoldSampleCount: readNumber(input.productionGoldSampleCount),
+    minimumProductionGoldSampleCount,
+    productionGoldCoverage: readNumber(input.productionGoldCoverage),
   }
 
   const failingKeys = [
     metrics.sampleCount === null || metrics.sampleCount < metrics.minimumSampleCount ? 'minimum-sample-count' : null,
+    metrics.productionGoldSampleCount === null || metrics.productionGoldSampleCount < metrics.minimumProductionGoldSampleCount ? 'production-gold-sample-count' : null,
+    metrics.productionGoldCoverage === null || metrics.productionGoldCoverage <= 0 ? 'production-gold-coverage' : null,
     metrics.recallAt3 === null || metrics.recallAt3 < 0.9 ? 'recall-at-3' : null,
     metrics.precisionAt3 === null || metrics.precisionAt3 < 0.86 ? 'precision-at-3' : null,
     metrics.wrongThreadRate === null || metrics.wrongThreadRate > 0 ? 'wrong-thread-rate' : null,
@@ -108,7 +123,7 @@ export function buildAlicizationFinalReplayGateReport(input: {
     metrics.authorityLeakCount === null || metrics.authorityLeakCount > 0 ? 'authority-leak' : null,
     metrics.localHumanlikeVisibleFallbackCount === null || metrics.localHumanlikeVisibleFallbackCount > 0 ? 'local-humanlike-visible-fallback' : null,
     metrics.unsupportedSpecificityVisibleFailCount === null || metrics.unsupportedSpecificityVisibleFailCount > 0 ? 'unsupported-specificity-visible' : null,
-    metrics.turnOsTraceCoverage === null || metrics.turnOsTraceCoverage < 1 ? 'turn-os-trace-coverage' : null,
+    metrics.turnOsTraceClosureCoverage === null || metrics.turnOsTraceClosureCoverage < 1 ? 'turn-os-trace-closure-coverage' : null,
     metrics.learningOutcomeToSelfRevisionRoundtrip === null || metrics.learningOutcomeToSelfRevisionRoundtrip < 1 ? 'learning-self-revision-roundtrip' : null,
     metrics.memoryClosureCoverage === null || metrics.memoryClosureCoverage < 1 ? 'memory-closure-coverage' : null,
     metrics.memoryClosureConflictClosureRate === null || metrics.memoryClosureConflictClosureRate < 1 ? 'memory-closure-conflict' : null,

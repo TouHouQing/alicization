@@ -56,6 +56,9 @@ import {
   extractAlicizationLocationFromQuery,
   formatAlicizationRealtimeSurfaceSummary,
   hasAlicizationPersonaIdentity,
+  mapAlicizationFragmentSourceKindToProvenance,
+  mapAlicizationMemorySourceToProvenance,
+  pickDominantAlicizationMemoryProvenance,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
@@ -1642,19 +1645,9 @@ function deriveBrowserProactiveFeedbackSummary(state: BrowserProactiveLoopState)
   } satisfies BrowserProactiveFeedbackSummary
 }
 
-function mapBrowserMemorySourceToProvenance(source: AlicizationMemoryFact['source']): AlicizationMemoryProvenance {
-  return source === 'async-llm' ? 'inferred' : 'remembered'
-}
+const mapBrowserMemorySourceToProvenance = mapAlicizationMemorySourceToProvenance
 
-function mapBrowserFragmentSourceToProvenance(sourceKind: AlicizationSubconsciousFragment['sourceKind']): AlicizationMemoryProvenance {
-  if (sourceKind === 'dream-fragment')
-    return 'dreamt'
-  if (sourceKind === 'former-core-incarnation' || sourceKind === 'mind-continuity')
-    return 'reconstructed'
-  if (sourceKind === 'reflection-ledger' || sourceKind === 'fact-ledger')
-    return 'inferred'
-  return 'remembered'
-}
+const mapBrowserFragmentSourceToProvenance = mapAlicizationFragmentSourceKindToProvenance
 
 function appendBrowserEpisodicEvent(record: BrowserEpisodicMemoryRecord, event: AlicizationEpisodicEventRecord) {
   const existingIndex = record.events.findIndex(item => item.id === event.id)
@@ -1777,19 +1770,7 @@ function buildBrowserHostPersonModel(events: AlicizationEpisodicEventRecord[]): 
   }
 }
 
-function pickDominantBrowserProvenance(values: AlicizationMemoryProvenance[]) {
-  const order: AlicizationMemoryProvenance[] = ['observed', 'remembered', 'inferred', 'reconstructed', 'dreamt']
-  let best: AlicizationMemoryProvenance = 'remembered'
-  let bestScore = -1
-  for (const candidate of order) {
-    const score = values.filter(value => value === candidate).length
-    if (score > bestScore) {
-      best = candidate
-      bestScore = score
-    }
-  }
-  return best
-}
+const pickDominantBrowserProvenance = pickDominantAlicizationMemoryProvenance
 
 function browserCertaintyFromConsolidation(input: {
   confidence: number
@@ -2063,7 +2044,7 @@ function buildBrowserRecollectionSpeechPlan(input: {
       : 'internal-only',
     certainty: foreground.certainty,
     internalLead: foreground.summary,
-    visibleLead: shouldSurface ? foreground.summary : null,
+    visibleLead: null,
     styleNote: foreground.surfaceSummary
       ? foreground.surfaceSummary
       : 'Let the recollection stay inward unless the current answer truly needs it.',

@@ -1,5 +1,7 @@
 import type { AlicizationMemoryDomain, AlicizationMemoryFact } from '../../../shared/eventa'
 
+import { scoreAlicizationMemorySourceTrustBase } from '@proj-alicization/stage-shared'
+
 export interface AlicizationMemoryDomainPolicy {
   retrievalWeight: number
   contradictionPenalty: number
@@ -305,7 +307,7 @@ export function buildAlicizationDomainNativeMemoryView(fact: AlicizationMemoryFa
   return {
     ...base,
     domain,
-    sourceTrust: clamp01((fact.source === 'rule' ? 0.24 : 0.12) + scoreValidatedStability(base) * 0.78),
+    sourceTrust: clamp01(scoreAlicizationMemorySourceTrustBase(fact.source) + scoreValidatedStability(base) * 0.78),
     factualSpecificity: factualSpecificity(fact),
     validationNeed: clamp01((base.validationStatus === 'validated' ? 0 : 0.24) + base.contradictionCount * 0.16 + (fact.source === 'async-llm' ? 0.08 : 0)),
   }

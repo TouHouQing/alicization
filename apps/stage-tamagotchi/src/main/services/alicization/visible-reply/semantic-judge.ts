@@ -109,7 +109,9 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
     scores.memoryUseCorrectness < 0.72 ? 'semantic-judge:memory-correctness-low' : null,
     scores.specificityDiscipline < 0.72 ? 'semantic-judge:specificity-discipline-low' : null,
   ])
-  const passed = Object.values(scores).every(score => score >= 0.72)
+  const heuristicShadowOnly = !structured
+  const passed = !heuristicShadowOnly
+    && Object.values(scores).every(score => score >= 0.72)
     && reasonCodes.every(code => !code.endsWith('-low') && !code.includes('violation') && !code.includes('unsupported'))
 
   return {
@@ -117,7 +119,10 @@ export function buildAlicizationVisibleReplySemanticJudgeArtifact(input: {
     mode: structured ? 'llm-structured' : 'heuristic-shadow',
     scores,
     passed,
-    reasonCodes,
+    reasonCodes: uniqueReasonCodes([
+      ...reasonCodes,
+      heuristicShadowOnly ? 'semantic-judge:llm-structured-required' : null,
+    ]),
     judgeReason: normalizeText(structured?.judgeReason, 320) || null,
   }
 }

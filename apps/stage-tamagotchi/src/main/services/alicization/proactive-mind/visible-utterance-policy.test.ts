@@ -22,14 +22,14 @@ describe('proactive visible utterance policy', () => {
     expect(decision.action).toBe('persist')
   })
 
-  it('holds deterministic proactive fallback text instead of persisting a fake humanlike utterance', () => {
+  it('holds explicitly whitelisted deterministic continuity instead of persisting visible speech', () => {
     const decision = decideAlicizationProactiveVisibleUtterance({
       hasMindAuthoredStructured: false,
       allowDeterministicVisibleFallback: true,
     })
 
     expect(decision.shouldPersistVisibleUtterance).toBe(false)
-    expect(decision.requiresMindAuthoredText).toBe(false)
+    expect(decision.requiresMindAuthoredText).toBe(true)
     expect(decision.action).toBe('hold')
   })
 

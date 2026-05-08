@@ -485,6 +485,12 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
     sessionId: turnGraph.ids.sessionId,
     canonicalStageOrder: [...(turnGraph.telemetry.canonicalStageOrder ?? alicizationTurnGraphCanonicalStageOrder)],
     observedPhaseOrder: [...(turnGraph.telemetry.phaseOrder ?? [])],
+    closure: {
+      status: turnGraph.closure?.status ?? 'incomplete',
+      closureCoverage: turnGraph.closure?.closureCoverage ?? 0,
+      firstIncompleteStage: turnGraph.closure?.firstIncompleteStage ?? null,
+      missingStages: [...(turnGraph.closure?.missingStages ?? alicizationTurnGraphCanonicalStageOrder)],
+    },
     memory: {
       shouldRecall: turnGraph.memory?.deliberation.shouldRecall ?? turnGraph.memory?.recallIntent.shouldRecall ?? null,
       recallCandidateCount: turnGraph.memory?.metrics.recallCandidateCount ?? null,
@@ -515,6 +521,9 @@ function summarizeReplayTurnGraph(turnGraph: AlicizationTurnGraph | null | undef
     learning: {
       selfEvolutionKernelVersion: turnGraph.learning.selfEvolutionKernelVersion,
       nextLearningAction: turnGraph.learning.nextLearningAction,
+      activeSelfRevisionPatchId: turnGraph.learning.activeSelfRevisionPatchId,
+      activeSelfRevisionDecisionTraceId: turnGraph.learning.activeSelfRevisionDecisionTraceId,
+      activeSelfEvolutionCandidateId: turnGraph.learning.activeSelfEvolutionCandidateId,
       memoryUsedCandidateCount: memoryOutcome.usedCandidateIds.length,
       memorySurfacedCandidateCount: memoryOutcome.surfacedCandidateIds.length,
       memorySuppressedCandidateCount: memoryOutcome.suppressedCandidateIds.length,
@@ -800,6 +809,8 @@ export function buildReplayBenchmarkMemoryStatsPatch(input: {
             replyAuthorityAccuracy: input.goldMetrics.replyAuthorityAccuracy,
             latencyBudgetPass: input.goldMetrics.latencyBudgetPass,
             sampleCount: input.goldMetrics.evaluatedTurnCount,
+            productionGoldSampleCount: input.goldMetrics.productionEvaluatedTurnCount,
+            productionGoldCoverage: input.goldMetrics.productionGoldCoverage,
           }
         : {}),
       ...traceParticipation,
@@ -999,7 +1010,7 @@ function normalizeConflictSeverity(raw: unknown): 'none' | 'low' | 'medium' | 'h
   return 'none'
 }
 
-function normalizeMemoryProvenance(raw: unknown): 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' {
+function normalizeMemoryProvenance(raw: unknown): 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' | 'shadow' {
   const value = readString(raw, 64)
   if (
     value === 'observed'
@@ -1007,6 +1018,7 @@ function normalizeMemoryProvenance(raw: unknown): 'observed' | 'remembered' | 'd
     || value === 'dreamt'
     || value === 'inferred'
     || value === 'reconstructed'
+    || value === 'shadow'
   ) {
     return value
   }
@@ -2453,6 +2465,9 @@ function buildReplayBenchmarkParitySummary(turn: AlicizationReplayTurn | undefin
 
 interface AlicizationReplayGoldMetrics {
   evaluatedTurnCount: number
+  productionEvaluatedTurnCount: number
+  syntheticEvaluatedTurnCount: number
+  productionGoldCoverage: number
   recallAt1: number
   recallAt3: number
   precisionAt3: number
@@ -2553,6 +2568,8 @@ function evaluateReplayGoldMetrics(input: {
   if (evaluated.length === 0)
     return null
 
+  const productionEvaluatedTurnCount = evaluated.filter(item => item.turn.tracePointer?.kind === 'decision-trace').length
+  const syntheticEvaluatedTurnCount = evaluated.length - productionEvaluatedTurnCount
   let recallAt1Hits = 0
   let recallAt3Hits = 0
   let precisionMatches = 0
@@ -2569,8 +2586,22 @@ function evaluateReplayGoldMetrics(input: {
 
   for (const { turn, prepared } of evaluated) {
     const gold = turn.gold!
-    const actualSelected = uniqueStrings(prepared.organicMemoryContext?.memorySituationCandidates?.selected.map(item => item.candidateId) ?? [])
-    const actualSuppressed = uniqueStrings(prepared.organicMemoryContext?.memorySituationCandidates?.suppressed.map(item => item.candidateId) ?? [])
+    const memoryArtifact = prepared.memoryOsRuntime?.artifact
+      ?? prepared.memoryTurnArtifact
+      ?? prepared.turnGraph?.memory
+      ?? null
+    const actualSelected = uniqueStrings([
+      ...(memoryArtifact?.candidates.selectedCandidateIds ?? []),
+      ...(prepared.turnGraph?.learning.memoryOutcome.surfacedCandidateIds ?? []),
+      ...(prepared.turnGraph?.learning.memoryOutcome.usedCandidateIds ?? []),
+      ...(prepared.organicMemoryContext?.memorySituationCandidates?.selected.map(item => item.candidateId) ?? []),
+    ])
+    const actualSuppressed = uniqueStrings([
+      ...(memoryArtifact?.competition.wrongThreadCandidateIds ?? []),
+      ...(prepared.turnGraph?.learning.memoryOutcome.wrongThreadCandidateIds ?? []),
+      ...(prepared.turnGraph?.learning.memoryOutcome.suppressedCandidateIds ?? []),
+      ...(prepared.organicMemoryContext?.memorySituationCandidates?.suppressed.map(item => item.candidateId) ?? []),
+    ])
     const actualReplyAuthority = readPreparedReplyAuthority(prepared)
     const actualLatencyBudgetClass = readPreparedLatencyBudgetClass(prepared)
     const actualClaimStates = Object.fromEntries(
@@ -2594,7 +2625,7 @@ function evaluateReplayGoldMetrics(input: {
         retrievedCandidateIds: uniqueStrings([
           ...actualSelected,
           ...actualSuppressed,
-          ...(prepared.memoryTurnArtifact?.candidates.retrievalCandidateIds ?? []),
+          ...(memoryArtifact?.candidates.retrievalCandidateIds ?? []),
         ]),
         surfacedMemoryIds: actualSelected,
         wrongThreadIds: actualSuppressed,
@@ -2636,6 +2667,9 @@ function evaluateReplayGoldMetrics(input: {
   const recallFeedback = summarizeAlicizationMemoryRecallFeedback(recallFeedbackSamples)
   return {
     evaluatedTurnCount: evaluated.length,
+    productionEvaluatedTurnCount,
+    syntheticEvaluatedTurnCount,
+    productionGoldCoverage: Number((productionEvaluatedTurnCount / evaluated.length).toFixed(2)),
     recallAt1: ratioOrZero(recallAt1Hits, selectedExpectationCount),
     recallAt3: recallFeedback.sampleCount > 0 ? recallFeedback.recallAt3 : ratioOrZero(recallAt3Hits, selectedExpectationCount),
     precisionAt3: recallFeedback.sampleCount > 0 ? recallFeedback.precisionAt3 : ratioOrZero(precisionMatches, precisionDenominator),

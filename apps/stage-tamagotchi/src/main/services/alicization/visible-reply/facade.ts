@@ -84,6 +84,16 @@ export {
 } from './second-pass-rewrite'
 
 export type {
+  AlicizationVisibleReplySettlementDraft,
+  AlicizationVisibleReplySettlementResult,
+} from './settlement'
+
+export {
+  AlicizationVisibleReplySettlementBlockedError,
+  settleAlicizationVisibleReply,
+} from './settlement'
+
+export type {
   AlicizationMainChatReplyAuthoritySurface,
   AlicizationMainChatReplyExecutionPlanSurface,
 } from './runtime-surface-authority'

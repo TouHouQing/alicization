@@ -780,6 +780,43 @@ describe('replay benchmark runtime', () => {
       claimAccuracy: 1,
       replyAuthorityAccuracy: 1,
       latencyBudgetPass: true,
+      productionGoldSampleCount: 1,
+      productionGoldCoverage: 1,
     }))
+    expect(result.finalReplayGate.failingKeys).not.toContain('production-gold-sample-count')
+    expect(result.finalReplayGate.failingKeys).not.toContain('production-gold-coverage')
+  })
+
+  it('fails final replay gate when only synthetic gold is available', async () => {
+    const runtime = createAlicizationReplayBenchmarkRuntime({
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listMindTurnEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({
+          total: 0,
+          active: 0,
+          archived: 0,
+          lastPrunedAt: null,
+          retrievalHealth: {},
+        })),
+        overrideMemoryStats: vi.fn(async next => next),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+      }),
+      appendAuditLog: vi.fn(async () => {}),
+      getNow: () => 1_700_000_000_500,
+    })
+
+    const result = await runtime.runReplayBenchmark({
+      packId: 'default-humanlike-memory-v1',
+      sampleLimit: 4,
+      persistTelemetry: false,
+    })
+
+    expect(result.finalReplayGate.passed).toBe(false)
+    expect(result.finalReplayGate.failingKeys).toEqual(expect.arrayContaining([
+      'production-gold-sample-count',
+      'production-gold-coverage',
+    ]))
   })
 })

@@ -96,6 +96,8 @@ function scorePromotionEvidence(input: {
   support: ReturnType<typeof buildSupportEvidence>
 }) {
   let score = 0
+  if (input.source === 'rule-shadow')
+    score -= 0.32
   if (input.source === 'rule')
     score += 0.32
   if (isBoundaryLike(input.fact.predicate))
@@ -165,6 +167,8 @@ function deriveWorkingKnowledgeStage(input: {
     return input.fact.knowledgeStage
   if (input.existing?.knowledgeStage === 'internalized-long-horizon-knowledge')
     return 'internalized-long-horizon-knowledge'
+  if (input.source === 'rule-shadow')
+    return 'ephemeral-observation'
   const evidence = scorePromotionEvidence(input)
   const correctionPressure = input.support.conflictingSiblings.length > 0
     && input.fact.confidence >= 0.8
@@ -217,6 +221,8 @@ function deriveSourceLabel(input: {
 }) {
   if (typeof input.fact.sourceLabel === 'string' && input.fact.sourceLabel.trim())
     return sanitizeText(input.fact.sourceLabel, 160)
+  if (input.source === 'rule-shadow')
+    return 'shadow-rule-extraction'
   if (input.validationStatus === 'validated' && input.support.priorValidated)
     return input.source === 'async-llm' ? 'async-memory-reconfirmation' : 'runtime-outcome-reconfirmation'
   if (input.support.conflictingSiblings.length > 0)

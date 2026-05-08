@@ -3,8 +3,12 @@ import type { Message } from '@xsai/shared-chat'
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMainGatewayReachabilitySnapshot } from './main-gateway-health'
+import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
 import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
+
+import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { buildAlicizationVisibleReplyRealizationArtifact } from './visible-reply/facade'
 
 function isAbortLikeError(error: unknown) {
   return typeof error === 'object'
@@ -187,6 +191,28 @@ interface HandleAlicizationMainChatRunFailureOptions {
     message: string
     payload: Record<string, unknown>
   }) => Promise<void> | void
+  turnRuntimeContext?: AlicizationTurnRuntimeContext | null
+}
+
+function settleRecoveredVisibleReply(input: {
+  turnRuntimeContext?: AlicizationTurnRuntimeContext | null
+  recoveredReply: AlicizationResolvedVisibleReply
+}) {
+  if (!input.turnRuntimeContext)
+    return
+  const turnRuntime = createAlicizationTurnRuntime()
+  const surface = buildAlicizationVisibleReplyRealizationArtifact({
+    fullText: input.recoveredReply.fullText,
+    visibleReplyExecution: input.recoveredReply.visibleReplyExecution,
+  })
+  turnRuntime.settleSurface({
+    context: input.turnRuntimeContext,
+    surface,
+  })
+  turnRuntime.settleDelivery({
+    context: input.turnRuntimeContext,
+    surface,
+  })
 }
 
 export async function handleAlicizationMainChatRunFailure(input: HandleAlicizationMainChatRunFailureOptions) {
@@ -264,6 +290,10 @@ export async function handleAlicizationMainChatRunFailure(input: HandleAlicizati
         const recoveredText = recoveryResult.recoveredReply.fullText
         const effectiveRecoveryMode = recoveryResult.recoveryMode || input.timeoutRecoveryMode
         if (recoveredText) {
+          settleRecoveredVisibleReply({
+            turnRuntimeContext: input.turnRuntimeContext,
+            recoveredReply: recoveryResult.recoveredReply,
+          })
           if (input.isRunActive())
             await input.emitRecoveredText(recoveryResult.recoveredReply)
 

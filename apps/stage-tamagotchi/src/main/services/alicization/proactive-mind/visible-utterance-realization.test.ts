@@ -57,6 +57,29 @@ describe('proactive visible utterance realization', () => {
     }))
   })
 
+  it('holds explicitly whitelisted deterministic callback continuity as infra-only state', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'execution-callback',
+      structured: {
+        format: 'subconscious-proactive-v1',
+        reply: '我把这条结果接回来了：callback fallback mirror ok。',
+      },
+      hasMindAuthoredStructured: false,
+      allowDeterministicVisibleFallback: true,
+      actualVisibleReplyAuthority: 'local-deterministic-fallback',
+      reason: 'execution-callback-visible-fallback-blocked:provider-unavailable',
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(false)
+    expect(resolved.assistantText).toBe('')
+    expect(resolved.structuredForPersistence).toBeNull()
+    expect(resolved.visibleReplyExecution).toEqual(expect.objectContaining({
+      mode: 'local-fallback',
+      actualVisibleReplyAuthority: 'local-deterministic-fallback',
+      providerMindExecuted: false,
+    }))
+  })
+
   it('does not persist empty provider payloads as successful mind-authored speech', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',

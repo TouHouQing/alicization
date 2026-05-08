@@ -78,17 +78,22 @@ const basePatch = {
 } as any
 
 describe('self evolution version runtime', () => {
-  it('activates safe candidates immediately and keeps traceable version metadata', () => {
+  it('keeps every candidate in shadow until replay and production gold gates pass', () => {
     const candidate = buildAlicizationSelfEvolutionVersionCandidate({
       event: baseEvent,
       patch: basePatch,
       now: 100,
     })
 
-    expect(candidate.status).toBe('active')
-    expect(candidate.activatedAt).toBe(100)
+    expect(candidate.status).toBe('shadow')
+    expect(candidate.activatedAt).toBeNull()
     expect(candidate.validation.rollbackSupported).toBe(false)
     expect(candidate.decisionTraceId).toBe('trace-1')
+    expect(candidate.validation.activationBlockedReasons).toEqual(expect.arrayContaining([
+      'self-evolution:shadow-replay-required',
+      'self-evolution:final-replay-gate-required',
+      'self-evolution:production-gold-required',
+    ]))
   })
 
   it('keeps risky candidates in shadow until replay validation and supports rollback', () => {
@@ -121,6 +126,9 @@ describe('self evolution version runtime', () => {
       snapshot,
       candidateId: candidate.id,
       replayPassed: false,
+      finalReplayGatePassed: false,
+      productionGoldSampleCount: 0,
+      productionGoldCoverage: 0,
       now: 120,
     })
     const rolledBack = rollbackAlicizationSelfEvolutionCandidate({
@@ -135,6 +143,32 @@ describe('self evolution version runtime', () => {
     expect(failed.candidates[0]?.status).toBe('rejected')
     expect(rolledBack.candidates[0]?.status).toBe('rolled-back')
     expect(rolledBack.candidates[0]?.validation.activationBlockedReasons).toContain('rollback:replay-regression')
+  })
+
+  it('activates shadow candidates only after replay and production gold gates pass', () => {
+    const candidate = buildAlicizationSelfEvolutionVersionCandidate({
+      event: baseEvent,
+      patch: basePatch,
+      now: 100,
+    })
+    const snapshot = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
+      candidates: [candidate],
+    })
+    const validated = applyAlicizationSelfEvolutionReplayValidation({
+      snapshot,
+      candidateId: candidate.id,
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 8,
+      productionGoldCoverage: 1,
+      now: 120,
+    })
+
+    expect(validated.candidates[0]?.status).toBe('active')
+    expect(validated.candidates[0]?.activatedAt).toBe(120)
+    expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:shadow-replay-required')
+    expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:final-replay-gate-required')
+    expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:production-gold-required')
   })
 
   it('persists proposals through the runtime adapter', async () => {
@@ -152,8 +186,8 @@ describe('self evolution version runtime', () => {
       patch: basePatch,
     })
 
-    expect(candidate.status).toBe('active')
-    expect((await runtime.getSnapshot()).activeCandidateId).toBe(candidate.id)
+    expect(candidate.status).toBe('shadow')
+    expect((await runtime.getSnapshot()).activeCandidateId).toBeNull()
   })
 
   it('exposes the active state patch for downstream memory and reply policy consumers', async () => {
@@ -169,6 +203,14 @@ describe('self evolution version runtime', () => {
     const candidate = await runtime.propose({
       event: baseEvent,
       patch: basePatch,
+    })
+
+    await runtime.validate({
+      candidateId: candidate.id,
+      replayPassed: true,
+      finalReplayGatePassed: true,
+      productionGoldSampleCount: 4,
+      productionGoldCoverage: 1,
     })
 
     expect((await runtime.getActiveCandidate())?.id).toBe(candidate.id)

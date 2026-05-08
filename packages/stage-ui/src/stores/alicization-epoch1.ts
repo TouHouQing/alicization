@@ -710,7 +710,11 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
         : batch.flatMap(item => extractRuleFacts({
             userText: item.userText,
             replyText: item.assistantText,
-          }))
+          }).map(fact => ({
+            ...fact,
+            confidence: Math.min(0.42, fact.confidence),
+          })))
+      const factSource = llmFacts.length > 0 ? 'async-llm' : 'rule-shadow'
 
       const batchPriority = {
         max: Math.max(...batch.map(item => item.priority)),
@@ -720,7 +724,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
 
       if (facts.length > 0) {
         const traceCandidate = batch.find(item => Boolean(item.decisionTraceId)) ?? batch[0]
-        await upsertFacts(facts, 'async-llm', {
+        await upsertFacts(facts, factSource, {
           trace: {
             decisionTraceId: traceCandidate?.decisionTraceId ?? null,
             turnId: traceCandidate?.turnId ?? null,
@@ -729,6 +733,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
             trigger,
             batchSize: batch.length,
             extractedCount: facts.length,
+            extractionSource: factSource,
             batchPriority,
           },
         })
@@ -745,6 +750,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
           batchPriority,
           extractedCount: facts.length,
           llmExtractedCount: llmFacts.length,
+          factSource,
           remainingCount: pendingAsyncExtractionTurns.value.length,
         },
       })

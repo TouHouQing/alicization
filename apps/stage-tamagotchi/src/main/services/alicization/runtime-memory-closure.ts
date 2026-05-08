@@ -1,5 +1,6 @@
 import type {
   AlicizationEpisodicEventInput,
+  AlicizationMemorySource,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
 
@@ -87,7 +88,7 @@ interface CreateAlicizationRuntimeMemoryClosureOptions {
       predicate: string
       object: string
       confidence: number
-      source: 'rule' | 'async-llm'
+      source: AlicizationMemorySource
       dedupeKey: string
       createdAt: number
       updatedAt: number

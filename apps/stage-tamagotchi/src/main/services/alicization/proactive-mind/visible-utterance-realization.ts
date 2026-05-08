@@ -32,6 +32,7 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   kind: AlicizationProactiveVisibleUtteranceKind
   structured: Record<string, unknown> | null | undefined
   hasMindAuthoredStructured: boolean
+  actualVisibleReplyAuthority?: AlicizationVisibleReplyExecution['actualVisibleReplyAuthority']
   reason?: string | null
   allowDeterministicVisibleFallback?: boolean
   expectedVisibleReplyAuthority?: AlicizationVisibleReplyExecution['expectedVisibleReplyAuthority']
@@ -39,6 +40,9 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
 }) {
   const reply = readVisibleReply(input.structured)
   const hasMindAuthoredVisibleText = input.hasMindAuthoredStructured && Boolean(reply)
+  const actualVisibleReplyAuthority = hasMindAuthoredVisibleText
+    ? input.actualVisibleReplyAuthority ?? 'llm-mind'
+    : 'local-deterministic-fallback'
   const decisionReason = hasMindAuthoredVisibleText
     ? input.reason ?? `mind-authored-${input.kind}`
     : input.hasMindAuthoredStructured
@@ -50,10 +54,15 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     reason: decisionReason,
     selfRevisionPatch: input.selfRevisionPatch ?? null,
   })
+  const persistedVisibleReplyAuthority = actualVisibleReplyAuthority === 'llm-second-pass-rewrite'
+    ? 'llm-second-pass-rewrite'
+    : actualVisibleReplyAuthority === 'local-deterministic-fallback'
+      ? 'local-deterministic-fallback'
+      : 'llm-mind'
   const visibleReplyExecution = createAlicizationVisibleReplyExecution({
     mode: hasMindAuthoredVisibleText ? 'provider-one-shot' : 'local-fallback',
     expectedVisibleReplyAuthority: input.expectedVisibleReplyAuthority ?? 'llm-mind',
-    actualVisibleReplyAuthority: hasMindAuthoredVisibleText ? 'llm-mind' : 'local-deterministic-fallback',
+    actualVisibleReplyAuthority,
     providerMindExecuted: hasMindAuthoredVisibleText,
     reason: decision.reason,
   })
@@ -61,10 +70,10 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
     fullText: stringifyStructuredForRealization(input.structured),
     visibleReplyExecution,
   })
-  const structuredForPersistence = decision.shouldPersistVisibleUtterance && input.structured
+  const structuredForPersistence: (Record<string, unknown> & { reply?: unknown }) | null = decision.shouldPersistVisibleUtterance && input.structured
     ? {
         ...input.structured,
-        visibleReplyAuthority: 'llm-mind',
+        visibleReplyAuthority: persistedVisibleReplyAuthority,
         replyRealizationMode: 'provider-mind-required',
         visibleReplyExecution,
         visibleReplyRealization,

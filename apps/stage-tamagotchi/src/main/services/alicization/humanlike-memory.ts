@@ -2,15 +2,18 @@ import type {
   AlicizationEpisodicEventRecord,
   AlicizationHostPersonModelSnapshot,
   AlicizationMemoryFact,
-  AlicizationMemoryProvenance,
-  AlicizationMemorySource,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationRelationshipOutcomeRecord,
-  AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+
+import {
+  formatAlicizationMemoryProvenanceLabel,
+  mapAlicizationFragmentSourceKindToProvenance,
+  mapAlicizationMemorySourceToProvenance,
+} from '@proj-alicization/stage-shared'
 
 const dayMs = 24 * 60 * 60 * 1000
 
@@ -57,33 +60,11 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 6) {
   return result
 }
 
-export function mapMemorySourceToProvenance(source: AlicizationMemorySource): AlicizationMemoryProvenance {
-  return source === 'async-llm' ? 'inferred' : 'remembered'
-}
+export const mapMemorySourceToProvenance = mapAlicizationMemorySourceToProvenance
 
-export function mapFragmentSourceKindToProvenance(sourceKind: AlicizationSubconsciousFragmentSourceKind): AlicizationMemoryProvenance {
-  if (sourceKind === 'dream-fragment')
-    return 'dreamt'
-  if (sourceKind === 'visual-sediment' || sourceKind === 'dialogue-turn')
-    return 'remembered'
-  if (sourceKind === 'reflection-ledger' || sourceKind === 'fact-ledger')
-    return 'inferred'
-  if (sourceKind === 'former-core-incarnation' || sourceKind === 'mind-continuity')
-    return 'reconstructed'
-  return 'remembered'
-}
+export const mapFragmentSourceKindToProvenance = mapAlicizationFragmentSourceKindToProvenance
 
-export function formatMemoryProvenanceLabel(provenance: AlicizationMemoryProvenance) {
-  if (provenance === 'observed')
-    return 'observed'
-  if (provenance === 'dreamt')
-    return 'dreamt'
-  if (provenance === 'inferred')
-    return 'inferred'
-  if (provenance === 'reconstructed')
-    return 'reconstructed'
-  return 'remembered'
-}
+export const formatMemoryProvenanceLabel = formatAlicizationMemoryProvenanceLabel
 
 export function summarizeRelationshipShift(shift: AlicizationEpisodicEventRecord['relationshipShift']) {
   if (!shift)

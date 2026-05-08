@@ -16,6 +16,31 @@ export const alicizationTurnGraphCanonicalStageOrder = [
 ] as const
 
 export type AlicizationTurnGraphStage = typeof alicizationTurnGraphCanonicalStageOrder[number]
+export type AlicizationTurnGraphStageStatus = 'pending' | 'completed' | 'blocked' | 'failed' | 'skipped'
+
+export interface AlicizationTurnGraphStageSettlement {
+  version: 'turn-graph-stage-settlement-v1'
+  stage: AlicizationTurnGraphStage
+  status: AlicizationTurnGraphStageStatus
+  startedAt: number | null
+  endedAt: number | null
+  latencyMs: number | null
+  inputSummary: string[]
+  outputSummary: string[]
+  reasonCodes: string[]
+  error: string | null
+}
+
+export interface AlicizationTurnGraphClosure {
+  version: 'turn-graph-closure-v1'
+  status: 'complete' | 'incomplete'
+  completedStages: AlicizationTurnGraphStage[]
+  missingStages: AlicizationTurnGraphStage[]
+  blockedStages: AlicizationTurnGraphStage[]
+  failedStages: AlicizationTurnGraphStage[]
+  closureCoverage: number
+  firstIncompleteStage: AlicizationTurnGraphStage | null
+}
 
 export interface AlicizationTurnGraph {
   version: 'turn-graph-v1'
@@ -54,6 +79,9 @@ export interface AlicizationTurnGraph {
   learning: {
     selfEvolutionKernelVersion: string | null
     nextLearningAction: string | null
+    activeSelfRevisionPatchId: string | null
+    activeSelfRevisionDecisionTraceId: string | null
+    activeSelfEvolutionCandidateId: string | null
     memoryOutcome: {
       usedCandidateIds: string[]
       surfacedCandidateIds: string[]
@@ -67,9 +95,84 @@ export interface AlicizationTurnGraph {
     canonicalStageOrder: AlicizationTurnGraphStage[]
     phaseOrder: string[]
   }
+  stageSettlements: AlicizationTurnGraphStageSettlement[]
+  closure: AlicizationTurnGraphClosure
 }
 
-export function buildAlicizationTurnGraph(input: {
+function normalizeSummaryLines(values: Array<string | null | undefined>, limit = 6) {
+  const result: string[] = []
+  for (const value of values) {
+    const normalized = typeof value === 'string'
+      ? value.trim().replace(/\s+/g, ' ')
+      : ''
+    if (!normalized || result.includes(normalized))
+      continue
+    result.push(normalized.slice(0, 220))
+    if (result.length >= limit)
+      break
+  }
+  return result
+}
+
+function createStageSettlement(input: {
+  stage: AlicizationTurnGraphStage
+  status: AlicizationTurnGraphStageStatus
+  startedAt?: number | null
+  endedAt?: number | null
+  latencyMs?: number | null
+  inputSummary?: Array<string | null | undefined>
+  outputSummary?: Array<string | null | undefined>
+  reasonCodes?: Array<string | null | undefined>
+  error?: string | null
+}): AlicizationTurnGraphStageSettlement {
+  const startedAt = Number.isFinite(input.startedAt) ? Number(input.startedAt) : null
+  const endedAt = Number.isFinite(input.endedAt) ? Number(input.endedAt) : null
+  const latencyMs = Number.isFinite(input.latencyMs)
+    ? Math.max(0, Number(input.latencyMs))
+    : startedAt != null && endedAt != null
+      ? Math.max(0, endedAt - startedAt)
+      : null
+  return {
+    version: 'turn-graph-stage-settlement-v1',
+    stage: input.stage,
+    status: input.status,
+    startedAt,
+    endedAt,
+    latencyMs,
+    inputSummary: normalizeSummaryLines(input.inputSummary ?? []),
+    outputSummary: normalizeSummaryLines(input.outputSummary ?? []),
+    reasonCodes: normalizeSummaryLines(input.reasonCodes ?? [], 10),
+    error: input.error ?? null,
+  }
+}
+
+function buildTurnGraphClosure(settlements: AlicizationTurnGraphStageSettlement[]): AlicizationTurnGraphClosure {
+  const settlementByStage = new Map(settlements.map(settlement => [settlement.stage, settlement]))
+  const completedStages = alicizationTurnGraphCanonicalStageOrder.filter((stage) => {
+    const status = settlementByStage.get(stage)?.status
+    return status === 'completed' || status === 'skipped'
+  })
+  const blockedStages = alicizationTurnGraphCanonicalStageOrder.filter(stage => settlementByStage.get(stage)?.status === 'blocked')
+  const failedStages = alicizationTurnGraphCanonicalStageOrder.filter(stage => settlementByStage.get(stage)?.status === 'failed')
+  const missingStages = alicizationTurnGraphCanonicalStageOrder.filter((stage) => {
+    const status = settlementByStage.get(stage)?.status
+    return status !== 'completed' && status !== 'skipped'
+  })
+  const closureCoverage = Number((completedStages.length / alicizationTurnGraphCanonicalStageOrder.length).toFixed(2))
+
+  return {
+    version: 'turn-graph-closure-v1',
+    status: missingStages.length === 0 ? 'complete' : 'incomplete',
+    completedStages,
+    missingStages,
+    blockedStages,
+    failedStages,
+    closureCoverage,
+    firstIncompleteStage: missingStages[0] ?? null,
+  }
+}
+
+export function buildAlicizationTurnGraphFromSettlements(input: {
   prepared: AlicizationPreparedMainChatExecutionResult
   cardId: string
   turnId: string
@@ -81,7 +184,22 @@ export function buildAlicizationTurnGraph(input: {
   memory: AlicizationMemoryTurnArtifact | null
   surface?: AlicizationVisibleReplyRealizationArtifact | null
   routingRequired: boolean
+  stageSettlements: AlicizationTurnGraphStageSettlement[]
+  activeSelfRevision?: {
+    patchId?: string | null
+    decisionTraceId?: string | null
+    candidateId?: string | null
+  } | null
 }): AlicizationTurnGraph {
+  const stageByName = new Map(input.stageSettlements.map(settlement => [settlement.stage, settlement]))
+  const orderedSettlements = alicizationTurnGraphCanonicalStageOrder.map((stageName) => {
+    return stageByName.get(stageName)
+      ?? createStageSettlement({
+        stage: stageName,
+        status: 'pending',
+        reasonCodes: ['turn-os-stage-not-settled'],
+      })
+  })
   const governance = input.prepared.governance ?? null
   const selfEvolution = input.prepared.organicMemoryContext?.selfEvolution ?? null
 
@@ -122,6 +240,9 @@ export function buildAlicizationTurnGraph(input: {
     learning: {
       selfEvolutionKernelVersion: selfEvolution?.version ?? null,
       nextLearningAction: selfEvolution?.nextLearningAction ?? null,
+      activeSelfRevisionPatchId: input.activeSelfRevision?.patchId ?? null,
+      activeSelfRevisionDecisionTraceId: input.activeSelfRevision?.decisionTraceId ?? null,
+      activeSelfEvolutionCandidateId: input.activeSelfRevision?.candidateId ?? null,
       memoryOutcome: {
         usedCandidateIds: input.memory?.candidates.selectedCandidateIds ?? [],
         surfacedCandidateIds: input.memory?.visibleMemoryGate.status === 'open' || input.memory?.visibleMemoryGate.status === 'gist-only'
@@ -139,15 +260,32 @@ export function buildAlicizationTurnGraph(input: {
       canonicalStageOrder: [...alicizationTurnGraphCanonicalStageOrder],
       phaseOrder: input.prepared.sessionTrace.phaseOrder ?? [],
     },
+    stageSettlements: orderedSettlements,
+    closure: buildTurnGraphClosure(orderedSettlements),
   }
 }
 
-export function attachAlicizationTurnGraphSurface(input: {
-  turnGraph: AlicizationTurnGraph
-  surface: AlicizationVisibleReplyRealizationArtifact | null
+export function createAlicizationTurnGraphStageSettlementForRuntime(input: {
+  stage: AlicizationTurnGraphStage
+  status: AlicizationTurnGraphStageStatus
+  startedAt?: number | null
+  endedAt?: number | null
+  latencyMs?: number | null
+  inputSummary?: Array<string | null | undefined>
+  outputSummary?: Array<string | null | undefined>
+  reasonCodes?: Array<string | null | undefined>
+  error?: string | null
 }) {
-  return {
-    ...input.turnGraph,
-    surface: input.surface ?? null,
-  } satisfies AlicizationTurnGraph
+  return createStageSettlement(input)
+}
+
+export function isAlicizationTurnGraphClosed(turnGraph: AlicizationTurnGraph | null | undefined) {
+  return turnGraph?.version === 'turn-graph-v1'
+    && turnGraph.closure?.status === 'complete'
+    && alicizationTurnGraphCanonicalStageOrder.every(stage =>
+      turnGraph.stageSettlements?.some(settlement =>
+        settlement.stage === stage
+        && (settlement.status === 'completed' || settlement.status === 'skipped'),
+      ),
+    )
 }

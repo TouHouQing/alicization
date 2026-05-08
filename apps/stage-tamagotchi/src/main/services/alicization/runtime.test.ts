@@ -4953,6 +4953,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       .find(entry => entry.category === 'alicization.dialogue' && entry.action === 'mind-governance-takeover')
     expect(takeoverAudit?.payload?.replyOverridden).toBe(false)
     expect(takeoverAudit?.payload?.soft_repair_applied).toBe(true)
+    expect(takeoverAudit?.payload?.local_repair_candidate_blocked).toBe(false)
     expect(String(takeoverAudit?.payload?.soft_repair_reason ?? '')).toContain('removed-roleplay-preface')
     expect(takeoverAudit?.payload?.reasons).toContain('dialogue-first-visible-reply-soft-repaired')
     expect(String(takeoverAudit?.payload?.answer_intent_after ?? '')).not.toContain('Answer the host')
@@ -9184,32 +9185,29 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
     expect(startResult.accepted).toBe(true)
 
+    let dispatchPayloads: any[] = []
     await vi.waitFor(() => {
-      expect(fakeIpcMainEvent.sender.send).toHaveBeenCalled()
+      dispatchPayloads = fakeIpcMainEvent.sender.send.mock.calls
+        .filter(([channel]) => channel === alicizationChatStreamDispatchChannel)
+        .map(([, payload]) => payload)
+      expect(dispatchPayloads.some(payload => payload?.eventType === 'finish')).toBe(true)
     })
-
-    expect(fakeIpcMainEvent.sender.send).toHaveBeenCalledWith(
-      alicizationChatStreamDispatchChannel,
-      expect.objectContaining({
-        eventType: 'chunk',
-        body: expect.objectContaining({
-          cardId: 'default',
-          turnId,
-          text: 'sender-bound-chunk',
-        }),
+    const chunkDispatch = dispatchPayloads.find(payload => payload?.eventType === 'chunk')
+    const finishDispatch = dispatchPayloads.find(payload => payload?.eventType === 'finish')
+    expect(chunkDispatch).toEqual(expect.objectContaining({
+      body: expect.objectContaining({
+        cardId: 'default',
+        turnId,
+        text: 'sender-bound-chunk',
       }),
-    )
-    expect(fakeIpcMainEvent.sender.send).toHaveBeenCalledWith(
-      alicizationChatStreamDispatchChannel,
-      expect.objectContaining({
-        eventType: 'finish',
-        body: expect.objectContaining({
-          cardId: 'default',
-          turnId,
-          status: 'completed',
-        }),
+    }))
+    expect(finishDispatch).toEqual(expect.objectContaining({
+      body: expect.objectContaining({
+        cardId: 'default',
+        turnId,
+        status: 'completed',
       }),
-    )
+    }))
   })
 
   it('aborts running main chat stream with exactly one aborted finish event', async () => {
@@ -12573,9 +12571,48 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'architecture=mode=acting; proactive mind notices the current coding interruption point',
+            emotion: 'thinking',
+            reply: '这里像是报错刚冒出来，我先轻轻提醒你别漏掉这一处。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
     })
 
     const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
@@ -12598,7 +12635,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(['low', 'medium', 'high']).toContain(proactiveEvent?.structured.proactive?.urgency)
     expect(Array.isArray(proactiveEvent?.structured.proactive?.reasonCodes)).toBe(true)
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
-      action: 'proactive-llm-fallback',
+      action: 'proactive-llm-generated',
       payload: expect.objectContaining({
         agentRuntime: expect.objectContaining({
           digitalLifeArchitecture: expect.objectContaining({
@@ -12610,7 +12647,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     }))
   })
 
-  it('feeds deterministic proactive continuity into the next dream prompt', async () => {
+  it('feeds deferred proactive continuity into the next dream prompt without emitting fake visible speech', async () => {
     const sandboxPath = await createSandboxPath()
     const dreamSystemTexts: string[] = []
     foregroundWindowSample = {
@@ -12693,19 +12730,18 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     })
 
     const tickResult = await forceTick!({ cardId: 'default' })
-    expect(tickResult.proactiveTriggered).toContain('default')
+    expect(tickResult.proactiveTriggered).toHaveLength(0)
 
     const proactiveEvent = getDialogueRespondedEvents().find(event => event.structured?.proactive)
-    expect(proactiveEvent?.sessionId).toBe('session-proactive-fallback-mirror')
-    expect(proactiveEvent?.structured.format).toBe('subconscious-proactive-v1')
+    expect(proactiveEvent).toBeUndefined()
 
     dbStub.listConversationTurnsSince.mockResolvedValue([
       {
         turnId: 'turn-dream-proactive-fallback-source',
         sessionId: 'session-proactive-fallback-mirror',
         userText: '你刚才是不是在提醒我',
-        assistantText: proactiveEvent?.structured.reply ?? '我先轻轻提醒一句，你可以回头确认一下。',
-        structuredJson: JSON.stringify({ emotion: proactiveEvent?.structured.emotion ?? 'thinking' }),
+        assistantText: '',
+        structuredJson: null,
         createdAt: Date.now() - 10_000,
       },
     ])
@@ -12718,11 +12754,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
     expect(dreamSystemTexts).toHaveLength(1)
     expect(dreamSystemTexts[0]).toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
     expect(dreamSystemTexts[0]).toContain('conversation_session_id=session-proactive-fallback-mirror')
-    expect(dreamSystemTexts[0]).toContain('tooling=source=proactive')
+    expect(dreamSystemTexts[0]).toContain('proactive:coding:deferred')
+    expect(dreamSystemTexts[0]).toContain('no mind-authored visible reply was available')
+    expect(dreamSystemTexts[0]).toContain('tooling=source=proactive-deferred')
     expect(dreamSystemTexts[0]).toContain('agency=action=')
     expect(dreamSystemTexts[0]).toContain('perception=watch=')
     expect(dreamSystemTexts[0]).toContain('digital_life_runtime=')
-    expect(dreamSystemTexts[0]).toMatch(/continuity_labels=.*proactive:[^,\n]+:pending/)
+    expect(dreamSystemTexts[0]).toMatch(/continuity_labels=.*proactive:[^,\n]+:deferred/)
   })
 
   it('applies explicit dismiss feedback and suppresses the next same-scenario proactive tick', async () => {
@@ -12741,9 +12779,48 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'coding proactive nudge should be short and grounded',
+            emotion: 'thinking',
+            reply: '这个错误先别放过去，我轻轻提醒你看一眼。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
     })
 
     const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
@@ -12825,6 +12902,26 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             explicit_demoted_thoughts: [],
             new_sediment_fragments: [],
             shattering_event: null,
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'coding proactive nudge before explicit dismiss feedback',
+            emotion: 'thinking',
+            reply: '这里我先轻轻提醒一句，别漏掉这个错误点。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
           }),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -12914,9 +13011,48 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       lastSavedAt: Date.now() - 60_000,
       updatedAt: Date.now() - 60_000,
     }))
+    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+      const systemText = Array.isArray(messages)
+        ? messages
+            .filter(message => message.role === 'system')
+            .map(message => String(message.content ?? ''))
+            .join('\n\n')
+        : ''
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'positive feedback window starts after mind-authored proactive utterance',
+            emotion: 'thinking',
+            reply: '这个错误先看一下，我会说得很短。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+      await onEvent?.({ type: 'text-delta', text: '{}' })
+      await onEvent?.({ type: 'finish', finishReason: 'stop' })
+    })
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
     })
 
     const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
@@ -12990,6 +13126,13 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             thought: '先轻推一下宿主把错误处理掉',
             emotion: 'concerned',
             reply: '先把这个错误处理掉。',
+            performance: {
+              baseEmotion: 'concerned',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
           }),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -12998,7 +13141,7 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
       if (userText.includes('好，我知道了')) {
         mainChatSystemText = systemText
-        await onEvent?.({ type: 'text-delta', text: '收到，我们继续。' })
+        await onEvent?.({ type: 'text-delta', text: '我们继续看刚才这条线。' })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
       }
@@ -13009,6 +13152,16 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
 
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
+    })
+    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      providerCredentials: {
+        openai: {
+          apiKey: 'test-key',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      },
     })
 
     const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
@@ -13089,6 +13242,26 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
             explicit_demoted_thoughts: [],
             new_sediment_fragments: [],
             shattering_event: null,
+          }),
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: JSON.stringify({
+            thought: 'reply feedback dream starts from mind-authored proactive utterance',
+            emotion: 'thinking',
+            reply: '这个错误我轻轻提醒你一下，先别漏过去。',
+            performance: {
+              baseEmotion: 'thinking',
+              facialCue: null,
+              actionCue: null,
+              delivery: 'calm',
+              emphasis: 0,
+            },
           }),
         })
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -13181,9 +13354,48 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         lastSavedAt: Date.now() - 60_000,
         updatedAt: Date.now() - 60_000,
       }))
+      streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+        const systemText = Array.isArray(messages)
+          ? messages
+              .filter(message => message.role === 'system')
+              .map(message => String(message.content ?? ''))
+              .join('\n\n')
+          : ''
+        if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+          await onEvent?.({
+            type: 'text-delta',
+            text: JSON.stringify({
+              thought: 'mind-authored proactive utterance opens ignored feedback window',
+              emotion: 'thinking',
+              reply: '这个 diff 我轻轻提醒你看一眼。',
+              performance: {
+                baseEmotion: 'thinking',
+                facialCue: null,
+                actionCue: null,
+                delivery: 'calm',
+                emphasis: 0,
+              },
+            }),
+          })
+          await onEvent?.({ type: 'finish', finishReason: 'stop' })
+          return
+        }
+        await onEvent?.({ type: 'text-delta', text: '{}' })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      })
 
       await setupAlicizationRuntime({
         userDataPathOverride: sandboxPath,
+      })
+      await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o-mini',
+        providerCredentials: {
+          openai: {
+            apiKey: 'test-key',
+            baseUrl: 'https://api.openai.com/v1',
+          },
+        },
       })
 
       const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
@@ -13225,6 +13437,35 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
         lastSavedAt: Date.now() - 60_000,
         updatedAt: Date.now() - 60_000,
       }))
+      streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
+        const systemText = Array.isArray(messages)
+          ? messages
+              .filter(message => message.role === 'system')
+              .map(message => String(message.content ?? ''))
+              .join('\n\n')
+          : ''
+        if (systemText.includes('[SYSTEM OVERRIDE: 内部动机触发]')) {
+          await onEvent?.({
+            type: 'text-delta',
+            text: JSON.stringify({
+              thought: 'mind-authored proactive utterance opens ignored dream feedback window',
+              emotion: 'thinking',
+              reply: '这个 diff 我先轻轻提醒你一下。',
+              performance: {
+                baseEmotion: 'thinking',
+                facialCue: null,
+                actionCue: null,
+                delivery: 'calm',
+                emphasis: 0,
+              },
+            }),
+          })
+          await onEvent?.({ type: 'finish', finishReason: 'stop' })
+          return
+        }
+        await onEvent?.({ type: 'text-delta', text: '{}' })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+      })
 
       await setupAlicizationRuntime({
         userDataPathOverride: sandboxPath,
@@ -13242,6 +13483,16 @@ describe('alicization runtime sandbox + genesis lifecycle', () => {
       await setActiveSession!({
         cardId: 'default',
         sessionId: 'session-proactive-ignored-dream',
+      })
+      await syncLlmConfig!({
+        activeProviderId: 'openai',
+        activeModelId: 'gpt-4o-mini',
+        providerCredentials: {
+          openai: {
+            apiKey: 'test-key',
+            baseUrl: 'https://api.openai.com/v1',
+          },
+        },
       })
 
       await forceTick!({ cardId: 'default' })

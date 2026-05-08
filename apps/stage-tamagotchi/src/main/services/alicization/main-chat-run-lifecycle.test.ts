@@ -10,6 +10,7 @@ import {
   normalizeAlicizationMainChatAbortReason,
   shouldRecordAlicizationMainGatewayGenerationTimeout,
 } from './main-chat-run-lifecycle'
+import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
 function createRecoveredReply(fullText: string): any {
   return {
@@ -191,6 +192,39 @@ describe('main chat run lifecycle', () => {
       finishReason: 'timeout-recovered',
       fullText: 'recovered reply',
     })
+  })
+
+  it('writes recovered timeout reply receipt into turn runtime context before finishing', async () => {
+    const controller = new AbortController()
+    controller.abort('chat-first-event-timeout')
+    const turnRuntime = createAlicizationTurnRuntime({
+      now: () => 1000,
+    })
+    const turnRuntimeContext = turnRuntime.beginTurn({
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      governance: {
+        decisionTraceId: 'trace-1',
+      },
+    })
+    const input = createBaseInput({
+      error: controller.signal.reason,
+      controller,
+      turnRuntimeContext,
+      recoverFromTimeout: vi.fn(async () => ({
+        recoveredReply: createRecoveredReply('recovered reply'),
+        recoveryMode: 'non-streaming' as const,
+      })),
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    const surfaceSettlement = turnRuntimeContext.stageSettlements.find(item => item.stage === 'surface')
+    const deliverySettlement = turnRuntimeContext.stageSettlements.find(item => item.stage === 'delivery')
+    expect(surfaceSettlement?.status).toBe('completed')
+    expect(surfaceSettlement?.outputSummary).toContain('expected=llm-mind')
+    expect(deliverySettlement?.status).toBe('completed')
+    expect(deliverySettlement?.outputSummary).toContain('visible-text-settled')
   })
 
   it('records active dialogue compact recovery as its own success mode', async () => {

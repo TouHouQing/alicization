@@ -1,5 +1,7 @@
-import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
+import type { AlicizationEpisodicEventRecord, AlicizationMemoryProvenance } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
+
+import { pickDominantAlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
 
 type AlicizationMemoryRecollectionIntentSnapshot = NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
 
@@ -10,7 +12,7 @@ export interface AlicizationMemoryRecollectionWindow {
   startedAt: number
   endedAt: number
   confidence: number
-  dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+  dominantProvenance: AlicizationMemoryProvenance
   cues: string[]
 }
 
@@ -45,19 +47,7 @@ function buildDayKey(timestamp: number) {
   return new Date(timestamp).toISOString().slice(0, 10)
 }
 
-function pickDominantProvenance(values: Array<'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'>) {
-  const order = ['observed', 'remembered', 'inferred', 'reconstructed', 'dreamt'] as const
-  let best: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' = 'remembered'
-  let bestScore = -1
-  for (const candidate of order) {
-    const score = values.filter(value => value === candidate).length
-    if (score > bestScore) {
-      best = candidate
-      bestScore = score
-    }
-  }
-  return best
-}
+const pickDominantProvenance = pickDominantAlicizationMemoryProvenance
 
 export function buildMemoryRecollectionWindows(input: {
   intent: AlicizationMemoryRecollectionIntentSnapshot | null | undefined
@@ -77,7 +67,7 @@ export function buildMemoryRecollectionWindows(input: {
     episodeCount: number
     conversationCount: number
     score: number
-    provenances: Array<'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'>
+    provenances: AlicizationMemoryProvenance[]
     cues: string[]
   }>()
 

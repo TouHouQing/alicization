@@ -6,7 +6,7 @@ import type { AlicizationMemoryResolutionLedger } from './alicization-memory-res
 import type { AlicizationOrganicMemoryStageReplay } from './alicization-memory-stats'
 import type { AlicizationDialoguePerformancePayload, AlicizationEmotion } from './alicization-performance-contracts'
 
-export type AlicizationMemorySource = 'rule' | 'async-llm'
+export type AlicizationMemorySource = 'rule' | 'async-llm' | 'rule-shadow'
 export type AlicizationKnowledgeAssimilationStage
   = 'ephemeral-observation'
     | 'working-understanding'
@@ -96,6 +96,7 @@ export type AlicizationMemoryProvenance
     | 'dreamt'
     | 'inferred'
     | 'reconstructed'
+    | 'shadow'
 
 export type AlicizationMemoryTier = 'hot' | 'warm' | 'cold'
 
@@ -502,6 +503,7 @@ export interface AlicizationMemoryUpsertTrace {
   trigger?: 'batch' | 'idle' | 'force' | 'manual' | null
   batchSize?: number | null
   extractedCount?: number | null
+  extractionSource?: AlicizationMemorySource | null
   batchPriority?: {
     max: number
     min: number
@@ -1494,6 +1496,9 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     replyAuthorityAccuracy?: number
     latencyBudgetPass?: boolean
     sampleCount?: number
+    productionGoldSampleCount?: number
+    syntheticGoldSampleCount?: number
+    productionGoldCoverage?: number
   }
 }
 
@@ -1620,6 +1625,9 @@ export interface AlicizationFinalReplayGateReportRecord {
     misinternalizationRate?: number | null
     sampleCount?: number | null
     minimumSampleCount?: number
+    productionGoldSampleCount?: number | null
+    minimumProductionGoldSampleCount?: number
+    productionGoldCoverage?: number | null
   }
 }
 

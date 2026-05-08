@@ -46,6 +46,7 @@ describe('visible reply semantic judge', () => {
       'semantic-judge:template-shell-risk',
       'semantic-judge:memory-gate-violation',
       'semantic-judge:unsupported-specificity',
+      'semantic-judge:llm-structured-required',
     ]))
     expect(artifact.scores.memoryUseCorrectness).toBeLessThan(0.72)
     expect(artifact.scores.specificityDiscipline).toBeLessThan(0.72)

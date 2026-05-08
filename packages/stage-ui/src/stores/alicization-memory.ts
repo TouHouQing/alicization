@@ -8,6 +8,7 @@ import type {
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
+import { mapAlicizationMemorySourceToProvenance } from '@proj-alicization/stage-shared'
 
 import { storage } from '../database/storage'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
@@ -66,9 +67,7 @@ function now() {
   return Date.now()
 }
 
-function mapMemorySourceToProvenance(source: AlicizationMemorySource) {
-  return source === 'async-llm' ? 'inferred' : 'remembered'
-}
+const mapMemorySourceToProvenance = mapAlicizationMemorySourceToProvenance
 
 function buildDedupeKey(subject: string, predicate: string, object: string) {
   return `${subject.trim().toLowerCase()}|${predicate.trim().toLowerCase()}|${object.trim().toLowerCase()}`

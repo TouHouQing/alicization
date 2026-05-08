@@ -3,6 +3,36 @@ import { buildAutobiographicalEpisodeFragment } from './autobiographical-episode
 import { adjustProactiveStyleFromHostPersonModel, inferHostSocialContextsFromText } from './host-social-guidance'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
 
+function buildDeferredProactiveContinuitySignal(input: {
+  now: number
+  turnId: string
+  scenario: string
+  reason: string
+}) {
+  return {
+    kind: 'proactive' as const,
+    state: 'observed' as const,
+    label: `proactive:${input.scenario || 'general'}:deferred`,
+    summary: [
+      'a proactive interruption was deferred because no mind-authored visible reply was available',
+      input.reason ? `reason=${input.reason}` : '',
+      `scenario=${input.scenario || 'general'}`,
+    ].filter(Boolean).join(' | '),
+    signature: [
+      'proactive-deferred',
+      input.turnId,
+      input.scenario || 'general',
+    ].join(':'),
+    createdAt: input.now,
+    metadata: {
+      source: 'proactive-deferred',
+      turnId: input.turnId,
+      scenario: input.scenario || 'general',
+      reason: input.reason || null,
+    },
+  }
+}
+
 export function createAlicizationSubconsciousTickRuntime(options: any) {
   const {
     getActiveCardId,
@@ -807,6 +837,20 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         })
         if (!proactiveVisibleUtterance.shouldPersistVisibleUtterance) {
           proactive = false
+          syncAgentTurnSessionMirror({
+            agentTurn: backgroundAgentTurn,
+            cardId: activeCardId,
+            continuitySignals: [
+              buildDeferredProactiveContinuitySignal({
+                now,
+                turnId,
+                scenario: structured?.proactive?.scenario ?? decision.scenario,
+                reason: proactiveVisibleUtterance.decision.reason,
+              }),
+            ],
+            sessionId: await ensureActiveOrLatestSessionId(activeCardId),
+            source: 'proactive-deferred',
+          })
           await appendAuditLog({
             level: 'warning',
             category: 'alicization.subconscious',

@@ -12,6 +12,7 @@ describe('final replay gates', () => {
         templateLeakageFailCount: 0,
         unsupportedSpecificityVisibleFailCount: 0,
         turnOsTraceCoverage: 1,
+        turnOsTraceClosureCoverage: 1,
         learningOutcomeToSelfRevisionRoundtrip: 1,
         memoryClosureCoverage: 1,
         memoryClosureConflictClosureRate: 1,
@@ -30,6 +31,8 @@ describe('final replay gates', () => {
       authorityLeakCount: 0,
       localHumanlikeVisibleFallbackCount: 0,
       sampleCount: 12,
+      productionGoldSampleCount: 12,
+      productionGoldCoverage: 1,
     })
 
     expect(report.passed).toBe(true)
@@ -45,6 +48,7 @@ describe('final replay gates', () => {
         templateLeakageFailCount: 2,
         unsupportedSpecificityVisibleFailCount: 1,
         turnOsTraceCoverage: 0.9,
+        turnOsTraceClosureCoverage: 0.8,
         learningOutcomeToSelfRevisionRoundtrip: 0.5,
         memoryClosureCoverage: 0.8,
         memoryClosureConflictClosureRate: 0.5,
@@ -63,6 +67,8 @@ describe('final replay gates', () => {
       authorityLeakCount: 1,
       localHumanlikeVisibleFallbackCount: 3,
       sampleCount: 0,
+      productionGoldSampleCount: 0,
+      productionGoldCoverage: 0,
     })
 
     expect(report.passed).toBe(false)
@@ -74,7 +80,7 @@ describe('final replay gates', () => {
       'authority-leak',
       'local-humanlike-visible-fallback',
       'unsupported-specificity-visible',
-      'turn-os-trace-coverage',
+      'turn-os-trace-closure-coverage',
       'learning-self-revision-roundtrip',
       'memory-closure-coverage',
       'memory-closure-conflict',
@@ -90,6 +96,8 @@ describe('final replay gates', () => {
       'continuity-participation',
       'learning-misinternalization',
       'minimum-sample-count',
+      'production-gold-sample-count',
+      'production-gold-coverage',
     ]))
   })
 
@@ -99,6 +107,8 @@ describe('final replay gates', () => {
       authorityLeakCount: 0,
       localHumanlikeVisibleFallbackCount: 0,
       sampleCount: 12,
+      productionGoldSampleCount: 0,
+      productionGoldCoverage: 0,
     })
 
     expect(report.passed).toBe(false)
@@ -108,7 +118,7 @@ describe('final replay gates', () => {
       'wrong-thread-rate',
       'template-leakage',
       'unsupported-specificity-visible',
-      'turn-os-trace-coverage',
+      'turn-os-trace-closure-coverage',
       'learning-self-revision-roundtrip',
       'memory-closure-coverage',
       'claim-accuracy',
@@ -120,6 +130,8 @@ describe('final replay gates', () => {
       'relationship-participation',
       'continuity-participation',
       'learning-misinternalization',
+      'production-gold-sample-count',
+      'production-gold-coverage',
     ]))
   })
 })

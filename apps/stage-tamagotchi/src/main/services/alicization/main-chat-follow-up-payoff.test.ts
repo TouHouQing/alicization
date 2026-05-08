@@ -64,7 +64,7 @@ describe('main chat follow-up payoff', () => {
       ],
       decision: {
         lane: 'follow-up',
-        strategy: 'local-only',
+        strategy: 'infra-fallback-only',
         timeoutMs: 0,
         resolvedTimeZone: 'Asia/Shanghai',
         resolvedTimeZoneSource: 'context-hint',
@@ -133,7 +133,7 @@ describe('main chat follow-up payoff', () => {
       ],
       decision: {
         lane: 'follow-up',
-        strategy: 'local-only',
+        strategy: 'infra-fallback-only',
         timeoutMs: 0,
         resolvedTimeZone: 'Asia/Shanghai',
         resolvedTimeZoneSource: 'context-hint',

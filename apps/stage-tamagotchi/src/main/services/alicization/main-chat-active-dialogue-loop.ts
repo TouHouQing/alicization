@@ -72,7 +72,7 @@ export type AlicizationActiveDialogueFastPathLane
     | 'dialogue'
 
 export type AlicizationActiveDialogueFastPathStrategy
-  = | 'local-only'
+  = | 'infra-fallback-only'
     | 'compact-one-shot'
 
 export class AlicizationActiveDialogueMindAuthorityEscalationError extends Error {
@@ -222,11 +222,6 @@ function buildCompactPersonaProfileBlock(personaKernel: AlicizationPersonaKernel
       mindAge: personaKernel.profile.mindAge,
     }),
   ].join('\n')
-}
-
-function quoteExcerpt(text: string, maxChars = 72) {
-  const excerpt = sanitizeText(text, maxChars)
-  return excerpt ? `「${excerpt}」` : ''
 }
 
 function normalizeConversationMessages(messages: Message[]) {
@@ -1943,50 +1938,11 @@ function buildMindAuthorityInfraFallbackText(decision: AlicizationActiveDialogue
   }
 }
 
-function buildExecutionRecoveryReply(input: {
-  latestUserText: string
-  previousUserText: string
-  sessionMirror?: AlicizationDialogueSessionMirror | null
-  runtimeDigest?: AlicizationRuntimeDigest | null
-}) {
+function buildExecutionRecoveryReply() {
   const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages()
-  const anchor = quoteExcerpt(
-    sanitizeText(input.latestUserText, 96)
-      || sanitizeText(input.previousUserText, 96)
-      || humanizeMirrorSummary(input.sessionMirror?.executionSummary)
-      || humanizeMirrorSummary(input.runtimeDigest?.activeLoop?.summary),
-    72,
+  throw new AlicizationActiveDialogueMindAuthorityEscalationError(
+    `active-dialogue-execution-recovery-requires-provider-mind:${resolvedTimeZone.timezone}`,
   )
-  const reply = anchor
-    ? `如果还是 ${anchor} 这件事，你要我重新执行，还是把结果补全，我都直接接着做。`
-    : '如果还是刚才那件事，你要我重新执行，还是把结果补全，我都直接接着做。'
-  const decision = {
-    lane: 'follow-up',
-    strategy: 'local-only',
-    timeoutMs: 0,
-    resolvedTimeZone: resolvedTimeZone.timezone,
-    resolvedTimeZoneSource: resolvedTimeZone.source,
-    latestUserText: input.latestUserText,
-    previousUserText: input.previousUserText,
-    previousAssistantText: '',
-    continuityAnchor: sanitizeText(input.latestUserText || input.previousUserText, 96),
-    preparedExecutionCarryText: '',
-    runtimeDigest: input.runtimeDigest ?? null,
-    sessionMirror: input.sessionMirror ?? null,
-    governance: null,
-    personaKernel: null,
-    reasonCodes: ['execution-recovery'],
-  } satisfies AlicizationActiveDialogueFastPathDecision
-  return buildAlicizationActiveDialogueGovernedReply({
-    decision,
-    moves: [
-      {
-        kind: 'direct-reply',
-        text: reply,
-      },
-    ],
-    delivery: 'firm',
-  })
 }
 
 export function buildAlicizationActiveDialogueGovernedReply(input: {
@@ -2002,7 +1958,7 @@ export function buildAlicizationActiveDialogueGovernedReply(input: {
 }) {
   const governance = buildFastPathGovernance(
     input.decision,
-    input.visibleReplyAuthority ?? (input.decision.strategy === 'local-only' ? 'llm-second-pass-rewrite' : 'llm-mind'),
+    input.visibleReplyAuthority ?? (input.decision.strategy === 'infra-fallback-only' ? 'llm-second-pass-rewrite' : 'llm-mind'),
   )
   const governedThought = buildFastPathGovernedThought(input.decision, governance)
   const moves = input.moves?.length
@@ -2060,17 +2016,16 @@ function buildDecisionLocalReply(decision: AlicizationActiveDialogueFastPathDeci
 function allowsDeterministicVisibleReplyForDecision(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy'>,
 ) {
-  if (decision.strategy !== 'local-only')
+  if (decision.strategy !== 'infra-fallback-only')
     return false
   return decision.lane === 'utility-time'
     || decision.lane === 'utility-date'
-    || decision.lane === 'follow-up'
 }
 
-function canUseDeterministicInfraFallbackForLane(
-  lane: AlicizationActiveDialogueFastPathLane,
+function isInfraFallbackOnlyDecision(
+  decision: Pick<AlicizationActiveDialogueFastPathDecision, 'strategy'>,
 ) {
-  return lane === 'utility-time' || lane === 'utility-date'
+  return decision.strategy === 'infra-fallback-only'
 }
 
 function appendFastPathReasonCode(reasonCodes: string[], code: string) {
@@ -2083,12 +2038,9 @@ function coerceInfraFallbackDecision(
   if (allowsDeterministicVisibleReplyForDecision(decision))
     return decision
 
-  if (!canUseDeterministicInfraFallbackForLane(decision.lane))
-    return decision
-
   return {
     ...decision,
-    strategy: 'local-only',
+    strategy: 'infra-fallback-only',
     timeoutMs: 0,
     reasonCodes: appendFastPathReasonCode(
       decision.reasonCodes,
@@ -2100,7 +2052,7 @@ function coerceInfraFallbackDecision(
 export function shouldAlicizationActiveDialogueStayLLMAuthored(
   decision: Pick<AlicizationActiveDialogueFastPathDecision, 'lane' | 'strategy' | 'reasonCodes'>,
 ) {
-  if (decision.strategy === 'local-only')
+  if (isInfraFallbackOnlyDecision(decision))
     return false
 
   if (
@@ -2150,7 +2102,7 @@ function normalizeCompactReplyPayload(
 ) {
   const localFallbackMode = options?.localFallbackMode
     ?? (allowsDeterministicVisibleReplyForDecision(decision) ? 'allow' : 'escalate')
-  // NOTICE: Explicit `local-only` decisions are infra-only fallback lanes.
+  // NOTICE: Explicit `infra-fallback-only` decisions are infra-only fallback lanes.
   // Any other strategy must escalate instead of silently synthesizing a local
   // visible reply, otherwise deterministic fallback would leak back into the
   // normal reply authority surface.
@@ -2279,7 +2231,7 @@ export function deriveAlicizationActiveDialogueFastPathDecision(
     && recollectionIntent.mode !== 'none'
     && (recollectionIntent.searchConversations || recollectionIntent.searchProceduralExperience || recollectionIntent.mode === 'autobiographical-history' || recollectionIntent.mode === 'relationship-history')
   const adjustedEncounter = memoryHeavyRecollection && (
-    encounter.strategy === 'local-only'
+    encounter.strategy === 'infra-fallback-only'
     || encounter.kind === 'follow-up'
   )
     ? {
@@ -2360,16 +2312,11 @@ export function buildAlicizationActiveDialogueFallbackReply(
   input: AlicizationActiveDialogueReplyInput,
 ) {
   const normalizedConversationMessages = normalizeConversationMessages(input.conversationMessages)
+  if (input.actionKind === 'execute' || input.actionKind === 'continue-task') {
+    return buildExecutionRecoveryReply()
+  }
   const latestUserText = readLatestUserText(normalizedConversationMessages)
   const previousUserText = readPreviousUserText(normalizedConversationMessages)
-  if (input.actionKind === 'execute' || input.actionKind === 'continue-task') {
-    return buildExecutionRecoveryReply({
-      latestUserText,
-      previousUserText,
-      runtimeDigest: input.runtimeDigest ?? null,
-      sessionMirror: input.sessionMirror ?? null,
-    })
-  }
 
   const preparedLike = {
     waitForTools: false,
@@ -2393,7 +2340,7 @@ export function buildAlicizationActiveDialogueFallbackReply(
       const resolvedTimeZone = resolveAlicizationTimeZoneFromMessages(normalizedConversationMessages)
       return {
         lane: 'dialogue',
-        strategy: 'local-only',
+        strategy: 'infra-fallback-only',
         timeoutMs: 0,
         resolvedTimeZone: resolvedTimeZone.timezone,
         resolvedTimeZoneSource: resolvedTimeZone.source,

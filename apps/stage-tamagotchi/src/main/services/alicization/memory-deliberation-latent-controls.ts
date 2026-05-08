@@ -1,3 +1,4 @@
+import type { AlicizationMemoryProvenance } from '../../../shared/eventa'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
 import { clamp01 } from './runtime-soul'
@@ -9,13 +10,14 @@ export interface AlicizationMemoryDeliberationLatentControls {
   relationshipVector: 'neutral' | 'threaded' | 'procedural' | 'relational'
   procedureCarryStrength: number
   conflictBurden: 'none' | 'low' | 'medium' | 'high'
-  dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+  dominantProvenance: AlicizationMemoryProvenance
   provenancePosture:
     | 'observed-memory'
     | 'remembered-memory'
     | 'reconstructed-memory'
     | 'dream-residue'
     | 'inferred-pattern'
+    | 'shadow-memory'
     | 'mixed-memory'
   detailAssertionBudget: 'open' | 'guarded' | 'minimal'
   surfacePermission: 'inward-only' | 'soft-surface' | 'explicit-surface'
@@ -132,9 +134,9 @@ export function deriveMemoryDeliberationLatentControls(input: {
     ? explicitConflictSeverity
     : input.deliberation.selectedEpisodes.some(item => item.provenance === 'reconstructed')
       ? 'medium'
-      : input.deliberation.selectedEpisodes.some(item => item.provenance === 'dreamt' || item.provenance === 'inferred')
-        ? 'low'
-        : 'none'
+    : input.deliberation.selectedEpisodes.some(item => item.provenance === 'dreamt' || item.provenance === 'inferred' || item.provenance === 'shadow')
+      ? 'low'
+      : 'none'
   const surfacePermission = input.shouldStayInward
     ? 'inward-only'
     : input.speech?.placement === 'before-payoff' || input.deliberation.surfacePolicy === 'answer-anchoring'
@@ -150,17 +152,19 @@ export function deriveMemoryDeliberationLatentControls(input: {
   const unsafeDetails = input.deliberation.unsafeDetails ?? []
   const ambiguityPosture = input.deliberation.ambiguityPosture ?? 'settled'
   const episodeProvenances = [...new Set(input.deliberation.selectedEpisodes.map(item => item.provenance))]
-  const dominantProvenance = episodeProvenances.includes('reconstructed')
+  const dominantProvenance: AlicizationMemoryProvenance = episodeProvenances.includes('reconstructed')
     ? 'reconstructed'
-    : episodeProvenances.includes('dreamt')
-      ? 'dreamt'
-      : episodeProvenances.includes('inferred')
-        ? 'inferred'
-        : episodeProvenances.includes('observed')
-          ? 'observed'
-          : episodeProvenances.includes('remembered')
-            ? 'remembered'
-            : 'remembered'
+    : episodeProvenances.includes('shadow')
+      ? 'shadow'
+      : episodeProvenances.includes('dreamt')
+        ? 'dreamt'
+        : episodeProvenances.includes('inferred')
+          ? 'inferred'
+          : episodeProvenances.includes('observed')
+            ? 'observed'
+            : episodeProvenances.includes('remembered')
+              ? 'remembered'
+              : 'remembered'
   const provenancePosture = episodeProvenances.length > 1
     ? 'mixed-memory'
     : dominantProvenance === 'observed'
@@ -171,8 +175,10 @@ export function deriveMemoryDeliberationLatentControls(input: {
           ? 'dream-residue'
           : dominantProvenance === 'inferred'
             ? 'inferred-pattern'
-            : 'reconstructed-memory'
-  const detailAssertionBudget = conflictBurden === 'high' || dominantProvenance === 'dreamt' || dominantProvenance === 'inferred'
+            : dominantProvenance === 'shadow'
+              ? 'shadow-memory'
+              : 'reconstructed-memory'
+  const detailAssertionBudget = conflictBurden === 'high' || dominantProvenance === 'dreamt' || dominantProvenance === 'inferred' || dominantProvenance === 'shadow'
     ? 'minimal'
     : conflictBurden === 'medium' || dominantProvenance === 'reconstructed' || episodeProvenances.length > 1
       ? 'guarded'
@@ -193,7 +199,7 @@ export function deriveMemoryDeliberationLatentControls(input: {
           ? 'approximate'
           : agenda?.uncertaintyTolerance === 'low' && certaintyPosture === 'firm'
             ? 'approximate'
-            : (dominantProvenance === 'dreamt' || dominantProvenance === 'inferred') && certaintyPosture !== 'fragmentary'
+            : (dominantProvenance === 'dreamt' || dominantProvenance === 'inferred' || dominantProvenance === 'shadow') && certaintyPosture !== 'fragmentary'
                 ? 'fragmentary'
                 : dominantProvenance === 'reconstructed' && certaintyPosture === 'firm'
                   ? 'approximate'

@@ -11,9 +11,11 @@ describe('humanlike memory helpers', () => {
   it('maps semantic and fragment sources into reply-visible provenance labels', () => {
     expect(mapMemorySourceToProvenance('rule')).toBe('remembered')
     expect(mapMemorySourceToProvenance('async-llm')).toBe('inferred')
+    expect(mapMemorySourceToProvenance('rule-shadow')).toBe('shadow')
     expect(mapFragmentSourceKindToProvenance('dream-fragment')).toBe('dreamt')
     expect(mapFragmentSourceKindToProvenance('former-core-incarnation')).toBe('reconstructed')
     expect(formatMemoryProvenanceLabel('observed')).toBe('observed')
+    expect(formatMemoryProvenanceLabel('shadow')).toBe('shadow')
   })
 
   it('builds a host person model from autobiographical episodes instead of raw attitude only', () => {

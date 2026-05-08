@@ -440,7 +440,7 @@ describe('main chat session runtime', () => {
       'session-continuity',
       'agent-session-context',
       'organic-memory-prewarm',
-      'organic-memory-context',
+      'memory-os-runtime',
       'performance-manifest',
       'card-directives',
       'host-name',
@@ -2586,6 +2586,12 @@ describe('main chat session runtime', () => {
           sourceSignals: ['The host corrected the old understanding.'],
           summary: 'A revision-shaped learning line is active for this turn.',
         } as any,
+        derivedMindStateBundle: {
+          activeSelfRevisionPatch: {
+            id: 'patch-turn-graph',
+            decisionTraceId: 'trace-self-revision',
+          },
+        } as any,
       })),
       resolveSessionContinuitySignals: vi.fn(async () => []),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -2623,6 +2629,21 @@ describe('main chat session runtime', () => {
     })
 
     expect(result.memoryTurnArtifact?.policySnapshotId).toBe('policy-turn-graph')
+    expect(result.memoryOsRuntime).toEqual(expect.objectContaining({
+      version: 'memory-os-turn-runtime-v1',
+      authority: 'memory-os',
+      adapterSource: 'memory-os-runtime',
+    }))
+    expect(result.memoryOsRuntime?.closure.status).toBe('complete')
+    expect(result.memoryOsRuntime?.stageSettlements.map(stage => stage.stage)).toEqual([
+      'recall-intent',
+      'candidate-retrieval',
+      'candidate-competition',
+      'memory-deliberation',
+      'speech-posture',
+      'memory-settlement',
+      'feedback-ledger',
+    ])
     expect(result.turnGraph.ids.turnId).toBe('turn-graph-smoke')
     expect(result.turnGraph.telemetry.canonicalStageOrder).toEqual([
       'encounter',
@@ -2637,11 +2658,26 @@ describe('main chat session runtime', () => {
     ])
     expect(result.turnGraph.memory?.recallIntent.shouldRecall).toBe(true)
     expect(result.turnGraph.memory?.visibleMemoryGate.status).toMatch(/^(open|gist-only|inward-only|closed)$/u)
+    expect(result.turnGraph.closure.status).toBe('incomplete')
+    expect(result.turnGraph.closure.missingStages).toContain('surface')
+    expect(result.turnGraph.stageSettlements.map(stage => stage.stage)).toEqual([
+      'encounter',
+      'conscious-frame',
+      'obligation',
+      'memory',
+      'deliberation',
+      'surface',
+      'delivery',
+      'learning',
+      'telemetry',
+    ])
     expect(result.messages.some(message =>
       message.role === 'system'
       && typeof message.content === 'string'
       && message.content.includes('[ALICIZATION_MEMORY_TURN_GOVERNANCE]'),
     )).toBe(true)
     expect(result.turnGraph.learning.nextLearningAction).toBe('reflect')
+    expect(result.turnGraph.learning.activeSelfRevisionPatchId).toBeNull()
+    expect(result.turnGraph.learning.activeSelfRevisionDecisionTraceId).toBeNull()
   })
 })

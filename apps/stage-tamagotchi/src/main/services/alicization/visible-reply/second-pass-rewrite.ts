@@ -340,7 +340,13 @@ export async function rewriteAlicizationVisibleReplySecondPass(
     turnId: input.turnId,
     userText: input.userText,
   })
-  const governed = coerceConversationTurnToMindGovernedPayload(candidateTurn, input.prepared.performanceManifest)
+  const governed = coerceConversationTurnToMindGovernedPayload(
+    candidateTurn,
+    input.prepared.performanceManifest,
+    {
+      dialogueFirstLocalRepairMode: 'rewrite-request-only',
+    },
+  )
   const governedStructured = normalizeStructuredObject(governed.payload.structured)
   const rewriteRequest = normalizeStructuredObject(governedStructured?.visibleReplyRewriteRequest)
   const effectiveRewriteRequest = rewriteRequest ?? (
@@ -417,7 +423,9 @@ export async function rewriteAlicizationVisibleReplySecondPass(
     assistantText: sanitizeText(rewrittenStructured.reply),
     structured: rewrittenStructured,
     governance: governed.governance ?? candidateTurn.governance,
-  }, input.prepared.performanceManifest)
+  }, input.prepared.performanceManifest, {
+    dialogueFirstLocalRepairMode: 'rewrite-request-only',
+  })
   const verifiedStructured = {
     ...(normalizeStructuredObject(verified.payload.structured) ?? rewrittenStructured),
     thought: rewrittenStructured.thought,

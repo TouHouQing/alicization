@@ -195,7 +195,7 @@ export interface OrganicMemoryPromptContext {
     startedAt: number
     endedAt: number
     confidence: number
-    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    dominantProvenance: AlicizationEpisodicEventRecord['provenance']
     cues: string[]
   }>
   consolidatedMemories?: Array<{
@@ -209,7 +209,7 @@ export interface OrganicMemoryPromptContext {
     lesson: string | null
     cues: string[]
     confidence: number
-    dominantProvenance: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed'
+    dominantProvenance: AlicizationEpisodicEventRecord['provenance']
     derivedEventIds: string[]
     updatedAt: number
     memoryTier?: 'hot' | 'warm' | 'cold' | null

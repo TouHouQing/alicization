@@ -45,21 +45,13 @@ export function decideAlicizationProactiveVisibleUtterance(input: {
     }
   }
 
-  if (input.allowDeterministicVisibleFallback === true) {
-    return {
-      version: 'proactive-visible-utterance-policy-v1',
-      shouldPersistVisibleUtterance: false,
-      requiresMindAuthoredText: false,
-      action: 'hold',
-      reason: input.reason ?? 'explicit-deterministic-visible-fallback-held',
-    }
-  }
-
   return {
     version: 'proactive-visible-utterance-policy-v1',
     shouldPersistVisibleUtterance: false,
     requiresMindAuthoredText: true,
-    action: 'requeue',
-    reason: input.reason ?? 'proactive-visible-utterance-requires-provider-mind',
+    action: input.allowDeterministicVisibleFallback === true ? 'hold' : 'requeue',
+    reason: input.allowDeterministicVisibleFallback === true
+      ? input.reason ?? 'deterministic-visible-fallback-held-infra-only'
+      : input.reason ?? 'proactive-visible-utterance-requires-provider-mind',
   }
 }

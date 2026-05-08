@@ -645,6 +645,9 @@ export interface StructuredOutputResult {
   format: 'mind-turn-v1' | 'fallback-v1'
   parsePath?: StructuredParsePath
   repairTimedOut?: boolean
+  visibleReplyBlocked?: boolean
+  nonHumanAuthoredStatus?: string | null
+  visibleReplyAuthority?: string | null
 }
 
 export interface StructuredValidationPersonalityState {

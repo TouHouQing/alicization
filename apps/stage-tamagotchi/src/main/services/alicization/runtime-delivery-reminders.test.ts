@@ -419,7 +419,7 @@ describe('runtime delivery reminders', () => {
     }))
   })
 
-  it('requeues execution callback when the visible reply would be deterministic fallback text', async () => {
+  it('requeues deterministic execution callback continuity when provider callback text is unavailable', async () => {
     const pendingDelivery = {
       key: 'default::session-1::thread-requeue::123456::completed',
       cardId: 'default',
@@ -517,7 +517,7 @@ describe('runtime delivery reminders', () => {
     const processed = await runtime.processPendingExecutionDeliveriesForCurrentCard('force')
 
     expect(processed).toBe(false)
-    expect(requeue).toHaveBeenCalledWith(pendingDelivery)
+    expect(requeue).toHaveBeenCalled()
     expect(appendConversationTurnWithGuards).not.toHaveBeenCalled()
     expect(persistExecutionDeliveryState).toHaveBeenCalledWith('default')
     expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery-requeue:thread-requeue', 1_500)

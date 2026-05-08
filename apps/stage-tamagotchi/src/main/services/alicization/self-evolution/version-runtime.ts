@@ -20,6 +20,9 @@ export interface AlicizationSelfEvolutionVersionCandidate {
     replayPassed: boolean | null
     rollbackSupported: boolean
     activationBlockedReasons: string[]
+    finalReplayGatePassed?: boolean | null
+    productionGoldSampleCount?: number | null
+    productionGoldCoverage?: number | null
   }
   activatedAt: number | null
   rolledBackAt: number | null
@@ -74,7 +77,9 @@ export function buildAlicizationSelfEvolutionVersionCandidate(input: {
   const rollbackSupported = input.patch.validation.rollbackPlan.length > 0
     || input.patch.validation.requiresRollbackCheck
   const activationBlockedReasons = uniqueList([
-    replayRequired ? 'self-evolution:shadow-replay-required' : null,
+    'self-evolution:shadow-replay-required',
+    'self-evolution:final-replay-gate-required',
+    'self-evolution:production-gold-required',
     input.event.verifier.mayInternalize === false ? 'self-evolution:not-internalizable-yet' : null,
     input.event.resultStatus === 'blocked' ? 'self-evolution:blocked-learning-result' : null,
     input.event.resultStatus === 'failed' ? 'self-evolution:failed-learning-result' : null,
@@ -84,18 +89,21 @@ export function buildAlicizationSelfEvolutionVersionCandidate(input: {
   return {
     version: 'self-evolution-version-candidate-v1',
     id: buildCandidateId(input),
-    status: activationBlockedReasons.length > 0 ? 'shadow' : 'active',
+    status: 'shadow',
     sourceEventId: input.event.id,
     decisionTraceId: input.event.decisionTraceId,
     sourceTurnId: input.event.sourceTurnId,
     patch: input.patch,
     validation: {
       replayRequired,
-      replayPassed: replayRequired ? null : true,
+      replayPassed: null,
       rollbackSupported,
       activationBlockedReasons,
+      finalReplayGatePassed: null,
+      productionGoldSampleCount: null,
+      productionGoldCoverage: null,
     },
-    activatedAt: activationBlockedReasons.length > 0 ? null : input.now,
+    activatedAt: null,
     rolledBackAt: null,
     createdAt: input.now,
   }
@@ -105,15 +113,34 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
   snapshot: AlicizationSelfEvolutionVersionRuntimeSnapshot
   candidateId: string
   replayPassed: boolean
+  finalReplayGatePassed?: boolean | null
+  productionGoldSampleCount?: number | null
+  productionGoldCoverage?: number | null
   now: number
 }) {
   const candidates = input.snapshot.candidates.map((candidate) => {
     if (candidate.id !== input.candidateId)
       return candidate
+    const finalReplayGatePassed = input.finalReplayGatePassed === true
+    const productionGoldSampleCount = Number.isFinite(input.productionGoldSampleCount)
+      ? Math.max(0, Math.floor(Number(input.productionGoldSampleCount)))
+      : null
+    const productionGoldCoverage = Number.isFinite(input.productionGoldCoverage)
+      ? Math.max(0, Math.min(1, Number(input.productionGoldCoverage)))
+      : null
     const activationBlockedReasons = input.replayPassed
-      ? candidate.validation.activationBlockedReasons.filter(reason => reason !== 'self-evolution:shadow-replay-required')
+      ? uniqueList([
+          ...candidate.validation.activationBlockedReasons
+            .filter(reason => reason !== 'self-evolution:shadow-replay-required')
+            .filter(reason => reason !== 'self-evolution:final-replay-gate-required')
+            .filter(reason => reason !== 'self-evolution:production-gold-required'),
+          finalReplayGatePassed ? null : 'self-evolution:final-replay-gate-required',
+          (productionGoldSampleCount ?? 0) > 0 && (productionGoldCoverage ?? 0) > 0
+            ? null
+            : 'self-evolution:production-gold-required',
+        ])
       : uniqueList([...candidate.validation.activationBlockedReasons, 'self-evolution:shadow-replay-failed'])
-    const canActivate = input.replayPassed && activationBlockedReasons.length === 0
+    const canActivate = input.replayPassed && finalReplayGatePassed && (productionGoldSampleCount ?? 0) > 0 && (productionGoldCoverage ?? 0) > 0 && activationBlockedReasons.length === 0
     return {
       ...candidate,
       status: canActivate ? 'active' as const : input.replayPassed ? 'shadow' as const : 'rejected' as const,
@@ -121,6 +148,9 @@ export function applyAlicizationSelfEvolutionReplayValidation(input: {
         ...candidate.validation,
         replayPassed: input.replayPassed,
         activationBlockedReasons,
+        finalReplayGatePassed,
+        productionGoldSampleCount,
+        productionGoldCoverage,
       },
       activatedAt: canActivate ? input.now : candidate.activatedAt,
     }
@@ -228,11 +258,17 @@ export function createAlicizationSelfEvolutionVersionRuntime(options: {
   async function validate(input: {
     candidateId: string
     replayPassed: boolean
+    finalReplayGatePassed?: boolean | null
+    productionGoldSampleCount?: number | null
+    productionGoldCoverage?: number | null
   }) {
     const next = applyAlicizationSelfEvolutionReplayValidation({
       snapshot: await getSnapshot(),
       candidateId: input.candidateId,
       replayPassed: input.replayPassed,
+      finalReplayGatePassed: input.finalReplayGatePassed,
+      productionGoldSampleCount: input.productionGoldSampleCount,
+      productionGoldCoverage: input.productionGoldCoverage,
       now: options.now(),
     })
     await options.writeSnapshot(next)

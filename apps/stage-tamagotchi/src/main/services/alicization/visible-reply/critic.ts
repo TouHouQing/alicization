@@ -84,6 +84,15 @@ function containsActionablePayoff(text: string) {
   return /(?:先|下一步|直接|可以|建议|做法|改|看|确认|处理|拆|执行|开始|继续|because|so|next|do|check|fix|use)/iu.test(text)
 }
 
+function isThinVisibleReply(text: string) {
+  const normalized = normalizeText(text)
+  if (!normalized)
+    return true
+  if (normalized.length < 4)
+    return true
+  return /^(?:嗯+|哦+|好+|收到|ok|okay|yes|no|是的|不是|知道了)[。.!?！？]*$/iu.test(normalized)
+}
+
 function replySatisfiesMindTurnContract(input: {
   text: string
   prepared: AlicizationPreparedMainChatExecutionResult
@@ -96,7 +105,7 @@ function replySatisfiesMindTurnContract(input: {
   const hasPayoff = contract.turnMode === 'care' || contract.responseMode === 'care-with-boundary'
     ? containsCarePayoff(text)
     : containsActionablePayoff(text)
-  if (!hasPayoff)
+  if (!hasPayoff && isThinVisibleReply(text))
     return false
 
   if (contract.maxSentences > 0) {
@@ -253,11 +262,15 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     visibleText,
     prepared: input.prepared,
   })
-  if (!semanticJudge.passed) {
+  if (semanticJudge.mode === 'llm-structured' && !semanticJudge.passed) {
     for (const reasonCode of semanticJudge.reasonCodes) {
       pushUnique(reasonCodes, reasonCode)
       pushUnique(repairReasonCodes, reasonCode)
     }
+  }
+  else if (semanticJudge.mode === 'heuristic-shadow') {
+    for (const reasonCode of semanticJudge.reasonCodes)
+      pushUnique(reasonCodes, reasonCode)
   }
 
   const scores = {
@@ -269,7 +282,7 @@ export function buildAlicizationVisibleReplyCriticArtifact(input: {
     mindContractCoherence: clamp01(reasonCodes.includes('mind-contract-not-closed') ? 0.25 : 1),
   }
   const blocked = reasonCodes.includes('non-human-authored-visible-reply')
-  const repairRequired = blocked || reasonCodes.length > 0
+  const repairRequired = blocked || repairReasonCodes.length > 0
 
   if (visibleText && !containsShellOpener(visibleText))
     pushUnique(mustPreserve, 'current-turn payoff and any safe LLM-authored substance')

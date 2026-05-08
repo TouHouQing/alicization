@@ -1,9 +1,12 @@
-import type { AlicizationRecallGovernorSnapshot } from '../../../shared/eventa'
+import type { AlicizationMemoryProvenance, AlicizationRecallGovernorSnapshot } from '../../../shared/eventa'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { MemoryClusterProbe, MemoryClusterState } from './runtime-organic-memory-prompt-types'
 
+import { isAlicizationWeakMemoryProvenance } from '@proj-alicization/stage-shared'
+
 type NegativeRecallSuppressionTag = 'self-model-stale' | 'relationship-era-confusion'
+type MemoryRankingProvenance = AlicizationMemoryProvenance
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -33,7 +36,7 @@ function deriveNegativeRecallSuppressionSignal(input: {
   recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null
   tuningAdvice: AlicizationMemoryTuningAdvice | null
   mode: 'consolidation' | 'window' | 'episode' | 'conversation'
-  provenance?: 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' | null
+  provenance?: MemoryRankingProvenance | null
 }) {
   const tuningAdvice = input.tuningAdvice ?? null
   if (!tuningAdvice)
@@ -45,9 +48,7 @@ function deriveNegativeRecallSuppressionSignal(input: {
     return { penalty: 0, tags: [] as NegativeRecallSuppressionTag[], reasons: [] as string[] }
 
   const normalized = normalizeRankingText(input.text)
-  const unreliableProvenance = input.provenance === 'reconstructed'
-    || input.provenance === 'dreamt'
-    || input.provenance === 'inferred'
+  const unreliableProvenance = isAlicizationWeakMemoryProvenance(input.provenance)
   const tags: NegativeRecallSuppressionTag[] = []
   const reasons: string[] = []
   let penalty = 0
@@ -86,7 +87,7 @@ function rankByNegativeRecallSuppression<T>(input: {
   tuningAdvice: AlicizationMemoryTuningAdvice | null
   mode: 'consolidation' | 'window' | 'episode' | 'conversation'
   toText: (item: T) => string
-  getProvenance?: ((item: T) => 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' | null) | undefined
+  getProvenance?: ((item: T) => MemoryRankingProvenance | null) | undefined
 }) {
   if (input.items.length <= 1 || !input.tuningAdvice)
     return input.items
@@ -163,7 +164,7 @@ export interface OrganicMemoryCandidateRankingHelpers {
     tuningAdvice: AlicizationMemoryTuningAdvice | null
     mode: 'consolidation' | 'window' | 'procedure' | 'episode' | 'conversation'
     toText: (item: T) => string
-    getProvenance?: ((item: T) => 'observed' | 'remembered' | 'dreamt' | 'inferred' | 'reconstructed' | null) | undefined
+    getProvenance?: ((item: T) => MemoryRankingProvenance | null) | undefined
   }) => T[]
   rankByRecollectionAgendaAffinity: <T>(input: {
     items: T[]

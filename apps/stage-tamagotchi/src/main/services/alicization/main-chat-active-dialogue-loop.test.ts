@@ -443,7 +443,7 @@ describe('main chat active dialogue loop', () => {
       conversationMessages: [
         { role: 'user', content: '你知道现在几点了吗' },
       ] as Message[],
-    })
+    }) as string
 
     const payload = JSON.parse(reply) as { reply: string }
     expect(payload.reply).toMatch(/现在是|这会儿是|此刻/u)
@@ -459,7 +459,7 @@ describe('main chat active dialogue loop', () => {
       conversationMessages: [
         { role: 'user', content: '后面按东京时间回答，现在几点了？' },
       ] as Message[],
-    })
+    }) as string
 
     const payload = JSON.parse(reply) as { reply: string }
     expect(payload.reply).toContain('东京时间')
@@ -474,7 +474,7 @@ describe('main chat active dialogue loop', () => {
       conversationMessages: [
         { role: 'user', content: '后面按东京时间回答，现在几点了？' },
       ] as Message[],
-    })
+    }) as string
     const firstPayload = JSON.parse(firstReply) as { reply: string }
 
     const secondReply = buildAlicizationActiveDialogueFallbackReply({
@@ -484,7 +484,7 @@ describe('main chat active dialogue loop', () => {
         { role: 'assistant', content: firstPayload.reply },
         { role: 'user', content: '你确定吗？' },
       ] as Message[],
-    })
+    }) as string
     const secondPayload = JSON.parse(secondReply) as { reply: string }
 
     expect(secondPayload.reply).toContain('东京时间')
@@ -501,7 +501,7 @@ describe('main chat active dialogue loop', () => {
         { role: 'assistant', content: '我看了下现在这一刻。现在是 18:45，星期二。' },
         { role: 'user', content: '为什么按北京时间回复我？' },
       ] as Message[],
-    })
+    }) as string
 
     const payload = JSON.parse(reply) as { reply: string }
     expect(payload.reply).toContain('因为')

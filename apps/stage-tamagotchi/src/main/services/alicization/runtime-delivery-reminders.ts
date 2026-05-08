@@ -9,6 +9,8 @@ import type { AlicizationPersonStateProjection } from './person-state-projection
 import type { AlicizationSelfContinuityAuthority } from './self-continuity-authority'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
+import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
+import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
@@ -618,13 +620,23 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           }
       const deliverySource = selectedReply.source
       const activeSelfRevisionPatch = await options.getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
+      const hasMindAuthoredCallbackSurface = Boolean(llmStructured) || selectedReply.source === 'llm-repaired'
+      const allowDeterministicCallbackVisibleFallback = selectedReply.source === 'deterministic'
       const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
         kind: 'execution-callback',
         structured,
-        hasMindAuthoredStructured: selectedReply.source === 'llm' && Boolean(llmStructured),
+        hasMindAuthoredStructured: hasMindAuthoredCallbackSurface,
+        actualVisibleReplyAuthority: selectedReply.source === 'llm'
+          ? 'llm-mind'
+          : hasMindAuthoredCallbackSurface
+            ? 'llm-second-pass-rewrite'
+            : allowDeterministicCallbackVisibleFallback
+              ? 'local-deterministic-fallback'
+              : undefined,
         reason: selectedReply.source === 'llm'
           ? 'mind-authored-execution-callback'
           : `execution-callback-visible-fallback-blocked:${selectedReply.reason ?? selectedReply.source}`,
+        allowDeterministicVisibleFallback: allowDeterministicCallbackVisibleFallback,
         selfRevisionPatch: activeSelfRevisionPatch,
       })
       await options.appendRuntimeDebugLine('execution-delivery.structured-selected', {
@@ -636,6 +648,13 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         source: deliverySource,
         surfaceReason: selectedReply.reason ?? null,
         policy: deliveryPolicy,
+        callbackVisibleUtterance: {
+          shouldPersistVisibleUtterance: callbackVisibleUtterance.shouldPersistVisibleUtterance,
+          assistantText: options.sanitizeBriefText(callbackVisibleUtterance.assistantText, 160),
+          structuredReply: options.sanitizeBriefText(String(callbackVisibleUtterance.structuredForPersistence?.reply ?? ''), 160),
+          decision: callbackVisibleUtterance.decision,
+          visibleReplyExecution: callbackVisibleUtterance.visibleReplyExecution,
+        },
       })
 
       if (!callbackVisibleUtterance.shouldPersistVisibleUtterance) {
@@ -664,13 +683,76 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       if (await skipIfInlineSurfaced('pre-persist'))
         return true
 
+      const turnRuntime = createAlicizationTurnRuntime()
+      const callbackTurnRuntimeContext = turnRuntime.beginTurn({
+        cardId: options.getActiveCardId(),
+        turnId: firedTurnId,
+        sessionId: pendingDelivery.sessionId,
+        governance: {
+          decisionTraceId: pendingDelivery.decisionTraceId ?? null,
+        },
+      })
+      turnRuntime.settleSurface({
+        context: callbackTurnRuntimeContext,
+        surface: callbackVisibleUtterance.visibleReplyRealization,
+      })
+
+      const callbackTurnGraph = buildAlicizationTurnGraphFromSettlements({
+        prepared: {
+          conversationSessionId: pendingDelivery.sessionId,
+          governance: null,
+          hasVisualGrounding: false,
+          waitForTools: false,
+          tools: undefined,
+          replyRealization: null,
+          replyExecutionPlan: null,
+          runtimeSurface: {
+            action: {
+              kind: 'answer',
+            },
+            tooling: {
+              routingRequired: false,
+            },
+          },
+          sessionTrace: {
+            phaseOrder: [],
+          },
+          organicMemoryContext: undefined,
+          memoryTurnArtifact: null,
+        } as any,
+        cardId: options.getActiveCardId(),
+        turnId: firedTurnId,
+        actionObligation: {
+          kind: 'answer',
+          summary: pendingDelivery.summary,
+          source: 'execution-callback',
+        },
+        memory: null,
+        surface: callbackVisibleUtterance.visibleReplyRealization,
+        routingRequired: false,
+        stageSettlements: callbackTurnRuntimeContext.stageSettlements,
+        activeSelfRevision: null,
+      })
+
       const persisted = await options.appendConversationTurnWithGuards({
         turnId: firedTurnId,
         sessionId: pendingDelivery.sessionId,
         assistantText: callbackVisibleUtterance.assistantText,
-        structured: callbackVisibleUtterance.structuredForPersistence,
+        structured: callbackVisibleUtterance.structuredForPersistence
+          ? {
+              ...callbackVisibleUtterance.structuredForPersistence,
+              turnGraph: callbackTurnGraph,
+            }
+          : callbackVisibleUtterance.structuredForPersistence,
         origin: 'subconscious-proactive',
         createdAt: Date.now(),
+        turnRuntimeContext: callbackTurnRuntimeContext,
+        onPersisted: async () => {
+          turnRuntime.settleDelivery({
+            context: callbackTurnRuntimeContext,
+            surface: callbackVisibleUtterance.visibleReplyRealization,
+          })
+        },
       })
       if (!persisted) {
         options.executionDeliveryRuntime.requeue(pendingDelivery)
