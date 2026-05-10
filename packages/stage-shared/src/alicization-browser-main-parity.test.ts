@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { deriveAlicizationBrowserMainParitySummary } from './alicization-browser-main-parity'
+import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('alicization-browser-main-parity', () => {
   it('passes when main and browser shared surfaces stay aligned', () => {
@@ -737,5 +738,39 @@ describe('alicization-browser-main-parity', () => {
         layer: 'learning-causal-chain',
       }),
     ]))
+  })
+
+  it('normalizes persistent body-kernel state fields without inventing second-mind authority', () => {
+    const state = normalizeAlicizationDerivedMindStateBundle({
+      source: 'browser-fallback',
+      producedAt: 1,
+      visualPresenceState: {
+        watchMode: 'symbiotic-vision',
+        updatedAt: 1,
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 120000,
+        currentInwardPreoccupation: 'host sustained focus',
+      },
+    })
+
+    expect(state?.visualPresenceState?.currentBodyState).toBe('idle')
+    expect(state?.visualPresenceState?.continuityMode).toBe('ambient-covision')
+    expect(state?.visualPresenceState?.currentInwardPreoccupation).toBe('host sustained focus')
+  })
+
+  it('keeps top-level bundle metadata strict when visual presence state is present', () => {
+    const state = normalizeAlicizationDerivedMindStateBundle({
+      visualPresenceState: {
+        watchMode: 'symbiotic-vision',
+        updatedAt: 1,
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 120000,
+        currentInwardPreoccupation: 'host sustained focus',
+      },
+    })
+
+    expect(state).toBeNull()
   })
 })

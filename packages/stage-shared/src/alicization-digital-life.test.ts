@@ -4,6 +4,7 @@ import {
   buildAlicizationDigitalLifeEnvelope,
   normalizeAlicizationDigitalLifeEnvelope,
 } from './alicization-digital-life'
+import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('alicization digital life', () => {
   it('builds a unified embodiment envelope with aligned segment frames', () => {
@@ -541,5 +542,39 @@ describe('alicization digital life', () => {
     expect(attunedEnvelope?.motor.body.lean).toBeGreaterThan(guardedEnvelope?.motor.body.lean ?? 0)
     expect(guardedEnvelope?.motor.stillness).toBeGreaterThan(attunedEnvelope?.motor.stillness ?? 0)
     expect(guardedEnvelope?.motor.facial.browTension).toBeGreaterThan(attunedEnvelope?.motor.facial.browTension ?? 0)
+  })
+
+  it('normalizes persistent body-kernel state fields without inventing second-mind authority', () => {
+    const state = normalizeAlicizationDerivedMindStateBundle({
+      source: 'browser-fallback',
+      producedAt: 1,
+      visualPresenceState: {
+        watchMode: 'symbiotic-vision',
+        updatedAt: 1,
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 120000,
+        currentInwardPreoccupation: 'host sustained focus',
+      },
+    })
+
+    expect(state?.visualPresenceState?.currentBodyState).toBe('idle')
+    expect(state?.visualPresenceState?.continuityMode).toBe('ambient-covision')
+    expect(state?.visualPresenceState?.currentInwardPreoccupation).toBe('host sustained focus')
+  })
+
+  it('keeps top-level bundle metadata strict when visual presence state is present', () => {
+    const state = normalizeAlicizationDerivedMindStateBundle({
+      visualPresenceState: {
+        watchMode: 'symbiotic-vision',
+        updatedAt: 1,
+        currentBodyState: 'idle',
+        continuityMode: 'ambient-covision',
+        quietLineMs: 120000,
+        currentInwardPreoccupation: 'host sustained focus',
+      },
+    })
+
+    expect(state).toBeNull()
   })
 })

@@ -117,6 +117,7 @@ import { inferHostSocialContextsFromText } from './host-social-guidance'
 import {
   buildDialogueTurnSemantics,
 } from './dialogue-turn-semantics'
+import { createAlicizationBodyKernel } from './body-kernel'
 import {
   buildAlicizationDigitalLifeRuntimeSurface,
 } from './digital-life-kernel'
@@ -125,7 +126,6 @@ import {
   deriveAlicizationDigitalLifeSpine,
 } from './digital-life-spine'
 import {
-  createAlicizationExecutionCallbackRuntime,
   emptyAlicizationExecutionCallbackContext,
 } from './execution-callback-runtime'
 import {
@@ -157,7 +157,6 @@ import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 import { createAbortError } from './main-chat-stream-primitives'
 import {
-  createAlicizationMemoryLedgerRuntime,
   emptyAlicizationExecutionLedgerContext,
 } from './memory-ledger-runtime'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
@@ -213,13 +212,9 @@ import {
 } from './runtime-chat-prompt-blocks'
 import { createAlicizationChatStreamRuntime } from './runtime-chat-stream'
 import { createAlicizationDeliveryReminderRuntime } from './runtime-delivery-reminders'
-import { createAlicizationLearningActionScheduler } from './learning-action-scheduler'
-import { normalizeAlicizationDerivedMindStateBundle } from '@proj-alicization/stage-shared'
-import { createAlicizationLearningActionExecutor } from './learning-action-executor'
 import {
-  type AlicizationSelfEvolutionVersionRuntimeSnapshot,
-} from './self-evolution/version-runtime'
-import { createAlicizationSelfEvolutionRuntime } from './self-evolution/runtime'
+  normalizeAlicizationDerivedMindStateBundle,
+} from '@proj-alicization/stage-shared'
 import { createAlicizationDreamRuntime } from './runtime-dream'
 import {
   buildAlicizationChatStreamEmbodimentMeta,
@@ -246,11 +241,11 @@ import { createAlicizationRuntimeCardScopeLifecycle } from './runtime-card-scope
 import { createAlicizationRuntimeCardScopeOrchestrator } from './runtime-card-scope-orchestrator'
 import { createAlicizationRuntimeCardScopeState } from './runtime-card-scope-state'
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
-import { createAlicizationRuntimeMemoryClosure } from './runtime-memory-closure'
 import { createAlicizationRuntimeMemoryRuntime } from './runtime-memory-runtime'
-import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
+import { createAlicizationRuntimeMemorySupportingComposition } from './runtime-memory-supporting-composition'
 import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
-import { createAlicizationRuntimeVisualPresenceState } from './runtime-visual-presence-state'
+import { createAlicizationRuntimeContinuityPresenceComposition } from './runtime-continuity-presence-composition'
+import { createAlicizationRuntimeSupportingRuntimesComposition } from './runtime-supporting-runtimes-composition'
 import { createAlicizationReplayBenchmarkRuntime } from './replay-benchmark-runtime'
 import { buildAlicizationMemoryDecisionTraceRecords } from '@proj-alicization/stage-shared'
 import {
@@ -278,7 +273,6 @@ import {
   normalizeReminderMessage,
   sanitizeBriefText,
 } from './runtime-realtime'
-import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 import {
   alicizationCardActiveSessionMetaKey,
   alicizationCardKillSwitchMetaKey,
@@ -386,7 +380,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       legacySparkProfilePath: join(soulRoot, 'spark-profile.json'),
     }
   }
-
   let activeCardId = defaultAlicizationCardId
   let { soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId)
   let alicizationDb = await setupAlicizationDb(userDataPath, { cardId: activeCardId })
@@ -763,38 +756,27 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         pendingMindTraceTelemetryByTurnId.delete(oldestKey)
     }
   }
-  const memoryLedgerRuntime = createAlicizationMemoryLedgerRuntime({
-    listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
-    listTaskThreads: input => alicizationDb.listTaskThreads(input),
-  })
-  const memoryRetrievalTelemetryRuntime = createAlicizationMemoryRetrievalTelemetryRuntime({
-    now: () => Date.now(),
-    key: 'memory_retrieval_telemetry_v1',
-    getMetaValue: async key => await alicizationDb.getMetaValue(key),
-    upsertMeta: async (key, value) => await alicizationDb.setMetaValue(key, value),
-    enqueueWrite: async task => await task(),
-  })
-  const selfEvolutionRuntime = createAlicizationSelfEvolutionRuntime({
-    now: () => Date.now(),
-    readSnapshot: async () => {
-      const raw = await alicizationDb.getMetaValue(alicizationSelfEvolutionVersionRuntimeMetaKey)
-      if (!raw)
-        return null
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object'
-        ? parsed as AlicizationSelfEvolutionVersionRuntimeSnapshot
-        : null
+  const {
+    memoryLedgerRuntime,
+    executionCallbackRuntime,
+    memoryRetrievalTelemetryRuntime,
+    getRecallFeedbackSummary,
+    selfEvolutionRuntime,
+  } = createAlicizationRuntimeSupportingRuntimesComposition({
+    execution: {
+      alicizationDb: {
+        listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
+        listTaskThreads: input => alicizationDb.listTaskThreads(input),
+      },
     },
-    writeSnapshot: async (snapshot) => {
-      await alicizationDb.setMetaValue(
-        alicizationSelfEvolutionVersionRuntimeMetaKey,
-        JSON.stringify(snapshot),
-      )
+    selfEvolution: {
+      now: () => Date.now(),
+      snapshotMetaKey: alicizationSelfEvolutionVersionRuntimeMetaKey,
+      alicizationDb: {
+        getMetaValue: key => alicizationDb.getMetaValue(key),
+        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+      },
     },
-  })
-  const executionCallbackRuntime = createAlicizationExecutionCallbackRuntime({
-    listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
-    listTaskThreads: input => alicizationDb.listTaskThreads(input),
   })
   const memoryRuntime = createAlicizationRuntimeMemoryRuntime({
     organicMemoryAccess: {
@@ -843,6 +825,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordMemoryBudgetClass: async budgetClass => await memoryRetrievalTelemetryRuntime.recordBudgetClass(budgetClass),
       recordMemoryHotKeyOutcome: async input => await memoryRetrievalTelemetryRuntime.recordHotKeyOutcome(input),
       getMemoryRetrievalTelemetry: async () => await memoryRetrievalTelemetryRuntime.getTelemetry(),
+      getRecallFeedbackSummary,
       getActiveSelfRevisionStatePatch: async () => await selfEvolutionRuntime.getActivePatch(),
     },
     organicMemorySearch: {
@@ -902,100 +885,109 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext,
   } = memoryRuntime
-  const executeLearningTask = createAlicizationLearningActionExecutor({
-    now: () => Date.now(),
-    cardId: activeCardId,
-    listMemoryFacts: () => alicizationDb.listMemoryFacts(),
-    listMemoryReflections: input => alicizationDb.listMemoryReflections(input),
-    listRelationshipOutcomes: input => alicizationDb.listRelationshipOutcomes(input),
-    upsertMemoryReflections: entries => alicizationDb.upsertMemoryReflections(entries),
-    applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
-    upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
-    appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
-    assimilateMemoryFactsDetailed: input => memoryRuntime.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed(input),
-    recordLearningExecutionTelemetry: input => memoryRetrievalTelemetryRuntime.recordLearningExecution(input),
-    proposeSelfEvolutionVersion: input => selfEvolutionRuntime.proposeVersion(input),
-  })
-  const learningActionScheduler = createAlicizationLearningActionScheduler({
-    now: () => Date.now(),
-    insertLearningTask: input => alicizationDb.insertLearningTask(input),
-    claimDueLearningTasks: (cardId, nowMs, limit) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit),
-    startLearningTask: (taskId, startedAt) => alicizationDb.startLearningTask(taskId, startedAt),
-    blockLearningTask: (taskId, input, updatedAt) => alicizationDb.blockLearningTask(taskId, input, updatedAt),
-    completeLearningTask: (taskId, input, completedAt) => alicizationDb.completeLearningTask(taskId, input, completedAt),
-    failLearningTask: (taskId, input, updatedAt) => alicizationDb.failLearningTask(taskId, input, updatedAt),
-    reopenLearningTask: (taskId, input, updatedAt) => alicizationDb.reopenLearningTask(taskId, input, updatedAt),
-    downgradeLearningTask: (taskId, input, updatedAt) => alicizationDb.downgradeLearningTask(taskId, input, updatedAt),
-    cancelLearningTask: (taskId, input, updatedAt) => alicizationDb.cancelLearningTask(taskId, input, updatedAt),
-    listLearningTasks: input => alicizationDb.listLearningTasks(input),
-    appendAuditLog,
+  const {
     executeLearningTask,
-    randomUUID,
-    getActiveCardId: () => activeCardId,
-  })
-  const sessionContinuityBuildersRuntime = createAlicizationSessionContinuityBuildersRuntime({
-    sanitizeText,
-    sanitizeBriefText,
-    sanitizeExecutionLedgerText,
-    readTaskThreadActivityAt,
-    terminalTaskThreadStatuses: alicizationTerminalTaskThreadStatuses,
-    proactiveReplyWindowMs,
-    proactiveImplicitIgnoredAfterMs,
-    proactiveDismissCooldownMs,
-    buildVisualPresenceCapturePersistFingerprint,
-  })
-  const visualPresenceStateRuntime = createAlicizationRuntimeVisualPresenceState({
-    now: () => Date.now(),
-    normalizeCardId,
-    getActiveCardId: () => activeCardId,
-    withCardScope,
-    alicizationDb: {
-      getMetaValue: key => alicizationDb.getMetaValue(key),
-      setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
-      upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+    learningActionScheduler,
+    memoryClosureRuntime,
+  } = createAlicizationRuntimeMemorySupportingComposition({
+    learning: {
+      now: () => Date.now(),
+      activeCardId,
+      randomUUID,
+      getActiveCardId: () => activeCardId,
+      appendAuditLog,
+      alicizationDb: {
+        listMemoryFacts: () => alicizationDb.listMemoryFacts(),
+        listMemoryReflections: input => alicizationDb.listMemoryReflections(input),
+        listRelationshipOutcomes: input => alicizationDb.listRelationshipOutcomes(input),
+        upsertMemoryReflections: entries => alicizationDb.upsertMemoryReflections(entries),
+        applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
+        upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
+        appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+        insertLearningTask: input => alicizationDb.insertLearningTask(input),
+        claimDueLearningTasks: (cardId, nowMs, limit) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit),
+        startLearningTask: (taskId, startedAt) => alicizationDb.startLearningTask(taskId, startedAt),
+        blockLearningTask: (taskId, input, updatedAt) => alicizationDb.blockLearningTask(taskId, input, updatedAt),
+        completeLearningTask: (taskId, input, completedAt) => alicizationDb.completeLearningTask(taskId, input, completedAt),
+        failLearningTask: (taskId, input, updatedAt) => alicizationDb.failLearningTask(taskId, input, updatedAt),
+        reopenLearningTask: (taskId, input, updatedAt) => alicizationDb.reopenLearningTask(taskId, input, updatedAt),
+        downgradeLearningTask: (taskId, input, updatedAt) => alicizationDb.downgradeLearningTask(taskId, input, updatedAt),
+        cancelLearningTask: (taskId, input, updatedAt) => alicizationDb.cancelLearningTask(taskId, input, updatedAt),
+        listLearningTasks: input => alicizationDb.listLearningTasks(input),
+      },
+      assimilateMemoryFactsDetailed: input => memoryRuntime.knowledgeAssimilationRuntime.assimilateMemoryFactsDetailed(input),
+      recordLearningExecutionTelemetry: input => memoryRetrievalTelemetryRuntime.recordLearningExecution(input),
+      proposeSelfEvolutionVersion: input => selfEvolutionRuntime.proposeVersion(input),
     },
-    perceptionStateByCard,
-    visualPresenceStateByCard,
-    visualPresenceCapturePersistMetaByCard,
-    createDefaultPerceptionState,
-    normalizePerceptionState,
-    createDefaultVisualPresenceState,
-    normalizeVisualPresenceState,
-    buildVisualPresenceCapturePersistFingerprint,
-    emitVisualPresenceState,
-    perceptionMetaKey: alicizationPerceptionStateMetaKey,
-    visualPresenceMetaKey: alicizationVisualPresenceStateMetaKey,
-  })
-  const persistPerceptionState = visualPresenceStateRuntime.persistPerceptionState
-  const ensurePerceptionState = visualPresenceStateRuntime.ensurePerceptionState
-  const persistVisualPresenceState = visualPresenceStateRuntime.persistVisualPresenceState
-  const ensureVisualPresenceState = visualPresenceStateRuntime.ensureVisualPresenceState
-  const memoryClosureRuntime = createAlicizationRuntimeMemoryClosure({
-    now: () => Date.now(),
-    normalizeCardId,
-    getActiveCardId: () => activeCardId,
-    withCardScope,
-    errorMessageFrom,
-    ensureMindGovernanceDecisionTraceId: (raw, traceNow) => {
-      const normalized = sanitizeMindGovernanceDecisionTraceId(raw)
-      return normalized || `mind:${Math.max(0, Math.floor(traceNow ?? Date.now())).toString(36)}:${randomUUID().replace(/-/g, '').slice(0, 12)}`
-    },
-    appendAuditLog,
-    knowledgeAssimilationRuntime: memoryRuntime.knowledgeAssimilationRuntime,
+    memoryClosure: {
+      now: () => Date.now(),
+      normalizeCardId,
+      getActiveCardId: () => activeCardId,
+      withCardScope,
+      errorMessageFrom,
+      ensureMindGovernanceDecisionTraceId: (raw, traceNow) => {
+        const normalized = sanitizeMindGovernanceDecisionTraceId(raw)
+        return normalized || `mind:${Math.max(0, Math.floor(traceNow ?? Date.now())).toString(36)}:${randomUUID().replace(/-/g, '').slice(0, 12)}`
+      },
+      appendAuditLog,
+      knowledgeAssimilationRuntime: memoryRuntime.knowledgeAssimilationRuntime,
       alicizationDb: {
         appendRelationshipOutcomes: entries => alicizationDb.appendRelationshipOutcomes(entries),
         appendEpisodicEvents: events => alicizationDb.appendEpisodicEvents(events),
         appendPersonaReinforcementEvents: events => alicizationDb.appendPersonaReinforcementEvents(events),
         appendPersonStateEvolutionEntries: entries => alicizationDb.appendPersonStateEvolutionEntries(entries),
         upsertMemoryReflections: reflections => alicizationDb.upsertMemoryReflections(reflections),
-      upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
-      applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
-      listMemoryFacts: () => alicizationDb.listMemoryFacts(),
-      readMindHead: (cardId, key) => alicizationDb.readMindHead(cardId, key),
-      upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
-      appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+        upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
+        applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
+        listMemoryFacts: () => alicizationDb.listMemoryFacts(),
+        readMindHead: (cardId, key) => alicizationDb.readMindHead(cardId, key),
+        upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+        appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
+      },
     },
   })
+  const {
+    sessionContinuityBuildersRuntime,
+    visualPresenceStateRuntime,
+  } = createAlicizationRuntimeContinuityPresenceComposition({
+    sessionContinuity: {
+      sanitizeText,
+      sanitizeBriefText,
+      sanitizeExecutionLedgerText,
+      readTaskThreadActivityAt,
+      terminalTaskThreadStatuses: alicizationTerminalTaskThreadStatuses,
+      proactiveReplyWindowMs,
+      proactiveImplicitIgnoredAfterMs,
+      proactiveDismissCooldownMs,
+      buildVisualPresenceCapturePersistFingerprint,
+    },
+    visualPresence: {
+      now: () => Date.now(),
+      normalizeCardId,
+      getActiveCardId: () => activeCardId,
+      withCardScope,
+      alicizationDb: {
+        getMetaValue: key => alicizationDb.getMetaValue(key),
+        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+        upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+      },
+      perceptionStateByCard,
+      visualPresenceStateByCard,
+      visualPresenceCapturePersistMetaByCard,
+      createDefaultPerceptionState,
+      normalizePerceptionState,
+      createDefaultVisualPresenceState,
+      normalizeVisualPresenceState,
+      buildVisualPresenceCapturePersistFingerprint,
+      emitVisualPresenceState,
+      perceptionMetaKey: alicizationPerceptionStateMetaKey,
+      visualPresenceMetaKey: alicizationVisualPresenceStateMetaKey,
+    },
+  })
+  const persistPerceptionState = visualPresenceStateRuntime.persistPerceptionState
+  const ensurePerceptionState = visualPresenceStateRuntime.ensurePerceptionState
+  const persistVisualPresenceState = visualPresenceStateRuntime.persistVisualPresenceState
+  const ensureVisualPresenceState = visualPresenceStateRuntime.ensureVisualPresenceState
   const persistOutcomeClosure = memoryClosureRuntime.persistOutcomeClosure
   const persistPreparedMirrorAutobiographicalEpisodes = memoryClosureRuntime.persistPreparedMirrorAutobiographicalEpisodes
   const persistSessionMirrorAutobiographicalEpisodes = memoryClosureRuntime.persistSessionMirrorAutobiographicalEpisodes
@@ -1166,6 +1158,46 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildMindAttentionSignature,
     buildMindSceneSignature,
   } = mindStateRuntime
+  const bodyKernel = createAlicizationBodyKernel({ now: Date.now })
+
+  function commitAlicizationDigitalLifeSpineWithBodyAuthority(input: {
+    now: number
+    previousState: AlicizationVisualPresenceStateSnapshot
+    watchMode: AlicizationVisualPresenceStateSnapshot['watchMode']
+    scene: AlicizationVisualPresenceStateSnapshot['currentScene']
+    attention: AlicizationVisualPresenceStateSnapshot['attention']
+    mindState: Awaited<ReturnType<typeof buildDigitalLifeMindState>>
+    captureState: AlicizationVisualPresenceStateSnapshot['captureState']
+    durabilityPulse: AlicizationDurabilityPulseSnapshot | null
+    recentTransition: AlicizationVisualPresenceStateSnapshot['recentTransition']
+    nextSuggestedProbeMs: number
+    activeConversation: boolean
+  }) {
+    const committed = commitAlicizationDigitalLifeSpine({
+      now: input.now,
+      previousState: input.previousState,
+      watchMode: input.watchMode,
+      scene: input.scene,
+      attention: input.attention,
+      mindState: input.mindState,
+      captureState: input.captureState,
+      durabilityPulse: input.durabilityPulse,
+      recentTransition: input.recentTransition,
+      nextSuggestedProbeMs: input.nextSuggestedProbeMs,
+    })
+    const nextState = bodyKernel.applyToVisualPresenceState({
+      now: input.now,
+      previousState: input.previousState,
+      candidateState: committed.nextState,
+      activeConversation: input.activeConversation,
+    })
+
+    return {
+      ...committed,
+      nextState,
+      current: deriveAlicizationDigitalLifeSpine(nextState),
+    }
+  }
   const replayBenchmarkRuntime = createAlicizationReplayBenchmarkRuntime({
     getAlicizationDb: () => alicizationDb,
     appendAuditLog,
@@ -2938,8 +2970,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               recentTransition: visualPresenceState.recentTransition,
               nextSuggestedProbeMs: visualPresenceState.nextSuggestedProbeMs,
             })
-            await persistVisualPresenceState(activeCardId, nextVisualPresenceState)
-            persistedDialogueState = nextVisualPresenceState
+            const nextVisualPresenceStateWithBodyAuthority = bodyKernel.applyToVisualPresenceState({
+              now: normalizedCreatedAt,
+              previousState: visualPresenceState,
+              candidateState: nextVisualPresenceState,
+              activeConversation: true,
+            })
+            await persistVisualPresenceState(activeCardId, nextVisualPresenceStateWithBodyAuthority)
+            persistedDialogueState = nextVisualPresenceStateWithBodyAuthority
           }
           else {
             persistedDialogueState = visualPresenceState
@@ -4376,7 +4414,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildVisualHeartbeat,
     updateVisualAttentionModel,
     buildDigitalLifeMindState,
-    commitAlicizationDigitalLifeSpine,
+    commitAlicizationDigitalLifeSpine: input => commitAlicizationDigitalLifeSpineWithBodyAuthority({
+      ...input,
+      activeConversation: false,
+    }),
     persistVisualPresenceState,
     visualPresenceCapturePersistDebounceWindowMs,
     buildVisualPresenceCapturePersistFingerprint,

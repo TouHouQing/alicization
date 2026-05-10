@@ -1029,6 +1029,20 @@ export type AlicizationAnswerEvidenceMode
 
 export type AlicizationMindKernelMode = 'orienting' | 'tracking' | 'repairing' | 'accompanying' | 'guarding' | 'resting'
 export type AlicizationEmbodiedPresenceState = 'none' | 'glance' | 'attentive' | 'hesitant' | 'concerned'
+export type AlicizationBodyKernelState
+  = | 'sleep'
+    | 'idle'
+    | 'noticing'
+    | 'accompanying'
+    | 'speaking'
+    | 'warning'
+    | 'recovering'
+export type AlicizationPresenceContinuityMode
+  = | 'ambient-covision'
+    | 'quiet-accompaniment'
+    | 'active-dialogue'
+    | 'protective-watch'
+    | 'rest-withdrawal'
 export type AlicizationEmotionalTension
   = | 'tense-debug'
     | 'focused-flow'
@@ -1048,6 +1062,20 @@ export interface AlicizationResidentPerformanceSnapshot {
   confidence: number
   reasonTags: string[]
   signature: string
+  updatedAt: number
+}
+
+export type AlicizationVisualWatchMode = 'mnemonic-passive' | 'symbiotic-vision' | 'invited-inspection' | 'recovering'
+
+export interface AlicizationPersistentPresenceAuthoritySnapshot {
+  currentBodyState: AlicizationBodyKernelState
+  continuityMode: AlicizationPresenceContinuityMode
+  quietLineMs: number
+  currentInwardPreoccupation: string | null
+}
+
+export interface AlicizationVisualPresenceStateSnapshot extends AlicizationPersistentPresenceAuthoritySnapshot {
+  watchMode: AlicizationVisualWatchMode
   updatedAt: number
 }
 
@@ -2291,6 +2319,7 @@ export interface AlicizationDerivedMindStateBundle {
   version: 'derived-mind-state-bundle-v1'
   source: 'main-runtime' | 'browser-fallback'
   producedAt: number
+  visualPresenceState?: AlicizationVisualPresenceStateSnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   personStateProjection?: Record<string, unknown> | null
   knowledgeEvidence?: {
@@ -2319,6 +2348,79 @@ export interface AlicizationDerivedMindStateBundle {
   summary: string
 }
 
+function normalizeVisualWatchMode(raw: unknown): AlicizationVisualWatchMode {
+  return raw === 'symbiotic-vision'
+    || raw === 'invited-inspection'
+    || raw === 'recovering'
+    ? raw
+    : 'mnemonic-passive'
+}
+
+function normalizeBodyKernelState(raw: unknown): AlicizationBodyKernelState {
+  return raw === 'sleep'
+    || raw === 'idle'
+    || raw === 'noticing'
+    || raw === 'accompanying'
+    || raw === 'speaking'
+    || raw === 'warning'
+    || raw === 'recovering'
+    ? raw
+    : 'idle'
+}
+
+function normalizePresenceContinuityMode(raw: unknown): AlicizationPresenceContinuityMode {
+  return raw === 'ambient-covision'
+    || raw === 'quiet-accompaniment'
+    || raw === 'active-dialogue'
+    || raw === 'protective-watch'
+    || raw === 'rest-withdrawal'
+    ? raw
+    : 'quiet-accompaniment'
+}
+
+function normalizeScalar(raw: unknown) {
+  return sanitizeAlicizationDigitalLifeDigestText(raw, 220) || null
+}
+
+function normalizeNonNegativeInteger(raw: unknown) {
+  const value = Number(raw)
+  if (!Number.isFinite(value))
+    return 0
+  return Math.max(0, Math.floor(value))
+}
+
+function normalizePresenceAuthoritySnapshot(raw: unknown): AlicizationPersistentPresenceAuthoritySnapshot | null {
+  if (!raw || typeof raw !== 'object')
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  return {
+    currentBodyState: normalizeBodyKernelState(candidate.currentBodyState),
+    continuityMode: normalizePresenceContinuityMode(candidate.continuityMode),
+    quietLineMs: normalizeNonNegativeInteger(candidate.quietLineMs),
+    currentInwardPreoccupation: normalizeScalar(candidate.currentInwardPreoccupation),
+  }
+}
+
+function normalizeVisualPresenceStateSnapshot(raw: unknown): AlicizationVisualPresenceStateSnapshot | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const authority = normalizePresenceAuthoritySnapshot(candidate)
+  if (!authority)
+    return null
+
+  return {
+    watchMode: normalizeVisualWatchMode(candidate.watchMode),
+    updatedAt: normalizeNonNegativeInteger(candidate.updatedAt),
+    currentBodyState: authority.currentBodyState,
+    continuityMode: authority.continuityMode,
+    quietLineMs: authority.quietLineMs,
+    currentInwardPreoccupation: authority.currentInwardPreoccupation,
+  }
+}
+
 export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): AlicizationDerivedMindStateBundle | null {
   const candidate = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -2331,11 +2433,13 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
     || candidate.source === 'browser-fallback'
   )
     ? candidate.source
-    : null
+        : null
   const producedAt = Number(candidate.producedAt)
   const summary = sanitizeAlicizationDigitalLifeDigestText(candidate.summary, 220)
   if (!source || !Number.isFinite(producedAt))
     return null
+
+  const visualPresenceState = normalizeVisualPresenceStateSnapshot(candidate.visualPresenceState)
 
   const knowledgeEvidence = candidate.knowledgeEvidence && typeof candidate.knowledgeEvidence === 'object'
     ? candidate.knowledgeEvidence as Record<string, unknown>
@@ -2363,6 +2467,7 @@ export function normalizeAlicizationDerivedMindStateBundle(raw: unknown): Aliciz
     version: 'derived-mind-state-bundle-v1',
     source,
     producedAt: Math.max(0, Math.floor(producedAt)),
+    visualPresenceState,
     hostPersonModel: candidate.hostPersonModel && typeof candidate.hostPersonModel === 'object'
       ? candidate.hostPersonModel as AlicizationHostPersonModelSnapshot
       : null,
