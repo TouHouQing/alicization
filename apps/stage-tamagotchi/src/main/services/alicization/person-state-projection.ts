@@ -195,6 +195,7 @@ function deriveOpeningGuidance(input: {
   if (
     input.repairBeforeCloseness
     || input.continuity.repairPosture === 'repair-first'
+    || (input.personaAuthority.repairBias >= 0.2 && input.personaAuthority.roomBias >= 0.14)
     || (input.repairTriggerText && input.relationshipPosture === 'restrained')
   ) {
     return 'Repair the seam before leaning closer.'
@@ -228,9 +229,18 @@ function derivePreferredProactiveStyle(input: {
   continuity: AlicizationPersonalityContinuityStateSnapshot
   personaAuthority: AlicizationPersonaAuthorityInfluence
   restrained: boolean
+  repairBoundaryAnchored: boolean
   hostPreferredStyle: AlicizationProactiveStyle | null
   doctrinePreferredStyle: AlicizationProactiveStyle | null
 }) {
+  if (
+    input.restrained
+    && !input.repairBoundaryAnchored
+    && input.personaAuthority.repairBias >= 0.2
+    && input.personaAuthority.roomBias >= 0.14
+  ) {
+    return 'silent-observe' as const
+  }
   if (input.hostPreferredStyle)
     return input.hostPreferredStyle
   if (input.doctrinePreferredStyle)
@@ -317,7 +327,6 @@ function buildClosenessLadder(input: {
   const candidateContexts = [
     ...new Set<AlicizationPersonStateClosenessContext>([
       normalizeClosenessContext(input.continuity.currentRegime),
-      input.personaAuthority.roomBias >= 0.2 ? 'repair-window' : null,
       ...input.contexts.map(context => normalizeClosenessContext(context)),
     ]),
   ].filter((context): context is AlicizationPersonStateClosenessContext => context != null)
@@ -475,6 +484,9 @@ export function buildAlicizationPersonStateProjection(input: {
     continuity: personalityContinuityState,
     personaAuthority,
     restrained,
+    repairBoundaryAnchored: doctrineGuidance.repairBeforeCloseness
+      || Boolean(hostGuidance.repairTriggerText)
+      || personalityContinuityState.repairPosture === 'repair-first',
     hostPreferredStyle: hostGuidance.preferredProactiveStyle,
     doctrinePreferredStyle: doctrineGuidance.preferredProactiveStyle,
   })

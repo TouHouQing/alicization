@@ -78,6 +78,7 @@ export interface AlicizationPersonaAuthorityInfluence {
   preferredProactiveStyle: AlicizationProactiveStyle | null
   cadenceBias: number
   roomBias: number
+  repairBias: number
   warmthBias: number
   directnessBias: number
   anchors: string[]
@@ -151,6 +152,7 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
       preferredProactiveStyle: null,
       cadenceBias: 0,
       roomBias: 0,
+      repairBias: 0,
       warmthBias: 0,
       directnessBias: 0,
       anchors: [],
@@ -189,6 +191,11 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
     + (expressionProfile?.directness === 'indirect' ? 0.12 : 0)
     + (anchors.some(anchor => /space|room|observe|steady|quiet|留白|空间|观察|稳/iu.test(anchor)) ? 0.08 : 0),
   )
+  const repairBias = clamp01(
+    (identityKernel?.valueBias?.some(value => /repair|truth|clarify|ground|verify|recheck|seam|room|space|边界|修复|澄清|核实/iu.test(value)) ? 0.2 : 0)
+    + (input.antiPersonaConstraints?.some(constraint => /repair|truth|clarify|ground|verify|recheck|seam|room|space|边界|修复|澄清|核实/iu.test(constraint)) ? 0.08 : 0)
+    + (anchors.some(anchor => /repair|truth|clarify|ground|verify|recheck|seam|room|space|边界|修复|澄清|核实/iu.test(anchor)) ? 0.18 : 0),
+  )
   const warmthBias = clamp01(
     (expressionProfile?.warmth === 'intense'
       ? 0.22
@@ -207,13 +214,17 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
 
   const preferredProactiveStyle = roomBias >= 0.22 && directnessBias < 0.2
     ? 'silent-observe'
+    : repairBias >= 0.2 && roomBias >= 0.14
+      ? 'silent-observe'
     : directnessBias >= 0.24
       ? 'light-nudge'
       : warmthBias >= 0.18
         ? 'gentle-care'
         : null
 
-  const openingGuidance = roomBias >= 0.22 && directnessBias < 0.2
+  const openingGuidance = repairBias >= 0.22
+    ? 'Repair the seam before leaning closer.'
+    : roomBias >= 0.22 && directnessBias < 0.2
     ? 'Open by observing first and keep the approach lighter.'
     : directnessBias >= 0.24
       ? 'Open directly with the live answer, then keep the approach light and bounded.'
@@ -222,9 +233,10 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
         : null
 
   const summary = uniqueList([
-    relationshipLine || null,
-    initiativeLine || null,
-    expressionLine || null,
+    relationshipLine ? `kernel ${relationshipLine}` : null,
+    initiativeLine ? `kernel ${initiativeLine}` : null,
+    expressionLine ? `expression ${expressionLine}` : null,
+    repairBias >= 0.2 ? 'kernel repair-first' : null,
     ...anchors,
   ], 4).join(' | ') || null
 
@@ -234,6 +246,7 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
     preferredProactiveStyle,
     cadenceBias,
     roomBias,
+    repairBias,
     warmthBias,
     directnessBias,
     anchors,
@@ -846,7 +859,8 @@ export function buildAlicizationPersonalityContinuityState(input: {
     + growthProfile.guardedness * 0.14
     + reconsolidation.spaceLift * 0.3
     + reconsolidation.restLift * 0.08
-    + (currentRegime === 'focused-work' ? 0.18 : 0),
+    + (currentRegime === 'focused-work' ? 0.18 : 0)
+    + personaAuthority.roomBias * 0.08,
   )
   const closeAllowedScore = clamp01(
     growthProfile.closeness * 0.34
@@ -911,7 +925,8 @@ export function buildAlicizationPersonalityContinuityState(input: {
     `autonomy ${autonomyPosture}`,
     `cadence ${cadenceProfile}`,
     `energy ${energyProfile}`,
-    personaAuthority.summary ? `persona ${personaAuthority.summary}` : '',
+    personaAuthority.summary ? `persona kernel ${personaAuthority.summary}` : '',
+    personaAuthority.anchors.length ? `persona anchors ${personaAuthority.anchors.join(', ')}` : '',
     rhythmState.summary,
   ].join(' | '), 240)
   const rationale = uniqueList([
@@ -919,6 +934,7 @@ export function buildAlicizationPersonalityContinuityState(input: {
     regimeModel.carryReason,
     rhythmState.summary,
     personaAuthority.summary,
+    personaAuthority.anchors.length ? personaAuthority.anchors.join(', ') : null,
     reconsolidation.primaryLine,
     reconsolidation.trustMeaning,
     input.hostPersonModel?.trustLadder.rationale,
