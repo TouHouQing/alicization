@@ -199,6 +199,75 @@ describe('self evolution kernel', () => {
     ]))
   })
 
+  it('threads gradual persona unlock cues into the kernel without promoting identity rewrite', () => {
+    const kernel = buildAlicizationSelfEvolutionKernel({
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'nearby',
+          expressionStyle: 'measured',
+          conflictStyle: 'soften-first',
+          agencyStyle: 'balanced',
+          attachmentNeed: 0.54,
+          autonomyNeed: 0.46,
+          truthAnchor: 0.58,
+          careBias: 0.52,
+          playBias: 0.22,
+          irritabilityThreshold: 0.56,
+          stubbornness: 0.4,
+        },
+        preferenceEvolution: {
+          companionship: 0.6,
+          truthfulGrounding: 0.62,
+          gentleRepair: 0.58,
+          quietObservation: 0.44,
+          proactiveCare: 0.5,
+          playfulIntimacy: 0.24,
+          autonomyRespect: 0.54,
+          unfinishedThreadReturn: 0.56,
+        },
+        activeGoals: [],
+        behaviorSignatures: ['bond:nearby'],
+        identityNarrative: 'I stay near and learn carefully.',
+        relationshipDoctrine: 'Stay near without crowding.',
+        gradualUnlock: {
+          version: 'persona-gradual-unlock-v1',
+          unlockableFacets: [{
+            facet: 'shared-language',
+            confidence: 0.78,
+            reason: 'Repeated relationship reinforcement is opening a shared-language posture.',
+          }],
+          pendingHypotheses: [{
+            facet: 'shared-language',
+            hypothesis: 'Hypothesis: repeated relationship reinforcement may be opening a more shared-language persona posture.',
+            confidence: 0.78,
+            supportingSignals: ['repeated relationship signals'],
+          }],
+          summary: 'shared-language | Hypothesis: repeated relationship reinforcement may be opening a more shared-language persona posture.',
+        },
+        latestInflection: 'Stay near without crowding.',
+        stability: 0.62,
+        updatedAt: 200,
+      },
+      knowledgeEvidence: {
+        validationCount: 1,
+        contradictionCount: 0,
+        stronglyValidatedProcedureCount: 0,
+        contradictionHeavyFactCount: 0,
+      },
+      reflectionSummary: 'Relationship reinforcement is beginning to surface a slower persona hypothesis.',
+      reflectionLesson: 'Keep the hypothesis visible without treating it as identity.',
+      reflectionTargetScope: 'relationship',
+      reflectionPressure: 0.16,
+      autobiographicalLatestInflection: 'Stay near without crowding.',
+      autobiographicalStability: 0.62,
+    })
+
+    expect(kernel?.activeLearningFocuses).toContain('unlock:shared-language')
+    expect(kernel?.sourceSignals).toContain('Hypothesis: repeated relationship reinforcement may be opening a more shared-language persona posture.')
+    expect(kernel?.nextLearningAction).toBe('hold')
+    expect(kernel?.shouldRevise).toBe(false)
+  })
+
   it('does not create non-procedural learning focuses from weak domain-native views alone', () => {
     const kernel = buildAlicizationSelfEvolutionKernel({
       personStateEvolutionSummary: {

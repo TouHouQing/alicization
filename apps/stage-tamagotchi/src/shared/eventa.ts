@@ -1381,6 +1381,32 @@ export interface AlicizationAutobiographicalGoalSnapshot {
   updatedAt: number
 }
 
+export type AlicizationPersonaGradualUnlockFacetKind
+  = 'shared-language'
+    | 'truth-before-flourish'
+    | 'near-with-boundary'
+    | 'unfinished-thread-return'
+
+export interface AlicizationPersonaGradualUnlockFacetSnapshot {
+  facet: AlicizationPersonaGradualUnlockFacetKind
+  confidence: number
+  reason: string
+}
+
+export interface AlicizationPersonaGradualUnlockHypothesisSnapshot {
+  facet: AlicizationPersonaGradualUnlockFacetKind
+  hypothesis: string
+  confidence: number
+  supportingSignals: string[]
+}
+
+export interface AlicizationPersonaGradualUnlockSnapshot {
+  version: 'persona-gradual-unlock-v1'
+  unlockableFacets: AlicizationPersonaGradualUnlockFacetSnapshot[]
+  pendingHypotheses: AlicizationPersonaGradualUnlockHypothesisSnapshot[]
+  summary: string
+}
+
 export type AlicizationLongHorizonMemoryCueInfluence = SharedAlicizationLongHorizonMemoryCueInfluence
 export type AlicizationLongHorizonMemoryCueSnapshot = SharedAlicizationLongHorizonMemoryCueSnapshot
 export type AlicizationLongHorizonMemorySnapshot = SharedAlicizationLongHorizonMemorySnapshot
@@ -1413,6 +1439,7 @@ export interface AlicizationAutobiographicalSelfSnapshot {
   behaviorSignatures: string[]
   identityNarrative: string
   relationshipDoctrine: string
+  gradualUnlock?: AlicizationPersonaGradualUnlockSnapshot | null
   latestInflection?: string | null
   stability: number
   updatedAt: number

@@ -215,6 +215,142 @@ describe('autobiographical self', () => {
     expect(snapshot.stability).toBeGreaterThan(0.45)
   })
 
+  it('surfaces gradual persona unlock hypotheses from repeated relationship reinforcement without rewriting identity immediately', () => {
+    const snapshot = buildAutobiographicalSelf({
+      now: 40_000,
+      context: {
+        localTime: { hour: 22, minute: 10, isLateNight: true },
+        system: {
+          cpuUsage: 14,
+          battery: { percent: 74, charging: true },
+          memory: { usagePercent: 33, freeMB: 4096, totalMB: 8192 },
+          idleSeconds: 12,
+          inputActivity: 'active',
+          fullscreenLikely: false,
+          foregroundWindow: undefined,
+          degradedSignals: [],
+        },
+        workload: { kind: 'dialogue', confidence: 0.74, source: 'foreground-window-heuristic', matchedLabels: ['chat'] },
+        content: { kind: 'conversation', confidence: 0.78, source: 'foreground-window-heuristic', matchedLabels: ['relationship'], summary: 'relationship thread' },
+        relationship: {
+          hostAttitude: 'receptive',
+          boredom: 18,
+          loneliness: 52,
+          fatigue: 34,
+          minutesSinceLastUserTurn: 3,
+          reminderBacklog: 0,
+          lateNightActiveMinutes: 48,
+          recentProactiveOutcomes: [
+            { outcome: 'positive', at: 10_000 },
+            { outcome: 'positive', at: 16_000 },
+            { outcome: 'reply-within-120s', at: 21_000 },
+          ],
+        },
+      } as any,
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'relationship-return',
+          sceneAgeMs: 40_000,
+          attentionAgeMs: 40_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'light',
+        },
+        updatedAt: 40_000,
+      } as any,
+      relationshipModel: {
+        climate: 'attuned',
+        approachVector: 'stay-near',
+        receptivity: 0.84,
+        sharedAttentionTrust: 0.8,
+        correctionSensitivity: 0.58,
+        reciprocityExpectation: 0.62,
+        activeBoundaries: [],
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.72,
+        relationshipTrust: 0.78,
+        guardingTendency: 0.32,
+        misreadBurden: 0.2,
+        carryOverDesire: 0.64,
+        narrative: [],
+        updatedAt: 40_000,
+      },
+      selfState: {
+        stance: 'reach',
+        feltCloseness: 0.74,
+        protectiveness: 0.48,
+        curiosity: 0.72,
+        patience: 0.66,
+        desireToSpeak: 0.58,
+        fearOfInterrupting: 0.22,
+        moodLabel: 'attuned',
+      },
+      goalStack: {
+        leadingHostGoalId: 'host::relationship',
+        leadingAlicizationGoalId: 'alicization::grow-shared-language::relationship',
+        hostGoals: [],
+        alicizationGoals: [{
+          id: 'alicization::grow-shared-language::relationship',
+          owner: 'alicization',
+          kind: 'grow-shared-language',
+          status: 'warming',
+          label: 'keep learning the shared language of this relationship',
+          confidence: 0.68,
+          urgency: 0.42,
+          desireWeight: 0.62,
+          blockers: [],
+          entityIds: ['entity::relationship'],
+          createdAt: 0,
+          lastUpdatedAt: 40_000,
+        }],
+        unresolvedSummary: null,
+        updatedAt: 40_000,
+      },
+      reflectionLedger: { latestEntryId: null, entries: [], revisionPressure: 0.1, narrative: [], updatedAt: 40_000 } as any,
+      desireMemory: { activeDesires: [], withheldCount: 0, updatedAt: 40_000 } as any,
+      actionEcology: { mode: 'conversation', readiness: 0.72, surfacePressure: 0.34, silencePressure: 0.18, suggestedStyle: 'warm-guidance', embodiedPresence: 'present', shouldSurface: true, shouldSpeak: true, why: 'relationship signals are strong', updatedAt: 40_000 } as any,
+      mindEcology: { moodLabel: 'attuned', replyHabit: 'care-first', relationshipHabit: 'warm-guidance', explorationHabit: 'follow-thread', regulationHabit: 'soften-before-speaking', temperament: { attachment: 0.68, curiosity: 0.72, steadiness: 0.66, directness: 0.46, playfulness: 0.22, irritability: 0.2, tenderness: 0.76 }, climate: { valence: 0.6, arousal: 0.42, socialNeed: 0.58, solitudeNeed: 0.22, irritation: 0.1, restlessness: 0.18, reflectivePull: 0.62 }, selfNarrative: 'Stay near and keep learning.', relationNarrative: 'Keep the relationship real and light.', currentPreoccupation: 'A softer shared language may be emerging.', learnedAdjustments: ['Stay near without crowding.'], recurringPatterns: ['reply:care-first'], updatedAt: 40_000 } as any,
+      recentRelationshipOutcomes: [
+        { id: 'outcome-1', cardId: 'card-1', decisionTraceId: 'trace-1', turnId: 'turn-1', sessionId: 'session-1', sourceKind: 'reply', actionSummary: 'positive reply', closenessDelta: 0.12, trustDelta: 0.1, burdenDelta: -0.02, boundaryDelta: 0.02, misreadDelta: -0.01, repairDelta: 0.04, openLoopDelta: 0.05, summary: 'A warm reply landed well.', createdAt: 10_000 },
+        { id: 'outcome-2', cardId: 'card-1', decisionTraceId: 'trace-2', turnId: 'turn-2', sessionId: 'session-1', sourceKind: 'reply', actionSummary: 'positive reply', closenessDelta: 0.1, trustDelta: 0.08, burdenDelta: -0.01, boundaryDelta: 0.01, misreadDelta: 0, repairDelta: 0.03, openLoopDelta: 0.04, summary: 'Another positive relationship turn landed well.', createdAt: 16_000 },
+        { id: 'outcome-3', cardId: 'card-1', decisionTraceId: 'trace-3', turnId: 'turn-3', sessionId: 'session-1', sourceKind: 'reply', actionSummary: 'positive reply', closenessDelta: 0.09, trustDelta: 0.07, burdenDelta: 0, boundaryDelta: 0.01, misreadDelta: 0, repairDelta: 0.02, openLoopDelta: 0.03, summary: 'A third positive relationship turn reinforced the same line.', createdAt: 21_000 },
+      ] as any,
+      recentReinforcementEvents: [
+        { id: 'reinforcement-1', cardId: 'card-1', decisionTraceId: 'trace-1', turnId: 'turn-1', sessionId: 'session-1', sourceKind: 'reply', dimension: 'companionship', delta: 0.14, valence: 'reinforce', summary: 'companionship felt rewarded', createdAt: 10_000 },
+        { id: 'reinforcement-2', cardId: 'card-1', decisionTraceId: 'trace-2', turnId: 'turn-2', sessionId: 'session-1', sourceKind: 'reply', dimension: 'truthful-grounding', delta: 0.08, valence: 'reinforce', summary: 'truthful grounding felt rewarded', createdAt: 16_000 },
+        { id: 'reinforcement-3', cardId: 'card-1', decisionTraceId: 'trace-3', turnId: 'turn-3', sessionId: 'session-1', sourceKind: 'reply', dimension: 'unfinished-thread-return', delta: 0.1, valence: 'reinforce', summary: 'returning to the thread felt rewarded', createdAt: 21_000 },
+      ] as any,
+    })
+
+    expect(snapshot.personaDrift.attachmentStyle).toBe('nearby')
+    expect(snapshot.personaDrift.expressionStyle).not.toBe('playful')
+    expect(snapshot.personaDrift.conflictStyle).not.toBe('repair-first')
+    expect(snapshot.relationshipDoctrine).toContain('Closeness is welcome')
+    expect(snapshot.gradualUnlock?.version).toBe('persona-gradual-unlock-v1')
+    expect(snapshot.gradualUnlock?.unlockableFacets.map(item => item.facet)).toContain('shared-language')
+    expect(snapshot.gradualUnlock?.pendingHypotheses[0]?.hypothesis).toContain('shared-language persona posture')
+  })
+
   it('renders a dedicated system block for the durable autobiographical self', () => {
     const snapshot = {
       personaDrift: {

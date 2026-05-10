@@ -1,4 +1,5 @@
 import type {
+  AlicizationAutobiographicalSelfSnapshot,
   AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemorySnapshot,
   AlicizationPersonStateEvolutionSummary,
@@ -115,6 +116,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   personStateEvolutionSummary?: AlicizationPersonStateEvolutionSummary | null
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
+  autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   knowledgeEvidence?: {
     validationCount: number
     contradictionCount: number
@@ -152,6 +154,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const evolution = input.personStateEvolutionSummary ?? null
   const longHorizonMemory = input.longHorizonMemory ?? null
   const hostPersonModel = input.hostPersonModel ?? null
+  const autobiographicalSelf = input.autobiographicalSelf ?? null
   const knowledgeEvidence = input.knowledgeEvidence ?? null
   const relationshipCount = knowledgeEvidence?.relationshipFactCount ?? 0
   const selfModelCount = knowledgeEvidence?.selfModelFactCount ?? 0
@@ -181,6 +184,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   ) || null
   const latestInflection = sanitizeText(
     input.autobiographicalLatestInflection
+      ?? autobiographicalSelf?.latestInflection
       ?? evolution?.recentSummaries?.[0]
       ?? input.reflectionLesson
       ?? input.reflectionSummary
@@ -239,6 +243,9 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     relationshipCount > 0 && relationshipViewStrength >= 0.58 ? 'internalize-relationship' : null,
     selfModelCount > 0 && selfModelViewStrength >= 0.54 ? 'internalize-self-model' : null,
     worldModelCount > 0 && worldModelViewStrength >= 0.56 ? 'internalize-world-model' : null,
+    autobiographicalSelf?.gradualUnlock?.unlockableFacets[0]?.facet
+      ? `unlock:${autobiographicalSelf.gradualUnlock.unlockableFacets[0].facet}`
+      : null,
     relationshipDoctrine ? `relationship:${relationshipDoctrine}` : null,
     burdenLine ? `burden:${burdenLine}` : null,
     trustMeaning ? `trust:${trustMeaning}` : null,
@@ -247,6 +254,7 @@ export function buildAlicizationSelfEvolutionKernel(input: {
   const sourceSignals = uniqueList([
     input.reflectionSummary,
     input.reflectionLesson,
+    autobiographicalSelf?.gradualUnlock?.pendingHypotheses[0]?.hypothesis ?? null,
     learningPolicyState?.selfRevisionReasonCodes?.[0] ? `self-revision:${learningPolicyState.selfRevisionReasonCodes[0]}` : null,
     learningPolicyState?.reasonCodes?.[0] ? `learning-policy:${learningPolicyState.reasonCodes[0]}` : null,
     evolution?.recentSummaries?.[0] ?? null,

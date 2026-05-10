@@ -20,6 +20,7 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import { buildPersonaGradualUnlock } from './persona-gradual-unlock'
 
 export const alicizationAutobiographicalSelfMarker = '[ALICIZATION_AUTOBIOGRAPHICAL_SELF]'
 
@@ -894,6 +895,10 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
   const reinforcement = summarizeReinforcement(input)
   const outcomeHistory = summarizeRelationshipOutcomeHistory(input)
   const reflectionHistory = summarizeReflectionHistory(input)
+  const gradualUnlock = buildPersonaGradualUnlock({
+    recentRelationshipOutcomes: input.recentRelationshipOutcomes ?? null,
+    recentReinforcementEvents: input.recentReinforcementEvents ?? null,
+  })
   const targets = buildPreferenceTargets(input)
   const durabilityFloor = buildPreferenceDurabilityFloor({
     previous,
@@ -1078,26 +1083,29 @@ export function buildAutobiographicalSelf(input: AlicizationAutobiographicalSelf
     ),
     0.18,
   )
+  const identityNarrative = buildIdentityNarrative({
+    personaDrift,
+    dominantGoal,
+    preferences: preferenceEvolution,
+    autobiographicalSummary: latestConsolidation?.summary ?? null,
+    phaseSummary: facetConsolidations.phase?.summary ?? null,
+    selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
+  })
+  const relationshipDoctrine = buildRelationshipDoctrine({
+    personaDrift,
+    preferences: preferenceEvolution,
+    autobiographicalLesson: latestConsolidation?.lesson ?? null,
+    relationshipEraLesson: facetConsolidations.relationshipEra?.lesson ?? null,
+  })
 
   return {
     personaDrift,
     preferenceEvolution,
     activeGoals,
     behaviorSignatures,
-    identityNarrative: buildIdentityNarrative({
-      personaDrift,
-      dominantGoal,
-      preferences: preferenceEvolution,
-      autobiographicalSummary: latestConsolidation?.summary ?? null,
-      phaseSummary: facetConsolidations.phase?.summary ?? null,
-      selfEraSummary: facetConsolidations.selfEra?.summary ?? null,
-    }),
-    relationshipDoctrine: buildRelationshipDoctrine({
-      personaDrift,
-      preferences: preferenceEvolution,
-      autobiographicalLesson: latestConsolidation?.lesson ?? null,
-      relationshipEraLesson: facetConsolidations.relationshipEra?.lesson ?? null,
-    }),
+    identityNarrative,
+    relationshipDoctrine,
+    gradualUnlock,
     latestInflection,
     stability,
     updatedAt: input.now,
