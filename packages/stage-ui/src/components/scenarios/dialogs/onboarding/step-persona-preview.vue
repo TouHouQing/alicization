@@ -25,6 +25,31 @@ const { draft, previewNotes, previewSummary } = storeToRefs(workshopStore)
 const submitting = ref(false)
 const correctionText = ref('')
 
+function localizedCalibrationLabel(kind: 'relationshipPosture' | 'initiativeStyle' | 'silenceReconnect', value: string) {
+  const map = {
+    relationshipPosture: {
+      companion: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.companion'),
+      guardian: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.guardian'),
+      lover: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.lover'),
+      partner: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.partner'),
+      observer: t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureLabels.observer'),
+    },
+    initiativeStyle: {
+      observant: t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.observant'),
+      'measured-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.measuredApproach'),
+      'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.directApproach'),
+      'high-participation': t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleLabels.highParticipation'),
+    },
+    silenceReconnect: {
+      hold: t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.hold'),
+      'light-probe': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.lightProbe'),
+      'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.preview.silenceReconnectLabels.directApproach'),
+    },
+  } as const
+
+  return map[kind][value as keyof typeof map[typeof kind]] ?? value
+}
+
 const previewLines = computed(() => [
   draft.value.freeDescription || t('settings.dialogs.onboarding.personaWorkshop.preview.emptyDescription'),
   ...(draft.value.antiPersonaConstraints ?? []),
@@ -40,13 +65,13 @@ const previewInterpretation = computed(() => {
 
   const notes = [
     draft.value.relationshipPosture
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPosture', { value: draft.value.relationshipPosture })
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPosture', { value: localizedCalibrationLabel('relationshipPosture', draft.value.relationshipPosture) })
       : t('settings.dialogs.onboarding.personaWorkshop.preview.relationshipPostureDefault'),
     draft.value.initiativeStyle
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyle', { value: draft.value.initiativeStyle })
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyle', { value: localizedCalibrationLabel('initiativeStyle', draft.value.initiativeStyle) })
       : t('settings.dialogs.onboarding.personaWorkshop.preview.initiativeStyleDefault'),
     draft.value.calibration?.silenceReconnect
-      ? t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilence', { value: draft.value.calibration.silenceReconnect })
+      ? t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilence', { value: localizedCalibrationLabel('silenceReconnect', draft.value.calibration.silenceReconnect) })
       : t('settings.dialogs.onboarding.personaWorkshop.preview.reconnectAfterSilenceDefault'),
   ]
 
@@ -71,7 +96,7 @@ watch(correctionText, (value) => {
   workshopStore.setPreviewFeedback({
     notes: previewInterpretation.value.notes,
     summary: corrections.length > 0
-      ? `${previewInterpretation.value.summary} | Corrections: ${corrections.join(' / ')}`
+      ? `${previewInterpretation.value.summary} | ${t('settings.dialogs.onboarding.personaWorkshop.preview.correctionsLabel')}: ${corrections.join(' / ')}`
       : previewInterpretation.value.summary,
     decision: 'pending',
   })

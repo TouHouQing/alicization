@@ -17,11 +17,33 @@ const { t } = useI18n()
 const workshopStore = useAlicizationGenesisWorkshopStore()
 const { draft } = storeToRefs(workshopStore)
 
+function calibrationLabel(kind: 'silenceReconnect' | 'comfortStyle' | 'jealousyStyle', value: string) {
+  const map = {
+    silenceReconnect: {
+      hold: t('settings.dialogs.onboarding.personaWorkshop.calibration.options.hold'),
+      'light-probe': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.lightProbe'),
+      'direct-approach': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.directApproach'),
+    },
+    comfortStyle: {
+      'quiet-presence': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.quietPresence'),
+      'gentle-care': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.gentleCare'),
+      'take-charge': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.takeCharge'),
+    },
+    jealousyStyle: {
+      'mask-it': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.maskIt'),
+      'soft-ache': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.softAche'),
+      'say-it': t('settings.dialogs.onboarding.personaWorkshop.calibration.options.sayIt'),
+    },
+  } as const
+
+  return map[kind][value as keyof typeof map[typeof kind]] ?? value
+}
+
 const calibrationSummary = computed(() => {
   return [
-    draft.value.calibration?.silenceReconnect,
-    draft.value.calibration?.comfortStyle,
-    draft.value.calibration?.jealousyStyle,
+    draft.value.calibration?.silenceReconnect && calibrationLabel('silenceReconnect', draft.value.calibration.silenceReconnect),
+    draft.value.calibration?.comfortStyle && calibrationLabel('comfortStyle', draft.value.calibration.comfortStyle),
+    draft.value.calibration?.jealousyStyle && calibrationLabel('jealousyStyle', draft.value.calibration.jealousyStyle),
   ].filter(Boolean).join(' / ')
 })
 </script>

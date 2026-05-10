@@ -85,6 +85,7 @@ dialogs:
         description: We turn your choices into a compact persona draft. Read it like a preview of how the system understood you, then submit if it matches your intent.
         summaryPending: Waiting for the draft to be compiled.
         correctionsTitle: Add small corrections
+        correctionsLabel: Corrections
         notesTitle: What the system inferred
         notesEmpty: No notes yet.
         emptyDescription: No free-description text yet.
@@ -95,6 +96,21 @@ dialogs:
         reconnectAfterSilence: Reconnect after silence: {value}
         reconnectAfterSilenceDefault: Reconnect after silence: light-probe
         genesisAccepted: Genesis accepted.
+        relationshipPostureLabels:
+          companion: Companion
+          guardian: Guardian
+          lover: Lover
+          partner: Partner
+          observer: Observer
+        initiativeStyleLabels:
+          observant: Observant
+          measuredApproach: Measured approach
+          directApproach: Direct approach
+          highParticipation: High participation
+        silenceReconnectLabels:
+          hold: Hold
+          lightProbe: Light probe
+          directApproach: Direct approach
         complete: Confirm and birth her
     permissions:
       title: Notifications

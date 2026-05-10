@@ -83,6 +83,7 @@ dialogs:
         description: 我们会把你的选择整理成一份简洁的人格草稿。请把它当作系统对你意图的理解预览，合适再提交。
         summaryPending: 正在编译草稿。
         correctionsTitle: 补充小修正
+        correctionsLabel: 修正内容
         notesTitle: 系统推断出的内容
         notesEmpty: 还没有备注。
         emptyDescription: 还没有填写简短人格描述。
@@ -93,6 +94,21 @@ dialogs:
         reconnectAfterSilence: 沉默后重新接话：{value}
         reconnectAfterSilenceDefault: 沉默后重新接话：轻轻试探
         genesisAccepted: 已确认生成。
+        relationshipPostureLabels:
+          companion: 陪伴者
+          guardian: 守护者
+          lover: 爱人
+          partner: 同伴
+          observer: 观察者
+        initiativeStyleLabels:
+          observant: 观察型
+          measuredApproach: 稳健推进
+          directApproach: 直接推进
+          highParticipation: 高度参与
+        silenceReconnectLabels:
+          hold: 保持
+          lightProbe: 轻轻试探
+          directApproach: 直接接话
         complete: 确认并开始生成
     permissions:
       title: Notifications
