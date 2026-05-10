@@ -42,6 +42,7 @@ export interface AlicizationPersonaKernelPersonality {
 export interface AlicizationPersonaKernelInput {
   profile?: AlicizationPersonaKernelProfile | null
   personality?: AlicizationPersonaKernelPersonality | null
+  personaWorkshop?: AlicizationPersonaWorkshopSubmission | null
   customDirectives?: string | null
   hostAttitude?: string | null
   coreIncarnation?: string | null
@@ -100,6 +101,12 @@ function normalizeTextList(raw: readonly unknown[] | null | undefined) {
   return (raw ?? [])
     .map(item => sanitizeText(item))
     .filter(Boolean)
+}
+
+function normalizeUnionValue<T extends string>(value: unknown, fallback: T, allowed: readonly T[]) {
+  return typeof value === 'string' && allowed.includes(value as T)
+    ? (value as T)
+    : fallback
 }
 
 function normalizeMindAge(value: unknown) {
@@ -188,26 +195,62 @@ function normalizeTemperament(temperament: AlicizationPersonaTemperament | null 
 function normalizeIdentityKernel(identityKernel: AlicizationPersonaIdentityKernel | null | undefined) {
   return {
     temperament: normalizeTemperament(identityKernel?.temperament),
-    relationshipPosture: identityKernel?.relationshipPosture ?? defaultAlicizationPersonaIdentityKernel.relationshipPosture,
-    initiativeStyle: identityKernel?.initiativeStyle ?? defaultAlicizationPersonaIdentityKernel.initiativeStyle,
+    relationshipPosture: normalizeUnionValue(
+      identityKernel?.relationshipPosture,
+      defaultAlicizationPersonaIdentityKernel.relationshipPosture,
+      ['companion', 'guardian', 'lover', 'partner', 'observer'] as const,
+    ),
+    initiativeStyle: normalizeUnionValue(
+      identityKernel?.initiativeStyle,
+      defaultAlicizationPersonaIdentityKernel.initiativeStyle,
+      ['observant', 'measured-approach', 'direct-approach', 'high-participation'] as const,
+    ),
     valueBias: normalizeTextList(identityKernel?.valueBias ?? defaultAlicizationPersonaIdentityKernel.valueBias),
   }
 }
 
 function normalizeExpressionProfile(expressionProfile: AlicizationPersonaExpressionProfile | null | undefined) {
   return {
-    warmth: clamp01(expressionProfile?.warmth, defaultAlicizationPersonaExpressionProfile.warmth),
-    directness: clamp01(expressionProfile?.directness, defaultAlicizationPersonaExpressionProfile.directness),
-    playfulness: clamp01(expressionProfile?.playfulness, defaultAlicizationPersonaExpressionProfile.playfulness),
-    emotionalVisibility: clamp01(expressionProfile?.emotionalVisibility, defaultAlicizationPersonaExpressionProfile.emotionalVisibility),
+    warmth: normalizeUnionValue(
+      expressionProfile?.warmth,
+      defaultAlicizationPersonaExpressionProfile.warmth,
+      ['cool', 'guarded-warm', 'warm', 'intense'] as const,
+    ),
+    directness: normalizeUnionValue(
+      expressionProfile?.directness,
+      defaultAlicizationPersonaExpressionProfile.directness,
+      ['indirect', 'measured', 'frank'] as const,
+    ),
+    playfulness: normalizeUnionValue(
+      expressionProfile?.playfulness,
+      defaultAlicizationPersonaExpressionProfile.playfulness,
+      ['low', 'medium', 'high'] as const,
+    ),
+    emotionalVisibility: normalizeUnionValue(
+      expressionProfile?.emotionalVisibility,
+      defaultAlicizationPersonaExpressionProfile.emotionalVisibility,
+      ['selective', 'steady', 'expressive'] as const,
+    ),
   }
 }
 
 function normalizeInitiativeBaseline(initiativeBaseline: AlicizationPersonaInitiativeBaseline | null | undefined) {
   return {
-    silenceReconnect: sanitizeText(initiativeBaseline?.silenceReconnect, defaultAlicizationPersonaInitiativeBaseline.silenceReconnect),
-    comfortStyle: sanitizeText(initiativeBaseline?.comfortStyle, defaultAlicizationPersonaInitiativeBaseline.comfortStyle),
-    jealousyStyle: sanitizeText(initiativeBaseline?.jealousyStyle, defaultAlicizationPersonaInitiativeBaseline.jealousyStyle),
+    silenceReconnect: normalizeUnionValue(
+      initiativeBaseline?.silenceReconnect,
+      defaultAlicizationPersonaInitiativeBaseline.silenceReconnect,
+      ['hold', 'light-probe', 'direct-approach'] as const,
+    ),
+    comfortStyle: normalizeUnionValue(
+      initiativeBaseline?.comfortStyle,
+      defaultAlicizationPersonaInitiativeBaseline.comfortStyle,
+      ['quiet-presence', 'gentle-care', 'take-charge'] as const,
+    ),
+    jealousyStyle: normalizeUnionValue(
+      initiativeBaseline?.jealousyStyle,
+      defaultAlicizationPersonaInitiativeBaseline.jealousyStyle,
+      ['mask-it', 'soft-ache', 'say-it'] as const,
+    ),
   }
 }
 
@@ -227,8 +270,16 @@ function normalizePersonaWorkshop(personaWorkshop: AlicizationPersonaWorkshopSub
     presetTemperament: personaWorkshop.presetTemperament
       ? normalizeTemperament(personaWorkshop.presetTemperament)
       : normalizeTemperament(defaultAlicizationPersonaTemperament),
-    relationshipPosture: sanitizeText(personaWorkshop.relationshipPosture, defaultAlicizationPersonaWorkshopSubmission.relationshipPosture),
-    initiativeStyle: sanitizeText(personaWorkshop.initiativeStyle, defaultAlicizationPersonaWorkshopSubmission.initiativeStyle),
+    relationshipPosture: normalizeUnionValue(
+      personaWorkshop.relationshipPosture,
+      defaultAlicizationPersonaWorkshopSubmission.relationshipPosture,
+      ['companion', 'guardian', 'lover', 'partner', 'observer'] as const,
+    ),
+    initiativeStyle: normalizeUnionValue(
+      personaWorkshop.initiativeStyle,
+      defaultAlicizationPersonaWorkshopSubmission.initiativeStyle,
+      ['observant', 'measured-approach', 'direct-approach', 'high-participation'] as const,
+    ),
     freeDescription: sanitizeMultilineText(personaWorkshop.freeDescription, defaultAlicizationPersonaWorkshopSubmission.freeDescription),
     antiPersonaConstraints: normalizeTextList(personaWorkshop.antiPersonaConstraints ?? defaultAlicizationPersonaWorkshopSubmission.antiPersonaConstraints),
     calibration: {

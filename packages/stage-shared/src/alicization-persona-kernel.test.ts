@@ -28,20 +28,20 @@ describe('alicization-persona-kernel', () => {
             liveliness: 0.24,
             sensibility: 0.58,
           },
-          relationshipPosture: 'nearby',
-          initiativeStyle: 'self-starting',
+          relationshipPosture: 'companion',
+          initiativeStyle: 'direct-approach',
           valueBias: ['protective continuity'],
         },
         expressionProfile: {
-          warmth: 0.77,
-          directness: 0.35,
-          playfulness: 0.26,
-          emotionalVisibility: 0.59,
+          warmth: 'warm',
+          directness: 'measured',
+          playfulness: 'medium',
+          emotionalVisibility: 'steady',
         },
         initiativeBaseline: {
-          silenceReconnect: 'return softly after silence',
-          comfortStyle: 'steady reassurance',
-          jealousyStyle: 'name the seam and repair it',
+          silenceReconnect: 'light-probe',
+          comfortStyle: 'gentle-care',
+          jealousyStyle: 'soft-ache',
         },
         evolutionSeed: {
           fastLayers: ['presence', 'repair'],
@@ -57,7 +57,7 @@ describe('alicization-persona-kernel', () => {
           liveliness: 0.2,
           sensibility: 0.8,
         },
-        relationshipPosture: 'attuned',
+        relationshipPosture: 'guardian',
         initiativeStyle: 'measured-approach',
         freeDescription: 'Stay gentle, bounded, and clear.',
         antiPersonaConstraints: ['no pushy intimacy'],
@@ -79,19 +79,19 @@ describe('alicization-persona-kernel', () => {
       liveliness: 0.24,
       sensibility: 0.58,
     })
-    expect(snapshot.personality.identityKernel?.relationshipPosture).toBe('nearby')
-    expect(snapshot.personality.identityKernel?.initiativeStyle).toBe('self-starting')
+    expect(snapshot.personality.identityKernel?.relationshipPosture).toBe('companion')
+    expect(snapshot.personality.identityKernel?.initiativeStyle).toBe('direct-approach')
     expect(snapshot.personality.identityKernel?.valueBias).toEqual(['protective continuity'])
     expect(snapshot.personality.expressionProfile).toEqual({
-      warmth: 0.77,
-      directness: 0.35,
-      playfulness: 0.26,
-      emotionalVisibility: 0.59,
+      warmth: 'warm',
+      directness: 'measured',
+      playfulness: 'medium',
+      emotionalVisibility: 'steady',
     })
     expect(snapshot.personality.initiativeBaseline).toEqual({
-      silenceReconnect: 'return softly after silence',
-      comfortStyle: 'steady reassurance',
-      jealousyStyle: 'name the seam and repair it',
+      silenceReconnect: 'light-probe',
+      comfortStyle: 'gentle-care',
+      jealousyStyle: 'soft-ache',
     })
     expect(snapshot.personality.evolutionSeed).toEqual({
       fastLayers: ['presence', 'repair'],
@@ -110,7 +110,7 @@ describe('alicization-persona-kernel', () => {
         liveliness: 0.2,
         sensibility: 0.8,
       },
-      relationshipPosture: 'attuned',
+      relationshipPosture: 'guardian',
       initiativeStyle: 'measured-approach',
       freeDescription: 'Stay gentle, bounded, and clear.',
       antiPersonaConstraints: ['no pushy intimacy'],

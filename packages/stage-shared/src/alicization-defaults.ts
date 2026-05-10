@@ -15,16 +15,16 @@ export const defaultAlicizationPersonaIdentityKernel = {
 } as const
 
 export const defaultAlicizationPersonaExpressionProfile = {
-  warmth: 0.5,
-  directness: 0.5,
-  playfulness: 0.5,
-  emotionalVisibility: 0.5,
+  warmth: 'guarded-warm',
+  directness: 'measured',
+  playfulness: 'low',
+  emotionalVisibility: 'selective',
 } as const
 
 export const defaultAlicizationPersonaInitiativeBaseline = {
-  silenceReconnect: '',
-  comfortStyle: '',
-  jealousyStyle: '',
+  silenceReconnect: 'light-probe',
+  comfortStyle: 'gentle-care',
+  jealousyStyle: 'soft-ache',
 } as const
 
 export const defaultAlicizationPersonaEvolutionSeed = {

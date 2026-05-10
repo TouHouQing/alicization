@@ -31,6 +31,15 @@ export type AlicizationPersonaRelationshipPosture = 'companion' | 'guardian' | '
 
 export type AlicizationPersonaInitiativeStyle = 'observant' | 'measured-approach' | 'direct-approach' | 'high-participation'
 
+export type AlicizationPersonaExpressionWarmth = 'cool' | 'guarded-warm' | 'warm' | 'intense'
+export type AlicizationPersonaExpressionDirectness = 'indirect' | 'measured' | 'frank'
+export type AlicizationPersonaExpressionPlayfulness = 'low' | 'medium' | 'high'
+export type AlicizationPersonaExpressionVisibility = 'selective' | 'steady' | 'expressive'
+
+export type AlicizationPersonaSilenceReconnect = 'hold' | 'light-probe' | 'direct-approach'
+export type AlicizationPersonaComfortStyle = 'quiet-presence' | 'gentle-care' | 'take-charge'
+export type AlicizationPersonaJealousyStyle = 'mask-it' | 'soft-ache' | 'say-it'
+
 export interface AlicizationPersonaIdentityKernel {
   temperament?: AlicizationPersonaTemperament | null
   relationshipPosture?: AlicizationPersonaRelationshipPosture | null
@@ -39,16 +48,16 @@ export interface AlicizationPersonaIdentityKernel {
 }
 
 export interface AlicizationPersonaExpressionProfile {
-  warmth?: number | null
-  directness?: number | null
-  playfulness?: number | null
-  emotionalVisibility?: number | null
+  warmth?: AlicizationPersonaExpressionWarmth | null
+  directness?: AlicizationPersonaExpressionDirectness | null
+  playfulness?: AlicizationPersonaExpressionPlayfulness | null
+  emotionalVisibility?: AlicizationPersonaExpressionVisibility | null
 }
 
 export interface AlicizationPersonaInitiativeBaseline {
-  silenceReconnect?: string | null
-  comfortStyle?: string | null
-  jealousyStyle?: string | null
+  silenceReconnect?: AlicizationPersonaSilenceReconnect | null
+  comfortStyle?: AlicizationPersonaComfortStyle | null
+  jealousyStyle?: AlicizationPersonaJealousyStyle | null
 }
 
 export interface AlicizationPersonaEvolutionSeed {
@@ -64,9 +73,9 @@ export interface AlicizationPersonaWorkshopSubmission {
   freeDescription?: string | null
   antiPersonaConstraints?: string[] | null
   calibration?: {
-    silenceReconnect?: 'hold' | 'light-probe' | 'direct-approach' | null
-    jealousyStyle?: 'mask-it' | 'soft-ache' | 'say-it' | null
-    comfortStyle?: 'quiet-presence' | 'gentle-care' | 'take-charge' | null
+    silenceReconnect?: AlicizationPersonaSilenceReconnect | null
+    jealousyStyle?: AlicizationPersonaJealousyStyle | null
+    comfortStyle?: AlicizationPersonaComfortStyle | null
   } | null
   previewCorrections?: string[] | null
 }
