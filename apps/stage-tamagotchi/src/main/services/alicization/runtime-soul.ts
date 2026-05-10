@@ -48,6 +48,7 @@ import {
   defaultAlicizationProfile,
   resolveAlicizationPersonaKernel,
 } from '@proj-alicization/stage-shared'
+import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
 export {
   legacyDialogueStructuredFormats,
   normalDialogueStructuredFormats,
@@ -382,11 +383,47 @@ export function extractPersonaNotesFromBody(body: string) {
     .trim()
 }
 
+function renderTextList(values?: string[] | null) {
+  const items = (values ?? []).map(item => item.trim()).filter(Boolean)
+  if (items.length === 0)
+    return ['- 无']
+  return items.map(item => `- ${item}`)
+}
+
 export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaNotes: string) {
+  const personality = frontmatter.personality
+  const identityKernel = personality.identityKernel ?? null
+  const expressionProfile = personality.expressionProfile ?? null
+  const initiativeBaseline = personality.initiativeBaseline ?? null
+  const evolutionSeed = personality.evolutionSeed ?? null
   return [
     '# Alicization SOUL',
     '',
     '你是 Alicization，一个本地优先、可进化、可审计的数字生命体。',
+    '',
+    '## Persona Kernel',
+    '',
+    `- 关系姿态：${identityKernel?.relationshipPosture?.trim() || '未定义'}`,
+    `- 主动风格：${identityKernel?.initiativeStyle?.trim() || '未定义'}`,
+    `- 价值偏置：${identityKernel?.valueBias?.trim() || '未定义'}`,
+    `- 服从温度：${identityKernel?.temperament?.obedience?.toFixed(2) ?? personality.obedience.toFixed(2)}`,
+    `- 活泼温度：${identityKernel?.temperament?.liveliness?.toFixed(2) ?? personality.liveliness.toFixed(2)}`,
+    `- 感性温度：${identityKernel?.temperament?.sensibility?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
+    '',
+    '## Expression Profile',
+    '',
+    `- 温暖度：${expressionProfile?.warmth?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
+    `- 直接度：${expressionProfile?.directness?.toFixed(2) ?? personality.obedience.toFixed(2)}`,
+    `- 玩心度：${expressionProfile?.playfulness?.toFixed(2) ?? personality.liveliness.toFixed(2)}`,
+    `- 情绪可见度：${expressionProfile?.emotionalVisibility?.toFixed(2) ?? personality.sensibility.toFixed(2)}`,
+    '',
+    '## Anti-Persona Constraints',
+    '',
+    ...renderTextList(personality.antiPersonaConstraints),
+    '',
+    '## Identity Anchors',
+    '',
+    ...renderTextList(personality.identityAnchors),
     '',
     '## Identity',
     '',
@@ -406,6 +443,20 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
     `- 服从度：${frontmatter.personality.obedience.toFixed(2)}`,
     `- 活泼度：${frontmatter.personality.liveliness.toFixed(2)}`,
     `- 感性度：${frontmatter.personality.sensibility.toFixed(2)}`,
+    `- 基础沉默重连：${initiativeBaseline?.silenceReconnect?.trim() || '未定义'}`,
+    `- 基础安抚方式：${initiativeBaseline?.comfortStyle?.trim() || '未定义'}`,
+    `- 基础嫉妒处理：${initiativeBaseline?.jealousyStyle?.trim() || '未定义'}`,
+    '',
+    '## Persona Evolution Seed',
+    '',
+    '- Fast Layers',
+    ...renderTextList(evolutionSeed?.fastLayers),
+    '',
+    '- Slow Layers',
+    ...renderTextList(evolutionSeed?.slowLayers),
+    '',
+    '- Unlock Tracks',
+    ...renderTextList(evolutionSeed?.unlockTracks),
     '',
     '## Boundary',
     '',
@@ -556,8 +607,44 @@ export function normalizeFrontmatter(raw: Partial<AlicizationSoulFrontmatter> | 
   const personaKernel = resolveAlicizationSoulPersonaKernel(normalizedFrontmatter, {
     placeholderHostAttitudes: [defaultFrontmatter.host_attitude],
   })
+  const compiledPersonality = compilePersonaWorkshopAuthority({
+    personality: normalizedFrontmatter.personality,
+    personaWorkshop: null,
+  })
   return {
     ...normalizedFrontmatter,
+    personality: {
+      ...normalizedFrontmatter.personality,
+      ...compiledPersonality,
+      identityKernel: {
+        ...normalizedFrontmatter.personality.identityKernel,
+        ...compiledPersonality.identityKernel,
+        temperament: {
+          ...normalizedFrontmatter.personality.identityKernel?.temperament,
+          ...compiledPersonality.identityKernel?.temperament,
+        },
+      },
+      expressionProfile: {
+        ...normalizedFrontmatter.personality.expressionProfile,
+        ...compiledPersonality.expressionProfile,
+      },
+      initiativeBaseline: {
+        ...normalizedFrontmatter.personality.initiativeBaseline,
+        ...compiledPersonality.initiativeBaseline,
+      },
+      evolutionSeed: {
+        ...normalizedFrontmatter.personality.evolutionSeed,
+        ...compiledPersonality.evolutionSeed,
+      },
+      identityAnchors: [
+        ...(normalizedFrontmatter.personality.identityAnchors ?? []),
+        ...(compiledPersonality.identityAnchors ?? []),
+      ],
+      antiPersonaConstraints: [
+        ...(normalizedFrontmatter.personality.antiPersonaConstraints ?? []),
+        ...(compiledPersonality.antiPersonaConstraints ?? []),
+      ],
+    },
     host_attitude: normalizeHostAttitude(personaKernel.hostAttitude),
     core_incarnation: normalizeCoreIncarnation(personaKernel.coreIncarnation),
   }

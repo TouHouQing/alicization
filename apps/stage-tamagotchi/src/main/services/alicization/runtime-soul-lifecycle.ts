@@ -7,6 +7,8 @@ import type {
   AlicizationSoulSnapshot,
 } from '../../../shared/eventa'
 
+import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
+
 interface AlicizationSoulLifecycleState {
   revision: number
   watching: boolean
@@ -342,6 +344,11 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
       && candidate.frontmatter.core_incarnation !== candidatePersonaKernel?.coreIncarnationSeed,
     )
 
+    const compiledPersonality = compilePersonaWorkshopAuthority({
+      personality: normalizePersonality(input.personality),
+      personaWorkshop: input.personaWorkshop ?? null,
+    })
+
     const nextFrontmatterBase: AlicizationSoulFrontmatter = {
       ...candidate.frontmatter,
       schemaVersion: currentSoulSchemaVersion,
@@ -358,7 +365,7 @@ export function createAlicizationRuntimeSoulLifecycle(options: CreateAlicization
         relationship,
         mindAge: normalizeMindAge(input.mindAge),
       },
-      personality: normalizePersonality(input.personality),
+      personality: compiledPersonality,
       host_attitude: shouldCarryHostAttitude
         ? candidate.frontmatter.host_attitude
         : '',

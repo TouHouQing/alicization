@@ -12,6 +12,8 @@ import type {
   AlicizationSoulUpdatePayload,
 } from '../../../shared/eventa'
 
+import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
+
 import {
   electronAlicizationBootstrap,
   electronAlicizationGetSensorySnapshot,
@@ -160,11 +162,44 @@ export function registerAlicizationSoulStateInvokeHandlers(options: RegisterAlic
         }
 
         const parsed = parseSoul(current.content)
-        const nextPersonality: AlicizationPersonalityState = {
+        const mergedPersonality: AlicizationPersonalityState = {
+          ...parsed.frontmatter.personality,
           obedience: clamp01(parsed.frontmatter.personality.obedience + (updatePayload.deltas.obedience ?? 0)),
           liveliness: clamp01(parsed.frontmatter.personality.liveliness + (updatePayload.deltas.liveliness ?? 0)),
           sensibility: clamp01(parsed.frontmatter.personality.sensibility + (updatePayload.deltas.sensibility ?? 0)),
+          identityKernel: {
+            ...parsed.frontmatter.personality.identityKernel,
+            temperament: {
+              obedience: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.obedience ?? parsed.frontmatter.personality.obedience)
+                + (updatePayload.deltas.obedience ?? 0),
+              ),
+              liveliness: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.liveliness ?? parsed.frontmatter.personality.liveliness)
+                + (updatePayload.deltas.liveliness ?? 0),
+              ),
+              sensibility: clamp01(
+                (parsed.frontmatter.personality.identityKernel?.temperament?.sensibility ?? parsed.frontmatter.personality.sensibility)
+                + (updatePayload.deltas.sensibility ?? 0),
+              ),
+            },
+          },
+          expressionProfile: {
+            ...parsed.frontmatter.personality.expressionProfile,
+          },
+          initiativeBaseline: {
+            ...parsed.frontmatter.personality.initiativeBaseline,
+          },
+          evolutionSeed: {
+            ...parsed.frontmatter.personality.evolutionSeed,
+          },
+          identityAnchors: [...(parsed.frontmatter.personality.identityAnchors ?? [])],
+          antiPersonaConstraints: [...(parsed.frontmatter.personality.antiPersonaConstraints ?? [])],
         }
+        const nextPersonality = compilePersonaWorkshopAuthority({
+          personality: mergedPersonality,
+          personaWorkshop: null,
+        })
         const nextFrontmatter: AlicizationSoulFrontmatter = {
           ...parsed.frontmatter,
           personality: nextPersonality,

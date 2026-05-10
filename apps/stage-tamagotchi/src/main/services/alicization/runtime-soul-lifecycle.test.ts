@@ -3,6 +3,7 @@ import type { AlicizationSoulFrontmatter, AlicizationSoulSnapshot } from '../../
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationRuntimeSoulLifecycle } from './runtime-soul-lifecycle'
+import { compilePersonaWorkshopAuthority } from './persona-workshop-compiler'
 
 function createFrontmatter(): AlicizationSoulFrontmatter {
   return {
@@ -121,6 +122,156 @@ describe('runtime soul lifecycle', () => {
     expect(state.watching).toBe(true)
     expect(watchMock).toHaveBeenCalled()
     expect(emitSoulChanged).toHaveBeenCalled()
+  })
+
+  it('compiles persona workshop input into persisted SOUL authority during genesis', async () => {
+    const files = new Map<string, string>()
+    const emitSoulChanged = vi.fn()
+    const appendAuditLog = vi.fn(async () => {})
+    const state = {
+      revision: 0,
+      watching: false,
+      soulSnapshot: null,
+      queuedWrite: Promise.resolve<AlicizationSoulSnapshot | void>(undefined),
+      soulWatchTimer: undefined,
+      soulWatcher: undefined,
+      muteWatchUntil: 0,
+    }
+
+    const lifecycle = createAlicizationRuntimeSoulLifecycle({
+      state,
+      getPaths: () => ({
+        soulRoot: '/tmp/card',
+        soulPath: '/tmp/card/SOUL.md',
+        legacyPromptProfilePath: '/tmp/card/prompt-profile.json',
+        legacySparkProfilePath: '/tmp/card/spark-profile.json',
+      }),
+      now: () => 30_000,
+      existsSync: path => files.has(path),
+      mkdir: async () => undefined,
+      readFile: async path => files.get(String(path)) ?? '',
+      unlink: async (path) => {
+        files.delete(String(path))
+      },
+      importWatch: async () => ({ watch: vi.fn() as any }),
+      writeSoulContent: async (content) => {
+        files.set('/tmp/card/SOUL.md', content)
+      },
+      parseSoul: raw => ({
+        frontmatter: JSON.parse(raw.split('\n')[1] ?? '{}') as AlicizationSoulFrontmatter,
+        body: raw.split('\n').slice(4).join('\n').trim(),
+      }),
+      hashContent: content => `hash:${content.length}`,
+      withNeedsGenesis: snapshot => ({
+        ...snapshot,
+        needsGenesis: !(snapshot.frontmatter.initialized && snapshot.frontmatter.profile.ownerName),
+      }),
+      defaultFrontmatter: createFrontmatter(),
+      defaultSoulBody: '# soul',
+      toSoulContent: (frontmatter, body) => `---\n${JSON.stringify(frontmatter)}\n---\n${body}`,
+      extractPersonaNotesFromBody: () => '',
+      buildSoulBody: (frontmatter) => {
+        return [
+          '# Alicization SOUL',
+          '',
+          '## Persona Kernel',
+          '',
+          `- 关系姿态：${frontmatter.personality.identityKernel?.relationshipPosture ?? ''}`,
+          '',
+          '## Expression Profile',
+          '',
+          `- 温暖度：${frontmatter.personality.expressionProfile?.warmth ?? 0}`,
+          '',
+          '## Anti-Persona Constraints',
+          '',
+          ...(frontmatter.personality.antiPersonaConstraints ?? []).map((item: string) => `- ${item}`),
+          '',
+          '## Identity Anchors',
+          '',
+          ...(frontmatter.personality.identityAnchors ?? []).map((item: string) => `- ${item}`),
+          '',
+          '## Personality Baseline',
+          '',
+        ].join('\n')
+      },
+      resolveAlicizationSoulPersonaKernel: frontmatter => ({
+        hostAttitude: frontmatter.host_attitude || '礼貌而克制，保持观察',
+        coreIncarnation: frontmatter.core_incarnation || '',
+        hostAttitudeSeed: '礼貌而克制，保持观察',
+        coreIncarnationSeed: '',
+      }),
+      normalizeCustomDirectives: raw => String(raw ?? ''),
+      normalizeHostAttitude: raw => String(raw ?? '').trim() || '礼貌而克制，保持观察',
+      normalizeCoreIncarnation: raw => String(raw ?? '').trim(),
+      normalizeGender: raw => raw === 'female' ? 'female' : 'neutral',
+      normalizeMindAge: value => Number.isFinite(value) ? Math.max(1, Math.floor(Number(value))) : 18,
+      clamp01: value => Math.min(1, Math.max(0, value)),
+      currentSoulSchemaVersion: 2,
+      emitSoulChanged,
+      appendAuditLog,
+    })
+
+    await lifecycle.bootstrap()
+    const initialized = await lifecycle.initializeGenesis({
+      ownerName: '指挥官',
+      hostName: '主人',
+      alicizationName: '小艾',
+      gender: 'female',
+      relationship: '女仆',
+      mindAge: 18,
+      personality: {
+        obedience: 0.62,
+        liveliness: 0.31,
+        sensibility: 0.74,
+      },
+      personaWorkshop: {
+        presetTemperament: {
+          obedience: 0.83,
+          liveliness: 0.21,
+          sensibility: 0.88,
+        },
+        relationshipPosture: '守在身边',
+        initiativeStyle: '先观察再行动',
+        freeDescription: '接住主人的疲惫，回复要短一点。',
+        antiPersonaConstraints: ['no theatrical warmth', 'no forced cheerfulness'],
+        calibration: 'calm and attentive',
+        previewCorrections: ['short openings'],
+      },
+    })
+
+    const compiled = compilePersonaWorkshopAuthority({
+      personality: {
+        obedience: 0.62,
+        liveliness: 0.31,
+        sensibility: 0.74,
+      },
+      personaWorkshop: {
+        presetTemperament: {
+          obedience: 0.83,
+          liveliness: 0.21,
+          sensibility: 0.88,
+        },
+        relationshipPosture: '守在身边',
+        initiativeStyle: '先观察再行动',
+        freeDescription: '接住主人的疲惫，回复要短一点。',
+        antiPersonaConstraints: ['no theatrical warmth', 'no forced cheerfulness'],
+        calibration: 'calm and attentive',
+        previewCorrections: ['short openings'],
+      },
+    })
+
+    const persisted = files.get('/tmp/card/SOUL.md') ?? ''
+    expect(initialized.conflict).toBe(false)
+    expect(initialized.soul.frontmatter.personality.identityKernel).toEqual(compiled.identityKernel)
+    expect(initialized.soul.frontmatter.personality.expressionProfile).toEqual(compiled.expressionProfile)
+    expect(initialized.soul.frontmatter.personality.initiativeBaseline).toEqual(compiled.initiativeBaseline)
+    expect(initialized.soul.frontmatter.personality.identityAnchors).toEqual(compiled.identityAnchors)
+    expect(initialized.soul.frontmatter.personality.antiPersonaConstraints).toEqual(compiled.antiPersonaConstraints)
+    expect(persisted).toContain('## Persona Kernel')
+    expect(persisted).toContain('## Expression Profile')
+    expect(persisted).toContain('## Anti-Persona Constraints')
+    expect(persisted).toContain('## Identity Anchors')
+    expect(persisted).toContain('## Personality Baseline')
   })
 
   it('queues soul mutations through the lifecycle facade instead of mutating runtime.ts directly', async () => {
