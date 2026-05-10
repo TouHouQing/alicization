@@ -45,6 +45,7 @@ import type { AlicizationMindEcologySnapshot } from './mind-ecology'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
+import { createAlicizationContinuityMind } from './continuity-mind'
 import { inferScenarioFromContext } from './proactive-layered-context'
 
 function clamp01(value: number) {
@@ -258,6 +259,63 @@ function resolveAutobiographicalFallbackThought(
   ) || null
 }
 
+function applyContinuityMindOverlay(input: {
+  now: number
+  snapshot: AlicizationPrivateThoughtSnapshot
+  worldModel?: AlicizationWorldModelSnapshot | null
+  relationshipModel?: AlicizationRelationshipModelSnapshot | null
+  mindKernel?: AlicizationMindKernelSnapshot | null
+  selfGovernor?: AlicizationSelfGovernorSnapshot | null
+  latestUserTurnAt?: number | null
+}) {
+  const continuityMindState = createAlicizationContinuityMind().reduce({
+    quietLineMs: Math.max(
+      0,
+      input.worldModel?.continuity.attentionAgeMs
+      ?? input.worldModel?.continuity.sceneAgeMs
+      ?? 0,
+    ),
+    bodyState: input.selfGovernor?.dominantDrive === 'warn'
+      ? 'warning'
+      : input.snapshot.shouldSpeak
+        ? 'speaking'
+        : input.snapshot.stance === 'accompany' || input.mindKernel?.dominantMode === 'accompanying'
+          ? 'accompanying'
+          : input.mindKernel?.dominantMode === 'repairing'
+            ? 'recovering'
+            : input.snapshot.stance === 'observe' || input.snapshot.stance === 'uncertain'
+              ? 'noticing'
+              : 'idle',
+    latestThreadSummary: input.worldModel?.activeThread?.summary ?? null,
+    relationshipPressure: Math.max(0, Math.min(1, Number(
+      (
+        (input.relationshipModel?.receptivity ?? 0)
+        + (input.relationshipModel?.sharedAttentionTrust ?? 0)
+        + (input.relationshipModel?.reciprocityExpectation ?? 0)
+      ) / 3,
+    ) || 0)),
+    latestUserTurnAt: input.latestUserTurnAt ?? null,
+    now: input.now,
+  })
+
+  if (continuityMindState.privateThoughtMode !== 'quiet-companionship')
+    return input.snapshot
+
+  return {
+    ...input.snapshot,
+    stance: 'accompany',
+    thoughtText: continuityMindState.subjectiveNowSummary,
+    shouldSpeak: continuityMindState.shouldForceSpeech,
+    suggestedStyle: 'silent-observe',
+    embodiedPresence: input.snapshot.embodiedPresence === 'none' ? 'attentive' : input.snapshot.embodiedPresence,
+    emotionalTension: continuityMindState.emotionalCarry,
+    rationaleTags: Array.from(new Set([
+      ...input.snapshot.rationaleTags,
+      `continuity-mind:${continuityMindState.privateThoughtMode}`,
+    ])),
+  }
+}
+
 function resolveMotiveFallbackThought(
   motiveEngine?: AlicizationMotiveEngineSnapshot | null,
 ) {
@@ -274,6 +332,7 @@ function buildThoughtFromMind(input: {
   now: number
   emotionalTension: AlicizationPrivateThoughtSnapshot['emotionalTension']
   afterglowActive: boolean
+  latestUserTurnAt?: number | null
   recentTransition: AlicizationVisualTransitionSnapshot | null
   entityWorld?: AlicizationEntityWorldModelSnapshot | null
   livingWorldState?: AlicizationLivingWorldStateSnapshot | null
@@ -813,7 +872,14 @@ function buildThoughtFromMind(input: {
   if (shouldSpeak && suggestedStyle === 'light-nudge' && input.mindEcology?.regulationHabit === 'soften-before-speaking')
     suggestedStyle = 'gentle-care'
 
-  return {
+  return applyContinuityMindOverlay({
+    now: input.now,
+    worldModel: input.worldModel,
+    relationshipModel: input.relationshipModel,
+    mindKernel: input.mindKernel,
+    selfGovernor: input.selfGovernor,
+    latestUserTurnAt: input.latestUserTurnAt ?? null,
+    snapshot: {
     stance,
     confidence: clamp01(
       input.initiative.confidence * 0.68
@@ -853,7 +919,8 @@ function buildThoughtFromMind(input: {
     governorIntentionId: governorIntention?.id ?? null,
     selectedThoughtThreadId: thoughtThread?.id ?? null,
     livingWorldObjectId: livingObject?.id ?? null,
-  } satisfies AlicizationPrivateThoughtSnapshot
+  } satisfies AlicizationPrivateThoughtSnapshot,
+  })
 }
 
 function applyPrivateThoughtCarry(input: {
@@ -966,6 +1033,9 @@ export function buildPrivateThoughtLoop(input: {
     now: input.now,
     recentTransition: input.recentTransition,
   })
+  const latestUserTurnAt = Number.isFinite(input.context.relationship.minutesSinceLastUserTurn)
+    ? input.now - Math.max(0, input.context.relationship.minutesSinceLastUserTurn) * 60_000
+    : null
   if (input.initiative) {
     return applyPrivateThoughtCarry({
       now: input.now,
@@ -975,6 +1045,7 @@ export function buildPrivateThoughtLoop(input: {
       now: input.now,
       emotionalTension,
       afterglowActive,
+      latestUserTurnAt,
       recentTransition: input.recentTransition,
       worldModel: input.worldModel,
       entityWorld: input.entityWorld,
@@ -1493,6 +1564,13 @@ export function buildPrivateThoughtLoop(input: {
     now: input.now,
     afterglowActive,
     previous: input.previousPrivateThought ?? null,
+    snapshot: applyContinuityMindOverlay({
+    now: input.now,
+    worldModel: input.worldModel,
+    relationshipModel: input.relationshipModel,
+    mindKernel: input.mindKernel,
+    selfGovernor: input.selfGovernor,
+    latestUserTurnAt,
     snapshot: {
     stance,
     confidence: clamp01(confidence + (project?.confidence ?? 0) * 0.1 + Math.max(0, reflection?.confidenceShift ?? 0) * 0.08),
@@ -1523,5 +1601,6 @@ export function buildPrivateThoughtLoop(input: {
     selectedThoughtThreadId: thoughtThread?.id ?? null,
     livingWorldObjectId: livingObject?.id ?? null,
     },
+    }),
   })
 }

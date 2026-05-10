@@ -323,9 +323,10 @@ export function buildCurrentConsciousFrame(input: {
   const dialogueEncounter = runtimeSurface?.dialogue.dialogueEncounter ?? input.dialogueEncounter ?? null
   const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
-  const privateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
+  const rawPrivateThought = runtimeSurface?.cognition.privateThought ?? input.privateThought ?? null
   const initiative = runtimeSurface?.agency.initiative ?? input.initiative ?? null
   const desireMemory = runtimeSurface?.memory.desireMemory ?? input.desireMemory ?? null
+  const privateThought = rawPrivateThought
   const personalityContinuityState = runtimeSurface?.memory.personalityContinuityState
     ?? runtimeSurface?.memory.personStateProjection?.personalityContinuityState
     ?? buildAlicizationPersonalityContinuityState({
