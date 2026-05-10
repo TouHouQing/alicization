@@ -42,9 +42,6 @@ import { errorMessageFrom } from '@moeru/std'
 import {
   buildAlicizationBrowserAffectiveResidueMemory,
   buildAlicizationMemoryDecisionTraceRecords,
-  buildDerivedMindStateBundle,
-  deriveAlicizationLearningExecutionProjection,
-  deriveAlicizationRecallLatencyPolicy,
   deriveAlicizationMindParticipationFromSpine,
   buildAlicizationFinanceSurface,
   buildAlicizationNewsSurface,
@@ -63,6 +60,48 @@ import {
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
+import { buildBrowserOrganicMemorySnapshot as buildBrowserOrganicMemorySnapshotProjection } from './alicization-browser-organic-memory'
+import {
+  browserCertaintyFromConsolidation,
+  buildBrowserKnowledgeEvidence,
+  buildBrowserMemoryResolutionLedger,
+  buildBrowserMemoryStageReplay,
+  buildBrowserRecollectionForeground,
+  buildBrowserRecollectionIntent,
+  buildBrowserRecollectionPlan,
+  buildBrowserRecollectionSpeechPlan,
+  buildBrowserSelfEvolution,
+} from './alicization-browser-bridge-memory-resolution'
+import { createAlicizationBrowserBridgePresenceComposition } from './alicization-browser-bridge-presence-composition'
+import {
+  buildBrowserFallbackDigitalLifeSpineDigest,
+  buildBrowserFallbackRuntimeDigest,
+} from './alicization-browser-runtime-digest'
+import { createAlicizationBrowserBridgeStorageComposition } from './alicization-browser-bridge-storage-composition'
+import {
+  readActiveSessionId as readActiveSessionIdFromStorage,
+  readAuditLog,
+  readConversationTurns as readConversationTurnsFromStorage,
+  readEpisodicMemory as readEpisodicMemoryFromStorage,
+  readMemoryArchive as readMemoryArchiveFromStorage,
+  readMemoryFacts as readMemoryFactsFromStorage,
+  readMemoryMeta as readMemoryMetaFromStorage,
+  readMindTurnEvents as readMindTurnEventsFromStorage,
+  readOrganicMemory as readOrganicMemoryFromStorage,
+  readPerformanceManifest as readPerformanceManifestFromStorage,
+  readProactiveLoopState as readProactiveLoopStateFromStorage,
+  readVisualPresenceState as readVisualPresenceStateFromStorage,
+  writeMemoryArchive as writeMemoryArchiveToStorage,
+  writeMemoryFacts as writeMemoryFactsToStorage,
+  writeMemoryMeta as writeMemoryMetaToStorage,
+  writeMindTurnEvents as writeMindTurnEventsToStorage,
+  writeConversationTurns as writeConversationTurnsToStorage,
+  writeEpisodicMemory as writeEpisodicMemoryToStorage,
+  writeOrganicMemory as writeOrganicMemoryToStorage,
+  writePerformanceManifest as writePerformanceManifestToStorage,
+  writeProactiveLoopState as writeProactiveLoopStateToStorage,
+  writeVisualPresenceState as writeVisualPresenceStateToStorage,
+} from './alicization-browser-storage'
 import { storage } from '../database/storage'
 import { SERVER_URL } from '../libs/auth'
 import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
@@ -1455,54 +1494,7 @@ async function writeKillSwitch(cardId: string, state: AlicizationKillSwitchState
   return snapshot
 }
 
-async function readOrganicMemory(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<BrowserOrganicMemoryRecord>(buildOrganicMemoryKey(cardId)) ?? createDefaultOrganicMemoryRecord()
-}
-
-async function writeOrganicMemory(cardId: string, record: BrowserOrganicMemoryRecord) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildOrganicMemoryKey(cardId), record)
-}
-
-async function readEpisodicMemory(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<BrowserEpisodicMemoryRecord>(buildEpisodicEventsKey(cardId)) ?? createDefaultEpisodicMemoryRecord()
-}
-
-async function writeEpisodicMemory(cardId: string, record: BrowserEpisodicMemoryRecord) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildEpisodicEventsKey(cardId), {
-    events: [...record.events]
-      .sort((left, right) => right.occurredAt - left.occurredAt || right.updatedAt - left.updatedAt)
-      .slice(0, 160),
-  } satisfies BrowserEpisodicMemoryRecord)
-}
-
-async function readConversationTurns(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<BrowserConversationTurnRecord[]>(buildConversationTurnsKey(cardId)) ?? []
-}
-
-async function writeConversationTurns(cardId: string, turns: BrowserConversationTurnRecord[]) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildConversationTurnsKey(cardId), turns.slice(-maxConversationTurns))
-}
-
-async function readActiveSessionId(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return sanitizeText(await storage.getItemRaw<string>(buildActiveSessionKey(cardId)) ?? '')
-}
-
-async function readMindTurnEvents(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<BrowserMindTurnEventRecord[]>(buildMindTurnEventsKey(cardId)) ?? []
-}
-
-async function writeMindTurnEvents(cardId: string, events: BrowserMindTurnEventRecord[]) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildMindTurnEventsKey(cardId), events.slice(-(maxConversationTurns * 4)))
-}
+const readActiveSessionId = async (cardId: string) => await readActiveSessionIdFromStorage(cardId)
 
 function createDefaultBrowserProactiveLoopState(): BrowserProactiveLoopState {
   return {
@@ -1528,15 +1520,20 @@ function createDefaultBrowserProactiveLoopState(): BrowserProactiveLoopState {
   }
 }
 
-async function readProactiveLoopState(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<BrowserProactiveLoopState>(buildProactiveLoopStateKey(cardId)) ?? createDefaultBrowserProactiveLoopState()
-}
-
-async function writeProactiveLoopState(cardId: string, state: BrowserProactiveLoopState) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildProactiveLoopStateKey(cardId), state)
-}
+const browserBridgeStorage = createAlicizationBrowserBridgeStorageComposition({
+  maxConversationTurns,
+  now,
+})
+const readOrganicMemory = browserBridgeStorage.readOrganicMemory
+const writeOrganicMemory = browserBridgeStorage.writeOrganicMemory
+const readEpisodicMemory = browserBridgeStorage.readEpisodicMemory
+const writeEpisodicMemory = browserBridgeStorage.writeEpisodicMemory
+const readConversationTurns = browserBridgeStorage.readConversationTurns
+const writeConversationTurns = browserBridgeStorage.writeConversationTurns
+const readMindTurnEvents = browserBridgeStorage.readMindTurnEvents
+const writeMindTurnEvents = browserBridgeStorage.writeMindTurnEvents
+const readProactiveLoopState = browserBridgeStorage.readProactiveLoopState
+const writeProactiveLoopState = browserBridgeStorage.writeProactiveLoopState
 
 function normalizeBrowserProactiveScenario(raw: unknown): BrowserProactiveScenario {
   return raw === 'coding' || raw === 'media' || raw === 'late-night-care' ? raw : 'general'
@@ -2257,327 +2254,6 @@ function buildBrowserMemoryResolutionLedger(input: {
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['memoryResolutionLedger']>
 }
 
-function inferBrowserDigestScenario(snapshot: AlicizationSensoryCacheSnapshot, recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']) {
-  const foregroundTitle = sanitizeText(snapshot.sample.foregroundWindow?.title ?? '', '')
-  const foregroundApp = sanitizeText(snapshot.sample.foregroundWindow?.appName ?? '', '')
-  const basis = `${foregroundTitle} ${foregroundApp} ${recollectionForeground?.summary ?? ''}`.toLowerCase()
-  if (/runtime|cursor|patch|verify|test|diff|code|cli/iu.test(basis))
-    return 'coding' as const
-  if (/music|song|video|media/iu.test(basis))
-    return 'media' as const
-  if (/late|night|sleep|fatigue|rest|熬夜|疲惫/u.test(basis))
-    return 'late-night-care' as const
-  return 'general' as const
-}
-
-function buildBrowserFallbackDigitalLifeSpineDigest(input: {
-  organicMemorySnapshot: AlicizationOrganicMemorySnapshot
-  snapshot: AlicizationSensoryCacheSnapshot
-  sessionContinuity: BrowserSessionContinuitySummary
-  proactiveFeedback: BrowserProactiveFeedbackSummary
-}): AlicizationDigitalLifeSpineDigest {
-  const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
-  const scenario = inferBrowserDigestScenario(input.snapshot, recollection)
-  const watchMode = recollection ? 'symbiotic-vision' as const : 'mnemonic-passive' as const
-  const sessionThreadSummary = input.sessionContinuity.threadSummary
-  const sceneSummary = sanitizeBriefText(
-    recollection?.summary
-    || sessionThreadSummary
-    || input.snapshot.sample.foregroundWindow?.title
-    || input.snapshot.sample.foregroundWindow?.appName
-    || 'browser fallback continuity',
-    180,
-  )
-  const threadTitle = sanitizeBriefText(
-    recollection?.summary
-    || sessionThreadSummary
-    || input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary
-    || input.organicMemorySnapshot.recentEpisodicEvents?.[0]?.threadAnchor
-    || input.snapshot.sample.foregroundWindow?.title
-    || 'browser fallback continuity',
-    180,
-  )
-  const preferredStyle = recollection?.surfaceSummary?.includes('surface=inward') || input.proactiveFeedback.shouldSuppressSpeak
-    ? 'silent-observe'
-    : 'light-nudge'
-  const shouldSpeak = !recollection?.surfaceSummary?.includes('surface=inward')
-    && !input.proactiveFeedback.shouldSuppressSpeak
-  const hostPersonModel = input.organicMemorySnapshot.hostPersonModel ?? null
-  const dominantConstraint = hostPersonModel?.preferredClosenessByContext[0]?.preference
-    ?? hostPersonModel?.sensitivities[0]
-    ?? null
-  const dominantBurden = hostPersonModel?.recurrentBurdens[0] ?? null
-  const dominantRepair = hostPersonModel?.repairTriggers[0] ?? null
-  const learnedTrajectory = sanitizeBriefText(
-    [
-      dominantRepair,
-      dominantConstraint,
-      dominantBurden,
-    ].filter(Boolean).join(' | '),
-    180,
-  ) || null
-
-  return {
-    version: 'digital-life-spine-digest-v1',
-    runtime: {
-      watchMode,
-      sceneScenario: scenario,
-      sceneSummary,
-      activeThreadId: null,
-      activeThreadTitle: threadTitle,
-      dominantMode: recollection ? 'remembering' : 'tracking',
-      dominantDrive: recollection?.mode === 'execution-procedure' ? 'follow-through' : 'understand',
-      answerIntent: recollection?.mode ?? null,
-      preferredPresence: 'attentive',
-      selectedAction: shouldSpeak ? 'speak' : 'wait',
-      updatedAt: now(),
-    },
-    architecture: {
-      operatingMode: recollection ? 'remembering' : 'observing',
-      dominantSystem: recollection ? 'memory' : 'perception',
-      supportingSystems: recollection ? ['perception', 'dialogue'] : ['memory'],
-      governingFocus: sceneSummary,
-      summary: recollection
-        ? `mode=remembering | dominant=memory | focus=${sceneSummary}`
-        : `mode=observing | dominant=perception | focus=${sceneSummary}`,
-    },
-    continuitySignal: {
-      label: 'digital-life-line',
-      summary: sanitizeBriefText(
-        [
-          recollection?.summary ? `recollection=${recollection.summary}` : '',
-          input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
-          input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
-          `watch=${watchMode}`,
-          `scene=${scenario}`,
-        ].filter(Boolean).join(' | '),
-        220,
-      ),
-      signature: `browser-fallback-spine:${hashContent(sceneSummary + (recollection?.summary ?? ''))}`,
-      createdAt: now(),
-      watchMode,
-      sceneScenario: scenario,
-      activeThreadId: null,
-      dominantMode: recollection ? 'remembering' : 'tracking',
-      dominantDrive: recollection?.mode === 'execution-procedure' ? 'follow-through' : 'understand',
-      answerIntent: recollection?.mode ?? null,
-      preferredPresence: 'attentive',
-    },
-    proactive: {
-      selectedAction: shouldSpeak ? 'speak' : 'wait',
-      preferredStyle,
-      confidence: clamp01((recollection?.confidence ?? 0.48) + input.proactiveFeedback.confidenceBias),
-      shouldSpeak,
-      activeThreadId: input.sessionContinuity.sessionId,
-      activeThreadTitle: threadTitle,
-      dominantConcernKind: null,
-      dominantConcernSummary: null,
-      leadingGoalId: null,
-      leadingGoalSummary: null,
-      preferredPresence: 'attentive',
-    },
-    autonomy: null,
-    motive: null,
-    habit: null,
-    outcomeLearning: hostPersonModel || learnedTrajectory
-      ? {
-          reflectionTargetScope: dominantRepair ? 'relationship' : null,
-          reflectionSummary: dominantRepair ? sanitizeBriefText(dominantRepair, 180) : null,
-          reflectionLesson: dominantConstraint ? sanitizeBriefText(dominantConstraint, 220) : null,
-          latestInflection: learnedTrajectory,
-          revisionPressure: input.proactiveFeedback.shouldSuppressSpeak ? 0.46 : 0.22,
-          autobiographicalStability: clamp01(hostPersonModel?.trustLadder.score ?? 0.58),
-          learningReadiness: dominantRepair || dominantConstraint ? 0.52 : 0.28,
-          contradictionPressure: 0.12,
-          dominantTrajectory: learnedTrajectory,
-          activeLearningFocuses: [
-            dominantRepair ? 'relationship-repair-rhythm' : null,
-            dominantConstraint ? 'boundary-aware-warmth' : null,
-            dominantBurden ? 'burden-sensitive-care' : null,
-          ].filter(Boolean) as string[],
-          evolutionMomentum: input.proactiveFeedback.latestOutcome?.outcome === 'positive' ? 0.44 : 0.24,
-          nextLearningAction: dominantRepair ? 'reflect' : dominantConstraint ? 'record' : 'hold',
-          nextLearningReason: dominantRepair
-            ? 'Browser fallback is carrying a learned repair rhythm that should stay visible before warmth widens.'
-            : dominantConstraint
-              ? 'Browser fallback has enough boundary signal to keep recording and respecting the host cadence.'
-              : null,
-          summary: sanitizeBriefText(
-            [
-              dominantRepair ? `repair=${dominantRepair}` : '',
-              dominantConstraint ? `constraint=${dominantConstraint}` : '',
-              dominantBurden ? `burden=${dominantBurden}` : '',
-            ].filter(Boolean).join(' | '),
-            220,
-          ) || null,
-        }
-      : null,
-    embodiment: null,
-    memory: {
-      summary: sanitizeBriefText(
-        [
-          input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
-          recollection?.summary ? `recollection=${recollection.summary}` : '',
-          input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
-          input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary
-            ? `durable=${input.organicMemorySnapshot.memoryConsolidations[0].summary}`
-            : '',
-          threadTitle ? `thread=${threadTitle}` : '',
-        ].filter(Boolean).join(' | '),
-        220,
-      ) || null,
-      recentEpisodeSummary: sanitizeBriefText(
-        input.organicMemorySnapshot.recentEpisodicEvents?.[0]?.whatHappened ?? '',
-        180,
-      ) || null,
-      recentEpisodeCount: input.organicMemorySnapshot.recentEpisodicEvents?.length ?? 0,
-      focusBeliefStatement: null,
-      focusBeliefConfidence: null,
-      leadingGoalSummary: null,
-      dominantConcernSummary: null,
-      reflectionSummary: null,
-      reflectionPressure: null,
-      recallMode: recollection?.mode ?? 'working',
-      recallSeed: sanitizeBriefText(threadTitle, 160) || null,
-      recollectionSummary: recollection?.summary ?? null,
-      recollectionSurfaceSummary: recollection?.surfaceSummary ?? null,
-      recollectionConfidence: recollection?.confidence ?? null,
-      thoughtThreadSummary: threadTitle || null,
-      longHorizonSummary: sanitizeBriefText(
-        input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary ?? '',
-        180,
-      ) || null,
-      rememberedPreferenceSummary: null,
-      rememberedConstraintSummary: null,
-      rememberedPlanSummary: null,
-      longHorizonCueCount: input.organicMemorySnapshot.memoryConsolidations?.length ?? 0,
-    },
-  }
-}
-
-function buildBrowserFallbackRuntimeDigest(input: {
-  organicMemorySnapshot: AlicizationOrganicMemorySnapshot
-  snapshot: AlicizationSensoryCacheSnapshot
-  sessionContinuity: BrowserSessionContinuitySummary
-  proactiveFeedback: BrowserProactiveFeedbackSummary
-}) {
-  const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
-  const internalOnly = recollection?.surfaceSummary?.includes('surface=inward') ?? false
-  const continuityAnchor = input.sessionContinuity.continuityAnchor
-  const memoryReadiness = clamp01(
-    (recollection ? (internalOnly ? 0.36 : 0.5) + recollection.confidence * 0.22 : 0.12)
-    + (continuityAnchor ? 0.08 : 0)
-    + (input.sessionContinuity.recollectionSummary ? 0.06 : 0)
-    + (input.sessionContinuity.executionSummary ? 0.04 : 0),
-  )
-  const dialogueReadiness = clamp01(
-    (recollection && !internalOnly ? 0.22 + recollection.confidence * 0.28 : 0.12)
-    + (continuityAnchor ? 0.08 : 0)
-    + (input.sessionContinuity.latestOrigin === 'user-turn' ? 0.06 : 0)
-    + input.proactiveFeedback.confidenceBias,
-  )
-  const anthropomorphicReadiness = clamp01(
-    (recollection?.mode === 'relationship-history' ? 0.28 : 0.14)
-    + (input.proactiveFeedback.latestOutcome?.outcome === 'positive' ? 0.08 : 0)
-    + (recollection && !internalOnly ? 0.1 : 0),
-  )
-  const perceptionReadiness = clamp01(
-    0.24
-    + (sanitizeText(input.snapshot.sample.foregroundWindow?.title ?? '') ? 0.08 : 0)
-    + (sanitizeText(input.snapshot.sample.foregroundWindow?.appName ?? '') ? 0.04 : 0),
-  )
-  const channels = [
-    {
-      id: 'active-memory',
-      state: memoryReadiness >= 0.72 ? 'hot' as const : memoryReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
-      readiness: memoryReadiness,
-      focus: sanitizeBriefText(input.sessionContinuity.recollectionSummary || input.sessionContinuity.threadSummary || '', 120) || null,
-      summary: sanitizeBriefText([
-        recollection?.summary ? `followup=${recollection.summary}` : '',
-        input.sessionContinuity.threadSummary ? `session=${input.sessionContinuity.threadSummary}` : '',
-      ].filter(Boolean).join(' | '), 220),
-    },
-    {
-      id: 'active-dialogue',
-      state: dialogueReadiness >= 0.72 ? 'hot' as const : dialogueReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
-      readiness: dialogueReadiness,
-      focus: sanitizeBriefText(input.sessionContinuity.threadSummary || input.sessionContinuity.continuityAnchor || '', 120) || null,
-      summary: sanitizeBriefText([
-        input.sessionContinuity.threadSummary ? `followup=${input.sessionContinuity.threadSummary}` : '',
-        recollection?.summary && !internalOnly ? `recollection=${recollection.summary}` : '',
-      ].filter(Boolean).join(' | '), 220),
-    },
-    {
-      id: 'anthropomorphic-mind',
-      state: anthropomorphicReadiness >= 0.72 ? 'hot' as const : anthropomorphicReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
-      readiness: anthropomorphicReadiness,
-      focus: sanitizeBriefText(input.proactiveFeedback.summary || input.sessionContinuity.proactiveSummary || '', 120) || null,
-      summary: sanitizeBriefText([
-        input.proactiveFeedback.summary,
-        input.sessionContinuity.proactiveSummary,
-      ].filter(Boolean).join(' | '), 220),
-    },
-    {
-      id: 'active-perception',
-      state: perceptionReadiness >= 0.72 ? 'hot' as const : perceptionReadiness >= 0.38 ? 'warm' as const : 'idle' as const,
-      readiness: perceptionReadiness,
-      focus: sanitizeBriefText(input.snapshot.sample.foregroundWindow?.title ?? input.snapshot.sample.foregroundWindow?.appName ?? '', 120) || null,
-      summary: sanitizeBriefText([
-        `scene=${sanitizeText(input.snapshot.sample.foregroundWindow?.title ?? input.snapshot.sample.foregroundWindow?.appName ?? '')}`,
-      ].join(' '), 220),
-    },
-  ]
-  const dominantChannel = internalOnly
-    ? 'active-memory'
-    : dialogueReadiness >= memoryReadiness
-      ? 'active-dialogue'
-      : 'active-memory'
-  const shouldProactivelySpeak = !internalOnly
-    && !input.proactiveFeedback.shouldSuppressSpeak
-    && dialogueReadiness >= 0.48
-  const continuityPressure = clamp01(
-    memoryReadiness * 0.54
-    + dialogueReadiness * 0.26
-    + anthropomorphicReadiness * 0.2,
-  )
-  const companionshipPressure = clamp01(
-    anthropomorphicReadiness * 0.58
-    + dialogueReadiness * 0.22
-    + (recollection && !internalOnly ? recollection.confidence * 0.18 : 0),
-  )
-  const summary = sanitizeBriefText([
-    `dominant=${dominantChannel}`,
-    recollection?.summary ? `recollection=${recollection.summary}` : '',
-    input.proactiveFeedback.summary ? input.proactiveFeedback.summary : '',
-    continuityAnchor ? `session=${continuityAnchor}` : '',
-  ].filter(Boolean).join(' | '), 240)
-
-  return normalizeAlicizationRuntimeDigest({
-    version: 'alicization-runtime-digest-v1',
-    dominantChannel,
-    activeLoop: {
-      version: 'alicization-active-loop-v1',
-      phase: internalOnly ? 'integrate' : 'dialogue',
-      dominantChannel,
-      handoffTarget: internalOnly ? 'active-memory' : 'active-dialogue',
-      dialogueReady: dialogueReadiness >= 0.48,
-      controlReady: false,
-      memoryCarry: Boolean(recollection),
-      companionshipReady: anthropomorphicReadiness >= 0.38,
-      observationHeavy: !recollection,
-      initiativeBudget: clamp01(recollection?.confidence ?? 0.42),
-      coherence: clamp01((memoryReadiness + dialogueReadiness) / 2),
-      summary,
-    },
-    shouldProactivelySpeak,
-    shouldProactivelyAct: false,
-    continuityPressure,
-    companionshipPressure,
-    channels,
-    summary,
-  })
-}
-
 function applyBrowserProactiveOutcome(
   state: BrowserProactiveLoopState,
   entry: BrowserPendingProactiveOutcome,
@@ -2672,147 +2348,13 @@ async function buildBrowserOrganicMemorySnapshot(cardId: string): Promise<Aliciz
   const recentEpisodicEvents = [...episodicMemory.events]
     .sort((left, right) => right.occurredAt - left.occurredAt || right.updatedAt - left.updatedAt)
     .slice(0, 8)
-  const hostPersonModel = buildBrowserHostPersonModel(recentEpisodicEvents)
-  const memoryConsolidations = buildBrowserMemoryConsolidations(recentEpisodicEvents)
-  const recollectionForeground = buildBrowserRecollectionForeground({
-    consolidations: memoryConsolidations,
-    hostPersonModel,
-  })
-  const recollectionIntent = buildBrowserRecollectionIntent({
-    consolidations: memoryConsolidations,
-    recollectionForeground,
-  })
-  const recollectionPlan = buildBrowserRecollectionPlan({
-    consolidations: memoryConsolidations,
-    recollectionForeground,
-  })
-  const recollectionSpeechPlan = buildBrowserRecollectionSpeechPlan({
-    recollectionForeground,
-  })
-  const knowledgeEvidence = buildBrowserKnowledgeEvidence({
-    consolidations: memoryConsolidations,
-    recollectionForeground,
-    hostPersonModel,
-  })
-  const selfEvolution = buildBrowserSelfEvolution({
-    hostPersonModel,
-    recollectionForeground,
-    knowledgeEvidence,
-  })
-  const recallLatencyPolicy = deriveAlicizationRecallLatencyPolicy({
-    recallSeed: [
-      recollectionForeground?.summary ?? '',
-      ...memoryConsolidations.slice(0, 3).flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
-    ].filter(Boolean).join(' | '),
-    recollectionIntent,
-    budgetClass: 'realtime-reply',
-    contradictionCount: knowledgeEvidence.contradictionCount,
-    contradictionHeavyFactCount: knowledgeEvidence.contradictionHeavyFactCount,
-    validationCount: knowledgeEvidence.validationCount,
-    stronglyValidatedProcedureCount: knowledgeEvidence.stronglyValidatedProcedureCount,
-    shouldRecall: Boolean(recollectionForeground),
-    finalSurfacePolicy: recollectionSpeechPlan?.surfaceMode ?? null,
-    stableCoreCount: recollectionForeground?.surfaceSummary?.includes('surface=inward') ? 1 : 0,
-    unsafeDetailCount: knowledgeEvidence.contradictionHeavyFactCount,
-  })
-  const memoryStageReplay = buildBrowserMemoryStageReplay({
-    recollectionForeground,
-    recollectionPlan,
-    recollectionSpeechPlan,
-    selfEvolution,
-    recallLatencyPolicy,
-  })
-  const memoryResolutionLedger = buildBrowserMemoryResolutionLedger({
-    recollectionForeground,
-    recollectionPlan,
-    recollectionSpeechPlan,
-  })
-  const learningExecutionState = deriveAlicizationLearningExecutionProjection({
-    selfEvolution,
-    projectionMode: 'browser-local-scheduled',
-  })
-  const affectiveResidue = buildAlicizationBrowserAffectiveResidueMemory({
-    now: now(),
-    hostPersonModel,
-    recollectionForeground,
+  return buildBrowserOrganicMemorySnapshotProjection({
+    now,
+    soul,
+    organicMemory,
     recentEpisodicEvents,
-    selfEvolution,
+    mapFragmentSourceToProvenance: mapBrowserFragmentSourceToProvenance,
   })
-  const derivedMindStateBundle = buildDerivedMindStateBundle({
-    source: 'browser-fallback',
-    producedAt: now(),
-    hostPersonModel,
-    personStateProjection: null,
-    knowledgeEvidence,
-    selfEvolution,
-    affectiveResidue,
-    learningExecutionState,
-    recallLatencyPolicy,
-    recollectionIntent: recollectionIntent as unknown as Record<string, unknown> | null,
-    recollectionPlan,
-    recollectionSpeechPlan,
-    memoryDeliberation: null,
-  })
-  return {
-    hostAttitude: soul.frontmatter.host_attitude,
-    coreIncarnation: soul.frontmatter.core_incarnation,
-    activeThoughts: [...organicMemory.activeThoughts].sort((left, right) => right.updatedAt - left.updatedAt),
-    subconsciousCount: organicMemory.subconsciousFragments.length,
-    recentSubconsciousFragments: [...organicMemory.subconsciousFragments]
-      .sort((left, right) => right.createdAt - left.createdAt)
-      .slice(0, 12)
-      .map(fragment => ({
-        ...fragment,
-        provenance: fragment.provenance ?? mapBrowserFragmentSourceToProvenance(fragment.sourceKind),
-      })),
-    recentEpisodicEvents,
-    hostPersonModel,
-    memoryConsolidations,
-    recollectionIntent,
-    recollectionPlan,
-    recollectionSpeechPlan,
-    recollectionForeground,
-    knowledgeEvidence,
-    selfEvolution,
-    affectiveResidue,
-    recallLatencyPolicy,
-    derivedMindStateBundle,
-    memoryStageReplay,
-    memoryResolutionLedger,
-    learningExecutionState,
-    lastDreamedAt: organicMemory.lastDreamedAt,
-  }
-}
-
-async function syncBrowserFallbackVisualPresenceFromLocalMemory(
-  cardId: string,
-  runtime: BrowserRuntimeKind,
-  previous?: AlicizationVisualPresenceStateSnapshot | null,
-) {
-  const [snapshot, organicMemorySnapshot, proactiveLoopState, turns, activeSessionId] = await Promise.all([
-    buildSensorySnapshot(runtime),
-    buildBrowserOrganicMemorySnapshot(cardId),
-    readProactiveLoopState(cardId),
-    readConversationTurns(cardId),
-    readActiveSessionId(cardId),
-  ])
-  const sessionContinuity = buildBrowserSessionContinuitySummary({
-    turns,
-    activeSessionId,
-    recollectionForeground: organicMemorySnapshot.recollectionForeground ?? null,
-  })
-  const proactiveFeedback = deriveBrowserProactiveFeedbackSummary(proactiveLoopState)
-  const digest = buildBrowserFallbackDigitalLifeSpineDigest({
-    snapshot,
-    organicMemorySnapshot,
-    sessionContinuity,
-    proactiveFeedback,
-  })
-  await persistVisualPresenceState(cardId, buildAlicizationVisualPresenceStateFromSpineDigest({
-    digest,
-    snapshot,
-    previous: previous ?? (await readVisualPresenceState(cardId)),
-  }))
 }
 
 async function enrichBrowserMetaEventWithLocalMemory(input: {
@@ -2823,10 +2365,18 @@ async function enrichBrowserMetaEventWithLocalMemory(input: {
   if (input.event.digitalLifeSpine && input.event.runtimeDigest)
     return input.event
 
+  if (input.event.digitalLifeSpine) {
+    return {
+      ...input.event,
+      digitalLifeSpine: input.event.digitalLifeSpine,
+      runtimeDigest: input.event.runtimeDigest ?? null,
+    } satisfies Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
+  }
+
   const [organicMemorySnapshot, snapshot, proactiveLoopState, turns, activeSessionId] = await Promise.all([
     buildBrowserOrganicMemorySnapshot(input.cardId),
     buildSensorySnapshot(input.runtime),
-    readProactiveLoopState(input.cardId),
+    readProactiveLoopState(input.cardId, now),
     readConversationTurns(input.cardId),
     readActiveSessionId(input.cardId),
   ])
@@ -2837,6 +2387,7 @@ async function enrichBrowserMetaEventWithLocalMemory(input: {
   })
   const proactiveFeedback = deriveBrowserProactiveFeedbackSummary(proactiveLoopState)
   const localDigest = buildBrowserFallbackDigitalLifeSpineDigest({
+    now,
     organicMemorySnapshot,
     snapshot,
     sessionContinuity,
@@ -2857,33 +2408,27 @@ async function enrichBrowserMetaEventWithLocalMemory(input: {
 }
 
 async function readMemoryFacts(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<AlicizationMemoryFact[]>(buildMemoryFactsKey(cardId)) ?? []
+  return await readMemoryFactsFromStorage(cardId)
 }
 
 async function writeMemoryFacts(cardId: string, facts: AlicizationMemoryFact[]) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildMemoryFactsKey(cardId), facts)
+  await writeMemoryFactsToStorage(cardId, facts)
 }
 
 async function readMemoryArchive(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<AlicizationMemoryArchiveRecord[]>(buildMemoryArchiveKey(cardId)) ?? []
+  return await readMemoryArchiveFromStorage(cardId)
 }
 
 async function writeMemoryArchive(cardId: string, archive: AlicizationMemoryArchiveRecord[]) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildMemoryArchiveKey(cardId), archive)
+  await writeMemoryArchiveToStorage(cardId, archive)
 }
 
 async function readMemoryMeta(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<{ lastPrunedAt: number | null }>(buildMemoryMetaKey(cardId)) ?? { lastPrunedAt: null }
+  return await readMemoryMetaFromStorage(cardId)
 }
 
 async function writeMemoryMeta(cardId: string, meta: { lastPrunedAt: number | null }) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildMemoryMetaKey(cardId), meta)
+  await writeMemoryMetaToStorage(cardId, meta)
 }
 
 function mergeArchivedFactsIntoFacts(
@@ -2964,22 +2509,14 @@ async function normalizeBrowserMemoryArchiveIntoFacts(cardId: string) {
 }
 
 async function readPerformanceManifest(cardId: string) {
-  await ensureCardRegistered(cardId)
-  return await storage.getItemRaw<CharacterPerformanceCapabilitiesManifest | null>(buildPerformanceManifestKey(cardId)) ?? null
+  return await readPerformanceManifestFromStorage(cardId)
 }
 
 async function writePerformanceManifest(cardId: string, manifest: CharacterPerformanceCapabilitiesManifest | null) {
-  await ensureCardRegistered(cardId)
-  await storage.setItemRaw(buildPerformanceManifestKey(cardId), manifest)
+  await writePerformanceManifestToStorage(cardId, manifest)
 }
 
-async function readVisualPresenceState(cardId: string) {
-  await ensureCardRegistered(cardId)
-  const state = await storage.getItemRaw<AlicizationVisualPresenceStateSnapshot>(buildVisualPresenceKey(cardId)) ?? null
-  return state
-    ? ensureAlicizationVisualPresenceResidentPerformance(state)
-    : null
-}
+const readVisualPresenceState = browserBridgeStorage.readVisualPresenceState
 
 async function writeVisualPresenceState(cardId: string, state: AlicizationVisualPresenceStateSnapshot) {
   await ensureCardRegistered(cardId)
@@ -2989,80 +2526,38 @@ async function writeVisualPresenceState(cardId: string, state: AlicizationVisual
   )
 }
 
-function buildVisualPresencePulsePayload(state: AlicizationVisualPresenceStateSnapshot): AlicizationPresencePulsePayload | null {
-  const privateThought = state.privateThought
-  const currentScene = state.currentScene
-  if (!privateThought || privateThought.embodiedPresence === 'none' || !currentScene)
-    return null
-
-  return {
-    watchMode: state.watchMode,
-    embodiedPresence: privateThought.embodiedPresence,
-    scenario: currentScene.scenario,
-    stance: privateThought.stance,
-    confidence: privateThought.confidence,
-    reasonTags: [...privateThought.rationaleTags],
-    emotionalTension: privateThought.emotionalTension,
-    expiresAt: privateThought.expiresAt,
-  }
-}
-
-function emitVisualPresenceState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) {
-  const cardId = normalizeCardId(cardIdRaw)
-  if (cardId !== resolveActiveCardId())
-    return
-
-  for (const listener of visualPresenceStateListeners)
-    listener(state)
-}
-
-function emitVisualPresencePulse(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) {
-  const cardId = normalizeCardId(cardIdRaw)
-  if (cardId !== resolveActiveCardId() || !state)
-    return
-
-  const payload = buildVisualPresencePulsePayload(state)
-  if (!payload || payload.expiresAt <= now())
-    return
-
-  for (const listener of visualPresencePulseListeners)
-    listener(payload)
-}
-
-async function persistVisualPresenceState(cardId: string, state: AlicizationVisualPresenceStateSnapshot) {
-  const normalizedState = ensureAlicizationVisualPresenceResidentPerformance(state)
-  await writeVisualPresenceState(cardId, normalizedState)
-  emitVisualPresenceState(cardId, normalizedState)
-  emitVisualPresencePulse(cardId, normalizedState)
-}
-
-async function persistVisualPresencePulseFromStreamMeta(input: {
-  cardId: string
-  runtime: BrowserRuntimeKind
-  event: Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
-}) {
-  const existing = await readVisualPresenceState(input.cardId)
-  const digest = input.event.digitalLifeSpine ?? null
-  if (digest) {
-    const sensory = await buildSensorySnapshot(input.runtime)
-    await persistVisualPresenceState(input.cardId, buildAlicizationVisualPresenceStateFromSpineDigest({
-      digest,
-      snapshot: sensory,
-      previous: existing,
-    }))
-    return
-  }
-
-  await syncBrowserFallbackVisualPresenceFromLocalMemory(input.cardId, input.runtime, existing)
-}
+const browserBridgePresence = createAlicizationBrowserBridgePresenceComposition({
+  now,
+  normalizeCardId,
+  resolveActiveCardId,
+  visualPresencePulseListeners,
+  visualPresenceStateListeners,
+  ensureAlicizationVisualPresenceResidentPerformance,
+  writeVisualPresenceState,
+  readVisualPresenceState,
+  buildBrowserOrganicMemorySnapshot,
+  readProactiveLoopState,
+  readConversationTurns,
+  readActiveSessionId,
+  buildBrowserSessionContinuitySummary,
+  deriveBrowserProactiveFeedbackSummary,
+  buildBrowserFallbackDigitalLifeSpineDigest,
+  buildAlicizationVisualPresenceStateFromSpineDigest,
+  buildSensorySnapshot,
+})
+const buildVisualPresencePulsePayload = browserBridgePresence.buildVisualPresencePulsePayload
+const emitVisualPresenceState = browserBridgePresence.emitVisualPresenceState
+const emitVisualPresencePulse = browserBridgePresence.emitVisualPresencePulse
+const persistVisualPresenceState = browserBridgePresence.persistVisualPresenceState
+const persistVisualPresencePulseFromStreamMeta = browserBridgePresence.persistVisualPresencePulseFromStreamMeta
+const syncBrowserFallbackVisualPresenceFromLocalMemory = browserBridgePresence.syncBrowserFallbackVisualPresenceFromLocalMemory
 
 async function appendAuditLog(cardId: string, payload: AlicizationAuditLogInput) {
-  const current = await storage.getItemRaw<AlicizationAuditLogInput[]>(buildAuditLogKey(cardId)) ?? []
+  const current = await readAuditLog<AlicizationAuditLogInput>(cardId)
   current.push({
     ...payload,
     createdAt: payload.createdAt ?? now(),
   })
-  await ensureCardRegistered(cardId)
   await storage.setItemRaw(buildAuditLogKey(cardId), current.slice(-maxAuditLogEntries))
 }
 

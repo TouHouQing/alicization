@@ -36,6 +36,10 @@ function resolveNow(raw?: number | (() => number)) {
 export function ensureAlicizationVisualPresenceResidentPerformance(
   state: AlicizationVisualPresenceStateSnapshot,
 ): AlicizationVisualPresenceStateSnapshot {
+  // NOTICE: Browser-side visual presence remains a projection/parity cache.
+  // When main-runtime presence authority exists, this helper must only fill
+  // renderer-facing resident performance gaps and must not synthesize a second
+  // continuity or body-authority decision surface.
   return {
     ...state,
     residentPerformance: deriveAlicizationResidentPerformanceSnapshot({

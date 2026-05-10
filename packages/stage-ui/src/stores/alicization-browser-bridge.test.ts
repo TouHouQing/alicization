@@ -357,6 +357,45 @@ describe('browser alicization bridge visual presence listeners', () => {
     vi.unstubAllGlobals()
   })
 
+  it('does not fabricate a browser-local runtimeDigest when main-runtime digitalLifeSpine is already present', async () => {
+    const digest = createDigitalLifeSpineDigest()
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-projection-only-runtime' },
+        digitalLifeSpine: digest,
+      },
+      { type: 'finish' },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    const seenMetaEvents: any[] = []
+    await bridge.streamChat?.({
+      turnId: 'turn-projection-only-runtime',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: async (event) => {
+        if (event.type === 'meta')
+          seenMetaEvents.push(event)
+      },
+    })
+
+    expect(seenMetaEvents).toHaveLength(1)
+    expect(seenMetaEvents[0]?.digitalLifeSpine).toEqual(expect.objectContaining({
+      runtime: expect.objectContaining({
+        watchMode: 'symbiotic-vision',
+        sceneSummary: 'inspect the current diff',
+      }),
+    }))
+    expect(seenMetaEvents[0]?.runtimeDigest ?? null).toBeNull()
+
+    vi.unstubAllGlobals()
+  })
+
   it('escalates visual presence into reflective repair when memory reflection pressure is high', async () => {
     const digest = createDigitalLifeSpineDigest()
     digest.memory = {
@@ -526,77 +565,27 @@ describe('browser alicization bridge visual presence listeners', () => {
 
     const snapshot = await bridge.getOrganicMemorySnapshot?.()
     expect(snapshot?.memoryConsolidations?.some(item => item.kind === 'procedural')).toBe(true)
-    expect(snapshot?.recollectionForeground).toEqual(expect.objectContaining({
-      mode: 'execution-procedure',
-      certainty: expect.stringMatching(/firm|approximate|fragmentary/u),
-    }))
-    expect(snapshot?.recollectionIntent).toEqual(expect.objectContaining({
-      mode: 'execution-procedure',
-    }))
-    expect(snapshot?.recollectionPlan).toEqual(expect.objectContaining({
-      opening: expect.stringContaining('cli patch'),
-    }))
-    expect(snapshot?.recollectionSpeechPlan).toEqual(expect.objectContaining({
-      surfaceMode: 'procedural-carry',
-    }))
-    expect(snapshot?.recollectionForeground?.summary).toContain('cli patch')
-    expect(snapshot?.recollectionForeground?.surfaceSummary).toContain('surface=inward')
-    expect(snapshot?.knowledgeEvidence).toEqual(expect.objectContaining({
-      stronglyValidatedProcedureCount: expect.any(Number),
-      contradictionHeavyFactCount: 1,
-    }))
-    expect(snapshot?.selfEvolution).toEqual(expect.objectContaining({
-      version: 'self-evolution-kernel-v1',
-      nextLearningAction: expect.stringMatching(/record|reflect|internalize/u),
-    }))
-    expect(snapshot?.derivedMindStateBundle).toEqual(expect.objectContaining({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'browser-fallback',
-      knowledgeEvidence: expect.any(Object),
-      selfEvolution: expect.any(Object),
-      affectiveResidue: expect.objectContaining({
-        version: 'affective-residue-memory-v1',
-        relationshipCadence: expect.any(Object),
-      }),
-      learningExecutionState: expect.objectContaining({
-        nextLearningAction: expect.any(String),
-      }),
-      recallLatencyPolicy: expect.objectContaining({
-        version: 'recall-latency-policy-v1',
-        budgetClass: 'realtime-reply',
-      }),
-    }))
-    expect(snapshot?.recallLatencyPolicy).toEqual(expect.objectContaining({
-      version: 'recall-latency-policy-v1',
-      budgetClass: 'realtime-reply',
-      shouldUseHotCache: expect.any(Boolean),
-    }))
+    expect(snapshot?.recollectionForeground ?? null).toBeNull()
+    expect(snapshot?.recollectionIntent ?? null).toBeNull()
+    expect(snapshot?.recollectionPlan ?? null).toBeNull()
+    expect(snapshot?.recollectionSpeechPlan ?? null).toBeNull()
+    expect(snapshot?.knowledgeEvidence ?? null).toBeNull()
+    expect(snapshot?.selfEvolution ?? null).toBeNull()
+    expect(snapshot?.derivedMindStateBundle ?? null).toBeNull()
+    expect(snapshot?.recallLatencyPolicy ?? null).toBeNull()
     expect(snapshot?.affectiveResidue).toEqual(expect.objectContaining({
       version: 'affective-residue-memory-v1',
       relationshipCadence: expect.objectContaining({
         cadenceMode: expect.any(String),
       }),
     }))
-    expect(snapshot?.memoryStageReplay).toEqual(expect.objectContaining({
-      version: 'organic-memory-stage-replay-v1',
-      stages: expect.any(Array),
-    }))
-    expect(snapshot?.memoryStageReplay?.stages.some(stage =>
-      (stage.diagnostics ?? []).some(item => item.includes('recall-action=') || item.includes('recall_action=')),
-    )).toBe(true)
-    expect(snapshot?.memoryResolutionLedger).toEqual(expect.objectContaining({
-      version: 'memory-resolution-ledger-v1',
-      selectedCandidates: expect.any(Array),
-    }))
-    expect(snapshot?.learningExecutionState).toEqual(expect.objectContaining({
-      nextLearningAction: expect.any(String),
-      activeLearningFocuses: expect.any(Array),
-    }))
+    expect(snapshot?.memoryStageReplay ?? null).toBeNull()
+    expect(snapshot?.memoryResolutionLedger ?? null).toBeNull()
+    expect(snapshot?.learningExecutionState ?? null).toBeNull()
 
     const visualPresence = await bridge.getVisualPresenceState?.()
-    expect(visualPresence?.privateThought?.thoughtText).toContain('recollection=')
-    expect(visualPresence?.privateThought?.thoughtText).toContain('cli patch')
-    expect(visualPresence?.privateThought?.rationaleTags).toEqual(expect.arrayContaining([
+    expect(visualPresence?.privateThought?.thoughtText ?? '').not.toContain('recollection=')
+    expect(visualPresence?.privateThought?.rationaleTags ?? []).not.toEqual(expect.arrayContaining([
       'carry:recollection:foreground',
       'dominant:memory',
     ]))
@@ -692,17 +681,14 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
 
     expect(seenMetaEvents).toHaveLength(1)
-    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSummary).toContain('cli patch')
-    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSurfaceSummary).toContain('surface=inward')
-    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning).toEqual(expect.objectContaining({
-      latestInflection: expect.any(String),
-      nextLearningAction: expect.any(String),
-    }))
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSummary ?? null).toBeNull()
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.recollectionSurfaceSummary ?? null).toBeNull()
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning ?? null).toBeNull()
     expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
       version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
+      dominantChannel: expect.any(String),
       continuityPressure: expect.any(Number),
-      summary: expect.stringContaining('recollection='),
+      summary: expect.not.stringContaining('recollection='),
     }))
 
     vi.unstubAllGlobals()
@@ -840,21 +826,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     } as any)
 
     const snapshot = await bridge.getOrganicMemorySnapshot?.()
-    expect(snapshot?.knowledgeEvidence).toEqual(expect.objectContaining({
-      validationCount: expect.any(Number),
-      stronglyValidatedProcedureCount: expect.any(Number),
-    }))
-    expect(snapshot?.selfEvolution).toEqual(expect.objectContaining({
-      nextLearningAction: expect.any(String),
-      activeLearningFocuses: expect.any(Array),
-    }))
-    expect(snapshot?.learningExecutionState).toEqual(expect.objectContaining({
-      nextLearningAction: expect.any(String),
-      activeLearningFocuses: expect.any(Array),
-    }))
-    expect(snapshot?.memoryResolutionLedger).toEqual(expect.objectContaining({
-      finalSurfacePolicy: expect.anything(),
-    }))
+    expect(snapshot?.knowledgeEvidence ?? null).toBeNull()
+    expect(snapshot?.selfEvolution ?? null).toBeNull()
+    expect(snapshot?.learningExecutionState ?? null).toBeNull()
+    expect(snapshot?.memoryResolutionLedger ?? null).toBeNull()
 
     const seenMetaEvents: any[] = []
     await bridge.streamChat?.({
@@ -869,13 +844,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
 
     expect(seenMetaEvents).toHaveLength(1)
-    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning).toEqual(expect.objectContaining({
-      nextLearningAction: expect.any(String),
-      activeLearningFocuses: expect.any(Array),
-    }))
-    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.summary).toContain('recollection=')
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.outcomeLearning ?? null).toBeNull()
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.memory?.summary ?? '').not.toContain('recollection=')
     expect(seenMetaEvents[0]?.runtimeDigest).toEqual(expect.objectContaining({
-      dominantChannel: 'active-memory',
+      dominantChannel: expect.any(String),
       continuityPressure: expect.any(Number),
       companionshipPressure: expect.any(Number),
     }))
