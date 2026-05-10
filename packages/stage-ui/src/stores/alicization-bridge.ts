@@ -79,6 +79,9 @@ import type {
   AlicizationSensoryCaptureLeaseStatus as SharedAlicizationSensoryCaptureLeaseStatus,
   AlicizationSensoryCapturePermission as SharedAlicizationSensoryCapturePermission,
   AlicizationSensoryCaptureSnapshot as SharedAlicizationSensoryCaptureSnapshot,
+  AlicizationGenesisInput as SharedAlicizationGenesisInput,
+  AlicizationGender as SharedAlicizationGender,
+  AlicizationPersonalityState as SharedAlicizationPersonalityState,
   AlicizationSubconsciousFragmentSourceKind as SharedAlicizationSubconsciousFragmentSourceKind,
   AlicizationSystemProbeDegradeReason as SharedAlicizationSystemProbeDegradeReason,
   AlicizationSystemProbeSample as SharedAlicizationSystemProbeSample,
@@ -107,13 +110,8 @@ export interface AlicizationCardScope {
   cardId: string
 }
 
-export interface AlicizationPersonalityState {
-  obedience: number
-  liveliness: number
-  sensibility: number
-}
-
-export type AlicizationGender = 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
+export type AlicizationPersonalityState = SharedAlicizationPersonalityState
+export type AlicizationGender = SharedAlicizationGender
 
 export interface AlicizationSoulFrontmatter {
   schemaVersion: number
@@ -147,19 +145,7 @@ export interface AlicizationSoulSnapshot {
   watching: boolean
 }
 
-export interface AlicizationGenesisInput {
-  ownerName: string
-  hostName: string
-  alicizationName: string
-  gender: AlicizationGender
-  genderCustom?: string
-  relationship: string
-  personaNotes?: string
-  customDirectives?: string
-  mindAge: number
-  personality: AlicizationPersonalityState
-  allowOverwrite?: boolean
-}
+export type AlicizationGenesisInput = SharedAlicizationGenesisInput
 
 export interface AlicizationInitializeGenesisResult {
   soul: AlicizationSoulSnapshot

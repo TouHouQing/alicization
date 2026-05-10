@@ -1,6 +1,48 @@
 export const defaultAlicizationCardName = 'Alicization'
 export const defaultAlicizationStageModelId = 'preset-live2d-1'
 
+export const defaultAlicizationPersonaTemperament = {
+  obedience: 0.5,
+  liveliness: 0.5,
+  sensibility: 0.5,
+} as const
+
+export const defaultAlicizationPersonaIdentityKernel = {
+  temperament: defaultAlicizationPersonaTemperament,
+  relationshipPosture: 'warm',
+  initiativeStyle: 'balanced',
+  valueBias: '',
+} as const
+
+export const defaultAlicizationPersonaExpressionProfile = {
+  warmth: 0.5,
+  directness: 0.5,
+  playfulness: 0.5,
+  emotionalVisibility: 0.5,
+} as const
+
+export const defaultAlicizationPersonaInitiativeBaseline = {
+  silenceReconnect: '',
+  comfortStyle: '',
+  jealousyStyle: '',
+} as const
+
+export const defaultAlicizationPersonaEvolutionSeed = {
+  fastLayers: [] as string[],
+  slowLayers: [] as string[],
+  unlockTracks: [] as string[],
+} as const
+
+export const defaultAlicizationPersonaWorkshopSubmission = {
+  presetTemperament: defaultAlicizationPersonaTemperament,
+  relationshipPosture: 'warm',
+  initiativeStyle: 'balanced',
+  freeDescription: '',
+  antiPersonaConstraints: [] as string[],
+  calibration: '',
+  previewCorrections: [] as string[],
+} as const
+
 export const defaultAlicizationProfile = {
   ownerName: '指挥官',
   hostName: '主人',
@@ -15,6 +57,12 @@ export const defaultAlicizationPersonality = {
   obedience: 0.5,
   liveliness: 0.5,
   sensibility: 0.5,
+  identityKernel: defaultAlicizationPersonaIdentityKernel,
+  expressionProfile: defaultAlicizationPersonaExpressionProfile,
+  initiativeBaseline: defaultAlicizationPersonaInitiativeBaseline,
+  evolutionSeed: defaultAlicizationPersonaEvolutionSeed,
+  identityAnchors: [] as string[],
+  antiPersonaConstraints: [] as string[],
 } as const
 
 export const defaultAlicizationCustomDirectives = [

@@ -1,6 +1,19 @@
+import type {
+  AlicizationPersonaEvolutionSeed,
+  AlicizationPersonaExpressionProfile,
+  AlicizationPersonaIdentityKernel,
+  AlicizationPersonaInitiativeBaseline,
+  AlicizationPersonaTemperament,
+  AlicizationPersonaWorkshopSubmission,
+} from './alicization-transport-contracts'
 import {
   defaultAlicizationPersonality,
   defaultAlicizationProfile,
+  defaultAlicizationPersonaExpressionProfile,
+  defaultAlicizationPersonaEvolutionSeed,
+  defaultAlicizationPersonaIdentityKernel,
+  defaultAlicizationPersonaInitiativeBaseline,
+  defaultAlicizationPersonaTemperament,
 } from './alicization-defaults'
 
 export interface AlicizationPersonaKernelProfile {
@@ -17,11 +30,18 @@ export interface AlicizationPersonaKernelPersonality {
   obedience?: number | null
   liveliness?: number | null
   sensibility?: number | null
+  identityKernel?: AlicizationPersonaIdentityKernel | null
+  expressionProfile?: AlicizationPersonaExpressionProfile | null
+  initiativeBaseline?: AlicizationPersonaInitiativeBaseline | null
+  evolutionSeed?: AlicizationPersonaEvolutionSeed | null
+  identityAnchors?: string[] | null
+  antiPersonaConstraints?: string[] | null
 }
 
 export interface AlicizationPersonaKernelInput {
   profile?: AlicizationPersonaKernelProfile | null
   personality?: AlicizationPersonaKernelPersonality | null
+  personaWorkshop?: AlicizationPersonaWorkshopSubmission | null
   customDirectives?: string | null
   hostAttitude?: string | null
   coreIncarnation?: string | null
@@ -41,6 +61,12 @@ export interface AlicizationPersonaKernelSnapshot {
     obedience: number
     liveliness: number
     sensibility: number
+    identityKernel: AlicizationPersonaIdentityKernel | null
+    expressionProfile: AlicizationPersonaExpressionProfile | null
+    initiativeBaseline: AlicizationPersonaInitiativeBaseline | null
+    evolutionSeed: AlicizationPersonaEvolutionSeed | null
+    identityAnchors: string[]
+    antiPersonaConstraints: string[]
   }
   hostReference: string
   temperamentSummary: string
@@ -67,6 +93,12 @@ function clamp01(value: unknown, fallback: number) {
   if (!Number.isFinite(numeric))
     return fallback
   return Math.min(1, Math.max(0, numeric))
+}
+
+function normalizeTextList(raw: readonly unknown[] | null | undefined) {
+  return (raw ?? [])
+    .map(item => sanitizeText(item))
+    .filter(Boolean)
 }
 
 function normalizeMindAge(value: unknown) {
@@ -144,6 +176,48 @@ export function summarizeAlicizationTemperament(personality: AlicizationPersonaK
   ].join('、')
 }
 
+function normalizeTemperament(temperament: AlicizationPersonaTemperament | null | undefined) {
+  return {
+    obedience: clamp01(temperament?.obedience, defaultAlicizationPersonaTemperament.obedience),
+    liveliness: clamp01(temperament?.liveliness, defaultAlicizationPersonaTemperament.liveliness),
+    sensibility: clamp01(temperament?.sensibility, defaultAlicizationPersonaTemperament.sensibility),
+  }
+}
+
+function normalizeIdentityKernel(identityKernel: AlicizationPersonaIdentityKernel | null | undefined) {
+  return {
+    temperament: normalizeTemperament(identityKernel?.temperament),
+    relationshipPosture: sanitizeText(identityKernel?.relationshipPosture, defaultAlicizationPersonaIdentityKernel.relationshipPosture),
+    initiativeStyle: sanitizeText(identityKernel?.initiativeStyle, defaultAlicizationPersonaIdentityKernel.initiativeStyle),
+    valueBias: sanitizeText(identityKernel?.valueBias, defaultAlicizationPersonaIdentityKernel.valueBias),
+  }
+}
+
+function normalizeExpressionProfile(expressionProfile: AlicizationPersonaExpressionProfile | null | undefined) {
+  return {
+    warmth: clamp01(expressionProfile?.warmth, defaultAlicizationPersonaExpressionProfile.warmth),
+    directness: clamp01(expressionProfile?.directness, defaultAlicizationPersonaExpressionProfile.directness),
+    playfulness: clamp01(expressionProfile?.playfulness, defaultAlicizationPersonaExpressionProfile.playfulness),
+    emotionalVisibility: clamp01(expressionProfile?.emotionalVisibility, defaultAlicizationPersonaExpressionProfile.emotionalVisibility),
+  }
+}
+
+function normalizeInitiativeBaseline(initiativeBaseline: AlicizationPersonaInitiativeBaseline | null | undefined) {
+  return {
+    silenceReconnect: sanitizeText(initiativeBaseline?.silenceReconnect, defaultAlicizationPersonaInitiativeBaseline.silenceReconnect),
+    comfortStyle: sanitizeText(initiativeBaseline?.comfortStyle, defaultAlicizationPersonaInitiativeBaseline.comfortStyle),
+    jealousyStyle: sanitizeText(initiativeBaseline?.jealousyStyle, defaultAlicizationPersonaInitiativeBaseline.jealousyStyle),
+  }
+}
+
+function normalizeEvolutionSeed(evolutionSeed: AlicizationPersonaEvolutionSeed | null | undefined) {
+  return {
+    fastLayers: normalizeTextList(evolutionSeed?.fastLayers ?? defaultAlicizationPersonaEvolutionSeed.fastLayers),
+    slowLayers: normalizeTextList(evolutionSeed?.slowLayers ?? defaultAlicizationPersonaEvolutionSeed.slowLayers),
+    unlockTracks: normalizeTextList(evolutionSeed?.unlockTracks ?? defaultAlicizationPersonaEvolutionSeed.unlockTracks),
+  }
+}
+
 function normalizeProfile(profile: AlicizationPersonaKernelProfile | null | undefined) {
   return {
     ownerName: sanitizeText(profile?.ownerName, defaultAlicizationProfile.ownerName),
@@ -157,10 +231,20 @@ function normalizeProfile(profile: AlicizationPersonaKernelProfile | null | unde
 }
 
 function normalizePersonality(personality: AlicizationPersonaKernelPersonality | null | undefined) {
+  const identityKernel = normalizeIdentityKernel(personality?.identityKernel)
+  const expressionProfile = normalizeExpressionProfile(personality?.expressionProfile)
+  const initiativeBaseline = normalizeInitiativeBaseline(personality?.initiativeBaseline)
+  const evolutionSeed = normalizeEvolutionSeed(personality?.evolutionSeed)
   return {
     obedience: clamp01(personality?.obedience, defaultAlicizationPersonality.obedience),
     liveliness: clamp01(personality?.liveliness, defaultAlicizationPersonality.liveliness),
     sensibility: clamp01(personality?.sensibility, defaultAlicizationPersonality.sensibility),
+    identityKernel,
+    expressionProfile,
+    initiativeBaseline,
+    evolutionSeed,
+    identityAnchors: normalizeTextList(personality?.identityAnchors),
+    antiPersonaConstraints: normalizeTextList(personality?.antiPersonaConstraints),
   }
 }
 

@@ -19,6 +19,89 @@ export type AlicizationKnowledgeValidationStatus
     | 'validated'
     | 'superseded'
 
+export type AlicizationGender = 'female' | 'male' | 'non-binary' | 'neutral' | 'custom'
+
+export interface AlicizationPersonaTemperament {
+  obedience?: number | null
+  liveliness?: number | null
+  sensibility?: number | null
+}
+
+export interface AlicizationPersonaRelationshipPosture {
+  posture?: string | null
+  warmthBias?: number | null
+  closenessBias?: number | null
+}
+
+export interface AlicizationPersonaInitiativeStyle {
+  mode?: string | null
+  directness?: number | null
+  initiativeBias?: number | null
+}
+
+export interface AlicizationPersonaIdentityKernel {
+  temperament?: AlicizationPersonaTemperament | null
+  relationshipPosture?: string | null
+  initiativeStyle?: string | null
+  valueBias?: string | null
+}
+
+export interface AlicizationPersonaExpressionProfile {
+  warmth?: number | null
+  directness?: number | null
+  playfulness?: number | null
+  emotionalVisibility?: number | null
+}
+
+export interface AlicizationPersonaInitiativeBaseline {
+  silenceReconnect?: string | null
+  comfortStyle?: string | null
+  jealousyStyle?: string | null
+}
+
+export interface AlicizationPersonaEvolutionSeed {
+  fastLayers?: string[] | null
+  slowLayers?: string[] | null
+  unlockTracks?: string[] | null
+}
+
+export interface AlicizationPersonaWorkshopSubmission {
+  presetTemperament?: AlicizationPersonaTemperament | null
+  relationshipPosture?: string | null
+  initiativeStyle?: string | null
+  freeDescription?: string | null
+  antiPersonaConstraints?: string[] | null
+  calibration?: string | null
+  previewCorrections?: string[] | null
+}
+
+export interface AlicizationPersonalityState {
+  obedience: number
+  liveliness: number
+  sensibility: number
+  identityKernel?: AlicizationPersonaIdentityKernel | null
+  expressionProfile?: AlicizationPersonaExpressionProfile | null
+  initiativeBaseline?: AlicizationPersonaInitiativeBaseline | null
+  evolutionSeed?: AlicizationPersonaEvolutionSeed | null
+  identityAnchors?: string[] | null
+  antiPersonaConstraints?: string[] | null
+}
+
+export interface AlicizationGenesisInput {
+  ownerName: string
+  hostName: string
+  alicizationName: string
+  gender: AlicizationGender
+  genderCustom?: string
+  relationship: string
+  personaNotes?: string
+  customDirectives?: string
+  mindAge: number
+  personality: AlicizationPersonalityState
+  personaWorkshop?: AlicizationPersonaWorkshopSubmission | null
+  allowOverwrite?: boolean
+}
+
 export type AlicizationMemoryDomain
   = 'procedure'
     | 'relationship'
